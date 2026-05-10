@@ -7,10 +7,7 @@ from ..schemas.account import AccountCreate, AccountUpdate
 
 
 def create(db: Session, data: AccountCreate) -> Account:
-    account = Account(
-        name=data.name,
-        balance=data.balance,
-    )
+    account = Account(**data.model_dump())
     db.add(account)
     db.commit()
     db.refresh(account)
