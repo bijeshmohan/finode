@@ -1,11 +1,13 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
+from dependencies import DBSession
 from schemas.transaction import (
     Type, ExpenseCreate, ExpenseRead, ExpenseUpdate, IncomeCreate, IncomeRead,
     IncomeUpdate, TransferCreate, TransferRead, TransferUpdate
 )
+from repositories.transaction import create, read, read_all, update, delete
 
 
 router = APIRouter(
@@ -13,54 +15,50 @@ router = APIRouter(
     tags=["transactions"]
 )
 
-TRANSACTIONS = []
 
-
-@router.post("/", status_code=201)
-def create_transaction(transaction: ExpenseCreate | IncomeCreate | TransferCreate):
-    tid = uuid4()
-    TRANSACTIONS.append({"tid": tid, **transaction.dict()})
-    return {
-        "message": "transaction created successfully",
-        "transaction": {"tid": tid, **transaction.dict()}
-    }
+@router.post("/", response_model=ExpenseRead | IncomeRead | TransferRead, status_code=201)
+def create_transaction(
+    transaction: ExpenseCreate | IncomeCreate | TransferCreate,
+    db: DBSession,
+):
+    return create(db, transaction)
 
 
 @router.get("/{tid}", response_model=ExpenseRead | IncomeRead | TransferRead, status_code=200)
-def get_transaction(tid: UUID):
-    transaction = next((txn for txn in TRANSACTIONS if txn["tid"] == tid), None)
+def get_transaction(tid: UUID, db: DBSession):
+    transaction = read(db, tid)
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return transaction
 
 
 @router.get("/", response_model=list[ExpenseRead | IncomeRead | TransferRead], status_code=200)
-def get_transactions(type: Type | None = None):
+def get_transactions(db: DBSession, type: Type | None = None):
+    transactions = read_all(db)
     if type == Type.EXPENSE:
-        return [txn for txn in TRANSACTIONS if txn.get("from_account") is not None and txn.get("to_account") is None]
-    elif type == Type.INCOME:
-        return [txn for txn in TRANSACTIONS if txn.get("from_account") is None and txn.get("to_account") is not None]
-    elif type == Type.TRANSFER:
-        return [txn for txn in TRANSACTIONS if txn.get("from_account") is not None and txn.get("to_account") is not None]
-    else:
-        return TRANSACTIONS
+        return [t for t in transactions if t.from_account is not None and t.to_account is None]
+    if type == Type.INCOME:
+        return [t for t in transactions if t.from_account is None and t.to_account is not None]
+    if type == Type.TRANSFER:
+        return [t for t in transactions if t.from_account is not None and t.to_account is not None]
+    return transactions
 
 
 @router.patch("/{tid}", response_model=ExpenseRead | IncomeRead | TransferRead, status_code=200)
-def update_transaction(tid: UUID, update: ExpenseUpdate | IncomeUpdate | TransferUpdate):
-    current = next((txn for txn in TRANSACTIONS if txn["tid"] == tid), None)
-    if not current:
+def update_transaction(
+    tid: UUID,
+    data: ExpenseUpdate | IncomeUpdate | TransferUpdate,
+    db: DBSession,
+):
+    transaction = update(db, tid, data)
+    if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
-    TRANSACTIONS.remove(current)
-    updated = {"tid": tid, **update.dict()}
-    TRANSACTIONS.append(updated)
-    return updated
+    return transaction
 
 
 @router.delete("/{tid}", status_code=204)
-def delete_transaction(tid: UUID):
-    transaction = next((txn for txn in TRANSACTIONS if txn["tid"] == tid), None)
+def delete_transaction(tid: UUID, db: DBSession):
+    transaction = delete(db, tid)
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
-    TRANSACTIONS.remove(transaction)
     return {"message": "transaction deleted successfully"}

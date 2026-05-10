@@ -1,8 +1,10 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
+from dependencies import DBSession
 from schemas.account import AccountCreate, AccountRead, AccountUpdate
+from repositories.account import create, read, read_all, update, delete
 
 
 router = APIRouter(
@@ -10,47 +12,36 @@ router = APIRouter(
     tags=["accounts"]
 )
 
-ACCOUNTS = []
 
-
-@router.post("/", status_code=201)
-def create_account(account: AccountCreate):
-    aid = uuid4()
-    ACCOUNTS.append({"aid": aid, **account.dict()})
-    return {
-        "message": "account created successfully",
-        "account": {"aid": aid, **account.dict()}
-    }
+@router.post("/", response_model=AccountRead, status_code=201)
+def create_account(account: AccountCreate, db: DBSession):
+    return create(db, account)
 
 
 @router.get("/{aid}", response_model=AccountRead, status_code=200)
-def get_account(aid: UUID):
-    account = next((acc for acc in ACCOUNTS if acc["aid"] == aid), None)
+def get_account(aid: UUID, db: DBSession):
+    account = read(db, aid)
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
     return account
 
 
 @router.get("/", response_model=list[AccountRead], status_code=200)
-def get_accounts():
-    return ACCOUNTS
+def get_accounts(db: DBSession):
+    return read_all(db)
 
 
 @router.patch("/{aid}", response_model=AccountRead, status_code=200)
-def update_account(aid: UUID, update: AccountUpdate):
-    current = next((acc for acc in ACCOUNTS if acc["aid"] == aid), None)
-    if not current:
+def update_account(aid: UUID, data: AccountUpdate, db: DBSession):
+    account = update(db, aid, data)
+    if not account:
         raise HTTPException(status_code=404, detail="account not found")
-    ACCOUNTS.remove(current)
-    updated = {"aid": aid, **update.dict()}
-    ACCOUNTS.append(updated)
-    return updated
+    return account
 
 
 @router.delete("/{aid}", status_code=204)
-def delete_account(aid: UUID):
-    account = next((acc for acc in ACCOUNTS if acc["aid"] == aid), None)
+def delete_account(aid: UUID, db: DBSession):
+    account = delete(db, aid)
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
-    ACCOUNTS.remove(account)
     return {"message": "account deleted successfully"}
