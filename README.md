@@ -1,31 +1,52 @@
 # finode
 
-A project created with FastAPI CLI.
+Personal finance API built with FastAPI and SQLModel.
 
-## Quick Start
+## Setup
 
-### Start the development server
-
-```bash
-uv run fastapi dev
-```
-
-Visit http://localhost:8000
-
-### Deploy to FastAPI Cloud
-
-> FastAPI Cloud is currently in private beta. Join the waitlist at https://fastapicloud.com
+Requires Python 3.14+.
 
 ```bash
-uv run fastapi deploy
+uv sync                           # install dependencies
+uv run alembic upgrade head       # create / migrate the database
+uv run fastapi dev                # start the dev server
 ```
 
-## Project Structure
+The server runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/docs`.
 
-- `main.py` - Your FastAPI application
-- `pyproject.toml` - Project dependencies
+## Tests
 
-## Learn More
+```bash
+uv run pytest
+```
 
-- [FastAPI Documentation](https://fastapi.tiangolo.com)
-- [FastAPI Cloud](https://fastapicloud.com)
+## Project layout
+
+```
+app/
+├── main.py            FastAPI app + router registration
+├── config.py          pydantic-settings (env-driven)
+├── dependencies.py    engine, DBSession
+├── models/            SQLModel ORM tables
+├── schemas/           Pydantic request/response shapes
+├── repositories/      plain CRUD functions over a Session
+└── routers/           FastAPI APIRouters
+
+migrations/            Alembic migrations
+tests/                 pytest suite
+```
+
+## Configuration
+
+Environment variables (or a `.env` file at the project root) override defaults:
+
+- `FINODE_DATABASE_URL` — default `sqlite:///./finode.db`
+- `FINODE_DATABASE_ECHO` — default `true`
+
+## Schema changes
+
+```bash
+uv run alembic revision --autogenerate -m "describe the change"
+# review the generated file under migrations/versions/
+uv run alembic upgrade head
+```
