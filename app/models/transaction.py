@@ -10,8 +10,8 @@ class Transaction(SQLModel, table=True):
 
     tid: UUID = Field(default_factory=uuid4, primary_key=True)
     amount: Decimal = Field(decimal_places=2, max_digits=12)
-    from_account: UUID | None = Field(default=None, alias="from", foreign_key="accounts.aid")
-    to_account: UUID | None = Field(default=None, alias="to", foreign_key="accounts.aid")
+    source: UUID | None = Field(default=None, foreign_key="accounts.aid")
+    destination: UUID | None = Field(default=None, foreign_key="accounts.aid")
     category: UUID = Field(foreign_key="categories.cid")
     date: Date = Field(default_factory=Date.today)
     note: str | None = Field(max_length=40)

@@ -3,7 +3,7 @@ from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class Type(Enum):
@@ -13,8 +13,6 @@ class Type(Enum):
 
 
 class TransactionBase(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
     amount: Decimal = Field(decimal_places=2, max_digits=12)
     category: UUID
     date: Date = Field(default_factory=Date.today)
@@ -30,7 +28,7 @@ class TransactionBase(BaseModel):
 
 
 class ExpenseBase(TransactionBase):
-    from_account: UUID = Field(alias="from")
+    source: UUID
 
 
 class ExpenseCreate(ExpenseBase):
@@ -46,7 +44,7 @@ class ExpenseUpdate(ExpenseBase):
 
 
 class IncomeBase(TransactionBase):
-    to_account: UUID = Field(alias="to")
+    destination: UUID
 
 
 class IncomeCreate(IncomeBase):
@@ -62,8 +60,8 @@ class IncomeUpdate(IncomeBase):
 
 
 class TransferBase(TransactionBase):
-    from_account: UUID = Field(alias="from")
-    to_account: UUID = Field(alias="to")
+    source: UUID
+    destination: UUID
 
 
 class TransferCreate(TransferBase):

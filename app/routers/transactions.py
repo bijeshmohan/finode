@@ -36,11 +36,11 @@ def get_transaction(tid: UUID, db: DBSession):
 def get_transactions(db: DBSession, type: Type | None = None):
     transactions = read_all(db)
     if type == Type.EXPENSE:
-        return [t for t in transactions if t.from_account is not None and t.to_account is None]
+        return [t for t in transactions if t.source is not None and t.destination is None]
     if type == Type.INCOME:
-        return [t for t in transactions if t.from_account is None and t.to_account is not None]
+        return [t for t in transactions if t.source is None and t.destination is not None]
     if type == Type.TRANSFER:
-        return [t for t in transactions if t.from_account is not None and t.to_account is not None]
+        return [t for t in transactions if t.source is not None and t.destination is not None]
     return transactions
 
 
