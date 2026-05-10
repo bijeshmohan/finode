@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class AccountBase(BaseModel):
     name: str = Field(max_length=40)
-    details: str | None = Field(max_length=200)
+    details: str | None = Field(default=None, max_length=200)
     balance: Decimal = Field(
         default=Decimal("0.00"),
         decimal_places=2,

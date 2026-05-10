@@ -9,7 +9,7 @@ class Account(SQLModel, table=True):
 
     aid: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(max_length=40)
-    details: str | None = Field(max_length=200)
+    details: str | None = Field(default=None, max_length=200)
     balance: Decimal = Field(
         default=Decimal("0.00"),
         decimal_places=2,

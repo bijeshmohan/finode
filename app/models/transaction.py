@@ -2,6 +2,7 @@ from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 
 
@@ -14,5 +15,12 @@ class Transaction(SQLModel, table=True):
     destination: UUID | None = Field(default=None, foreign_key="accounts.aid")
     category: UUID = Field(foreign_key="categories.cid")
     date: Date = Field(default_factory=Date.today)
-    note: str | None = Field(max_length=40)
-    details: str | None = Field(max_length=200)
+    note: str | None = Field(default=None, max_length=40)
+    details: str | None = Field(default=None, max_length=200)
+
+    @field_validator("amount")
+    @classmethod
+    def amount_must_not_be_zero(cls, v: Decimal) -> Decimal:
+        if v == 0:
+            raise ValueError("amount must not be zero")
+        return v
