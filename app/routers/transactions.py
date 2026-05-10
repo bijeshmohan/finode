@@ -2,12 +2,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
-from dependencies import DBSession
-from schemas.transaction import (
+from ..dependencies import DBSession
+from ..schemas.transaction import (
     Type, ExpenseCreate, ExpenseRead, ExpenseUpdate, IncomeCreate, IncomeRead,
     IncomeUpdate, TransferCreate, TransferRead, TransferUpdate
 )
-from repositories.transaction import create, read, read_all, update, delete
+from ..repositories.transaction import create, read, read_all, update, delete
 
 
 router = APIRouter(

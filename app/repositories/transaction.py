@@ -2,9 +2,9 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from models.transaction import Transaction
-from schemas.transaction import (ExpenseCreate, ExpenseUpdate, IncomeCreate,
-                                 IncomeUpdate, TransferCreate, TransferUpdate)
+from ..models.transaction import Transaction
+from ..schemas.transaction import (ExpenseCreate, ExpenseUpdate, IncomeCreate,
+                                   IncomeUpdate, TransferCreate, TransferUpdate)
 
 
 def create(

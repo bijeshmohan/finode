@@ -2,9 +2,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
-from dependencies import DBSession
-from schemas.account import AccountCreate, AccountRead, AccountUpdate
-from repositories.account import create, read, read_all, update, delete
+from ..dependencies import DBSession
+from ..schemas.account import AccountCreate, AccountRead, AccountUpdate
+from ..repositories.account import create, read, read_all, update, delete
 
 
 router = APIRouter(

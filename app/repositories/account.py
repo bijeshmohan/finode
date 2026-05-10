@@ -2,8 +2,8 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from models.account import Account
-from schemas.account import AccountCreate, AccountUpdate
+from ..models.account import Account
+from ..schemas.account import AccountCreate, AccountUpdate
 
 
 def create(db: Session, data: AccountCreate) -> Account:

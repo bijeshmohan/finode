@@ -2,8 +2,8 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from models.category import Category
-from schemas.category import CategoryCreate, CategoryUpdate
+from ..models.category import Category
+from ..schemas.category import CategoryCreate, CategoryUpdate
 
 
 def create(db: Session, data: CategoryCreate) -> Category:

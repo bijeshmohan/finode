@@ -2,7 +2,7 @@ from uuid import UUID, uuid4
 
 from sqlmodel import SQLModel, Field
 
-from schemas.transaction import Type
+from ..schemas.transaction import Type
 
 
 class Category(SQLModel, table=True):

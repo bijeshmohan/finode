@@ -65,6 +65,7 @@ coverage.xml
 
 # Databases
 *.db
+*.db-journal
 *.sqlite3
 *.sqlite
 

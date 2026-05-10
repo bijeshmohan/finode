@@ -3,8 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlmodel import SQLModel
 
-from dependencies import engine
-from routers import accounts, categories, transactions
+from .dependencies import engine
+from .routers import accounts, categories, transactions
 
 
 @asynccontextmanager
