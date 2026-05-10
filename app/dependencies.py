@@ -3,8 +3,9 @@ from typing import Annotated
 from fastapi import Depends
 from sqlmodel import Session, create_engine
 
-DATABASE = "sqlite:///./finode.db"
-engine = create_engine(DATABASE, echo=True)
+from .config import settings
+
+engine = create_engine(settings.database_url, echo=settings.database_echo)
 
 
 def get_db_session():
