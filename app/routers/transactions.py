@@ -2,11 +2,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
-from ..dependencies import DBSession
+from ..dependencies import TR
 from ..schemas.transaction import (
     Type, TransactionCreate, TransactionRead, TransactionUpdate
 )
-from ..repositories.transaction import create, read, read_all, update, delete
 
 
 router = APIRouter(
@@ -18,22 +17,22 @@ router = APIRouter(
 @router.post("/", response_model=TransactionRead, status_code=201)
 def create_transaction(
     transaction: TransactionCreate,
-    db: DBSession,
+    tr: TR,
 ):
-    return create(db, transaction)
+    return tr.create(transaction)
 
 
 @router.get("/{tid}", response_model=TransactionRead, status_code=200)
-def get_transaction(tid: UUID, db: DBSession):
-    transaction = read(db, tid)
+def get_transaction(tid: UUID, tr: TR):
+    transaction = tr.read(tid)
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return transaction
 
 
 @router.get("/", response_model=list[TransactionRead], status_code=200)
-def get_transactions(db: DBSession, type: Type | None = None):
-    transactions = read_all(db)
+def get_transactions(tr: TR, type: Type | None = None):
+    transactions = tr.list()
     if type == Type.EXPENSE:
         return [t for t in transactions if t.source is not None and t.destination is None]
     if type == Type.INCOME:
@@ -47,17 +46,17 @@ def get_transactions(db: DBSession, type: Type | None = None):
 def update_transaction(
     tid: UUID,
     data: TransactionUpdate,
-    db: DBSession,
+    tr: TR,
 ):
-    transaction = update(db, tid, data)
+    transaction = tr.update(tid, data)
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return transaction
 
 
 @router.delete("/{tid}", status_code=204)
-def delete_transaction(tid: UUID, db: DBSession):
-    transaction = delete(db, tid)
+def delete_transaction(tid: UUID, tr: TR):
+    transaction = tr.delete(tid)
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return {"message": "transaction deleted successfully"}
