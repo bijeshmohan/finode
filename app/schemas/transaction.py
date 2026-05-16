@@ -29,9 +29,9 @@ class TransactionBase(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def either_source_or_destination_must_be_provided(self) -> "TransactionBase":
-        if self.source is None and self.destination is None:
-            raise ValueError("either 'source' or 'destination' must be provided!")
+    def source_and_destination_must_not_be_same(self) -> "TransactionBase":
+        if (self.source is not None and self.destination is not None) and self.source == self.destination:
+            raise ValueError("both 'source' and 'destination' must not be the same!")
         return self
 
 
@@ -64,3 +64,9 @@ class TransactionUpdate(BaseModel):
         if v == 0:
             raise ValueError("amount must not be zero!")
         return v
+    
+    @model_validator(mode="after")
+    def source_and_destination_must_not_be_same(self) -> "TransactionBase":
+        if (self.source is not None and self.destination is not None) and self.source == self.destination:
+            raise ValueError("both 'source' and 'destination' must not be the same!")
+        return self

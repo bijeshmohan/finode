@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AccountBase(BaseModel):
@@ -14,6 +14,12 @@ class AccountBase(BaseModel):
         max_digits=12,
     )
 
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_empty(cls, v: str) -> str:
+        if not v:
+            raise ValueError("name must not be empty!")
+        return v
 
 class AccountCreate(AccountBase):
     ...
@@ -33,3 +39,10 @@ class AccountUpdate(BaseModel):
         decimal_places=2,
         max_digits=12,
     )
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_empty(cls, v: str) -> str:
+        if not v:
+            raise ValueError("name must not be empty!")
+        return v
