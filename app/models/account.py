@@ -1,10 +1,12 @@
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field
+
+from .utils import TimestampMixin
 
 
-class Account(SQLModel, table=True):
+class Account(TimestampMixin, table=True):
     __tablename__ = "accounts"
 
     aid: UUID = Field(default_factory=uuid4, primary_key=True)

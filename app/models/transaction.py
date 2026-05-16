@@ -3,10 +3,12 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from pydantic import field_validator
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field
+
+from .utils import TimestampMixin
 
 
-class Transaction(SQLModel, table=True):
+class Transaction(TimestampMixin, table=True):
     __tablename__ = "transactions"
 
     tid: UUID = Field(default_factory=uuid4, primary_key=True)

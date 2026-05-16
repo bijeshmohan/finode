@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -16,6 +17,8 @@ class CategoryCreate(CategoryBase):
 
 class CategoryRead(CategoryBase):
     cid: UUID
+    created: datetime
+    updated: datetime
 
 
 class CategoryUpdate(BaseModel):

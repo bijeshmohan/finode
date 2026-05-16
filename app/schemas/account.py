@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -20,6 +21,8 @@ class AccountCreate(AccountBase):
 
 class AccountRead(AccountBase):
     aid: UUID
+    created: datetime
+    updated: datetime
 
 
 class AccountUpdate(BaseModel):
