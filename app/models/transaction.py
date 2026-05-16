@@ -2,7 +2,7 @@ from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from sqlmodel import Field
 
 from .utils import TimestampMixin
@@ -26,3 +26,9 @@ class Transaction(TimestampMixin, table=True):
         if v == 0:
             raise ValueError("amount must not be zero")
         return v
+
+    @model_validator(mode="after")
+    def source_and_destination_must_not_be_same(self) -> "Transaction":
+        if (self.source is not None and self.destination is not None) and self.source == self.destination:
+            raise ValueError("both 'source' and 'destination' must not be the same!")
+        return self
