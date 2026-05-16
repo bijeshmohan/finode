@@ -65,6 +65,40 @@ def test_update_account(client: TestClient, account: dict):
     assert data["balance"] == "200.00"
 
 
+def test_update_account_balance_increase_creates_transaction(
+    client: TestClient,
+    account: dict,
+):
+    response = client.patch(
+        f"/accounts/{account['aid']}",
+        json={"balance": "175.00"},
+    )
+    assert response.status_code == 200
+
+    transactions = client.get("/transactions/").json()
+    assert len(transactions) == 1
+    assert transactions[0]["amount"] == "75.00"
+    assert transactions[0]["destination"] == account["aid"]
+    assert transactions[0]["source"] is None
+
+
+def test_update_account_balance_decrease_creates_transaction(
+    client: TestClient,
+    account: dict,
+):
+    response = client.patch(
+        f"/accounts/{account['aid']}",
+        json={"balance": "40.00"},
+    )
+    assert response.status_code == 200
+
+    transactions = client.get("/transactions/").json()
+    assert len(transactions) == 1
+    assert transactions[0]["amount"] == "60.00"
+    assert transactions[0]["source"] == account["aid"]
+    assert transactions[0]["destination"] is None
+
+
 def test_update_account_not_found(client: TestClient):
     response = client.patch(
         f"/accounts/{uuid4()}",
