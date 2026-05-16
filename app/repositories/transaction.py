@@ -3,13 +3,12 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from ..models.transaction import Transaction
-from ..schemas.transaction import (ExpenseCreate, ExpenseUpdate, IncomeCreate,
-                                   IncomeUpdate, TransferCreate, TransferUpdate)
+from ..schemas.transaction import TransactionCreate, TransactionUpdate
 
 
 def create(
     db: Session,
-    data: ExpenseCreate | IncomeCreate | TransferCreate
+    data: TransactionCreate
 ) -> Transaction:
     transaction = Transaction(**data.model_dump())
     db.add(transaction)
@@ -33,7 +32,7 @@ def read_all(db: Session) -> list[Transaction]:
 def update(
     db: Session,
     tid: UUID,
-    data: ExpenseUpdate | IncomeUpdate | TransferUpdate
+    data: TransactionUpdate
 ) -> Transaction | None:
     transaction = db.get(Transaction, tid)
     if not transaction:

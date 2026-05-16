@@ -4,8 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from ..dependencies import DBSession
 from ..schemas.transaction import (
-    Type, ExpenseCreate, ExpenseRead, ExpenseUpdate, IncomeCreate, IncomeRead,
-    IncomeUpdate, TransferCreate, TransferRead, TransferUpdate
+    Type, TransactionCreate, TransactionRead, TransactionUpdate
 )
 from ..repositories.transaction import create, read, read_all, update, delete
 
@@ -16,15 +15,15 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=ExpenseRead | IncomeRead | TransferRead, status_code=201)
+@router.post("/", response_model=TransactionRead, status_code=201)
 def create_transaction(
-    transaction: ExpenseCreate | IncomeCreate | TransferCreate,
+    transaction: TransactionCreate,
     db: DBSession,
 ):
     return create(db, transaction)
 
 
-@router.get("/{tid}", response_model=ExpenseRead | IncomeRead | TransferRead, status_code=200)
+@router.get("/{tid}", response_model=TransactionRead, status_code=200)
 def get_transaction(tid: UUID, db: DBSession):
     transaction = read(db, tid)
     if not transaction:
@@ -32,7 +31,7 @@ def get_transaction(tid: UUID, db: DBSession):
     return transaction
 
 
-@router.get("/", response_model=list[ExpenseRead | IncomeRead | TransferRead], status_code=200)
+@router.get("/", response_model=list[TransactionRead], status_code=200)
 def get_transactions(db: DBSession, type: Type | None = None):
     transactions = read_all(db)
     if type == Type.EXPENSE:
@@ -44,10 +43,10 @@ def get_transactions(db: DBSession, type: Type | None = None):
     return transactions
 
 
-@router.patch("/{tid}", response_model=ExpenseRead | IncomeRead | TransferRead, status_code=200)
+@router.patch("/{tid}", response_model=TransactionRead, status_code=200)
 def update_transaction(
     tid: UUID,
-    data: ExpenseUpdate | IncomeUpdate | TransferUpdate,
+    data: TransactionUpdate,
     db: DBSession,
 ):
     transaction = update(db, tid, data)

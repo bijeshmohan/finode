@@ -18,5 +18,6 @@ class CategoryRead(CategoryBase):
     cid: UUID
 
 
-class CategoryUpdate(CategoryBase):
-    ...
+class CategoryUpdate(BaseModel):
+    type: Type | None = Field(default=None)
+    name: str | None = Field(default=None, max_length=40)

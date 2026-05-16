@@ -22,5 +22,11 @@ class AccountRead(AccountBase):
     aid: UUID
 
 
-class AccountUpdate(AccountBase):
-    ...
+class AccountUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=40)
+    details: str | None = Field(default=None, max_length=200)
+    balance: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=12,
+    )
