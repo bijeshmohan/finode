@@ -42,6 +42,8 @@ Environment variables (or a `.env` file at the project root) override defaults:
 
 - `FINODE_DATABASE_URL` — default `sqlite:///./finode.db`
 - `FINODE_DATABASE_ECHO` — default `true`
+- `FINODE_SUPABASE_URL` — Supabase project URL, used to fetch JWKS for protected API routes
+- `FINODE_SUPABASE_AUDIENCE` — expected JWT audience, default `authenticated`
 
 ## Schema changes
 

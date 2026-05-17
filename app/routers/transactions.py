@@ -1,7 +1,8 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from ..auth import require_authenticated_user
 from ..dependencies import Transactions
 from ..schemas.transaction import (
     Type, TransactionCreate, TransactionRead, TransactionUpdate
@@ -10,7 +11,8 @@ from ..schemas.transaction import (
 
 router = APIRouter(
     prefix="/transactions",
-    tags=["transactions"]
+    tags=["transactions"],
+    dependencies=[Depends(require_authenticated_user)],
 )
 
 
@@ -19,7 +21,10 @@ def create_transaction(
     transaction: TransactionCreate,
     transactions: Transactions,
 ):
-    return transactions.create(transaction)
+    try:
+        return transactions.create(transaction)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/{tid}", response_model=TransactionRead, status_code=200)
@@ -48,7 +53,10 @@ def update_transaction(
     data: TransactionUpdate,
     transactions: Transactions,
 ):
-    transaction = transactions.update(tid, data)
+    try:
+        transaction = transactions.update(tid, data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return transaction
@@ -56,7 +64,10 @@ def update_transaction(
 
 @router.delete("/{tid}", status_code=204)
 def delete_transaction(tid: UUID, transactions: Transactions):
-    transaction = transactions.delete(tid)
+    try:
+        transaction = transactions.delete(tid)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="transaction not found")
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return {"message": "transaction deleted successfully"}

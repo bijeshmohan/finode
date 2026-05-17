@@ -11,6 +11,7 @@ class Account(TimestampMixin, table=True):
     __tablename__ = "accounts"
 
     aid: UUID = Field(default_factory=uuid4, primary_key=True)
+    user: UUID = Field(index=True, foreign_key="auth.users.id")
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
     balance: Decimal = Field(

@@ -6,7 +6,7 @@ from sqlmodel import SQLModel
 from alembic import context
 
 from app.config import settings
-from app.models import account, category, transaction  # noqa: F401  register tables
+from app.models import account, auth, category, transaction  # noqa: F401  register tables
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
@@ -17,11 +17,27 @@ if config.config_file_name is not None:
 target_metadata = SQLModel.metadata
 
 
+def include_name(name, type_, parent_names):
+    if type_ == "schema" and name == "auth":
+        return False
+    if type_ == "table" and parent_names.get("schema_name") == "auth":
+        return False
+    return True
+
+
+def include_object(object_, name, type_, reflected, compare_to):
+    if type_ == "table" and object_.schema == "auth":
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        include_name=include_name,
+        include_object=include_object,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -39,7 +55,10 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_name=include_name,
+            include_object=include_object,
         )
 
         with context.begin_transaction():

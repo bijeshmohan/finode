@@ -7,28 +7,32 @@ from ..schemas.category import CategoryCreate, CategoryUpdate
 
 
 class CategoryRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, uid: UUID):
         self.db = db
+        self.uid = uid
 
     def create(self, data: CategoryCreate) -> Category:
-        category = Category(**data.model_dump())
+        category = Category(**data.model_dump(), user=self.uid)
         self.db.add(category)
         self.db.commit()
         self.db.refresh(category)
         return category
 
     def read(self, cid: UUID) -> Category | None:
-        statement = select(Category).where(Category.cid == cid)
+        statement = select(Category).where(
+            Category.cid == cid,
+            Category.user == self.uid,
+        )
         category = self.db.exec(statement).first()
         return category
 
     def list(self) -> list[Category]:
-        statement = select(Category)
+        statement = select(Category).where(Category.user == self.uid)
         categories = self.db.exec(statement).all()
         return categories
 
     def update(self, cid: UUID, data: CategoryUpdate) -> Category | None:
-        category = self.db.get(Category, cid)
+        category = self.read(cid)
         if not category:
             return None
         for key, value in data.model_dump(exclude_unset=True).items():
@@ -39,7 +43,7 @@ class CategoryRepository:
         return category
 
     def delete(self, cid: UUID) -> Category | None:
-        category = self.db.get(Category, cid)
+        category = self.read(cid)
         if not category:
             return None
         self.db.delete(category)

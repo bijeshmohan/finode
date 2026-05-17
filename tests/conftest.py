@@ -1,12 +1,17 @@
 from collections.abc import Generator
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
+from app.auth import CurrentUser, require_authenticated_user
 from app.dependencies import get_db_session
 from app.main import app
+
+
+TEST_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
 
 
 @pytest.fixture
@@ -16,9 +21,11 @@ def session() -> Generator[Session, None, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
+    with engine.connect() as connection:
+        connection.exec_driver_sql("ATTACH DATABASE ':memory:' AS auth")
+        SQLModel.metadata.create_all(connection)
+        with Session(connection) as session:
+            yield session
 
 
 @pytest.fixture
@@ -26,7 +33,11 @@ def client(session: Session) -> Generator[TestClient, None, None]:
     def get_session_override():
         return session
 
+    def auth_override():
+        return CurrentUser(id=TEST_USER_ID, email="test@example.com", claims={})
+
     app.dependency_overrides[get_db_session] = get_session_override
+    app.dependency_overrides[require_authenticated_user] = auth_override
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

@@ -1,14 +1,16 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from ..auth import require_authenticated_user
 from ..dependencies import Categories
 from ..schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 
 
 router = APIRouter(
     prefix="/categories",
-    tags=["categories"]
+    tags=["categories"],
+    dependencies=[Depends(require_authenticated_user)],
 )
 
 

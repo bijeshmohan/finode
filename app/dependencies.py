@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import Depends
 from sqlmodel import Session, create_engine
 
+from .auth import CurrentUser, require_authenticated_user
 from .config import settings
 from .repositories import AccountRepository, CategoryRepository, TransactionRepository
 from .services import AccountService, CategoryService, TransactionService
@@ -16,16 +17,25 @@ def get_db_session():
         yield session
 
 
-def get_account_repository(db: Session = Depends(get_db_session)) -> AccountRepository:
-    return AccountRepository(db)
+def get_account_repository(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> AccountRepository:
+    return AccountRepository(db, user.id)
 
 
-def get_category_repository(db: Session = Depends(get_db_session)) -> CategoryRepository:
-    return CategoryRepository(db)
+def get_category_repository(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> CategoryRepository:
+    return CategoryRepository(db, user.id)
 
 
-def get_transaction_repository(db: Session = Depends(get_db_session)) -> TransactionRepository:
-    return TransactionRepository(db)
+def get_transaction_repository(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> TransactionRepository:
+    return TransactionRepository(db, user.id)
 
 
 def get_account_service(ar: AccountRepository = Depends(get_account_repository), tr: TransactionRepository = Depends(get_transaction_repository)) -> AccountService:
@@ -36,8 +46,12 @@ def get_category_service(cr: CategoryRepository = Depends(get_category_repositor
     return CategoryService(cr)
 
 
-def get_transaction_service(tr: TransactionRepository = Depends(get_transaction_repository), ar: AccountRepository = Depends(get_account_repository)) -> TransactionService:
-    return TransactionService(tr, ar)
+def get_transaction_service(
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    ar: AccountRepository = Depends(get_account_repository),
+    cr: CategoryRepository = Depends(get_category_repository),
+) -> TransactionService:
+    return TransactionService(tr, ar, cr)
 
 
 DB = Annotated[Session, Depends(get_db_session)]

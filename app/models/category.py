@@ -11,6 +11,7 @@ class Category(TimestampMixin, table=True):
     __tablename__ = "categories"
 
     cid: UUID = Field(default_factory=uuid4, primary_key=True)
+    user: UUID = Field(index=True, foreign_key="auth.users.id")
     type: Type
     name: str = Field(max_length=40)
 

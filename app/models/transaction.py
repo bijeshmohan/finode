@@ -12,6 +12,7 @@ class Transaction(TimestampMixin, table=True):
     __tablename__ = "transactions"
 
     tid: UUID = Field(default_factory=uuid4, primary_key=True)
+    user: UUID = Field(index=True, foreign_key="auth.users.id")
     amount: Decimal = Field(decimal_places=2, max_digits=12)
     source: UUID | None = Field(default=None, foreign_key="accounts.aid")
     destination: UUID | None = Field(default=None, foreign_key="accounts.aid")
