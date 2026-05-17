@@ -237,6 +237,50 @@ def test_update_transaction(
     assert response.json()["amount"] == "15.00"
 
 
+def test_update_transaction_null_date(
+    client: TestClient,
+    account: dict,
+    expense_category: dict,
+):
+    create = client.post(
+        "/transactions/",
+        json={
+            "amount": "10.00",
+            "category": expense_category["cid"],
+            "source": account["aid"],
+        },
+    )
+    tid = create.json()["tid"]
+
+    response = client.patch(
+        f"/transactions/{tid}",
+        json={"date": None},
+    )
+    assert response.status_code == 422
+
+
+def test_update_transaction_null_amount(
+    client: TestClient,
+    account: dict,
+    expense_category: dict,
+):
+    create = client.post(
+        "/transactions/",
+        json={
+            "amount": "10.00",
+            "category": expense_category["cid"],
+            "source": account["aid"],
+        },
+    )
+    tid = create.json()["tid"]
+
+    response = client.patch(
+        f"/transactions/{tid}",
+        json={"amount": None},
+    )
+    assert response.status_code == 422
+
+
 def test_delete_transaction(
     client: TestClient,
     account: dict,
