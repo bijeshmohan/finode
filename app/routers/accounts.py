@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
+from ..models.account import AccountType
 from ..schemas.account import AccountCreate, AccountRead, AccountUpdate
+from ..services.account import AccountInUseError
 
 
 router = APIRouter(
@@ -28,8 +30,8 @@ def get_account(aid: UUID, accounts: Accounts):
 
 
 @router.get("/", response_model=list[AccountRead], status_code=200)
-def get_accounts(accounts: Accounts):
-    return accounts.list()
+def get_accounts(accounts: Accounts, type: AccountType | None = None):
+    return accounts.list(type)
 
 
 @router.patch("/{aid}", response_model=AccountRead, status_code=200)
@@ -47,6 +49,8 @@ def update_account(aid: UUID, data: AccountUpdate, accounts: Accounts):
 def delete_account(aid: UUID, accounts: Accounts):
     try:
         account = accounts.delete(aid)
+    except AccountInUseError:
+        raise HTTPException(status_code=409, detail="account has journal lines")
     except ValueError:
         raise HTTPException(status_code=404, detail="account not found")
     if not account:

@@ -6,12 +6,18 @@ from fastapi.testclient import TestClient
 def test_create_account(client: TestClient):
     response = client.post(
         "/accounts/",
-        json={"name": "checking", "details": "main account", "balance": "100.50"},
+        json={
+            "name": "checking",
+            "details": "main account",
+            "type": "asset",
+            "balance": "100.50",
+        },
     )
     assert response.status_code == 201
     data = response.json()
     assert data["name"] == "checking"
     assert data["details"] == "main account"
+    assert data["type"] == "asset"
     assert data["balance"] == "100.50"
     assert "aid" in data
 
@@ -19,11 +25,31 @@ def test_create_account(client: TestClient):
 def test_create_account_default_balance(client: TestClient):
     response = client.post(
         "/accounts/",
-        json={"name": "wallet", "details": None},
+        json={"name": "wallet", "details": None, "type": "asset"},
     )
     assert response.status_code == 201
     data = response.json()
     assert data["balance"] == "0.00"
+
+
+def test_create_account_opening_balance_creates_journal_entry(client: TestClient):
+    response = client.post(
+        "/accounts/",
+        json={"name": "wallet", "type": "asset", "balance": "75.00"},
+    )
+    assert response.status_code == 201
+    account = response.json()
+
+    entries = client.get("/journal-entries/").json()
+    assert len(entries) == 1
+    assert entries[0]["note"] == "Opening balance"
+    lines = entries[0]["lines"]
+    assert any(
+        line["account"] == account["aid"]
+        and line["side"] == "debit"
+        and line["amount"] == "75.00"
+        for line in lines
+    )
 
 
 def test_get_account(client: TestClient, account: dict):
@@ -48,24 +74,36 @@ def test_list_accounts(client: TestClient, account: dict, other_account: dict):
     assert other_account["aid"] in aids
 
 
+def test_filter_accounts_by_type(
+    client: TestClient,
+    account: dict,
+    expense_account: dict,
+):
+    response = client.get("/accounts/?type=expense")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["aid"] == expense_account["aid"]
+
+
 def test_list_accounts_empty(client: TestClient):
     response = client.get("/accounts/")
     assert response.status_code == 200
     assert response.json() == []
 
 
-def test_update_account(client: TestClient, account: dict):
+def test_update_account_metadata(client: TestClient, account: dict):
     response = client.patch(
         f"/accounts/{account['aid']}",
-        json={"name": "renamed", "details": None, "balance": "200.00"},
+        json={"name": "renamed", "details": None},
     )
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "renamed"
-    assert data["balance"] == "200.00"
+    assert data["balance"] == "0.00"
 
 
-def test_update_account_balance_increase_creates_transaction(
+def test_update_account_balance_creates_journal_entry(
     client: TestClient,
     account: dict,
 ):
@@ -74,29 +112,17 @@ def test_update_account_balance_increase_creates_transaction(
         json={"balance": "175.00"},
     )
     assert response.status_code == 200
+    assert response.json()["balance"] == "175.00"
 
-    transactions = client.get("/transactions/").json()
-    assert len(transactions) == 1
-    assert transactions[0]["amount"] == "75.00"
-    assert transactions[0]["destination"] == account["aid"]
-    assert transactions[0]["source"] is None
-
-
-def test_update_account_balance_decrease_creates_transaction(
-    client: TestClient,
-    account: dict,
-):
-    response = client.patch(
-        f"/accounts/{account['aid']}",
-        json={"balance": "40.00"},
+    entries = client.get("/journal-entries/").json()
+    assert len(entries) == 1
+    assert entries[0]["note"] == "Balance adjustment"
+    assert any(
+        line["account"] == account["aid"]
+        and line["side"] == "debit"
+        and line["amount"] == "175.00"
+        for line in entries[0]["lines"]
     )
-    assert response.status_code == 200
-
-    transactions = client.get("/transactions/").json()
-    assert len(transactions) == 1
-    assert transactions[0]["amount"] == "60.00"
-    assert transactions[0]["source"] == account["aid"]
-    assert transactions[0]["destination"] is None
 
 
 def test_update_account_not_found(client: TestClient):
@@ -113,6 +139,18 @@ def test_delete_account(client: TestClient, account: dict):
 
     follow = client.get(f"/accounts/{account['aid']}")
     assert follow.status_code == 404
+
+
+def test_delete_account_with_journal_lines_conflicts(client: TestClient):
+    create = client.post(
+        "/accounts/",
+        json={"name": "wallet", "type": "asset", "balance": "10.00"},
+    )
+    account = create.json()
+
+    response = client.delete(f"/accounts/{account['aid']}")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "account has journal lines"
 
 
 def test_delete_account_not_found(client: TestClient):

@@ -1,12 +1,11 @@
 from fastapi import FastAPI
 
-from .routers import accounts, categories, transactions
+from .routers import accounts, journal_entries
 
 
 app = FastAPI(title="finode")
 app.include_router(accounts.router)
-app.include_router(categories.router)
-app.include_router(transactions.router)
+app.include_router(journal_entries.router)
 
 
 @app.get("/")

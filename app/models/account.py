@@ -1,10 +1,18 @@
-from decimal import Decimal
+from enum import Enum
 from uuid import UUID, uuid4
 
 from pydantic import field_validator
 from sqlmodel import Field
 
 from .utils import TimestampMixin
+
+
+class AccountType(str, Enum):
+    ASSET = "asset"
+    LIABILITY = "liability"
+    EQUITY = "equity"
+    INCOME = "income"
+    EXPENSE = "expense"
 
 
 class Account(TimestampMixin, table=True):
@@ -14,11 +22,7 @@ class Account(TimestampMixin, table=True):
     user: UUID = Field(index=True, foreign_key="auth.users.id")
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
-    balance: Decimal = Field(
-        default=Decimal("0.00"),
-        decimal_places=2,
-        max_digits=12,
-    )
+    type: AccountType = Field(default=AccountType.ASSET, index=True)
 
     @field_validator("name")
     @classmethod

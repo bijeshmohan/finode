@@ -47,7 +47,7 @@ def client(session: Session) -> Generator[TestClient, None, None]:
 def account(client: TestClient) -> dict:
     response = client.post(
         "/accounts/",
-        json={"name": "checking", "details": None, "balance": "100.00"},
+        json={"name": "checking", "details": None, "type": "asset"},
     )
     assert response.status_code == 201
     return response.json()
@@ -57,37 +57,27 @@ def account(client: TestClient) -> dict:
 def other_account(client: TestClient) -> dict:
     response = client.post(
         "/accounts/",
-        json={"name": "savings", "details": None, "balance": "500.00"},
+        json={"name": "savings", "details": None, "type": "asset"},
     )
     assert response.status_code == 201
     return response.json()
 
 
 @pytest.fixture
-def expense_category(client: TestClient) -> dict:
+def expense_account(client: TestClient) -> dict:
     response = client.post(
-        "/categories/",
-        json={"type": "expense", "name": "groceries"},
+        "/accounts/",
+        json={"type": "expense", "name": "groceries", "details": None},
     )
     assert response.status_code == 201
     return response.json()
 
 
 @pytest.fixture
-def income_category(client: TestClient) -> dict:
+def income_account(client: TestClient) -> dict:
     response = client.post(
-        "/categories/",
-        json={"type": "income", "name": "salary"},
-    )
-    assert response.status_code == 201
-    return response.json()
-
-
-@pytest.fixture
-def transfer_category(client: TestClient) -> dict:
-    response = client.post(
-        "/categories/",
-        json={"type": "transfer", "name": "internal"},
+        "/accounts/",
+        json={"type": "income", "name": "salary", "details": None},
     )
     assert response.status_code == 201
     return response.json()

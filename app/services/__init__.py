@@ -1,10 +1,8 @@
 from .account import AccountService
-from .category import CategoryService
-from .transaction import TransactionService
+from .journal import JournalEntryService
 
 
 __all__ = [
     "AccountService",
-    "CategoryService",
-    "TransactionService"
+    "JournalEntryService",
 ]

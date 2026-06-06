@@ -1,6 +1,8 @@
 # finode
 
-Personal finance API built with FastAPI and SQLModel.
+Personal finance API built with FastAPI and SQLModel. Finode uses a
+double-entry ledger: every category-like concept is an account, and every
+posting is recorded as a balanced journal entry.
 
 ## Setup
 
@@ -29,7 +31,7 @@ app/
 ├── dependencies.py    engine, DBSession
 ├── models/            SQLModel ORM tables
 ├── schemas/           Pydantic request/response shapes
-├── repositories/      plain CRUD functions over a Session
+├── repositories/      tenant-scoped persistence over a Session
 └── routers/           FastAPI APIRouters
 
 migrations/            Alembic migrations
@@ -52,3 +54,14 @@ uv run alembic revision --autogenerate -m "describe the change"
 # review the generated file under migrations/versions/
 uv run alembic upgrade head
 ```
+
+## Accounting model
+
+- Accounts have one of five types: `asset`, `liability`, `equity`, `income`,
+  or `expense`.
+- Account balances are derived from journal lines. They are not stored as an
+  authoritative mutable column.
+- Journal entries live at `/journal-entries/` and must contain at least two
+  lines with total debits equal to total credits.
+- Opening and direct balance adjustments are posted against a system equity
+  account named `Opening Balances`.

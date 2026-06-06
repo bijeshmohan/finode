@@ -80,34 +80,50 @@ def test_users_can_only_access_their_own_data(session: Session):
             authenticate_as(USER_A_ID)
             account = client.post(
                 "/accounts/",
-                json={"name": "checking", "details": None, "balance": "100.00"},
+                json={"name": "checking", "details": None, "type": "asset"},
             ).json()
-            category = client.post(
-                "/categories/",
+            expense_account = client.post(
+                "/accounts/",
                 json={"type": "expense", "name": "groceries"},
             ).json()
-            transaction = client.post(
-                "/transactions/",
+            journal_entry = client.post(
+                "/journal-entries/",
                 json={
-                    "amount": "10.00",
-                    "category": category["cid"],
-                    "source": account["aid"],
+                    "lines": [
+                        {
+                            "account": expense_account["aid"],
+                            "side": "debit",
+                            "amount": "10.00",
+                        },
+                        {
+                            "account": account["aid"],
+                            "side": "credit",
+                            "amount": "10.00",
+                        },
+                    ],
                 },
             ).json()
 
             authenticate_as(USER_B_ID)
             assert client.get("/accounts/").json() == []
-            assert client.get("/categories/").json() == []
-            assert client.get("/transactions/").json() == []
+            assert client.get("/journal-entries/").json() == []
             assert client.get(f"/accounts/{account['aid']}").status_code == 404
-            assert client.get(f"/categories/{category['cid']}").status_code == 404
-            assert client.get(f"/transactions/{transaction['tid']}").status_code == 404
+            assert client.get(f"/journal-entries/{journal_entry['jid']}").status_code == 404
             response = client.post(
-                "/transactions/",
+                "/journal-entries/",
                 json={
-                    "amount": "5.00",
-                    "category": category["cid"],
-                    "source": account["aid"],
+                    "lines": [
+                        {
+                            "account": expense_account["aid"],
+                            "side": "debit",
+                            "amount": "5.00",
+                        },
+                        {
+                            "account": account["aid"],
+                            "side": "credit",
+                            "amount": "5.00",
+                        },
+                    ],
                 },
             )
             assert response.status_code == 404

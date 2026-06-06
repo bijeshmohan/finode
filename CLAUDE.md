@@ -15,12 +15,14 @@ Python 3.14+ is required (see `pyproject.toml`). No linter or formatter is confi
 
 ## Architecture
 
-All application code lives under `app/`. Five parallel packages, one file per domain entity (`account`, `category`, `transaction`):
+All application code lives under `app/`. The core domain is a double-entry
+ledger with accounts and journal entries:
 
 - `app/models/` — SQLModel ORM tables (`table=True`). Source of truth for the schema is the model + Alembic migrations together.
 - `app/schemas/` — Pydantic request/response models. Each entity exposes `*Base`, `*Create`, `*Read`, `*Update`.
-- `app/repositories/` — plain functions (`create`, `read`, `read_all`, `update`, `delete`) that take a `Session` and return ORM instances or `None`. No classes, no DI inside.
-- `app/services/` — business logic and cross-entity orchestration (e.g. operations spanning multiple repositories or invariants beyond a single entity). Currently empty; add a file per use case as logic emerges. Routers should call services for anything beyond pure CRUD.
+- `app/repositories/` — tenant-scoped persistence classes over a `Session`.
+- `app/services/` — business logic and cross-entity orchestration. Journal
+  balancing and account balance derivation live here.
 - `app/routers/` — FastAPI `APIRouter`s. Convert `None` from repositories/services into `HTTPException(404)`. Routers never touch the DB directly — always go through a repository or service.
 
 `app/main.py` wires the routers. Schema is managed by Alembic — `app/main.py` does *not* run `SQLModel.metadata.create_all` at startup. Run `uv run alembic upgrade head` to bring the DB to the latest schema. The dev DB is `finode.db` (SQLite, gitignored).
@@ -33,12 +35,18 @@ All imports within `app/` use relative imports (e.g. `from ..models.account impo
 
 Tests live in `tests/`. `tests/conftest.py` builds a fresh in-memory SQLite engine per test and overrides `get_db_session`, so tests are independent of `finode.db` and of Alembic.
 
-### Transactions are polymorphic over one table
+### Double-entry ledger
 
-`app/models/transaction.py` is a single table with nullable `source` and `destination` (both FK to `accounts.aid`). The transaction *type* is implicit:
+`app/models/account.py` defines accounts with one of five types: `asset`,
+`liability`, `equity`, `income`, or `expense`. Categories are not a separate
+table; former category concepts are represented as income or expense accounts.
 
-- Expense → `source` set, `destination` null
-- Income → `source` null, `destination` set
-- Transfer → both set
+`app/models/journal.py` defines `JournalEntry` and `JournalLine`. A journal
+entry contains at least two lines, every line has a positive amount, and total
+debits must equal total credits. The service layer validates those invariants
+and verifies that all referenced accounts belong to the authenticated user.
 
-`app/schemas/transaction.py` defines three schema families (`Expense*`, `Income*`, `Transfer*`) inheriting from `TransactionBase`. Routes accept and return the union (`ExpenseCreate | IncomeCreate | TransferCreate`, etc.); FastAPI discriminates by which fields are present. The `GET /transactions/?type=...` endpoint filters in Python by inspecting `source`/`destination` nullability — there is no `type` column on the model.
+Account balances are derived from journal lines. Assets and expenses increase
+with debits; liabilities, equity, and income increase with credits. Opening
+balances and direct balance edits are posted against the system equity account
+named `Opening Balances`.

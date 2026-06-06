@@ -1,10 +1,8 @@
 from .account import AccountRepository
-from .category import CategoryRepository
-from .transaction import TransactionRepository
+from .journal import JournalEntryRepository
 
 
 __all__ = [
     "AccountRepository",
-    "CategoryRepository",
-    "TransactionRepository",
+    "JournalEntryRepository",
 ]

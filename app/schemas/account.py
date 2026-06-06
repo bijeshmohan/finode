@@ -4,15 +4,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from ..models.account import AccountType
+
 
 class AccountBase(BaseModel):
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
-    balance: Decimal = Field(
-        default=Decimal("0.00"),
-        decimal_places=2,
-        max_digits=12,
-    )
+    type: AccountType = AccountType.ASSET
 
     @field_validator("name")
     @classmethod
@@ -21,12 +19,17 @@ class AccountBase(BaseModel):
             raise ValueError("name must not be empty!")
         return v
 
-class AccountCreate(AccountBase):
-    ...
 
+class AccountCreate(AccountBase):
+    balance: Decimal = Field(
+        default=Decimal("0.00"),
+        decimal_places=2,
+        max_digits=12,
+    )
 
 class AccountRead(AccountBase):
     aid: UUID
+    balance: Decimal = Field(decimal_places=2, max_digits=12)
     created: datetime
     updated: datetime
 
@@ -34,6 +37,7 @@ class AccountRead(AccountBase):
 class AccountUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=40)
     details: str | None = Field(default=None, max_length=200)
+    type: AccountType | None = Field(default=None)
     balance: Decimal | None = Field(
         default=None,
         decimal_places=2,
@@ -42,7 +46,9 @@ class AccountUpdate(BaseModel):
 
     @field_validator("name")
     @classmethod
-    def name_must_not_be_empty(cls, v: str) -> str:
+    def name_must_not_be_empty(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
         if not v:
             raise ValueError("name must not be empty!")
         return v

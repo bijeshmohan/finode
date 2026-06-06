@@ -5,8 +5,8 @@ from sqlmodel import Session, create_engine
 
 from .auth import CurrentUser, require_authenticated_user
 from .config import settings
-from .repositories import AccountRepository, CategoryRepository, TransactionRepository
-from .services import AccountService, CategoryService, TransactionService
+from .repositories import AccountRepository, JournalEntryRepository
+from .services import AccountService, JournalEntryService
 
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
@@ -24,40 +24,29 @@ def get_account_repository(
     return AccountRepository(db, user.id)
 
 
-def get_category_repository(
+def get_journal_entry_repository(
     db: Session = Depends(get_db_session),
     user: CurrentUser = Depends(require_authenticated_user),
-) -> CategoryRepository:
-    return CategoryRepository(db, user.id)
+) -> JournalEntryRepository:
+    return JournalEntryRepository(db, user.id)
 
 
-def get_transaction_repository(
-    db: Session = Depends(get_db_session),
-    user: CurrentUser = Depends(require_authenticated_user),
-) -> TransactionRepository:
-    return TransactionRepository(db, user.id)
-
-
-def get_account_service(ar: AccountRepository = Depends(get_account_repository), tr: TransactionRepository = Depends(get_transaction_repository)) -> AccountService:
-    return AccountService(ar, tr)
-
-
-def get_category_service(cr: CategoryRepository = Depends(get_category_repository)) -> CategoryService:
-    return CategoryService(cr)
-
-
-def get_transaction_service(
-    tr: TransactionRepository = Depends(get_transaction_repository),
+def get_account_service(
     ar: AccountRepository = Depends(get_account_repository),
-    cr: CategoryRepository = Depends(get_category_repository),
-) -> TransactionService:
-    return TransactionService(tr, ar, cr)
+    jr: JournalEntryRepository = Depends(get_journal_entry_repository),
+) -> AccountService:
+    return AccountService(ar, jr)
+
+
+def get_journal_entry_service(
+    jr: JournalEntryRepository = Depends(get_journal_entry_repository),
+    ar: AccountRepository = Depends(get_account_repository),
+) -> JournalEntryService:
+    return JournalEntryService(jr, ar)
 
 
 DB = Annotated[Session, Depends(get_db_session)]
 AR = Annotated[AccountRepository, Depends(get_account_repository)]
-CR = Annotated[CategoryRepository, Depends(get_category_repository)]
-TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
+JR = Annotated[JournalEntryRepository, Depends(get_journal_entry_repository)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
-Categories = Annotated[CategoryService, Depends(get_category_service)]
-Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
+JournalEntries = Annotated[JournalEntryService, Depends(get_journal_entry_service)]
