@@ -41,8 +41,8 @@ class TransactionService:
         return TransactionRead(
             tid=transaction.tid,
             date=transaction.date,
-            note=transaction.note,
-            details=transaction.details,
+            payee=transaction.payee,
+            comment=transaction.comment,
             postings=[self._posting_to_read(posting) for posting in self.tr.postings(transaction.tid)],
             created=transaction.created,
             updated=transaction.updated,

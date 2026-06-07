@@ -20,8 +20,8 @@ class Transaction(TimestampMixin, table=True):
     tid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")
     date: Date = Field(default_factory=Date.today)
-    note: str | None = Field(default=None, max_length=40)
-    details: str | None = Field(default=None, max_length=200)
+    payee: str | None = Field(default=None, max_length=40)
+    comment: str | None = Field(default=None, max_length=200)
 
 
 class Posting(TimestampMixin, table=True):

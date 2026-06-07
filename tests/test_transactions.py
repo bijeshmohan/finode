@@ -219,7 +219,8 @@ def test_update_transaction(
     response = client.patch(
         f"/transactions/{tid}",
         json={
-            "note": "updated",
+            "payee": "updated payee",
+            "comment": "updated comment",
             "postings": [
                 {
                     "account": expense_account["aid"],
@@ -235,7 +236,8 @@ def test_update_transaction(
         },
     )
     assert response.status_code == 200
-    assert response.json()["note"] == "updated"
+    assert response.json()["payee"] == "updated payee"
+    assert response.json()["comment"] == "updated comment"
 
     account_response = client.get(f"/accounts/{account['aid']}")
     assert account_response.json()["balance"] == "-15.00"

@@ -33,8 +33,8 @@ class PostingRead(PostingBase):
 
 class TransactionBase(BaseModel):
     date: Date = Field(default_factory=Date.today)
-    note: str | None = Field(default=None, max_length=40)
-    details: str | None = Field(default=None, max_length=200)
+    payee: str | None = Field(default=None, max_length=40)
+    comment: str | None = Field(default=None, max_length=200)
 
 
 class TransactionCreate(TransactionBase):
@@ -55,8 +55,8 @@ class TransactionRead(TransactionBase):
 
 class TransactionUpdate(BaseModel):
     date: Date | None = Field(default=None)
-    note: str | None = Field(default=None, max_length=40)
-    details: str | None = Field(default=None, max_length=200)
+    payee: str | None = Field(default=None, max_length=40)
+    comment: str | None = Field(default=None, max_length=200)
     postings: list[PostingCreate] | None = Field(default=None)
 
     @model_validator(mode="after")

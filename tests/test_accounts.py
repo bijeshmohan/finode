@@ -42,7 +42,8 @@ def test_create_account_opening_balance_creates_transaction(client: TestClient):
 
     entries = client.get("/transactions/").json()
     assert len(entries) == 1
-    assert entries[0]["note"] == "Opening balance"
+    assert entries[0]["payee"] == "Opening balance"
+    assert entries[0]["comment"] == "Initial account balance"
     postings = entries[0]["postings"]
     assert any(
         posting["account"] == account["aid"]
@@ -116,7 +117,8 @@ def test_update_account_balance_creates_transaction(
 
     entries = client.get("/transactions/").json()
     assert len(entries) == 1
-    assert entries[0]["note"] == "Balance adjustment"
+    assert entries[0]["payee"] == "Balance adjustment"
+    assert entries[0]["comment"] == "Result of direct account balance update"
     assert any(
         posting["account"] == account["aid"]
         and posting["side"] == "debit"

@@ -75,8 +75,8 @@ class AccountService:
         self,
         account: Account,
         amount: Decimal,
-        note: str,
-        details: str,
+        payee: str,
+        comment: str,
     ) -> None:
         if amount == 0:
             return
@@ -91,8 +91,8 @@ class AccountService:
         self.tr.create(
             TransactionCreate(
                 date=date.today(),
-                note=note,
-                details=details,
+                payee=payee,
+                comment=comment,
                 postings=[
                     PostingCreate(
                         account=account.aid,
