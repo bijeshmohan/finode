@@ -51,6 +51,8 @@ class TransactionService:
     def create(self, data: TransactionCreate) -> TransactionRead:
         self._validate_references(data)
         transaction = self.tr.create(data)
+        self.tr.db.commit()
+        self.tr.db.refresh(transaction)
         return self._to_read(transaction)
 
     def read(self, tid: UUID) -> TransactionRead | None:
@@ -73,6 +75,8 @@ class TransactionService:
         transaction = self.tr.update(tid, data)
         if not transaction:
             raise RuntimeError(f"failed to update transaction with tid '{tid}'!")
+        self.tr.db.commit()
+        self.tr.db.refresh(transaction)
         return self._to_read(transaction)
 
     def delete(self, tid: UUID) -> TransactionRead | None:
@@ -80,4 +84,5 @@ class TransactionService:
         deleted = self.tr.delete(tid)
         if not deleted:
             raise ValueError(f"transaction with tid '{tid}' not found!")
+        self.tr.db.commit()
         return transaction

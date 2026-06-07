@@ -158,3 +158,30 @@ def test_delete_account_with_postings_conflicts(client: TestClient):
 def test_delete_account_not_found(client: TestClient):
     response = client.delete(f"/accounts/{uuid4()}")
     assert response.status_code == 404
+
+
+def test_update_account_type_does_not_create_transaction(client: TestClient):
+    create_resp = client.post(
+        "/accounts/",
+        json={"name": "test_acc", "type": "asset", "balance": "100.00"},
+    )
+    assert create_resp.status_code == 201
+    account = create_resp.json()
+
+    tx_resp = client.get("/transactions/")
+    assert tx_resp.status_code == 200
+    assert len(tx_resp.json()) == 1
+
+    update_resp = client.patch(
+        f"/accounts/{account['aid']}",
+        json={"type": "liability"},
+    )
+    assert update_resp.status_code == 200
+    updated_account = update_resp.json()
+    assert updated_account["type"] == "liability"
+    assert updated_account["balance"] == "-100.00"
+
+    tx_resp_after = client.get("/transactions/")
+    assert tx_resp_after.status_code == 200
+    assert len(tx_resp_after.json()) == 1
+

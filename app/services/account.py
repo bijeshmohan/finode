@@ -116,6 +116,8 @@ class AccountService:
             "Opening balance",
             "Initial account balance",
         )
+        self.ar.db.commit()
+        self.ar.db.refresh(created)
         return self._to_read(created)
 
     def read(self, aid: UUID) -> AccountRead | None:
@@ -148,14 +150,9 @@ class AccountService:
                 "Balance adjustment",
                 "Result of direct account balance update",
             )
-        elif data.type is not None:
-            self._post_balance_adjustment(
-                updated,
-                previous_balance - self._balance_for(updated),
-                "Balance adjustment",
-                "Result of account type update",
-            )
 
+        self.ar.db.commit()
+        self.ar.db.refresh(updated)
         return self._to_read(updated)
 
     def delete(self, aid: UUID) -> AccountRead | None:
@@ -165,4 +162,5 @@ class AccountService:
         account = self.ar.delete(aid)
         if not account:
             raise ValueError(f"account with aid '{aid}' not found!")
+        self.ar.db.commit()
         return account_read

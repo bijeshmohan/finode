@@ -15,8 +15,7 @@ class AccountRepository:
         values = data.model_dump(exclude={"balance"})
         account = Account(**values, user=self.uid)
         self.db.add(account)
-        self.db.commit()
-        self.db.refresh(account)
+        self.db.flush()
         return account
 
     def read(self, aid: UUID) -> Account | None:
@@ -54,8 +53,7 @@ class AccountRepository:
         for key, value in values.items():
             setattr(account, key, value)
         self.db.add(account)
-        self.db.commit()
-        self.db.refresh(account)
+        self.db.flush()
         return account
 
     def delete(self, aid: UUID) -> Account | None:
@@ -63,5 +61,5 @@ class AccountRepository:
         if not account:
             return None
         self.db.delete(account)
-        self.db.commit()
+        self.db.flush()
         return account

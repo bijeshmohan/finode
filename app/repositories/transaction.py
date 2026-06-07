@@ -23,8 +23,7 @@ class TransactionRepository:
                 user=self.uid,
             )
             self.db.add(posting)
-        self.db.commit()
-        self.db.refresh(transaction)
+        self.db.flush()
         return transaction
 
     def read(self, tid: UUID) -> Transaction | None:
@@ -78,8 +77,7 @@ class TransactionRepository:
                 self.db.add(posting)
 
         self.db.add(transaction)
-        self.db.commit()
-        self.db.refresh(transaction)
+        self.db.flush()
         return transaction
 
     def delete(self, tid: UUID) -> Transaction | None:
@@ -89,5 +87,5 @@ class TransactionRepository:
         for posting in self.postings(tid):
             self.db.delete(posting)
         self.db.delete(transaction)
-        self.db.commit()
+        self.db.flush()
         return transaction
