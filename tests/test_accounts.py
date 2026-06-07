@@ -185,3 +185,135 @@ def test_update_account_type_does_not_create_transaction(client: TestClient):
     assert tx_resp_after.status_code == 200
     assert len(tx_resp_after.json()) == 1
 
+
+def test_create_child_account(client: TestClient):
+    parent = client.post(
+        "/accounts/",
+        json={"name": "parent_acc", "type": "Assets", "balance": "100.00"},
+    ).json()
+    
+    child = client.post(
+        "/accounts/",
+        json={"name": "child_acc", "type": "Assets", "parent_id": parent["aid"], "balance": "50.00"},
+    )
+    assert child.status_code == 201
+    child_data = child.json()
+    assert child_data["parent_id"] == parent["aid"]
+
+
+def test_create_child_account_parent_not_found(client: TestClient):
+    child = client.post(
+        "/accounts/",
+        json={"name": "child_acc", "type": "Assets", "parent_id": str(uuid4())},
+    )
+    assert child.status_code == 400
+    assert child.json()["detail"] == "parent account not found!"
+
+
+def test_create_child_account_type_mismatch(client: TestClient):
+    parent = client.post(
+        "/accounts/",
+        json={"name": "parent_acc", "type": "Assets"},
+    ).json()
+    
+    child = client.post(
+        "/accounts/",
+        json={"name": "child_acc", "type": "Liabilities", "parent_id": parent["aid"]},
+    )
+    assert child.status_code == 400
+    assert child.json()["detail"] == "parent account type must match child account type!"
+
+
+def test_update_parent_id(client: TestClient):
+    acc1 = client.post("/accounts/", json={"name": "acc1", "type": "Assets"}).json()
+    acc2 = client.post("/accounts/", json={"name": "acc2", "type": "Assets"}).json()
+    
+    update = client.patch(f"/accounts/{acc2['aid']}", json={"parent_id": acc1["aid"]})
+    assert update.status_code == 200
+    assert update.json()["parent_id"] == acc1["aid"]
+
+
+def test_detect_cycle_self(client: TestClient):
+    acc = client.post("/accounts/", json={"name": "acc", "type": "Assets"}).json()
+    
+    update = client.patch(f"/accounts/{acc['aid']}", json={"parent_id": acc["aid"]})
+    assert update.status_code == 400
+    assert update.json()["detail"] == "an account cannot be its own parent!"
+
+
+def test_detect_cycle_multi(client: TestClient):
+    a = client.post("/accounts/", json={"name": "A", "type": "Assets"}).json()
+    b = client.post("/accounts/", json={"name": "B", "type": "Assets", "parent_id": a["aid"]}).json()
+    
+    # Try setting A's parent to B
+    update = client.patch(f"/accounts/{a['aid']}", json={"parent_id": b["aid"]})
+    assert update.status_code == 400
+    assert update.json()["detail"] == "cyclic parent relationship detected!"
+
+
+def test_parent_balance_aggregation(client: TestClient):
+    parent = client.post(
+        "/accounts/",
+        json={"name": "parent", "type": "Assets", "balance": "100.00"},
+    ).json()
+    
+    child = client.post(
+        "/accounts/",
+        json={"name": "child", "type": "Assets", "parent_id": parent["aid"], "balance": "50.00"},
+    ).json()
+    
+    grandchild = client.post(
+        "/accounts/",
+        json={"name": "grandchild", "type": "Assets", "parent_id": child["aid"], "balance": "20.00"},
+    ).json()
+    
+    # Verify balances
+    p_get = client.get(f"/accounts/{parent['aid']}").json()
+    assert p_get["balance"] == "170.00"
+    
+    c_get = client.get(f"/accounts/{child['aid']}").json()
+    assert c_get["balance"] == "70.00"
+    
+    gc_get = client.get(f"/accounts/{grandchild['aid']}").json()
+    assert gc_get["balance"] == "20.00"
+
+
+def test_delete_parent_account_fails(client: TestClient):
+    parent = client.post("/accounts/", json={"name": "parent", "type": "Assets"}).json()
+    client.post("/accounts/", json={"name": "child", "type": "Assets", "parent_id": parent["aid"]})
+    
+    response = client.delete(f"/accounts/{parent['aid']}")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "account has sub-accounts"
+
+
+def test_update_parent_type_fails(client: TestClient):
+    parent = client.post("/accounts/", json={"name": "parent", "type": "Assets"}).json()
+    client.post("/accounts/", json={"name": "child", "type": "Assets", "parent_id": parent["aid"]})
+    
+    response = client.patch(f"/accounts/{parent['aid']}", json={"type": "Liabilities"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "cannot change type of account with sub-accounts!"
+
+
+def test_create_root_account_without_type_fails(client: TestClient):
+    response = client.post("/accounts/", json={"name": "no_type_root"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "type is required for top-level accounts!"
+
+
+def test_create_child_account_inherits_type(client: TestClient):
+    parent = client.post("/accounts/", json={"name": "parent", "type": "Expenses"}).json()
+    
+    # Omit type for the child account
+    child_resp = client.post(
+        "/accounts/",
+        json={"name": "child_no_type", "parent_id": parent["aid"]},
+    )
+    assert child_resp.status_code == 201
+    child_data = child_resp.json()
+    assert child_data["type"] == "Expenses"
+    assert child_data["parent_id"] == parent["aid"]
+
+
+

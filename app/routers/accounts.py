@@ -18,7 +18,10 @@ router = APIRouter(
 
 @router.post("/", response_model=AccountRead, status_code=201)
 def create_account(account: AccountCreate, accounts: Accounts):
-    return accounts.create(account)
+    try:
+        return accounts.create(account)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{aid}", response_model=AccountRead, status_code=200)
@@ -38,8 +41,11 @@ def get_accounts(accounts: Accounts, type: AccountType | None = None):
 def update_account(aid: UUID, data: AccountUpdate, accounts: Accounts):
     try:
         account = accounts.update(aid, data)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="account not found")
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg:
+            raise HTTPException(status_code=404, detail="account not found")
+        raise HTTPException(status_code=400, detail=msg)
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
     return account
@@ -49,8 +55,8 @@ def update_account(aid: UUID, data: AccountUpdate, accounts: Accounts):
 def delete_account(aid: UUID, accounts: Accounts):
     try:
         account = accounts.delete(aid)
-    except AccountInUseError:
-        raise HTTPException(status_code=409, detail="account has postings")
+    except AccountInUseError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError:
         raise HTTPException(status_code=404, detail="account not found")
     if not account:

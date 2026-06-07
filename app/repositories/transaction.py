@@ -55,6 +55,17 @@ class TransactionRepository:
         postings = self.db.exec(statement).all()
         return postings
 
+    def postings_for_accounts(self, aids: list[UUID]) -> list[Posting]:
+        if not aids:
+            return []
+        statement = select(Posting).where(
+            Posting.account.in_(aids),
+            Posting.user == self.uid,
+        )
+        postings = self.db.exec(statement).all()
+        return postings
+
+
     def update(self, tid: UUID, data: TransactionUpdate) -> Transaction | None:
         transaction = self.read(tid)
         if not transaction:

@@ -10,7 +10,8 @@ from ..models.account import AccountType
 class AccountBase(BaseModel):
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
-    type: AccountType = AccountType.ASSETS
+    type: AccountType | None = None
+    parent_id: UUID | None = None
 
     @field_validator("name")
     @classmethod
@@ -29,6 +30,7 @@ class AccountCreate(AccountBase):
 
 class AccountRead(AccountBase):
     aid: UUID
+    type: AccountType
     balance: Decimal = Field(decimal_places=2, max_digits=12)
     created: datetime
     updated: datetime
@@ -38,6 +40,7 @@ class AccountUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=40)
     details: str | None = Field(default=None, max_length=200)
     type: AccountType | None = Field(default=None)
+    parent_id: UUID | None = None
     balance: Decimal | None = Field(
         default=None,
         decimal_places=2,

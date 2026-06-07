@@ -63,3 +63,11 @@ class AccountRepository:
         self.db.delete(account)
         self.db.flush()
         return account
+
+    def has_children(self, aid: UUID) -> bool:
+        statement = select(Account).where(
+            Account.parent_id == aid,
+            Account.user == self.uid,
+        )
+        return self.db.exec(statement).first() is not None
+

@@ -23,6 +23,7 @@ class Account(TimestampMixin, table=True):
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
     type: AccountType = Field(default=AccountType.ASSETS, index=True)
+    parent_id: UUID | None = Field(default=None, foreign_key="accounts.aid", nullable=True)
 
     @field_validator("name")
     @classmethod
