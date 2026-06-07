@@ -20,7 +20,7 @@ For any execution tasks, use `uv` to manage tools and dependencies. **Do not run
 
 ## 🏛️ Application Architecture & Conventions
 
-All core logic lives inside the `app/` folder. The codebase follows a strict **five-tier modular structure** segmented by domain entities (`account.py`, `journal.py`):
+All core logic lives inside the `app/` folder. The codebase follows a strict **five-tier modular structure** segmented by domain entities (`account.py`, `transaction.py`):
 
 ```
 app/
@@ -43,21 +43,21 @@ app/
 *   **Timestamps:** Models should inherit from `TimestampMixin` (found in `app/models/utils.py`) to automatically record `created` and `updated` UTC datetimes.
 
 ### 3. Double-Entry Ledger Pattern
-Finode uses double-entry bookkeeping. Everything category-like is represented as an account, and all money movement is posted through balanced journal entries.
+Finode uses double-entry bookkeeping. Everything category-like is represented as an account, and all money movement is posted through balanced transactions.
 
 *   **Accounts:** `app/models/account.py` defines the chart of accounts. Account types are `asset`, `liability`, `equity`, `income`, and `expense`.
-*   **Journal Entries:** `app/models/journal.py` defines `JournalEntry` and `JournalLine`. Each entry must have at least two lines, positive line amounts, and total debits equal to total credits.
-*   **Balances:** Account balances are derived from journal lines, not stored as authoritative mutable account fields. Assets and expenses increase with debits; liabilities, equity, and income increase with credits.
+*   **Transactions & Postings:** `app/models/transaction.py` defines `Transaction` and `Posting`. Each transaction must have at least two postings, positive posting amounts, and total debits equal to total credits.
+*   **Balances:** Account balances are derived from postings, not stored as authoritative mutable account fields. Assets and expenses increase with debits; liabilities, equity, and income increase with credits.
 *   **Opening Balances:** Initial balances and direct balance adjustments are posted against a system equity account named `Opening Balances`.
 
 #### Schema Implementation:
 *   Account request/response models live in `app/schemas/account.py`.
-*   Journal request/response models live in `app/schemas/journal.py`.
-*   The public journal API is `/journal-entries/`; old `/categories/` and `/transactions/` endpoints are not part of the current API.
-*   Journal balancing and tenant-owned account reference checks belong in the service layer.
+*   Transaction request/response models live in `app/schemas/transaction.py`.
+*   The public transaction API is `/transactions/`; old `/categories/` and `/journal-entries/` endpoints are not part of the current API.
+*   Transaction balancing and tenant-owned account reference checks belong in the service layer.
 
 ### 4. Tenant Isolation & Auth
-*   Every entity (`Account`, `JournalEntry`, `JournalLine`) belongs to a user and has a `user: UUID` foreign key pointing to the Supabase authorization schema (`auth.users.id`).
+*   Every entity (`Account`, `Transaction`, `Posting`) belongs to a user and has a `user: UUID` foreign key pointing to the Supabase authorization schema (`auth.users.id`).
 *   **Enforce Isolation:** Always filter operations by `current_user.id`. When fetching, updating, or deleting records, ensure the database query includes a filter like `.where(Model.user == current_user.id)`.
 *   All endpoints protecting tenant data must use the `require_authenticated_user` dependency from `app/auth.py`.
 *   Inject the session into route handlers using the custom annotated dependency: `session: DBSession`.
