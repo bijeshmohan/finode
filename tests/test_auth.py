@@ -80,11 +80,11 @@ def test_users_can_only_access_their_own_data(session: Session):
             authenticate_as(USER_A_ID)
             account = client.post(
                 "/accounts/",
-                json={"name": "checking", "details": None, "type": "asset"},
+                json={"name": "checking", "details": None, "type": "Assets"},
             ).json()
             expense_account = client.post(
                 "/accounts/",
-                json={"type": "expense", "name": "groceries"},
+                json={"type": "Expenses", "name": "groceries"},
             ).json()
             transaction = client.post(
                 "/transactions/",

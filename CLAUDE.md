@@ -37,16 +37,16 @@ Tests live in `tests/`. `tests/conftest.py` builds a fresh in-memory SQLite engi
 
 ### Double-entry ledger
 
-`app/models/account.py` defines accounts with one of five types: `asset`,
-`liability`, `equity`, `income`, or `expense`. Categories are not a separate
+`app/models/account.py` defines accounts with one of five types: `Assets`,
+`Liabilities`, `Equity`, `Income`, or `Expenses`. Categories are not a separate
 table; former category concepts are represented as income or expense accounts.
 
-`app/models/journal.py` defines `JournalEntry` and `JournalLine`. A journal
-entry contains at least two lines, every line has a positive amount, and total
+`app/models/transaction.py` defines `Transaction` and `Posting`. A transaction
+contains at least two postings, every posting has a positive amount, and total
 debits must equal total credits. The service layer validates those invariants
 and verifies that all referenced accounts belong to the authenticated user.
 
-Account balances are derived from journal lines. Assets and expenses increase
-with debits; liabilities, equity, and income increase with credits. Opening
+Account balances are derived from postings. Assets and Expenses increase
+with debits; Liabilities, Equity, and Income increase with credits. Opening
 balances and direct balance edits are posted against the system equity account
 named `Opening Balances`.

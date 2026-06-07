@@ -23,7 +23,7 @@ class AccountService:
         self.tr = tr
 
     def _normal_side(self, account_type: AccountType) -> PostingSide:
-        if account_type in (AccountType.ASSET, AccountType.EXPENSE):
+        if account_type in (AccountType.ASSETS, AccountType.EXPENSES):
             return PostingSide.DEBIT
         return PostingSide.CREDIT
 

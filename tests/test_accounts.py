@@ -9,7 +9,7 @@ def test_create_account(client: TestClient):
         json={
             "name": "checking",
             "details": "main account",
-            "type": "asset",
+            "type": "Assets",
             "balance": "100.50",
         },
     )
@@ -17,7 +17,7 @@ def test_create_account(client: TestClient):
     data = response.json()
     assert data["name"] == "checking"
     assert data["details"] == "main account"
-    assert data["type"] == "asset"
+    assert data["type"] == "Assets"
     assert data["balance"] == "100.50"
     assert "aid" in data
 
@@ -25,7 +25,7 @@ def test_create_account(client: TestClient):
 def test_create_account_default_balance(client: TestClient):
     response = client.post(
         "/accounts/",
-        json={"name": "wallet", "details": None, "type": "asset"},
+        json={"name": "wallet", "details": None, "type": "Assets"},
     )
     assert response.status_code == 201
     data = response.json()
@@ -35,7 +35,7 @@ def test_create_account_default_balance(client: TestClient):
 def test_create_account_opening_balance_creates_transaction(client: TestClient):
     response = client.post(
         "/accounts/",
-        json={"name": "wallet", "type": "asset", "balance": "75.00"},
+        json={"name": "wallet", "type": "Assets", "balance": "75.00"},
     )
     assert response.status_code == 201
     account = response.json()
@@ -80,7 +80,7 @@ def test_filter_accounts_by_type(
     account: dict,
     expense_account: dict,
 ):
-    response = client.get("/accounts/?type=expense")
+    response = client.get("/accounts/?type=Expenses")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
@@ -146,7 +146,7 @@ def test_delete_account(client: TestClient, account: dict):
 def test_delete_account_with_postings_conflicts(client: TestClient):
     create = client.post(
         "/accounts/",
-        json={"name": "wallet", "type": "asset", "balance": "10.00"},
+        json={"name": "wallet", "type": "Assets", "balance": "10.00"},
     )
     account = create.json()
 
@@ -163,7 +163,7 @@ def test_delete_account_not_found(client: TestClient):
 def test_update_account_type_does_not_create_transaction(client: TestClient):
     create_resp = client.post(
         "/accounts/",
-        json={"name": "test_acc", "type": "asset", "balance": "100.00"},
+        json={"name": "test_acc", "type": "Assets", "balance": "100.00"},
     )
     assert create_resp.status_code == 201
     account = create_resp.json()
@@ -174,11 +174,11 @@ def test_update_account_type_does_not_create_transaction(client: TestClient):
 
     update_resp = client.patch(
         f"/accounts/{account['aid']}",
-        json={"type": "liability"},
+        json={"type": "Liabilities"},
     )
     assert update_resp.status_code == 200
     updated_account = update_resp.json()
-    assert updated_account["type"] == "liability"
+    assert updated_account["type"] == "Liabilities"
     assert updated_account["balance"] == "-100.00"
 
     tx_resp_after = client.get("/transactions/")

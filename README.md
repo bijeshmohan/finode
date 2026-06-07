@@ -57,11 +57,11 @@ uv run alembic upgrade head
 
 ## Accounting model
 
-- Accounts have one of five types: `asset`, `liability`, `equity`, `income`,
-  or `expense`.
-- Account balances are derived from journal lines. They are not stored as an
+- Accounts have one of five types: `Assets`, `Liabilities`, `Equity`, `Income`,
+  or `Expenses`.
+- Account balances are derived from postings. They are not stored as an
   authoritative mutable column.
-- Journal entries live at `/journal-entries/` and must contain at least two
-  lines with total debits equal to total credits.
+- Transactions live at `/transactions/` and must contain at least two
+  postings with total debits equal to total credits.
 - Opening and direct balance adjustments are posted against a system equity
   account named `Opening Balances`.

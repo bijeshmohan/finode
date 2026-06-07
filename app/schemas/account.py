@@ -10,7 +10,7 @@ from ..models.account import AccountType
 class AccountBase(BaseModel):
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
-    type: AccountType = AccountType.ASSET
+    type: AccountType = AccountType.ASSETS
 
     @field_validator("name")
     @classmethod

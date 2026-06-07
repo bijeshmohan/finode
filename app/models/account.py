@@ -8,11 +8,11 @@ from .utils import TimestampMixin
 
 
 class AccountType(str, Enum):
-    ASSET = "asset"
-    LIABILITY = "liability"
-    EQUITY = "equity"
-    INCOME = "income"
-    EXPENSE = "expense"
+    ASSETS = "Assets"
+    LIABILITIES = "Liabilities"
+    EQUITY = "Equity"
+    INCOME = "Income"
+    EXPENSES = "Expenses"
 
 
 class Account(TimestampMixin, table=True):
@@ -22,7 +22,7 @@ class Account(TimestampMixin, table=True):
     user: UUID = Field(index=True, foreign_key="auth.users.id")
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
-    type: AccountType = Field(default=AccountType.ASSET, index=True)
+    type: AccountType = Field(default=AccountType.ASSETS, index=True)
 
     @field_validator("name")
     @classmethod

@@ -47,7 +47,7 @@ def client(session: Session) -> Generator[TestClient, None, None]:
 def account(client: TestClient) -> dict:
     response = client.post(
         "/accounts/",
-        json={"name": "checking", "details": None, "type": "asset"},
+        json={"name": "checking", "details": None, "type": "Assets"},
     )
     assert response.status_code == 201
     return response.json()
@@ -57,7 +57,7 @@ def account(client: TestClient) -> dict:
 def other_account(client: TestClient) -> dict:
     response = client.post(
         "/accounts/",
-        json={"name": "savings", "details": None, "type": "asset"},
+        json={"name": "savings", "details": None, "type": "Assets"},
     )
     assert response.status_code == 201
     return response.json()
@@ -67,7 +67,7 @@ def other_account(client: TestClient) -> dict:
 def expense_account(client: TestClient) -> dict:
     response = client.post(
         "/accounts/",
-        json={"type": "expense", "name": "groceries", "details": None},
+        json={"type": "Expenses", "name": "groceries", "details": None},
     )
     assert response.status_code == 201
     return response.json()
@@ -77,7 +77,7 @@ def expense_account(client: TestClient) -> dict:
 def income_account(client: TestClient) -> dict:
     response = client.post(
         "/accounts/",
-        json={"type": "income", "name": "salary", "details": None},
+        json={"type": "Income", "name": "salary", "details": None},
     )
     assert response.status_code == 201
     return response.json()
