@@ -32,7 +32,7 @@ def test_create_account_default_balance(client: TestClient):
     assert data["balance"] == "0.00"
 
 
-def test_create_account_opening_balance_creates_journal_entry(client: TestClient):
+def test_create_account_opening_balance_creates_transaction(client: TestClient):
     response = client.post(
         "/accounts/",
         json={"name": "wallet", "type": "asset", "balance": "75.00"},
@@ -40,15 +40,15 @@ def test_create_account_opening_balance_creates_journal_entry(client: TestClient
     assert response.status_code == 201
     account = response.json()
 
-    entries = client.get("/journal-entries/").json()
+    entries = client.get("/transactions/").json()
     assert len(entries) == 1
     assert entries[0]["note"] == "Opening balance"
-    lines = entries[0]["lines"]
+    postings = entries[0]["postings"]
     assert any(
-        line["account"] == account["aid"]
-        and line["side"] == "debit"
-        and line["amount"] == "75.00"
-        for line in lines
+        posting["account"] == account["aid"]
+        and posting["side"] == "debit"
+        and posting["amount"] == "75.00"
+        for posting in postings
     )
 
 
@@ -103,7 +103,7 @@ def test_update_account_metadata(client: TestClient, account: dict):
     assert data["balance"] == "0.00"
 
 
-def test_update_account_balance_creates_journal_entry(
+def test_update_account_balance_creates_transaction(
     client: TestClient,
     account: dict,
 ):
@@ -114,14 +114,14 @@ def test_update_account_balance_creates_journal_entry(
     assert response.status_code == 200
     assert response.json()["balance"] == "175.00"
 
-    entries = client.get("/journal-entries/").json()
+    entries = client.get("/transactions/").json()
     assert len(entries) == 1
     assert entries[0]["note"] == "Balance adjustment"
     assert any(
-        line["account"] == account["aid"]
-        and line["side"] == "debit"
-        and line["amount"] == "175.00"
-        for line in entries[0]["lines"]
+        posting["account"] == account["aid"]
+        and posting["side"] == "debit"
+        and posting["amount"] == "175.00"
+        for posting in entries[0]["postings"]
     )
 
 
@@ -141,7 +141,7 @@ def test_delete_account(client: TestClient, account: dict):
     assert follow.status_code == 404
 
 
-def test_delete_account_with_journal_lines_conflicts(client: TestClient):
+def test_delete_account_with_postings_conflicts(client: TestClient):
     create = client.post(
         "/accounts/",
         json={"name": "wallet", "type": "asset", "balance": "10.00"},
@@ -150,7 +150,7 @@ def test_delete_account_with_journal_lines_conflicts(client: TestClient):
 
     response = client.delete(f"/accounts/{account['aid']}")
     assert response.status_code == 409
-    assert response.json()["detail"] == "account has journal lines"
+    assert response.json()["detail"] == "account has postings"
 
 
 def test_delete_account_not_found(client: TestClient):

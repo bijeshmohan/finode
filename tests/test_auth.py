@@ -86,10 +86,10 @@ def test_users_can_only_access_their_own_data(session: Session):
                 "/accounts/",
                 json={"type": "expense", "name": "groceries"},
             ).json()
-            journal_entry = client.post(
-                "/journal-entries/",
+            transaction = client.post(
+                "/transactions/",
                 json={
-                    "lines": [
+                    "postings": [
                         {
                             "account": expense_account["aid"],
                             "side": "debit",
@@ -106,13 +106,13 @@ def test_users_can_only_access_their_own_data(session: Session):
 
             authenticate_as(USER_B_ID)
             assert client.get("/accounts/").json() == []
-            assert client.get("/journal-entries/").json() == []
+            assert client.get("/transactions/").json() == []
             assert client.get(f"/accounts/{account['aid']}").status_code == 404
-            assert client.get(f"/journal-entries/{journal_entry['jid']}").status_code == 404
+            assert client.get(f"/transactions/{transaction['tid']}").status_code == 404
             response = client.post(
-                "/journal-entries/",
+                "/transactions/",
                 json={
-                    "lines": [
+                    "postings": [
                         {
                             "account": expense_account["aid"],
                             "side": "debit",

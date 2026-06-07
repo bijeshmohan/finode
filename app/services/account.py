@@ -4,10 +4,10 @@ from uuid import UUID
 
 from ..models import Account
 from ..models.account import AccountType
-from ..models.journal import JournalSide
-from ..repositories import AccountRepository, JournalEntryRepository
+from ..models.transaction import PostingSide
+from ..repositories import AccountRepository, TransactionRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate
-from ..schemas.journal import JournalEntryCreate, JournalLineCreate
+from ..schemas.transaction import TransactionCreate, PostingCreate
 
 
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
@@ -18,30 +18,30 @@ class AccountInUseError(ValueError):
 
 
 class AccountService:
-    def __init__(self, ar: AccountRepository, jr: JournalEntryRepository):
+    def __init__(self, ar: AccountRepository, tr: TransactionRepository):
         self.ar = ar
-        self.jr = jr
+        self.tr = tr
 
-    def _normal_side(self, account_type: AccountType) -> JournalSide:
+    def _normal_side(self, account_type: AccountType) -> PostingSide:
         if account_type in (AccountType.ASSET, AccountType.EXPENSE):
-            return JournalSide.DEBIT
-        return JournalSide.CREDIT
+            return PostingSide.DEBIT
+        return PostingSide.CREDIT
 
-    def _opposite_side(self, side: JournalSide) -> JournalSide:
-        if side == JournalSide.DEBIT:
-            return JournalSide.CREDIT
-        return JournalSide.DEBIT
+    def _opposite_side(self, side: PostingSide) -> PostingSide:
+        if side == PostingSide.DEBIT:
+            return PostingSide.CREDIT
+        return PostingSide.DEBIT
 
     def _balance_for(self, account: Account) -> Decimal:
         debit_total = Decimal("0.00")
         credit_total = Decimal("0.00")
-        for line in self.jr.lines_for_account(account.aid):
-            if line.side == JournalSide.DEBIT:
-                debit_total += line.amount
+        for posting in self.tr.postings_for_account(account.aid):
+            if posting.side == PostingSide.DEBIT:
+                debit_total += posting.amount
             else:
-                credit_total += line.amount
+                credit_total += posting.amount
 
-        if self._normal_side(account.type) == JournalSide.DEBIT:
+        if self._normal_side(account.type) == PostingSide.DEBIT:
             return debit_total - credit_total
         return credit_total - debit_total
 
@@ -88,18 +88,18 @@ class AccountService:
         if amount < 0:
             account_side, opening_side = opening_side, account_side
 
-        self.jr.create(
-            JournalEntryCreate(
+        self.tr.create(
+            TransactionCreate(
                 date=date.today(),
                 note=note,
                 details=details,
-                lines=[
-                    JournalLineCreate(
+                postings=[
+                    PostingCreate(
                         account=account.aid,
                         side=account_side,
                         amount=adjustment,
                     ),
-                    JournalLineCreate(
+                    PostingCreate(
                         account=opening_account.aid,
                         side=opening_side,
                         amount=adjustment,
@@ -160,8 +160,8 @@ class AccountService:
 
     def delete(self, aid: UUID) -> AccountRead | None:
         account_read = self.read(aid)
-        if self.jr.lines_for_account(aid):
-            raise AccountInUseError(f"account with aid '{aid}' has journal lines!")
+        if self.tr.postings_for_account(aid):
+            raise AccountInUseError(f"account with aid '{aid}' has postings!")
         account = self.ar.delete(aid)
         if not account:
             raise ValueError(f"account with aid '{aid}' not found!")

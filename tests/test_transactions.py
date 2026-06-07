@@ -3,15 +3,15 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 
-def test_create_journal_entry(
+def test_create_transaction(
     client: TestClient,
     account: dict,
     expense_account: dict,
 ):
     response = client.post(
-        "/journal-entries/",
+        "/transactions/",
         json={
-            "lines": [
+            "postings": [
                 {
                     "account": expense_account["aid"],
                     "side": "debit",
@@ -27,8 +27,8 @@ def test_create_journal_entry(
     )
     assert response.status_code == 201
     data = response.json()
-    assert len(data["lines"]) == 2
-    assert "jid" in data
+    assert len(data["postings"]) == 2
+    assert "tid" in data
 
     account_response = client.get(f"/accounts/{account['aid']}")
     assert account_response.json()["balance"] == "-25.00"
@@ -36,15 +36,15 @@ def test_create_journal_entry(
     assert expense_response.json()["balance"] == "25.00"
 
 
-def test_create_journal_entry_must_balance(
+def test_create_transaction_must_balance(
     client: TestClient,
     account: dict,
     expense_account: dict,
 ):
     response = client.post(
-        "/journal-entries/",
+        "/transactions/",
         json={
-            "lines": [
+            "postings": [
                 {
                     "account": expense_account["aid"],
                     "side": "debit",
@@ -61,14 +61,14 @@ def test_create_journal_entry_must_balance(
     assert response.status_code == 422
 
 
-def test_create_journal_entry_requires_two_lines(
+def test_create_transaction_requires_two_postings(
     client: TestClient,
     account: dict,
 ):
     response = client.post(
-        "/journal-entries/",
+        "/transactions/",
         json={
-            "lines": [
+            "postings": [
                 {
                     "account": account["aid"],
                     "side": "debit",
@@ -80,15 +80,15 @@ def test_create_journal_entry_requires_two_lines(
     assert response.status_code == 422
 
 
-def test_create_journal_entry_rejects_zero_amount(
+def test_create_transaction_rejects_zero_amount(
     client: TestClient,
     account: dict,
     expense_account: dict,
 ):
     response = client.post(
-        "/journal-entries/",
+        "/transactions/",
         json={
-            "lines": [
+            "postings": [
                 {
                     "account": expense_account["aid"],
                     "side": "debit",
@@ -105,14 +105,14 @@ def test_create_journal_entry_rejects_zero_amount(
     assert response.status_code == 422
 
 
-def test_create_journal_entry_unknown_account(
+def test_create_transaction_unknown_account(
     client: TestClient,
     account: dict,
 ):
     response = client.post(
-        "/journal-entries/",
+        "/transactions/",
         json={
-            "lines": [
+            "postings": [
                 {
                     "account": uuid4().hex,
                     "side": "debit",
@@ -129,15 +129,15 @@ def test_create_journal_entry_unknown_account(
     assert response.status_code == 404
 
 
-def test_get_journal_entry(
+def test_get_transaction(
     client: TestClient,
     account: dict,
     expense_account: dict,
 ):
     create = client.post(
-        "/journal-entries/",
+        "/transactions/",
         json={
-            "lines": [
+            "postings": [
                 {
                     "account": expense_account["aid"],
                     "side": "debit",
@@ -151,28 +151,28 @@ def test_get_journal_entry(
             ],
         },
     )
-    jid = create.json()["jid"]
+    tid = create.json()["tid"]
 
-    response = client.get(f"/journal-entries/{jid}")
+    response = client.get(f"/transactions/{tid}")
     assert response.status_code == 200
-    assert response.json()["jid"] == jid
+    assert response.json()["tid"] == tid
 
 
-def test_get_journal_entry_not_found(client: TestClient):
-    response = client.get(f"/journal-entries/{uuid4()}")
+def test_get_transaction_not_found(client: TestClient):
+    response = client.get(f"/transactions/{uuid4()}")
     assert response.status_code == 404
 
 
-def test_list_journal_entries(
+def test_list_transactions(
     client: TestClient,
     account: dict,
     other_account: dict,
 ):
     for amount in ("10.00", "20.00"):
         client.post(
-            "/journal-entries/",
+            "/transactions/",
             json={
-                "lines": [
+                "postings": [
                     {
                         "account": other_account["aid"],
                         "side": "debit",
@@ -187,20 +187,20 @@ def test_list_journal_entries(
             },
         )
 
-    response = client.get("/journal-entries/")
+    response = client.get("/transactions/")
     assert response.status_code == 200
     assert len(response.json()) == 2
 
 
-def test_update_journal_entry(
+def test_update_transaction(
     client: TestClient,
     account: dict,
     expense_account: dict,
 ):
     create = client.post(
-        "/journal-entries/",
+        "/transactions/",
         json={
-            "lines": [
+            "postings": [
                 {
                     "account": expense_account["aid"],
                     "side": "debit",
@@ -214,13 +214,13 @@ def test_update_journal_entry(
             ],
         },
     )
-    jid = create.json()["jid"]
+    tid = create.json()["tid"]
 
     response = client.patch(
-        f"/journal-entries/{jid}",
+        f"/transactions/{tid}",
         json={
             "note": "updated",
-            "lines": [
+            "postings": [
                 {
                     "account": expense_account["aid"],
                     "side": "debit",
@@ -241,15 +241,15 @@ def test_update_journal_entry(
     assert account_response.json()["balance"] == "-15.00"
 
 
-def test_update_journal_entry_null_date(
+def test_update_transaction_null_date(
     client: TestClient,
     account: dict,
     expense_account: dict,
 ):
     create = client.post(
-        "/journal-entries/",
+        "/transactions/",
         json={
-            "lines": [
+            "postings": [
                 {
                     "account": expense_account["aid"],
                     "side": "debit",
@@ -263,24 +263,24 @@ def test_update_journal_entry_null_date(
             ],
         },
     )
-    jid = create.json()["jid"]
+    tid = create.json()["tid"]
 
     response = client.patch(
-        f"/journal-entries/{jid}",
+        f"/transactions/{tid}",
         json={"date": None},
     )
     assert response.status_code == 422
 
 
-def test_delete_journal_entry(
+def test_delete_transaction(
     client: TestClient,
     account: dict,
     expense_account: dict,
 ):
     create = client.post(
-        "/journal-entries/",
+        "/transactions/",
         json={
-            "lines": [
+            "postings": [
                 {
                     "account": expense_account["aid"],
                     "side": "debit",
@@ -294,12 +294,12 @@ def test_delete_journal_entry(
             ],
         },
     )
-    jid = create.json()["jid"]
+    tid = create.json()["tid"]
 
-    response = client.delete(f"/journal-entries/{jid}")
+    response = client.delete(f"/transactions/{tid}")
     assert response.status_code == 204
 
-    follow = client.get(f"/journal-entries/{jid}")
+    follow = client.get(f"/transactions/{tid}")
     assert follow.status_code == 404
     account_response = client.get(f"/accounts/{account['aid']}")
     assert account_response.json()["balance"] == "0.00"

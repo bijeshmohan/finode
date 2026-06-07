@@ -9,29 +9,29 @@ from sqlmodel import Field
 from .utils import TimestampMixin
 
 
-class JournalSide(str, Enum):
+class PostingSide(str, Enum):
     DEBIT = "debit"
     CREDIT = "credit"
 
 
-class JournalEntry(TimestampMixin, table=True):
-    __tablename__ = "journal_entries"
+class Transaction(TimestampMixin, table=True):
+    __tablename__ = "transactions"
 
-    jid: UUID = Field(default_factory=uuid4, primary_key=True)
+    tid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")
     date: Date = Field(default_factory=Date.today)
     note: str | None = Field(default=None, max_length=40)
     details: str | None = Field(default=None, max_length=200)
 
 
-class JournalLine(TimestampMixin, table=True):
-    __tablename__ = "journal_lines"
+class Posting(TimestampMixin, table=True):
+    __tablename__ = "postings"
 
-    lid: UUID = Field(default_factory=uuid4, primary_key=True)
+    pid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")
-    entry: UUID = Field(index=True, foreign_key="journal_entries.jid")
+    transaction: UUID = Field(index=True, foreign_key="transactions.tid")
     account: UUID = Field(index=True, foreign_key="accounts.aid")
-    side: JournalSide
+    side: PostingSide
     amount: Decimal = Field(decimal_places=2, max_digits=12)
 
     @field_validator("amount")

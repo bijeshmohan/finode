@@ -4,12 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ..models.journal import JournalSide
+from ..models.transaction import PostingSide
 
 
-class JournalLineBase(BaseModel):
+class PostingBase(BaseModel):
     account: UUID
-    side: JournalSide
+    side: PostingSide
     amount: Decimal = Field(decimal_places=2, max_digits=12)
 
     @field_validator("amount")
@@ -20,67 +20,67 @@ class JournalLineBase(BaseModel):
         return v
 
 
-class JournalLineCreate(JournalLineBase):
+class PostingCreate(PostingBase):
     ...
 
 
-class JournalLineRead(JournalLineBase):
-    lid: UUID
-    entry: UUID
+class PostingRead(PostingBase):
+    pid: UUID
+    transaction: UUID
     created: datetime
     updated: datetime
 
 
-class JournalEntryBase(BaseModel):
+class TransactionBase(BaseModel):
     date: Date = Field(default_factory=Date.today)
     note: str | None = Field(default=None, max_length=40)
     details: str | None = Field(default=None, max_length=200)
 
 
-class JournalEntryCreate(JournalEntryBase):
-    lines: list[JournalLineCreate]
+class TransactionCreate(TransactionBase):
+    postings: list[PostingCreate]
 
     @model_validator(mode="after")
-    def lines_must_balance(self) -> "JournalEntryCreate":
-        validate_balanced_lines(self.lines)
+    def postings_must_balance(self) -> "TransactionCreate":
+        validate_balanced_postings(self.postings)
         return self
 
 
-class JournalEntryRead(JournalEntryBase):
-    jid: UUID
-    lines: list[JournalLineRead]
+class TransactionRead(TransactionBase):
+    tid: UUID
+    postings: list[PostingRead]
     created: datetime
     updated: datetime
 
 
-class JournalEntryUpdate(BaseModel):
+class TransactionUpdate(BaseModel):
     date: Date | None = Field(default=None)
     note: str | None = Field(default=None, max_length=40)
     details: str | None = Field(default=None, max_length=200)
-    lines: list[JournalLineCreate] | None = Field(default=None)
+    postings: list[PostingCreate] | None = Field(default=None)
 
     @model_validator(mode="after")
-    def non_nullable_fields_must_not_be_null(self) -> "JournalEntryUpdate":
+    def non_nullable_fields_must_not_be_null(self) -> "TransactionUpdate":
         if "date" in self.model_fields_set and self.date is None:
             raise ValueError("the field 'date' must not be null!")
         return self
 
     @model_validator(mode="after")
-    def lines_must_balance(self) -> "JournalEntryUpdate":
-        if self.lines is not None:
-            validate_balanced_lines(self.lines)
+    def postings_must_balance(self) -> "TransactionUpdate":
+        if self.postings is not None:
+            validate_balanced_postings(self.postings)
         return self
 
 
-def validate_balanced_lines(lines: list[JournalLineCreate]) -> None:
-    if len(lines) < 2:
-        raise ValueError("journal entries must contain at least two lines!")
+def validate_balanced_postings(postings: list[PostingCreate]) -> None:
+    if len(postings) < 2:
+        raise ValueError("transactions must contain at least two postings!")
 
     debit_total = sum(
-        line.amount for line in lines if line.side == JournalSide.DEBIT
+        posting.amount for posting in postings if posting.side == PostingSide.DEBIT
     )
     credit_total = sum(
-        line.amount for line in lines if line.side == JournalSide.CREDIT
+        posting.amount for posting in postings if posting.side == PostingSide.CREDIT
     )
     if debit_total != credit_total:
-        raise ValueError("journal entry debits and credits must balance!")
+        raise ValueError("transaction debits and credits must balance!")

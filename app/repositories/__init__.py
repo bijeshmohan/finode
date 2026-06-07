@@ -1,8 +1,8 @@
 from .account import AccountRepository
-from .journal import JournalEntryRepository
+from .transaction import TransactionRepository
 
 
 __all__ = [
     "AccountRepository",
-    "JournalEntryRepository",
+    "TransactionRepository",
 ]

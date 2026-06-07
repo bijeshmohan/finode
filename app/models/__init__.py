@@ -1,11 +1,11 @@
 from .auth import AuthUser
 from .account import Account
-from .journal import JournalEntry, JournalLine
+from .transaction import Transaction, Posting
 
 
 __all__ = [
     "AuthUser",
     "Account",
-    "JournalEntry",
-    "JournalLine",
+    "Transaction",
+    "Posting",
 ]

@@ -1,12 +1,12 @@
 from .account import AccountCreate, AccountRead, AccountUpdate
-from .journal import JournalEntryCreate, JournalEntryRead, JournalEntryUpdate
+from .transaction import TransactionCreate, TransactionRead, TransactionUpdate
 
 
 __all__ = [
     "AccountCreate",
     "AccountRead",
     "AccountUpdate",
-    "JournalEntryCreate",
-    "JournalEntryRead",
-    "JournalEntryUpdate",
+    "TransactionCreate",
+    "TransactionRead",
+    "TransactionUpdate",
 ]

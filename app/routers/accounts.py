@@ -50,7 +50,7 @@ def delete_account(aid: UUID, accounts: Accounts):
     try:
         account = accounts.delete(aid)
     except AccountInUseError:
-        raise HTTPException(status_code=409, detail="account has journal lines")
+        raise HTTPException(status_code=409, detail="account has postings")
     except ValueError:
         raise HTTPException(status_code=404, detail="account not found")
     if not account:
