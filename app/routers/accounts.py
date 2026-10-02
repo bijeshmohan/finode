@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
 from ..schemas.account import AccountCreate, AccountRead, AccountUpdate
-from ..services.account import AccountInUseError, RootAccountError
+from ..services.account import AccountInUseError, SystemAccountError
 
 
 router = APIRouter(
@@ -57,7 +57,7 @@ def delete_account(aid: UUID, accounts: Accounts):
         account = accounts.delete(aid)
     except AccountInUseError as e:
         raise HTTPException(status_code=409, detail=str(e))
-    except RootAccountError as e:
+    except SystemAccountError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError:
         raise HTTPException(status_code=404, detail="account not found")

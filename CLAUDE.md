@@ -55,6 +55,8 @@ an account cannot be moved under a different root (that would silently
 reclassify its history).
 
 Account balances are derived from postings. Assets and Expenses increase
-with debits; Liabilities, Equity, and Income increase with credits. Opening
-balances and direct balance edits are posted against the system equity account
-named `Opening Balances`.
+with debits; Liabilities, Equity, and Income increase with credits. Accounts
+that already have postings cannot gain sub-accounts. Opening balances and
+direct balance edits are posted against the system equity account named
+`Opening Balances`, which cannot be renamed, moved, deleted, given
+sub-accounts or have its balance set directly.

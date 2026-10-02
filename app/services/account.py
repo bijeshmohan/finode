@@ -20,7 +20,11 @@ class AccountInUseError(ValueError):
     ...
 
 
-class RootAccountError(ValueError):
+class SystemAccountError(ValueError):
+    ...
+
+
+class RootAccountError(SystemAccountError):
     ...
 
 
@@ -32,6 +36,23 @@ class AccountService:
     @staticmethod
     def _is_root(account: Account) -> bool:
         return account.parent_id is None and account.name in ROOT_ACCOUNT_NAMES
+
+    @staticmethod
+    def _is_opening_balances(account: Account, all_accounts: list[Account]) -> bool:
+        if account.name != OPENING_BALANCES_ACCOUNT_NAME or account.parent_id is None:
+            return False
+        parent = next((a for a in all_accounts if a.aid == account.parent_id), None)
+        return parent is not None and parent.name == "Equity" and parent.parent_id is None
+
+    def _validate_parent(self, parent: Account, all_accounts: list[Account]) -> None:
+        if self._is_opening_balances(parent, all_accounts):
+            raise SystemAccountError(
+                f"cannot add sub-accounts to system account '{parent.name}'!"
+            )
+        if self.tr.postings_for_account(parent.aid):
+            raise ValueError(
+                f"cannot add sub-accounts to '{parent.name}' because it has postings!"
+            )
 
     def _ensure_roots(self) -> list[Account]:
         """Return all accounts, lazily provisioning the user's system roots.
@@ -223,6 +244,16 @@ class AccountService:
         if not parent:
             raise ValueError("parent account not found!")
 
+        self._validate_parent(parent, all_accounts)
+        if (
+            self._is_opening_balances(
+                Account(name=account.name, parent_id=account.parent_id, user=self.ar.uid),
+                all_accounts,
+            )
+            and self.ar.read_by_name(account.name, account.parent_id)
+        ):
+            raise ValueError(f"system account '{account.name}' already exists!")
+
         created = self.ar.create(account)
         all_accounts_with_created = all_accounts + [created]
 
@@ -263,6 +294,15 @@ class AccountService:
             raise ValueError(f"account with aid '{aid}' not found!")
 
         is_system_root = self._is_root(account)
+        is_opening = self._is_opening_balances(account, all_accounts)
+
+        if is_opening:
+            if "name" in data.model_fields_set and data.name != account.name:
+                raise SystemAccountError(f"cannot change name of system account '{account.name}'!")
+            if "parent_id" in data.model_fields_set and data.parent_id != account.parent_id:
+                raise SystemAccountError(f"cannot move system account '{account.name}'!")
+            if "balance" in data.model_fields_set and data.balance is not None:
+                raise SystemAccountError(f"cannot set balance of system account '{account.name}'!")
 
         if is_system_root:
             if "parent_id" in data.model_fields_set and data.parent_id is not None:
@@ -279,6 +319,9 @@ class AccountService:
                 if not parent:
                     raise ValueError("parent account not found!")
 
+                if parent_id != account.parent_id:
+                    self._validate_parent(parent, all_accounts)
+
                 if self._detect_cycle(aid, parent_id):
                     raise ValueError("cyclic parent relationship detected!")
 
@@ -290,6 +333,17 @@ class AccountService:
             else:
                 if not is_system_root:
                     raise ValueError("parent_id is required for all user-created accounts!")
+
+        if not is_opening and ("name" in data.model_fields_set or "parent_id" in data.model_fields_set):
+            candidate = Account(
+                name=data.name if "name" in data.model_fields_set and data.name else account.name,
+                parent_id=data.parent_id if "parent_id" in data.model_fields_set else account.parent_id,
+                user=self.ar.uid,
+            )
+            if self._is_opening_balances(candidate, all_accounts) and self.ar.read_by_name(
+                candidate.name, candidate.parent_id
+            ):
+                raise ValueError(f"system account '{candidate.name}' already exists!")
 
         if "balance" in data.model_fields_set and data.balance is not None:
             if is_system_root:
@@ -327,6 +381,9 @@ class AccountService:
         is_system_root = self._is_root(account)
         if is_system_root:
             raise RootAccountError("cannot delete system root accounts!")
+
+        if self._is_opening_balances(account, all_accounts):
+            raise SystemAccountError(f"cannot delete system account '{account.name}'!")
 
         if self.ar.has_children(aid):
             raise AccountInUseError("account has sub-accounts")
