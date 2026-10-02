@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
-from ..schemas.account import AccountCreate, AccountRead, AccountUpdate
+from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..services.account import AccountInUseError, SystemAccountError
 
 
@@ -30,6 +30,14 @@ def get_account(aid: UUID, accounts: Accounts):
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
     return account
+
+
+@router.get("/{aid}/register", response_model=list[RegisterEntry], status_code=200)
+def get_account_register(aid: UUID, accounts: Accounts):
+    register = accounts.register(aid)
+    if register is None:
+        raise HTTPException(status_code=404, detail="account not found")
+    return register
 
 
 @router.get("/", response_model=list[AccountRead], status_code=200)

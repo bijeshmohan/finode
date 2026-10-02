@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date as Date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -51,3 +51,13 @@ class AccountUpdate(BaseModel):
         if not v:
             raise ValueError("name must not be empty!")
         return v
+
+
+class RegisterEntry(BaseModel):
+    tid: UUID
+    date: Date
+    payee: str | None
+    comment: str | None
+    counter_accounts: list[str]
+    change: Decimal = Field(decimal_places=2, max_digits=12)
+    balance: Decimal = Field(decimal_places=2, max_digits=12)

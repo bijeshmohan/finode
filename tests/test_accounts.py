@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -498,3 +499,61 @@ def test_cannot_duplicate_opening_balances_account(
     renamed = client.patch(f"/accounts/{other['aid']}", json={"name": "Opening Balances"})
     assert renamed.status_code == 400
     assert renamed.json()["detail"] == "system account 'Opening Balances' already exists!"
+
+
+def _transfer(client: TestClient, debit: dict, credit: dict, amount: str, date: str, payee: str):
+    response = client.post(
+        "/transactions/",
+        json={
+            "date": date,
+            "payee": payee,
+            "postings": [
+                {"account": debit["aid"], "side": "debit", "amount": amount},
+                {"account": credit["aid"], "side": "credit", "amount": amount},
+            ],
+        },
+    )
+    assert response.status_code == 201
+
+
+def test_account_register_has_running_balance(
+    client: TestClient, root_accounts: dict[str, str], expense_account: dict
+):
+    bank = client.post(
+        "/accounts/",
+        json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"},
+    ).json()
+    today = date.today().isoformat()
+    _transfer(client, expense_account, bank, "30.00", today, "shop")
+    _transfer(client, expense_account, bank, "10.00", today, "cafe")
+
+    response = client.get(f"/accounts/{bank['aid']}/register")
+    assert response.status_code == 200
+    entries = response.json()
+    assert [e["change"] for e in entries] == ["100.00", "-30.00", "-10.00"]
+    assert [e["balance"] for e in entries] == ["100.00", "70.00", "60.00"]
+    assert entries[1]["counter_accounts"] == ["groceries"]
+    assert entries[-1]["balance"] == client.get(f"/accounts/{bank['aid']}").json()["balance"]
+
+
+def test_account_register_uses_normal_side_and_sub_accounts(
+    client: TestClient, root_accounts: dict[str, str], account: dict
+):
+    parent = client.post(
+        "/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}
+    ).json()
+    child = client.post(
+        "/accounts/", json={"name": "dining", "parent_id": parent["aid"]}
+    ).json()
+    _transfer(client, child, account, "12.50", "2026-02-02", "lunch")
+
+    entries = client.get(f"/accounts/{parent['aid']}/register").json()
+    assert len(entries) == 1
+    assert entries[0]["change"] == "12.50"
+    assert entries[0]["balance"] == "12.50"
+    assert entries[0]["counter_accounts"] == ["checking"]
+
+
+def test_account_register_not_found(client: TestClient):
+    response = client.get(f"/accounts/{uuid4()}/register")
+    assert response.status_code == 404

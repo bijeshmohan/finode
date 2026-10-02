@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from ..models import Account
 from ..models.transaction import PostingSide
 from ..repositories import AccountRepository, TransactionRepository
-from ..schemas import AccountCreate, AccountRead, AccountUpdate
+from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.transaction import TransactionCreate, PostingCreate
 
 
@@ -120,6 +120,19 @@ class AccountService:
                 descendants.append(child.aid)
                 to_visit.append(child.aid)
         return descendants
+
+    def subtree_ids(
+        self,
+        account_id: UUID,
+        all_accounts: list[Account] | None = None,
+    ) -> list[UUID]:
+        if all_accounts is None:
+            all_accounts = self._ensure_roots()
+        accounts_by_parent: dict[UUID, list[Account]] = {}
+        for acc in all_accounts:
+            if acc.parent_id is not None:
+                accounts_by_parent.setdefault(acc.parent_id, []).append(acc)
+        return [account_id] + self._get_descendants(account_id, accounts_by_parent)
 
     def _balance_for(
         self,
@@ -286,6 +299,55 @@ class AccountService:
                 if self._get_root_name(a, accounts_by_id) == root_name
             ]
         return [self._to_read(account, all_accounts) for account in filtered]
+
+    def register(self, aid: UUID) -> list[RegisterEntry] | None:
+        """Return the account's activity oldest first with a running balance.
+
+        Postings on sub-accounts count towards the account, matching how its
+        balance is derived. Each entry's change is signed by the account's
+        normal side, so it adds up to the account balance.
+        """
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
+        if not account:
+            return None
+
+        accounts_by_id = {acc.aid: acc for acc in all_accounts}
+        target_ids = self.subtree_ids(aid, all_accounts)
+        normal_side = self._normal_side(account, accounts_by_id)
+
+        changes: dict[UUID, Decimal] = {}
+        for posting in self.tr.postings_for_accounts(target_ids):
+            signed = posting.amount if posting.side == normal_side else -posting.amount
+            changes[posting.transaction] = changes.get(posting.transaction, Decimal("0.00")) + signed
+
+        transactions = [self.tr.read(tid) for tid in changes]
+        transactions = [t for t in transactions if t is not None]
+        transactions.sort(key=lambda t: (t.date, t.created))
+
+        entries = []
+        balance = Decimal("0.00")
+        for transaction in transactions:
+            balance += changes[transaction.tid]
+            counter_accounts = []
+            for posting in self.tr.postings(transaction.tid):
+                if posting.account in target_ids:
+                    continue
+                name = accounts_by_id[posting.account].name
+                if name not in counter_accounts:
+                    counter_accounts.append(name)
+            entries.append(
+                RegisterEntry(
+                    tid=transaction.tid,
+                    date=transaction.date,
+                    payee=transaction.payee,
+                    comment=transaction.comment,
+                    counter_accounts=counter_accounts,
+                    change=changes[transaction.tid],
+                    balance=balance,
+                )
+            )
+        return entries
 
     def update(self, aid: UUID, data: AccountUpdate) -> AccountRead | None:
         all_accounts = self._ensure_roots()
