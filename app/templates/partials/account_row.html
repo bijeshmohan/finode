@@ -1,6 +1,6 @@
 <div class="row {{ 'root' if node.kind == 'root' }}" id="account-row-{{ node.account.aid }}">
   <span class="name">
-    {{ node.account.name }}
+    <a class="plain" href="/app/accounts/{{ node.account.aid }}/register">{{ node.account.name }}</a>
     {% if node.kind == "system" %}<span class="badge">system</span>{% endif %}
     {% if node.account.details and node.kind != "root" %}<small class="muted">{{ node.account.details }}</small>{% endif %}
   </span>

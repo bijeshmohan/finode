@@ -108,6 +108,19 @@ def create_account(
     return htmx_redirect("/app/accounts")
 
 
+@router.get("/{aid}/register")
+def account_register(request: Request, aid: UUID, accounts: Accounts):
+    account = accounts.read(aid)
+    entries = accounts.register(aid)
+    if account is None or entries is None:
+        raise HTTPException(status_code=404, detail="account not found")
+    return templates.TemplateResponse(
+        request,
+        "register.html",
+        {"active": "accounts", "account": account, "entries": list(reversed(entries))},
+    )
+
+
 def _row_response(request: Request, accounts: AccountService, aid: UUID, template: str):
     roots = build_tree(accounts.list())
     node = _find(roots, aid)
