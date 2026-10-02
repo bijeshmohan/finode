@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     database_echo: bool = True
     supabase_url: str | None = None
     supabase_audience: str = "authenticated"
+    supabase_anon_key: str | None = None
+    cookie_secure: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="FINODE_")
 

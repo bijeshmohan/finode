@@ -1,12 +1,19 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
-from .routers import accounts, reports, transactions
+from .routers import accounts, reports, transactions, web
+from .templating import BASE_DIR
+from .web_auth import LoginRequired, login_required_handler, refreshed_cookies_middleware
 
 
 app = FastAPI(title="finode")
 app.include_router(accounts.router)
 app.include_router(transactions.router)
 app.include_router(reports.router)
+app.include_router(web.router)
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+app.add_exception_handler(LoginRequired, login_required_handler)
+app.middleware("http")(refreshed_cookies_middleware)
 
 
 @app.get("/")

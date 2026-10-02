@@ -4,7 +4,7 @@ from uuid import UUID
 
 import jwt
 from jwt import PyJWKClient
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .config import settings
@@ -113,16 +113,20 @@ def verify_supabase_jwt(token: str) -> dict[str, Any]:
 
 
 def require_authenticated_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> CurrentUser:
-    if credentials is None:
+    # The web UI keeps the token in a cookie and exposes it through request
+    # state (see web_auth.web_login_required); the JSON API only accepts a bearer header.
+    token = credentials.credentials if credentials else getattr(request.state, "access_token", None)
+    if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="missing authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    claims = verify_supabase_jwt(credentials.credentials)
+    claims = verify_supabase_jwt(token)
     try:
         user_id = UUID(claims["sub"])
     except ValueError:

@@ -9,6 +9,7 @@ from sqlmodel.pool import StaticPool
 from app.auth import CurrentUser, require_authenticated_user
 from app.dependencies import get_db_session
 from app.main import app
+from app.web_auth import web_login_required
 
 
 TEST_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
@@ -38,6 +39,7 @@ def client(session: Session) -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_db_session] = get_session_override
     app.dependency_overrides[require_authenticated_user] = auth_override
+    app.dependency_overrides[web_login_required] = lambda: None
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

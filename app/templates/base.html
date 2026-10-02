@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}finode{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  {% block header %}
+  <header class="topbar">
+    <a class="brand" href="/app/">finode</a>
+    <nav>
+      <a href="/app/" class="{{ 'active' if active == 'home' }}">Home</a>
+    </nav>
+    <form method="post" action="/app/logout">
+      <button type="submit" class="link">Sign out</button>
+    </form>
+  </header>
+  {% endblock %}
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
