@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · finode{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Dashboard</h1>
+  <a class="button" href="/app/transactions/new">New transaction</a>
+</div>
+
+<section class="stats">
+  <div class="card stat primary">
+    <span class="label">Net worth</span>
+    <span class="value">{{ summary.net_worth|money }}</span>
+  </div>
+  <div class="card stat">
+    <span class="label">Assets</span>
+    <span class="value">{{ summary.assets|money }}</span>
+  </div>
+  <div class="card stat">
+    <span class="label">Liabilities</span>
+    <span class="value">{{ summary.liabilities|money }}</span>
+  </div>
+</section>
+
+<h2>{{ summary.period_start.strftime("%B %Y") }}</h2>
+<section class="stats">
+  <div class="card stat">
+    <span class="label">Income</span>
+    <span class="value pos">{{ summary.income|money }}</span>
+  </div>
+  <div class="card stat">
+    <span class="label">Expenses</span>
+    <span class="value neg">{{ summary.expenses|money }}</span>
+  </div>
+  <div class="card stat">
+    <span class="label">Net</span>
+    <span class="value {{ 'pos' if summary.net_income >= 0 else 'neg' }}">{{ summary.net_income|money }}</span>
+  </div>
+</section>
+
+<div class="page-head section-head">
+  <h2>Recent transactions</h2>
+  <a href="/app/transactions">View all</a>
+</div>
+<section class="card table-card">
+  {% if recent %}
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Description</th><th>Accounts</th><th class="num">Amount</th></tr>
+    </thead>
+    <tbody>
+      {% for row in recent %}
+      {% set t = row.transaction %}
+      <tr>
+        <td class="nowrap">{{ t.date }}</td>
+        <td>{{ t.payee or "—" }}</td>
+        <td>{{ row.credits|join(", ") }} <span class="muted">→</span> {{ row.debits|join(", ") }}</td>
+        <td class="num">{{ row.amount|money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted empty">Nothing recorded yet. Create an <a href="/app/accounts">account</a> and add your first transaction.</p>
+  {% endif %}
+</section>
+{% endblock %}

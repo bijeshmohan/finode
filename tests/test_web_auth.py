@@ -2,8 +2,10 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
 from app import auth, web_auth
+from app.dependencies import get_db_session
 from app.main import app
 from app.web_auth import (
     ACCESS_COOKIE,
@@ -15,9 +17,12 @@ from app.web_auth import (
 
 
 @pytest.fixture
-def raw_client() -> Generator[TestClient, None, None]:
+def raw_client(session: Session) -> Generator[TestClient, None, None]:
+    """A client with real authentication; only the database is replaced."""
+    app.dependency_overrides[get_db_session] = lambda: session
     with TestClient(app, follow_redirects=False) as c:
         yield c
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -94,7 +99,7 @@ def test_protected_page_with_valid_cookie(raw_client: TestClient, valid_jwt):
     raw_client.cookies.set(ACCESS_COOKIE, "good-token", path="/app")
     response = raw_client.get("/app/")
     assert response.status_code == 200
-    assert "Welcome to finode" in response.text
+    assert "Net worth" in response.text
 
 
 def test_expired_access_token_is_refreshed(

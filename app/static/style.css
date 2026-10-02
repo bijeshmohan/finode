@@ -199,3 +199,11 @@ a.button.small { padding: .2rem .55rem; font-size: .8rem; }
   .posting-row { grid-template-columns: 1fr 1fr 2.5rem; }
   .posting-row select:first-child { grid-column: 1 / -1; }
 }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem; }
+.stat { display: flex; flex-direction: column; gap: .25rem; }
+.stat .label { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.stat .value { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat.primary .value { font-size: 2rem; }
+.section-head { margin: 1.5rem 0 .5rem; }
+.section-head h2 { margin: 0; }
