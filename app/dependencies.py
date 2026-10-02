@@ -6,7 +6,7 @@ from sqlmodel import Session, create_engine
 from .auth import CurrentUser, require_authenticated_user
 from .config import settings
 from .repositories import AccountRepository, TransactionRepository
-from .services import AccountService, TransactionService
+from .services import AccountService, ReportService, TransactionService
 
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
@@ -45,8 +45,16 @@ def get_transaction_service(
     return TransactionService(tr, ar)
 
 
+def get_report_service(
+    accounts: AccountService = Depends(get_account_service),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+) -> ReportService:
+    return ReportService(accounts, tr)
+
+
 DB = Annotated[Session, Depends(get_db_session)]
 AR = Annotated[AccountRepository, Depends(get_account_repository)]
 TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
+Reports = Annotated[ReportService, Depends(get_report_service)]

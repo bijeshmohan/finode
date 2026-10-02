@@ -82,16 +82,28 @@ class TransactionRepository:
         postings = self.db.exec(statement).all()
         return postings
 
-    def postings_for_accounts(self, aids: list[UUID]) -> list[Posting]:
+    def postings_for_accounts(
+        self,
+        aids: list[UUID],
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[Posting]:
         if not aids:
             return []
         statement = select(Posting).where(
             Posting.account.in_(aids),
             Posting.user == self.uid,
         )
+        if date_from is not None or date_to is not None:
+            statement = statement.join(
+                Transaction, Transaction.tid == Posting.transaction
+            )
+            if date_from is not None:
+                statement = statement.where(Transaction.date >= date_from)
+            if date_to is not None:
+                statement = statement.where(Transaction.date <= date_to)
         postings = self.db.exec(statement).all()
         return postings
-
 
     def update(self, tid: UUID, data: TransactionUpdate) -> Transaction | None:
         transaction = self.read(tid)
