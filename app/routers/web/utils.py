@@ -34,6 +34,10 @@ def htmx_redirect(location: str) -> Response:
     return Response(status_code=200, headers={"HX-Redirect": location})
 
 
+def htmx_refresh() -> Response:
+    return Response(status_code=200, headers={"HX-Refresh": "true"})
+
+
 def htmx_error(message: str, target: str, status_code: int = 400) -> HTMLResponse:
     return HTMLResponse(
         escape(message),

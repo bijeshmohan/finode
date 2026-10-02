@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Transactions · finode{% endblock %}
+{% block content %}
+<h1>Transactions</h1>
+<p id="page-error" class="error" role="alert">{{ error or "" }}</p>
+
+<form method="get" action="/app/transactions" class="card grid-form filters">
+  <label>Account
+    <select name="account">
+      <option value="">All accounts</option>
+      {% for root in roots %}{% for n in root.walk() %}
+      <option value="{{ n.account.aid }}" {{ "selected" if filters.account == n.account.aid|string }}>{{ "  " * n.depth }}{{ n.account.name }}</option>
+      {% endfor %}{% endfor %}
+    </select>
+  </label>
+  <label>From
+    <input type="date" name="date_from" value="{{ filters.date_from }}">
+  </label>
+  <label>To
+    <input type="date" name="date_to" value="{{ filters.date_to }}">
+  </label>
+  <div class="actions">
+    <button type="submit">Filter</button>
+    <a class="button secondary" href="/app/transactions">Clear</a>
+  </div>
+</form>
+
+<section class="card table-card">
+  {% if rows %}
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Description</th><th>Accounts</th><th class="num">Amount</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% set t = row.transaction %}
+      <tr>
+        <td class="nowrap">{{ t.date }}</td>
+        <td>
+          {{ t.payee or "—" }}
+          {% if t.comment %}<small class="muted block">{{ t.comment }}</small>{% endif %}
+        </td>
+        <td>{{ row.credits|join(", ") }} <span class="muted">→</span> {{ row.debits|join(", ") }}</td>
+        <td class="num">{{ row.amount|money }}</td>
+        <td class="row-actions">
+          <button class="danger"
+                  hx-post="/app/transactions/{{ t.tid }}/delete"
+                  hx-confirm="Delete this transaction? Account balances will change.">Delete</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted empty">No transactions found.</p>
+  {% endif %}
+</section>
+
+{% if prev_url or next_url %}
+<nav class="pager">
+  {% if prev_url %}<a class="button secondary" href="{{ prev_url }}">← Newer</a>{% else %}<span></span>{% endif %}
+  <span class="muted">Page {{ page }}</span>
+  {% if next_url %}<a class="button secondary" href="{{ next_url }}">Older →</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}
