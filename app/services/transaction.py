@@ -10,6 +10,10 @@ from ..schemas.transaction import (
 )
 
 
+class InvalidPostingAccountError(ValueError):
+    ...
+
+
 class TransactionService:
     def __init__(self, tr: TransactionRepository, ar: AccountRepository):
         self.tr = tr
@@ -23,8 +27,15 @@ class TransactionService:
         if postings is None:
             return
         for posting in postings:
-            if not self.ar.read(posting.account):
+            account = self.ar.read(posting.account)
+            if not account:
                 raise ValueError(f"account with aid '{posting.account}' not found!")
+            if account.parent_id is None:
+                raise InvalidPostingAccountError(f"cannot post to root account '{account.name}'!")
+            if self.ar.has_children(account.aid):
+                raise InvalidPostingAccountError(
+                    f"cannot post to account '{account.name}' because it has sub-accounts!"
+                )
 
     def _posting_to_read(self, posting: Posting) -> PostingRead:
         return PostingRead(

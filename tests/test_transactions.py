@@ -305,3 +305,66 @@ def test_delete_transaction(
     assert follow.status_code == 404
     account_response = client.get(f"/accounts/{account['aid']}")
     assert account_response.json()["balance"] == "0.00"
+
+
+def _two_postings(debit: str, credit: str) -> dict:
+    return {
+        "postings": [
+            {"account": debit, "side": "debit", "amount": "10.00"},
+            {"account": credit, "side": "credit", "amount": "10.00"},
+        ]
+    }
+
+
+def test_create_transaction_rejects_root_account(
+    client: TestClient, account: dict, root_accounts: dict[str, str]
+):
+    response = client.post(
+        "/transactions/", json=_two_postings(root_accounts["Expenses"], account["aid"])
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "cannot post to root account 'Expenses'!"
+    assert client.get("/transactions/").json() == []
+
+
+def test_create_transaction_rejects_account_with_sub_accounts(
+    client: TestClient, account: dict, expense_account: dict
+):
+    client.post(
+        "/accounts/", json={"name": "child", "parent_id": expense_account["aid"]}
+    )
+    response = client.post(
+        "/transactions/", json=_two_postings(expense_account["aid"], account["aid"])
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "cannot post to account 'groceries' because it has sub-accounts!"
+    )
+
+
+def test_create_transaction_to_leaf_sub_account(
+    client: TestClient, account: dict, expense_account: dict
+):
+    child = client.post(
+        "/accounts/", json={"name": "child", "parent_id": expense_account["aid"]}
+    ).json()
+    response = client.post(
+        "/transactions/", json=_two_postings(child["aid"], account["aid"])
+    )
+    assert response.status_code == 201
+    parent = client.get(f"/accounts/{expense_account['aid']}").json()
+    assert parent["balance"] == "10.00"
+
+
+def test_update_transaction_rejects_root_account(
+    client: TestClient, account: dict, expense_account: dict, root_accounts: dict[str, str]
+):
+    created = client.post(
+        "/transactions/", json=_two_postings(expense_account["aid"], account["aid"])
+    ).json()
+    response = client.patch(
+        f"/transactions/{created['tid']}",
+        json=_two_postings(root_accounts["Expenses"], account["aid"]),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "cannot post to root account 'Expenses'!"

@@ -9,6 +9,7 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
+from ..services.transaction import InvalidPostingAccountError
 
 
 router = APIRouter(
@@ -25,6 +26,8 @@ def create_transaction(
 ):
     try:
         return transactions.create(transaction)
+    except InvalidPostingAccountError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -50,6 +53,8 @@ def update_transaction(
 ):
     try:
         transaction = transactions.update(tid, data)
+    except InvalidPostingAccountError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     if not transaction:

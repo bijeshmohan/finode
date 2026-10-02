@@ -281,9 +281,21 @@ class AccountService:
 
                 if self._detect_cycle(aid, parent_id):
                     raise ValueError("cyclic parent relationship detected!")
+
+                accounts_by_id = {a.aid: a for a in all_accounts}
+                if self._get_root_name(parent, accounts_by_id) != self._get_root_name(
+                    account, accounts_by_id
+                ):
+                    raise ValueError("cannot move account under a different root account!")
             else:
                 if not is_system_root:
                     raise ValueError("parent_id is required for all user-created accounts!")
+
+        if "balance" in data.model_fields_set and data.balance is not None:
+            if is_system_root:
+                raise RootAccountError("cannot set balance of a root account!")
+            if self.ar.has_children(aid):
+                raise ValueError("cannot set balance of an account with sub-accounts!")
 
         previous_balance = self._balance_for(account, all_accounts)
         updated = self.ar.update(aid, data)

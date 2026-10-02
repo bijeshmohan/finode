@@ -50,6 +50,9 @@ represented as income or expense accounts.
 contains at least two postings, every posting has a positive amount, and total
 debits must equal total credits. The service layer validates those invariants
 and verifies that all referenced accounts belong to the authenticated user.
+Postings may not target root accounts or accounts that have sub-accounts, and
+an account cannot be moved under a different root (that would silently
+reclassify its history).
 
 Account balances are derived from postings. Assets and Expenses increase
 with debits; Liabilities, Equity, and Income increase with credits. Opening

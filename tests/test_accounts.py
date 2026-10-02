@@ -301,3 +301,58 @@ def test_root_accounts_are_provisioned_once(client: TestClient):
     second = client.get("/accounts/").json()
     assert len(first) == len(second) == 5
     assert {a["aid"] for a in first} == {a["aid"] for a in second}
+
+
+def test_move_account_to_different_root_fails(
+    client: TestClient, account: dict, root_accounts: dict[str, str]
+):
+    response = client.patch(
+        f"/accounts/{account['aid']}",
+        json={"parent_id": root_accounts["Expenses"]},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "cannot move account under a different root account!"
+    assert client.get(f"/accounts/{account['aid']}").json()["parent_id"] == root_accounts["Assets"]
+
+
+def test_move_account_under_account_of_different_root_fails(
+    client: TestClient, account: dict, expense_account: dict
+):
+    response = client.patch(
+        f"/accounts/{account['aid']}",
+        json={"parent_id": expense_account["aid"]},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "cannot move account under a different root account!"
+
+
+def test_move_account_within_same_root(
+    client: TestClient, account: dict, other_account: dict
+):
+    response = client.patch(
+        f"/accounts/{account['aid']}",
+        json={"parent_id": other_account["aid"]},
+    )
+    assert response.status_code == 200
+    assert response.json()["parent_id"] == other_account["aid"]
+
+
+def test_set_balance_of_root_account_fails(
+    client: TestClient, root_accounts: dict[str, str]
+):
+    response = client.patch(
+        f"/accounts/{root_accounts['Assets']}", json={"balance": "10.00"}
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "cannot set balance of a root account!"
+
+
+def test_set_balance_of_account_with_sub_accounts_fails(
+    client: TestClient, account: dict, root_accounts: dict[str, str]
+):
+    client.post(
+        "/accounts/", json={"name": "child", "parent_id": account["aid"]}
+    )
+    response = client.patch(f"/accounts/{account['aid']}", json={"balance": "10.00"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "cannot set balance of an account with sub-accounts!"
