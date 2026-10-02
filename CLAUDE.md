@@ -24,14 +24,21 @@ ledger with accounts and journal entries:
 - `app/services/` — business logic and cross-entity orchestration. Journal
   balancing and account balance derivation live here.
 - `app/routers/` — FastAPI `APIRouter`s. Convert `None` from repositories/services into `HTTPException(404)`. Routers never touch the DB directly — always go through a repository or service.
+- `app/routers/web/` — the HTML UI under `/app`, rendered with Jinja2 (`app/templates/`) and enhanced with vendored htmx (`app/static/`). It calls the same services as the JSON API and must not duplicate ledger rules; view-model helpers (account tree, posting pickers) live in the web routers.
 
 `app/main.py` wires the routers. Schema is managed by Alembic — `app/main.py` does *not* run `SQLModel.metadata.create_all` at startup. Run `uv run alembic upgrade head` to bring the DB to the latest schema. The dev DB is `finode.db` (SQLite, gitignored).
 
-`app/config.py` exposes a `settings` instance (pydantic-settings) reading `FINODE_*` env vars and an optional `.env` file. Current settings: `database_url`, `database_echo`. Add new configuration here rather than hardcoding constants.
+`app/config.py` exposes a `settings` instance (pydantic-settings) reading `FINODE_*` env vars and an optional `.env` file. Current settings: `database_url`, `database_echo`, `supabase_url`, `supabase_audience`, `supabase_anon_key`, `cookie_secure`. Add new configuration here rather than hardcoding constants.
 
 `app/dependencies.py` builds the engine from `settings` and exposes `DBSession = Annotated[Session, Depends(get_db_session)]`. Route handlers should type the session parameter as `DBSession` directly rather than re-declaring `Depends(...)`.
 
 All imports within `app/` use relative imports (e.g. `from ..models.account import Account`). The FastAPI CLI entrypoint is configured in `pyproject.toml` under `[tool.fastapi]` as `entrypoint = "app.main:app"`.
+
+### Web UI
+
+There is no JavaScript build step; do not add one. Templates extend `base.html`; `partials/` holds fragments returned to htmx. Mutating forms use `hx-post` (htmx 2 sends `DELETE` parameters in the URL, so use `POST` routes such as `/{id}/delete`). Handlers answer success with `HX-Redirect` / `HX-Refresh` and failures with a 4xx plus `HX-Retarget` pointing at an error element, via `routers/web/utils.py`; `static/app.js` lets htmx swap those 4xx responses.
+
+`app/web_auth.py` signs users in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies. `web_login_required` verifies the cookie (refreshing it when expired) and stores the token in `request.state`, which `require_authenticated_user` accepts in addition to a bearer header, so repositories stay tenant-scoped. The JSON API never reads cookies. In tests, `tests/conftest.py` overrides both dependencies; use a client without the `web_login_required` override (see `tests/test_web_auth.py`) to test real authentication.
 
 Tests live in `tests/`. `tests/conftest.py` builds a fresh in-memory SQLite engine per test and overrides `get_db_session`, so tests are independent of `finode.db` and of Alembic.
 

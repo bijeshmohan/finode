@@ -1,7 +1,7 @@
 # finode
 
-Personal finance API built with FastAPI and SQLModel. Finode uses a
-double-entry ledger: every category-like concept is an account, and every
+Personal finance API and web app built with FastAPI and SQLModel. Finode uses
+a double-entry ledger: every category-like concept is an account, and every
 posting is recorded as a balanced journal entry.
 
 ## Setup
@@ -16,6 +16,26 @@ uv run fastapi dev                # start the dev server
 
 The server runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/docs`.
 
+## Web UI
+
+A server-rendered UI (Jinja2 templates + [htmx](https://htmx.org), no JavaScript
+build step) is served by the same app at http://localhost:8000/app/. Users sign
+in with email and password against Supabase Auth, so set `FINODE_SUPABASE_URL`
+and `FINODE_SUPABASE_ANON_KEY` first (see Configuration). Pages:
+
+- **Dashboard** — net worth, this month's income and expenses, recent transactions
+- **Accounts** — account tree with balances; create, edit, move and delete
+- **Account register** — an account's activity with a running balance
+- **Transactions** — filter by account and date, paginate, edit, delete
+- **New transaction** — *simple* mode (amount, from, to) or *split* mode
+  (any number of debit/credit rows with a live balance check)
+
+The browser keeps the Supabase tokens in `HttpOnly`, `SameSite=Lax` cookies
+scoped to `/app`, and the UI calls the same services as the JSON API. The JSON
+API itself only accepts `Authorization: Bearer` tokens. Behind HTTPS, set
+`FINODE_COOKIE_SECURE=true`. htmx is vendored in `app/static/`, so no CDN is
+needed.
+
 ## Tests
 
 ```bash
@@ -28,11 +48,17 @@ uv run pytest
 app/
 ├── main.py            FastAPI app + router registration
 ├── config.py          pydantic-settings (env-driven)
-├── dependencies.py    engine, DBSession
+├── dependencies.py    engine, session, repositories and services
+├── auth.py            Supabase JWT verification
+├── web_auth.py        email/password sign-in and cookie sessions for the UI
 ├── models/            SQLModel ORM tables
 ├── schemas/           Pydantic request/response shapes
 ├── repositories/      tenant-scoped persistence over a Session
-└── routers/           FastAPI APIRouters
+├── services/          ledger rules, balances, reports
+├── routers/           FastAPI APIRouters (JSON API)
+│   └── web/           HTML routers served under /app
+├── templates/         Jinja2 templates (partials/ holds htmx fragments)
+└── static/            stylesheet, small script, vendored htmx
 
 migrations/            Alembic migrations
 tests/                 pytest suite
@@ -46,6 +72,8 @@ Environment variables (or a `.env` file at the project root) override defaults:
 - `FINODE_DATABASE_ECHO` — default `true`
 - `FINODE_SUPABASE_URL` — Supabase project URL, used to fetch JWKS for protected API routes
 - `FINODE_SUPABASE_AUDIENCE` — expected JWT audience, default `authenticated`
+- `FINODE_SUPABASE_ANON_KEY` — Supabase anon (public) key, used by the web UI to sign users in
+- `FINODE_COOKIE_SECURE` — set `true` when serving over HTTPS so session cookies are `Secure`, default `false`
 
 ## Schema changes
 
@@ -64,7 +92,16 @@ uv run alembic upgrade head
   accepts `?type=<root name>` to filter by root.
 - Account balances are derived from postings. They are not stored as an
   authoritative mutable column.
+- Accounts that already have postings cannot gain sub-accounts.
 - Transactions live at `/transactions/` and must contain at least two
-  postings with total debits equal to total credits.
+  postings with total debits equal to total credits. The list is ordered
+  newest first and supports `account` (including sub-accounts), `date_from`,
+  `date_to`, `limit` and `offset`.
 - Opening and direct balance adjustments are posted against a system equity
-  account named `Opening Balances`.
+  account named `Opening Balances`, which cannot be renamed, moved, deleted,
+  given sub-accounts or have its balance set directly.
+
+## Other API endpoints
+
+- `GET /accounts/{aid}/register` — an account's transactions oldest first with a signed change and running balance
+- `GET /reports/summary` — assets, liabilities, net worth, and income/expenses for `date_from`..`date_to` (default: current month)
