@@ -37,9 +37,14 @@ Tests live in `tests/`. `tests/conftest.py` builds a fresh in-memory SQLite engi
 
 ### Double-entry ledger
 
-`app/models/account.py` defines accounts with one of five types: `Assets`,
-`Liabilities`, `Equity`, `Income`, or `Expenses`. Categories are not a separate
-table; former category concepts are represented as income or expense accounts.
+`app/models/account.py` defines accounts as a tree. Each user has five system
+root accounts (`Assets`, `Liabilities`, `Equity`, `Income`, `Expenses`),
+created lazily on first access by `AccountService._ensure_roots` (a partial
+unique index on `(user, name)` where `parent_id IS NULL` keeps this race-safe).
+There is no stored type: an account's type is its root ancestor, and all
+non-root accounts require a `parent_id`. Roots cannot be renamed, moved, or
+deleted. Categories are not a separate table; former category concepts are
+represented as income or expense accounts.
 
 `app/models/transaction.py` defines `Transaction` and `Posting`. A transaction
 contains at least two postings, every posting has a positive amount, and total

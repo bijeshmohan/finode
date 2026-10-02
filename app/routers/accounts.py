@@ -1,12 +1,12 @@
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
-from ..models.account import AccountType
 from ..schemas.account import AccountCreate, AccountRead, AccountUpdate
-from ..services.account import AccountInUseError
+from ..services.account import AccountInUseError, RootAccountError
 
 
 router = APIRouter(
@@ -33,7 +33,7 @@ def get_account(aid: UUID, accounts: Accounts):
 
 
 @router.get("/", response_model=list[AccountRead], status_code=200)
-def get_accounts(accounts: Accounts, type: AccountType | None = None):
+def get_accounts(accounts: Accounts, type: Literal["Assets", "Liabilities", "Equity", "Income", "Expenses"] | None = None):
     return accounts.list(type)
 
 
@@ -57,6 +57,8 @@ def delete_account(aid: UUID, accounts: Accounts):
         account = accounts.delete(aid)
     except AccountInUseError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    except RootAccountError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError:
         raise HTTPException(status_code=404, detail="account not found")
     if not account:

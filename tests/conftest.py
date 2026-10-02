@@ -44,40 +44,48 @@ def client(session: Session) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture
-def account(client: TestClient) -> dict:
+def root_accounts(client: TestClient) -> dict[str, str]:
+    response = client.get("/accounts/")
+    assert response.status_code == 200
+    accounts = response.json()
+    return {a["name"]: a["aid"] for a in accounts if a["parent_id"] is None}
+
+
+@pytest.fixture
+def account(client: TestClient, root_accounts: dict[str, str]) -> dict:
     response = client.post(
         "/accounts/",
-        json={"name": "checking", "details": None, "type": "Assets"},
+        json={"name": "checking", "details": None, "parent_id": root_accounts["Assets"]},
     )
     assert response.status_code == 201
     return response.json()
 
 
 @pytest.fixture
-def other_account(client: TestClient) -> dict:
+def other_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
     response = client.post(
         "/accounts/",
-        json={"name": "savings", "details": None, "type": "Assets"},
+        json={"name": "savings", "details": None, "parent_id": root_accounts["Assets"]},
     )
     assert response.status_code == 201
     return response.json()
 
 
 @pytest.fixture
-def expense_account(client: TestClient) -> dict:
+def expense_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
     response = client.post(
         "/accounts/",
-        json={"type": "Expenses", "name": "groceries", "details": None},
+        json={"name": "groceries", "details": None, "parent_id": root_accounts["Expenses"]},
     )
     assert response.status_code == 201
     return response.json()
 
 
 @pytest.fixture
-def income_account(client: TestClient) -> dict:
+def income_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
     response = client.post(
         "/accounts/",
-        json={"type": "Income", "name": "salary", "details": None},
+        json={"name": "salary", "details": None, "parent_id": root_accounts["Income"]},
     )
     assert response.status_code == 201
     return response.json()

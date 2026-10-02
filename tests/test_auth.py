@@ -78,13 +78,14 @@ def test_users_can_only_access_their_own_data(session: Session):
     try:
         with TestClient(app) as client:
             authenticate_as(USER_A_ID)
+            roots = {a["name"]: a["aid"] for a in client.get("/accounts/").json() if a["parent_id"] is None}
             account = client.post(
                 "/accounts/",
-                json={"name": "checking", "details": None, "type": "Assets"},
+                json={"name": "checking", "details": None, "parent_id": roots["Assets"]},
             ).json()
             expense_account = client.post(
                 "/accounts/",
-                json={"type": "Expenses", "name": "groceries"},
+                json={"name": "groceries", "parent_id": roots["Expenses"]},
             ).json()
             transaction = client.post(
                 "/transactions/",
@@ -105,7 +106,7 @@ def test_users_can_only_access_their_own_data(session: Session):
             ).json()
 
             authenticate_as(USER_B_ID)
-            assert client.get("/accounts/").json() == []
+            assert len(client.get("/accounts/").json()) == 5
             assert client.get("/transactions/").json() == []
             assert client.get(f"/accounts/{account['aid']}").status_code == 404
             assert client.get(f"/transactions/{transaction['tid']}").status_code == 404

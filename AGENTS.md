@@ -45,7 +45,7 @@ app/
 ### 3. Double-Entry Ledger Pattern
 Finode uses double-entry bookkeeping. Everything category-like is represented as an account, and all money movement is posted through balanced transactions.
 
-*   **Accounts:** `app/models/account.py` defines the chart of accounts. Account types are `Assets`, `Liabilities`, `Equity`, `Income`, and `Expenses`.
+*   **Accounts:** `app/models/account.py` defines the chart of accounts. Accounts form a tree under five per-user system roots (`Assets`, `Liabilities`, `Equity`, `Income`, `Expenses`), created lazily on first access. There is no stored type column: an account's type is its root ancestor, and every non-root account requires a `parent_id`.
 *   **Transactions & Postings:** `app/models/transaction.py` defines `Transaction` and `Posting`. Each transaction must have at least two postings, positive posting amounts, and total debits equal to total credits.
 *   **Balances:** Account balances are derived from postings, not stored as authoritative mutable account fields. Assets and Expenses increase with debits; Liabilities, Equity, and Income increase with credits.
 *   **Opening Balances:** Initial balances and direct balance adjustments are posted against a system equity account named `Opening Balances`.

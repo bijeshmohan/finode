@@ -57,8 +57,11 @@ uv run alembic upgrade head
 
 ## Accounting model
 
-- Accounts have one of five types: `Assets`, `Liabilities`, `Equity`, `Income`,
-  or `Expenses`.
+- Accounts form a tree. Each user gets five system root accounts (`Assets`,
+  `Liabilities`, `Equity`, `Income`, `Expenses`), created lazily on first
+  access. Every other account must have a parent, and its type is that of its
+  root ancestor. Roots cannot be renamed, moved, or deleted. `GET /accounts/`
+  accepts `?type=<root name>` to filter by root.
 - Account balances are derived from postings. They are not stored as an
   authoritative mutable column.
 - Transactions live at `/transactions/` and must contain at least two

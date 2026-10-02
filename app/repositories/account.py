@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from ..models.account import Account, AccountType
+from ..models.account import Account
 from ..schemas.account import AccountCreate, AccountUpdate
 
 
@@ -34,14 +34,13 @@ class AccountRepository:
     def read_by_name(
         self,
         name: str,
-        account_type: AccountType | None = None,
+        parent_id: UUID | None = None,
     ) -> Account | None:
         statement = select(Account).where(
             Account.name == name,
             Account.user == self.uid,
+            Account.parent_id == parent_id,
         )
-        if account_type is not None:
-            statement = statement.where(Account.type == account_type)
         account = self.db.exec(statement).first()
         return account
 

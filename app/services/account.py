@@ -2,8 +2,9 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from ..models import Account
-from ..models.account import AccountType
 from ..models.transaction import PostingSide
 from ..repositories import AccountRepository, TransactionRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate
@@ -11,9 +12,15 @@ from ..schemas.transaction import TransactionCreate, PostingCreate
 
 
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
+ROOT_ACCOUNT_NAMES = ("Assets", "Expenses", "Equity", "Income", "Liabilities")
+DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
 
 
 class AccountInUseError(ValueError):
+    ...
+
+
+class RootAccountError(ValueError):
     ...
 
 
@@ -22,8 +29,54 @@ class AccountService:
         self.ar = ar
         self.tr = tr
 
-    def _normal_side(self, account_type: AccountType) -> PostingSide:
-        if account_type in (AccountType.ASSETS, AccountType.EXPENSES):
+    @staticmethod
+    def _is_root(account: Account) -> bool:
+        return account.parent_id is None and account.name in ROOT_ACCOUNT_NAMES
+
+    def _ensure_roots(self) -> list[Account]:
+        """Return all accounts, lazily provisioning the user's system roots.
+
+        Only the first request of a new user writes. A unique partial index on
+        root names makes concurrent provisioning safe: the loser rolls back and
+        re-reads the roots created by the winner.
+        """
+        all_accounts = self.ar.list()
+        existing = {a.name for a in all_accounts if a.parent_id is None}
+        missing = [name for name in ROOT_ACCOUNT_NAMES if name not in existing]
+        if not missing:
+            return all_accounts
+
+        for name in missing:
+            self.ar.db.add(
+                Account(
+                    name=name,
+                    details=f"System root account for {name}",
+                    parent_id=None,
+                    user=self.ar.uid,
+                )
+            )
+        try:
+            self.ar.db.commit()
+        except IntegrityError:
+            self.ar.db.rollback()
+        return self.ar.list()
+
+    def _get_root_name(self, account: Account, accounts_by_id: dict[UUID, Account]) -> str:
+        current = account
+        visited = set()
+        while current.parent_id is not None:
+            if current.aid in visited:
+                break
+            visited.add(current.aid)
+            parent = accounts_by_id.get(current.parent_id)
+            if not parent:
+                break
+            current = parent
+        return current.name
+
+    def _normal_side(self, account: Account, accounts_by_id: dict[UUID, Account]) -> PostingSide:
+        root_name = self._get_root_name(account, accounts_by_id)
+        if root_name in DEBIT_ROOT_NAMES:
             return PostingSide.DEBIT
         return PostingSide.CREDIT
 
@@ -53,8 +106,9 @@ class AccountService:
         all_accounts: list[Account] | None = None,
     ) -> Decimal:
         if all_accounts is None:
-            all_accounts = self.ar.list()
+            all_accounts = self._ensure_roots()
 
+        accounts_by_id = {acc.aid: acc for acc in all_accounts}
         accounts_by_parent = {}
         for acc in all_accounts:
             if acc.parent_id is not None:
@@ -71,7 +125,8 @@ class AccountService:
             else:
                 credit_total += posting.amount
 
-        if self._normal_side(account.type) == PostingSide.DEBIT:
+        normal_side = self._normal_side(account, accounts_by_id)
+        if normal_side == PostingSide.DEBIT:
             return debit_total - credit_total
         return credit_total - debit_total
 
@@ -84,26 +139,23 @@ class AccountService:
             aid=account.aid,
             name=account.name,
             details=account.details,
-            type=account.type,
             parent_id=account.parent_id,
             balance=self._balance_for(account, all_accounts),
             created=account.created,
             updated=account.updated,
         )
 
-
     def _opening_balances_account(self) -> Account:
-        account = self.ar.read_by_name(
-            OPENING_BALANCES_ACCOUNT_NAME,
-            AccountType.EQUITY,
-        )
+        all_accounts = self._ensure_roots()
+        equity_root = next(a for a in all_accounts if a.name == "Equity" and a.parent_id is None)
+        account = self.ar.read_by_name(OPENING_BALANCES_ACCOUNT_NAME, equity_root.aid)
         if account:
             return account
         return self.ar.create(
             AccountCreate(
                 name=OPENING_BALANCES_ACCOUNT_NAME,
                 details="System account for opening balance adjustments",
-                type=AccountType.EQUITY,
+                parent_id=equity_root.aid,
             )
         )
 
@@ -113,12 +165,16 @@ class AccountService:
         amount: Decimal,
         payee: str,
         comment: str,
+        all_accounts: list[Account],
     ) -> None:
         if amount == 0:
             return
 
         opening_account = self._opening_balances_account()
-        account_side = self._normal_side(account.type)
+        accounts_by_id = {acc.aid: acc for acc in all_accounts}
+        accounts_by_id[opening_account.aid] = opening_account
+
+        account_side = self._normal_side(account, accounts_by_id)
         opening_side = self._opposite_side(account_side)
         adjustment = abs(amount)
         if amount < 0:
@@ -158,104 +214,116 @@ class AccountService:
         return False
 
     def create(self, account: AccountCreate) -> AccountRead:
-        if account.parent_id is not None:
-            parent = self.ar.read(account.parent_id)
-            if not parent:
-                raise ValueError("parent account not found!")
-            if account.type is None:
-                account.type = parent.type
-            elif parent.type != account.type:
-                raise ValueError("parent account type must match child account type!")
-        else:
-            if account.type is None:
-                raise ValueError("type is required for top-level accounts!")
+        all_accounts = self._ensure_roots()
+
+        if account.parent_id is None:
+            raise ValueError("parent_id is required for all user-created accounts!")
+
+        parent = next((a for a in all_accounts if a.aid == account.parent_id), None)
+        if not parent:
+            raise ValueError("parent account not found!")
 
         created = self.ar.create(account)
+        all_accounts_with_created = all_accounts + [created]
+
         self._post_balance_adjustment(
             created,
             account.balance,
             "Opening balance",
             "Initial account balance",
+            all_accounts_with_created,
         )
         self.ar.db.commit()
         self.ar.db.refresh(created)
-        return self._to_read(created)
+        return self._to_read(created, all_accounts_with_created)
 
     def read(self, aid: UUID) -> AccountRead | None:
-        account = self.ar.read(aid)
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
         if not account:
             return None
-        return self._to_read(account)
+        return self._to_read(account, all_accounts)
 
-    def list(self, account_type: AccountType | None = None) -> list[AccountRead]:
-        all_accounts = self.ar.list()
+    def list(self, root_name: str | None = None) -> list[AccountRead]:
+        all_accounts = self._ensure_roots()
+        accounts_by_id = {acc.aid: acc for acc in all_accounts}
+
         filtered = all_accounts
-        if account_type is not None:
-            filtered = [a for a in all_accounts if a.type == account_type]
+        if root_name is not None:
+            filtered = [
+                a for a in all_accounts
+                if self._get_root_name(a, accounts_by_id) == root_name
+            ]
         return [self._to_read(account, all_accounts) for account in filtered]
 
     def update(self, aid: UUID, data: AccountUpdate) -> AccountRead | None:
-        account = self.ar.read(aid)
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
         if not account:
             raise ValueError(f"account with aid '{aid}' not found!")
 
-        # 0. Check if type is explicitly set to None (invalid payload)
-        if "type" in data.model_fields_set and data.type is None:
-            raise ValueError("Account type cannot be null")
+        is_system_root = self._is_root(account)
 
-        # 1. Validation for parent_id updates
+        if is_system_root:
+            if "parent_id" in data.model_fields_set and data.parent_id is not None:
+                raise RootAccountError("cannot change parent of a root account!")
+            if "name" in data.model_fields_set and data.name != account.name:
+                raise RootAccountError("cannot change name of a system root account!")
+
         if "parent_id" in data.model_fields_set:
             parent_id = data.parent_id
             if parent_id is not None:
                 if parent_id == aid:
                     raise ValueError("an account cannot be its own parent!")
-                parent = self.ar.read(parent_id)
+                parent = next((a for a in all_accounts if a.aid == parent_id), None)
                 if not parent:
                     raise ValueError("parent account not found!")
-                
-                target_type = data.type if data.type is not None else account.type
-                if parent.type != target_type:
-                    raise ValueError("parent account type must match child account type!")
-                
+
                 if self._detect_cycle(aid, parent_id):
                     raise ValueError("cyclic parent relationship detected!")
+            else:
+                if not is_system_root:
+                    raise ValueError("parent_id is required for all user-created accounts!")
 
-        # 2. Validation for type updates
-        if data.type is not None and data.type != account.type:
-            if self.ar.has_children(aid):
-                raise ValueError("cannot change type of account with sub-accounts!")
-            if "parent_id" not in data.model_fields_set and account.parent_id is not None:
-                parent = self.ar.read(account.parent_id)
-                if parent and parent.type != data.type:
-                    raise ValueError("parent account type must match child account type!")
-
-        previous_balance = self._balance_for(account)
+        previous_balance = self._balance_for(account, all_accounts)
         updated = self.ar.update(aid, data)
         if not updated:
             raise RuntimeError(f"failed to update account with aid '{aid}'!")
 
+        all_accounts = [a if a.aid != aid else updated for a in all_accounts]
+
         if "balance" in data.model_fields_set and data.balance is not None:
-            current_balance = self._balance_for(updated)
+            current_balance = self._balance_for(updated, all_accounts)
             self._post_balance_adjustment(
                 updated,
                 data.balance - current_balance,
                 "Balance adjustment",
                 "Result of direct account balance update",
+                all_accounts,
             )
 
         self.ar.db.commit()
         self.ar.db.refresh(updated)
-        return self._to_read(updated)
+        return self._to_read(updated, all_accounts)
 
     def delete(self, aid: UUID) -> AccountRead | None:
-        account_read = self.read(aid)
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
+        if not account:
+            raise ValueError(f"account with aid '{aid}' not found!")
+
+        is_system_root = self._is_root(account)
+        if is_system_root:
+            raise RootAccountError("cannot delete system root accounts!")
+
         if self.ar.has_children(aid):
             raise AccountInUseError("account has sub-accounts")
         if self.tr.postings_for_account(aid):
             raise AccountInUseError("account has postings")
-        account = self.ar.delete(aid)
-        if not account:
+
+        account_read = self._to_read(account, all_accounts)
+        deleted = self.ar.delete(aid)
+        if not deleted:
             raise ValueError(f"account with aid '{aid}' not found!")
         self.ar.db.commit()
         return account_read
-
