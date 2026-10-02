@@ -170,3 +170,32 @@ td.row-actions button { padding: .2rem .55rem; font-size: .8rem; }
 .amount-inline { font-weight: 400; font-variant-numeric: tabular-nums; margin-left: .5rem; }
 
 .pager { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; }
+
+.page-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.page-head h1 { margin: 0; }
+.page-head { margin-bottom: 1rem; }
+a.button.small { padding: .2rem .55rem; font-size: .8rem; }
+
+.tabs { display: flex; gap: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.tabs a { padding: .4rem 0; text-decoration: none; color: var(--muted); }
+.tabs a.active { color: var(--text); border-bottom: 2px solid var(--accent); }
+
+.hint { font-weight: 400; font-size: .75rem; }
+
+.postings { display: flex; flex-direction: column; gap: .5rem; }
+.posting-head, .posting-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 3fr) 7rem minmax(7rem, 1.2fr) 2.5rem;
+  gap: .5rem;
+  align-items: center;
+}
+.posting-head { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.balance-status { margin: 0; font-variant-numeric: tabular-nums; color: var(--muted); }
+.balance-status.ok { color: var(--positive); }
+.balance-status.off { color: var(--negative); }
+
+@media (max-width: 40rem) {
+  .posting-head { display: none; }
+  .posting-row { grid-template-columns: 1fr 1fr 2.5rem; }
+  .posting-row select:first-child { grid-column: 1 / -1; }
+}

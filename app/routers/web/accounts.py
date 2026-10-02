@@ -23,6 +23,7 @@ class Node:
     account: AccountRead
     depth: int = 0
     kind: str = "user"  # root | system | user
+    path: str = ""
     children: list["Node"] = field(default_factory=list)
 
     @property
@@ -48,16 +49,27 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
             if AccountService.is_opening_balances(node.account, accounts):
                 node.kind = "system"
 
-    def finish(node: Node, depth: int) -> None:
+    def finish(node: Node, depth: int, parent_path: str = "") -> None:
         node.depth = depth
+        node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
         node.children.sort(key=lambda n: n.account.name.lower())
         for child in node.children:
-            finish(child, depth + 1)
+            finish(child, depth + 1, node.path)
 
     roots.sort(key=lambda n: ROOT_ORDER.index(n.account.name) if n.account.name in ROOT_ORDER else len(ROOT_ORDER))
     for root in roots:
         finish(root, 0)
     return roots
+
+
+def posting_groups(roots: list[Node]) -> list[tuple[str, list[Node]]]:
+    """Accounts that transactions may post to (leaf, non-root), grouped by root."""
+    groups = []
+    for root in roots:
+        leaves = [n for n in root.walk() if n.kind != "root" and n.is_leaf]
+        if leaves:
+            groups.append((root.account.name, leaves))
+    return groups
 
 
 def _find(roots: list[Node], aid: UUID) -> Node | None:

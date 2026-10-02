@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Transactions · finode{% endblock %}
 {% block content %}
-<h1>Transactions</h1>
+<div class="page-head">
+  <h1>Transactions</h1>
+  <a class="button" href="/app/transactions/new">New transaction</a>
+</div>
 <p id="page-error" class="error" role="alert">{{ error or "" }}</p>
 
 <form method="get" action="/app/transactions" class="card grid-form filters">
@@ -43,6 +46,7 @@
         <td>{{ row.credits|join(", ") }} <span class="muted">→</span> {{ row.debits|join(", ") }}</td>
         <td class="num">{{ row.amount|money }}</td>
         <td class="row-actions">
+          <a class="button secondary small" href="/app/transactions/{{ t.tid }}/edit">Edit</a>
           <button class="danger"
                   hx-post="/app/transactions/{{ t.tid }}/delete"
                   hx-confirm="Delete this transaction? Account balances will change.">Delete</button>

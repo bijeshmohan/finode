@@ -1,0 +1,285 @@
+from datetime import date
+
+from fastapi.testclient import TestClient
+
+
+def _balance(client: TestClient, account: dict) -> str:
+    return client.get(f"/accounts/{account['aid']}").json()["balance"]
+
+
+def test_new_transaction_page_simple_mode(client: TestClient, account: dict, expense_account: dict):
+    response = client.get("/app/transactions/new")
+    assert response.status_code == 200
+    assert 'name="from_account"' in response.text
+    assert 'name="to_account"' in response.text
+    assert date.today().isoformat() in response.text
+    assert "checking" in response.text
+
+
+def test_form_only_offers_postable_accounts(
+    client: TestClient, root_accounts: dict[str, str], account: dict
+):
+    parent = client.post(
+        "/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}
+    ).json()
+    client.post("/accounts/", json={"name": "dining", "parent_id": parent["aid"]})
+
+    text = client.get("/app/transactions/new").text
+    assert f'<option value="{parent["aid"]}"' not in text  # has sub-accounts
+    for aid in root_accounts.values():
+        assert f'<option value="{aid}"' not in text  # roots
+    assert "Food › dining" in text.replace("food", "Food")
+
+
+def test_new_transaction_page_split_mode(client: TestClient, account: dict):
+    response = client.get("/app/transactions/new", params={"mode": "split"})
+    assert response.status_code == 200
+    assert response.text.count('class="posting-row"') == 2
+    assert 'id="balance-status"' in response.text
+
+
+def test_new_posting_row_fragment(client: TestClient, account: dict):
+    response = client.get("/app/transactions/rows/new")
+    assert response.status_code == 200
+    assert 'class="posting-row"' in response.text
+    assert "<html" not in response.text
+
+
+def test_create_simple_transaction(client: TestClient, account: dict, expense_account: dict):
+    response = client.post(
+        "/app/transactions",
+        data={
+            "date": "2026-05-04",
+            "amount": "42.50",
+            "from_account": account["aid"],
+            "to_account": expense_account["aid"],
+            "payee": "Market",
+            "comment": "weekly",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/app/transactions"
+
+    [tx] = client.get("/transactions/").json()
+    assert tx["date"] == "2026-05-04"
+    assert tx["payee"] == "Market"
+    sides = {p["account"]: p["side"] for p in tx["postings"]}
+    assert sides[expense_account["aid"]] == "debit"
+    assert sides[account["aid"]] == "credit"
+    assert _balance(client, account) == "-42.50"
+    assert _balance(client, expense_account) == "42.50"
+
+
+def test_create_simple_transaction_defaults_to_today(
+    client: TestClient, account: dict, expense_account: dict
+):
+    client.post(
+        "/app/transactions",
+        data={"amount": "1", "from_account": account["aid"], "to_account": expense_account["aid"]},
+    )
+    [tx] = client.get("/transactions/").json()
+    assert tx["date"] == date.today().isoformat()
+    assert tx["payee"] is None
+
+
+def test_create_simple_transaction_rejects_same_account(client: TestClient, account: dict):
+    response = client.post(
+        "/app/transactions",
+        data={"amount": "5", "from_account": account["aid"], "to_account": account["aid"]},
+    )
+    assert response.status_code == 400
+    assert response.headers["HX-Retarget"] == "#form-error"
+    assert "must differ" in response.text
+
+
+def test_create_simple_transaction_rejects_bad_amounts(
+    client: TestClient, account: dict, expense_account: dict
+):
+    for amount in ("0", "-3", "abc", "1.234", ""):
+        response = client.post(
+            "/app/transactions",
+            data={"amount": amount, "from_account": account["aid"], "to_account": expense_account["aid"]},
+        )
+        assert response.status_code == 400, amount
+    assert client.get("/transactions/").json() == []
+
+
+def test_create_simple_transaction_rejects_root_account(
+    client: TestClient, root_accounts: dict[str, str], account: dict
+):
+    response = client.post(
+        "/app/transactions",
+        data={"amount": "5", "from_account": account["aid"], "to_account": root_accounts["Expenses"]},
+    )
+    assert response.status_code == 400
+    assert "root account" in response.text
+
+
+def test_create_split_transaction(
+    client: TestClient, account: dict, expense_account: dict, other_account: dict
+):
+    response = client.post(
+        "/app/transactions/split",
+        data={
+            "date": "2026-05-04",
+            "payee": "Shop",
+            "account": [expense_account["aid"], other_account["aid"], account["aid"], ""],
+            "side": ["debit", "debit", "credit", "debit"],
+            "amount": ["30.00", "20.00", "50.00", ""],
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/app/transactions"
+    [tx] = client.get("/transactions/").json()
+    assert len(tx["postings"]) == 3
+    assert _balance(client, account) == "-50.00"
+
+
+def test_create_split_transaction_must_balance(
+    client: TestClient, account: dict, expense_account: dict
+):
+    response = client.post(
+        "/app/transactions/split",
+        data={
+            "account": [expense_account["aid"], account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["30.00", "25.00"],
+        },
+    )
+    assert response.status_code == 400
+    assert response.headers["HX-Retarget"] == "#form-error"
+    assert "must balance" in response.text
+    assert client.get("/transactions/").json() == []
+
+
+def test_create_split_transaction_requires_two_postings_and_accounts(
+    client: TestClient, account: dict, expense_account: dict
+):
+    one = client.post(
+        "/app/transactions/split",
+        data={"account": [account["aid"]], "side": ["debit"], "amount": ["5.00"]},
+    )
+    assert one.status_code == 400
+    assert "at least two postings" in one.text
+
+    missing_account = client.post(
+        "/app/transactions/split",
+        data={
+            "account": [account["aid"], ""],
+            "side": ["debit", "credit"],
+            "amount": ["5.00", "5.00"],
+        },
+    )
+    assert missing_account.status_code == 400
+    assert "needs an account" in missing_account.text
+
+
+def test_edit_page_prefills_existing_postings(
+    client: TestClient, account: dict, expense_account: dict
+):
+    tx = client.post(
+        "/transactions/",
+        json={
+            "date": "2026-05-04",
+            "payee": "Corner shop",
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "9.99"},
+                {"account": account["aid"], "side": "credit", "amount": "9.99"},
+            ],
+        },
+    ).json()
+
+    response = client.get(f"/app/transactions/{tx['tid']}/edit")
+    assert response.status_code == 200
+    assert 'value="Corner shop"' in response.text
+    assert 'value="2026-05-04"' in response.text
+    assert response.text.count('value="9.99"') == 2
+    assert f'hx-post="/app/transactions/{tx["tid"]}/edit"' in response.text
+
+
+def test_edit_missing_transaction_is_404(client: TestClient):
+    response = client.get("/app/transactions/00000000-0000-4000-8000-0000000000ff/edit")
+    assert response.status_code == 404
+
+
+def test_update_transaction_from_form(client: TestClient, account: dict, expense_account: dict):
+    tx = client.post(
+        "/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "10.00"},
+                {"account": account["aid"], "side": "credit", "amount": "10.00"},
+            ],
+        },
+    ).json()
+
+    response = client.post(
+        f"/app/transactions/{tx['tid']}/edit",
+        data={
+            "date": "2026-06-01",
+            "payee": "fixed",
+            "account": [expense_account["aid"], account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["12.00", "12.00"],
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/app/transactions"
+    updated = client.get(f"/transactions/{tx['tid']}").json()
+    assert updated["payee"] == "fixed"
+    assert updated["date"] == "2026-06-01"
+    assert _balance(client, expense_account) == "12.00"
+
+
+def test_update_transaction_validation_error(
+    client: TestClient, account: dict, expense_account: dict
+):
+    tx = client.post(
+        "/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "10.00"},
+                {"account": account["aid"], "side": "credit", "amount": "10.00"},
+            ],
+        },
+    ).json()
+    response = client.post(
+        f"/app/transactions/{tx['tid']}/edit",
+        data={
+            "date": "2026-06-01",
+            "account": [expense_account["aid"], account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["12.00", "11.00"],
+        },
+    )
+    assert response.status_code == 400
+    assert response.headers["HX-Retarget"] == "#form-error"
+    assert _balance(client, expense_account) == "10.00"
+
+
+def test_update_missing_transaction_is_404(client: TestClient, account: dict, expense_account: dict):
+    response = client.post(
+        "/app/transactions/00000000-0000-4000-8000-0000000000ff/edit",
+        data={
+            "date": "2026-06-01",
+            "account": [expense_account["aid"], account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["1.00", "1.00"],
+        },
+    )
+    assert response.status_code == 404
+
+
+def test_transactions_page_links_to_form(client: TestClient, account: dict, expense_account: dict):
+    tx = client.post(
+        "/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
+                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+            ],
+        },
+    ).json()
+    text = client.get("/app/transactions").text
+    assert 'href="/app/transactions/new"' in text
+    assert f'href="/app/transactions/{tx["tid"]}/edit"' in text

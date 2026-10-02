@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% set editing = mode == "edit" %}
+{% block title %}{{ "Edit" if editing else "New" }} transaction · finode{% endblock %}
+{% block content %}
+<p><a href="/app/transactions">← Transactions</a></p>
+<h1>{{ "Edit transaction" if editing else "New transaction" }}</h1>
+
+{% if not editing %}
+<div class="tabs">
+  <a href="/app/transactions/new" class="{{ 'active' if mode == 'simple' }}">Simple</a>
+  <a href="/app/transactions/new?mode=split" class="{{ 'active' if mode == 'split' }}">Split</a>
+</div>
+{% endif %}
+
+{% if mode == "simple" %}
+<form class="card stack" hx-post="/app/transactions">
+  <div class="grid-form">
+    <label>Date
+      <input type="date" name="date" value="{{ today }}" required>
+    </label>
+    <label>Amount
+      <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autofocus>
+    </label>
+  </div>
+  <div class="grid-form">
+    <label>From <span class="hint">(money leaves this account)</span>
+      <select name="from_account" required>
+        <option value="">Select account</option>
+        {% for root, nodes in groups %}
+        <optgroup label="{{ root }}">
+          {% for n in nodes %}<option value="{{ n.account.aid }}">{{ n.path }}</option>{% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+    <label>To <span class="hint">(money arrives here)</span>
+      <select name="to_account" required>
+        <option value="">Select account</option>
+        {% for root, nodes in groups %}
+        <optgroup label="{{ root }}">
+          {% for n in nodes %}<option value="{{ n.account.aid }}">{{ n.path }}</option>{% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="grid-form">
+    <label>Payee
+      <input type="text" name="payee" maxlength="40">
+    </label>
+    <label>Comment
+      <input type="text" name="comment" maxlength="200">
+    </label>
+  </div>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit">Save transaction</button></div>
+</form>
+
+{% else %}
+<form class="card stack split-form"
+      hx-post="{{ '/app/transactions/' ~ transaction.tid ~ '/edit' if editing else '/app/transactions/split' }}">
+  <div class="grid-form">
+    <label>Date
+      <input type="date" name="date" value="{{ transaction.date if editing else today }}" required>
+    </label>
+    <label>Payee
+      <input type="text" name="payee" maxlength="40" value="{{ (transaction.payee if editing else '') or '' }}">
+    </label>
+    <label>Comment
+      <input type="text" name="comment" maxlength="200" value="{{ (transaction.comment if editing else '') or '' }}">
+    </label>
+  </div>
+
+  <div id="postings" class="postings">
+    <div class="posting-head"><span>Account</span><span>Side</span><span>Amount</span><span></span></div>
+    {% if postings %}
+      {% for posting in postings %}{% include "partials/posting_row.html" %}{% endfor %}
+    {% else %}
+      {% set posting = none %}
+      {% include "partials/posting_row.html" %}
+      {% include "partials/posting_row.html" %}
+    {% endif %}
+  </div>
+
+  <div class="actions">
+    <button type="button" class="secondary"
+            hx-get="/app/transactions/rows/new" hx-target="#postings" hx-swap="beforeend">Add row</button>
+  </div>
+  <p id="balance-status" class="balance-status" aria-live="polite"></p>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit">Save transaction</button></div>
+</form>
+{% endif %}
+{% endblock %}
