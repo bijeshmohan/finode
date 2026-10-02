@@ -1,0 +1,10 @@
+<li>
+  {% include "partials/account_row.html" %}
+  {% if node.children %}
+  <ul>
+    {% for child in node.children %}
+    {% with node=child %}{% include "partials/account_node.html" %}{% endwith %}
+    {% endfor %}
+  </ul>
+  {% endif %}
+</li>

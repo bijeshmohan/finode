@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Accounts · finode{% endblock %}
+{% block content %}
+<h1>Accounts</h1>
+<p id="page-error" class="error" role="alert"></p>
+
+<details class="card new-account">
+  <summary>New account</summary>
+  <form hx-post="/app/accounts" class="grid-form">
+    <label>Name
+      <input type="text" name="name" maxlength="40" required>
+    </label>
+    <label>Parent
+      <select name="parent_id" required>
+        {% for n in parent_options %}
+        <option value="{{ n.account.aid }}">{{ "  " * n.depth }}{{ n.account.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Opening balance
+      <input type="text" name="balance" inputmode="decimal" placeholder="0.00">
+    </label>
+    <label>Details
+      <input type="text" name="details" maxlength="200">
+    </label>
+    <div class="actions"><button type="submit">Create account</button></div>
+    <p id="create-error" class="error" role="alert"></p>
+  </form>
+</details>
+
+{% for root in roots %}
+<section class="card tree">
+  <ul>
+    {% with node=root %}{% include "partials/account_node.html" %}{% endwith %}
+  </ul>
+</section>
+{% endfor %}
+{% endblock %}

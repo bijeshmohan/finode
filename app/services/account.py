@@ -38,14 +38,14 @@ class AccountService:
         return account.parent_id is None and account.name in ROOT_ACCOUNT_NAMES
 
     @staticmethod
-    def _is_opening_balances(account: Account, all_accounts: list[Account]) -> bool:
+    def is_opening_balances(account: Account, all_accounts: list[Account]) -> bool:
         if account.name != OPENING_BALANCES_ACCOUNT_NAME or account.parent_id is None:
             return False
         parent = next((a for a in all_accounts if a.aid == account.parent_id), None)
         return parent is not None and parent.name == "Equity" and parent.parent_id is None
 
     def _validate_parent(self, parent: Account, all_accounts: list[Account]) -> None:
-        if self._is_opening_balances(parent, all_accounts):
+        if self.is_opening_balances(parent, all_accounts):
             raise SystemAccountError(
                 f"cannot add sub-accounts to system account '{parent.name}'!"
             )
@@ -259,7 +259,7 @@ class AccountService:
 
         self._validate_parent(parent, all_accounts)
         if (
-            self._is_opening_balances(
+            self.is_opening_balances(
                 Account(name=account.name, parent_id=account.parent_id, user=self.ar.uid),
                 all_accounts,
             )
@@ -356,7 +356,7 @@ class AccountService:
             raise ValueError(f"account with aid '{aid}' not found!")
 
         is_system_root = self._is_root(account)
-        is_opening = self._is_opening_balances(account, all_accounts)
+        is_opening = self.is_opening_balances(account, all_accounts)
 
         if is_opening:
             if "name" in data.model_fields_set and data.name != account.name:
@@ -402,7 +402,7 @@ class AccountService:
                 parent_id=data.parent_id if "parent_id" in data.model_fields_set else account.parent_id,
                 user=self.ar.uid,
             )
-            if self._is_opening_balances(candidate, all_accounts) and self.ar.read_by_name(
+            if self.is_opening_balances(candidate, all_accounts) and self.ar.read_by_name(
                 candidate.name, candidate.parent_id
             ):
                 raise ValueError(f"system account '{candidate.name}' already exists!")
@@ -444,7 +444,7 @@ class AccountService:
         if is_system_root:
             raise RootAccountError("cannot delete system root accounts!")
 
-        if self._is_opening_balances(account, all_accounts):
+        if self.is_opening_balances(account, all_accounts):
             raise SystemAccountError(f"cannot delete system account '{account.name}'!")
 
         if self.ar.has_children(aid):

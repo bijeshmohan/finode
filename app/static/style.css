@@ -98,3 +98,43 @@ button.secondary { background: transparent; color: var(--text); border: 1px soli
 button.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
 button.link { background: none; color: var(--muted); padding: 0; }
 button.link:hover { color: var(--text); text-decoration: underline; }
+
+.grid-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: .75rem;
+  align-items: end;
+}
+.grid-form .error { grid-column: 1 / -1; margin: 0; }
+.actions { display: flex; gap: .5rem; }
+
+details.card { margin-bottom: 1rem; }
+details.card summary { cursor: pointer; font-weight: 600; }
+details.card[open] summary { margin-bottom: .75rem; }
+
+.tree { margin-bottom: 1rem; padding: .5rem 1rem; }
+.tree ul { list-style: none; margin: 0; padding-left: 1.25rem; }
+.tree > ul { padding-left: 0; }
+.tree .row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.tree .row.root { font-weight: 700; font-size: 1.05rem; }
+.tree .row .name { flex: 1; display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap; }
+.tree .row .amount { font-variant-numeric: tabular-nums; text-align: right; min-width: 7rem; }
+.tree .row-actions { display: flex; gap: .4rem; min-width: 8.5rem; justify-content: flex-end; }
+.tree .row-actions button { padding: .2rem .55rem; font-size: .8rem; }
+.tree .row.editing { display: grid; padding: .75rem 0; }
+
+.badge {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 .45rem;
+}

@@ -1,0 +1,31 @@
+<form class="row editing grid-form" id="account-row-{{ node.account.aid }}"
+      hx-post="/app/accounts/{{ node.account.aid }}/edit">
+  <label>Name
+    <input type="text" name="name" value="{{ node.account.name }}" maxlength="40" required>
+  </label>
+  <label>Parent
+    <select name="parent_id" required>
+      {% for option in parent_options %}
+      <option value="{{ option.account.aid }}" {{ "selected" if option.account.aid == node.account.parent_id }}>
+        {{ "  " * option.depth }}{{ option.account.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+  {% if node.is_leaf %}
+  <label>Balance
+    <input type="text" name="balance" inputmode="decimal" value="{{ node.account.balance }}">
+  </label>
+  {% endif %}
+  <label>Details
+    <input type="text" name="details" value="{{ node.account.details or '' }}" maxlength="200">
+  </label>
+  <div class="actions">
+    <button type="submit">Save</button>
+    <button type="button" class="secondary"
+            hx-get="/app/accounts/{{ node.account.aid }}/row"
+            hx-target="#account-row-{{ node.account.aid }}"
+            hx-swap="outerHTML">Cancel</button>
+  </div>
+  <p id="edit-error-{{ node.account.aid }}" class="error" role="alert"></p>
+</form>
