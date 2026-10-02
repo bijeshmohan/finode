@@ -368,3 +368,83 @@ def test_update_transaction_rejects_root_account(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "cannot post to root account 'Expenses'!"
+
+
+def _post(client: TestClient, debit: dict, credit: dict, amount: str, date: str, payee: str):
+    response = client.post(
+        "/transactions/",
+        json={
+            "date": date,
+            "payee": payee,
+            "postings": [
+                {"account": debit["aid"], "side": "debit", "amount": amount},
+                {"account": credit["aid"], "side": "credit", "amount": amount},
+            ],
+        },
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+def test_list_transactions_newest_first(
+    client: TestClient, account: dict, expense_account: dict
+):
+    _post(client, expense_account, account, "1.00", "2026-01-05", "middle")
+    _post(client, expense_account, account, "2.00", "2026-01-10", "newest")
+    _post(client, expense_account, account, "3.00", "2026-01-01", "oldest")
+
+    payees = [t["payee"] for t in client.get("/transactions/").json()]
+    assert payees == ["newest", "middle", "oldest"]
+
+
+def test_list_transactions_filter_by_date_range(
+    client: TestClient, account: dict, expense_account: dict
+):
+    _post(client, expense_account, account, "1.00", "2026-01-05", "a")
+    _post(client, expense_account, account, "2.00", "2026-01-10", "b")
+    _post(client, expense_account, account, "3.00", "2026-01-15", "c")
+
+    response = client.get(
+        "/transactions/", params={"date_from": "2026-01-06", "date_to": "2026-01-10"}
+    )
+    assert [t["payee"] for t in response.json()] == ["b"]
+
+
+def test_list_transactions_filter_by_account_includes_sub_accounts(
+    client: TestClient,
+    root_accounts: dict[str, str],
+    account: dict,
+    other_account: dict,
+    expense_account: dict,
+):
+    child = client.post(
+        "/accounts/", json={"name": "food", "parent_id": expense_account["aid"]}
+    ).json()
+    _post(client, child, account, "5.00", "2026-01-05", "food")
+    _post(client, other_account, account, "9.00", "2026-01-06", "transfer")
+
+    by_parent = client.get("/transactions/", params={"account": expense_account["aid"]})
+    assert [t["payee"] for t in by_parent.json()] == ["food"]
+
+    by_other = client.get("/transactions/", params={"account": other_account["aid"]})
+    assert [t["payee"] for t in by_other.json()] == ["transfer"]
+
+
+def test_list_transactions_filter_by_unknown_account(client: TestClient):
+    response = client.get("/transactions/", params={"account": str(uuid4())})
+    assert response.status_code == 404
+
+
+def test_list_transactions_pagination(
+    client: TestClient, account: dict, expense_account: dict
+):
+    for day in range(1, 6):
+        _post(client, expense_account, account, "1.00", f"2026-01-0{day}", f"t{day}")
+
+    page = client.get("/transactions/", params={"limit": 2, "offset": 1}).json()
+    assert [t["payee"] for t in page] == ["t4", "t3"]
+
+
+def test_list_transactions_rejects_invalid_pagination(client: TestClient):
+    assert client.get("/transactions/", params={"limit": 0}).status_code == 422
+    assert client.get("/transactions/", params={"offset": -1}).status_code == 422

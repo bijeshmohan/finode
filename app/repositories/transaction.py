@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from sqlmodel import Session, select
@@ -34,8 +35,34 @@ class TransactionRepository:
         transaction = self.db.exec(statement).first()
         return transaction
 
-    def list(self) -> list[Transaction]:
+    def list(
+        self,
+        account_ids: list[UUID] | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[Transaction]:
         statement = select(Transaction).where(Transaction.user == self.uid)
+        if account_ids is not None:
+            statement = statement.where(
+                Transaction.tid.in_(
+                    select(Posting.transaction).where(
+                        Posting.account.in_(account_ids),
+                        Posting.user == self.uid,
+                    )
+                )
+            )
+        if date_from is not None:
+            statement = statement.where(Transaction.date >= date_from)
+        if date_to is not None:
+            statement = statement.where(Transaction.date <= date_to)
+        statement = statement.order_by(
+            Transaction.date.desc(),
+            Transaction.created.desc(),
+        ).offset(offset)
+        if limit is not None:
+            statement = statement.limit(limit)
         transactions = self.db.exec(statement).all()
         return transactions
 

@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from ..models.transaction import Transaction, Posting
@@ -72,8 +73,33 @@ class TransactionService:
             return None
         return self._to_read(transaction)
 
-    def list(self) -> list[TransactionRead]:
-        return [self._to_read(transaction) for transaction in self.tr.list()]
+    def _account_subtree(self, aid: UUID) -> list[UUID]:
+        accounts = self.ar.list()
+        if not any(a.aid == aid for a in accounts):
+            raise ValueError(f"account with aid '{aid}' not found!")
+        children: dict[UUID, list[UUID]] = {}
+        for a in accounts:
+            if a.parent_id is not None:
+                children.setdefault(a.parent_id, []).append(a.aid)
+        subtree = [aid]
+        to_visit = [aid]
+        while to_visit:
+            for child in children.get(to_visit.pop(), []):
+                subtree.append(child)
+                to_visit.append(child)
+        return subtree
+
+    def list(
+        self,
+        account: UUID | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[TransactionRead]:
+        account_ids = self._account_subtree(account) if account else None
+        transactions = self.tr.list(account_ids, date_from, date_to, limit, offset)
+        return [self._to_read(transaction) for transaction in transactions]
 
     def update(
         self,

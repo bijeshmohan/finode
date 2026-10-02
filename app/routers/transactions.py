@@ -1,6 +1,7 @@
+from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..dependencies import Transactions
@@ -41,8 +42,18 @@ def get_transaction(tid: UUID, transactions: Transactions):
 
 
 @router.get("/", response_model=list[TransactionRead], status_code=200)
-def get_transactions(transactions: Transactions):
-    return transactions.list()
+def get_transactions(
+    transactions: Transactions,
+    account: UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: int | None = Query(default=None, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
+    try:
+        return transactions.list(account, date_from, date_to, limit, offset)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.patch("/{tid}", response_model=TransactionRead, status_code=200)
