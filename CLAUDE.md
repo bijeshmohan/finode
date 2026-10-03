@@ -10,6 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run tests: `uv run pytest`
 - Generate a migration: `uv run alembic revision --autogenerate -m "description"` (always review before applying)
 - Add a dependency: `uv add <pkg>` (do not edit `pyproject.toml` by hand)
+- Deploy with Docker: `docker compose up -d --build` (runs migrations via the one-off `migrate` service, then the app behind Traefik; needs `.env` with `APP_DOMAIN`)
+- Build the image only: `docker build -t finode .`
 
 Python 3.14+ is required (see `pyproject.toml`). No linter or formatter is configured — do not invent commands for these.
 
@@ -28,7 +30,7 @@ ledger with accounts and journal entries:
 
 `app/main.py` wires the routers. Schema is managed by Alembic — `app/main.py` does *not* run `SQLModel.metadata.create_all` at startup. Run `uv run alembic upgrade head` to bring the DB to the latest schema. The dev DB is `finode.db` (SQLite, gitignored).
 
-`app/config.py` exposes a `settings` instance (pydantic-settings) reading `FINODE_*` env vars and an optional `.env` file. Current settings: `database_url`, `database_echo`, `supabase_url`, `supabase_audience`, `supabase_anon_key`, `cookie_secure`. Add new configuration here rather than hardcoding constants.
+`app/config.py` exposes a `settings` instance (pydantic-settings) reading `FINODE_*` env vars and an optional `.env` file (other keys are ignored because `.env` is shared with docker compose). Current settings: `database_url`, `database_echo`, `supabase_url`, `supabase_audience`, `supabase_anon_key`, `cookie_secure`. Add new configuration here rather than hardcoding constants.
 
 `app/dependencies.py` builds the engine from `settings` and exposes `DBSession = Annotated[Session, Depends(get_db_session)]`. Route handlers should type the session parameter as `DBSession` directly rather than re-declaring `Depends(...)`.
 
@@ -39,6 +41,10 @@ All imports within `app/` use relative imports (e.g. `from ..models.account impo
 There is no JavaScript build step; do not add one. Templates extend `base.html`; `partials/` holds fragments returned to htmx. Mutating forms use `hx-post` (htmx 2 sends `DELETE` parameters in the URL, so use `POST` routes such as `/{id}/delete`). Handlers answer success with `HX-Redirect` / `HX-Refresh` and failures with a 4xx plus `HX-Retarget` pointing at an error element, via `routers/web/utils.py`; `static/app.js` lets htmx swap those 4xx responses.
 
 `app/web_auth.py` signs users in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies. `web_login_required` verifies the cookie (refreshing it when expired) and stores the token in `request.state`, which `require_authenticated_user` accepts in addition to a bearer header, so repositories stay tenant-scoped. The JSON API never reads cookies. In tests, `tests/conftest.py` overrides both dependencies; use a client without the `web_login_required` override (see `tests/test_web_auth.py`) to test real authentication.
+
+### Docker
+
+`Dockerfile` is multi-stage: uv resolves `uv.lock` into `/opt/venv`, and the runtime stage copies only that venv plus `app/`, `migrations/`, `alembic.ini` and `pyproject.toml` (needed for the `[tool.fastapi]` entrypoint). If a new top-level file is needed at runtime, add it to the `COPY` lines and check `.dockerignore`. `compose.yaml` targets an existing Traefik on an external network; production uses Supabase Postgres, so there is no database service. Uvicorn reads `WEB_CONCURRENCY` and `FORWARDED_ALLOW_IPS` from the environment.
 
 Tests live in `tests/`. `tests/conftest.py` builds a fresh in-memory SQLite engine per test and overrides `get_db_session`, so tests are independent of `finode.db` and of Alembic.
 

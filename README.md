@@ -36,6 +36,45 @@ API itself only accepts `Authorization: Bearer` tokens. Behind HTTPS, set
 `FINODE_COOKIE_SECURE=true`. htmx is vendored in `app/static/`, so no CDN is
 needed.
 
+## Docker deployment
+
+`compose.yaml` runs finode behind an existing [Traefik](https://traefik.io)
+reverse proxy, using Supabase Postgres as the database.
+
+1. Copy `.env.example` to `.env` and fill it in:
+   - `FINODE_DATABASE_URL` — the Supabase **session pooler** connection string
+     with the psycopg driver, e.g.
+     `postgresql+psycopg://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`.
+     Avoid the transaction pooler (port 6543), which does not support the
+     prepared statements psycopg uses, and the direct `db.<ref>.supabase.co`
+     host, which is IPv6-only and unreachable from Docker's default networks.
+   - `FINODE_SUPABASE_URL`, `FINODE_SUPABASE_ANON_KEY`
+   - `APP_DOMAIN` — the public host name Traefik should route to the app
+   - optionally `TRAEFIK_NETWORK` (default `proxy`), `TRAEFIK_ENTRYPOINT`
+     (`websecure`), `TRAEFIK_CERTRESOLVER` (`le`) and `WEB_CONCURRENCY` (`2`)
+2. Build, migrate and start:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   The one-off `migrate` service runs `alembic upgrade head`; the `app`
+   service starts only after it succeeds. The app publishes no ports — it is
+   reachable only through Traefik on the external proxy network, with secure
+   cookies enabled.
+
+Day-to-day:
+
+```bash
+docker compose logs -f app            # follow application logs
+docker compose run --rm migrate       # run migrations on their own
+git pull && docker compose up -d --build   # deploy a new version
+```
+
+The image (see `Dockerfile`) installs dependencies from `uv.lock`, runs as an
+unprivileged user and has a health check on `/`. `.dockerignore` keeps `.env`,
+local databases and tests out of it.
+
 ## Tests
 
 ```bash
@@ -73,7 +112,10 @@ Environment variables (or a `.env` file at the project root) override defaults:
 - `FINODE_SUPABASE_URL` — Supabase project URL, used to fetch JWKS for protected API routes
 - `FINODE_SUPABASE_AUDIENCE` — expected JWT audience, default `authenticated`
 - `FINODE_SUPABASE_ANON_KEY` — Supabase anon (public) key, used by the web UI to sign users in
-- `FINODE_COOKIE_SECURE` — set `true` when serving over HTTPS so session cookies are `Secure`, default `false`
+- `FINODE_COOKIE_SECURE` — set `true` when serving over HTTPS so session cookies are `Secure`, default `false` (compose sets it to `true`)
+
+Keys without the `FINODE_` prefix (such as the compose settings above) are
+ignored by the app, so one `.env` serves both.
 
 ## Schema changes
 
