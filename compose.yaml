@@ -1,0 +1,49 @@
+# finode behind the existing Traefik reverse proxy.
+#
+# Reads .env for both the app (FINODE_*) and the deployment settings below:
+#   APP_DOMAIN           public host name, e.g. finode.example.com (required)
+#   TRAEFIK_NETWORK      external network Traefik watches (default: proxy)
+#   TRAEFIK_ENTRYPOINT   HTTPS entrypoint (default: websecure)
+#   TRAEFIK_CERTRESOLVER ACME resolver (default: le)
+#   WEB_CONCURRENCY      uvicorn workers (default: 2)
+
+name: finode
+
+x-finode: &finode
+  image: finode:latest
+  build: .
+  env_file: .env
+
+services:
+  migrate:
+    <<: *finode
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    networks: [default]
+
+  app:
+    <<: *finode
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    environment:
+      FINODE_COOKIE_SECURE: "true"
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      # Only Traefik can reach the app (no published ports), so trust its
+      # X-Forwarded-* headers for the original scheme and client address.
+      FORWARDED_ALLOW_IPS: "*"
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-proxy}
+      traefik.http.routers.finode.rule: Host(`${APP_DOMAIN:?set APP_DOMAIN in .env}`)
+      traefik.http.routers.finode.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
+      traefik.http.routers.finode.tls: "true"
+      traefik.http.routers.finode.tls.certresolver: ${TRAEFIK_CERTRESOLVER:-le}
+      traefik.http.services.finode.loadbalancer.server.port: "8000"
+
+networks:
+  proxy:
+    name: ${TRAEFIK_NETWORK:-proxy}
+    external: true
