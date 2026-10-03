@@ -38,7 +38,15 @@ All imports within `app/` use relative imports (e.g. `from ..models.account impo
 
 ### Web UI
 
-There is no JavaScript build step; do not add one. Templates extend `base.html`; `partials/` holds fragments returned to htmx. Mutating forms use `hx-post` (htmx 2 sends `DELETE` parameters in the URL, so use `POST` routes such as `/{id}/delete`). Handlers answer success with `HX-Redirect` / `HX-Refresh` and failures with a 4xx plus `HX-Retarget` pointing at an error element, via `routers/web/utils.py`; `static/app.js` lets htmx swap those 4xx responses.
+There is no JavaScript build step; do not add one. Templates extend `base.html`; `partials/` holds fragments returned to htmx. Mutating forms use `hx-post` (htmx 2 sends `DELETE` parameters in the URL, so use `POST` routes such as `/{id}/delete`). Handlers answer success with `htmx_redirect(location, flash=...)` and failures with a 4xx plus `HX-Retarget` pointing at an error element, via `routers/web/utils.py`; `static/app.js` lets htmx swap those 4xx responses.
+
+UI conventions (keep pages working on phones first):
+- Layout: `base.html` renders a top bar (desktop nav), a bottom tab bar and a floating "+" button (phones). Pass `active` for the current section and `hide_fab=True` on form pages.
+- Lists use `partials/transaction_list.html` (rows from `transactions.to_row`, grouped by day with the `friendly_date` filter); format amounts with the `money` filter. Avoid tables — they overflow on phones.
+- Rows are links to a detail or edit page; destructive actions live on that page, not on list rows.
+- Forms that can be opened from several places accept a `back` path and return there after saving; always pass it through `safe_back`, which only allows paths under `/app/`.
+- Confirm actions with a flash: add the message key to `MESSAGES` in `app/flash.py` and pass it to `htmx_redirect`.
+- Icons come from the `icon()` macro in `partials/icons.html`; styles use the CSS variables at the top of `static/style.css` (both light and dark themes).
 
 `app/web_auth.py` signs users in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies. `web_login_required` verifies the cookie (refreshing it when expired) and stores the token in `request.state`, which `require_authenticated_user` accepts in addition to a bearer header, so repositories stay tenant-scoped. The JSON API never reads cookies. In tests, `tests/conftest.py` overrides both dependencies; use a client without the `web_login_required` override (see `tests/test_web_auth.py`) to test real authentication.
 

@@ -23,12 +23,18 @@ build step) is served by the same app at http://localhost:8000/app/. Users sign
 in with email and password against Supabase Auth, so set `FINODE_SUPABASE_URL`
 and `FINODE_SUPABASE_ANON_KEY` first (see Configuration). Pages:
 
-- **Dashboard** — net worth, this month's income and expenses, recent transactions
-- **Accounts** — account tree with balances; create, edit, move and delete
-- **Account register** — an account's activity with a running balance
-- **Transactions** — filter by account and date, paginate, edit, delete
+- **Dashboard** — net worth, this month's income and spending, recent
+  transactions, and a "Get started" checklist for new users
+- **Accounts** — accounts grouped by type with balances; each opens an
+  **account page** with its activity, running balance and actions
+- **Transactions** — grouped by day, filterable by account and date; tap one
+  to edit or delete it
 - **New transaction** — *simple* mode (amount, from, to) or *split* mode
   (any number of debit/credit rows with a live balance check)
+
+The layout adapts to the screen: phones get a bottom tab bar and a floating
+"+" button for new transactions, wider screens a top navigation bar. Light
+and dark themes follow the system setting.
 
 The browser keeps the Supabase tokens in `HttpOnly`, `SameSite=Lax` cookies
 scoped to `/app`, and the UI calls the same services as the JSON API. The JSON
