@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     supabase_anon_key: str | None = None
     cookie_secure: bool = False
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="FINODE_")
+    # .env is shared with docker compose, so keys meant for compose are ignored
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="FINODE_", extra="ignore")
 
 
 settings = Settings()
