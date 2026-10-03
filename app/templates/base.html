@@ -1,29 +1,48 @@
+{% from "partials/icons.html" import icon %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
   <title>{% block title %}finode{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/htmx.min.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
-<body>
+<body class="{% block body_class %}app{% endblock %}">
   {% block header %}
   <header class="topbar">
-    <a class="brand" href="/app/">finode</a>
-    <nav>
-      <a href="/app/" class="{{ 'active' if active == 'dashboard' }}">Dashboard</a>
-      <a href="/app/accounts" class="{{ 'active' if active == 'accounts' }}">Accounts</a>
-      <a href="/app/transactions" class="{{ 'active' if active == 'transactions' }}">Transactions</a>
+    <a class="brand" href="/app/"><img src="/static/favicon.svg" alt="" width="28" height="28"><span>finode</span></a>
+    <nav class="topnav" aria-label="Main">
+      <a href="/app/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+      <a href="/app/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>Accounts</a>
+      <a href="/app/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>Transactions</a>
     </nav>
-    <form method="post" action="/app/logout">
-      <button type="submit" class="link">Sign out</button>
+    {% if not hide_fab %}
+    <a class="button topbar-new" href="/app/transactions/new">{{ icon("plus") }}<span>New transaction</span></a>
+    {% endif %}
+    <form method="post" action="/app/logout" class="signout">
+      <button type="submit" class="icon-button" title="Sign out">{{ icon("logout") }}<span class="sr-only">Sign out</span></button>
     </form>
   </header>
   {% endblock %}
+
   <main>
     {% block content %}{% endblock %}
   </main>
+
+  {% block tabbar %}
+  <nav class="tabbar" aria-label="Main">
+    <a href="/app/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>
+    <a href="/app/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
+    <a href="/app/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
+  </nav>
+  {% if not hide_fab %}
+  <a class="fab" href="/app/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>
+  {% endif %}
+  {% endblock %}
 </body>
 </html>

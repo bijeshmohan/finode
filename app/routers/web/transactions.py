@@ -120,7 +120,12 @@ def delete_transaction(tid: UUID, transactions: Transactions):
 
 
 def _form_context(accounts: Accounts, **extra) -> dict:
-    return {"active": "transactions", "groups": posting_groups(build_tree(accounts.list())), **extra}
+    return {
+        "active": "transactions",
+        "hide_fab": True,
+        "groups": posting_groups(build_tree(accounts.list())),
+        **extra,
+    }
 
 
 def _split_postings(account: list[str], side: list[str], amount: list[str]) -> list[PostingCreate]:
