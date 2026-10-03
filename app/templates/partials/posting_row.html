@@ -1,17 +1,17 @@
 <div class="posting-row">
   <select name="account" aria-label="Account">
-    <option value="">Select account</option>
+    <option value="">Choose account…</option>
     {% for root, nodes in groups %}
     <optgroup label="{{ root }}">
       {% for n in nodes %}
-      <option value="{{ n.account.aid }}" {{ "selected" if posting and posting.account == n.account.aid }}>{{ n.path }}</option>
+      <option value="{{ n.account.aid }}" {{ "selected" if posting and posting.account == n.account.aid }}>{{ n.path.split(" › ", 1)[1] if " › " in n.path else n.path }}</option>
       {% endfor %}
     </optgroup>
     {% endfor %}
   </select>
   <select name="side" aria-label="Side">
     <option value="debit" {{ "selected" if posting and posting.side.value == "debit" }}>Debit</option>
-    <option value="credit" {{ "selected" if posting and posting.side.value == "credit" }}>Credit</option>
+    <option value="credit" {{ "selected" if (posting and posting.side.value == "credit") or (not posting and default_side == "credit") }}>Credit</option>
   </select>
   <input type="text" name="amount" inputmode="decimal" placeholder="0.00" aria-label="Amount"
          value="{{ posting.amount if posting else '' }}">

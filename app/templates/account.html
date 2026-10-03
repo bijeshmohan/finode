@@ -12,7 +12,7 @@
   <p class="hero-balance">{{ account.balance|money }}</p>
   <div class="actions">
     {% if node.is_leaf and node.kind != "root" %}
-    <a class="button" href="/app/transactions/new?account={{ account.aid }}">{{ icon("plus") }}New transaction</a>
+    <a class="button" href="/app/transactions/new?account={{ account.aid }}&back=/app/accounts/{{ account.aid }}">{{ icon("plus") }}New transaction</a>
     {% endif %}
     {% if node.kind == "user" %}
     <a class="button secondary" href="/app/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
@@ -32,7 +32,7 @@
     <ul class="card list">
       {% for e in items %}
       <li>
-        <a class="tx" href="/app/transactions/{{ e.tid }}/edit">
+        <a class="tx" href="/app/transactions/{{ e.tid }}/edit?back=/app/accounts/{{ account.aid }}">
           <span class="tx-main">
             <span class="tx-title">{{ e.payee or "No payee" }}</span>
             <span class="tx-sub">{{ e.counter_accounts|join(", ") }}{% if e.comment %} · {{ e.comment }}{% endif %}</span>
@@ -48,7 +48,7 @@
 {% else %}
 <div class="card empty-state">
   <p>No activity yet.</p>
-  {% if node.is_leaf and node.kind != "root" %}<a class="button" href="/app/transactions/new?account={{ account.aid }}">Record a transaction</a>{% endif %}
+  {% if node.is_leaf and node.kind != "root" %}<a class="button" href="/app/transactions/new?account={{ account.aid }}&back=/app/accounts/{{ account.aid }}">Record a transaction</a>{% endif %}
 </div>
 {% endif %}
 {% endblock %}

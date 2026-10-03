@@ -143,12 +143,19 @@ def transactions_page(
 
 
 @router.post("/{tid}/delete")
-def delete_transaction(tid: UUID, transactions: Transactions):
+def delete_transaction(tid: UUID, transactions: Transactions, back: str = ""):
     try:
         transactions.delete(tid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect("/app/transactions")
+    return htmx_redirect(safe_back(back))
+
+
+def safe_back(value: str | None, default: str = "/app/transactions") -> str:
+    """Only follow return paths inside the app (never another host)."""
+    if value and value.startswith("/app/") and not value.startswith("//") and "\\" not in value:
+        return value
+    return default
 
 
 def _form_context(accounts: Accounts, **extra) -> dict:
@@ -158,6 +165,18 @@ def _form_context(accounts: Accounts, **extra) -> dict:
         "groups": posting_groups(build_tree(accounts.list())),
         **extra,
     }
+
+
+def _simple_postings(amount: str, from_account: str, to_account: str) -> list[PostingCreate]:
+    if not from_account or not to_account:
+        raise ValueError("choose both a from and a to account!")
+    if from_account == to_account:
+        raise ValueError("the from and to accounts must differ!")
+    value = parse_amount(amount)
+    return [
+        PostingCreate(account=UUID(to_account), side=PostingSide.DEBIT, amount=value),
+        PostingCreate(account=UUID(from_account), side=PostingSide.CREDIT, amount=value),
+    ]
 
 
 def _split_postings(account: list[str], side: list[str], amount: list[str]) -> list[PostingCreate]:
@@ -179,13 +198,57 @@ def _split_postings(account: list[str], side: list[str], amount: list[str]) -> l
     return postings
 
 
+def _as_simple(transaction: TransactionRead) -> dict | None:
+    """The simple-form fields for a plain two-sided transaction, else None."""
+    postings = transaction.postings
+    if len(postings) != 2 or postings[0].side == postings[1].side or postings[0].amount != postings[1].amount:
+        return None
+    debit = next(p for p in postings if p.side == PostingSide.DEBIT)
+    credit = next(p for p in postings if p.side == PostingSide.CREDIT)
+    return {"from_id": credit.account, "to_id": debit.account, "amount": debit.amount}
+
+
+def _after_save(back: str, another: str, mode: str) -> str:
+    if another:
+        params = {"back": back} if back else {}
+        if mode == "split":
+            params["mode"] = "split"
+        return "/app/transactions/new" + (f"?{urlencode(params)}" if params else "")
+    return safe_back(back)
+
+
 @router.get("/new")
-def new_transaction_page(request: Request, accounts: Accounts, mode: str = "simple"):
+def new_transaction_page(
+    request: Request,
+    accounts: Accounts,
+    mode: str = "simple",
+    account: UUID | None = None,
+    back: str = "",
+):
     mode = "split" if mode == "split" else "simple"
+    all_accounts = accounts.list()
+    from_id = to_id = None
+    if account is not None:
+        roots = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
+        # From an expense category the money arrives there; from anything else it leaves.
+        if roots.get(account) == "Expenses":
+            to_id = account
+        elif account in roots:
+            from_id = account
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
-        _form_context(accounts, mode=mode, today=date.today().isoformat(), transaction=None, postings=[]),
+        _form_context(
+            accounts,
+            mode=mode,
+            today=date.today().isoformat(),
+            transaction=None,
+            postings=[],
+            simple={"from_id": from_id, "to_id": to_id, "amount": ""},
+            account=account,
+            back=safe_back(back, ""),
+            back_url=safe_back(back),
+        ),
     )
 
 
@@ -205,29 +268,23 @@ def create_simple_transaction(
     date_: Annotated[str, Form(alias="date")] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
+    back: Annotated[str, Form()] = "",
+    another: Annotated[str, Form()] = "",
 ):
     try:
-        if not from_account or not to_account:
-            raise ValueError("choose both a from and a to account!")
-        if from_account == to_account:
-            raise ValueError("the from and to accounts must differ!")
-        value = parse_amount(amount)
         transactions.create(
             TransactionCreate(
                 date=date_ or date.today(),
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
-                postings=[
-                    PostingCreate(account=UUID(to_account), side=PostingSide.DEBIT, amount=value),
-                    PostingCreate(account=UUID(from_account), side=PostingSide.CREDIT, amount=value),
-                ],
+                postings=_simple_postings(amount, from_account, to_account),
             )
         )
     except ValidationError as e:
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect("/app/transactions")
+    return htmx_redirect(_after_save(back, another, "simple"))
 
 
 @router.post("/split")
@@ -239,6 +296,8 @@ def create_split_transaction(
     date_: Annotated[str, Form(alias="date")] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
+    back: Annotated[str, Form()] = "",
+    another: Annotated[str, Form()] = "",
 ):
     try:
         transactions.create(
@@ -253,32 +312,45 @@ def create_split_transaction(
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect("/app/transactions")
+    return htmx_redirect(_after_save(back, another, "split"))
 
 
 @router.get("/{tid}/edit")
-def edit_transaction_page(request: Request, tid: UUID, accounts: Accounts, transactions: Transactions):
+def edit_transaction_page(
+    request: Request,
+    tid: UUID,
+    accounts: Accounts,
+    transactions: Transactions,
+    mode: str = "",
+    back: str = "",
+):
     transaction = transactions.read(tid)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
+    simple = _as_simple(transaction)
+    if mode != "split" and simple is not None:
+        mode = "simple"
+    else:
+        mode = "split"
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
-        _form_context(accounts, mode="edit", transaction=transaction, postings=transaction.postings),
+        _form_context(
+            accounts,
+            mode=mode,
+            editing=True,
+            can_simplify=simple is not None,
+            transaction=transaction,
+            postings=transaction.postings,
+            simple=simple or {"from_id": None, "to_id": None, "amount": ""},
+            account=None,
+            back=safe_back(back, ""),
+            back_url=safe_back(back),
+        ),
     )
 
 
-@router.post("/{tid}/edit")
-def update_transaction(
-    tid: UUID,
-    transactions: Transactions,
-    date_: Annotated[str, Form(alias="date")],
-    account: Annotated[list[str], Form()] = [],
-    side: Annotated[list[str], Form()] = [],
-    amount: Annotated[list[str], Form()] = [],
-    payee: Annotated[str, Form()] = "",
-    comment: Annotated[str, Form()] = "",
-):
+def _update(transactions: Transactions, tid: UUID, date_: str, payee: str, comment: str, postings_fn, back: str):
     try:
         transactions.update(
             tid,
@@ -286,7 +358,7 @@ def update_transaction(
                 date=date_ or None,
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
-                postings=_split_postings(account, side, amount),
+                postings=postings_fn(),
             ),
         )
     except ValidationError as e:
@@ -295,4 +367,44 @@ def update_transaction(
         if "not found" in str(e) and f"'{tid}'" in str(e):
             raise HTTPException(status_code=404, detail="transaction not found")
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect("/app/transactions")
+    return htmx_redirect(safe_back(back))
+
+
+@router.post("/{tid}/edit")
+def update_transaction(
+    tid: UUID,
+    transactions: Transactions,
+    date_: Annotated[str, Form(alias="date")] = "",
+    account: Annotated[list[str], Form()] = [],
+    side: Annotated[list[str], Form()] = [],
+    amount: Annotated[list[str], Form()] = [],
+    payee: Annotated[str, Form()] = "",
+    comment: Annotated[str, Form()] = "",
+    back: Annotated[str, Form()] = "",
+):
+    return _update(
+        transactions, tid, date_, payee, comment, lambda: _split_postings(account, side, amount), back
+    )
+
+
+@router.post("/{tid}/edit/simple")
+def update_simple_transaction(
+    tid: UUID,
+    transactions: Transactions,
+    date_: Annotated[str, Form(alias="date")] = "",
+    amount: Annotated[str, Form()] = "",
+    from_account: Annotated[str, Form()] = "",
+    to_account: Annotated[str, Form()] = "",
+    payee: Annotated[str, Form()] = "",
+    comment: Annotated[str, Form()] = "",
+    back: Annotated[str, Form()] = "",
+):
+    return _update(
+        transactions,
+        tid,
+        date_,
+        payee,
+        comment,
+        lambda: _simple_postings(amount, from_account, to_account),
+        back,
+    )

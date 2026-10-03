@@ -351,7 +351,12 @@ td.row-actions button, td.row-actions a.button { min-height: 32px; padding: .2re
 
 @media (max-width: 40rem) {
   .posting-head { display: none; }
-  .posting-row { grid-template-columns: 1fr 1fr var(--tap); }
+  .posting-row {
+    grid-template-columns: 1fr 1fr var(--tap);
+    padding: .75rem;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+  }
   .posting-row select:first-child { grid-column: 1 / -1; }
 }
 
@@ -455,3 +460,13 @@ details.filters .count {
 .hero-balance { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: .25rem 0 1rem; letter-spacing: -.01em; }
 
 .form-narrow { max-width: 36rem; }
+
+.amount-field input { font-size: 1.6rem; font-weight: 650; font-variant-numeric: tabular-nums; padding: .6rem .8rem; }
+.from-to { display: grid; grid-template-columns: 1fr; gap: .25rem; }
+.from-to .swap { justify-self: center; transform: rotate(0deg); }
+@media (min-width: 40rem) {
+  .from-to { grid-template-columns: 1fr auto 1fr; align-items: end; gap: .75rem; }
+  .from-to .swap { transform: rotate(90deg); margin-bottom: 0; }
+}
+.form-actions button { flex: 1 1 auto; }
+@media (min-width: 40rem) { .form-actions button { flex: 0 0 auto; } }

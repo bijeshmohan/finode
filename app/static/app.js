@@ -55,3 +55,13 @@ document.body.addEventListener("click", (event) => {
   updateBalanceStatus();
 });
 document.addEventListener("DOMContentLoaded", updateBalanceStatus);
+
+// Swap the From and To accounts in the simple transaction form.
+document.body.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-swap-accounts]");
+  if (!button) return;
+  const form = button.closest("form");
+  const from = form.querySelector('[name="from_account"]');
+  const to = form.querySelector('[name="to_account"]');
+  [from.value, to.value] = [to.value, from.value];
+});

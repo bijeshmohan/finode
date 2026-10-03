@@ -1,76 +1,84 @@
 {% extends "base.html" %}
-{% set editing = mode == "edit" %}
+{% from "partials/icons.html" import icon %}
 {% block title %}{{ "Edit" if editing else "New" }} transaction · finode{% endblock %}
+
+{% macro account_options(selected) -%}
+  <option value="">Choose account…</option>
+  {% for root, nodes in groups %}
+  <optgroup label="{{ root }}">
+    {% for n in nodes %}<option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == selected }}>{{ n.path.split(" › ", 1)[1] if " › " in n.path else n.path }}</option>{% endfor %}
+  </optgroup>
+  {% endfor %}
+{%- endmacro %}
+
 {% block content %}
-<p><a href="/app/transactions">← Transactions</a></p>
+<a class="back" href="{{ back_url }}">{{ icon("back") }}Back</a>
 <h1>{{ "Edit transaction" if editing else "New transaction" }}</h1>
 
-{% if not editing %}
-<div class="tabs">
-  <a href="/app/transactions/new" class="{{ 'active' if mode == 'simple' }}">Simple</a>
-  <a href="/app/transactions/new?mode=split" class="{{ 'active' if mode == 'split' }}">Split</a>
-</div>
+{% if not editing or can_simplify %}
+{% set base = "/app/transactions/" ~ transaction.tid ~ "/edit" if editing else "/app/transactions/new" %}
+{% set keep = ("&back=" ~ back|urlencode if back else "") ~ ("&account=" ~ account if account else "") %}
+<nav class="tabs form-narrow" aria-label="Form type">
+  <a href="{{ base }}?mode=simple{{ keep }}" class="{{ 'active' if mode == 'simple' }}">Simple</a>
+  <a href="{{ base }}?mode=split{{ keep }}" class="{{ 'active' if mode == 'split' }}">Split</a>
+</nav>
 {% endif %}
 
 {% if mode == "simple" %}
-<form class="card stack" hx-post="/app/transactions">
-  <div class="grid-form">
-    <label>Date
-      <input type="date" name="date" value="{{ today }}" required>
-    </label>
-    <label>Amount
-      <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autofocus>
-    </label>
-  </div>
-  <div class="grid-form">
-    <label>From <span class="hint">(money leaves this account)</span>
-      <select name="from_account" required>
-        <option value="">Select account</option>
-        {% for root, nodes in groups %}
-        <optgroup label="{{ root }}">
-          {% for n in nodes %}<option value="{{ n.account.aid }}">{{ n.path }}</option>{% endfor %}
-        </optgroup>
-        {% endfor %}
-      </select>
-    </label>
-    <label>To <span class="hint">(money arrives here)</span>
-      <select name="to_account" required>
-        <option value="">Select account</option>
-        {% for root, nodes in groups %}
-        <optgroup label="{{ root }}">
-          {% for n in nodes %}<option value="{{ n.account.aid }}">{{ n.path }}</option>{% endfor %}
-        </optgroup>
-        {% endfor %}
-      </select>
-    </label>
-  </div>
-  <div class="grid-form">
-    <label>Payee
-      <input type="text" name="payee" maxlength="40">
-    </label>
-    <label>Comment
-      <input type="text" name="comment" maxlength="200">
-    </label>
-  </div>
-  <p id="form-error" class="error" role="alert"></p>
-  <div class="actions"><button type="submit">Save transaction</button></div>
-</form>
+<form class="card stack form-narrow"
+      hx-post="{{ '/app/transactions/' ~ transaction.tid ~ '/edit/simple' if editing else '/app/transactions' }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  <label class="amount-field">Amount
+    <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off"
+           value="{{ simple.amount }}" {{ "autofocus" if not editing }}>
+  </label>
 
-{% else %}
-<form class="card stack split-form"
-      hx-post="{{ '/app/transactions/' ~ transaction.tid ~ '/edit' if editing else '/app/transactions/split' }}">
+  <div class="from-to">
+    <label>From <span class="hint">where the money comes from</span>
+      <select name="from_account" required>{{ account_options(simple.from_id) }}</select>
+    </label>
+    <button type="button" class="icon-button swap" data-swap-accounts title="Swap from and to">{{ icon("swap") }}<span class="sr-only">Swap from and to</span></button>
+    <label>To <span class="hint">where the money goes</span>
+      <select name="to_account" required>{{ account_options(simple.to_id) }}</select>
+    </label>
+  </div>
+
   <div class="grid-form">
     <label>Date
       <input type="date" name="date" value="{{ transaction.date if editing else today }}" required>
     </label>
     <label>Payee
-      <input type="text" name="payee" maxlength="40" value="{{ (transaction.payee if editing else '') or '' }}">
+      <input type="text" name="payee" maxlength="40" placeholder="e.g. DMart" value="{{ (transaction.payee or '') if editing else '' }}">
     </label>
-    <label>Comment
-      <input type="text" name="comment" maxlength="200" value="{{ (transaction.comment if editing else '') or '' }}">
+  </div>
+  <label>Note
+    <input type="text" name="comment" maxlength="200" value="{{ (transaction.comment or '') if editing else '' }}">
+  </label>
+
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions form-actions">
+    <button type="submit">{{ "Save changes" if editing else "Save" }}</button>
+    {% if not editing %}<button type="submit" class="secondary" name="another" value="1">Save &amp; add another</button>{% endif %}
+  </div>
+</form>
+
+{% else %}
+<form class="card stack split-form"
+      hx-post="{{ '/app/transactions/' ~ transaction.tid ~ '/edit' if editing else '/app/transactions/split' }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  <div class="grid-form">
+    <label>Date
+      <input type="date" name="date" value="{{ transaction.date if editing else today }}" required>
+    </label>
+    <label>Payee
+      <input type="text" name="payee" maxlength="40" value="{{ (transaction.payee or '') if editing else '' }}">
+    </label>
+    <label>Note
+      <input type="text" name="comment" maxlength="200" value="{{ (transaction.comment or '') if editing else '' }}">
     </label>
   </div>
 
+  <p class="hint muted">Each row debits or credits one account. Debits must equal credits.</p>
   <div id="postings" class="postings">
     <div class="posting-head"><span>Account</span><span>Side</span><span>Amount</span><span></span></div>
     {% if postings %}
@@ -78,17 +86,20 @@
     {% else %}
       {% set posting = none %}
       {% include "partials/posting_row.html" %}
-      {% include "partials/posting_row.html" %}
+      {% with default_side = "credit" %}{% include "partials/posting_row.html" %}{% endwith %}
     {% endif %}
   </div>
 
   <div class="actions">
     <button type="button" class="secondary"
-            hx-get="/app/transactions/rows/new" hx-target="#postings" hx-swap="beforeend">Add row</button>
+            hx-get="/app/transactions/rows/new" hx-target="#postings" hx-swap="beforeend">{{ icon("plus") }}Add row</button>
   </div>
   <p id="balance-status" class="balance-status" aria-live="polite"></p>
   <p id="form-error" class="error" role="alert"></p>
-  <div class="actions"><button type="submit">Save transaction</button></div>
+  <div class="actions form-actions">
+    <button type="submit">{{ "Save changes" if editing else "Save" }}</button>
+    {% if not editing %}<button type="submit" class="secondary" name="another" value="1">Save &amp; add another</button>{% endif %}
+  </div>
 </form>
 {% endif %}
 
@@ -96,8 +107,8 @@
 <section class="danger-zone">
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
-          hx-post="/app/transactions/{{ transaction.tid }}/delete"
-          hx-confirm="Delete this transaction? Account balances will change.">Delete transaction</button>
+          hx-post="/app/transactions/{{ transaction.tid }}/delete{{ '?back=' ~ back|urlencode if back }}"
+          hx-confirm="Delete this transaction? Account balances will change.">{{ icon("trash") }}Delete transaction</button>
 </section>
 {% endif %}
 {% endblock %}

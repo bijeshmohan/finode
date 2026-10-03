@@ -189,12 +189,17 @@ def test_edit_page_prefills_existing_postings(
         },
     ).json()
 
-    response = client.get(f"/app/transactions/{tx['tid']}/edit")
-    assert response.status_code == 200
-    assert 'value="Corner shop"' in response.text
-    assert 'value="2026-05-04"' in response.text
-    assert response.text.count('value="9.99"') == 2
-    assert f'hx-post="/app/transactions/{tx["tid"]}/edit"' in response.text
+    simple = client.get(f"/app/transactions/{tx['tid']}/edit")
+    assert simple.status_code == 200
+    assert 'value="Corner shop"' in simple.text
+    assert 'value="2026-05-04"' in simple.text
+    assert simple.text.count('value="9.99"') == 1
+    assert f'hx-post="/app/transactions/{tx["tid"]}/edit/simple"' in simple.text
+    assert f'<option value="{expense_account["aid"]}" selected>' in simple.text
+
+    split = client.get(f"/app/transactions/{tx['tid']}/edit", params={"mode": "split"})
+    assert split.text.count('value="9.99"') == 2
+    assert f'hx-post="/app/transactions/{tx["tid"]}/edit"' in split.text
 
 
 def test_edit_missing_transaction_is_404(client: TestClient):
@@ -298,3 +303,136 @@ def test_edit_page_offers_delete(client: TestClient, account: dict, expense_acco
     page = client.get(f"/app/transactions/{tx['tid']}/edit").text
     assert f'hx-post="/app/transactions/{tx["tid"]}/delete"' in page
     assert "Delete transaction" in page
+
+
+def _tx(client: TestClient, debit: dict, credit: dict, amount: str = "10.00") -> dict:
+    return client.post(
+        "/transactions/",
+        json={
+            "postings": [
+                {"account": debit["aid"], "side": "debit", "amount": amount},
+                {"account": credit["aid"], "side": "credit", "amount": amount},
+            ],
+        },
+    ).json()
+
+
+def test_new_form_prefills_from_for_asset_and_to_for_expense(
+    client: TestClient, account: dict, expense_account: dict
+):
+    from_asset = client.get("/app/transactions/new", params={"account": account["aid"]}).text
+    assert from_asset.count(f'<option value="{account["aid"]}" selected>') == 1
+    assert from_asset.index('name="from_account"') < from_asset.index(
+        f'<option value="{account["aid"]}" selected>'
+    ) < from_asset.index('name="to_account"')
+
+    to_expense = client.get("/app/transactions/new", params={"account": expense_account["aid"]}).text
+    assert to_expense.index('name="to_account"') < to_expense.index(
+        f'<option value="{expense_account["aid"]}" selected>'
+    )
+
+
+def test_create_returns_to_the_page_it_came_from(
+    client: TestClient, account: dict, expense_account: dict
+):
+    back = f"/app/accounts/{account['aid']}"
+    response = client.post(
+        "/app/transactions",
+        data={"amount": "3", "from_account": account["aid"], "to_account": expense_account["aid"], "back": back},
+    )
+    assert response.headers["HX-Redirect"] == back
+
+
+def test_return_path_must_stay_inside_the_app(
+    client: TestClient, account: dict, expense_account: dict
+):
+    for back in ("https://evil.example", "//evil.example/app/", "/app\\x", "/static/x"):
+        response = client.post(
+            "/app/transactions",
+            data={"amount": "1", "from_account": account["aid"], "to_account": expense_account["aid"], "back": back},
+        )
+        assert response.headers["HX-Redirect"] == "/app/transactions", back
+
+
+def test_save_and_add_another_reopens_the_form(
+    client: TestClient, account: dict, expense_account: dict
+):
+    simple = client.post(
+        "/app/transactions",
+        data={"amount": "1", "from_account": account["aid"], "to_account": expense_account["aid"], "another": "1"},
+    )
+    assert simple.headers["HX-Redirect"] == "/app/transactions/new"
+
+    split = client.post(
+        "/app/transactions/split",
+        data={
+            "account": [expense_account["aid"], account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["2.00", "2.00"],
+            "another": "1",
+            "back": "/app/accounts",
+        },
+    )
+    assert split.headers["HX-Redirect"] == "/app/transactions/new?back=%2Fapp%2Faccounts&mode=split"
+
+
+def test_update_simple_transaction(client: TestClient, account: dict, other_account: dict, expense_account: dict):
+    tx = _tx(client, expense_account, account)
+    response = client.post(
+        f"/app/transactions/{tx['tid']}/edit/simple",
+        data={
+            "date": "2026-07-01",
+            "amount": "15.50",
+            "from_account": other_account["aid"],
+            "to_account": expense_account["aid"],
+            "payee": "moved",
+        },
+    )
+    assert response.status_code == 200
+    updated = client.get(f"/transactions/{tx['tid']}").json()
+    assert updated["payee"] == "moved"
+    assert {(p["account"], p["side"], p["amount"]) for p in updated["postings"]} == {
+        (expense_account["aid"], "debit", "15.50"),
+        (other_account["aid"], "credit", "15.50"),
+    }
+    assert _balance(client, account) == "0.00"
+
+
+def test_update_simple_transaction_validates(client: TestClient, account: dict, expense_account: dict):
+    tx = _tx(client, expense_account, account)
+    response = client.post(
+        f"/app/transactions/{tx['tid']}/edit/simple",
+        data={"date": "2026-07-01", "amount": "0", "from_account": account["aid"], "to_account": expense_account["aid"]},
+    )
+    assert response.status_code == 400
+    assert response.headers["HX-Retarget"] == "#form-error"
+
+
+def test_multi_posting_transactions_edit_in_split_mode_only(
+    client: TestClient, account: dict, other_account: dict, expense_account: dict
+):
+    tx = client.post(
+        "/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "30.00"},
+                {"account": account["aid"], "side": "credit", "amount": "20.00"},
+                {"account": other_account["aid"], "side": "credit", "amount": "10.00"},
+            ],
+        },
+    ).json()
+    page = client.get(f"/app/transactions/{tx['tid']}/edit").text
+    assert f'hx-post="/app/transactions/{tx["tid"]}/edit"' in page
+    assert 'class="tabs"' not in page
+
+
+def test_delete_returns_to_the_page_it_came_from(client: TestClient, account: dict, expense_account: dict):
+    tx = _tx(client, expense_account, account)
+    back = f"/app/accounts/{account['aid']}"
+    response = client.post(f"/app/transactions/{tx['tid']}/delete", params={"back": back})
+    assert response.headers["HX-Redirect"] == back
+
+
+def test_new_split_form_starts_with_a_debit_and_a_credit_row(client: TestClient, account: dict):
+    text = client.get("/app/transactions/new", params={"mode": "split"}).text
+    assert text.count('<option value="credit" selected>') == 1
