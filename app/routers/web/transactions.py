@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from ...dependencies import Accounts, Transactions
 from ...models.transaction import PostingSide
+from ...schemas import AccountRead
 from ...schemas.transaction import (
     PostingCreate,
     TransactionCreate,
@@ -19,7 +20,7 @@ from ...schemas.transaction import (
 )
 from ...templating import templates
 from .accounts import build_tree, posting_groups
-from .utils import htmx_error, htmx_redirect, htmx_refresh, parse_amount, validation_message
+from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
 
 
 router = APIRouter(prefix="/transactions")
@@ -33,16 +34,45 @@ class TransactionRow:
     debits: list[str]
     credits: list[str]
     amount: Decimal
+    kind: str  # expense | income | transfer
 
 
-def _to_row(transaction: TransactionRead, names: dict[UUID, str]) -> TransactionRow:
+@dataclass
+class AccountIndex:
+    names: dict[UUID, str]
+    roots: dict[UUID, str]
+
+    @classmethod
+    def build(cls, accounts: list[AccountRead]) -> "AccountIndex":
+        names = {a.aid: a.name for a in accounts}
+        roots = {
+            node.account.aid: root.account.name
+            for root in build_tree(accounts)
+            for node in root.walk()
+        }
+        return cls(names, roots)
+
+
+def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
     def side_names(side: PostingSide) -> list[str]:
         found: list[str] = []
         for posting in transaction.postings:
-            name = names.get(posting.account, "?")
+            name = index.names.get(posting.account, "?")
             if posting.side == side and name not in found:
                 found.append(name)
         return found
+
+    def touches(root: str, side: PostingSide) -> bool:
+        return any(
+            p.side == side and index.roots.get(p.account) == root for p in transaction.postings
+        )
+
+    if touches("Expenses", PostingSide.DEBIT):
+        kind = "expense"
+    elif touches("Income", PostingSide.CREDIT):
+        kind = "income"
+    else:
+        kind = "transfer"
 
     amount = sum(
         (p.amount for p in transaction.postings if p.side == PostingSide.DEBIT),
@@ -53,6 +83,7 @@ def _to_row(transaction: TransactionRead, names: dict[UUID, str]) -> Transaction
         debits=side_names(PostingSide.DEBIT),
         credits=side_names(PostingSide.CREDIT),
         amount=amount,
+        kind=kind,
     )
 
 
@@ -72,7 +103,7 @@ def transactions_page(
     page: int = 1,
 ):
     all_accounts = accounts.list()
-    names = {a.aid: a.name for a in all_accounts}
+    index = AccountIndex.build(all_accounts)
     page = max(page, 1)
 
     error = None
@@ -89,7 +120,7 @@ def transactions_page(
     except ValueError as e:
         error = f"Invalid filter: {e}"
         found = []
-    rows = [_to_row(t, names) for t in found[:PAGE_SIZE]]
+    rows = [to_row(t, index) for t in found[:PAGE_SIZE]]
     has_next = len(found) > PAGE_SIZE
 
     filters = {"account": account, "date_from": date_from, "date_to": date_to}
@@ -102,6 +133,7 @@ def transactions_page(
             "rows": rows,
             "error": error,
             "filters": filters,
+            "active_filters": len(query),
             "roots": build_tree(all_accounts),
             "page": page,
             "prev_url": f"/app/transactions?{urlencode({**query, 'page': page - 1})}" if page > 1 else None,
@@ -116,7 +148,7 @@ def delete_transaction(tid: UUID, transactions: Transactions):
         transactions.delete(tid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_refresh()
+    return htmx_redirect("/app/transactions")
 
 
 def _form_context(accounts: Accounts, **extra) -> dict:

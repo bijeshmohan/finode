@@ -1,0 +1,23 @@
+{#- Expects `rows` (TransactionRow list, newest first). -#}
+{% from "partials/icons.html" import icon %}
+<div class="tx-list">
+  {% for day, items in rows|groupby("transaction.date")|reverse %}
+  <section class="tx-day">
+    <h3 class="tx-day-head">{{ day|friendly_date }}</h3>
+    <ul class="card list">
+      {% for row in items %}
+      {% set t = row.transaction %}
+      <li>
+        <a class="tx" href="/app/transactions/{{ t.tid }}/edit">
+          <span class="tx-main">
+            <span class="tx-title">{{ t.payee or "No payee" }}</span>
+            <span class="tx-sub">{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% if t.comment %} · {{ t.comment }}{% endif %}</span>
+          </span>
+          <span class="tx-amount {{ row.kind }}">{{ "−" if row.kind == "expense" else "+" if row.kind == "income" }}{{ row.amount|money }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+</div>

@@ -61,4 +61,19 @@ def test_dashboard_limits_recent_transactions(
             },
         )
     text = client.get("/app/").text
-    assert text.count("<tr>") == 1 + 8  # header row + 8 recent
+    assert text.count('class="tx"') == 8
+
+
+def test_friendly_date_filter():
+    from datetime import timedelta
+
+    from app.templating import friendly_date
+
+    today = date.today()
+    assert friendly_date(today) == "Today"
+    assert friendly_date(today - timedelta(days=1)) == "Yesterday"
+    assert friendly_date(date(2020, 2, 3)) == "3 Feb 2020"
+    assert friendly_date(date(today.year, 1, 1) if today.month > 1 or today.day > 2 else today) in (
+        f"{date(today.year, 1, 1):%a}, 1 Jan",
+        "Today",
+    )

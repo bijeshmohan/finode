@@ -91,4 +91,13 @@
   <div class="actions"><button type="submit">Save transaction</button></div>
 </form>
 {% endif %}
+
+{% if editing %}
+<section class="danger-zone">
+  <p id="page-error" class="error" role="alert"></p>
+  <button type="button" class="danger"
+          hx-post="/app/transactions/{{ transaction.tid }}/delete"
+          hx-confirm="Delete this transaction? Account balances will change.">Delete transaction</button>
+</section>
+{% endif %}
 {% endblock %}

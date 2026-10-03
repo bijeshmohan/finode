@@ -354,3 +354,52 @@ td.row-actions button, td.row-actions a.button { min-height: 32px; padding: .2re
   .posting-row { grid-template-columns: 1fr 1fr var(--tap); }
   .posting-row select:first-child { grid-column: 1 / -1; }
 }
+
+/* ---------- Lists ---------- */
+ul.list { list-style: none; margin: 0; padding: 0; overflow: hidden; }
+ul.list > li + li { border-top: 1px solid var(--border); }
+
+.tx-day + .tx-day { margin-top: 1rem; }
+.tx-day-head {
+  margin: 0 0 .4rem .25rem;
+  font-size: .78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+.tx {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 60px;
+  padding: .7rem 1rem;
+  color: inherit;
+  text-decoration: none;
+}
+.tx:hover { background: var(--surface-2); }
+.tx-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.tx-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-sub { font-size: .85rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.tx-amount.income { color: var(--positive); }
+.tx-amount small { display: block; font-weight: 400; color: var(--muted); }
+
+details.filters { padding: 0 1rem; }
+details.filters[open] { padding-bottom: 1rem; }
+details.filters summary { gap: .5rem; list-style: none; color: var(--muted); }
+details.filters[open] summary { margin-bottom: .25rem; }
+details.filters summary::-webkit-details-marker { display: none; }
+details.filters .count {
+  font-size: .75rem;
+  color: var(--on-accent);
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 0 .45rem;
+}
+
+.empty-state { text-align: center; padding: 2rem 1.25rem; }
+.empty-state p { margin: 0 0 1rem; color: var(--muted); }
+
+.danger-zone { margin-top: 1.5rem; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }

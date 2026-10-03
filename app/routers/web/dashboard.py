@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 
 from ...dependencies import Accounts, Reports, Transactions
 from ...templating import templates
-from .transactions import _to_row
+from .transactions import AccountIndex, to_row
 
 
 router = APIRouter()
@@ -18,8 +18,8 @@ def dashboard(
     transactions: Transactions,
 ):
     summary = reports.summary()
-    names = {a.aid: a.name for a in accounts.list()}
-    recent = [_to_row(t, names) for t in transactions.list(limit=RECENT_LIMIT)]
+    index = AccountIndex.build(accounts.list())
+    recent = [to_row(t, index) for t in transactions.list(limit=RECENT_LIMIT)]
     return templates.TemplateResponse(
         request,
         "dashboard.html",

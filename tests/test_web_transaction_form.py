@@ -282,4 +282,19 @@ def test_transactions_page_links_to_form(client: TestClient, account: dict, expe
     ).json()
     text = client.get("/app/transactions").text
     assert 'href="/app/transactions/new"' in text
-    assert f'href="/app/transactions/{tx["tid"]}/edit"' in text
+    assert f'href="/app/transactions/{tx["tid"]}/edit"' in text  # the row itself
+
+
+def test_edit_page_offers_delete(client: TestClient, account: dict, expense_account: dict):
+    tx = client.post(
+        "/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
+                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+            ],
+        },
+    ).json()
+    page = client.get(f"/app/transactions/{tx['tid']}/edit").text
+    assert f'hx-post="/app/transactions/{tx["tid"]}/delete"' in page
+    assert "Delete transaction" in page

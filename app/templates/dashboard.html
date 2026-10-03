@@ -38,26 +38,11 @@
   <h2>Recent transactions</h2>
   <a href="/app/transactions">View all</a>
 </div>
-<section class="card table-card">
-  {% if recent %}
-  <table>
-    <thead>
-      <tr><th>Date</th><th>Description</th><th>Accounts</th><th class="num">Amount</th></tr>
-    </thead>
-    <tbody>
-      {% for row in recent %}
-      {% set t = row.transaction %}
-      <tr>
-        <td class="nowrap">{{ t.date }}</td>
-        <td>{{ t.payee or "—" }}</td>
-        <td>{{ row.credits|join(", ") }} <span class="muted">→</span> {{ row.debits|join(", ") }}</td>
-        <td class="num">{{ row.amount|money }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="muted empty">Nothing recorded yet. Create an <a href="/app/accounts">account</a> and add your first transaction.</p>
-  {% endif %}
-</section>
+{% if recent %}
+  {% with rows=recent %}{% include "partials/transaction_list.html" %}{% endwith %}
+{% else %}
+<div class="card empty-state">
+  <p>Nothing recorded yet. Create an <a href="/app/accounts">account</a> and add your first transaction.</p>
+</div>
+{% endif %}
 {% endblock %}
