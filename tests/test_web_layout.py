@@ -7,7 +7,7 @@ def test_app_shell_has_desktop_nav_mobile_tabbar_and_new_button(client: TestClie
     assert 'class="tabbar"' in page
     assert 'class="fab" href="/app/transactions/new"' in page
     assert 'aria-current="page">Dashboard' in page
-    assert 'rel="icon" href="/static/favicon.svg"' in page
+    assert 'rel="icon" href="/static/favicon.svg?v=' in page
     assert "viewport-fit=cover" in page
 
 

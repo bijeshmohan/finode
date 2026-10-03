@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .routers import accounts, reports, transactions, web
+from .caching import cache_headers_middleware
 from .flash import clear_shown_flash_middleware
 from .templating import BASE_DIR
 from .web_auth import LoginRequired, login_required_handler, refreshed_cookies_middleware
@@ -16,6 +17,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.add_exception_handler(LoginRequired, login_required_handler)
 app.middleware("http")(refreshed_cookies_middleware)
 app.middleware("http")(clear_shown_flash_middleware)
+app.middleware("http")(cache_headers_middleware)
 
 
 @app.get("/")

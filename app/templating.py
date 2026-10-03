@@ -1,5 +1,7 @@
+import hashlib
 from datetime import date, timedelta
 from decimal import Decimal
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
@@ -15,6 +17,17 @@ def money(value: Decimal | str | None) -> str:
         return ""
     # A true minus sign lines up with "+" and reads better than a hyphen.
     return format(Decimal(value), ",.2f").replace("-", "\u2212")
+
+
+@lru_cache
+def asset_url(path: str) -> str:
+    """URL of a static file stamped with its content hash.
+
+    A new deploy changes the hash, so browsers (Safari especially) can cache
+    assets for a long time without ever showing a stale stylesheet.
+    """
+    digest = hashlib.sha256((BASE_DIR / "static" / path).read_bytes()).hexdigest()[:12]
+    return f"/static/{path}?v={digest}"
 
 
 def friendly_date(value: date) -> str:
@@ -33,3 +46,4 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["money"] = money
 templates.env.filters["friendly_date"] = friendly_date
 templates.env.globals["flash_message"] = flash_message
+templates.env.globals["asset_url"] = asset_url

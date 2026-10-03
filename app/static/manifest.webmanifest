@@ -1,0 +1,13 @@
+{
+  "name": "finode",
+  "short_name": "finode",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#f5f6f8",
+  "icons": [
+    { "src": "/static/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/static/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
