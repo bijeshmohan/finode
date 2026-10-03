@@ -207,3 +207,12 @@ a.button.small { padding: .2rem .55rem; font-size: .8rem; }
 .stat.primary .value { font-size: 2rem; }
 .section-head { margin: 1.5rem 0 .5rem; }
 .section-head h2 { margin: 0; }
+
+.notice {
+  color: var(--positive);
+  background: color-mix(in srgb, var(--positive) 12%, transparent);
+  border-radius: .375rem;
+  padding: .5rem .75rem;
+  margin: .5rem 0;
+}
+.switch { margin: 1rem 0 0; text-align: center; font-size: .9rem; }

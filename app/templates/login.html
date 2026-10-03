@@ -5,6 +5,7 @@
 <section class="card narrow">
   <h1>finode</h1>
   <p class="muted">Sign in to your ledger.</p>
+  {% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
   {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
   <form method="post" action="/app/login" class="stack">
     <label>Email
@@ -15,5 +16,8 @@
     </label>
     <button type="submit">Sign in</button>
   </form>
+  {% if signup_enabled %}
+  <p class="muted switch">Have an invite code? <a href="/app/signup">Create an account</a></p>
+  {% endif %}
 </section>
 {% endblock %}
