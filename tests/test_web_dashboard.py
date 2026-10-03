@@ -77,3 +77,47 @@ def test_friendly_date_filter():
         f"{date(today.year, 1, 1):%a}, 1 Jan",
         "Today",
     )
+
+
+def test_onboarding_checklist_for_new_users(client: TestClient, root_accounts: dict[str, str]):
+    text = client.get("/app/").text
+    assert "Get started" in text
+    assert f'href="/app/accounts/new?parent={root_accounts["Assets"]}"' in text
+    assert f'href="/app/accounts/new?parent={root_accounts["Expenses"]}"' in text
+    assert 'href="/app/transactions/new">Record your first transaction' in text
+
+
+def test_onboarding_ticks_off_steps_and_ignores_opening_balances(
+    client: TestClient, root_accounts: dict[str, str]
+):
+    bank = client.post(
+        "/accounts/",
+        json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"},
+    ).json()
+    text = client.get("/app/").text
+    assert '<li class="done">' in text
+    assert "Record your first transaction</a>" in text  # opening balance is not a recorded transaction
+
+    food = client.post(
+        "/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}
+    ).json()
+    client.post(
+        "/transactions/",
+        json={
+            "postings": [
+                {"account": food["aid"], "side": "debit", "amount": "5.00"},
+                {"account": bank["aid"], "side": "credit", "amount": "5.00"},
+            ]
+        },
+    )
+    assert "Get started" not in client.get("/app/").text
+
+
+def test_money_filter_groups_digits_and_uses_a_true_minus():
+    from decimal import Decimal
+
+    from app.templating import money
+
+    assert money(Decimal("1234567.5")) == "1,234,567.50"
+    assert money("-2652.75") == "−2,652.75"
+    assert money(None) == ""

@@ -1,48 +1,57 @@
 {% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
 {% block title %}Dashboard · finode{% endblock %}
 {% block content %}
 <h1>Dashboard</h1>
 
-<section class="stats">
-  <div class="card stat primary">
-    <span class="label">Net worth</span>
-    <span class="value">{{ summary.net_worth|money }}</span>
-  </div>
-  <div class="card stat">
-    <span class="label">Assets</span>
-    <span class="value">{{ summary.assets|money }}</span>
-  </div>
-  <div class="card stat">
-    <span class="label">Liabilities</span>
-    <span class="value">{{ summary.liabilities|money }}</span>
-  </div>
+{% if steps %}
+<section class="card onboarding">
+  <h2>Get started</h2>
+  <p class="muted">Three steps to see where your money goes.</p>
+  <ol class="steps">
+    {% for step in steps %}
+    <li class="{{ 'done' if step.done }}">
+      {% if step.done %}
+      <span class="step-mark" aria-hidden="true">✓</span><span>{{ step.title }}</span>
+      {% else %}
+      <span class="step-mark" aria-hidden="true">{{ loop.index }}</span><a href="{{ step.href }}">{{ step.title }}</a>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+<div class="overview">
+<section class="card networth">
+  <span class="label">Net worth</span>
+  <span class="value">{{ summary.net_worth|money }}</span>
+  <dl class="split">
+    <div><dt>Assets</dt><dd>{{ summary.assets|money }}</dd></div>
+    <div><dt>Liabilities</dt><dd>{{ summary.liabilities|money }}</dd></div>
+  </dl>
 </section>
 
-<h2>{{ summary.period_start.strftime("%B %Y") }}</h2>
-<section class="stats">
-  <div class="card stat">
-    <span class="label">Income</span>
-    <span class="value pos">{{ summary.income|money }}</span>
-  </div>
-  <div class="card stat">
-    <span class="label">Expenses</span>
-    <span class="value neg">{{ summary.expenses|money }}</span>
-  </div>
-  <div class="card stat">
-    <span class="label">Net</span>
-    <span class="value {{ 'pos' if summary.net_income >= 0 else 'neg' }}">{{ summary.net_income|money }}</span>
-  </div>
+<section class="card month">
+  <h2>{{ summary.period_start.strftime("%B %Y") }}</h2>
+  <dl class="split three">
+    <div><dt>Income</dt><dd class="pos">{{ summary.income|money }}</dd></div>
+    <div><dt>Spent</dt><dd>{{ summary.expenses|money }}</dd></div>
+    <div><dt>Net</dt><dd class="{{ 'pos' if summary.net_income >= 0 else 'neg' }}">{{ summary.net_income|money }}</dd></div>
+  </dl>
 </section>
+</div>
 
-<div class="page-head section-head">
+<div class="section-head">
   <h2>Recent transactions</h2>
-  <a href="/app/transactions">View all</a>
+  {% if recent %}<a href="/app/transactions">View all</a>{% endif %}
 </div>
 {% if recent %}
   {% with rows=recent %}{% include "partials/transaction_list.html" %}{% endwith %}
 {% else %}
 <div class="card empty-state">
-  <p>Nothing recorded yet. Create an <a href="/app/accounts">account</a> and add your first transaction.</p>
+  <p>Nothing recorded yet.</p>
+  <a class="button" href="/app/transactions/new">Record a transaction</a>
 </div>
 {% endif %}
 {% endblock %}

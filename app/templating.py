@@ -13,7 +13,8 @@ BASE_DIR = Path(__file__).parent
 def money(value: Decimal | str | None) -> str:
     if value is None:
         return ""
-    return format(Decimal(value), ",.2f")
+    # A true minus sign lines up with "+" and reads better than a hyphen.
+    return format(Decimal(value), ",.2f").replace("-", "\u2212")
 
 
 def friendly_date(value: date) -> str:
