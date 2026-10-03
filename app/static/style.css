@@ -73,7 +73,7 @@ small { font-size: .85rem; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 main {
-  max-width: 64rem;
+  max-width: 52rem;
   margin: 0 auto;
   padding: 1.25rem 1rem 3rem;
 }
@@ -403,3 +403,55 @@ details.filters .count {
 .empty-state p { margin: 0 0 1rem; color: var(--muted); }
 
 .danger-zone { margin-top: 1.5rem; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
+
+/* ---------- Accounts ---------- */
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  min-height: var(--tap);
+  margin: -.5rem 0 .25rem -.35rem;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+.back:hover { color: var(--text); }
+
+.account-group + .account-group { margin-top: 1.25rem; }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 .25rem; margin-bottom: .4rem; }
+.group-head h2 { margin: 0; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.group-total { font-size: .9rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-height: 52px;
+  padding: .55rem .75rem .55rem calc(1rem + var(--depth, 0) * 1.1rem);
+  color: inherit;
+  text-decoration: none;
+}
+.account-row:hover { background: var(--surface-2); }
+.account-row .icon { color: var(--muted); width: 1.1em; height: 1.1em; }
+.account-name { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-row.system .account-name { color: var(--muted); font-weight: 400; }
+.account-balance { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+
+.add-first {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .9rem 1rem;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  border-style: dashed;
+  box-shadow: none;
+}
+.add-first:hover { background: var(--accent-soft); }
+
+.account-hero h1 { margin: .1rem 0 .25rem; }
+.account-hero .crumbs { margin: 0; font-size: .85rem; }
+.hero-balance { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: .25rem 0 1rem; letter-spacing: -.01em; }
+
+.form-narrow { max-width: 36rem; }

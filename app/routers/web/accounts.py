@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
 from ...dependencies import Accounts
@@ -87,98 +88,131 @@ def _parent_options(roots: list[Node], exclude: Node | None = None) -> list[Node
     ]
 
 
+def _load(accounts: AccountService, aid: UUID) -> tuple[list[Node], Node]:
+    roots = build_tree(accounts.list())
+    node = _find(roots, aid)
+    if node is None:
+        raise HTTPException(status_code=404, detail="account not found")
+    return roots, node
+
+
+def _root_of(roots: list[Node], node: Node) -> Node:
+    return next(r for r in roots if any(n is node for n in r.walk()))
+
+
 @router.get("")
 def accounts_page(request: Request, accounts: Accounts):
+    return templates.TemplateResponse(
+        request, "accounts.html", {"active": "accounts", "roots": build_tree(accounts.list())}
+    )
+
+
+@router.get("/new")
+def new_account_page(request: Request, accounts: Accounts, parent: UUID | None = None):
     roots = build_tree(accounts.list())
     return templates.TemplateResponse(
         request,
-        "accounts.html",
-        {"active": "accounts", "roots": roots, "parent_options": _parent_options(roots)},
+        "account_form.html",
+        {
+            "active": "accounts",
+            "hide_fab": True,
+            "node": None,
+            "parent_id": parent,
+            "parent_options": _parent_options(roots),
+        },
     )
 
 
 @router.post("")
 def create_account(
     accounts: Accounts,
-    name: Annotated[str, Form()],
-    parent_id: Annotated[UUID, Form()],
+    name: Annotated[str, Form()] = "",
+    parent_id: Annotated[str, Form()] = "",
     details: Annotated[str, Form()] = "",
     balance: Annotated[str, Form()] = "",
 ):
     try:
+        if not parent_id:
+            raise ValueError("choose where the account belongs!")
         data = AccountCreate(
             name=name.strip(),
             details=details.strip() or None,
-            parent_id=parent_id,
+            parent_id=UUID(parent_id),
             balance=parse_amount(balance, Decimal("0.00")),
         )
-        accounts.create(data)
+        created = accounts.create(data)
     except ValidationError as e:
-        return htmx_error(validation_message(e), "#create-error")
+        return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
-        return htmx_error(str(e), "#create-error")
-    return htmx_redirect("/app/accounts")
+        return htmx_error(str(e), "#form-error")
+    return htmx_redirect(f"/app/accounts/{created.aid}")
 
 
-@router.get("/{aid}/register")
-def account_register(request: Request, aid: UUID, accounts: Accounts):
-    account = accounts.read(aid)
-    entries = accounts.register(aid)
-    if account is None or entries is None:
-        raise HTTPException(status_code=404, detail="account not found")
+@router.get("/{aid}")
+def account_page(request: Request, aid: UUID, accounts: Accounts):
+    roots, node = _load(accounts, aid)
+    entries = accounts.register(aid) or []
     return templates.TemplateResponse(
         request,
-        "register.html",
-        {"active": "accounts", "account": account, "entries": list(reversed(entries))},
+        "account.html",
+        {
+            "active": "accounts",
+            "node": node,
+            "root": _root_of(roots, node),
+            "entries": list(reversed(entries)),
+            # Accounts with their own postings cannot gain sub-accounts.
+            "can_add_child": node.kind != "system" and not (node.is_leaf and entries and node.kind != "root"),
+        },
     )
 
 
-def _row_response(request: Request, accounts: AccountService, aid: UUID, template: str):
-    roots = build_tree(accounts.list())
-    node = _find(roots, aid)
-    if node is None:
-        raise HTTPException(status_code=404, detail="account not found")
-    context = {"node": node}
-    if template == "partials/account_edit.html":
-        root_of = next(r for r in roots if node in list(r.walk()))
-        context["parent_options"] = [
-            n for n in _parent_options(roots, exclude=node) if n in list(root_of.walk())
-        ]
-    return templates.TemplateResponse(request, template, context)
-
-
-@router.get("/{aid}/row")
-def account_row(request: Request, aid: UUID, accounts: Accounts):
-    return _row_response(request, accounts, aid, "partials/account_row.html")
+@router.get("/{aid}/register")
+def account_register(aid: UUID):
+    return RedirectResponse(f"/app/accounts/{aid}", status_code=301)
 
 
 @router.get("/{aid}/edit")
-def account_edit_form(request: Request, aid: UUID, accounts: Accounts):
-    return _row_response(request, accounts, aid, "partials/account_edit.html")
+def edit_account_page(request: Request, aid: UUID, accounts: Accounts):
+    roots, node = _load(accounts, aid)
+    if node.kind != "user":
+        raise HTTPException(status_code=404, detail="account not found")
+    root = _root_of(roots, node)
+    return templates.TemplateResponse(
+        request,
+        "account_form.html",
+        {
+            "active": "accounts",
+            "hide_fab": True,
+            "node": node,
+            "parent_id": node.account.parent_id,
+            "parent_options": [
+                n for n in _parent_options(roots, exclude=node) if any(n is m for m in root.walk())
+            ],
+        },
+    )
 
 
 @router.post("/{aid}/edit")
 def update_account(
     aid: UUID,
     accounts: Accounts,
-    name: Annotated[str, Form()],
-    parent_id: Annotated[UUID, Form()],
+    name: Annotated[str, Form()] = "",
+    parent_id: Annotated[str, Form()] = "",
     details: Annotated[str, Form()] = "",
     balance: Annotated[str | None, Form()] = None,
 ):
-    error_target = f"#edit-error-{aid}"
     current = accounts.read(aid)
     if current is None:
         raise HTTPException(status_code=404, detail="account not found")
 
-    changes: dict = {}
-    if name.strip() != current.name:
-        changes["name"] = name.strip()
-    if (details.strip() or None) != current.details:
-        changes["details"] = details.strip() or None
-    if parent_id != current.parent_id:
-        changes["parent_id"] = parent_id
     try:
+        changes: dict = {}
+        if name.strip() != current.name:
+            changes["name"] = name.strip()
+        if (details.strip() or None) != current.details:
+            changes["details"] = details.strip() or None
+        if parent_id and UUID(parent_id) != current.parent_id:
+            changes["parent_id"] = UUID(parent_id)
         if balance is not None and balance.strip():
             new_balance = parse_amount(balance)
             if new_balance != current.balance:
@@ -186,10 +220,10 @@ def update_account(
         if changes:
             accounts.update(aid, AccountUpdate(**changes))
     except ValidationError as e:
-        return htmx_error(validation_message(e), error_target)
+        return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
-        return htmx_error(str(e), error_target)
-    return htmx_redirect("/app/accounts")
+        return htmx_error(str(e), "#form-error")
+    return htmx_redirect(f"/app/accounts/{aid}")
 
 
 @router.post("/{aid}/delete")

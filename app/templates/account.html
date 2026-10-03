@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% set account = node.account %}
+{% block title %}{{ account.name }} · finode{% endblock %}
+{% block content %}
+<a class="back" href="/app/accounts">{{ icon("back") }}Accounts</a>
+
+<header class="account-hero card">
+  <p class="muted crumbs">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}</p>
+  <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}</h1>
+  {% if account.details %}<p class="muted">{{ account.details }}</p>{% endif %}
+  <p class="hero-balance">{{ account.balance|money }}</p>
+  <div class="actions">
+    {% if node.is_leaf and node.kind != "root" %}
+    <a class="button" href="/app/transactions/new?account={{ account.aid }}">{{ icon("plus") }}New transaction</a>
+    {% endif %}
+    {% if node.kind == "user" %}
+    <a class="button secondary" href="/app/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
+    {% endif %}
+    {% if can_add_child %}
+    <a class="button secondary" href="/app/accounts/new?parent={{ account.aid }}">{{ icon("plus") }}Add sub-account</a>
+    {% endif %}
+  </div>
+</header>
+
+<h2>Activity</h2>
+{% if entries %}
+<div class="tx-list">
+  {% for day, items in entries|groupby("date")|reverse %}
+  <section class="tx-day">
+    <h3 class="tx-day-head">{{ day|friendly_date }}</h3>
+    <ul class="card list">
+      {% for e in items %}
+      <li>
+        <a class="tx" href="/app/transactions/{{ e.tid }}/edit">
+          <span class="tx-main">
+            <span class="tx-title">{{ e.payee or "No payee" }}</span>
+            <span class="tx-sub">{{ e.counter_accounts|join(", ") }}{% if e.comment %} · {{ e.comment }}{% endif %}</span>
+          </span>
+          <span class="tx-amount {{ 'income' if e.change > 0 }}">{{ "+" if e.change > 0 else "−" }}{{ (e.change|abs)|money }}<small>{{ e.balance|money }}</small></span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state">
+  <p>No activity yet.</p>
+  {% if node.is_leaf and node.kind != "root" %}<a class="button" href="/app/transactions/new?account={{ account.aid }}">Record a transaction</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

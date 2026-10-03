@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% set editing = node is not none %}
+{% block title %}{{ "Edit " ~ node.account.name if editing else "Add account" }} · finode{% endblock %}
+{% block content %}
+<a class="back" href="{{ '/app/accounts/' ~ node.account.aid if editing else '/app/accounts' }}">{{ icon("back") }}{{ node.account.name if editing else "Accounts" }}</a>
+<h1>{{ "Edit account" if editing else "Add account" }}</h1>
+
+<form class="card stack form-narrow" hx-post="{{ '/app/accounts/' ~ node.account.aid ~ '/edit' if editing else '/app/accounts' }}">
+  <label>Name
+    <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
+           placeholder="e.g. HDFC Savings" {{ "autofocus" if not editing }}>
+  </label>
+  <label>Belongs under
+    <select name="parent_id" required>
+      {% if not editing %}<option value="">Choose…</option>{% endif %}
+      {% for n in parent_options %}
+      <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}>{{ "   " * n.depth }}{{ n.account.name }}</option>
+      {% endfor %}
+    </select>
+    <span class="hint">Assets: bank, cash, wallets · Liabilities: cards, loans · Income / Expenses: categories</span>
+  </label>
+  {% if not editing or node.is_leaf %}
+  <label>{{ "Balance" if editing else "Current balance" }}
+    <input type="text" name="balance" inputmode="decimal" placeholder="0.00"
+           value="{{ node.account.balance if editing else '' }}">
+    <span class="hint">{{ "Changing this records an adjustment against Opening Balances." if editing else "Optional. Recorded as an opening balance." }}</span>
+  </label>
+  {% endif %}
+  <label>Notes
+    <input type="text" name="details" maxlength="200" value="{{ (node.account.details or '') if editing else '' }}">
+  </label>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions">
+    <button type="submit">{{ "Save changes" if editing else "Add account" }}</button>
+    <a class="button secondary" href="{{ '/app/accounts/' ~ node.account.aid if editing else '/app/accounts' }}">Cancel</a>
+  </div>
+</form>
+
+{% if editing %}
+<section class="danger-zone form-narrow">
+  <p id="page-error" class="error" role="alert"></p>
+  <button type="button" class="danger"
+          hx-post="/app/accounts/{{ node.account.aid }}/delete"
+          hx-confirm="Delete account '{{ node.account.name }}'?">{{ icon("trash") }}Delete account</button>
+  <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
+</section>
+{% endif %}
+{% endblock %}
