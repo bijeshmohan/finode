@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from .flash import flash_message
+
 
 BASE_DIR = Path(__file__).parent
 
@@ -29,3 +31,4 @@ def friendly_date(value: date) -> str:
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["money"] = money
 templates.env.filters["friendly_date"] = friendly_date
+templates.env.globals["flash_message"] = flash_message

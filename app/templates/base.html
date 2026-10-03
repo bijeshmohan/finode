@@ -34,6 +34,9 @@
     {% block content %}{% endblock %}
   </main>
 
+  {% set flash = flash_message(request) %}
+  {% if flash %}<div class="toast" role="status">{{ flash }}</div>{% endif %}
+
   {% block tabbar %}
   <nav class="tabbar" aria-label="Main">
     <a href="/app/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>

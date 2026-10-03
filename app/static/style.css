@@ -470,3 +470,32 @@ details.filters .count {
 }
 .form-actions button { flex: 1 1 auto; }
 @media (min-width: 40rem) { .form-actions button { flex: 0 0 auto; } }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 5.5rem);
+  z-index: 30;
+  max-width: calc(100vw - 2rem);
+  padding: .7rem 1.1rem;
+  color: var(--bg);
+  background: var(--text);
+  border-radius: 999px;
+  box-shadow: var(--shadow-lg);
+  font-weight: 500;
+  transform: translateX(-50%);
+  animation: toast 3.2s ease forwards;
+  pointer-events: none;
+}
+@media (min-width: 48rem) {
+  .toast { bottom: 2rem; }
+}
+@keyframes toast {
+  0% { opacity: 0; transform: translate(-50%, .5rem); }
+  8%, 85% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}

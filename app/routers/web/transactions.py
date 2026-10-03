@@ -148,7 +148,7 @@ def delete_transaction(tid: UUID, transactions: Transactions, back: str = ""):
         transactions.delete(tid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect(safe_back(back))
+    return htmx_redirect(safe_back(back), flash="transaction-deleted")
 
 
 def safe_back(value: str | None, default: str = "/app/transactions") -> str:
@@ -284,7 +284,10 @@ def create_simple_transaction(
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(_after_save(back, another, "simple"))
+    return htmx_redirect(
+        _after_save(back, another, "simple"),
+        flash="transaction-saved-next" if another else "transaction-saved",
+    )
 
 
 @router.post("/split")
@@ -312,7 +315,10 @@ def create_split_transaction(
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(_after_save(back, another, "split"))
+    return htmx_redirect(
+        _after_save(back, another, "split"),
+        flash="transaction-saved-next" if another else "transaction-saved",
+    )
 
 
 @router.get("/{tid}/edit")
@@ -367,7 +373,7 @@ def _update(transactions: Transactions, tid: UUID, date_: str, payee: str, comme
         if "not found" in str(e) and f"'{tid}'" in str(e):
             raise HTTPException(status_code=404, detail="transaction not found")
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(safe_back(back))
+    return htmx_redirect(safe_back(back), flash="transaction-updated")
 
 
 @router.post("/{tid}/edit")

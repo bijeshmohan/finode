@@ -5,6 +5,8 @@ from fastapi import Response
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
+from ...flash import set_flash
+
 
 def validation_message(error: ValidationError) -> str:
     messages = []
@@ -30,8 +32,11 @@ def parse_amount(value: str | None, default: Decimal | None = None) -> Decimal:
     return amount
 
 
-def htmx_redirect(location: str) -> Response:
-    return Response(status_code=200, headers={"HX-Redirect": location})
+def htmx_redirect(location: str, flash: str | None = None) -> Response:
+    response = Response(status_code=200, headers={"HX-Redirect": location})
+    if flash:
+        set_flash(response, flash)
+    return response
 
 
 def htmx_refresh() -> Response:
