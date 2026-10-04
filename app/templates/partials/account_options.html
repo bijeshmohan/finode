@@ -1,0 +1,10 @@
+{#- <option>s for an account picker, grouped by account type. `groups` comes from posting_groups(). -#}
+{% macro account_options(groups, selected=None, allow_new=False) -%}
+  <option value="">Choose account…</option>
+  {% if allow_new %}<option value="__new__">+ New account…</option>{% endif %}
+  {% for root, nodes in groups %}
+  <optgroup label="{{ root }}">
+    {% for n in nodes %}<option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == selected }}>{{ n.path.split(" › ", 1)[1] if " › " in n.path else n.path }}</option>{% endfor %}
+  </optgroup>
+  {% endfor %}
+{%- endmacro %}

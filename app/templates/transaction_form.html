@@ -1,15 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/account_options.html" import account_options %}
 {% block title %}{{ "Edit" if editing else "New" }} transaction · finode{% endblock %}
-
-{% macro account_options(selected) -%}
-  <option value="">Choose account…</option>
-  {% for root, nodes in groups %}
-  <optgroup label="{{ root }}">
-    {% for n in nodes %}<option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == selected }}>{{ n.path.split(" › ", 1)[1] if " › " in n.path else n.path }}</option>{% endfor %}
-  </optgroup>
-  {% endfor %}
-{%- endmacro %}
 
 {% block content %}
 <a class="back" href="{{ back_url }}">{{ icon("back") }}Back</a>
@@ -35,11 +27,11 @@
 
   <div class="from-to">
     <label>From <span class="hint">where the money comes from</span>
-      <select name="from_account" required>{{ account_options(simple.from_id) }}</select>
+      <select name="from_account" required>{{ account_options(groups, simple.from_id) }}</select>
     </label>
     <button type="button" class="icon-button swap" data-swap-accounts title="Swap from and to">{{ icon("swap") }}<span class="sr-only">Swap from and to</span></button>
     <label>To <span class="hint">where the money goes</span>
-      <select name="to_account" required>{{ account_options(simple.to_id) }}</select>
+      <select name="to_account" required>{{ account_options(groups, simple.to_id) }}</select>
     </label>
   </div>
 

@@ -1,13 +1,7 @@
+{% from "partials/account_options.html" import account_options %}
 <div class="posting-row">
   <select name="account" aria-label="Account">
-    <option value="">Choose account…</option>
-    {% for root, nodes in groups %}
-    <optgroup label="{{ root }}">
-      {% for n in nodes %}
-      <option value="{{ n.account.aid }}" {{ "selected" if posting and posting.account == n.account.aid }}>{{ n.path.split(" › ", 1)[1] if " › " in n.path else n.path }}</option>
-      {% endfor %}
-    </optgroup>
-    {% endfor %}
+    {{ account_options(groups, posting.account if posting else None) }}
   </select>
   <select name="side" aria-label="Side">
     <option value="debit" {{ "selected" if posting and posting.side.value == "debit" }}>Debit</option>
