@@ -25,7 +25,13 @@ def test_form_only_offers_postable_accounts(
     client.post("/accounts/", json={"name": "dining", "parent_id": parent["aid"]})
 
     text = client.get("/app/transactions/new").text
-    assert f'<option value="{parent["aid"]}"' not in text  # has sub-accounts
+    assert f'<option value="{parent["aid"]}"' in text  # expense groups are postable
+    asset_group = client.post(
+        "/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"]}
+    ).json()
+    client.post("/accounts/", json={"name": "hdfc", "parent_id": asset_group["aid"]})
+    text = client.get("/app/transactions/new").text
+    assert f'<option value="{asset_group["aid"]}"' not in text  # asset groups are not
     for aid in root_accounts.values():
         assert f'<option value="{aid}"' not in text  # roots
     assert "Food › dining" in text.replace("food", "Food")

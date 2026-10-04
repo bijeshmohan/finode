@@ -168,7 +168,22 @@ def test_rejects_a_parent_that_already_has_transactions(
             ]
         },
     )
-    _assert_error(_quick(client, name="sub", parent_id=expense_account["aid"]), "has postings")
+    _assert_error(_quick(client, name="sub", parent_id=account["aid"]), "has postings")
+
+
+def test_expense_category_with_transactions_can_gain_a_sub_account(
+    client: TestClient, account: dict, expense_account: dict
+):
+    client.post(
+        "/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
+                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+            ]
+        },
+    )
+    assert _quick(client, name="sub", parent_id=expense_account["aid"]).status_code == 200
 
 
 def test_rejects_an_invalid_amount(client: TestClient, root_accounts: dict[str, str]):

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from ...dependencies import Accounts
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
-from ...services.account import AccountService
+from ...services.account import GROUP_POSTING_ROOT_NAMES, AccountService
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 
@@ -28,6 +28,7 @@ class Node:
     depth: int = 0
     kind: str = "user"  # root | system | user
     path: str = ""
+    postable: bool = False
     children: list["Node"] = field(default_factory=list)
 
     @property
@@ -53,26 +54,27 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
             if AccountService.is_opening_balances(node.account, accounts):
                 node.kind = "system"
 
-    def finish(node: Node, depth: int, parent_path: str = "") -> None:
+    def finish(node: Node, depth: int, parent_path: str = "", root_name: str = "") -> None:
         node.depth = depth
+        node.postable = node.kind != "root" and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
         node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
         node.children.sort(key=lambda n: n.account.name.lower())
         for child in node.children:
-            finish(child, depth + 1, node.path)
+            finish(child, depth + 1, node.path, root_name)
 
     roots.sort(key=lambda n: ROOT_ORDER.index(n.account.name) if n.account.name in ROOT_ORDER else len(ROOT_ORDER))
     for root in roots:
-        finish(root, 0)
+        finish(root, 0, root_name=root.account.name)
     return roots
 
 
 def posting_groups(roots: list[Node]) -> list[tuple[str, list[Node]]]:
-    """Accounts that transactions may post to (leaf, non-root), grouped by root."""
+    """Accounts that transactions may post to, grouped by root."""
     groups = []
     for root in roots:
-        leaves = [n for n in root.walk() if n.kind != "root" and n.is_leaf]
-        if leaves:
-            groups.append((root.account.name, leaves))
+        postable = [n for n in root.walk() if n.postable]
+        if postable:
+            groups.append((root.account.name, postable))
     return groups
 
 
@@ -97,6 +99,10 @@ def _load(accounts: AccountService, aid: UUID) -> tuple[list[Node], Node]:
     if node is None:
         raise HTTPException(status_code=404, detail="account not found")
     return roots, node
+
+
+def root_of_node(roots: list[Node], node: Node) -> str:
+    return _root_of(roots, node).account.name
 
 
 def _root_of(roots: list[Node], node: Node) -> Node:
@@ -214,8 +220,14 @@ def account_page(request: Request, aid: UUID, accounts: Accounts):
             "node": node,
             "root": _root_of(roots, node),
             "entries": list(reversed(entries)),
-            # Accounts with their own postings cannot gain sub-accounts.
-            "can_add_child": node.kind != "system" and not (node.is_leaf and entries and node.kind != "root"),
+            # Asset and liability accounts with their own postings cannot gain sub-accounts.
+            "can_add_child": (node.kind != "system"
+            and not (node.is_leaf and entries and node.kind != "root"))
+            or (node.kind == "user" and root_of_node(roots, node) in GROUP_POSTING_ROOT_NAMES),
+            # Part of a group's balance that was posted to the group itself.
+            "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
+            if node.postable and node.children
+            else None,
         },
     )
 

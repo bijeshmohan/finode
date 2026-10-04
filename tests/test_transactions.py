@@ -327,19 +327,29 @@ def test_create_transaction_rejects_root_account(
     assert client.get("/transactions/").json() == []
 
 
-def test_create_transaction_rejects_account_with_sub_accounts(
+def test_create_transaction_rejects_asset_with_sub_accounts(
     client: TestClient, account: dict, expense_account: dict
 ):
-    client.post(
-        "/accounts/", json={"name": "child", "parent_id": expense_account["aid"]}
-    )
+    client.post("/accounts/", json={"name": "child", "parent_id": account["aid"]})
     response = client.post(
         "/transactions/", json=_two_postings(expense_account["aid"], account["aid"])
     )
     assert response.status_code == 400
     assert response.json()["detail"] == (
-        "cannot post to account 'groceries' because it has sub-accounts!"
+        "cannot post to account 'checking' because it has sub-accounts!"
     )
+
+
+def test_create_transaction_to_expense_group(
+    client: TestClient, account: dict, expense_account: dict
+):
+    client.post("/accounts/", json={"name": "child", "parent_id": expense_account["aid"]})
+    response = client.post(
+        "/transactions/", json=_two_postings(expense_account["aid"], account["aid"])
+    )
+    assert response.status_code == 201
+    group = client.get(f"/accounts/{expense_account['aid']}").json()
+    assert group["balance"] == "10.00"
 
 
 def test_create_transaction_to_leaf_sub_account(

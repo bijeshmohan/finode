@@ -72,13 +72,15 @@ represented as income or expense accounts.
 contains at least two postings, every posting has a positive amount, and total
 debits must equal total credits. The service layer validates those invariants
 and verifies that all referenced accounts belong to the authenticated user.
-Postings may not target root accounts or accounts that have sub-accounts, and
-an account cannot be moved under a different root (that would silently
-reclassify its history).
+Postings may not target root accounts. Asset and liability accounts that have
+sub-accounts cannot be posted to either (and cannot gain sub-accounts once they
+have postings), but Income and Expenses groups can (`GROUP_POSTING_ROOT_NAMES`
+in `app/services/account.py`). An account cannot be moved under a different
+root (that would silently reclassify its history).
 
 Account balances are derived from postings. Assets and Expenses increase
-with debits; Liabilities, Equity, and Income increase with credits. Accounts
-that already have postings cannot gain sub-accounts. Opening balances and
+with debits; Liabilities, Equity, and Income increase with credits. Asset and
+liability accounts that already have postings cannot gain sub-accounts. Opening balances and
 direct balance edits are posted against the system equity account named
 `Opening Balances`, which cannot be renamed, moved, deleted, given
 sub-accounts or have its balance set directly.

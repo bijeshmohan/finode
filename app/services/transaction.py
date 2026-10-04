@@ -3,6 +3,7 @@ from uuid import UUID
 
 from ..models.transaction import Transaction, Posting
 from ..repositories import AccountRepository, TransactionRepository
+from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 from ..schemas.transaction import (
     TransactionCreate,
     TransactionRead,
@@ -27,6 +28,7 @@ class TransactionService:
         postings = data.postings
         if postings is None:
             return
+        accounts_by_id = None
         for posting in postings:
             account = self.ar.read(posting.account)
             if not account:
@@ -34,6 +36,10 @@ class TransactionService:
             if account.parent_id is None:
                 raise InvalidPostingAccountError(f"cannot post to root account '{account.name}'!")
             if self.ar.has_children(account.aid):
+                if accounts_by_id is None:
+                    accounts_by_id = {a.aid: a for a in self.ar.list()}
+                if AccountService.root_name(account, accounts_by_id) in GROUP_POSTING_ROOT_NAMES:
+                    continue
                 raise InvalidPostingAccountError(
                     f"cannot post to account '{account.name}' because it has sub-accounts!"
                 )

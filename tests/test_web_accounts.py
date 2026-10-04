@@ -239,3 +239,23 @@ def test_delete_account_with_postings_shows_error(
     assert response.status_code == 400
     assert response.headers["HX-Retarget"] == "#page-error"
     assert "has postings" in response.text
+
+
+def test_expense_group_page_shows_direct_postings(
+    client: TestClient, account: dict, expense_account: dict
+):
+    client.post(
+        "/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "30.00"},
+                {"account": account["aid"], "side": "credit", "amount": "30.00"},
+            ]
+        },
+    )
+    client.post("/accounts/", json={"name": "snacks", "parent_id": expense_account["aid"]})
+
+    text = client.get(f"/app/accounts/{expense_account['aid']}").text
+    assert "30.00 posted directly to groceries" in text
+    assert f"/app/transactions/new?account={expense_account['aid']}" in text
+    assert f"/app/accounts/new?parent={expense_account['aid']}" in text

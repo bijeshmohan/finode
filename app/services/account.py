@@ -14,6 +14,9 @@ from ..schemas.transaction import TransactionCreate, PostingCreate
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
 ROOT_ACCOUNT_NAMES = ("Assets", "Expenses", "Equity", "Income", "Liabilities")
 DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
+# Income and expense accounts are categories, so a group may hold postings of its own.
+# Assets and liabilities are real holdings and stay leaf-only.
+GROUP_POSTING_ROOT_NAMES = frozenset({"Income", "Expenses"})
 
 
 class AccountInUseError(ValueError):
@@ -49,6 +52,9 @@ class AccountService:
             raise SystemAccountError(
                 f"cannot add sub-accounts to system account '{parent.name}'!"
             )
+        accounts_by_id = {a.aid: a for a in all_accounts}
+        if self._get_root_name(parent, accounts_by_id) in GROUP_POSTING_ROOT_NAMES:
+            return
         if self.tr.postings_for_account(parent.aid):
             raise ValueError(
                 f"cannot add sub-accounts to '{parent.name}' because it has postings!"
@@ -83,6 +89,10 @@ class AccountService:
         return self.ar.list()
 
     def _get_root_name(self, account: Account, accounts_by_id: dict[UUID, Account]) -> str:
+        return self.root_name(account, accounts_by_id)
+
+    @staticmethod
+    def root_name(account: Account, accounts_by_id: dict[UUID, Account]) -> str:
         current = account
         visited = set()
         while current.parent_id is not None:
