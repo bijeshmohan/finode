@@ -49,6 +49,8 @@
 /* ---------- Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 a, button, summary, select, input, label { -webkit-tap-highlight-color: transparent; }
@@ -562,3 +564,27 @@ ol.steps a:hover { text-decoration: underline; }
 }
 ol.steps li.done { color: var(--muted); text-decoration: line-through; }
 ol.steps li.done .step-mark { color: var(--on-accent); background: var(--positive); text-decoration: none; }
+
+/* ---------- Quick-add sheet ---------- */
+dialog.sheet {
+  width: min(28rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  overflow: auto;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+dialog.sheet::backdrop { background: rgb(0 0 0 / 45%); }
+.sheet-body { padding: 1.25rem; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.sheet-head h2 { margin: 0; }
+.sheet-head .icon-button { margin-right: -.5rem; }
+@media (max-width: 40rem) {
+  /* Anchored to the top so the on-screen keyboard never covers the fields. */
+  dialog.sheet { margin: max(1rem, env(safe-area-inset-top)) auto auto; }
+}
+select.needs-attention { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }

@@ -1,7 +1,7 @@
 {% from "partials/account_options.html" import account_options %}
 <div class="posting-row">
-  <select name="account" aria-label="Account">
-    {{ account_options(groups, posting.account if posting else None) }}
+  <select name="account" aria-label="Account" data-account-select>
+    {{ account_options(groups, posting.account if posting else None, allow_new=True) }}
   </select>
   <select name="side" aria-label="Side">
     <option value="debit" {{ "selected" if posting and posting.side.value == "debit" }}>Debit</option>

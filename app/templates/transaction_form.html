@@ -27,11 +27,11 @@
 
   <div class="from-to">
     <label>From <span class="hint">where the money comes from</span>
-      <select name="from_account" required>{{ account_options(groups, simple.from_id) }}</select>
+      <select name="from_account" required data-account-select>{{ account_options(groups, simple.from_id, allow_new=True) }}</select>
     </label>
     <button type="button" class="icon-button swap" data-swap-accounts title="Swap from and to">{{ icon("swap") }}<span class="sr-only">Swap from and to</span></button>
     <label>To <span class="hint">where the money goes</span>
-      <select name="to_account" required>{{ account_options(groups, simple.to_id) }}</select>
+      <select name="to_account" required data-account-select>{{ account_options(groups, simple.to_id, allow_new=True) }}</select>
     </label>
   </div>
 
@@ -94,6 +94,10 @@
   </div>
 </form>
 {% endif %}
+
+<dialog id="quick-account" class="sheet" aria-labelledby="quick-account-title">
+  <div id="quick-account-body" class="sheet-body"></div>
+</dialog>
 
 {% if editing %}
 <section class="danger-zone">

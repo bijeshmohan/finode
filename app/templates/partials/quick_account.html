@@ -1,0 +1,31 @@
+{% from "partials/icons.html" import icon %}
+<form class="stack" hx-post="/app/accounts/quick" hx-swap="none">
+  <header class="sheet-head">
+    <h2 id="quick-account-title">New account</h2>
+    <button type="button" class="icon-button" data-quick-cancel title="Close">{{ icon("close") }}<span class="sr-only">Close</span></button>
+  </header>
+
+  <label>Name
+    <input type="text" name="name" maxlength="40" required autofocus autocomplete="off" placeholder="e.g. Pharmacy">
+  </label>
+
+  <label>Belongs under
+    <select name="parent_id" required>
+      {% if not parent_id %}<option value="">Choose…</option>{% endif %}
+      {% for n in parent_options %}
+      <option value="{{ n.account.aid }}" data-root="{{ roots_by_id[n.account.aid] }}" {{ "selected" if n.account.aid == parent_id }}>{{ "   " * n.depth }}{{ n.account.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label data-balance-field hidden>Current balance
+    <input type="text" name="balance" inputmode="decimal" placeholder="0.00" autocomplete="off" disabled>
+    <span class="hint">Optional. Recorded as an opening balance dated today.</span>
+  </label>
+
+  <p id="quick-error" class="error" role="alert"></p>
+  <div class="actions form-actions">
+    <button type="submit">Add account</button>
+    <button type="button" class="secondary" data-quick-cancel>Cancel</button>
+  </div>
+</form>

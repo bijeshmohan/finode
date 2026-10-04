@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal, InvalidOperation
 from html import escape
 
@@ -37,6 +38,11 @@ def htmx_redirect(location: str, flash: str | None = None) -> Response:
     if flash:
         set_flash(response, flash)
     return response
+
+
+def htmx_trigger(event: str, detail: dict) -> Response:
+    """Fire a browser event on the page; json.dumps escapes non-ASCII, so the header stays valid."""
+    return Response(status_code=200, headers={"HX-Trigger": json.dumps({event: detail})})
 
 
 def htmx_refresh() -> Response:

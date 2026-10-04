@@ -11,12 +11,15 @@ from ...dependencies import Accounts
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...services.account import AccountService
 from ...templating import templates
-from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
+from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 
 
 router = APIRouter(prefix="/accounts")
 
 ROOT_ORDER = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
+
+# Only these hold money the user already has (or owes) when an account is first added.
+OPENING_BALANCE_ROOTS = ("Assets", "Liabilities")
 
 
 @dataclass
@@ -121,6 +124,57 @@ def new_account_page(request: Request, accounts: Accounts, parent: UUID | None =
             "parent_options": _parent_options(roots),
         },
     )
+
+
+@router.get("/quick")
+def quick_account_sheet(request: Request, accounts: Accounts, hint: str = ""):
+    """The "new account" sheet shown over the transaction form."""
+    roots = build_tree(accounts.list())
+    suggested = next((r.account.aid for r in roots if r.account.name == hint), None)
+    return templates.TemplateResponse(
+        request,
+        "partials/quick_account.html",
+        {
+            "parent_id": suggested,
+            "parent_options": _parent_options(roots),
+            "roots_by_id": {n.account.aid: r.account.name for r in roots for n in r.walk()},
+        },
+    )
+
+
+@router.get("/options")
+def account_options_list(request: Request, accounts: Accounts):
+    """Fresh <option>s for the transaction form's account pickers."""
+    return templates.TemplateResponse(
+        request,
+        "partials/account_options_list.html",
+        {"groups": posting_groups(build_tree(accounts.list()))},
+    )
+
+
+@router.post("/quick")
+def quick_create_account(
+    accounts: Accounts,
+    name: Annotated[str, Form()] = "",
+    parent_id: Annotated[str, Form()] = "",
+    balance: Annotated[str, Form()] = "",
+):
+    try:
+        roots = build_tree(accounts.list())
+        parent = _find(roots, UUID(parent_id)) if parent_id else None
+        if parent is None:
+            raise ValueError("choose where the account belongs!")
+        name = name.strip()
+        if any(child.account.name.casefold() == name.casefold() for child in parent.children):
+            raise ValueError(f"'{parent.account.name}' already has an account named '{name}'. Pick it from the list instead!")
+        root = _root_of(roots, parent)
+        opening = parse_amount(balance, Decimal("0.00")) if root.account.name in OPENING_BALANCE_ROOTS else Decimal("0.00")
+        created = accounts.create(AccountCreate(name=name, parent_id=parent.account.aid, balance=opening))
+    except ValidationError as e:
+        return htmx_error(validation_message(e), "#quick-error")
+    except ValueError as e:
+        return htmx_error(str(e), "#quick-error")
+    return htmx_trigger("account-added", {"aid": str(created.aid), "name": created.name})
 
 
 @router.post("")

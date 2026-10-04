@@ -30,7 +30,9 @@ and `FINODE_SUPABASE_ANON_KEY` first (see Configuration). Pages:
 - **Transactions** — grouped by day, filterable by account and date; tap one
   to edit or delete it
 - **New transaction** — *simple* mode (amount, from, to) or *split* mode
-  (any number of debit/credit rows with a live balance check)
+  (any number of debit/credit rows with a live balance check). Missing an
+  account? Pick **+ New account…** in any account list to add it, with an
+  optional opening balance, without leaving the form.
 
 The layout adapts to the screen: phones get a bottom tab bar and a floating
 "+" button for new transactions, wider screens a top navigation bar. Light
