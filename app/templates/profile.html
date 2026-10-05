@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Profile · finode{% endblock %}
+{% block content %}
+<h1>Profile</h1>
+
+<form class="card stack form-narrow" hx-post="/app/profile">
+  <div class="grid-form">
+    <label>First name
+      <input type="text" name="first_name" maxlength="40" autocomplete="given-name" value="{{ profile.first_name or '' }}">
+    </label>
+    <label>Last name
+      <input type="text" name="last_name" maxlength="40" autocomplete="family-name" value="{{ profile.last_name or '' }}">
+    </label>
+  </div>
+  {% if email %}
+  <label>Email
+    <input type="text" value="{{ email }}" readonly disabled>
+    <span class="hint">Used to sign in.</span>
+  </label>
+  {% endif %}
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions">
+    <button type="submit">Save changes</button>
+  </div>
+</form>
+{% endblock %}

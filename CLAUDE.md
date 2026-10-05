@@ -51,6 +51,10 @@ UI conventions (keep pages working on phones first):
 
 `app/web_auth.py` signs users in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies. `web_login_required` verifies the cookie (refreshing it when expired) and stores the token in `request.state`, which `require_authenticated_user` accepts in addition to a bearer header, so repositories stay tenant-scoped. The JSON API never reads cookies. In tests, `tests/conftest.py` overrides both dependencies; use a client without the `web_login_required` override (see `tests/test_web_auth.py`) to test real authentication.
 
+### Profile and settings
+
+`app/models/profile.py` holds one `profiles` row per user (keyed by the Supabase user id, created lazily by `ProfileRepository.get_or_create`). Per-user details and application settings are **typed columns on that table** — add a setting with a column, a migration and a field on `ProfileUpdate`, not a key-value or JSON store. Supabase `user_metadata` is deliberately not used: users can write it directly and it is copied into every token. The page is `/app/profile` (tab bar and top bar); the JSON API is `/profile/`. Email and password stay with Supabase.
+
 ### Docker
 
 `Dockerfile` is multi-stage: uv resolves `uv.lock` into `/opt/venv`, and the runtime stage copies only that venv plus `app/`, `migrations/`, `alembic.ini` and `pyproject.toml` (needed for the `[tool.fastapi]` entrypoint). If a new top-level file is needed at runtime, add it to the `COPY` lines and check `.dockerignore`. `compose.yaml` targets an existing Traefik on an external network; production uses Supabase Postgres, so there is no database service. Uvicorn reads `WEB_CONCURRENCY` and `FORWARDED_ALLOW_IPS` from the environment.

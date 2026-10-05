@@ -16,6 +16,7 @@ MESSAGES = {
     "account-created": "Account added",
     "account-updated": "Account updated",
     "account-deleted": "Account deleted",
+    "profile-updated": "Profile saved",
 }
 
 

@@ -121,6 +121,8 @@ main {
 
 .topbar .topbar-new { display: none; }
 .signout { margin-left: auto; }
+.topbar .profile-link { display: none; }
+.topbar .profile-link[aria-current="page"] { color: var(--accent); }
 
 .icon-button {
   display: inline-grid;
@@ -142,7 +144,7 @@ main {
   bottom: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--surface);
@@ -183,6 +185,7 @@ body.app main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-botto
   .topnav { display: flex; }
   .topbar .topbar-new { display: inline-flex; }
   .signout { margin-left: 0; }
+  .topbar .profile-link { display: inline-flex; }
   .tabbar, .fab { display: none; }
   body.app main { padding: 2rem 1.5rem 4rem; }
 }
