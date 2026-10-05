@@ -5,8 +5,8 @@ from sqlmodel import Session, create_engine
 
 from .auth import CurrentUser, require_authenticated_user
 from .config import settings
-from .repositories import AccountRepository, ProfileRepository, TransactionRepository
-from .services import AccountService, DataService, ProfileService, ReportService, TransactionService
+from .repositories import AccountRepository, CommodityRepository, ProfileRepository, TransactionRepository
+from .services import AccountService, CommodityService, DataService, ProfileService, ReportService, TransactionService
 
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
@@ -38,19 +38,34 @@ def get_profile_repository(
     return ProfileRepository(db, user.id)
 
 
+def get_commodity_repository(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> CommodityRepository:
+    return CommodityRepository(db, user.id)
+
+
+def get_commodity_service(
+    cr: CommodityRepository = Depends(get_commodity_repository),
+) -> CommodityService:
+    return CommodityService(cr)
+
+
 def get_account_service(
     ar: AccountRepository = Depends(get_account_repository),
     tr: TransactionRepository = Depends(get_transaction_repository),
     pr: ProfileRepository = Depends(get_profile_repository),
+    cr: CommodityRepository = Depends(get_commodity_repository),
 ) -> AccountService:
-    return AccountService(ar, tr, pr)
+    return AccountService(ar, tr, pr, cr)
 
 
 def get_profile_service(
     pr: ProfileRepository = Depends(get_profile_repository),
     accounts: AccountService = Depends(get_account_service),
+    cr: CommodityRepository = Depends(get_commodity_repository),
 ) -> ProfileService:
-    return ProfileService(pr, accounts)
+    return ProfileService(pr, accounts, cr)
 
 
 def get_data_service(
@@ -65,8 +80,9 @@ def get_data_service(
 def get_transaction_service(
     tr: TransactionRepository = Depends(get_transaction_repository),
     ar: AccountRepository = Depends(get_account_repository),
+    cr: CommodityRepository = Depends(get_commodity_repository),
 ) -> TransactionService:
-    return TransactionService(tr, ar)
+    return TransactionService(tr, ar, cr)
 
 
 def get_report_service(
@@ -79,6 +95,7 @@ def get_report_service(
 DB = Annotated[Session, Depends(get_db_session)]
 AR = Annotated[AccountRepository, Depends(get_account_repository)]
 TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
+Commodities = Annotated[CommodityService, Depends(get_commodity_service)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]

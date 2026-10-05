@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ..models import Account
 from ..models.transaction import PostingSide
-from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
+from ..repositories import AccountRepository, CommodityRepository, ProfileRepository, TransactionRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.transaction import TransactionCreate, PostingCreate
 from .depth import depth_limit
@@ -37,10 +37,29 @@ class RootAccountError(SystemAccountError):
 
 
 class AccountService:
-    def __init__(self, ar: AccountRepository, tr: TransactionRepository, pr: ProfileRepository):
+    def __init__(
+        self,
+        ar: AccountRepository,
+        tr: TransactionRepository,
+        pr: ProfileRepository,
+        cr: CommodityRepository | None = None,
+    ):
         self.ar = ar
         self.tr = tr
         self.pr = pr
+        self.cr = cr or CommodityRepository(ar.db, ar.uid)
+        self._codes: dict[UUID, str] | None = None
+
+    def _commodity_code(self, commodity_id: UUID | None) -> str | None:
+        if commodity_id is None:
+            return None
+        if self._codes is None:
+            self._codes = {c.cid: c.code for c in self.cr.list()}
+        return self._codes.get(commodity_id)
+
+    def _new_account_commodity(self, parent: Account) -> UUID:
+        """A new account holds what its parent holds; under a top-level account, the default currency."""
+        return parent.commodity_id or self.cr.default_currency().cid
 
     @staticmethod
     def _is_root(account: Account) -> bool:
@@ -250,6 +269,7 @@ class AccountService:
             name=account.name,
             details=account.details,
             parent_id=account.parent_id,
+            commodity=self._commodity_code(account.commodity_id),
             balance=self._balance_for(account, all_accounts),
             created=account.created,
             updated=account.updated,
@@ -266,7 +286,8 @@ class AccountService:
                 name=OPENING_BALANCES_ACCOUNT_NAME,
                 details="System account for opening balance adjustments",
                 parent_id=equity_root.aid,
-            )
+            ),
+            commodity_id=self.cr.default_currency().cid,
         )
 
     def _post_balance_adjustment(
@@ -344,7 +365,7 @@ class AccountService:
         ):
             raise ValueError(f"system account '{account.name}' already exists!")
 
-        created = self.ar.create(account)
+        created = self.ar.create(account, commodity_id=self._new_account_commodity(parent))
         all_accounts_with_created = all_accounts + [created]
 
         self._post_balance_adjustment(

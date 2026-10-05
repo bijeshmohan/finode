@@ -294,9 +294,12 @@ class DataService:
         if plan.summary.errors:
             raise ImportRejected(plan.summary)
         ids = self._existing_keys()
+        currency = self.accounts.cr.default_currency().cid
         try:
             for key, note in plan.new_accounts:
-                created = self.ar.create(AccountCreate(name=key[-1], details=note, parent_id=ids[key[:-1]]))
+                created = self.ar.create(
+                    AccountCreate(name=key[-1], details=note, parent_id=ids[key[:-1]]), commodity_id=currency
+                )
                 ids[key] = created.aid
             for planned in plan.transactions:
                 self.tr.create(

@@ -30,6 +30,8 @@ class AccountCreate(AccountBase):
 
 class AccountRead(AccountBase):
     aid: UUID
+    # Code of what the account holds (e.g. "INR", "BTC"); root accounts hold nothing of their own.
+    commodity: str | None = None
     balance: Decimal = Field(decimal_places=2, max_digits=12)
     created: datetime
     updated: datetime

@@ -11,9 +11,9 @@ class AccountRepository:
         self.db = db
         self.uid = uid
 
-    def create(self, data: AccountCreate) -> Account:
+    def create(self, data: AccountCreate, commodity_id: UUID | None = None) -> Account:
         values = data.model_dump(exclude={"balance"})
-        account = Account(**values, user=self.uid)
+        account = Account(**values, commodity_id=commodity_id, user=self.uid)
         self.db.add(account)
         self.db.flush()
         return account

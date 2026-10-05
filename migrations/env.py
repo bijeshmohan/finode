@@ -6,7 +6,7 @@ from sqlmodel import SQLModel
 from alembic import context
 
 from app.config import settings
-from app.models import account, auth, profile, transaction  # noqa: F401  register tables
+from app.models import account, auth, commodity, profile, transaction  # noqa: F401  register tables
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

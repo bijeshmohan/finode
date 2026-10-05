@@ -3,6 +3,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
+from .commodity import CommodityRepository
 from ..models.transaction import Transaction, Posting
 from ..schemas.transaction import TransactionCreate, TransactionUpdate
 
@@ -12,14 +13,17 @@ class TransactionRepository:
         self.db = db
         self.uid = uid
 
-    def create(self, data: TransactionCreate) -> Transaction:
+    def create(self, data: TransactionCreate, currency_id: UUID | None = None) -> Transaction:
         values = data.model_dump(exclude={"postings"})
-        transaction = Transaction(**values, user=self.uid)
+        if currency_id is None:
+            currency_id = CommodityRepository(self.db, self.uid).default_currency().cid
+        transaction = Transaction(**values, currency_id=currency_id, user=self.uid)
         self.db.add(transaction)
         self.db.flush()
         for posting_data in data.postings:
             posting = Posting(
                 **posting_data.model_dump(),
+                value=posting_data.amount,
                 transaction=transaction.tid,
                 user=self.uid,
             )
@@ -124,6 +128,7 @@ class TransactionRepository:
             for posting_data in data.postings:
                 posting = Posting(
                     **posting_data.model_dump(),
+                    value=posting_data.amount,
                     transaction=transaction.tid,
                     user=self.uid,
                 )

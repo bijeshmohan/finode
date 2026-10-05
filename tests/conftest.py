@@ -6,9 +6,12 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
+from app.commodity_seed import seed_rows
 from app.auth import CurrentUser, require_authenticated_user
 from app.dependencies import get_db_session
 from app.main import app
+from app.models.commodity import Commodity
+from app.models.utils import utc_now
 from app.web_auth import web_login_required
 
 
@@ -26,6 +29,8 @@ def session() -> Generator[Session, None, None]:
         connection.exec_driver_sql("ATTACH DATABASE ':memory:' AS auth")
         SQLModel.metadata.create_all(connection)
         with Session(connection) as session:
+            session.add_all(Commodity(**row) for row in seed_rows(utc_now()))
+            session.commit()
             yield session
 
 

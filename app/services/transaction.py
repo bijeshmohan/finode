@@ -2,7 +2,7 @@ from datetime import date
 from uuid import UUID
 
 from ..models.transaction import Transaction, Posting
-from ..repositories import AccountRepository, TransactionRepository
+from ..repositories import AccountRepository, CommodityRepository, TransactionRepository
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 from ..schemas.transaction import (
     TransactionCreate,
@@ -17,9 +17,16 @@ class InvalidPostingAccountError(ValueError):
 
 
 class TransactionService:
-    def __init__(self, tr: TransactionRepository, ar: AccountRepository):
+    def __init__(self, tr: TransactionRepository, ar: AccountRepository, cr: CommodityRepository | None = None):
         self.tr = tr
         self.ar = ar
+        self.cr = cr or CommodityRepository(tr.db, tr.uid)
+        self._codes: dict[UUID, str] | None = None
+
+    def _commodity_code(self, commodity_id: UUID) -> str:
+        if self._codes is None:
+            self._codes = {c.cid: c.code for c in self.cr.list()}
+        return self._codes[commodity_id]
 
     def _validate_references(
         self,
@@ -51,6 +58,7 @@ class TransactionService:
             account=posting.account,
             side=posting.side,
             amount=posting.amount,
+            value=posting.value,
             created=posting.created,
             updated=posting.updated,
         )
@@ -58,6 +66,7 @@ class TransactionService:
     def _to_read(self, transaction: Transaction) -> TransactionRead:
         return TransactionRead(
             tid=transaction.tid,
+            currency=self._commodity_code(transaction.currency_id),
             date=transaction.date,
             payee=transaction.payee,
             comment=transaction.comment,

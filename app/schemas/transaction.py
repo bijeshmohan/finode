@@ -27,6 +27,8 @@ class PostingCreate(PostingBase):
 class PostingRead(PostingBase):
     pid: UUID
     transaction: UUID
+    # The posting measured in the transaction's currency (equal to `amount` for postings in that currency).
+    value: Decimal
     created: datetime
     updated: datetime
 
@@ -48,6 +50,8 @@ class TransactionCreate(TransactionBase):
 
 class TransactionRead(TransactionBase):
     tid: UUID
+    # Code of the currency the transaction balances in, e.g. "INR".
+    currency: str
     postings: list[PostingRead]
     created: datetime
     updated: datetime

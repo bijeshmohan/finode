@@ -44,6 +44,7 @@ class ProfileUpdate(BaseModel):
 class ProfileRead(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
+    default_currency: str | None = None
     max_depth_assets: int = 0
     max_depth_liabilities: int = 0
     max_depth_equity: int = 0
