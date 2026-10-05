@@ -12,6 +12,9 @@ def test_profile_page_offers_export_and_import(client: TestClient):
     text = client.get("/app/profile").text
     assert "/app/export?format=ledger" in text and "/app/export?format=csv" in text
     assert 'id="import-file"' in text
+    # the card is page content, not leaked into the <title>
+    assert "<title>Profile · finode</title>" in text
+    assert text.index("<main") < text.index("/app/export?format=ledger")
 
 
 def test_profile_page_hides_import_once_transactions_exist(client: TestClient):
