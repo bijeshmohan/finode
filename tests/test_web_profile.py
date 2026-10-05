@@ -28,6 +28,22 @@ def test_saving_too_long_name_reports_error(client: TestClient):
     assert response.headers["HX-Retarget"] == "#form-error"
 
 
-def test_navigation_links_to_profile(client: TestClient):
+
+
+def test_top_bar_has_profile_link_and_no_sign_out(client: TestClient):
     text = client.get("/app/").text
-    assert text.count('href="/app/profile"') == 2  # top bar and tab bar
+    assert text.count('href="/app/profile"') == 1
+    assert "/app/logout" not in text
+
+
+def test_tab_bar_has_only_three_tabs(client: TestClient):
+    text = client.get("/app/").text
+    tabbar = text[text.index('<nav class="tabbar"'):]
+    tabbar = tabbar[: tabbar.index("</nav>")]
+    assert tabbar.count("<a ") == 3 and "/app/profile" not in tabbar
+
+
+def test_profile_page_has_sign_out(client: TestClient):
+    text = client.get("/app/profile").text
+    assert 'action="/app/logout"' in text and "Sign out" in text
+    assert "Signed in as test@example.com" in text

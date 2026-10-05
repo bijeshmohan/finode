@@ -31,9 +31,6 @@
     <a class="button topbar-new" href="/app/transactions/new">{{ icon("plus") }}<span>New transaction</span></a>
     {% endif %}
     <a class="icon-button profile-link" href="/app/profile" title="Profile" {% if active == 'profile' %}aria-current="page"{% endif %}>{{ icon("user") }}<span class="sr-only">Profile</span></a>
-    <form method="post" action="/app/logout" class="signout">
-      <button type="submit" class="icon-button" title="Sign out">{{ icon("logout") }}<span class="sr-only">Sign out</span></button>
-    </form>
   </header>
   {% endblock %}
 
@@ -49,7 +46,6 @@
     <a href="/app/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>
     <a href="/app/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
     <a href="/app/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
-    <a href="/app/profile" {% if active == 'profile' %}aria-current="page"{% endif %}>{{ icon("user") }}<span>Profile</span></a>
   </nav>
   {% if not hide_fab %}
   <a class="fab" href="/app/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>

@@ -60,4 +60,12 @@
   <p class="muted">Importing is only available before you record transactions. Export your data first if you want to start over.</p>
   {% endif %}
 </section>
+
+<section class="card stack form-narrow">
+  <h2>Session</h2>
+  {% if email %}<p class="muted">Signed in as {{ email }}.</p>{% endif %}
+  <form method="post" action="/app/logout">
+    <button type="submit" class="secondary">{{ icon("logout") }}Sign out</button>
+  </form>
+</section>
 {% endblock %}

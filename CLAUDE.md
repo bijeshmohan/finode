@@ -41,7 +41,7 @@ All imports within `app/` use relative imports (e.g. `from ..models.account impo
 There is no JavaScript build step; do not add one. Templates extend `base.html`; `partials/` holds fragments returned to htmx. Mutating forms use `hx-post` (htmx 2 sends `DELETE` parameters in the URL, so use `POST` routes such as `/{id}/delete`). Handlers answer success with `htmx_redirect(location, flash=...)` and failures with a 4xx plus `HX-Retarget` pointing at an error element, via `routers/web/utils.py`; `static/app.js` lets htmx swap those 4xx responses.
 
 UI conventions (keep pages working on phones first):
-- Layout: `base.html` renders a top bar (desktop nav), a bottom tab bar and a floating "+" button (phones). Pass `active` for the current section and `hide_fab=True` on form pages.
+- Layout: `base.html` renders a top bar (desktop nav, plus the profile icon at the right on every screen size), a bottom tab bar (Home, Accounts, Transactions) and a floating "+" button (phones). Sign-out lives at the bottom of the profile page, not in the top bar. Pass `active` for the current section and `hide_fab=True` on form pages.
 - Lists use `partials/transaction_list.html` (rows from `transactions.to_row`, grouped by day with the `friendly_date` filter); format amounts with the `money` filter. Avoid tables — they overflow on phones.
 - Rows are links to a detail or edit page; destructive actions live on that page, not on list rows.
 - Forms that can be opened from several places accept a `back` path and return there after saving; always pass it through `safe_back`, which only allows paths under `/app/`.
