@@ -108,7 +108,7 @@ def test_upgrade_downgrade_upgrade_is_clean(alembic):
     command.downgrade(config, PARENT)
     with engine.connect() as c:
         tables = set(sa.inspect(c).get_table_names())
-        assert "commodities" not in tables
+        assert "commodities" not in tables and "prices" not in tables
         assert "value" not in {col["name"] for col in sa.inspect(c).get_columns("postings")}
     command.upgrade(config, "head")
     with engine.connect() as c:
@@ -132,9 +132,10 @@ def test_migrated_schema_has_the_columns_the_models_declare(alembic):
     config, engine = alembic
     command.upgrade(config, "head")
     inspector = sa.inspect(engine)
-    for table in ("commodities", "accounts", "transactions", "postings", "profiles"):
+    for table in ("commodities", "prices", "accounts", "transactions", "postings", "profiles"):
         declared = {c.name for c in SQLModel.metadata.tables[table].columns}
         migrated = {c["name"] for c in inspector.get_columns(table)}
         assert declared == migrated, table
     indexes = {i["name"] for i in inspector.get_indexes("commodities")}
     assert {"uq_commodities_global_code", "uq_commodities_user_code"} <= indexes
+    assert {"uq_prices_global", "uq_prices_user"} <= {i["name"] for i in inspector.get_indexes("prices")}

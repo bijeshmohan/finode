@@ -25,13 +25,16 @@ def session() -> Generator[Session, None, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    # A single shared connection, so the in-memory databases live as long as the engine. The session
+    # commits for real: a service that rolls back only undoes its own unfinished work.
     with engine.connect() as connection:
         connection.exec_driver_sql("ATTACH DATABASE ':memory:' AS auth")
-        SQLModel.metadata.create_all(connection)
-        with Session(connection) as session:
-            session.add_all(Commodity(**row) for row in seed_rows(utc_now()))
-            session.commit()
-            yield session
+        connection.commit()
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add_all(Commodity(**row) for row in seed_rows(utc_now()))
+        session.commit()
+        yield session
 
 
 @pytest.fixture

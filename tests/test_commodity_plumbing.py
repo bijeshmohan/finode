@@ -18,9 +18,9 @@ def _txn(client, debit, credit, amount="25.00"):
     return response.json()
 
 
-def test_root_accounts_hold_nothing_and_new_accounts_hold_the_default_currency(client, root_accounts, account):
+def test_root_accounts_are_totalled_in_the_default_currency_and_new_accounts_hold_it(client, root_accounts, account):
     accounts = {a["name"]: a for a in client.get("/accounts/").json()}
-    assert all(accounts[name]["commodity"] is None for name in root_accounts)
+    assert all(accounts[name]["commodity"] == "INR" for name in root_accounts)
     assert account["commodity"] == "INR"
 
 

@@ -11,6 +11,7 @@ class ReportService:
     def __init__(self, accounts: AccountService, tr: TransactionRepository):
         self.accounts = accounts
         self.tr = tr
+        self._unpriced = False
 
     def summary(
         self,
@@ -32,10 +33,13 @@ class ReportService:
         assets = roots["Assets"].balance
         liabilities = roots["Liabilities"].balance
 
+        self._unpriced = roots["Assets"].unpriced or roots["Liabilities"].unpriced
         income = self._period_total("Income", PostingSide.CREDIT, roots, period_start, period_end)
         expenses = self._period_total("Expenses", PostingSide.DEBIT, roots, period_start, period_end)
 
         return SummaryRead(
+            currency=self.accounts.default_currency().code,
+            unpriced=self._unpriced,
             period_start=period_start,
             period_end=period_end,
             assets=assets,
@@ -47,8 +51,21 @@ class ReportService:
         )
 
     def _period_total(self, root_name, normal_side, roots, period_start, period_end) -> Decimal:
+        """Postings count at their value in the transaction's currency, converted to the default
+        currency at the rate of the day. A posting no price can convert flags the summary as unpriced."""
         subtree = self.accounts.subtree_ids(roots[root_name].aid)
+        default = self.accounts.default_currency()
+        transactions = {t.tid: t for t in self.tr.list(date_from=period_start, date_to=period_end)}
         total = Decimal("0.00")
         for posting in self.tr.postings_for_accounts(subtree, period_start, period_end):
-            total += posting.amount if posting.side == normal_side else -posting.amount
+            value = posting.value if posting.side == normal_side else -posting.value
+            transaction = transactions[posting.transaction]
+            if transaction.currency_id != default.cid:
+                value = self.accounts.prices.book().convert(
+                    value, transaction.currency_id, default.cid, transaction.date, default.decimals
+                )
+                if value is None:
+                    self._unpriced = True
+                    continue
+            total += value
         return total

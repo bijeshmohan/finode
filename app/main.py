@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .routers import accounts, commodities, data, profile, reports, transactions, web
+from .routers import accounts, commodities, data, prices, profile, reports, transactions, web
 from .caching import cache_headers_middleware
 from .flash import clear_shown_flash_middleware
 from .templating import BASE_DIR
@@ -11,6 +11,7 @@ from .web_auth import LoginRequired, login_required_handler, refreshed_cookies_m
 app = FastAPI(title="finode")
 app.include_router(accounts.router)
 app.include_router(commodities.router)
+app.include_router(prices.router)
 app.include_router(transactions.router)
 app.include_router(data.router)
 app.include_router(profile.router)

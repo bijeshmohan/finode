@@ -5,8 +5,22 @@ from sqlmodel import Session, create_engine
 
 from .auth import CurrentUser, require_authenticated_user
 from .config import settings
-from .repositories import AccountRepository, CommodityRepository, ProfileRepository, TransactionRepository
-from .services import AccountService, CommodityService, DataService, ProfileService, ReportService, TransactionService
+from .repositories import (
+    AccountRepository,
+    CommodityRepository,
+    PriceRepository,
+    ProfileRepository,
+    TransactionRepository,
+)
+from .services import (
+    AccountService,
+    CommodityService,
+    DataService,
+    PriceService,
+    ProfileService,
+    ReportService,
+    TransactionService,
+)
 
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
@@ -45,6 +59,21 @@ def get_commodity_repository(
     return CommodityRepository(db, user.id)
 
 
+def get_price_repository(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> PriceRepository:
+    return PriceRepository(db, user.id)
+
+
+def get_price_service(
+    pr: PriceRepository = Depends(get_price_repository),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    cr: CommodityRepository = Depends(get_commodity_repository),
+) -> PriceService:
+    return PriceService(pr, tr, cr)
+
+
 def get_commodity_service(
     cr: CommodityRepository = Depends(get_commodity_repository),
 ) -> CommodityService:
@@ -56,8 +85,9 @@ def get_account_service(
     tr: TransactionRepository = Depends(get_transaction_repository),
     pr: ProfileRepository = Depends(get_profile_repository),
     cr: CommodityRepository = Depends(get_commodity_repository),
+    prices: PriceService = Depends(get_price_service),
 ) -> AccountService:
-    return AccountService(ar, tr, pr, cr)
+    return AccountService(ar, tr, pr, cr, prices)
 
 
 def get_profile_service(
@@ -95,6 +125,7 @@ def get_report_service(
 DB = Annotated[Session, Depends(get_db_session)]
 AR = Annotated[AccountRepository, Depends(get_account_repository)]
 TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
+Prices = Annotated[PriceService, Depends(get_price_service)]
 Commodities = Annotated[CommodityService, Depends(get_commodity_service)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]

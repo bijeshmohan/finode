@@ -21,18 +21,26 @@ class AccountBase(BaseModel):
 
 
 class AccountCreate(AccountBase):
+    # Code of what the account holds. Defaults to what its parent holds (a top-level
+    # parent: the user's default currency).
+    commodity: str | None = Field(default=None, max_length=20)
     balance: Decimal = Field(
         default=Decimal("0.00"),
-        decimal_places=2,
-        max_digits=12,
+        decimal_places=8,
+        max_digits=24,
     )
+    # What the opening balance is worth in the opening-balances currency, when the account
+    # holds something else and no price is known yet.
+    balance_value: Decimal | None = Field(default=None, gt=0, decimal_places=8, max_digits=24)
 
 
 class AccountRead(AccountBase):
     aid: UUID
-    # Code of what the account holds (e.g. "INR", "BTC"); root accounts hold nothing of their own.
+    # Code of what the account holds (e.g. "INR", "BTC"); for a root account, the default currency its total is in.
     commodity: str | None = None
-    balance: Decimal = Field(decimal_places=2, max_digits=12)
+    balance: Decimal = Field(decimal_places=8, max_digits=24)
+    # True when part of the balance could not be valued because no price links it to the account's commodity.
+    unpriced: bool = False
     created: datetime
     updated: datetime
 
@@ -41,11 +49,14 @@ class AccountUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=40)
     details: str | None = Field(default=None, max_length=200)
     parent_id: UUID | None = None
+    # Only while the account has no postings.
+    commodity: str | None = Field(default=None, max_length=20)
     balance: Decimal | None = Field(
         default=None,
-        decimal_places=2,
-        max_digits=12,
+        decimal_places=8,
+        max_digits=24,
     )
+    balance_value: Decimal | None = Field(default=None, gt=0, decimal_places=8, max_digits=24)
 
     @field_validator("name")
     @classmethod
@@ -65,5 +76,6 @@ class RegisterEntry(BaseModel):
     payee: str | None
     comment: str | None
     counter_accounts: list[str]
-    change: Decimal = Field(decimal_places=2, max_digits=12)
-    balance: Decimal = Field(decimal_places=2, max_digits=12)
+    change: Decimal = Field(decimal_places=8, max_digits=24)
+    balance: Decimal = Field(decimal_places=8, max_digits=24)
+    unpriced: bool = False

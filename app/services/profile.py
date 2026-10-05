@@ -64,6 +64,19 @@ class ProfileService:
                     f"{max(depth for r, depth, _ in depths if r == root)}."
                 )
 
+    def _resolve_currency(self, data: ProfileUpdate):
+        if "default_currency" not in data.model_fields_set:
+            return None
+        commodity = self.cr.read_by_code(data.default_currency.strip().upper())
+        if commodity is None:
+            raise ValueError(f"unknown currency '{data.default_currency}'!")
+        if commodity.kind != "currency":
+            raise ValueError(f"{commodity.code} is not a currency, so totals cannot be reported in it!")
+        return commodity.cid
+
     def update(self, data: ProfileUpdate) -> ProfileRead:
         self._validate_depths(data)
-        return self._to_read(self.pr.update(data))
+        currency = self._resolve_currency(data)
+        profile = self.pr.update(data, currency)
+        self.accounts.reset_defaults()
+        return self._to_read(profile)

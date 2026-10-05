@@ -40,10 +40,12 @@ class ProfileRepository:
         ).first()
         return found
 
-    def update(self, data: ProfileUpdate) -> Profile:
+    def update(self, data: ProfileUpdate, default_commodity_id: UUID | None = None) -> Profile:
         profile = self.get_or_create()
-        for key, value in data.model_dump(exclude_unset=True).items():
+        for key, value in data.model_dump(exclude_unset=True, exclude={"default_currency"}).items():
             setattr(profile, key, value)
+        if default_commodity_id is not None:
+            profile.default_commodity_id = default_commodity_id
         self.db.add(profile)
         self.db.commit()
         self.db.refresh(profile)
