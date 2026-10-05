@@ -1,0 +1,22 @@
+{#- What an account holds. Needs `commodity_choices`, `currency`, `can_change_commodity` (default true) and `node` (none when adding). -#}
+{% set held = node.account.commodity if node else none %}
+<details class="more" {{ "open" if held and held != currency }}>
+  <summary>Holds something other than {{ currency }}?</summary>
+  <div class="stack">
+    <label>Holds
+      {% if node and not can_change_commodity %}
+      <input type="text" value="{{ held }}" readonly disabled>
+      <span class="hint">It has transactions, so what it holds can't change any more.</span>
+      {% else %}
+      <select name="commodity">
+        {% if not node %}<option value="">Same as where it belongs (usually {{ currency }})</option>{% endif %}
+        {% for c in commodity_choices %}<option value="{{ c.code }}" {{ "selected" if held == c.code }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
+      </select>
+      <span class="hint">A foreign currency, shares, a fund or a coin. Add your own under <a href="/app/commodities">Currencies &amp; prices</a>.</span>
+      {% endif %}
+    </label>
+    <label>Balance is worth <span class="hint">in {{ currency }}, only if it holds something else</span>
+      <input type="text" name="balance_value" inputmode="decimal" placeholder="Leave blank to use the latest price" autocomplete="off">
+    </label>
+  </div>
+</details>

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
-from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
+from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, HoldingRead, RegisterEntry
 from ..services.account import AccountInUseError, SystemAccountError
 
 
@@ -30,6 +30,17 @@ def get_account(aid: UUID, accounts: Accounts):
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
     return account
+
+
+@router.get("/{aid}/holding", response_model=HoldingRead, status_code=200)
+def get_account_holding(aid: UUID, accounts: Accounts):
+    """What an account holding another commodity is worth and what was put into it."""
+    if accounts.read(aid) is None:
+        raise HTTPException(status_code=404, detail="account not found")
+    holding = accounts.holding(aid)
+    if holding is None:
+        raise HTTPException(status_code=404, detail="account does not hold anything other than the default currency")
+    return holding
 
 
 @router.get("/{aid}/register", response_model=list[RegisterEntry], status_code=200)

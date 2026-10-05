@@ -26,11 +26,12 @@
 <div class="overview">
 <section class="card networth">
   <span class="label">Net worth</span>
-  <span class="value">{{ summary.net_worth|money }}</span>
+  <span class="value">{{ summary.net_worth|money }} <small>{{ summary.currency }}</small></span>
   <dl class="split">
     <div><dt>Assets</dt><dd>{{ summary.assets|money }}</dd></div>
     <div><dt>Liabilities</dt><dd>{{ summary.liabilities|money }}</dd></div>
   </dl>
+  {% if summary.unpriced %}<p class="muted">Some holdings have no price yet and are left out. <a href="/app/commodities#rates">Add prices</a></p>{% endif %}
 </section>
 
 <section class="card month">

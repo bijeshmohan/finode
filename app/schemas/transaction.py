@@ -104,4 +104,7 @@ def validate_balanced_postings(postings: list[PostingCreate]) -> None:
         posting.amount for posting in postings if posting.side == PostingSide.CREDIT
     )
     if debit_total != credit_total:
-        raise ValueError("transaction debits and credits must balance!")
+        raise ValueError(
+            "transaction debits and credits must balance! If a row's account holds another currency or unit, "
+            "say what that row is worth in the transaction's currency."
+        )

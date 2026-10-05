@@ -33,7 +33,7 @@ class TransactionRow:
     transaction: TransactionRead
     debits: list[str]
     credits: list[str]
-    amount: Decimal
+    amount: Decimal  # in the transaction's own currency
     kind: str  # expense | income | transfer
 
 
@@ -41,6 +41,7 @@ class TransactionRow:
 class AccountIndex:
     names: dict[UUID, str]
     roots: dict[UUID, str]
+    commodities: dict[UUID, str | None]
 
     @classmethod
     def build(cls, accounts: list[AccountRead]) -> "AccountIndex":
@@ -50,7 +51,7 @@ class AccountIndex:
             for root in build_tree(accounts)
             for node in root.walk()
         }
-        return cls(names, roots)
+        return cls(names, roots, {a.aid: a.commodity for a in accounts})
 
 
 def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
@@ -75,7 +76,7 @@ def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
         kind = "transfer"
 
     amount = sum(
-        (p.amount for p in transaction.postings if p.side == PostingSide.DEBIT),
+        (p.value for p in transaction.postings if p.side == PostingSide.DEBIT),
         Decimal("0.00"),
     )
     return TransactionRow(
@@ -130,6 +131,7 @@ def transactions_page(
         "transactions.html",
         {
             "active": "transactions",
+            "currency": accounts.default_currency().code,
             "rows": rows,
             "error": error,
             "filters": filters,
@@ -159,31 +161,74 @@ def safe_back(value: str | None, default: str = "/app/transactions") -> str:
 
 
 def _form_context(accounts: Accounts, **extra) -> dict:
+    all_accounts = accounts.list()
+    default = accounts.default_currency().code
+    wanted = extra.get("transaction").currency if extra.get("transaction") else None
     return {
         "active": "transactions",
         "hide_fab": True,
-        "groups": posting_groups(build_tree(accounts.list())),
+        "groups": posting_groups(build_tree(all_accounts)),
+        "currency": default,
+        # The extra currency and worth fields only appear once something other than the default currency is in play.
+        "multi": any(a.parent_id is not None and a.commodity != default for a in all_accounts)
+        or (wanted is not None and wanted != default),
+        "currencies": [c for c in accounts.commodity_choices() if c.kind == "currency" or c.code == wanted],
+        "account_commodity": {a.aid: a.commodity for a in all_accounts},
         **extra,
     }
 
 
-def _simple_postings(amount: str, from_account: str, to_account: str) -> list[PostingCreate]:
+def _simple_postings(
+    accounts: Accounts, amount: str, to_amount: str, from_account: str, to_account: str
+) -> tuple[str | None, list[PostingCreate]]:
+    """The two postings of a simple transaction, and the currency it is in.
+
+    Between accounts holding the same thing one amount is enough. Otherwise `to_amount` says how
+    much arrives; the transaction is in the default currency when it is one of the two, else in
+    whichever of them is a currency, and the other side is worth what the currency side is.
+    """
     if not from_account or not to_account:
         raise ValueError("choose both a from and a to account!")
     if from_account == to_account:
         raise ValueError("the from and to accounts must differ!")
-    value = parse_amount(amount)
-    return [
-        PostingCreate(account=UUID(to_account), side=PostingSide.DEBIT, amount=value),
-        PostingCreate(account=UUID(from_account), side=PostingSide.CREDIT, amount=value),
-    ]
+    paid = parse_amount(amount)
+    source, target = accounts.commodity_of(UUID(from_account)), accounts.commodity_of(UUID(to_account))
+    if source is None or target is None:
+        raise ValueError("account not found!")
+    default = accounts.default_currency()
+    if source.cid == target.cid:
+        if to_amount.strip() and parse_amount(to_amount) != paid:
+            raise ValueError(f"both accounts hold {source.code}, so the amount that arrives is the amount that leaves!")
+        return (None if source.cid == default.cid else source.code), [
+            PostingCreate(account=UUID(to_account), side=PostingSide.DEBIT, amount=paid),
+            PostingCreate(account=UUID(from_account), side=PostingSide.CREDIT, amount=paid),
+        ]
+    if not to_amount.strip():
+        raise ValueError(f"these accounts hold different things ({source.code} and {target.code}): say how much {target.code} arrives!")
+    received = parse_amount(to_amount)
+    if default.cid in (source.cid, target.cid):
+        currency = default
+    elif source.kind == "currency" or target.kind != "currency":
+        currency = source
+    else:
+        currency = target
+    from_posting = PostingCreate(
+        account=UUID(from_account), side=PostingSide.CREDIT, amount=paid, value=received if currency.cid == target.cid else None
+    )
+    to_posting = PostingCreate(
+        account=UUID(to_account), side=PostingSide.DEBIT, amount=received, value=paid if currency.cid == source.cid else None
+    )
+    return currency.code, [to_posting, from_posting]
 
 
-def _split_postings(account: list[str], side: list[str], amount: list[str]) -> list[PostingCreate]:
-    if not (len(account) == len(side) == len(amount)):
+def _split_postings(
+    account: list[str], side: list[str], amount: list[str], value: list[str] | None = None
+) -> list[PostingCreate]:
+    value = value or [""] * len(account)
+    if not (len(account) == len(side) == len(amount) == len(value)):
         raise ValueError("every posting needs an account, a side and an amount!")
     postings = []
-    for account_id, posting_side, posting_amount in zip(account, side, amount):
+    for account_id, posting_side, posting_amount, posting_value in zip(account, side, amount, value):
         if not account_id and not posting_amount.strip():
             continue  # untouched blank row
         if not account_id:
@@ -193,19 +238,28 @@ def _split_postings(account: list[str], side: list[str], amount: list[str]) -> l
                 account=UUID(account_id),
                 side=PostingSide(posting_side),
                 amount=parse_amount(posting_amount),
+                value=parse_amount(posting_value) if posting_value.strip() else None,
             )
         )
     return postings
 
 
-def _as_simple(transaction: TransactionRead) -> dict | None:
+def _as_simple(transaction: TransactionRead, commodities: dict[UUID, str | None]) -> dict | None:
     """The simple-form fields for a plain two-sided transaction, else None."""
     postings = transaction.postings
-    if len(postings) != 2 or postings[0].side == postings[1].side or postings[0].amount != postings[1].amount:
+    if len(postings) != 2 or postings[0].side == postings[1].side:
         return None
     debit = next(p for p in postings if p.side == PostingSide.DEBIT)
     credit = next(p for p in postings if p.side == PostingSide.CREDIT)
-    return {"from_id": credit.account, "to_id": debit.account, "amount": debit.amount}
+    converts = commodities.get(debit.account) != commodities.get(credit.account)
+    if debit.amount != credit.amount and not converts:
+        return None
+    return {
+        "from_id": credit.account,
+        "to_id": debit.account,
+        "amount": credit.amount,
+        "to_amount": debit.amount if converts else "",
+    }
 
 
 def _after_save(back: str, another: str, mode: str) -> str:
@@ -244,7 +298,7 @@ def new_transaction_page(
             today=date.today().isoformat(),
             transaction=None,
             postings=[],
-            simple={"from_id": from_id, "to_id": to_id, "amount": ""},
+            simple={"from_id": from_id, "to_id": to_id, "amount": "", "to_amount": ""},
             account=account,
             back=safe_back(back, ""),
             back_url=safe_back(back),
@@ -261,8 +315,10 @@ def new_posting_row(request: Request, accounts: Accounts):
 
 @router.post("")
 def create_simple_transaction(
+    accounts: Accounts,
     transactions: Transactions,
     amount: Annotated[str, Form()] = "",
+    to_amount: Annotated[str, Form()] = "",
     from_account: Annotated[str, Form()] = "",
     to_account: Annotated[str, Form()] = "",
     date_: Annotated[str, Form(alias="date")] = "",
@@ -272,12 +328,14 @@ def create_simple_transaction(
     another: Annotated[str, Form()] = "",
 ):
     try:
+        currency, postings = _simple_postings(accounts, amount, to_amount, from_account, to_account)
         transactions.create(
             TransactionCreate(
                 date=date_ or date.today(),
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
-                postings=_simple_postings(amount, from_account, to_account),
+                currency=currency,
+                postings=postings,
             )
         )
     except ValidationError as e:
@@ -296,6 +354,8 @@ def create_split_transaction(
     account: Annotated[list[str], Form()] = [],
     side: Annotated[list[str], Form()] = [],
     amount: Annotated[list[str], Form()] = [],
+    value: Annotated[list[str], Form()] = [],
+    currency: Annotated[str, Form()] = "",
     date_: Annotated[str, Form(alias="date")] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
@@ -308,7 +368,8 @@ def create_split_transaction(
                 date=date_ or date.today(),
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
-                postings=_split_postings(account, side, amount),
+                currency=currency.strip() or None,
+                postings=_split_postings(account, side, amount, value),
             )
         )
     except ValidationError as e:
@@ -333,7 +394,7 @@ def edit_transaction_page(
     transaction = transactions.read(tid)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
-    simple = _as_simple(transaction)
+    simple = _as_simple(transaction, {a.aid: a.commodity for a in accounts.list()})
     if mode != "split" and simple is not None:
         mode = "simple"
     else:
@@ -348,7 +409,7 @@ def edit_transaction_page(
             can_simplify=simple is not None,
             transaction=transaction,
             postings=transaction.postings,
-            simple=simple or {"from_id": None, "to_id": None, "amount": ""},
+            simple=simple or {"from_id": None, "to_id": None, "amount": "", "to_amount": ""},
             account=None,
             back=safe_back(back, ""),
             back_url=safe_back(back),
@@ -358,13 +419,15 @@ def edit_transaction_page(
 
 def _update(transactions: Transactions, tid: UUID, date_: str, payee: str, comment: str, postings_fn, back: str):
     try:
+        currency, postings = postings_fn()
         transactions.update(
             tid,
             TransactionUpdate(
                 date=date_ or None,
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
-                postings=postings_fn(),
+                currency=currency,
+                postings=postings,
             ),
         )
     except ValidationError as e:
@@ -384,21 +447,31 @@ def update_transaction(
     account: Annotated[list[str], Form()] = [],
     side: Annotated[list[str], Form()] = [],
     amount: Annotated[list[str], Form()] = [],
+    value: Annotated[list[str], Form()] = [],
+    currency: Annotated[str, Form()] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     back: Annotated[str, Form()] = "",
 ):
     return _update(
-        transactions, tid, date_, payee, comment, lambda: _split_postings(account, side, amount), back
+        transactions,
+        tid,
+        date_,
+        payee,
+        comment,
+        lambda: (currency.strip() or None, _split_postings(account, side, amount, value)),
+        back,
     )
 
 
 @router.post("/{tid}/edit/simple")
 def update_simple_transaction(
     tid: UUID,
+    accounts: Accounts,
     transactions: Transactions,
     date_: Annotated[str, Form(alias="date")] = "",
     amount: Annotated[str, Form()] = "",
+    to_amount: Annotated[str, Form()] = "",
     from_account: Annotated[str, Form()] = "",
     to_account: Annotated[str, Form()] = "",
     payee: Annotated[str, Form()] = "",
@@ -411,6 +484,6 @@ def update_simple_transaction(
         date_,
         payee,
         comment,
-        lambda: _simple_postings(amount, from_account, to_account),
+        lambda: _simple_postings(accounts, amount, to_amount, from_account, to_account),
         back,
     )

@@ -55,6 +55,7 @@ def dashboard(
         {
             "active": "dashboard",
             "summary": summary,
+            "currency": summary.currency,
             "recent": recent,
             "steps": steps if not all(step["done"] for step in steps) else None,
         },

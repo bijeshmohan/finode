@@ -14,6 +14,7 @@ from ..repositories import (
     TransactionRepository,
 )
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
+from ..schemas.account import HoldingRead
 from ..schemas.transaction import TransactionCreate, PostingCreate
 from .depth import depth_limit
 from .prices import PriceService
@@ -552,6 +553,62 @@ class AccountService:
                 )
             )
         return entries
+
+    def commodity_of(self, aid: UUID) -> Commodity | None:
+        """What an account holds (None for an unknown account)."""
+        account = self.ar.read(aid)
+        return self._holds(account) if account else None
+
+    def has_postings(self, aid: UUID) -> bool:
+        return bool(self.tr.postings_for_account(aid))
+
+    def commodity_choices(self) -> list[Commodity]:
+        """What an account can hold: the shared catalog and the user's own commodities."""
+        return sorted(self.catalog().values(), key=lambda c: (c.user is not None, c.kind != "currency", c.code))
+
+    def holding(self, aid: UUID) -> HoldingRead | None:
+        """What an account holding something other than the default currency is worth.
+
+        `invested` is what the postings to the account were worth when they were made, in the
+        default currency; the difference to today's value is the gain (or loss).
+        """
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
+        default = self.default_currency()
+        if account is None or account.commodity_id in (None, default.cid) or any(
+            a.parent_id == aid for a in all_accounts
+        ):
+            return None
+        held = self._holds(account)
+        accounts_by_id = {acc.aid: acc for acc in all_accounts}
+        normal_side = self._normal_side(account, accounts_by_id)
+        quantity = self._balance_for(account, all_accounts)
+        book = self.prices.book()
+
+        invested = Decimal("0.00")
+        invested_known = True
+        for posting in self.tr.postings_for_account(aid):
+            transaction = self.tr.read(posting.transaction)
+            signed = posting.value if posting.side == normal_side else -posting.value
+            if transaction.currency_id != default.cid:
+                signed = book.convert(signed, transaction.currency_id, default.cid, transaction.date, default.decimals)
+                if signed is None:
+                    invested_known = False
+                    continue
+            invested += signed
+
+        value = book.convert(quantity, held.cid, default.cid, date.today(), default.decimals) if quantity else Decimal("0.00")
+        rate = book.rate(held.cid, default.cid, date.today())
+        return HoldingRead(
+            commodity=held.code,
+            currency=default.code,
+            quantity=quantity,
+            value=value,
+            invested=invested if invested_known else None,
+            gain=value - invested if value is not None and invested_known else None,
+            rate=rate.value if rate else None,
+            rate_as_of=rate.as_of if rate else None,
+        )
 
     def update(self, aid: UUID, data: AccountUpdate) -> AccountRead | None:
         all_accounts = self._ensure_roots()

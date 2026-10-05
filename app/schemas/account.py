@@ -79,3 +79,19 @@ class RegisterEntry(BaseModel):
     change: Decimal = Field(decimal_places=8, max_digits=24)
     balance: Decimal = Field(decimal_places=8, max_digits=24)
     unpriced: bool = False
+
+
+class HoldingRead(BaseModel):
+    """An account holding something other than the default currency, valued in it."""
+
+    commodity: str
+    currency: str
+    quantity: Decimal
+    # Today's value in the default currency; None when no price is known.
+    value: Decimal | None = None
+    # What the postings to the account were worth when they were made.
+    invested: Decimal | None = None
+    gain: Decimal | None = None
+    # The price behind `value` and the day it is from.
+    rate: Decimal | None = None
+    rate_as_of: Date | None = None

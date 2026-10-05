@@ -531,3 +531,52 @@ def test_other_profile_edits_leave_the_currency_alone(client):
     client.patch("/profile/", json={"default_currency": "EUR"})
     client.patch("/profile/", json={"first_name": "Asha"})
     assert client.get("/profile/").json()["default_currency"] == "EUR"
+
+
+# ---- invested and gain ------------------------------------------------------------------------------------------
+
+
+def test_a_holding_reports_what_was_invested_and_what_it_is_worth(client, root_accounts):
+    bank = make(client, "Cash", root_accounts["Assets"], balance="100000.00")
+    btc = make(client, "Bitcoin", root_accounts["Assets"], "BTC")
+    post(client, [(btc["aid"], "debit", "0.5", 50000), (bank["aid"], "credit", 50000, None)])
+
+    holding = client.get(f"/accounts/{btc['aid']}/holding").json()
+    assert holding["commodity"] == "BTC" and holding["currency"] == "INR"
+    assert Decimal(holding["quantity"]) == Decimal("0.5")
+    assert Decimal(holding["value"]) == Decimal("50000.00")
+    assert Decimal(holding["invested"]) == Decimal("50000.00") and Decimal(holding["gain"]) == 0
+
+    client.post("/prices/", json={"commodity": "BTC", "quote": "INR", "price": "130000"})
+    holding = client.get(f"/accounts/{btc['aid']}/holding").json()
+    assert Decimal(holding["value"]) == Decimal("65000.00")
+    assert Decimal(holding["gain"]) == Decimal("15000.00")
+    assert Decimal(holding["rate"]) == Decimal("130000")
+
+
+def test_invested_converts_a_foreign_transaction_currency(client, root_accounts, wallet):
+    travel = make(client, "Dollar pot", root_accounts["Assets"], "EUR")
+    post(client, [(wallet["usd"], "debit", 100, 8350), (wallet["bank"], "credit", 8350, None)])
+    # buy 90 EUR with 100 USD: a transaction in USD
+    post(client, [(travel["aid"], "debit", 90, 100), (wallet["usd"], "credit", 100, None)], "USD", when=LAST_WEEK)
+    holding = client.get(f"/accounts/{travel['aid']}/holding").json()
+    # 100 USD at the 83.50 the dollars cost
+    assert Decimal(holding["invested"]) == Decimal("8350.00")
+    assert Decimal(holding["value"]).quantize(Decimal("0.01")) == Decimal("8350.00")
+
+
+def test_a_holding_without_a_price_has_no_value(client, root_accounts):
+    wise = make(client, "Wise", root_accounts["Assets"], "USD")
+    salary = make(client, "US Salary", root_accounts["Income"], "USD")
+    post(client, [(wise["aid"], "debit", 1000, None), (salary["aid"], "credit", 1000, None)], "USD")
+    holding = client.get(f"/accounts/{wise['aid']}/holding").json()
+    assert holding["value"] is None and holding["gain"] is None and holding["rate"] is None
+
+
+def test_only_accounts_holding_something_else_have_a_holding(client, wallet, root_accounts):
+    assert client.get(f"/accounts/{wallet['bank']}/holding").status_code == 404
+    assert client.get(f"/accounts/{root_accounts['Assets']}/holding").status_code == 404
+    group = make(client, "Foreign", root_accounts["Assets"], "USD")
+    make(client, "Card", group["aid"])
+    assert client.get(f"/accounts/{group['aid']}/holding").status_code == 404, "groups have no single holding"
+    assert client.get(f"/accounts/{wallet['usd']}/holding").status_code == 200
