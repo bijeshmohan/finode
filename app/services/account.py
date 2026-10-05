@@ -554,6 +554,14 @@ class AccountService:
             )
         return entries
 
+    def opening_currency(self) -> Commodity:
+        """What balances are valued in when an account holding something else is opened: the currency of
+        the Opening Balances account, which is the default currency from when it was first needed."""
+        all_accounts = self._ensure_roots()
+        equity = next(a for a in all_accounts if a.name == "Equity" and a.parent_id is None)
+        opening = self.ar.read_by_name(OPENING_BALANCES_ACCOUNT_NAME, equity.aid)
+        return self._holds(opening) if opening else self.default_currency()
+
     def commodity_of(self, aid: UUID) -> Commodity | None:
         """What an account holds (None for an unknown account)."""
         account = self.ar.read(aid)

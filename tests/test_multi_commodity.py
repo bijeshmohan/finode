@@ -580,3 +580,60 @@ def test_only_accounts_holding_something_else_have_a_holding(client, wallet, roo
     make(client, "Card", group["aid"])
     assert client.get(f"/accounts/{group['aid']}/holding").status_code == 404, "groups have no single holding"
     assert client.get(f"/accounts/{wallet['usd']}/holding").status_code == 200
+
+
+# ---- other users' commodities, and balances after the default changed -----------------------------------------
+
+
+def test_another_users_commodity_cannot_be_used(session, client, root_accounts, wallet):
+    from uuid import UUID
+
+    session.add(Commodity(code="THEIRS", name="Theirs", kind="stock", user=UUID(int=2)))
+    session.commit()
+    created = client.post("/accounts/", json={"name": "X", "parent_id": root_accounts["Assets"], "commodity": "THEIRS"})
+    assert created.status_code == 400 and "unknown commodity" in created.json()["detail"]
+    moved = client.patch(f"/accounts/{wallet['usd']}", json={"commodity": "THEIRS"})
+    assert moved.status_code == 400
+    in_theirs = client.post(
+        "/transactions/",
+        json={
+            "date": str(LONG_AGO),
+            "currency": "THEIRS",
+            "postings": [
+                {"account": wallet["bank"], "side": "credit", "amount": "5", "value": "5"},
+                {"account": wallet["usd"], "side": "debit", "amount": "5", "value": "5"},
+            ],
+        },
+    )
+    assert in_theirs.status_code == 400 and "unknown currency" in in_theirs.json()["detail"]
+    assert client.patch("/profile/", json={"default_currency": "THEIRS"}).status_code == 400
+    assert client.post("/prices/", json={"commodity": "THEIRS", "quote": "INR", "price": "1"}).status_code == 404
+
+
+def test_a_failed_balance_edit_changes_nothing(client, root_accounts):
+    wise = make(client, "Wise", root_accounts["Assets"], "USD")
+    response = client.patch(f"/accounts/{wise['aid']}", json={"balance": "50"})
+    assert response.status_code == 400 and "no USD price is known yet" in response.json()["detail"]
+    assert get(client, wise["aid"])["balance"] == "0.00"
+    assert client.get("/transactions/").json() == []
+
+
+def test_the_worth_of_an_opening_balance_is_asked_in_the_opening_balances_currency(client, root_accounts):
+    first = make(client, "Bank", root_accounts["Assets"], balance="1000")  # creates Opening Balances in INR
+    assert first["commodity"] == "INR"
+    client.patch("/profile/", json={"default_currency": "USD"})
+    response = client.post(
+        "/accounts/", json={"name": "Wise", "parent_id": root_accounts["Assets"], "balance": "100"}
+    )
+    assert response.status_code == 400
+    assert "say what 100 USD is worth in INR" in response.json()["detail"]
+    page = client.get("/app/accounts/new").text
+    assert "Holds something other than USD?" in page and "in INR, only if it holds something else" in page
+
+
+def test_a_negative_worth_is_refused(client, root_accounts):
+    response = client.post(
+        "/accounts/",
+        json={"name": "Wise", "parent_id": root_accounts["Assets"], "commodity": "USD", "balance": "5", "balance_value": "-1"},
+    )
+    assert response.status_code == 422

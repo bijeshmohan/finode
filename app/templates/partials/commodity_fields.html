@@ -15,7 +15,7 @@
       <span class="hint">A foreign currency, shares, a fund or a coin. Add your own under <a href="/app/commodities">Currencies &amp; prices</a>.</span>
       {% endif %}
     </label>
-    <label>Balance is worth <span class="hint">in {{ currency }}, only if it holds something else</span>
+    <label>Balance is worth <span class="hint">in {{ opening_currency or currency }}, only if it holds something else</span>
       <input type="text" name="balance_value" inputmode="decimal" placeholder="Leave blank to use the latest price" autocomplete="off">
     </label>
   </div>

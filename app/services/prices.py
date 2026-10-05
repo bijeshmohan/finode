@@ -4,6 +4,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
+from ..models.utils import normalize_amount
 from ..repositories import CommodityRepository, PriceRepository, TransactionRepository
 from ..schemas.price import PriceCreate, PriceRead, RateRead
 
@@ -149,7 +150,7 @@ class PriceService:
             commodity=codes[price.commodity_id],
             quote=codes[price.quote_id],
             date=price.date,
-            price=price.price,
+            price=normalize_amount(price.price),
             is_global=price.user is None,
         )
 

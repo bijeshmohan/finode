@@ -211,3 +211,11 @@ def test_services_of_two_users_do_not_share_prices(session: Session):
     mine.set(PriceCreate(commodity="USD", quote="INR", price=Decimal("80")))
     assert [p.price for p in mine.list()] == [Decimal("80")]
     assert theirs.list() == []
+
+
+def test_prices_read_back_without_padding_zeros(client):
+    stored = client.post("/prices/", json={"commodity": "BTC", "quote": "INR", "price": "6000000"}).json()
+    assert stored["price"] == "6000000.00"
+    assert client.get("/prices/").json()[0]["price"] == "6000000.00"
+    client.post("/prices/", json={"commodity": "JPY", "quote": "INR", "date": "2026-01-01", "price": "0.5625"})
+    assert next(p for p in client.get("/prices/").json() if p["commodity"] == "JPY")["price"] == "0.5625"

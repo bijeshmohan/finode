@@ -180,8 +180,9 @@ def _form_context(accounts: Accounts, **extra) -> dict:
 
 def _simple_postings(
     accounts: Accounts, amount: str, to_amount: str, from_account: str, to_account: str
-) -> tuple[str | None, list[PostingCreate]]:
-    """The two postings of a simple transaction, and the currency it is in.
+) -> tuple[str, list[PostingCreate]]:
+    """The two postings of a simple transaction, and the currency it is in (always explicit, so an edit
+    that moves a transaction between accounts does not keep a stale currency).
 
     Between accounts holding the same thing one amount is enough. Otherwise `to_amount` says how
     much arrives; the transaction is in the default currency when it is one of the two, else in
@@ -195,17 +196,17 @@ def _simple_postings(
     source, target = accounts.commodity_of(UUID(from_account)), accounts.commodity_of(UUID(to_account))
     if source is None or target is None:
         raise ValueError("account not found!")
-    default = accounts.default_currency()
     if source.cid == target.cid:
         if to_amount.strip() and parse_amount(to_amount) != paid:
             raise ValueError(f"both accounts hold {source.code}, so the amount that arrives is the amount that leaves!")
-        return (None if source.cid == default.cid else source.code), [
+        return source.code, [
             PostingCreate(account=UUID(to_account), side=PostingSide.DEBIT, amount=paid),
             PostingCreate(account=UUID(from_account), side=PostingSide.CREDIT, amount=paid),
         ]
     if not to_amount.strip():
         raise ValueError(f"these accounts hold different things ({source.code} and {target.code}): say how much {target.code} arrives!")
     received = parse_amount(to_amount)
+    default = accounts.default_currency()
     if default.cid in (source.cid, target.cid):
         currency = default
     elif source.kind == "currency" or target.kind != "currency":

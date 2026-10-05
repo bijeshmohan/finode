@@ -144,6 +144,7 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "parent_id": parent,
             "parent_options": _parent_options(roots, profiles.depth_limits()),
             "currency": accounts.default_currency().code,
+            "opening_currency": accounts.opening_currency().code,
             "commodity_choices": accounts.commodity_choices(),
             "can_change_commodity": True,
         },
@@ -163,6 +164,7 @@ def quick_account_sheet(request: Request, accounts: Accounts, profiles: Profiles
             "parent_options": _parent_options(roots, profiles.depth_limits()),
             "roots_by_id": {n.account.aid: r.account.name for r in roots for n in r.walk()},
             "currency": accounts.default_currency().code,
+            "opening_currency": accounts.opening_currency().code,
             "commodity_choices": accounts.commodity_choices(),
         },
     )
@@ -297,6 +299,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "node": node,
             "parent_id": node.account.parent_id,
             "currency": accounts.default_currency().code,
+            "opening_currency": accounts.opening_currency().code,
             "commodity_choices": accounts.commodity_choices(),
             "can_change_commodity": not accounts.has_postings(aid),
             "parent_options": [

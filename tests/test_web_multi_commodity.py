@@ -397,3 +397,26 @@ def test_the_dashboard_totals_in_the_default_currency(client, pair):
     client.post("/app/profile/currency", data={"currency": "USD"})
     body = text_of(client.get("/app/").text)
     assert "Net worth 1,197.60 USD" in body
+
+
+def test_moving_a_transaction_to_other_accounts_takes_the_new_currency(client, pair, root_accounts):
+    bank, usd = pair
+    card = make_account(client, "Card USD", root_accounts["Assets"], "USD")
+    client.post("/app/transactions", data=buy_usd_form(bank, usd))
+    client.post(
+        "/app/transactions",
+        data={"amount": "25", "from_account": usd["aid"], "to_account": card["aid"], "date": LONG_AGO},
+    )
+    transfer = latest(client)
+    assert transfer["currency"] == "USD"
+
+    savings = make_account(client, "Savings", root_accounts["Assets"], balance="1000")
+    cash = make_account(client, "Cash", root_accounts["Assets"])
+    response = client.post(
+        f"/app/transactions/{transfer['tid']}/edit/simple",
+        data={"amount": "30", "from_account": savings["aid"], "to_account": cash["aid"], "date": LONG_AGO},
+    )
+    assert response.status_code == 200, response.text
+    moved = client.get(f"/transactions/{transfer['tid']}").json()
+    assert moved["currency"] == "INR"
+    assert all(p["value"] == p["amount"] == "30.00" for p in moved["postings"])
