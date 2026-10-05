@@ -9,7 +9,21 @@
   <p class="muted crumbs">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}</p>
   <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}</h1>
   {% if account.details %}<p class="muted">{{ account.details }}</p>{% endif %}
-  <p class="hero-balance">{{ account.balance|money }}</p>
+  <p class="hero-balance">{{ account.balance|money|with_unit(account.commodity, currency) }}{% if account.unpriced %} <span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span>{% endif %}</p>
+  {% if holding %}
+  {% if holding.value is not none %}
+  <p class="muted">Worth {{ holding.value|money }} {{ holding.currency }} at {{ holding.rate|money }} per {{ holding.commodity }} · {{ holding.rate_as_of|friendly_date }}</p>
+  {% else %}
+  <p class="muted">There is no {{ holding.commodity }} price in {{ holding.currency }} yet. <a href="/app/commodities#prices">Add one</a> to see what it is worth.</p>
+  {% endif %}
+  {% if holding.invested is not none %}
+  <dl class="split three">
+    <div><dt>Invested</dt><dd>{{ holding.invested|money }}</dd></div>
+    <div><dt>Value</dt><dd>{{ holding.value|money if holding.value is not none else "—" }}</dd></div>
+    <div><dt>Gain</dt><dd class="{{ 'pos' if holding.gain is not none and holding.gain >= 0 else 'neg' if holding.gain is not none }}">{{ holding.gain|money if holding.gain is not none else "—" }}</dd></div>
+  </dl>
+  {% endif %}
+  {% endif %}
   {% if at_limit %}<p class="muted">{{ root.account.name }} accounts can be {{ depth_limit }} level{{ "" if depth_limit == 1 else "s" }} deep, so this one can't have sub-accounts. <a href="/app/profile#depth">Change the limit</a></p>{% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
   <div class="actions">
@@ -39,7 +53,7 @@
             <span class="tx-title">{{ e.payee or "No payee" }}</span>
             <span class="tx-sub">{{ e.counter_accounts|join(", ") }}{% if e.comment %} · {{ e.comment }}{% endif %}</span>
           </span>
-          <span class="tx-amount {{ 'income' if e.change > 0 }}">{{ "+" if e.change > 0 else "−" }}{{ (e.change|abs)|money }}<small>{{ e.balance|money }}</small></span>
+          <span class="tx-amount {{ 'income' if e.change > 0 }}">{{ "+" if e.change > 0 else "−" }}{{ (e.change|abs)|money|with_unit(account.commodity, currency) }}<small>{{ e.balance|money }}</small></span>
         </a>
       </li>
       {% endfor %}

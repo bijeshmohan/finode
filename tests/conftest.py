@@ -6,9 +6,12 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
+from app.commodity_seed import seed_rows
 from app.auth import CurrentUser, require_authenticated_user
 from app.dependencies import get_db_session
 from app.main import app
+from app.models.commodity import Commodity
+from app.models.utils import utc_now
 from app.web_auth import web_login_required
 
 
@@ -22,11 +25,16 @@ def session() -> Generator[Session, None, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    # A single shared connection, so the in-memory databases live as long as the engine. The session
+    # commits for real: a service that rolls back only undoes its own unfinished work.
     with engine.connect() as connection:
         connection.exec_driver_sql("ATTACH DATABASE ':memory:' AS auth")
-        SQLModel.metadata.create_all(connection)
-        with Session(connection) as session:
-            yield session
+        connection.commit()
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add_all(Commodity(**row) for row in seed_rows(utc_now()))
+        session.commit()
+        yield session
 
 
 @pytest.fixture

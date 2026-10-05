@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from pydantic import field_validator
 from sqlmodel import Field
 
-from .utils import TimestampMixin
+from .utils import Amount, TimestampMixin
 
 
 class PostingSide(str, Enum):
@@ -22,6 +22,8 @@ class Transaction(TimestampMixin, table=True):
     date: Date = Field(default_factory=Date.today)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
+    # The currency the transaction balances in: the postings' `value` is expressed in it.
+    currency_id: UUID = Field(foreign_key="commodities.cid")
 
 
 class Posting(TimestampMixin, table=True):
@@ -32,7 +34,10 @@ class Posting(TimestampMixin, table=True):
     transaction: UUID = Field(index=True, foreign_key="transactions.tid")
     account: UUID = Field(index=True, foreign_key="accounts.aid")
     side: PostingSide
-    amount: Decimal = Field(decimal_places=2, max_digits=12)
+    # Quantity of the account's commodity.
+    amount: Decimal = Field(sa_type=Amount())
+    # The same posting measured in the transaction's currency; debits and credits balance on this.
+    value: Decimal = Field(sa_type=Amount())
 
     @field_validator("amount")
     @classmethod

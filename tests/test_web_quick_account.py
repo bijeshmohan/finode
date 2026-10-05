@@ -74,7 +74,7 @@ def test_sheet_lists_sub_groups_but_not_the_system_account(
 def test_options_list_reflects_new_accounts(client: TestClient, account: dict):
     text = client.get("/app/accounts/options").text
     assert '<option value="__new__">+ New account…</option>' in text
-    assert f'<option value="{account["aid"]}" >checking</option>' in text
+    assert f'<option value="{account["aid"]}" data-commodity="INR" >checking</option>' in text
 
 
 # --- creating ---------------------------------------------------------------

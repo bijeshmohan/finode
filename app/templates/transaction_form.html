@@ -35,6 +35,14 @@
     </label>
   </div>
 
+  <details class="more" data-conversion {{ "open" if simple.to_amount }}>
+    <summary>Different currencies or units?</summary>
+    <label>You receive <span class="hint" data-receive-unit>in the account it goes to, when that holds something else</span>
+      <input type="text" name="to_amount" inputmode="decimal" placeholder="0.00" autocomplete="off" value="{{ simple.to_amount }}">
+    </label>
+    <p class="hint muted" data-rate-hint></p>
+  </details>
+
   <div class="grid-form">
     <label>Date
       <input type="date" name="date" value="{{ transaction.date if editing else today }}" required>
@@ -70,7 +78,14 @@
     </label>
   </div>
 
-  <p class="hint muted">Each row debits or credits one account. Debits must equal credits.</p>
+  {% if multi %}
+  <label>Currency <span class="hint">the transaction balances in this; rows in anything else say what they are worth in it</span>
+    <select name="currency">
+      {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == (transaction.currency if editing else currency) }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  <p class="hint muted">Each row debits or credits one account. Debits must equal credits{% if multi %}, in the transaction's currency{% endif %}.</p>
   <div id="postings" class="postings">
     <div class="posting-head"><span>Account</span><span>Side</span><span>Amount</span><span></span></div>
     {% if postings %}

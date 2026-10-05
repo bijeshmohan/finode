@@ -29,8 +29,18 @@ function updateBalanceStatus() {
   if (!status) return;
   let debit = 0;
   let credit = 0;
+  const currencySelect = document.querySelector('form [name="currency"]');
   document.querySelectorAll(".posting-row").forEach((row) => {
-    const cents = toCents(row.querySelector('[name="amount"]').value);
+    // A row holding something other than the transaction's currency counts by its worth.
+    const worth = row.querySelector('[name="value"]');
+    const account = row.querySelector('select[name="account"]');
+    const held = account && account.selectedOptions[0] ? account.selectedOptions[0].dataset.commodity : "";
+    let text = worth && worth.value.trim() ? worth.value : null;
+    if (text === null) {
+      if (currencySelect && held && held !== currencySelect.value) return;
+      text = row.querySelector('[name="amount"]').value;
+    }
+    const cents = toCents(text);
     if (cents === null) return;
     if (row.querySelector('[name="side"]').value === "debit") debit += cents;
     else credit += cents;
@@ -56,6 +66,43 @@ document.body.addEventListener("click", (event) => {
 });
 document.addEventListener("DOMContentLoaded", updateBalanceStatus);
 
+// Simple form: when From and To hold different things, open the "You receive" field and show the rate.
+function heldBy(select) {
+  const option = select && select.selectedOptions[0];
+  return option ? option.dataset.commodity || "" : "";
+}
+
+function updateConversion() {
+  const form = document.querySelector("form [data-conversion]");
+  if (!form) return;
+  const from = document.querySelector('[name="from_account"]');
+  const to = document.querySelector('[name="to_account"]');
+  const source = heldBy(from);
+  const target = heldBy(to);
+  const differs = source !== "" && target !== "" && source !== target;
+  if (differs) form.open = true;
+  const unit = form.querySelector("[data-receive-unit]");
+  if (unit) unit.textContent = differs ? `in ${target}` : "in the account it goes to, when that holds something else";
+  const hint = form.querySelector("[data-rate-hint]");
+  if (!hint) return;
+  const paid = parseFloat(document.querySelector('[name="amount"]').value.replace(/,/g, ""));
+  const received = parseFloat(form.querySelector('[name="to_amount"]').value.replace(/,/g, ""));
+  if (!(differs && paid > 0 && received > 0)) {
+    hint.textContent = "";
+    return;
+  }
+  // Quote the rate the way people say it: the smaller unit's price in the larger one (1 USD = 83.5 INR).
+  const digits = { maximumSignificantDigits: 8 };
+  hint.textContent =
+    received >= paid
+      ? `1 ${source} = ${(received / paid).toLocaleString(undefined, digits)} ${target}`
+      : `1 ${target} = ${(paid / received).toLocaleString(undefined, digits)} ${source}`;
+}
+
+document.body.addEventListener("input", updateConversion);
+document.body.addEventListener("change", updateConversion);
+document.addEventListener("DOMContentLoaded", updateConversion);
+
 // Swap the From and To accounts in the simple transaction form.
 document.body.addEventListener("click", (event) => {
   const button = event.target.closest("[data-swap-accounts]");
@@ -64,6 +111,7 @@ document.body.addEventListener("click", (event) => {
   const from = form.querySelector('[name="from_account"]');
   const to = form.querySelector('[name="to_account"]');
   [from.value, to.value] = [to.value, from.value];
+  updateConversion();
 });
 
 // ---- Add an account without leaving the transaction form ----

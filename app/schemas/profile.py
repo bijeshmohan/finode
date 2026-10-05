@@ -21,6 +21,8 @@ def _clean(value: str | None) -> str | None:
 class ProfileUpdate(BaseModel):
     first_name: str | None = Field(default=None, max_length=40)
     last_name: str | None = Field(default=None, max_length=40)
+    # Code of the currency totals are reported in; must be a currency, not a stock or a coin.
+    default_currency: str | None = Field(default=None, max_length=20)
     # 0 = no limit of your own; the application maximum and your existing accounts are checked by the service.
     max_depth_assets: int | None = Field(default=None, ge=0)
     max_depth_liabilities: int | None = Field(default=None, ge=0)
@@ -34,6 +36,12 @@ class ProfileUpdate(BaseModel):
         return _clean(v)
 
     @model_validator(mode="after")
+    def default_currency_must_not_be_null(self) -> "ProfileUpdate":
+        if "default_currency" in self.model_fields_set and not self.default_currency:
+            raise ValueError("the field 'default_currency' must not be empty!")
+        return self
+
+    @model_validator(mode="after")
     def depth_must_not_be_null(self) -> "ProfileUpdate":
         for name in DEPTH_FIELDS:
             if name in self.model_fields_set and getattr(self, name) is None:
@@ -44,6 +52,7 @@ class ProfileUpdate(BaseModel):
 class ProfileRead(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
+    default_currency: str | None = None
     max_depth_assets: int = 0
     max_depth_liabilities: int = 0
     max_depth_equity: int = 0

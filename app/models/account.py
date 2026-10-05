@@ -25,6 +25,8 @@ class Account(TimestampMixin, table=True):
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
     parent_id: UUID | None = Field(default=None, foreign_key="accounts.aid", nullable=True)
+    # What the account holds. Root accounts hold nothing of their own (their total is valued in the default currency).
+    commodity_id: UUID | None = Field(default=None, foreign_key="commodities.cid", nullable=True)
 
     @field_validator("name")
     @classmethod

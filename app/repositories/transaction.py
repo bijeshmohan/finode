@@ -1,8 +1,11 @@
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlmodel import Session, select
 
+from .commodity import CommodityRepository
+from ..models.account import Account
 from ..models.transaction import Transaction, Posting
 from ..schemas.transaction import TransactionCreate, TransactionUpdate
 
@@ -12,20 +15,34 @@ class TransactionRepository:
         self.db = db
         self.uid = uid
 
-    def create(self, data: TransactionCreate) -> Transaction:
-        values = data.model_dump(exclude={"postings"})
-        transaction = Transaction(**values, user=self.uid)
+    def create(
+        self,
+        data: TransactionCreate,
+        currency_id: UUID | None = None,
+        values: list[Decimal] | None = None,
+    ) -> Transaction:
+        """`values` are the postings' worth in the currency, in order; a posting without one is worth its amount."""
+        fields = data.model_dump(exclude={"postings", "currency"})
+        if currency_id is None:
+            currency_id = CommodityRepository(self.db, self.uid).default_currency().cid
+        transaction = Transaction(**fields, currency_id=currency_id, user=self.uid)
         self.db.add(transaction)
         self.db.flush()
-        for posting_data in data.postings:
-            posting = Posting(
-                **posting_data.model_dump(),
-                transaction=transaction.tid,
-                user=self.uid,
-            )
-            self.db.add(posting)
+        self._add_postings(transaction, data.postings, values)
         self.db.flush()
         return transaction
+
+    def _add_postings(self, transaction: Transaction, postings, values: list[Decimal] | None) -> None:
+        for index, posting_data in enumerate(postings):
+            worth = values[index] if values is not None else (posting_data.value or posting_data.amount)
+            self.db.add(
+                Posting(
+                    **posting_data.model_dump(exclude={"value"}),
+                    value=worth,
+                    transaction=transaction.tid,
+                    user=self.uid,
+                )
+            )
 
     def read(self, tid: UUID) -> Transaction | None:
         statement = select(Transaction).where(
@@ -77,6 +94,27 @@ class TransactionRepository:
     def all_postings(self) -> list[Posting]:
         return self.db.exec(select(Posting).where(Posting.user == self.uid)).all()
 
+    def conversions(self) -> list[tuple[UUID, UUID, date, Decimal, Decimal, datetime]]:
+        """Postings made in a different commodity than their transaction's currency.
+
+        Each is (commodity, currency, date, amount, value, created): `value / amount` is
+        the rate the user actually got.
+        """
+        statement = (
+            select(
+                Account.commodity_id,
+                Transaction.currency_id,
+                Transaction.date,
+                Posting.amount,
+                Posting.value,
+                Posting.created,
+            )
+            .join(Transaction, Transaction.tid == Posting.transaction)
+            .join(Account, Account.aid == Posting.account)
+            .where(Posting.user == self.uid, Account.commodity_id != Transaction.currency_id)
+        )
+        return [tuple(row) for row in self.db.exec(statement).all()]
+
     def postings_for_account(self, aid: UUID) -> list[Posting]:
         statement = select(Posting).where(
             Posting.account == aid,
@@ -108,26 +146,28 @@ class TransactionRepository:
         postings = self.db.exec(statement).all()
         return postings
 
-    def update(self, tid: UUID, data: TransactionUpdate) -> Transaction | None:
+    def update(
+        self,
+        tid: UUID,
+        data: TransactionUpdate,
+        currency_id: UUID | None = None,
+        values: list[Decimal] | None = None,
+    ) -> Transaction | None:
         transaction = self.read(tid)
         if not transaction:
             return None
 
-        values = data.model_dump(exclude_unset=True, exclude={"postings"})
-        for key, value in values.items():
+        fields = data.model_dump(exclude_unset=True, exclude={"postings", "currency"})
+        for key, value in fields.items():
             setattr(transaction, key, value)
+        if currency_id is not None:
+            transaction.currency_id = currency_id
 
         if data.postings is not None:
             for posting in self.postings(tid):
                 self.db.delete(posting)
             self.db.flush()
-            for posting_data in data.postings:
-                posting = Posting(
-                    **posting_data.model_dump(),
-                    transaction=transaction.tid,
-                    user=self.uid,
-                )
-                self.db.add(posting)
+            self._add_postings(transaction, data.postings, values)
 
         self.db.add(transaction)
         self.db.flush()

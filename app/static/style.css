@@ -593,3 +593,19 @@ select.needs-attention { border-color: var(--danger); box-shadow: 0 0 0 3px var(
 .plain-list { margin: .35rem 0 0; padding-left: 1.1rem; }
 .plain-list li + li { margin-top: .2rem; }
 input[type="file"] { padding: .5rem; }
+
+/* Currencies & prices */
+.plain-list.flat { list-style: none; padding-left: 0; }
+.plain-list.flat li { padding: .35rem 0; }
+.plain-list.flat li + li { border-top: 1px solid var(--border); margin-top: 0; }
+.row-between { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+.row-between > span { min-width: 0; overflow-wrap: anywhere; }
+.row-between > button { flex: none; padding: .2rem .65rem; }
+
+/* Optional fields tucked away until needed */
+details.more { border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 0 .75rem; }
+details.more[open] { padding-bottom: .75rem; }
+details.more > summary { cursor: pointer; color: var(--muted); min-height: var(--tap); display: flex; align-items: center; list-style: none; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more[open] > summary { margin-bottom: .25rem; }
+.posting-value { grid-column: 1 / -1; font-size: .9rem; }

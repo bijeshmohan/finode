@@ -21,6 +21,8 @@ class Profile(TimestampMixin, table=True):
     user: UUID = Field(primary_key=True, foreign_key="auth.users.id")
     first_name: str | None = Field(default=None, max_length=40)
     last_name: str | None = Field(default=None, max_length=40)
+    # Currency that totals (net worth and so on) are reported in.
+    default_commodity_id: UUID | None = Field(default=None, foreign_key="commodities.cid", nullable=True)
     # Deepest sub-account level allowed under each top-level account; 0 means no limit of the user's own.
     max_depth_assets: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     max_depth_liabilities: int = Field(default=0, sa_column_kwargs={"server_default": "0"})

@@ -19,6 +19,11 @@ MESSAGES = {
     "profile-updated": "Profile saved",
     "import-done": "Import complete",
     "depth-updated": "Account depth saved",
+    "currency-updated": "Default currency saved",
+    "commodity-added": "Commodity added",
+    "commodity-deleted": "Commodity removed",
+    "price-saved": "Price saved",
+    "price-deleted": "Price removed",
 }
 
 

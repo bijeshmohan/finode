@@ -201,7 +201,7 @@ def test_edit_page_prefills_existing_postings(
     assert 'value="2026-05-04"' in simple.text
     assert simple.text.count('value="9.99"') == 1
     assert f'hx-post="/app/transactions/{tx["tid"]}/edit/simple"' in simple.text
-    assert f'<option value="{expense_account["aid"]}" selected>' in simple.text
+    assert f'<option value="{expense_account["aid"]}" data-commodity="INR" selected>' in simple.text
 
     split = client.get(f"/app/transactions/{tx['tid']}/edit", params={"mode": "split"})
     assert split.text.count('value="9.99"') == 2
@@ -327,14 +327,14 @@ def test_new_form_prefills_from_for_asset_and_to_for_expense(
     client: TestClient, account: dict, expense_account: dict
 ):
     from_asset = client.get("/app/transactions/new", params={"account": account["aid"]}).text
-    assert from_asset.count(f'<option value="{account["aid"]}" selected>') == 1
+    assert from_asset.count(f'<option value="{account["aid"]}" data-commodity="INR" selected>') == 1
     assert from_asset.index('name="from_account"') < from_asset.index(
-        f'<option value="{account["aid"]}" selected>'
+        f'<option value="{account["aid"]}" data-commodity="INR" selected>'
     ) < from_asset.index('name="to_account"')
 
     to_expense = client.get("/app/transactions/new", params={"account": expense_account["aid"]}).text
     assert to_expense.index('name="to_account"') < to_expense.index(
-        f'<option value="{expense_account["aid"]}" selected>'
+        f'<option value="{expense_account["aid"]}" data-commodity="INR" selected>'
     )
 
 

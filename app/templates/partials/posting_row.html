@@ -10,4 +10,10 @@
   <input type="text" name="amount" inputmode="decimal" placeholder="0.00" aria-label="Amount"
          value="{{ posting.amount if posting else '' }}">
   <button type="button" class="secondary" data-remove-row aria-label="Remove row">×</button>
+  {% if multi %}
+  {% set foreign = posting and account_commodity.get(posting.account) != transaction.currency %}
+  <input type="text" name="value" class="posting-value" inputmode="decimal" autocomplete="off"
+         placeholder="Worth in {{ transaction.currency if transaction else currency }}, if it is something else"
+         aria-label="Worth in the transaction's currency" value="{{ posting.value if foreign else '' }}">
+  {% endif %}
 </div>

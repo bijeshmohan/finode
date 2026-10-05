@@ -24,6 +24,20 @@
     <button type="submit">Save changes</button>
   </div>
 </form>
+<form id="currency" class="card stack form-narrow" hx-post="/app/profile/currency">
+  <h2>Currency</h2>
+  <p class="muted">Net worth, the dashboard and your reports add everything up in this currency. Accounts keep holding what they hold; changing this only changes how totals are shown.</p>
+  <label>Default currency
+    <select name="currency">
+      {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == profile.default_currency }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <p id="currency-error" class="error" role="alert"></p>
+  <div class="actions">
+    <button type="submit">Save currency</button>
+    <a class="button secondary" href="/app/commodities">Currencies &amp; prices</a>
+  </div>
+</form>
 <form id="depth" class="card stack form-narrow" hx-post="/app/profile/depth">
   <h2>Account depth</h2>
   <p class="muted">How many levels of sub-accounts you allow under each type. 1 is a flat list, 0 means no limit of your own (the application maximum is {{ depth_cap }}). A limit can't be lower than your deepest existing account.</p>

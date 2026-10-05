@@ -11,9 +11,9 @@ class AccountRepository:
         self.db = db
         self.uid = uid
 
-    def create(self, data: AccountCreate) -> Account:
-        values = data.model_dump(exclude={"balance"})
-        account = Account(**values, user=self.uid)
+    def create(self, data: AccountCreate, commodity_id: UUID | None = None) -> Account:
+        values = data.model_dump(exclude={"balance", "balance_value", "commodity"})
+        account = Account(**values, commodity_id=commodity_id, user=self.uid)
         self.db.add(account)
         self.db.flush()
         return account
@@ -44,13 +44,15 @@ class AccountRepository:
         account = self.db.exec(statement).first()
         return account
 
-    def update(self, aid: UUID, data: AccountUpdate) -> Account | None:
+    def update(self, aid: UUID, data: AccountUpdate, commodity_id: UUID | None = None) -> Account | None:
         account = self.read(aid)
         if not account:
             return None
-        values = data.model_dump(exclude_unset=True, exclude={"balance"})
+        values = data.model_dump(exclude_unset=True, exclude={"balance", "balance_value", "commodity"})
         for key, value in values.items():
             setattr(account, key, value)
+        if commodity_id is not None:
+            account.commodity_id = commodity_id
         self.db.add(account)
         self.db.flush()
         return account

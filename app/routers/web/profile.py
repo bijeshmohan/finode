@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from ...config import settings
 from ...auth import CurrentUser, require_authenticated_user
-from ...dependencies import Data, Profiles
+from ...dependencies import Accounts, Data, Profiles
 from ...schemas.profile import ProfileUpdate
 from ...services.depth import ROOT_DEPTH_FIELDS
 from ...templating import templates
@@ -20,6 +20,7 @@ def profile_page(
     request: Request,
     profiles: Profiles,
     data: Data,
+    accounts: Accounts,
     user: Annotated[CurrentUser, Depends(require_authenticated_user)],
 ):
     profile = profiles.read()
@@ -32,6 +33,7 @@ def profile_page(
             "profile": profile,
             "email": user.email,
             "can_import": data.can_import(),
+            "currencies": [c for c in accounts.commodity_choices() if c.kind == "currency"],
             "depths": [
                 {
                     "root": root,
@@ -57,6 +59,16 @@ def update_profile(
     except ValidationError as e:
         return htmx_error(validation_message(e), "#form-error")
     return htmx_redirect("/app/profile", flash="profile-updated")
+
+
+@router.post("/currency")
+def update_currency(profiles: Profiles, currency: Annotated[str, Form()] = ""):
+    try:
+        profiles.update(ProfileUpdate(default_currency=currency))
+    except (ValidationError, ValueError) as e:
+        message = validation_message(e) if isinstance(e, ValidationError) else str(e)
+        return htmx_error(message, "#currency-error")
+    return htmx_redirect("/app/profile#currency", flash="currency-updated")
 
 
 @router.post("/depth")

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Currencies & prices · finode{% endblock %}
+{% block content %}
+<a class="back" href="/app/profile#currency">{{ icon("back") }}Profile</a>
+<h1>Currencies &amp; prices</h1>
+
+<section id="rates" class="card stack form-narrow">
+  <h2>What your holdings are worth</h2>
+  {% if rates %}
+  <ul class="plain-list flat">
+    {% for r in rates %}
+    <li>
+      <strong>1 {{ r.commodity }}</strong>
+      {% if r.rate is not none %}= {{ r.rate|money }} {{ currency }} <span class="muted">· from {{ r.as_of|friendly_date }}</span>
+      {% else %}<span class="neg">has no price yet</span> <span class="muted">· add one below to include it in your net worth</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted">The latest price is used. A conversion between accounts records the rate you actually got; a price you add yourself wins when both are for the same day.</p>
+  {% else %}
+  <p class="muted">None of your accounts hold anything other than {{ currency }}. Add an account in another currency, a stock or a coin from the account form.</p>
+  {% endif %}
+</section>
+
+<section id="prices" class="card stack form-narrow">
+  <h2>Prices</h2>
+  <form class="stack" hx-post="/app/commodities/prices">
+    <div class="grid-form">
+      <label>1 unit of
+        <select name="commodity" required>
+          <option value="">Choose…</option>
+          {% for c in choices %}<option value="{{ c.code }}">{{ c.code }} · {{ c.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>is worth
+        <input type="text" name="price" inputmode="decimal" required autocomplete="off" placeholder="0.00">
+      </label>
+      <label>in
+        <select name="quote" required>
+          {% for c in choices %}<option value="{{ c.code }}" {{ "selected" if c.code == currency }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>on
+        <input type="date" name="date" value="{{ today }}" required>
+      </label>
+    </div>
+    <p id="price-error" class="error" role="alert"></p>
+    <div class="actions"><button type="submit">Save price</button></div>
+  </form>
+  {% if prices %}
+  <ul class="plain-list flat">
+    {% for p in prices %}
+    <li class="row-between">
+      <span><strong>1 {{ p.commodity }}</strong> = {{ p.price|money }} {{ p.quote }} <span class="muted">· {{ p.date|friendly_date }}{% if p.is_global %} · shared feed{% endif %}</span></span>
+      {% if not p.is_global %}
+      <button type="button" class="secondary" hx-post="/app/commodities/prices/{{ p.pid }}/delete"
+              hx-confirm="Remove this price?" aria-label="Remove this price">×</button>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No prices yet. Rates from your own conversions are used automatically.</p>
+  {% endif %}
+</section>
+
+<section id="mine" class="card stack form-narrow">
+  <h2>Your own commodities</h2>
+  <p class="muted">For anything the shared list doesn't have: a stock, a mutual fund, a coin.</p>
+  {% if mine %}
+  <ul class="plain-list flat">
+    {% for c in mine %}
+    <li class="row-between">
+      <span><strong>{{ c.code }}</strong> · {{ c.name }} <span class="muted">· {{ kinds[c.kind] }}, {{ c.decimals }} decimal{{ "" if c.decimals == 1 else "s" }}</span></span>
+      <button type="button" class="secondary" hx-post="/app/commodities/{{ c.cid }}/delete" hx-target="#mine-error"
+              hx-confirm="Remove {{ c.code }}?" aria-label="Remove {{ c.code }}">×</button>
+    </li>
+    {% endfor %}
+  </ul>
+  <p id="mine-error" class="error" role="alert"></p>
+  {% endif %}
+  <form class="stack" hx-post="/app/commodities">
+    <div class="grid-form">
+      <label>Code
+        <input type="text" name="code" maxlength="20" required autocomplete="off" placeholder="e.g. INFY">
+      </label>
+      <label>Name
+        <input type="text" name="name" maxlength="80" required autocomplete="off" placeholder="e.g. Infosys">
+      </label>
+      <label>Kind
+        <select name="kind">
+          {% for key, label in kinds.items() if key != "currency" %}<option value="{{ key }}" {{ "selected" if key == "stock" }}>{{ label }}</option>{% endfor %}
+          <option value="currency">Currency</option>
+        </select>
+      </label>
+      <label>Decimals
+        <input type="number" name="decimals" min="0" max="8" step="1" value="2" inputmode="numeric">
+        <span class="hint">0 for whole shares, 3 for fund units, 8 for coins.</span>
+      </label>
+    </div>
+    <p id="commodity-error" class="error" role="alert"></p>
+    <div class="actions"><button type="submit" class="secondary">{{ icon("plus") }}Add commodity</button></div>
+  </form>
+</section>
+
+<details class="card stack form-narrow">
+  <summary>Shared list ({{ catalog|length }})</summary>
+  <ul class="plain-list flat">
+    {% for c in catalog %}
+    <li><strong>{{ c.code }}</strong> · {{ c.name }} <span class="muted">· {{ kinds[c.kind] }}, {{ c.decimals }} decimal{{ "" if c.decimals == 1 else "s" }}</span></li>
+    {% endfor %}
+  </ul>
+</details>
+{% endblock %}
