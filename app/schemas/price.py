@@ -19,8 +19,6 @@ class PriceRead(BaseModel):
     quote: str
     date: Date
     price: Decimal
-    # True for the shared feed, False for prices the user entered.
-    is_global: bool
 
 
 class RateRead(BaseModel):

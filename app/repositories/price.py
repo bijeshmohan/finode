@@ -9,21 +9,21 @@ from ..models.price import Price
 
 
 class PriceRepository:
-    """Prices the user can see: the shared feed plus the ones they entered."""
+    """The prices the user entered."""
 
     def __init__(self, db: Session, uid: UUID):
         self.db = db
         self.uid = uid
 
     def list(self, commodity_id: UUID | None = None) -> list[Price]:
-        statement = select(Price).where(or_(Price.user.is_(None), Price.user == self.uid))
+        statement = select(Price).where(Price.user == self.uid)
         if commodity_id is not None:
             statement = statement.where(or_(Price.commodity_id == commodity_id, Price.quote_id == commodity_id))
         return self.db.exec(statement.order_by(Price.date.desc(), Price.created.desc())).all()
 
     def read(self, pid: UUID) -> Price | None:
         return self.db.exec(
-            select(Price).where(Price.pid == pid, or_(Price.user.is_(None), Price.user == self.uid))
+            select(Price).where(Price.pid == pid, Price.user == self.uid)
         ).first()
 
     def upsert(self, commodity_id: UUID, quote_id: UUID, on: date, price: Decimal) -> Price:
@@ -47,7 +47,6 @@ class PriceRepository:
         return created
 
     def delete(self, pid: UUID) -> Price | None:
-        """Only the user's own prices can be removed."""
         price = self.db.exec(select(Price).where(Price.pid == pid, Price.user == self.uid)).first()
         if price:
             self.db.delete(price)

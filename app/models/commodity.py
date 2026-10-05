@@ -19,8 +19,9 @@ class CommodityKind:
 class Commodity(TimestampMixin, table=True):
     """Anything an account can hold a quantity of: a currency, a coin, a share, a fund.
 
-    Rows with no `user` are the global catalog shared by everybody; rows with a user are
-    private to that user. A code is unique within the catalog and within one user's own rows.
+    Rows with no `user` are the built-in currencies (ISO 4217), the same for everybody and
+    changed only through migrations; every other commodity is private to one user. A code is
+    unique among the built-in currencies and within one user's own rows.
     """
 
     __tablename__ = "commodities"

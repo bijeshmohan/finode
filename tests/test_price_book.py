@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from app.services.prices import RANK_FEED, RANK_MANUAL, RANK_TRANSACTION, PriceBook, PricePoint
+from app.services.prices import RANK_MANUAL, RANK_TRANSACTION, PriceBook, PricePoint
 
 
 INR, USD, BTC, INFY, EUR = (uuid4() for _ in range(5))
@@ -77,15 +77,10 @@ def test_two_hops_are_not_attempted():
     assert book.rate(INFY, EUR, d(1)) is None
 
 
-def test_ties_on_one_day_prefer_the_user_then_conversions_then_the_feed():
-    day = [
-        point(USD, INR, 5, "81", RANK_FEED),
-        point(USD, INR, 5, "82", RANK_TRANSACTION),
-        point(USD, INR, 5, "83", RANK_MANUAL),
-    ]
+def test_ties_on_one_day_prefer_the_users_own_price_over_a_conversion():
+    day = [point(USD, INR, 5, "82", RANK_TRANSACTION), point(USD, INR, 5, "83", RANK_MANUAL)]
     assert PriceBook(day).rate(USD, INR, d(5)).value == 83
-    assert PriceBook(day[:2]).rate(USD, INR, d(5)).value == 82
-    assert PriceBook(day[:1]).rate(USD, INR, d(5)).value == 81
+    assert PriceBook(day[:1]).rate(USD, INR, d(5)).value == 82
 
 
 def test_among_equal_ranks_the_latest_entry_wins():
@@ -93,8 +88,8 @@ def test_among_equal_ranks_the_latest_entry_wins():
     assert book.rate(USD, INR, d(5)).value == 82
 
 
-def test_a_newer_feed_price_beats_an_older_manual_one():
-    book = PriceBook([point(USD, INR, 1, "80", RANK_MANUAL), point(USD, INR, 8, "85", RANK_FEED)])
+def test_a_newer_conversion_rate_beats_an_older_manual_price():
+    book = PriceBook([point(USD, INR, 1, "80", RANK_MANUAL), point(USD, INR, 8, "85", RANK_TRANSACTION)])
     assert book.rate(USD, INR, d(9)).value == 85
 
 

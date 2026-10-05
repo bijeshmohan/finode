@@ -28,12 +28,14 @@ def test_a_bad_currency_is_explained_in_place(client):
     assert response.status_code == 400 and response.headers["HX-Retarget"] == "#currency-error"
 
 
-def test_the_commodities_page_lists_prices_and_the_catalog(client):
+def test_the_assets_page_lists_prices_assets_and_currencies(client):
     text = client.get("/app/commodities").text
-    assert "<title>Currencies & prices · finode</title>" in text
+    assert "<title>Assets & prices · finode</title>" in text
     assert "None of your accounts hold anything other than INR" in text_of(element(text, "rates"))
-    shared = text[text.index("<details"):]
-    assert "INR" in shared and "Bitcoin" in shared
+    builtin = text[text.index("<details"):]
+    assert "INR" in builtin and "Turkish Lira" in builtin and "Bitcoin" not in builtin
+    assert "Bitcoin" in text_of(element(text, "mine")), "your own assets are listed with the form to add more"
+    assert 'value="currency"' not in text, "you cannot create a currency of your own"
 
 
 def test_a_price_can_be_added_and_removed(client):

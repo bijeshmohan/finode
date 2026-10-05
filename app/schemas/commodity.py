@@ -16,8 +16,6 @@ class CommodityRead(BaseModel):
     kind: str
     decimals: int
     symbol: str | None = None
-    # True for the shared catalog, False for the user's own commodities.
-    is_global: bool
 
 
 class CommodityCreate(BaseModel):
@@ -46,8 +44,10 @@ class CommodityCreate(BaseModel):
     @field_validator("kind")
     @classmethod
     def kind_must_be_known(cls, v: str) -> str:
+        if v == CommodityKind.CURRENCY:
+            raise ValueError("currencies are built in, so the full ISO 4217 list is already available!")
         if v not in CommodityKind.ALL:
-            raise ValueError(f"kind must be one of {', '.join(CommodityKind.ALL)}!")
+            raise ValueError(f"kind must be one of {', '.join(k for k in CommodityKind.ALL if k != CommodityKind.CURRENCY)}!")
         return v
 
     @field_validator("symbol")

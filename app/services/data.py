@@ -226,7 +226,6 @@ class DataService:
         prices = [
             PriceDecl(p.date, p.commodity, p.price, p.quote)
             for p in sorted(self.accounts.prices.list(), key=lambda p: (p.date, p.commodity, p.quote))
-            if not p.is_global
         ]
         used = set(held.values()) | {catalog[t.currency_id].code for t in transactions}
         used |= {p.symbol for p in prices} | {p.quote for p in prices if p.quote}

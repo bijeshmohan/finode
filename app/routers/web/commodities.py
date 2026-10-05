@@ -17,7 +17,6 @@ from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
 router = APIRouter(prefix="/commodities")
 
 KIND_LABELS = {
-    CommodityKind.CURRENCY: "Currency",
     CommodityKind.CRYPTO: "Crypto",
     CommodityKind.STOCK: "Stock",
     CommodityKind.FUND: "Fund",
@@ -42,9 +41,8 @@ def commodities_page(request: Request, accounts: Accounts, commodities: Commodit
             "currency": default.code,
             "rates": rates,
             "prices": prices.list(),
-            "mine": [c for c in listed if not c.is_global],
-            "catalog": [c for c in listed if c.is_global],
-            "choices": listed,
+            "mine": [c for c in listed if c.kind != CommodityKind.CURRENCY],
+            "currencies": [c for c in listed if c.kind == CommodityKind.CURRENCY],
             "kinds": KIND_LABELS,
             "today": today.isoformat(),
         },

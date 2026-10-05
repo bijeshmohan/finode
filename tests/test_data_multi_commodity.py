@@ -152,7 +152,7 @@ def test_the_export_round_trips_into_a_new_ledger(client, rich, session):
     assert theirs.catalog() and any(c.code == "INFY" and c.user == NEWCOMER for c in theirs.catalog().values())
     infy = next(c for c in theirs.catalog().values() if c.code == "INFY")
     assert (infy.name, infy.kind, infy.decimals) == ("Infosys", "stock", 0)
-    assert [(p.commodity, p.price) for p in theirs.prices.list() if not p.is_global] == [("INFY", Decimal("1650.5"))]
+    assert [(p.commodity, p.price) for p in theirs.prices.list()] == [("INFY", Decimal("1650.5"))]
 
 
 # ---- importing ---------------------------------------------------------------------------------------------------
@@ -201,7 +201,7 @@ def test_import_reads_conversions_prices_and_new_commodities(client):
     assert accounts["Opening Balances"]["commodity"] == "INR"
 
     infy = next(c for c in client.get("/commodities/").json() if c["code"] == "INFY")
-    assert infy["is_global"] is False and infy["decimals"] == 2 and infy["kind"] == "other"
+    assert infy["decimals"] == 2 and infy["kind"] == "other"
     rate = client.get("/prices/rate", params={"commodity": "INFY", "quote": "INR"}).json()
     assert Decimal(rate["rate"]) == Decimal("1500"), "the purchase is a price too"
 

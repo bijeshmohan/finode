@@ -33,6 +33,8 @@ def session() -> Generator[Session, None, None]:
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         session.add_all(Commodity(**row) for row in seed_rows(utc_now()))
+        # Built-in currencies only; most tests also want an asset of the user's own to hold.
+        session.add(Commodity(code="BTC", name="Bitcoin", kind="crypto", decimals=8, symbol="₿", user=TEST_USER_ID))
         session.commit()
         yield session
 
