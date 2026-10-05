@@ -11,11 +11,12 @@ from pydantic import ValidationError
 
 from ..ledger import AccountDecl, LedgerPosting, LedgerTransaction, parse, write
 from ..models.transaction import PostingSide
-from ..repositories import AccountRepository, TransactionRepository
+from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
 from ..schemas.account import AccountCreate
 from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from .account import GROUP_POSTING_ROOT_NAMES, OPENING_BALANCES_ACCOUNT_NAME, AccountService
+from .depth import depth_limits
 
 
 MAX_REPORTED_ERRORS = 20
@@ -82,10 +83,13 @@ def _formula_safe(text: str | None) -> str:
 
 
 class DataService:
-    def __init__(self, accounts: AccountService, ar: AccountRepository, tr: TransactionRepository):
+    def __init__(
+        self, accounts: AccountService, ar: AccountRepository, tr: TransactionRepository, pr: ProfileRepository
+    ):
         self.accounts = accounts
         self.ar = ar
         self.tr = tr
+        self.pr = pr
 
     # --- export -----------------------------------------------------------
 
@@ -213,7 +217,17 @@ class DataService:
                 )
 
         new = sorted((key for key in known if key not in existing), key=lambda k: (len(k), k))
+        limits = depth_limits(self.pr.read())
         for key in new:
+            depth, limit = len(key) - 1, limits[key[0]]
+            if depth > limit:
+                line = declared.get(key, (None, used.get(key, 0)))[1] or next(
+                    (n for k, n in used.items() if k[: len(key)] == key), 0
+                )
+                errors.append(
+                    f"line {line}: '{':'.join(key)}' is {depth} levels deep, but {key[0]} allows "
+                    f"{limit}. Raise the limit under Profile › Account depth, or flatten the account."
+                )
             note = declared.get(key, (None, 0))[0]
             try:
                 AccountCreate(name=key[-1], details=note, parent_id=PLACEHOLDER)

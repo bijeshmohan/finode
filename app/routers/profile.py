@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Profiles
@@ -19,4 +19,7 @@ def get_profile(profiles: Profiles):
 
 @router.patch("/", response_model=ProfileRead)
 def update_profile(data: ProfileUpdate, profiles: Profiles):
-    return profiles.update(data)
+    try:
+        return profiles.update(data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.repositories import AccountRepository, TransactionRepository
+from app.repositories import AccountRepository, ProfileRepository, TransactionRepository
 from app.services import AccountService, DataService
 from app.services.data import ImportRejected
 
@@ -157,8 +157,8 @@ def test_export_then_import_round_trips_for_another_user(client: TestClient, ses
     exported = client.get("/export").text
 
     other = UUID("00000000-0000-4000-8000-000000000002")
-    ar, tr = AccountRepository(session, other), TransactionRepository(session, other)
-    data = DataService(AccountService(ar, tr), ar, tr)
+    ar, tr, pr = AccountRepository(session, other), TransactionRepository(session, other), ProfileRepository(session, other)
+    data = DataService(AccountService(ar, tr, pr), ar, tr, pr)
     summary = data.run_import(exported)
     assert summary.errors == [] and summary.transactions == 3
     assert data.export_ledger().split("\n", 1)[1] == exported.split("\n", 1)[1]

@@ -38,25 +38,28 @@ def get_profile_repository(
     return ProfileRepository(db, user.id)
 
 
-def get_profile_service(
-    pr: ProfileRepository = Depends(get_profile_repository),
-) -> ProfileService:
-    return ProfileService(pr)
-
-
 def get_account_service(
     ar: AccountRepository = Depends(get_account_repository),
     tr: TransactionRepository = Depends(get_transaction_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
 ) -> AccountService:
-    return AccountService(ar, tr)
+    return AccountService(ar, tr, pr)
+
+
+def get_profile_service(
+    pr: ProfileRepository = Depends(get_profile_repository),
+    accounts: AccountService = Depends(get_account_service),
+) -> ProfileService:
+    return ProfileService(pr, accounts)
 
 
 def get_data_service(
     accounts: AccountService = Depends(get_account_service),
     ar: AccountRepository = Depends(get_account_repository),
     tr: TransactionRepository = Depends(get_transaction_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
 ) -> DataService:
-    return DataService(accounts, ar, tr)
+    return DataService(accounts, ar, tr, pr)
 
 
 def get_transaction_service(

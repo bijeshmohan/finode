@@ -18,6 +18,7 @@ MESSAGES = {
     "account-deleted": "Account deleted",
     "profile-updated": "Profile saved",
     "import-done": "Import complete",
+    "depth-updated": "Account depth saved",
 }
 
 

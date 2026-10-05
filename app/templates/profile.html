@@ -24,6 +24,21 @@
     <button type="submit">Save changes</button>
   </div>
 </form>
+<form id="depth" class="card stack form-narrow" hx-post="/app/profile/depth">
+  <h2>Account depth</h2>
+  <p class="muted">How many levels of sub-accounts you allow under each type. 1 is a flat list, 0 means no limit of your own (the application maximum is {{ depth_cap }}). A limit can't be lower than your deepest existing account.</p>
+  <div class="grid-form">
+    {% for d in depths %}
+    <label>{{ d.root }}
+      <input type="number" name="{{ d.field }}" min="0" max="{{ depth_cap }}" step="1" inputmode="numeric" value="{{ d.value }}">
+      <span class="hint">{% if d.deepest %}Deepest now: {{ d.deepest }}. Use 0 or at least {{ d.deepest }}.{% else %}No sub-accounts yet.{% endif %}</span>
+    </label>
+    {% endfor %}
+  </div>
+  <p id="depth-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit">Save limits</button></div>
+</form>
+
 <section id="data" class="card stack form-narrow">
   <h2>Your data</h2>
   <p class="muted">Download everything you have recorded. The ledger format opens in ledger, hledger and similar tools; the CSV opens in a spreadsheet.</p>
@@ -34,7 +49,7 @@
 
   <h3>Import</h3>
   {% if can_import %}
-  <p class="muted">Start from an existing ledger or hledger file. You see a summary first, and nothing is saved if anything is wrong.</p>
+  <p class="muted">Start from an existing ledger or hledger file. You see a summary first, and nothing is saved if anything is wrong. Your account depth limits above apply to the accounts in the file.</p>
   <form class="stack" hx-post="/app/import/preview" hx-encoding="multipart/form-data"
         hx-target="#import-preview" hx-swap="innerHTML">
     <input type="file" id="import-file" name="file" accept=".ledger,.journal,.hledger,.dat,.txt,text/plain" required>

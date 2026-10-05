@@ -30,7 +30,7 @@ ledger with accounts and journal entries:
 
 `app/main.py` wires the routers. Schema is managed by Alembic — `app/main.py` does *not* run `SQLModel.metadata.create_all` at startup. Run `uv run alembic upgrade head` to bring the DB to the latest schema. The dev DB is `finode.db` (SQLite, gitignored).
 
-`app/config.py` exposes a `settings` instance (pydantic-settings) reading `FINODE_*` env vars and an optional `.env` file (other keys are ignored because `.env` is shared with docker compose). Current settings: `database_url`, `database_echo`, `supabase_url`, `supabase_audience`, `supabase_anon_key`, `cookie_secure`. Add new configuration here rather than hardcoding constants.
+`app/config.py` exposes a `settings` instance (pydantic-settings) reading `FINODE_*` env vars and an optional `.env` file (other keys are ignored because `.env` is shared with docker compose). Current settings: `database_url`, `database_echo`, `supabase_url`, `supabase_audience`, `supabase_anon_key`, `cookie_secure`, `max_account_depth`. Add new configuration here rather than hardcoding constants.
 
 `app/dependencies.py` builds the engine from `settings` and exposes `DBSession = Annotated[Session, Depends(get_db_session)]`. Route handlers should type the session parameter as `DBSession` directly rather than re-declaring `Depends(...)`.
 
@@ -58,6 +58,10 @@ UI conventions (keep pages working on phones first):
 ### Import and export
 
 `app/ledger/` reads and writes the plain-text ledger journal format (`parse.py` / `write.py`, no dependency); `app/services/data.py` (`DataService`) maps it to accounts and transactions and also writes a CSV. Exports are always allowed (`/export`, `/app/export`). Import is **only allowed while the user has no transactions**, previews first (`?dry_run=true`, `/app/import/preview`) and is all-or-nothing in one database transaction. Debit is positive, credit negative; `Assets:Bank:HDFC` maps to the account tree, root names accept aliases (`Asset`, `Revenue`...), `Equity:Opening Balances` maps to the system account. Unsupported input (several currencies, prices, virtual postings, automated/periodic transactions, `include`, balance assignments) is an error with its line number, never silently dropped. Imported postings follow the same rules as the transaction service (no postings to roots, or to Assets/Liabilities/Equity groups); keep `DataService._plan` in step with `GROUP_POSTING_ROOT_NAMES` if that rule changes. Account names cannot contain `:` because it is the ledger path separator.
+
+### Account depth limits
+
+Each user sets, per top-level account, how many levels of sub-accounts are allowed (`profiles.max_depth_*`; depth counts levels below the top-level account, so `Expenses › Food` is 1). `0` means no limit of their own; `settings.max_account_depth` (env `FINODE_MAX_ACCOUNT_DEPTH`, default 20) is a global ceiling no user can exceed, and `app/services/depth.py` turns a profile into effective limits. `AccountService` enforces the limit when creating or moving accounts (`_check_depth`), `ProfileService` refuses a limit below the deepest existing account or above the ceiling, and `DataService` applies it to imports. The account forms hide parents that have no room left. Any new place that creates accounts outside `AccountService` must check the limit itself.
 
 ### Docker
 

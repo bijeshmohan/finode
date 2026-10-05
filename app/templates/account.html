@@ -10,6 +10,7 @@
   <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}</h1>
   {% if account.details %}<p class="muted">{{ account.details }}</p>{% endif %}
   <p class="hero-balance">{{ account.balance|money }}</p>
+  {% if at_limit %}<p class="muted">{{ root.account.name }} accounts can be {{ depth_limit }} level{{ "" if depth_limit == 1 else "s" }} deep, so this one can't have sub-accounts. <a href="/app/profile#depth">Change the limit</a></p>{% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
   <div class="actions">
     {% if node.postable %}

@@ -6,9 +6,10 @@ from sqlalchemy.exc import IntegrityError
 
 from ..models import Account
 from ..models.transaction import PostingSide
-from ..repositories import AccountRepository, TransactionRepository
+from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.transaction import TransactionCreate, PostingCreate
+from .depth import depth_limit
 
 
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
@@ -23,6 +24,10 @@ class AccountInUseError(ValueError):
     ...
 
 
+class AccountDepthError(ValueError):
+    ...
+
+
 class SystemAccountError(ValueError):
     ...
 
@@ -32,9 +37,10 @@ class RootAccountError(SystemAccountError):
 
 
 class AccountService:
-    def __init__(self, ar: AccountRepository, tr: TransactionRepository):
+    def __init__(self, ar: AccountRepository, tr: TransactionRepository, pr: ProfileRepository):
         self.ar = ar
         self.tr = tr
+        self.pr = pr
 
     @staticmethod
     def _is_root(account: Account) -> bool:
@@ -58,6 +64,49 @@ class AccountService:
         if self.tr.postings_for_account(parent.aid):
             raise ValueError(
                 f"cannot add sub-accounts to '{parent.name}' because it has postings!"
+            )
+
+    @staticmethod
+    def _depth(account: Account, accounts_by_id: dict[UUID, Account]) -> int:
+        """Levels below the top-level account (a top-level account is 0)."""
+        depth = 0
+        seen = {account.aid}
+        while account.parent_id is not None and account.parent_id in accounts_by_id:
+            account = accounts_by_id[account.parent_id]
+            if account.aid in seen:
+                break
+            seen.add(account.aid)
+            depth += 1
+        return depth
+
+    def account_depths(self) -> list[tuple[str, int, str]]:
+        """(top-level account name, depth, path) for every non-top-level account."""
+        all_accounts = self._ensure_roots()
+        by_id = {a.aid: a for a in all_accounts}
+        result = []
+        for account in all_accounts:
+            if account.parent_id is None:
+                continue
+            names, current, seen = [], account, set()
+            while current.aid not in seen:
+                seen.add(current.aid)
+                names.append(current.name)
+                if current.parent_id is None or current.parent_id not in by_id:
+                    break
+                current = by_id[current.parent_id]
+            result.append((current.name, len(names) - 1, " › ".join(reversed(names))))
+        return result
+
+    def _check_depth(self, parent: Account, levels_below_parent: int, all_accounts: list[Account]) -> None:
+        """Refuse a new or moved subtree that would go deeper than the user's limit."""
+        by_id = {a.aid: a for a in all_accounts}
+        root = self._get_root_name(parent, by_id)
+        resulting = self._depth(parent, by_id) + levels_below_parent
+        limit = depth_limit(self.pr.read(), root)
+        if resulting > limit:
+            raise AccountDepthError(
+                f"{root} accounts can be at most {limit} level{'' if limit == 1 else 's'} deep, "
+                f"and this would be {resulting}. You can raise the limit in your profile."
             )
 
     def ensure_roots(self) -> list[Account]:
@@ -118,6 +167,20 @@ class AccountService:
         if side == PostingSide.DEBIT:
             return PostingSide.CREDIT
         return PostingSide.DEBIT
+
+    def _height(self, aid: UUID, all_accounts: list[Account]) -> int:
+        """Levels of sub-accounts below an account (0 for a leaf)."""
+        children: dict[UUID, list[UUID]] = {}
+        for a in all_accounts:
+            if a.parent_id is not None:
+                children.setdefault(a.parent_id, []).append(a.aid)
+        height, level, seen = 0, [aid], {aid}
+        while True:
+            level = [c for p in level for c in children.get(p, []) if c not in seen]
+            if not level:
+                return height
+            seen.update(level)
+            height += 1
 
     def _get_descendants(
         self,
@@ -271,6 +334,7 @@ class AccountService:
             raise ValueError("parent account not found!")
 
         self._validate_parent(parent, all_accounts)
+        self._check_depth(parent, 1, all_accounts)
         if (
             self.is_opening_balances(
                 Account(name=account.name, parent_id=account.parent_id, user=self.ar.uid),
@@ -396,6 +460,7 @@ class AccountService:
 
                 if parent_id != account.parent_id:
                     self._validate_parent(parent, all_accounts)
+                    self._check_depth(parent, 1 + self._height(aid, all_accounts), all_accounts)
 
                 if self._detect_cycle(aid, parent_id):
                     raise ValueError("cyclic parent relationship detected!")

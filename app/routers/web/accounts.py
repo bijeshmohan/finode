@@ -7,7 +7,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
-from ...dependencies import Accounts
+from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...services.account import GROUP_POSTING_ROOT_NAMES, AccountService
 from ...templating import templates
@@ -82,14 +82,23 @@ def _find(roots: list[Node], aid: UUID) -> Node | None:
     return next((n for root in roots for n in root.walk() if n.account.aid == aid), None)
 
 
-def _parent_options(roots: list[Node], exclude: Node | None = None) -> list[Node]:
-    """Accounts that may become a parent; system accounts are leaves by design."""
+def _parent_options(
+    roots: list[Node],
+    limits: dict[str, int],
+    exclude: Node | None = None,
+    keep: UUID | None = None,
+) -> list[Node]:
+    """Accounts that may become a parent: system accounts are leaves by design and a
+    parent must leave room for the new (or moved) subtree within the depth limit."""
     excluded = {n.account.aid for n in exclude.walk()} if exclude else set()
+    below = (max(n.depth for n in exclude.walk()) - exclude.depth) if exclude else 0
     return [
         n
         for root in roots
         for n in root.walk()
-        if n.kind != "system" and n.account.aid not in excluded
+        if n.kind != "system"
+        and n.account.aid not in excluded
+        and (n.depth + 1 + below <= limits.get(root.account.name, 0) or n.account.aid == keep)
     ]
 
 
@@ -117,7 +126,7 @@ def accounts_page(request: Request, accounts: Accounts):
 
 
 @router.get("/new")
-def new_account_page(request: Request, accounts: Accounts, parent: UUID | None = None):
+def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None):
     roots = build_tree(accounts.list())
     return templates.TemplateResponse(
         request,
@@ -127,13 +136,13 @@ def new_account_page(request: Request, accounts: Accounts, parent: UUID | None =
             "hide_fab": True,
             "node": None,
             "parent_id": parent,
-            "parent_options": _parent_options(roots),
+            "parent_options": _parent_options(roots, profiles.depth_limits()),
         },
     )
 
 
 @router.get("/quick")
-def quick_account_sheet(request: Request, accounts: Accounts, hint: str = ""):
+def quick_account_sheet(request: Request, accounts: Accounts, profiles: Profiles, hint: str = ""):
     """The "new account" sheet shown over the transaction form."""
     roots = build_tree(accounts.list())
     suggested = next((r.account.aid for r in roots if r.account.name == hint), None)
@@ -142,7 +151,7 @@ def quick_account_sheet(request: Request, accounts: Accounts, hint: str = ""):
         "partials/quick_account.html",
         {
             "parent_id": suggested,
-            "parent_options": _parent_options(roots),
+            "parent_options": _parent_options(roots, profiles.depth_limits()),
             "roots_by_id": {n.account.aid: r.account.name for r in roots for n in r.walk()},
         },
     )
@@ -209,21 +218,30 @@ def create_account(
 
 
 @router.get("/{aid}")
-def account_page(request: Request, aid: UUID, accounts: Accounts):
+def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles):
     roots, node = _load(accounts, aid)
     entries = accounts.register(aid) or []
+    root = _root_of(roots, node)
+    limit = profiles.depth_limits()[root.account.name]
+    at_limit = node.kind != "system" and node.depth >= limit
+    # Asset and liability accounts with their own postings cannot gain sub-accounts.
+    has_own_postings = node.is_leaf and bool(entries) and node.kind != "root"
+    can_add_child = (
+        node.kind != "system"
+        and not at_limit
+        and (not has_own_postings or root.account.name in GROUP_POSTING_ROOT_NAMES)
+    )
     return templates.TemplateResponse(
         request,
         "account.html",
         {
             "active": "accounts",
             "node": node,
-            "root": _root_of(roots, node),
+            "root": root,
             "entries": list(reversed(entries)),
-            # Asset and liability accounts with their own postings cannot gain sub-accounts.
-            "can_add_child": (node.kind != "system"
-            and not (node.is_leaf and entries and node.kind != "root"))
-            or (node.kind == "user" and root_of_node(roots, node) in GROUP_POSTING_ROOT_NAMES),
+            "at_limit": at_limit,
+            "depth_limit": limit,
+            "can_add_child": can_add_child,
             # Part of a group's balance that was posted to the group itself.
             "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
             if node.postable and node.children
@@ -238,7 +256,7 @@ def account_register(aid: UUID):
 
 
 @router.get("/{aid}/edit")
-def edit_account_page(request: Request, aid: UUID, accounts: Accounts):
+def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles):
     roots, node = _load(accounts, aid)
     if node.kind != "user":
         raise HTTPException(status_code=404, detail="account not found")
@@ -252,7 +270,9 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts):
             "node": node,
             "parent_id": node.account.parent_id,
             "parent_options": [
-                n for n in _parent_options(roots, exclude=node) if any(n is m for m in root.walk())
+                n
+                for n in _parent_options(roots, profiles.depth_limits(), exclude=node, keep=node.account.parent_id)
+                if any(n is m for m in root.walk())
             ],
         },
     )
