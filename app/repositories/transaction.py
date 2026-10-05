@@ -74,6 +74,9 @@ class TransactionRepository:
         postings = self.db.exec(statement).all()
         return postings
 
+    def all_postings(self) -> list[Posting]:
+        return self.db.exec(select(Posting).where(Posting.user == self.uid)).all()
+
     def postings_for_account(self, aid: UUID) -> list[Posting]:
         statement = select(Posting).where(
             Posting.account == aid,

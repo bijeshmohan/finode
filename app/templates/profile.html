@@ -1,6 +1,28 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
-{% block title %}Profile · finode{% endblock %}
+{% block title %}Profile · finode
+<section id="data" class="card stack form-narrow">
+  <h2>Your data</h2>
+  <p class="muted">Download everything you have recorded. The ledger format opens in ledger, hledger and similar tools; the CSV opens in a spreadsheet.</p>
+  <div class="actions">
+    <a class="button secondary" href="/app/export?format=ledger" download>Export ledger file</a>
+    <a class="button secondary" href="/app/export?format=csv" download>Export CSV</a>
+  </div>
+
+  <h3>Import</h3>
+  {% if can_import %}
+  <p class="muted">Start from an existing ledger or hledger file. You see a summary first, and nothing is saved if anything is wrong.</p>
+  <form class="stack" hx-post="/app/import/preview" hx-encoding="multipart/form-data"
+        hx-target="#import-preview" hx-swap="innerHTML">
+    <input type="file" id="import-file" name="file" accept=".ledger,.journal,.hledger,.dat,.txt,text/plain" required>
+    <div class="actions"><button type="submit" class="secondary">Preview import</button></div>
+  </form>
+  <div id="import-preview" aria-live="polite"></div>
+  {% else %}
+  <p class="muted">Importing is only available before you record transactions. Export your data first if you want to start over.</p>
+  {% endif %}
+</section>
+{% endblock %}
 {% block content %}
 <h1>Profile</h1>
 

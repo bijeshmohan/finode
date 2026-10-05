@@ -591,3 +591,7 @@ dialog.sheet::backdrop { background: rgb(0 0 0 / 45%); }
   dialog.sheet { margin: max(1rem, env(safe-area-inset-top)) auto auto; }
 }
 select.needs-attention { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+
+.plain-list { margin: .35rem 0 0; padding-left: 1.1rem; }
+.plain-list li + li { margin-top: .2rem; }
+input[type="file"] { padding: .5rem; }

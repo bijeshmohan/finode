@@ -60,6 +60,9 @@ class AccountService:
                 f"cannot add sub-accounts to '{parent.name}' because it has postings!"
             )
 
+    def ensure_roots(self) -> list[Account]:
+        return self._ensure_roots()
+
     def _ensure_roots(self) -> list[Account]:
         """Return all accounts, lazily provisioning the user's system roots.
 

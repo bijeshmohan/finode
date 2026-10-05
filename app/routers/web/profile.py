@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from pydantic import ValidationError
 
 from ...auth import CurrentUser, require_authenticated_user
-from ...dependencies import Profiles
+from ...dependencies import Data, Profiles
 from ...schemas.profile import ProfileUpdate
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, validation_message
@@ -17,12 +17,13 @@ router = APIRouter(prefix="/profile")
 def profile_page(
     request: Request,
     profiles: Profiles,
+    data: Data,
     user: Annotated[CurrentUser, Depends(require_authenticated_user)],
 ):
     return templates.TemplateResponse(
         request,
         "profile.html",
-        {"active": "profile", "profile": profiles.read(), "email": user.email},
+        {"active": "profile", "profile": profiles.read(), "email": user.email, "can_import": data.can_import()},
     )
 
 

@@ -6,7 +6,7 @@ from sqlmodel import Session, create_engine
 from .auth import CurrentUser, require_authenticated_user
 from .config import settings
 from .repositories import AccountRepository, ProfileRepository, TransactionRepository
-from .services import AccountService, ProfileService, ReportService, TransactionService
+from .services import AccountService, DataService, ProfileService, ReportService, TransactionService
 
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
@@ -51,6 +51,14 @@ def get_account_service(
     return AccountService(ar, tr)
 
 
+def get_data_service(
+    accounts: AccountService = Depends(get_account_service),
+    ar: AccountRepository = Depends(get_account_repository),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+) -> DataService:
+    return DataService(accounts, ar, tr)
+
+
 def get_transaction_service(
     tr: TransactionRepository = Depends(get_transaction_repository),
     ar: AccountRepository = Depends(get_account_repository),
@@ -70,5 +78,6 @@ AR = Annotated[AccountRepository, Depends(get_account_repository)]
 TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
+Data = Annotated[DataService, Depends(get_data_service)]
 Profiles = Annotated[ProfileService, Depends(get_profile_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]

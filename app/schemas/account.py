@@ -15,6 +15,8 @@ class AccountBase(BaseModel):
     def name_must_not_be_empty(cls, v: str) -> str:
         if not v:
             raise ValueError("name must not be empty!")
+        if ":" in v:
+            raise ValueError("name must not contain ':'!")
         return v
 
 
@@ -50,6 +52,8 @@ class AccountUpdate(BaseModel):
             return v
         if not v:
             raise ValueError("name must not be empty!")
+        if ":" in v:
+            raise ValueError("name must not contain ':'!")
         return v
 
 

@@ -17,6 +17,7 @@ MESSAGES = {
     "account-updated": "Account updated",
     "account-deleted": "Account deleted",
     "profile-updated": "Profile saved",
+    "import-done": "Import complete",
 }
 
 
