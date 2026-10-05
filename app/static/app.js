@@ -247,3 +247,34 @@ document.body.addEventListener("account-added", async (event) => {
 
 document.body.addEventListener("htmx:afterSwap", rememberAccountChoices);
 document.addEventListener("DOMContentLoaded", rememberAccountChoices);
+
+// Open the profile section named in the URL (#currency, #depth ...).
+function openHashSection() {
+  const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+  if (target && target.tagName === "DETAILS") target.open = true;
+}
+openHashSection();
+window.addEventListener("hashchange", openHashSection);
+
+// Theme override, remembered per browser in a cookie the server reads to avoid a flash.
+function applyTheme(choice) {
+  const root = document.documentElement;
+  const chosen = choice === "light" || choice === "dark" ? choice : "auto";
+  if (chosen === "auto") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", chosen);
+  document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.themeChoice === chosen));
+  });
+  const label = document.querySelector("[data-theme-value]");
+  if (label) label.textContent = { light: "Light", dark: "Dark" }[chosen] || "Match device";
+}
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-theme-choice]");
+  if (!button) return;
+  const choice = button.dataset.themeChoice;
+  document.cookie = `finode_theme=${choice}; path=/; max-age=31536000; samesite=lax`;
+  applyTheme(choice);
+});
+
+applyTheme(document.documentElement.getAttribute("data-theme"));

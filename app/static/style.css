@@ -25,7 +25,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f1115;
     --surface: #171a21;
     --surface-2: #1e222b;
@@ -44,6 +44,25 @@
     --shadow-lg: 0 8px 24px rgb(0 0 0 / 55%);
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1115;
+  --surface: #171a21;
+  --surface-2: #1e222b;
+  --text: #e6e8ec;
+  --muted: #9aa3b2;
+  --border: #2a303b;
+  --accent: #6b9bff;
+  --accent-hover: #8db1ff;
+  --accent-soft: #1d2a47;
+  --on-accent: #0b1220;
+  --danger: #ff8a80;
+  --danger-soft: #3a1c1a;
+  --positive: #4ade9b;
+  --negative: #ff8a80;
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-lg: 0 8px 24px rgb(0 0 0 / 55%);
+  color-scheme: dark;
 }
 
 /* ---------- Base ---------- */
@@ -609,3 +628,32 @@ details.more > summary { cursor: pointer; color: var(--muted); min-height: var(-
 details.more > summary::-webkit-details-marker { display: none; }
 details.more[open] > summary { margin-bottom: .25rem; }
 .posting-value { grid-column: 1 / -1; font-size: .9rem; }
+
+/* ---------- Profile ---------- */
+.profile-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+.profile-head h1 { margin: 0; }
+.profile-head p { margin: 0; overflow-wrap: anywhere; }
+.avatar {
+  flex: none; width: 3.5rem; height: 3.5rem; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 1.25rem; font-weight: 600; letter-spacing: .02em;
+}
+.settings { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.setting { border-top: 1px solid var(--border); }
+.settings > .setting:first-child { border-top: 0; }
+.setting > summary, a.setting-link {
+  display: flex; align-items: center; gap: .75rem; min-height: var(--tap); padding: .6rem 1rem;
+  cursor: pointer; list-style: none; color: var(--text); text-decoration: none;
+}
+.setting > summary::-webkit-details-marker { display: none; }
+.setting > summary:hover, a.setting-link:hover { background: var(--surface-2); }
+.setting-title { font-weight: 500; }
+.setting-value { margin-left: auto; color: var(--muted); font-size: .9rem; text-align: right; overflow-wrap: anywhere; }
+.setting .icon { color: var(--muted); transition: transform .15s; }
+details.setting[open] > summary .icon { transform: rotate(90deg); }
+details.setting[open] > summary { border-bottom: 1px solid var(--border); }
+details.setting > form, details.setting > .stack { padding: 1rem; }
+.segmented { display: flex; gap: .5rem; flex-wrap: wrap; }
+.segmented button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.signout { margin-top: 1.25rem; }

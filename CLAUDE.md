@@ -53,7 +53,7 @@ UI conventions (keep pages working on phones first):
 
 ### Profile and settings
 
-`app/models/profile.py` holds one `profiles` row per user (names, depth limits, default currency) (keyed by the Supabase user id, created lazily by `ProfileRepository.get_or_create`). Per-user details and application settings are **typed columns on that table** — add a setting with a column, a migration and a field on `ProfileUpdate`, not a key-value or JSON store. Supabase `user_metadata` is deliberately not used: users can write it directly and it is copied into every token. The page is `/app/profile` (tab bar and top bar); the JSON API is `/profile/`. Email and password stay with Supabase.
+`app/models/profile.py` holds one `profiles` row per user (names, depth limits, default currency) (keyed by the Supabase user id, created lazily by `ProfileRepository.get_or_create`). Per-user details and application settings are **typed columns on that table** — add a setting with a column, a migration and a field on `ProfileUpdate`, not a key-value or JSON store. Supabase `user_metadata` is deliberately not used: users can write it directly and it is copied into every token. The page is `/app/profile` (tab bar and top bar): an initials avatar header, then collapsible `<details class="setting">` rows (name, currency, depth, appearance) that `app.js` opens when the URL hash names them, and links to `/app/profile/data` (export and import). The light/dark override is per browser, kept in the `finode_theme` cookie that `base.html` reads, not a profile column. The JSON API is `/profile/`. Email and password stay with Supabase.
 
 ### Commodities, currencies and prices
 
