@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}AI assistants · finode{% endblock %}
+{% block content %}
+<a class="back" href="/app/profile">{{ icon("back") }}Profile</a>
+<h1>AI assistants</h1>
+<p class="muted form-narrow">Connect Claude, Cursor or another assistant that speaks MCP to your books. It can answer questions about your money and, if you allow it, record transactions for you. Everything it adds or changes is marked with the token's name.</p>
+
+<div id="new-token" class="form-narrow"></div>
+
+<section class="card stack form-narrow">
+  <h2>Create a token</h2>
+  <form class="stack" hx-post="/app/profile/assistants" hx-target="#new-token" hx-swap="innerHTML">
+    <label>Name
+      <input type="text" name="name" maxlength="40" required autocomplete="off" placeholder="e.g. Claude Desktop">
+      <span class="hint">Where you'll use it. It shows up next to everything the assistant records.</span>
+    </label>
+    <fieldset class="stack plain">
+      <legend class="sr-only">Access</legend>
+      <label class="choice"><input type="radio" name="scope" value="read" checked>
+        <span>Read only<span class="hint">Answer questions. Can't change anything.</span></span></label>
+      <label class="choice"><input type="radio" name="scope" value="write">
+        <span>Read &amp; write<span class="hint">Also record, edit and delete transactions, add accounts and set prices. Can't delete accounts.</span></span></label>
+    </fieldset>
+    <p id="token-error" class="error" role="alert"></p>
+    <div class="actions"><button type="submit">{{ icon("key") }}Create token</button></div>
+  </form>
+</section>
+
+<section class="card stack form-narrow">
+  <h2>Your tokens</h2>
+  {% include "partials/token_list.html" %}
+</section>
+
+<details class="card stack form-narrow">
+  <summary>How to connect</summary>
+  {% with secret = none %}{% include "partials/mcp_setup.html" %}{% endwith %}
+</details>
+{% endblock %}

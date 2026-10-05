@@ -28,7 +28,15 @@ def decimal_places(value: Decimal) -> int:
 
 
 class TransactionService:
-    def __init__(self, tr: TransactionRepository, ar: AccountRepository, cr: CommodityRepository | None = None):
+    def __init__(
+        self,
+        tr: TransactionRepository,
+        ar: AccountRepository,
+        cr: CommodityRepository | None = None,
+        origin: str | None = None,
+    ):
+        # Recorded on what this service creates or changes: "web", "api" or "mcp:<token name>".
+        self.origin = origin
         self.tr = tr
         self.ar = ar
         self.cr = cr or CommodityRepository(tr.db, tr.uid)
@@ -140,6 +148,8 @@ class TransactionService:
             date=transaction.date,
             payee=transaction.payee,
             comment=transaction.comment,
+            created_via=transaction.created_via,
+            updated_via=transaction.updated_via,
             postings=[self._posting_to_read(posting) for posting in self.tr.postings(transaction.tid)],
             created=transaction.created,
             updated=transaction.updated,
@@ -147,7 +157,7 @@ class TransactionService:
 
     def create(self, data: TransactionCreate) -> TransactionRead:
         currency_id, values = self._resolve(data)
-        transaction = self.tr.create(data, currency_id, values)
+        transaction = self.tr.create(data, currency_id, values, self.origin)
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
         return self._to_read(transaction)
@@ -195,7 +205,7 @@ class TransactionService:
         if not existing:
             raise ValueError(f"transaction with tid '{tid}' not found!")
         currency_id, values = self._resolve(data, existing.currency_id)
-        transaction = self.tr.update(tid, data, currency_id, values)
+        transaction = self.tr.update(tid, data, currency_id, values, self.origin)
         if not transaction:
             raise RuntimeError(f"failed to update transaction with tid '{tid}'!")
         self.tr.db.commit()

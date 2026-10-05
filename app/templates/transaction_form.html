@@ -6,6 +6,9 @@
 {% block content %}
 <a class="back" href="{{ back_url }}">{{ icon("back") }}Back</a>
 <h1>{{ "Edit transaction" if editing else "New transaction" }}</h1>
+{% if editing and (transaction.created_via or transaction.updated_via) %}
+<p class="muted origin">{% if transaction.created_via %}Added by {{ transaction.created_via|origin_label }}{% endif %}{% if transaction.updated_via and transaction.updated_via != transaction.created_via %}{{ " · " if transaction.created_via }}last changed by {{ transaction.updated_via|origin_label }}{% endif %}</p>
+{% endif %}
 
 {% if not editing or can_simplify %}
 {% set base = "/app/transactions/" ~ transaction.tid ~ "/edit" if editing else "/app/transactions/new" %}

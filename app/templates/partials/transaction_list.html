@@ -12,6 +12,7 @@
           <span class="tx-main">
             <span class="tx-title">{{ t.payee or "No payee" }}</span>
             <span class="tx-sub">{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% if t.comment %} · {{ t.comment }}{% endif %}</span>
+            {% if (t.created_via or "").startswith("mcp:") or (t.updated_via or "").startswith("mcp:") %}<span class="tx-via">{{ icon("spark") }}{{ "Added" if (t.created_via or "").startswith("mcp:") else "Changed" }} by {{ ((t.created_via if (t.created_via or "").startswith("mcp:") else t.updated_via))[4:] }}</span>{% endif %}
           </span>
           <span class="tx-amount {{ row.kind }}">{{ "−" if row.kind == "expense" else "+" if row.kind == "income" }}{{ row.amount|money|with_unit(t.currency, currency) }}</span>
         </a>

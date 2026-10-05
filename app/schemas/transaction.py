@@ -64,6 +64,9 @@ class TransactionRead(TransactionBase):
     tid: UUID
     # Code of the currency the transaction balances in, e.g. "INR".
     currency: str
+    # Where it was entered and last changed: "web", "api", "import" or "mcp:<token name>"; None if unknown.
+    created_via: str | None = None
+    updated_via: str | None = None
     postings: list[PostingRead]
     created: datetime
     updated: datetime

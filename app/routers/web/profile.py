@@ -1,11 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from pydantic import ValidationError
 
 from ...config import settings
 from ...auth import CurrentUser, require_authenticated_user
-from ...dependencies import Accounts, Data, Profiles
+from ...dependencies import Accounts, ApiTokens, Data, Profiles
+from ...schemas.api_token import ApiTokenCreate
 from ...schemas.profile import ProfileUpdate
 from ...services.depth import ROOT_DEPTH_FIELDS
 from ...templating import templates
@@ -114,3 +117,55 @@ def update_depth(
         message = validation_message(e) if isinstance(e, ValidationError) else str(e)
         return htmx_error(message, "#depth-error")
     return htmx_redirect("/app/profile#depth", flash="depth-updated")
+
+
+def mcp_url(request: Request) -> str:
+    return str(request.base_url).rstrip("/") + "/mcp"
+
+
+@router.get("/assistants")
+def assistants_page(request: Request, tokens: ApiTokens):
+    return templates.TemplateResponse(
+        request,
+        "assistants.html",
+        {
+            "active": "profile",
+            "tokens": [t for t in tokens.list() if t.revoked is None],
+            "mcp_url": mcp_url(request),
+            "created": None,
+        },
+    )
+
+
+@router.post("/assistants")
+def create_token(
+    request: Request,
+    tokens: ApiTokens,
+    name: Annotated[str, Form()] = "",
+    scope: Annotated[str, Form()] = "read",
+):
+    try:
+        created = tokens.create(ApiTokenCreate(name=name, scope=scope))
+    except ValidationError as e:
+        return htmx_error(validation_message(e), "#token-error")
+    except ValueError as e:
+        return htmx_error(str(e), "#token-error")
+    # The secret is shown this once, with the setup snippets filled in; the list refreshes alongside.
+    return templates.TemplateResponse(
+        request,
+        "partials/token_created.html",
+        {
+            "created": created,
+            "tokens": [t for t in tokens.list() if t.revoked is None],
+            "mcp_url": mcp_url(request),
+        },
+    )
+
+
+@router.post("/assistants/{tkid}/revoke")
+def revoke_token(tkid: UUID, tokens: ApiTokens):
+    try:
+        tokens.revoke(tkid)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="token not found")
+    return htmx_redirect("/app/profile/assistants", flash="token-revoked")

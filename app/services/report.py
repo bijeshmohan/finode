@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from ..models.transaction import PostingSide
 from ..repositories import TransactionRepository
-from ..schemas.report import SummaryRead
+from ..schemas.report import BreakdownLine, BreakdownRead, SummaryRead
 from .account import AccountService
 
 
@@ -69,3 +69,68 @@ class ReportService:
                     continue
             total += value
         return total
+
+    def breakdown(
+        self,
+        root_name: str,
+        period_start: date | None = None,
+        period_end: date | None = None,
+        depth: int = 1,
+    ) -> BreakdownRead:
+        """Income or expenses for a period per account, `depth` levels below the top-level account.
+
+        Amounts are in the default currency, converted like the summary's; postings to deeper
+        accounts count towards their ancestor at `depth`.
+        """
+        if root_name not in ("Income", "Expenses"):
+            raise ValueError("a breakdown is of Income or Expenses!")
+        if depth < 1:
+            raise ValueError("depth must be at least 1!")
+        today = date.today()
+        period_start = period_start or today.replace(day=1)
+        period_end = period_end or today
+        if period_start > period_end:
+            raise ValueError("period start must not be after period end!")
+
+        accounts = {a.aid: a for a in self.accounts.list()}
+        root = next(a for a in accounts.values() if a.parent_id is None and a.name == root_name)
+        normal_side = PostingSide.CREDIT if root_name == "Income" else PostingSide.DEBIT
+
+        def group_of(aid) -> str:
+            chain = []
+            current = accounts[aid]
+            while current.parent_id is not None:
+                chain.append(current.name)
+                current = accounts[current.parent_id]
+            chain.reverse()
+            return " › ".join(chain[:depth])
+
+        default = self.accounts.default_currency()
+        transactions = {t.tid: t for t in self.tr.list(date_from=period_start, date_to=period_end)}
+        totals: dict[str, Decimal] = {}
+        unpriced = False
+        subtree = self.accounts.subtree_ids(root.aid)
+        for posting in self.tr.postings_for_accounts(subtree, period_start, period_end):
+            value = posting.value if posting.side == normal_side else -posting.value
+            transaction = transactions[posting.transaction]
+            if transaction.currency_id != default.cid:
+                value = self.accounts.prices.book().convert(
+                    value, transaction.currency_id, default.cid, transaction.date, default.decimals
+                )
+                if value is None:
+                    unpriced = True
+                    continue
+            key = group_of(posting.account)
+            totals[key] = totals.get(key, Decimal("0.00")) + value
+
+        lines = [BreakdownLine(account=k, amount=v) for k, v in totals.items() if v != 0]
+        lines.sort(key=lambda line: (-line.amount, line.account))
+        return BreakdownRead(
+            root=root_name,
+            currency=default.code,
+            unpriced=unpriced,
+            period_start=period_start,
+            period_end=period_end,
+            total=sum((line.amount for line in lines), Decimal("0.00")),
+            lines=lines,
+        )

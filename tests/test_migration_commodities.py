@@ -133,7 +133,7 @@ def test_migrated_schema_has_the_columns_the_models_declare(alembic):
     config, engine = alembic
     command.upgrade(config, "head")
     inspector = sa.inspect(engine)
-    for table in ("commodities", "prices", "accounts", "transactions", "postings", "profiles"):
+    for table in ("commodities", "prices", "accounts", "transactions", "postings", "profiles", "api_tokens"):
         declared = {c.name for c in SQLModel.metadata.tables[table].columns}
         migrated = {c["name"] for c in inspector.get_columns(table)}
         assert declared == migrated, table

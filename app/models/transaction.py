@@ -24,6 +24,10 @@ class Transaction(TimestampMixin, table=True):
     comment: str | None = Field(default=None, max_length=200)
     # The currency the transaction balances in: the postings' `value` is expressed in it.
     currency_id: UUID = Field(foreign_key="commodities.cid")
+    # Where the transaction was entered and last changed: "web", "api", "import", or
+    # "mcp:<token name>" for an AI assistant. None for entries made before this was recorded.
+    created_via: str | None = Field(default=None, max_length=60)
+    updated_via: str | None = Field(default=None, max_length=60)
 
 
 class Posting(TimestampMixin, table=True):
