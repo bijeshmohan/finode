@@ -657,3 +657,28 @@ details.setting > form, details.setting > .stack { padding: 1rem; }
 .segmented { display: flex; gap: .5rem; flex-wrap: wrap; }
 .segmented button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .signout { margin-top: 1.25rem; }
+
+/* ---------- AI assistants ---------- */
+.tx-via { display: inline-flex; align-items: center; gap: .25rem; font-size: .75rem; color: var(--accent); }
+.tx-via .icon { width: 1em; height: 1em; }
+.origin { margin-top: -.5rem; font-size: .875rem; }
+.token-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .75rem; }
+.token-list li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.token-list .token-name { font-weight: 500; }
+.token-list .muted { font-size: .85rem; }
+.secret {
+  display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: .6rem .75rem; overflow-wrap: anywhere; user-select: all;
+}
+pre.snippet {
+  margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: .6rem .75rem; overflow-x: auto; white-space: pre;
+}
+.choice { flex-direction: row; align-items: flex-start; gap: .5rem; color: var(--text); font-weight: 400; }
+.choice input { margin-top: .3rem; }
+.choice .hint { display: block; }
+.notice { background: var(--accent-soft); border-radius: var(--radius-sm); padding: .75rem; }
+fieldset.plain { border: 0; margin: 0; padding: 0; }
+.notice-card { margin-bottom: 1rem; border-color: var(--accent); }

@@ -572,6 +572,7 @@ class DataService:
                     ),
                     by_code[planned.currency],
                     [v if v is not None else a for _, _, a, v in planned.postings],
+                    origin="import",
                 )
             for (base, quote, on), price in plan.prices.items():
                 self.accounts.prices.pr.upsert(by_code[base], by_code[quote], on, price)

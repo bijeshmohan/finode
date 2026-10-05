@@ -1,10 +1,12 @@
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlmodel import Session, create_engine
 
 from .auth import CurrentUser, require_authenticated_user
 from .config import settings
+from .repositories.api_token import ApiTokenRepository
+from .services.api_token import ApiTokenService
 from .repositories import (
     AccountRepository,
     CommodityRepository,
@@ -108,11 +110,13 @@ def get_data_service(
 
 
 def get_transaction_service(
+    request: Request,
     tr: TransactionRepository = Depends(get_transaction_repository),
     ar: AccountRepository = Depends(get_account_repository),
     cr: CommodityRepository = Depends(get_commodity_repository),
 ) -> TransactionService:
-    return TransactionService(tr, ar, cr)
+    origin = "web" if request.url.path.startswith("/app") else "api"
+    return TransactionService(tr, ar, cr, origin=origin)
 
 
 def get_report_service(
@@ -120,6 +124,13 @@ def get_report_service(
     tr: TransactionRepository = Depends(get_transaction_repository),
 ) -> ReportService:
     return ReportService(accounts, tr)
+
+
+def get_api_token_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> ApiTokenService:
+    return ApiTokenService(ApiTokenRepository(db, user.id))
 
 
 DB = Annotated[Session, Depends(get_db_session)]
@@ -132,3 +143,4 @@ Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]
 Profiles = Annotated[ProfileService, Depends(get_profile_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]
+ApiTokens = Annotated[ApiTokenService, Depends(get_api_token_service)]

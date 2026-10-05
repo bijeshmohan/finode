@@ -49,9 +49,19 @@ def friendly_date(value: date) -> str:
     return f"{value.day} {value:%b %Y}"
 
 
+def origin_label(origin: str | None) -> str | None:
+    """Who entered or changed a transaction, for people: "Claude (AI assistant)", "an import"."""
+    if not origin:
+        return None
+    if origin.startswith("mcp:"):
+        return f"{origin[4:]} (AI assistant)"
+    return {"web": "the app", "api": "the API", "import": "an import"}.get(origin, origin)
+
+
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["money"] = money
 templates.env.filters["with_unit"] = with_unit
 templates.env.filters["friendly_date"] = friendly_date
+templates.env.filters["origin_label"] = origin_label
 templates.env.globals["flash_message"] = flash_message
 templates.env.globals["asset_url"] = asset_url

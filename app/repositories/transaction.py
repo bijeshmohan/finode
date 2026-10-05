@@ -20,12 +20,15 @@ class TransactionRepository:
         data: TransactionCreate,
         currency_id: UUID | None = None,
         values: list[Decimal] | None = None,
+        origin: str | None = None,
     ) -> Transaction:
         """`values` are the postings' worth in the currency, in order; a posting without one is worth its amount."""
         fields = data.model_dump(exclude={"postings", "currency"})
         if currency_id is None:
             currency_id = CommodityRepository(self.db, self.uid).default_currency().cid
-        transaction = Transaction(**fields, currency_id=currency_id, user=self.uid)
+        transaction = Transaction(
+            **fields, currency_id=currency_id, user=self.uid, created_via=origin, updated_via=origin
+        )
         self.db.add(transaction)
         self.db.flush()
         self._add_postings(transaction, data.postings, values)
@@ -152,6 +155,7 @@ class TransactionRepository:
         data: TransactionUpdate,
         currency_id: UUID | None = None,
         values: list[Decimal] | None = None,
+        origin: str | None = None,
     ) -> Transaction | None:
         transaction = self.read(tid)
         if not transaction:
@@ -162,6 +166,8 @@ class TransactionRepository:
             setattr(transaction, key, value)
         if currency_id is not None:
             transaction.currency_id = currency_id
+        if origin is not None:
+            transaction.updated_via = origin
 
         if data.postings is not None:
             for posting in self.postings(tid):

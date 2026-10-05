@@ -18,6 +18,7 @@ from ...schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
+from ...services.simple import simple_postings
 from ...templating import templates
 from .accounts import build_tree, posting_groups
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
@@ -181,45 +182,14 @@ def _form_context(accounts: Accounts, **extra) -> dict:
 def _simple_postings(
     accounts: Accounts, amount: str, to_amount: str, from_account: str, to_account: str
 ) -> tuple[str, list[PostingCreate]]:
-    """The two postings of a simple transaction, and the currency it is in (always explicit, so an edit
-    that moves a transaction between accounts does not keep a stale currency).
-
-    Between accounts holding the same thing one amount is enough. Otherwise `to_amount` says how
-    much arrives; the transaction is in the default currency when it is one of the two, else in
-    whichever of them is a currency, and the other side is worth what the currency side is.
-    """
+    """The simple form's fields as postings and a currency (see services.simple)."""
     if not from_account or not to_account:
         raise ValueError("choose both a from and a to account!")
     if from_account == to_account:
         raise ValueError("the from and to accounts must differ!")
     paid = parse_amount(amount)
-    source, target = accounts.commodity_of(UUID(from_account)), accounts.commodity_of(UUID(to_account))
-    if source is None or target is None:
-        raise ValueError("account not found!")
-    if source.cid == target.cid:
-        if to_amount.strip() and parse_amount(to_amount) != paid:
-            raise ValueError(f"both accounts hold {source.code}, so the amount that arrives is the amount that leaves!")
-        return source.code, [
-            PostingCreate(account=UUID(to_account), side=PostingSide.DEBIT, amount=paid),
-            PostingCreate(account=UUID(from_account), side=PostingSide.CREDIT, amount=paid),
-        ]
-    if not to_amount.strip():
-        raise ValueError(f"these accounts hold different things ({source.code} and {target.code}): say how much {target.code} arrives!")
-    received = parse_amount(to_amount)
-    default = accounts.default_currency()
-    if default.cid in (source.cid, target.cid):
-        currency = default
-    elif source.kind == "currency" or target.kind != "currency":
-        currency = source
-    else:
-        currency = target
-    from_posting = PostingCreate(
-        account=UUID(from_account), side=PostingSide.CREDIT, amount=paid, value=received if currency.cid == target.cid else None
-    )
-    to_posting = PostingCreate(
-        account=UUID(to_account), side=PostingSide.DEBIT, amount=received, value=paid if currency.cid == source.cid else None
-    )
-    return currency.code, [to_posting, from_posting]
+    received = parse_amount(to_amount) if to_amount.strip() else None
+    return simple_postings(accounts, paid, received, UUID(from_account), UUID(to_account))
 
 
 def _split_postings(

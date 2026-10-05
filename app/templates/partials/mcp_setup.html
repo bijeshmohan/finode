@@ -1,0 +1,25 @@
+{%- set token = secret or "YOUR_TOKEN" -%}
+<p class="muted">Server address: <code>{{ mcp_url }}</code>, with the header <code>Authorization: Bearer {{ "<token>" if not secret else "…" }}</code>.{% if not secret %} Replace <code>YOUR_TOKEN</code> below with a token you created.{% endif %}</p>
+<h3>Claude Code</h3>
+<pre class="snippet">claude mcp add --transport http finode {{ mcp_url }} --header "Authorization: Bearer {{ token }}"</pre>
+<h3>Claude Desktop</h3>
+<p class="muted">Settings › Developer › Edit config, add this to <code>claude_desktop_config.json</code> and restart Claude. Needs Node.js.</p>
+<pre class="snippet">{
+  "mcpServers": {
+    "finode": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "{{ mcp_url }}", "--header", "Authorization:${FINODE_AUTH}"],
+      "env": { "FINODE_AUTH": "Bearer {{ token }}" }
+    }
+  }
+}</pre>
+<h3>Cursor, VS Code and others</h3>
+<p class="muted">Any client that takes a URL and headers for a remote (HTTP) MCP server.</p>
+<pre class="snippet">{
+  "mcpServers": {
+    "finode": {
+      "url": "{{ mcp_url }}",
+      "headers": { "Authorization": "Bearer {{ token }}" }
+    }
+  }
+}</pre>
