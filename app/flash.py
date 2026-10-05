@@ -24,6 +24,7 @@ MESSAGES = {
     "commodity-deleted": "Commodity removed",
     "price-saved": "Price saved",
     "price-deleted": "Price removed",
+    "app-disconnected": "App disconnected. It can no longer reach your books.",
     "token-revoked": "Token revoked. Assistants using it can no longer connect.",
 }
 

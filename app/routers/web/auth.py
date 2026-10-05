@@ -8,6 +8,7 @@ from ...web_auth import (
     AuthUnavailableError,
     InvalidCredentialsError,
     clear_auth_cookies,
+    safe_next,
     set_auth_cookies,
     sign_in,
 )
@@ -17,8 +18,8 @@ router = APIRouter()
 
 
 @router.get("/login")
-def login_page(request: Request):
-    return templates.TemplateResponse(request, "login.html", {"error": None, "email": ""})
+def login_page(request: Request, next: str = ""):
+    return templates.TemplateResponse(request, "login.html", {"error": None, "email": "", "next": safe_next(next) or ""})
 
 
 @router.post("/login")
@@ -26,6 +27,7 @@ def login(
     request: Request,
     email: Annotated[str, Form()],
     password: Annotated[str, Form()],
+    next: Annotated[str, Form()] = "",
 ):
     try:
         tokens = sign_in(email.strip(), password)
@@ -34,11 +36,11 @@ def login(
     except AuthUnavailableError:
         error, status_code = "Sign-in is currently unavailable. Please try again later.", 503
     else:
-        response = RedirectResponse("/app/", status_code=303)
+        response = RedirectResponse(safe_next(next) or "/app/", status_code=303)
         set_auth_cookies(response, tokens)
         return response
     return templates.TemplateResponse(
-        request, "login.html", {"error": error, "email": email}, status_code=status_code
+        request, "login.html", {"error": error, "email": email, "next": safe_next(next) or ""}, status_code=status_code
     )
 
 

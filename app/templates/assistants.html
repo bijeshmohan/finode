@@ -8,8 +8,30 @@
 
 <div id="new-token" class="form-narrow"></div>
 
+<section id="apps" class="card stack form-narrow">
+  <h2>Connected apps</h2>
+  <p class="muted">Apps you connected by signing in, such as Claude on the web or your phone. To add one, add <code>{{ mcp_url }}</code> as a custom connector in the app's settings, then choose what it may do on the finode page it opens.</p>
+  {% if apps %}
+  <ul class="token-list">
+    {% for g in apps %}
+    <li>
+      <span>
+        <span class="token-name">{{ g.client_name }}</span> <span class="badge">{{ "read & write" if g.scope == "write" else "read only" }}</span>
+        <span class="muted block">connected {{ g.created.date()|friendly_date }} · {% if g.last_used %}last used {{ g.last_used.date()|friendly_date }}{% else %}never used{% endif %}</span>
+      </span>
+      <button type="button" class="secondary small" hx-post="/app/oauth/apps/{{ g.gid }}/disconnect"
+              hx-confirm="Disconnect {{ g.client_name }}? It stops working at once.">Disconnect</button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">None yet.</p>
+  {% endif %}
+</section>
+
 <section class="card stack form-narrow">
   <h2>Create a token</h2>
+  <p class="muted">For tools that take a token instead, like Claude Code, Claude Desktop and Cursor.</p>
   <form class="stack" hx-post="/app/profile/assistants" hx-target="#new-token" hx-swap="innerHTML">
     <label>Name
       <input type="text" name="name" maxlength="40" required autocomplete="off" placeholder="e.g. Claude Desktop">
