@@ -18,7 +18,6 @@ class CommodityService:
             kind=commodity.kind,
             decimals=commodity.decimals,
             symbol=commodity.symbol,
-            is_global=commodity.user is None,
         )
 
     def list(self) -> list[CommodityRead]:
@@ -29,9 +28,9 @@ class CommodityService:
         return self._to_read(commodity) if commodity else None
 
     def create(self, data: CommodityCreate) -> CommodityRead:
-        """Add a commodity of the user's own, for anything the shared catalog does not have."""
+        """Add a commodity of the user's own, for anything that is not a built-in currency."""
         if self.cr.read_by_code(data.code):
-            raise ValueError(f"'{data.code}' already exists: use that one instead!")
+            raise ValueError(f"'{data.code}' already exists: use that one instead, or pick another code (for example {data.code}.NS)!")
         commodity = self.cr.create(**data.model_dump())
         self.cr.db.commit()
         self.cr.db.refresh(commodity)
@@ -42,7 +41,7 @@ class CommodityService:
         if commodity is None:
             raise LookupError("commodity not found")
         if commodity.user is None:
-            raise ValueError(f"'{commodity.code}' is part of the shared catalog and cannot be removed!")
+            raise ValueError(f"'{commodity.code}' is a built-in currency and cannot be removed!")
         if self.cr.in_use(cid):
             raise ValueError(f"'{commodity.code}' is in use by accounts, transactions or prices, so it cannot be removed!")
         read = self._to_read(commodity)

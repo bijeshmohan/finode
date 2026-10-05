@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
-{% block title %}Currencies & prices · finode{% endblock %}
+{% block title %}Assets & prices · finode{% endblock %}
 {% block content %}
 <a class="back" href="/app/profile#currency">{{ icon("back") }}Profile</a>
-<h1>Currencies &amp; prices</h1>
+<h1>Assets &amp; prices</h1>
 
 <section id="rates" class="card stack form-narrow">
   <h2>What your holdings are worth</h2>
@@ -30,7 +30,8 @@
       <label>1 unit of
         <select name="commodity" required>
           <option value="">Choose…</option>
-          {% for c in choices %}<option value="{{ c.code }}">{{ c.code }} · {{ c.name }}</option>{% endfor %}
+          {% if mine %}<optgroup label="Your assets">{% for c in mine %}<option value="{{ c.code }}">{{ c.code }} · {{ c.name }}</option>{% endfor %}</optgroup>{% endif %}
+          <optgroup label="Currencies">{% for c in currencies %}<option value="{{ c.code }}">{{ c.code }} · {{ c.name }}</option>{% endfor %}</optgroup>
         </select>
       </label>
       <label>is worth
@@ -38,7 +39,8 @@
       </label>
       <label>in
         <select name="quote" required>
-          {% for c in choices %}<option value="{{ c.code }}" {{ "selected" if c.code == currency }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
+          {% if mine %}<optgroup label="Your assets">{% for c in mine %}<option value="{{ c.code }}">{{ c.code }} · {{ c.name }}</option>{% endfor %}</optgroup>{% endif %}
+          <optgroup label="Currencies">{% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == currency }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}</optgroup>
         </select>
       </label>
       <label>on
@@ -52,11 +54,9 @@
   <ul class="plain-list flat">
     {% for p in prices %}
     <li class="row-between">
-      <span><strong>1 {{ p.commodity }}</strong> = {{ p.price|money }} {{ p.quote }} <span class="muted">· {{ p.date|friendly_date }}{% if p.is_global %} · shared feed{% endif %}</span></span>
-      {% if not p.is_global %}
+      <span><strong>1 {{ p.commodity }}</strong> = {{ p.price|money }} {{ p.quote }} <span class="muted">· {{ p.date|friendly_date }}</span></span>
       <button type="button" class="secondary" hx-post="/app/commodities/prices/{{ p.pid }}/delete"
               hx-confirm="Remove this price?" aria-label="Remove this price">×</button>
-      {% endif %}
     </li>
     {% endfor %}
   </ul>
@@ -66,8 +66,8 @@
 </section>
 
 <section id="mine" class="card stack form-narrow">
-  <h2>Your own commodities</h2>
-  <p class="muted">For anything the shared list doesn't have: a stock, a mutual fund, a coin.</p>
+  <h2>Your assets</h2>
+  <p class="muted">Stocks, mutual funds, coins and anything else you hold that isn't a currency. You set their prices yourself above. If an asset has the same code as a currency, add a suffix (for example ALL.NYSE).</p>
   {% if mine %}
   <ul class="plain-list flat">
     {% for c in mine %}
@@ -90,8 +90,7 @@
       </label>
       <label>Kind
         <select name="kind">
-          {% for key, label in kinds.items() if key != "currency" %}<option value="{{ key }}" {{ "selected" if key == "stock" }}>{{ label }}</option>{% endfor %}
-          <option value="currency">Currency</option>
+          {% for key, label in kinds.items() %}<option value="{{ key }}" {{ "selected" if key == "stock" }}>{{ label }}</option>{% endfor %}
         </select>
       </label>
       <label>Decimals
@@ -100,15 +99,16 @@
       </label>
     </div>
     <p id="commodity-error" class="error" role="alert"></p>
-    <div class="actions"><button type="submit" class="secondary">{{ icon("plus") }}Add commodity</button></div>
+    <div class="actions"><button type="submit" class="secondary">{{ icon("plus") }}Add asset</button></div>
   </form>
 </section>
 
 <details class="card stack form-narrow">
-  <summary>Shared list ({{ catalog|length }})</summary>
+  <summary>Currencies ({{ currencies|length }})</summary>
+  <p class="muted">Every ISO 4217 currency is built in. To hold a second currency, give its account that currency and add the exchange rate above (or convert between accounts, which records it).</p>
   <ul class="plain-list flat">
-    {% for c in catalog %}
-    <li><strong>{{ c.code }}</strong> · {{ c.name }} <span class="muted">· {{ kinds[c.kind] }}, {{ c.decimals }} decimal{{ "" if c.decimals == 1 else "s" }}</span></li>
+    {% for c in currencies %}
+    <li><strong>{{ c.code }}</strong> · {{ c.name }} <span class="muted">· {{ c.decimals }} decimal{{ "" if c.decimals == 1 else "s" }}</span></li>
     {% endfor %}
   </ul>
 </details>

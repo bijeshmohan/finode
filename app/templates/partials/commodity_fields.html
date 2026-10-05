@@ -12,7 +12,7 @@
         {% if not node %}<option value="">Same as where it belongs (usually {{ currency }})</option>{% endif %}
         {% for c in commodity_choices %}<option value="{{ c.code }}" {{ "selected" if held == c.code }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
       </select>
-      <span class="hint">A foreign currency, shares, a fund or a coin. Add your own under <a href="/app/commodities">Currencies &amp; prices</a>.</span>
+      <span class="hint">A foreign currency, shares, a fund or a coin. Add your own under <a href="/app/commodities">Assets &amp; prices</a>.</span>
       {% endif %}
     </label>
     <label>Balance is worth <span class="hint">in {{ opening_currency or currency }}, only if it holds something else</span>

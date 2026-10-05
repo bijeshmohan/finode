@@ -16,14 +16,14 @@ from .conftest import TEST_USER_ID
 OTHER_USER = UUID("00000000-0000-4000-8000-000000000002")
 
 
-# --- the shared catalog ---------------------------------------------------------------
+# --- the built-in currencies ---------------------------------------------------------------
 
 
-def test_catalog_lists_the_seeded_commodities(client):
+def test_the_built_in_currencies_are_the_iso_list(client):
     response = client.get("/commodities/")
     assert response.status_code == 200
     by_code = {c["code"]: c for c in response.json()}
-    assert {code for code, *_ in SEED_COMMODITIES} == set(by_code)
+    assert {code for code, *_ in SEED_COMMODITIES} == set(by_code) - {"BTC"}
     assert by_code["INR"] == {
         "cid": str(seed_id("INR")),
         "code": "INR",
@@ -31,10 +31,12 @@ def test_catalog_lists_the_seeded_commodities(client):
         "kind": "currency",
         "decimals": 2,
         "symbol": "₹",
-        "is_global": True,
     }
-    assert by_code["JPY"]["decimals"] == 0
+    assert len(SEED_COMMODITIES) > 150 and {"USD", "EUR", "JPY", "KWD", "TRY"} <= set(by_code)
+    assert by_code["JPY"]["decimals"] == 0 and by_code["KWD"]["decimals"] == 3
+    # the test user's own asset sits beside them; nothing like it is built in
     assert by_code["BTC"]["decimals"] == 8 and by_code["BTC"]["kind"] == "crypto"
+    assert "BTC" not in {code for code, *_ in SEED_COMMODITIES}
 
 
 def test_a_commodity_can_be_read_by_code(client):

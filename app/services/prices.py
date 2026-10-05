@@ -10,10 +10,9 @@ from ..schemas.price import PriceCreate, PriceRead, RateRead
 
 
 # Who said it, when two prices are for the same day: the user's own entry, then a rate from
-# their own conversion transactions, then the shared feed.
-RANK_FEED = 1
-RANK_TRANSACTION = 2
-RANK_MANUAL = 3
+# their own conversion transactions.
+RANK_TRANSACTION = 1
+RANK_MANUAL = 2
 
 
 @dataclass(frozen=True)
@@ -24,7 +23,7 @@ class PricePoint:
     quote: UUID
     on: date
     price: Decimal
-    rank: int = RANK_FEED
+    rank: int = RANK_TRANSACTION
     seq: float = 0.0
 
 
@@ -117,7 +116,7 @@ class PriceService:
         self._book = None
 
     def book(self) -> PriceBook:
-        """Every price the user can see, and the rates their own conversions implied."""
+        """Every price the user entered, and the rates their own conversions implied."""
         if self._book is None:
             points = [
                 PricePoint(
@@ -125,7 +124,7 @@ class PriceService:
                     p.quote_id,
                     p.date,
                     p.price,
-                    RANK_MANUAL if p.user is not None else RANK_FEED,
+                    RANK_MANUAL,
                     p.created.timestamp(),
                 )
                 for p in self.pr.list()
@@ -151,11 +150,10 @@ class PriceService:
             quote=codes[price.quote_id],
             date=price.date,
             price=normalize_amount(price.price),
-            is_global=price.user is None,
         )
 
     def list(self, code: str | None = None) -> list[PriceRead]:
-        """Prices the user can see (the shared feed and their own); rates from their transactions are not listed."""
+        """Prices the user entered; rates from their transactions are not listed."""
         codes = {c.cid: c.code for c in self.cr.list()}
         commodity = self._commodity(code) if code else None
         return [self._to_read(p, codes) for p in self.pr.list(commodity.cid if commodity else None)]

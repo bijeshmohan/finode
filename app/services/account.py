@@ -571,7 +571,7 @@ class AccountService:
         return bool(self.tr.postings_for_account(aid))
 
     def commodity_choices(self) -> list[Commodity]:
-        """What an account can hold: the shared catalog and the user's own commodities."""
+        """What an account can hold: the built-in currencies and the user's own assets."""
         return sorted(self.catalog().values(), key=lambda c: (c.user is not None, c.kind != "currency", c.code))
 
     def holding(self, aid: UUID) -> HoldingRead | None:

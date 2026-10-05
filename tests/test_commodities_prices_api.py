@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+import pytest
 from sqlmodel import Session
 
 from app.commodity_seed import seed_id
@@ -30,14 +31,18 @@ def test_a_user_can_add_a_commodity_of_their_own(client):
         "kind": "stock",
         "decimals": 0,
         "symbol": None,
-        "is_global": False,
     }
     assert "INFY" in {c["code"] for c in client.get("/commodities/").json()}
 
 
-def test_a_code_in_the_catalog_cannot_be_reused(client):
+def test_a_built_in_currency_code_cannot_be_reused(client):
     response = client.post("/commodities/", json={"code": "usd", "name": "My dollars"})
     assert response.status_code == 400 and "already exists" in response.json()["detail"]
+
+
+def test_your_own_currencies_cannot_be_created(client):
+    response = client.post("/commodities/", json={"code": "XYZ", "name": "Mine", "kind": "currency"})
+    assert response.status_code == 422 and "built in" in response.text
 
 
 def test_a_code_of_your_own_cannot_be_reused(client):
@@ -57,13 +62,13 @@ def test_commodity_input_is_validated(client):
         assert client.post("/commodities/", json=body).status_code == 422, body
 
 
-def test_an_unused_commodity_can_be_removed_but_not_the_catalog(client):
+def test_an_unused_asset_can_be_removed_but_not_a_currency(client):
     created = client.post("/commodities/", json={"code": "TMP", "name": "Temporary"}).json()
     assert client.delete(f"/commodities/{created['cid']}").status_code == 204
     assert client.get("/commodities/TMP").status_code == 404
 
     refused = client.delete(f"/commodities/{seed_id('INR')}")
-    assert refused.status_code == 400 and "shared catalog" in refused.json()["detail"]
+    assert refused.status_code == 400 and "built-in currency" in refused.json()["detail"]
     assert client.delete(f"/commodities/{UUID(int=5)}").status_code == 404
 
 
@@ -98,7 +103,6 @@ def test_setting_a_price_replaces_the_one_for_the_same_day(client):
     assert first.json()["pid"] == second.json()["pid"]
     listed = client.get("/prices/", params={"commodity": "USD"}).json()
     assert [Decimal(p["price"]) for p in listed] == [Decimal("84.25")]
-    assert listed[0]["is_global"] is False
 
 
 def test_prices_are_listed_newest_first_and_filtered(client):
@@ -147,60 +151,20 @@ def test_a_price_can_be_deleted_by_its_owner_only(session: Session, client):
     theirs = Price(
         user=OTHER_USER, commodity_id=seed_id("EUR"), quote_id=seed_id("INR"), date=TODAY, price=Decimal("90")
     )
-    feed = Price(user=None, commodity_id=seed_id("GBP"), quote_id=seed_id("INR"), date=TODAY, price=Decimal("100"))
-    session.add_all([theirs, feed])
+    session.add(theirs)
     session.commit()
 
     assert client.delete(f"/prices/{theirs.pid}").status_code == 404
-    assert client.delete(f"/prices/{feed.pid}").status_code == 404, "the shared feed is not the user's to remove"
     assert client.delete(f"/prices/{mine['pid']}").status_code == 204
     assert client.delete(f"/prices/{mine['pid']}").status_code == 404
 
 
-def test_the_shared_feed_is_visible_but_another_users_prices_are_not(session: Session, client):
-    session.add_all(
-        [
-            Price(commodity_id=seed_id("GBP"), quote_id=seed_id("INR"), date=TODAY, price=Decimal("100")),
-            Price(user=OTHER_USER, commodity_id=seed_id("EUR"), quote_id=seed_id("INR"), date=TODAY, price=Decimal("90")),
-        ]
-    )
-    session.commit()
-    listed = {(p["commodity"], p["is_global"]) for p in client.get("/prices/").json()}
-    assert listed == {("GBP", True)}
-    assert Decimal(client.get("/prices/rate", params={"commodity": "GBP", "quote": "INR"}).json()["rate"]) == 100
-    assert client.get("/prices/rate", params={"commodity": "EUR", "quote": "INR"}).json()["rate"] is None
 
 
-def test_your_own_price_beats_the_shared_feed_for_the_same_day(session: Session, client):
-    session.add(Price(commodity_id=seed_id("GBP"), quote_id=seed_id("INR"), date=TODAY, price=Decimal("100")))
-    session.commit()
-    client.post("/prices/", json={"commodity": "GBP", "quote": "INR", "price": "105"})
-    assert Decimal(client.get("/prices/rate", params={"commodity": "GBP", "quote": "INR"}).json()["rate"]) == 105
 
 
-def test_a_newer_feed_price_beats_your_older_one(session: Session, client):
-    client.post(
-        "/prices/",
-        json={"commodity": "GBP", "quote": "INR", "date": str(TODAY - timedelta(days=5)), "price": "105"},
-    )
-    session.add(Price(commodity_id=seed_id("GBP"), quote_id=seed_id("INR"), date=TODAY, price=Decimal("100")))
-    session.commit()
-    assert Decimal(client.get("/prices/rate", params={"commodity": "GBP", "quote": "INR"}).json()["rate"]) == 100
 
 
-def test_feed_prices_are_unique_per_day(session: Session):
-    from sqlalchemy.exc import IntegrityError
-
-    row = dict(commodity_id=seed_id("GBP"), quote_id=seed_id("INR"), date=TODAY, price=Decimal("100"))
-    session.add(Price(**row))
-    session.commit()
-    session.add(Price(**row))
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-    else:
-        raise AssertionError("expected a unique violation")
 
 
 def test_services_of_two_users_do_not_share_prices(session: Session):
@@ -219,3 +183,19 @@ def test_prices_read_back_without_padding_zeros(client):
     assert client.get("/prices/").json()[0]["price"] == "6000000.00"
     client.post("/prices/", json={"commodity": "JPY", "quote": "INR", "date": "2026-01-01", "price": "0.5625"})
     assert next(p for p in client.get("/prices/").json() if p["commodity"] == "JPY")["price"] == "0.5625"
+
+
+def test_another_users_prices_are_not_visible(session: Session, client):
+    session.add(Price(user=OTHER_USER, commodity_id=seed_id("EUR"), quote_id=seed_id("INR"), date=TODAY, price=Decimal("90")))
+    session.commit()
+    assert client.get("/prices/").json() == []
+    assert client.get("/prices/rate", params={"commodity": "EUR", "quote": "INR"}).json()["rate"] is None
+
+
+def test_a_price_needs_an_owner(session: Session):
+    from sqlalchemy.exc import IntegrityError
+
+    session.add(Price(user=None, commodity_id=seed_id("GBP"), quote_id=seed_id("INR"), date=TODAY, price=Decimal("100")))
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
