@@ -2,84 +2,89 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Profile · finode{% endblock %}
 {% block content %}
-<h1>Profile</h1>
+<header class="profile-head form-narrow">
+  <span class="avatar" aria-hidden="true">{{ initials }}</span>
+  <div>
+    <h1>{{ display_name or "Your profile" }}</h1>
+    {% if email %}<p class="muted">{{ email }}</p>{% endif %}
+  </div>
+</header>
 
-<form class="card stack form-narrow" hx-post="/app/profile">
-  <div class="grid-form">
-    <label>First name
-      <input type="text" name="first_name" maxlength="40" autocomplete="given-name" value="{{ profile.first_name or '' }}">
-    </label>
-    <label>Last name
-      <input type="text" name="last_name" maxlength="40" autocomplete="family-name" value="{{ profile.last_name or '' }}">
-    </label>
-  </div>
-  {% if email %}
-  <label>Email
-    <input type="text" value="{{ email }}" readonly disabled>
-    <span class="hint">Used to sign in.</span>
-  </label>
-  {% endif %}
-  <p id="form-error" class="error" role="alert"></p>
-  <div class="actions">
-    <button type="submit">Save changes</button>
-  </div>
+<div class="settings form-narrow">
+  <details id="name" class="setting">
+    <summary><span class="setting-title">Name</span><span class="setting-value">{{ display_name or "Not set" }}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/app/profile">
+      <div class="grid-form">
+        <label>First name
+          <input type="text" name="first_name" maxlength="40" autocomplete="given-name" value="{{ profile.first_name or '' }}">
+        </label>
+        <label>Last name
+          <input type="text" name="last_name" maxlength="40" autocomplete="family-name" value="{{ profile.last_name or '' }}">
+        </label>
+      </div>
+      {% if email %}<p class="hint muted">Your email ({{ email }}) is used to sign in and can't be changed here.</p>{% endif %}
+      <p id="form-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">Save name</button></div>
+    </form>
+  </details>
+
+  <details id="currency" class="setting">
+    <summary><span class="setting-title">Default currency</span><span class="setting-value">{{ profile.default_currency }}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/app/profile/currency">
+      <p class="muted">Net worth, the dashboard and your reports add everything up in this currency. Accounts keep what they hold; this only changes how totals are shown.</p>
+      <label>Currency
+        <select name="currency">
+          {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == profile.default_currency }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <p id="currency-error" class="error" role="alert"></p>
+      <div class="actions">
+        <button type="submit">Save currency</button>
+        <a class="button secondary" href="/app/commodities">Currencies &amp; prices</a>
+      </div>
+    </form>
+  </details>
+
+  <details id="depth" class="setting">
+    <summary><span class="setting-title">Account depth</span>
+      <span class="setting-value">{% for d in depths %}{{ d.root[:1] }} {{ d.value or "∞" }}{{ " · " if not loop.last }}{% endfor %}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/app/profile/depth">
+      <p class="muted">How many levels of sub-accounts each type may have. 1 is a flat list; 0 means no limit of your own.</p>
+      <div class="grid-form">
+        {% for d in depths %}
+        <label>{{ d.root }}
+          <input type="number" name="{{ d.field }}" min="0" max="{{ depth_cap }}" step="1" inputmode="numeric" value="{{ d.value }}">
+          <span class="hint">{% if d.deepest %}Deepest now: {{ d.deepest }}{% else %}No sub-accounts yet{% endif %}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <details class="more">
+        <summary>How limits work</summary>
+        <p class="muted">A limit can't be lower than your deepest existing account (the hint under each field). The application maximum is {{ depth_cap }}.</p>
+      </details>
+      <p id="depth-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">Save limits</button></div>
+    </form>
+  </details>
+
+  <details id="appearance" class="setting">
+    <summary><span class="setting-title">Appearance</span><span class="setting-value" data-theme-value>Match device</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">
+      <p class="muted">Applies to this browser only.</p>
+      <div class="segmented" role="group" aria-label="Theme">
+        <button type="button" class="secondary" data-theme-choice="auto" aria-pressed="true">Match device</button>
+        <button type="button" class="secondary" data-theme-choice="light" aria-pressed="false">Light</button>
+        <button type="button" class="secondary" data-theme-choice="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+  </details>
+
+  <a class="setting setting-link" id="data" href="/app/profile/data">
+    <span class="setting-title">Your data</span><span class="setting-value">Export &amp; import</span>{{ icon("chevron-right") }}
+  </a>
+</div>
+
+<form method="post" action="/app/logout" class="form-narrow signout">
+  <button type="submit" class="danger">{{ icon("logout") }}Sign out</button>
 </form>
-<form id="currency" class="card stack form-narrow" hx-post="/app/profile/currency">
-  <h2>Currency</h2>
-  <p class="muted">Net worth, the dashboard and your reports add everything up in this currency. Accounts keep holding what they hold; changing this only changes how totals are shown.</p>
-  <label>Default currency
-    <select name="currency">
-      {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == profile.default_currency }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
-    </select>
-  </label>
-  <p id="currency-error" class="error" role="alert"></p>
-  <div class="actions">
-    <button type="submit">Save currency</button>
-    <a class="button secondary" href="/app/commodities">Currencies &amp; prices</a>
-  </div>
-</form>
-<form id="depth" class="card stack form-narrow" hx-post="/app/profile/depth">
-  <h2>Account depth</h2>
-  <p class="muted">How many levels of sub-accounts you allow under each type. 1 is a flat list, 0 means no limit of your own (the application maximum is {{ depth_cap }}). A limit can't be lower than your deepest existing account.</p>
-  <div class="grid-form">
-    {% for d in depths %}
-    <label>{{ d.root }}
-      <input type="number" name="{{ d.field }}" min="0" max="{{ depth_cap }}" step="1" inputmode="numeric" value="{{ d.value }}">
-      <span class="hint">{% if d.deepest %}Deepest now: {{ d.deepest }}. Use 0 or at least {{ d.deepest }}.{% else %}No sub-accounts yet.{% endif %}</span>
-    </label>
-    {% endfor %}
-  </div>
-  <p id="depth-error" class="error" role="alert"></p>
-  <div class="actions"><button type="submit">Save limits</button></div>
-</form>
-
-<section id="data" class="card stack form-narrow">
-  <h2>Your data</h2>
-  <p class="muted">Download everything you have recorded. The ledger format opens in ledger, hledger and similar tools; the CSV opens in a spreadsheet.</p>
-  <div class="actions">
-    <a class="button secondary" href="/app/export?format=ledger" download>Export ledger file</a>
-    <a class="button secondary" href="/app/export?format=csv" download>Export CSV</a>
-  </div>
-
-  <h3>Import</h3>
-  {% if can_import %}
-  <p class="muted">Start from an existing ledger or hledger file. You see a summary first, and nothing is saved if anything is wrong. Your account depth limits above apply to the accounts in the file.</p>
-  <form class="stack" hx-post="/app/import/preview" hx-encoding="multipart/form-data"
-        hx-target="#import-preview" hx-swap="innerHTML">
-    <input type="file" id="import-file" name="file" accept=".ledger,.journal,.hledger,.dat,.txt,text/plain" required>
-    <div class="actions"><button type="submit" class="secondary">Preview import</button></div>
-  </form>
-  <div id="import-preview" aria-live="polite"></div>
-  {% else %}
-  <p class="muted">Importing is only available before you record transactions. Export your data first if you want to start over.</p>
-  {% endif %}
-</section>
-
-<section class="card stack form-narrow">
-  <h2>Session</h2>
-  {% if email %}<p class="muted">Signed in as {{ email }}.</p>{% endif %}
-  <form method="post" action="/app/logout">
-    <button type="submit" class="secondary">{{ icon("logout") }}Sign out</button>
-  </form>
-</section>
 {% endblock %}

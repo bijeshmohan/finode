@@ -8,18 +8,23 @@ def _post(client: TestClient, path: str, text: str):
     return client.post(path, files={"file": ("a.ledger", text.encode())})
 
 
-def test_profile_page_offers_export_and_import(client: TestClient):
+def test_profile_page_links_to_data_page(client: TestClient):
     text = client.get("/app/profile").text
+    assert 'href="/app/profile/data"' in text and "/app/export" not in text and 'id="import-file"' not in text
+
+
+def test_data_page_offers_export_and_import(client: TestClient):
+    text = client.get("/app/profile/data").text
     assert "/app/export?format=ledger" in text and "/app/export?format=csv" in text
     assert 'id="import-file"' in text
     # the card is page content, not leaked into the <title>
-    assert "<title>Profile · finode</title>" in text
+    assert "<title>Your data · finode</title>" in text
     assert text.index("<main") < text.index("/app/export?format=ledger")
 
 
-def test_profile_page_hides_import_once_transactions_exist(client: TestClient):
+def test_data_page_hides_import_once_transactions_exist(client: TestClient):
     assert _post(client, "/app/import", JOURNAL).headers["HX-Redirect"] == "/app/"
-    text = client.get("/app/profile").text
+    text = client.get("/app/profile/data").text
     assert 'id="import-file"' not in text and "only available before" in text
 
 
@@ -62,7 +67,7 @@ def test_confirm_with_errors_shows_them(client: TestClient):
 
 
 def test_dashboard_links_to_import(client: TestClient):
-    assert "/app/profile#data" in client.get("/app/").text
+    assert "/app/profile/data" in client.get("/app/").text
 
 
 # ---- several commodities ------------------------------------------------------------------------------------------

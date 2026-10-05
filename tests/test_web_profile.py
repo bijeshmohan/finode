@@ -46,4 +46,30 @@ def test_tab_bar_has_only_three_tabs(client: TestClient):
 def test_profile_page_has_sign_out(client: TestClient):
     text = client.get("/app/profile").text
     assert 'action="/app/logout"' in text and "Sign out" in text
-    assert "Signed in as test@example.com" in text
+    assert text.count("test@example.com") >= 1 and "Signed in as" not in text
+
+
+def test_header_shows_initials_and_name(client: TestClient):
+    client.patch("/profile/", json={"first_name": "Bijesh", "last_name": "Mohan"})
+    text = client.get("/app/profile").text
+    assert '<span class="avatar" aria-hidden="true">BM</span>' in text and "<h1>Bijesh Mohan</h1>" in text
+
+
+def test_header_falls_back_to_email_initial(client: TestClient):
+    text = client.get("/app/profile").text
+    assert '>T</span>' in text and "Your profile" in text
+
+
+def test_sections_are_collapsible_and_summarise_values(client: TestClient):
+    text = client.get("/app/profile").text
+    for section in ("name", "currency", "depth", "appearance"):
+        assert f'<details id="{section}" class="setting">' in text
+    assert "Default currency</span><span class=\"setting-value\">INR" in text
+
+
+def test_theme_cookie_sets_data_theme(client: TestClient):
+    assert "data-theme" not in client.get("/app/profile").text.split("<head>")[0]
+    client.cookies.set("finode_theme", "dark")
+    assert '<html lang="en" data-theme="dark">' in client.get("/app/profile").text
+    client.cookies.set("finode_theme", "<script>")
+    assert "data-theme" not in client.get("/app/profile").text.split("<head>")[0]

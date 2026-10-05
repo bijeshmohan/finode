@@ -19,11 +19,12 @@ router = APIRouter(prefix="/profile")
 def profile_page(
     request: Request,
     profiles: Profiles,
-    data: Data,
     accounts: Accounts,
     user: Annotated[CurrentUser, Depends(require_authenticated_user)],
 ):
     profile = profiles.read()
+    names = [n for n in (profile.first_name, profile.last_name) if n]
+    initials = "".join(n[0] for n in names[:2]).upper() or (user.email or "?")[0].upper()
     deepest = profiles.deepest()
     return templates.TemplateResponse(
         request,
@@ -32,7 +33,8 @@ def profile_page(
             "active": "profile",
             "profile": profile,
             "email": user.email,
-            "can_import": data.can_import(),
+            "display_name": " ".join(names),
+            "initials": initials,
             "currencies": [c for c in accounts.commodity_choices() if c.kind == "currency"],
             "depths": [
                 {
@@ -45,6 +47,13 @@ def profile_page(
             ],
             "depth_cap": settings.max_account_depth,
         },
+    )
+
+
+@router.get("/data")
+def data_page(request: Request, data: Data):
+    return templates.TemplateResponse(
+        request, "profile_data.html", {"active": "profile", "can_import": data.can_import()}
     )
 
 

@@ -119,8 +119,8 @@ def test_profile_page_shows_depth_card_with_hints(client: TestClient, root_accou
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     _make(client, "Groceries", food["aid"])
     text = client.get("/app/profile").text
-    assert 'name="max_depth_expenses"' in text and "Deepest now: 2. Use 0 or at least 2." in text
-    assert "No sub-accounts yet." in text
+    assert 'name="max_depth_expenses"' in text and "Deepest now: 2" in text
+    assert "No sub-accounts yet" in text
     assert f'max="{settings.max_account_depth}"' in text
 
 
