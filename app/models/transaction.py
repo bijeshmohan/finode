@@ -4,6 +4,7 @@ from enum import Enum
 from uuid import UUID, uuid4
 
 from pydantic import field_validator
+from sqlalchemy import Index
 from sqlmodel import Field
 
 from .utils import Amount, TimestampMixin
@@ -16,6 +17,8 @@ class PostingSide(str, Enum):
 
 class Transaction(TimestampMixin, table=True):
     __tablename__ = "transactions"
+    # A recurring rule records each of its occurrences once, even if two workers race to do it.
+    __table_args__ = (Index("uq_transactions_recurring", "recurring_id", "recurring_date", unique=True),)
 
     tid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")
@@ -28,6 +31,9 @@ class Transaction(TimestampMixin, table=True):
     # "mcp:<token name>" for an AI assistant. None for entries made before this was recorded.
     created_via: str | None = Field(default=None, max_length=60)
     updated_via: str | None = Field(default=None, max_length=60)
+    # Set when a recurring rule recorded it: the rule and the occurrence it stands for.
+    recurring_id: UUID | None = Field(default=None, foreign_key="recurring_transactions.rid", index=True)
+    recurring_date: Date | None = Field(default=None)
 
 
 class Posting(TimestampMixin, table=True):

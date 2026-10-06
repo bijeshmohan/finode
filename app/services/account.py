@@ -16,6 +16,7 @@ from ..repositories import (
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.account import HoldingRead
 from ..schemas.transaction import TransactionCreate, PostingCreate
+from ..repositories.recurring import RecurringRepository
 from .depth import depth_limit
 from .prices import PriceService
 
@@ -739,6 +740,8 @@ class AccountService:
             raise AccountInUseError("account has sub-accounts")
         if self.tr.postings_for_account(aid):
             raise AccountInUseError("account has postings")
+        if RecurringRepository.uses_account(self.ar.db, aid):
+            raise AccountInUseError("account is used by a recurring transaction")
 
         account_read = self._to_read(account, all_accounts)
         deleted = self.ar.delete(aid)

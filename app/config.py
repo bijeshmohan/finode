@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     max_account_depth: int = Field(default=20, ge=1)
     # MCP calls allowed per token per minute (per app process).
     mcp_rate_limit: int = Field(default=120, ge=1)
+    # How often (in minutes) due recurring transactions are recorded in the background; 0 turns it off.
+    recurring_interval_minutes: int = Field(default=15, ge=0)
 
     # .env is shared with docker compose, so keys meant for compose are ignored
     model_config = SettingsConfigDict(env_file=".env", env_prefix="FINODE_", extra="ignore")

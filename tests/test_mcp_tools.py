@@ -253,3 +253,40 @@ async def test_accounts_cannot_be_deleted_and_prompts_exist(session, secret):
         assert tools["record_transaction"].annotations.read_only_hint is False
         prompts = {p.name for p in (await c.list_prompts()).prompts}
         assert "monthly_review" in prompts
+
+
+# ---- recurring transactions -------------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_assistants_can_list_create_and_stop_recurring_transactions(session, root_accounts, client):
+    client.post("/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "5000"})
+    client.post("/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+        assert payload(await c.call_tool("list_recurring", {}))["recurring"] == []
+        made = payload(await c.call_tool("create_recurring", {
+            "amount": "1500", "from_account": "Bank", "to_account": "Rent", "payee": "Landlord",
+            "start_date": "2999-01-01",
+        }))["created"]
+        assert made["from"] == "Assets:Bank" and made["to"] == "Expenses:Rent" and made["next_due"] == "2999-01-01"
+        listed = payload(await c.call_tool("list_recurring", {}))["recurring"]
+        assert listed[0]["id"] == made["id"] and listed[0]["every"] == "monthly" and listed[0]["status"] == "active"
+        with pytest.raises(ToolFailed, match="differ"):
+            payload(await c.call_tool("create_recurring", {"amount": "1", "from_account": "Bank", "to_account": "Bank"}))
+        assert payload(await c.call_tool("stop_recurring", {"recurring_id": made["id"]}))["paused"] == made["id"]
+        assert payload(await c.call_tool("list_recurring", {}))["recurring"][0]["status"] == "paused or ended"
+        with pytest.raises(ToolFailed, match="not a recurring transaction id"):
+            payload(await c.call_tool("stop_recurring", {"recurring_id": "nope"}))
+        with pytest.raises(ToolFailed, match="no recurring transaction"):
+            payload(await c.call_tool("stop_recurring", {"recurring_id": "00000000-0000-4000-8000-0000000000aa"}))
+
+
+@pytest.mark.anyio
+async def test_read_only_assistants_can_list_but_not_create_recurring(session, root_accounts):
+    secret = make_token(session, TEST_USER_ID, scope="read")
+    async with running_app(session), mcp_client(secret) as c:
+        assert payload(await c.call_tool("list_recurring", {}))["recurring"] == []
+        with pytest.raises(ToolFailed, match="read-only"):
+            payload(await c.call_tool("create_recurring", {"amount": "1", "from_account": "a", "to_account": "b"}))
+        with pytest.raises(ToolFailed, match="read-only"):
+            payload(await c.call_tool("stop_recurring", {"recurring_id": "x"}))

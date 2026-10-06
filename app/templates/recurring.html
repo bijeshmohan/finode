@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Recurring transactions · finode{% endblock %}
+{% block content %}
+<a class="back" href="/app/transactions">{{ icon("back") }}Transactions</a>
+<h1>Recurring transactions</h1>
+<p class="muted form-narrow">Rent, salary, subscriptions: set it once and finode records it for you on schedule. Each one shows up in your transactions on its date, marked as recurring.</p>
+
+{% if rows %}
+  {% for title, group in (("Active", live), ("Paused or ended", stopped)) %}{% if group %}
+  <h2 class="list-title">{{ title }}</h2>
+  <ul class="tx-list card">
+    {% for row in group %}{% set r = row.rule %}
+    <li>
+      <a class="tx" href="/app/recurring/{{ r.rid }}/edit">
+        <span class="tx-main">
+          <span class="tx-title">{{ r.payee or "No payee" }}{% if row.status == "paused" %} <span class="badge">paused</span>{% elif row.status == "ended" %} <span class="badge">ended</span>{% endif %}</span>
+          <span class="tx-sub">{{ row.from_name }} → {{ row.to_name }}</span>
+          <span class="tx-sub">{{ row.schedule }}{% if r.active %} · next {{ r.next_date|friendly_date }}{% endif %}{% if r.end_date %} · until {{ r.end_date|friendly_date }}{% endif %}</span>
+          {% if r.last_error %}<span class="tx-sub error">Couldn't record {{ r.last_error }}</span>{% endif %}
+        </span>
+        <span class="tx-amount">{{ r.amount|money|with_unit(row.unit, currency) }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}{% endfor %}
+{% else %}
+<div class="card empty-state">
+  <p>No recurring transactions yet.</p>
+</div>
+{% endif %}
+<div class="actions form-narrow"><a class="button" href="/app/recurring/new">{{ icon("plus") }}New recurring transaction</a></div>
+{% endblock %}

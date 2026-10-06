@@ -67,6 +67,8 @@ class TransactionRead(TransactionBase):
     # Where it was entered and last changed: "web", "api", "import" or "mcp:<token name>"; None if unknown.
     created_via: str | None = None
     updated_via: str | None = None
+    # The recurring rule that recorded it, if one did and still exists.
+    recurring_id: UUID | None = None
     postings: list[PostingRead]
     created: datetime
     updated: datetime

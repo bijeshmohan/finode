@@ -5,6 +5,7 @@ from .oauth_grant import OAuthGrant
 from .commodity import Commodity
 from .price import Price
 from .profile import Profile
+from .recurring import RecurringTransaction
 from .transaction import Transaction, Posting
 
 
@@ -16,6 +17,7 @@ __all__ = [
     "Commodity",
     "Price",
     "Profile",
+    "RecurringTransaction",
     "Transaction",
     "Posting",
 ]

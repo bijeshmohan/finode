@@ -21,6 +21,7 @@ class TransactionRepository:
         currency_id: UUID | None = None,
         values: list[Decimal] | None = None,
         origin: str | None = None,
+        recurring: tuple[UUID, date] | None = None,
     ) -> Transaction:
         """`values` are the postings' worth in the currency, in order; a posting without one is worth its amount."""
         fields = data.model_dump(exclude={"postings", "currency"})
@@ -29,6 +30,8 @@ class TransactionRepository:
         transaction = Transaction(
             **fields, currency_id=currency_id, user=self.uid, created_via=origin, updated_via=origin
         )
+        if recurring is not None:
+            transaction.recurring_id, transaction.recurring_date = recurring
         self.db.add(transaction)
         self.db.flush()
         self._add_postings(transaction, data.postings, values)

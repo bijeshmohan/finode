@@ -10,9 +10,10 @@ from ..repositories import (
     CommodityRepository,
     PriceRepository,
     ProfileRepository,
+    RecurringRepository,
     TransactionRepository,
 )
-from ..services import AccountService, CommodityService, PriceService, ReportService, TransactionService
+from ..services import AccountService, CommodityService, PriceService, RecurringService, ReportService, TransactionService
 from ..services.api_token import TokenOwner
 
 
@@ -38,6 +39,7 @@ class Services:
     reports: ReportService
     prices: PriceService
     commodities: CommodityService
+    recurring: RecurringService
 
 
 @contextmanager
@@ -59,4 +61,7 @@ def services() -> Iterator[Services]:
             reports=ReportService(accounts, tr),
             prices=prices,
             commodities=CommodityService(cr),
+            recurring=RecurringService(
+                RecurringRepository(db, uid), accounts, TransactionService(tr, ar, cr, origin="recurring")
+            ),
         )
