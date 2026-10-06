@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
@@ -21,6 +21,12 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="finode", lifespan=lifespan)
 # The MCP server for AI assistants (personal access tokens; see app/mcp_server).
 app.router.routes.append(Route("/mcp", endpoint=mcp_transport.MCPEndpoint(), methods=["GET", "POST", "DELETE"]))
+
+
+@app.get("/.well-known/oauth-protected-resource/mcp", include_in_schema=False)
+@app.get("/.well-known/oauth-protected-resource", include_in_schema=False)
+def protected_resource(request: Request):
+    return mcp_transport.protected_resource_metadata(request.scope)
 app.include_router(accounts.router)
 app.include_router(commodities.router)
 app.include_router(prices.router)

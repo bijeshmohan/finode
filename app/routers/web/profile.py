@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from ...config import settings
 from ...auth import CurrentUser, require_authenticated_user
-from ...dependencies import Accounts, ApiTokens, Data, Profiles
+from ...dependencies import Accounts, ApiTokens, Data, OAuthGrants, Profiles
 from ...schemas.api_token import ApiTokenCreate
 from ...schemas.profile import ProfileUpdate
 from ...services.depth import ROOT_DEPTH_FIELDS
@@ -124,13 +124,14 @@ def mcp_url(request: Request) -> str:
 
 
 @router.get("/assistants")
-def assistants_page(request: Request, tokens: ApiTokens):
+def assistants_page(request: Request, tokens: ApiTokens, grants: OAuthGrants):
     return templates.TemplateResponse(
         request,
         "assistants.html",
         {
             "active": "profile",
             "tokens": [t for t in tokens.list() if t.revoked is None],
+            "apps": grants.list(),
             "mcp_url": mcp_url(request),
             "created": None,
         },

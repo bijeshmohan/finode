@@ -6,7 +6,9 @@ from sqlmodel import Session, create_engine
 from .auth import CurrentUser, require_authenticated_user
 from .config import settings
 from .repositories.api_token import ApiTokenRepository
+from .repositories.oauth_grant import OAuthGrantRepository
 from .services.api_token import ApiTokenService
+from .services.oauth_grant import OAuthGrantService
 from .repositories import (
     AccountRepository,
     CommodityRepository,
@@ -133,6 +135,13 @@ def get_api_token_service(
     return ApiTokenService(ApiTokenRepository(db, user.id))
 
 
+def get_oauth_grant_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> OAuthGrantService:
+    return OAuthGrantService(OAuthGrantRepository(db, user.id))
+
+
 DB = Annotated[Session, Depends(get_db_session)]
 AR = Annotated[AccountRepository, Depends(get_account_repository)]
 TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
@@ -144,3 +153,4 @@ Data = Annotated[DataService, Depends(get_data_service)]
 Profiles = Annotated[ProfileService, Depends(get_profile_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]
 ApiTokens = Annotated[ApiTokenService, Depends(get_api_token_service)]
+OAuthGrants = Annotated[OAuthGrantService, Depends(get_oauth_grant_service)]

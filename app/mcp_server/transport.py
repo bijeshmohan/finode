@@ -11,9 +11,14 @@ import anyio.to_thread
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.types import Receive, Scope, Send
 
+from fastapi import HTTPException
+
+from .. import oauth
+from ..auth import verify_supabase_jwt
 from ..config import settings
 from ..models.api_token import TokenScope
 from ..services.api_token import ApiTokenService, TokenOwner
+from ..services.oauth_grant import OAuthGrantService
 from . import context
 from .tools import build_server
 
@@ -42,8 +47,43 @@ def _allow(tkid: UUID, now: float | None = None) -> bool:
 
 
 def _authenticate(secret: str) -> TokenOwner | None:
+    """Who the bearer is: a personal access token (fin_…), or an access token Supabase issued to an app
+    the user connected with OAuth (a JWT whose grant says what the app may do)."""
+    if secret.startswith("fin_"):
+        with context.session_factory() as db:
+            return ApiTokenService.authenticate(db, secret)
+    try:
+        claims = verify_supabase_jwt(secret)
+        user = UUID(claims["sub"])
+    except (HTTPException, ValueError, KeyError):
+        return None
+    client_id = claims.get("client_id")
+    if not client_id:
+        return None  # an ordinary sign-in token: not meant for assistants
     with context.session_factory() as db:
-        return ApiTokenService.authenticate(db, secret)
+        return OAuthGrantService.authenticate(db, user, str(client_id))
+
+
+def resource_url(scope: Scope) -> str:
+    """The public address of this endpoint, e.g. https://finode.bijesh.me/mcp (honours the proxy's headers)."""
+    headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
+    host = headers.get("host", "localhost")
+    return f"{scope.get('scheme', 'http')}://{host}/mcp"
+
+
+def metadata_url(scope: Scope) -> str:
+    root = resource_url(scope).removesuffix("/mcp")
+    return f"{root}/.well-known/oauth-protected-resource/mcp"
+
+
+def protected_resource_metadata(scope: Scope) -> dict:
+    """RFC 9728: tells an MCP client which authorization server to send the user to."""
+    return {
+        "resource": resource_url(scope),
+        "authorization_servers": [oauth.issuer()],
+        "bearer_methods_supported": ["header"],
+        "resource_name": "finode",
+    }
 
 
 async def _reply(send: Send, status: int, message: str, headers: dict[str, str] | None = None) -> None:
@@ -64,8 +104,9 @@ class MCPEndpoint:
             await _reply(
                 send,
                 401,
-                "missing token: create one in finode under Profile, AI assistants, and send it as 'Authorization: Bearer <token>'",
-                {"WWW-Authenticate": 'Bearer realm="finode"'},
+                "missing token: connect through your assistant's connector settings (OAuth), or create a token in finode "
+                "under Profile, AI assistants, and send it as 'Authorization: Bearer <token>'",
+                {"WWW-Authenticate": f'Bearer realm="finode", resource_metadata="{metadata_url(scope)}"'},
             )
             return
         owner = await anyio.to_thread.run_sync(_authenticate, secret.strip())
@@ -73,8 +114,11 @@ class MCPEndpoint:
             await _reply(
                 send,
                 401,
-                "invalid or revoked token",
-                {"WWW-Authenticate": 'Bearer realm="finode", error="invalid_token"'},
+                "invalid, expired or revoked token (an app you disconnected must be connected again)",
+                {
+                    "WWW-Authenticate": f'Bearer realm="finode", error="invalid_token", '
+                    f'resource_metadata="{metadata_url(scope)}"'
+                },
             )
             return
         if not _allow(owner.tkid):

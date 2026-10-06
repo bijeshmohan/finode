@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from ...web_auth import web_login_required
-from . import accounts, auth, commodities, dashboard, data, profile, transactions
+from . import accounts, auth, commodities, dashboard, data, oauth, profile, transactions
 
 
 router = APIRouter(prefix="/app", include_in_schema=False)
@@ -14,4 +14,5 @@ protected.include_router(transactions.router)
 protected.include_router(profile.router)
 protected.include_router(commodities.router)
 protected.include_router(data.router)
+protected.include_router(oauth.router)
 router.include_router(protected)
