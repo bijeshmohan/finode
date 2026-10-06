@@ -9,6 +9,10 @@ from fastapi import Request, Response
 FLASH_COOKIE = "finode_flash"
 
 MESSAGES = {
+    "recurring-saved": "Recurring transaction saved. Anything already due has been recorded.",
+    "recurring-paused": "Paused. Nothing will be recorded until you resume it.",
+    "recurring-resumed": "Resumed. Occurrences missed while it was paused are skipped.",
+    "recurring-deleted": "Recurring transaction deleted. What it recorded is kept.",
     "transaction-saved": "Transaction saved",
     "transaction-saved-next": "Transaction saved. Add the next one.",
     "transaction-updated": "Transaction updated",

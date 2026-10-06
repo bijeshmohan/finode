@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 
-from ...dependencies import Accounts, Reports, Transactions
+from ...dependencies import Accounts, Recurring, Reports, Transactions
 from ...services.account import AccountService
 from ...templating import templates
 from .transactions import AccountIndex, to_row
@@ -11,13 +11,23 @@ router = APIRouter()
 RECENT_LIMIT = 8
 
 
+def _catch_up(recurring: Recurring) -> None:
+    """Record what has fallen due; a problem here must never stop the page from opening."""
+    try:
+        recurring.process_due()
+    except Exception:
+        recurring.repo.db.rollback()
+
+
 @router.get("/")
 def dashboard(
     request: Request,
     accounts: Accounts,
     reports: Reports,
     transactions: Transactions,
+    recurring: Recurring,
 ):
+    _catch_up(recurring)
     summary = reports.summary()
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts)

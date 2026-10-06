@@ -14,6 +14,7 @@ from .repositories import (
     CommodityRepository,
     PriceRepository,
     ProfileRepository,
+    RecurringRepository,
     TransactionRepository,
 )
 from .services import (
@@ -22,6 +23,7 @@ from .services import (
     DataService,
     PriceService,
     ProfileService,
+    RecurringService,
     ReportService,
     TransactionService,
 )
@@ -121,6 +123,18 @@ def get_transaction_service(
     return TransactionService(tr, ar, cr, origin=origin)
 
 
+def get_recurring_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+    accounts: AccountService = Depends(get_account_service),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    ar: AccountRepository = Depends(get_account_repository),
+    cr: CommodityRepository = Depends(get_commodity_repository),
+) -> RecurringService:
+    # What a rule records is marked as made by the rule, not by whoever happened to open the page.
+    return RecurringService(RecurringRepository(db, user.id), accounts, TransactionService(tr, ar, cr, origin="recurring"))
+
+
 def get_report_service(
     accounts: AccountService = Depends(get_account_service),
     tr: TransactionRepository = Depends(get_transaction_repository),
@@ -151,6 +165,7 @@ Accounts = Annotated[AccountService, Depends(get_account_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]
 Profiles = Annotated[ProfileService, Depends(get_profile_service)]
+Recurring = Annotated[RecurringService, Depends(get_recurring_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]
 ApiTokens = Annotated[ApiTokenService, Depends(get_api_token_service)]
 OAuthGrants = Annotated[OAuthGrantService, Depends(get_oauth_grant_service)]

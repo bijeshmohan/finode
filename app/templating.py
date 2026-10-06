@@ -55,7 +55,7 @@ def origin_label(origin: str | None) -> str | None:
         return None
     if origin.startswith("mcp:"):
         return f"{origin[4:]} (AI assistant)"
-    return {"web": "the app", "api": "the API", "import": "an import"}.get(origin, origin)
+    return {"web": "the app", "api": "the API", "import": "an import", "recurring": "a recurring transaction"}.get(origin, origin)
 
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")

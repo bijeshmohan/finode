@@ -150,14 +150,19 @@ class TransactionService:
             comment=transaction.comment,
             created_via=transaction.created_via,
             updated_via=transaction.updated_via,
+            recurring_id=transaction.recurring_id,
             postings=[self._posting_to_read(posting) for posting in self.tr.postings(transaction.tid)],
             created=transaction.created,
             updated=transaction.updated,
         )
 
-    def create(self, data: TransactionCreate) -> TransactionRead:
+    def validate(self, data: TransactionCreate) -> None:
+        """Raise what create would raise, without saving anything."""
+        self._resolve(data)
+
+    def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
         currency_id, values = self._resolve(data)
-        transaction = self.tr.create(data, currency_id, values, self.origin)
+        transaction = self.tr.create(data, currency_id, values, self.origin, recurring)
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
         return self._to_read(transaction)

@@ -3,6 +3,7 @@
 {% block title %}Transactions · finode{% endblock %}
 {% block content %}
 <h1>Transactions</h1>
+<p class="muted"><a href="/app/recurring">Recurring transactions</a></p>
 <p id="page-error" class="error" role="alert">{{ error or "" }}</p>
 
 <details class="card filters" {{ "open" if active_filters or error }}>

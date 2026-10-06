@@ -17,6 +17,7 @@ from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate
 from ..schemas.price import PriceCreate
+from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead, TransactionUpdate
 from ..services.simple import simple_postings
 from .accounts import AccountIndex
@@ -40,6 +41,9 @@ finode is the user's personal double-entry ledger.
 - Amounts are always positive; the from/to accounts (or debit/credit sides) give the direction.
 - finode never computes capital gains: selling at a profit is recorded by the user, for example
   with a split to Income:Capital Gain.
+- Things that repeat (rent, salary, subscriptions) are recurring transactions: list_recurring shows
+  them, create_recurring sets one up (finode then records each occurrence by itself, so do not also
+  record the same payment by hand) and stop_recurring pauses one.
 - Dates are YYYY-MM-DD; today's date is used when you leave the date out.
 - Changes you make are marked in finode as made by this assistant. Confirm with the user before
   deleting anything, and read back what you recorded.
@@ -328,6 +332,35 @@ def get_prices(
         }
 
 
+@_tool_errors
+def list_recurring() -> dict[str, Any]:
+    """The user's recurring transactions (rent, salary, subscriptions): who pays whom, how often, and
+    when the next one is due."""
+    with services() as s:
+        index = _index(s)
+        rules = s.recurring.list()
+        return {
+            "recurring": [
+                {
+                    "id": str(r.rid),
+                    "from": index.path(r.from_account),
+                    "to": index.path(r.to_account),
+                    "amount": text(r.amount),
+                    **({"received_amount": text(r.received_amount)} if r.received_amount else {}),
+                    "payee": r.payee,
+                    "note": r.comment,
+                    "every": f"{r.every} {r.frequency}" if r.every != 1 else r.frequency,
+                    "start_date": r.start_date.isoformat(),
+                    "end_date": r.end_date.isoformat() if r.end_date else None,
+                    "next_due": r.next_date.isoformat() if r.active else None,
+                    "status": "active" if r.active else "paused or ended",
+                    **({"problem": r.last_error} if r.last_error else {}),
+                }
+                for r in rules
+            ]
+        }
+
+
 # ---- writing ---------------------------------------------------------------------------------------
 
 
@@ -527,6 +560,70 @@ def set_price(
         }
 
 
+@_tool_errors
+def create_recurring(
+    amount: Annotated[Amount, Field(description="How much leaves the 'from' account each time")],
+    from_account: AccountRef,
+    to_account: AccountRef,
+    frequency: Annotated[Literal["daily", "weekly", "monthly", "yearly"], Field(description="The unit between occurrences")] = "monthly",
+    every: Annotated[int, Field(ge=1, le=366, description="Every N units: 2 with weekly is fortnightly")] = 1,
+    start_date: Annotated[date | None, Field(description="First occurrence, YYYY-MM-DD; today when left out. Past dates are recorded right away")] = None,
+    end_date: Annotated[date | None, Field(description="Last possible occurrence; none when left out")] = None,
+    payee: Annotated[str | None, Field(max_length=40)] = None,
+    note: Annotated[str | None, Field(max_length=200)] = None,
+    received_amount: Annotated[Decimal | None, Field(gt=0, description="Only when the accounts hold different things")] = None,
+) -> dict[str, Any]:
+    """Set up a transaction that finode records by itself on a schedule (rent, salary, a subscription).
+    Check list_recurring first so you don't create a duplicate."""
+    with services() as s:
+        index = _index(s)
+        source = index.find(from_account, postable=True)
+        target = index.find(to_account, postable=True)
+        created = s.recurring.create(
+            RecurringCreate(
+                from_account=source.account.aid,
+                to_account=target.account.aid,
+                amount=amount,
+                received_amount=received_amount,
+                payee=payee,
+                comment=note,
+                frequency=frequency,
+                every=every,
+                start_date=start_date or _today(),
+                end_date=end_date,
+            )
+        )
+        s.recurring.process_due()
+        rule = s.recurring.read(created.rid)
+        return {
+            "created": {
+                "id": str(rule.rid),
+                "from": source.path,
+                "to": target.path,
+                "amount": text(rule.amount),
+                "every": f"{rule.every} {rule.frequency}" if rule.every != 1 else rule.frequency,
+                "next_due": rule.next_date.isoformat() if rule.active else None,
+            }
+        }
+
+
+@_tool_errors
+def stop_recurring(
+    recurring_id: Annotated[str, Field(description="The id from list_recurring")],
+) -> dict[str, Any]:
+    """Pause a recurring transaction: nothing more is recorded until the user resumes it in finode.
+    What it already recorded is kept."""
+    with services() as s:
+        try:
+            rid = UUID(recurring_id.strip())
+        except ValueError:
+            raise ToolError(f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!")
+        rule = s.recurring.set_active(rid, False)
+        if rule is None:
+            raise ToolError("no recurring transaction has that id!")
+        return {"paused": str(rule.rid)}
+
+
 def _today() -> date:
     return date.today()
 
@@ -545,7 +642,10 @@ def monthly_review(month: Annotated[str | None, Field(description="YYYY-MM; this
     )
 
 
-READ_TOOLS = [get_overview, list_accounts, get_account, search_transactions, get_transaction, spending_breakdown, get_prices]
+READ_TOOLS = [
+    get_overview, list_accounts, get_account, search_transactions, get_transaction, spending_breakdown, get_prices,
+    list_recurring,
+]
 WRITE_TOOLS = [
     (record_transaction, WRITE),
     (record_split, WRITE),
@@ -553,6 +653,8 @@ WRITE_TOOLS = [
     (delete_transaction, DESTRUCTIVE),
     (create_account, WRITE),
     (set_price, IDEMPOTENT_WRITE),
+    (create_recurring, WRITE),
+    (stop_recurring, IDEMPOTENT_WRITE),
 ]
 
 

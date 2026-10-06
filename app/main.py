@@ -4,7 +4,8 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from .routers import accounts, commodities, data, prices, profile, reports, transactions, web
+from .routers import accounts, commodities, data, prices, profile, recurring, reports, transactions, web
+from . import recurring_runner
 from .caching import cache_headers_middleware
 from .flash import clear_shown_flash_middleware
 from .mcp_server import transport as mcp_transport
@@ -14,7 +15,7 @@ from .web_auth import LoginRequired, login_required_handler, refreshed_cookies_m
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    async with mcp_transport.lifespan():
+    async with mcp_transport.lifespan(), recurring_runner.lifespan():
         yield
 
 
@@ -30,6 +31,7 @@ def protected_resource(request: Request):
 app.include_router(accounts.router)
 app.include_router(commodities.router)
 app.include_router(prices.router)
+app.include_router(recurring.router)
 app.include_router(transactions.router)
 app.include_router(data.router)
 app.include_router(profile.router)

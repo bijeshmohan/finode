@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import ValidationError
 
-from ...dependencies import Accounts, Transactions
+from ...dependencies import Accounts, Recurring, Transactions
 from ...models.transaction import PostingSide
 from ...schemas import AccountRead
 from ...schemas.transaction import (
@@ -99,11 +99,16 @@ def transactions_page(
     request: Request,
     accounts: Accounts,
     transactions: Transactions,
+    recurring: Recurring,
     account: str = "",
     date_from: str = "",
     date_to: str = "",
     page: int = 1,
 ):
+    try:
+        recurring.process_due()  # record what has fallen due; never stop the page from opening
+    except Exception:
+        recurring.repo.db.rollback()
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts)
     page = max(page, 1)
