@@ -1,0 +1,23 @@
+{# What each access level means, in plain words. Used by the token form and the consent page. #}
+{% macro level(kind) %}
+{% if kind == "write" %}
+<strong>Read &amp; write</strong>
+<span class="access-example">Say: “I paid 450 for lunch from HDFC.”</span>
+<ul class="access-list">
+  <li class="yes">Everything in read only</li>
+  <li class="yes">Record, edit and delete transactions</li>
+  <li class="yes">Add accounts and set prices</li>
+  <li class="no">Never edits or deletes accounts</li>
+</ul>
+<span class="hint">Everything it records is marked with its name, so you can review it.</span>
+{% else %}
+<strong>Read only</strong>
+<span class="access-example">Ask: “What did I spend on food in September?”</span>
+<ul class="access-list">
+  <li class="yes">See accounts, balances and transactions</li>
+  <li class="yes">Reports and prices</li>
+  <li class="no">Cannot change anything</li>
+</ul>
+<span class="hint">The safe choice. You can allow changes later.</span>
+{% endif %}
+{% endmacro %}

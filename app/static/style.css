@@ -682,3 +682,27 @@ pre.snippet {
 .notice { background: var(--accent-soft); border-radius: var(--radius-sm); padding: .75rem; }
 fieldset.plain { border: 0; margin: 0; padding: 0; }
 .notice-card { margin-bottom: 1rem; border-color: var(--accent); }
+
+/* Access levels: two cards that spell out what each choice allows */
+.access-choice { display: grid; gap: .75rem; grid-template-columns: 1fr; border: 0; margin: 0; padding: 0; }
+@media (min-width: 640px) { .access-choice { grid-template-columns: 1fr 1fr; } }
+.access-card {
+  display: flex; flex-direction: column; gap: .5rem; padding: .85rem; color: var(--text); font-weight: 400;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+}
+label.access-card { flex-direction: row; align-items: flex-start; cursor: pointer; }
+label.access-card input { margin-top: .25rem; }
+label.access-card > span, .access-card > span { display: flex; flex-direction: column; gap: .4rem; }
+label.access-card:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.access-card button { margin-top: auto; }
+.access-example { font-size: .85rem; color: var(--muted, inherit); font-style: italic; }
+.access-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; font-size: .9rem; }
+.access-list li::before { display: inline-block; width: 1.25rem; font-weight: 600; }
+.access-list .yes::before { content: "✓"; color: var(--accent); }
+.access-list .no::before { content: "✕"; color: var(--muted, inherit); }
+h2.choose { font-size: 1rem; margin: 0; }
+.badge-write { background: var(--accent-soft); color: var(--accent); }
+.row-actions { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: flex-end; }
+.token-list li { flex-wrap: wrap; }
+.copy-row { display: flex; gap: .5rem; align-items: stretch; }
+.copy-row .secret { flex: 1; margin: 0; }

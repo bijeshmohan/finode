@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlmodel import Session
 
-from ..models.api_token import ApiToken
+from ..models.api_token import ApiToken, TokenScope
 from ..models.utils import utc_now
 from ..repositories.api_token import ApiTokenRepository
 from ..schemas.api_token import ApiTokenCreate, ApiTokenCreated, ApiTokenRead
@@ -65,6 +65,15 @@ class ApiTokenService:
 
     def revoke(self, tkid: UUID) -> ApiTokenRead:
         token = self.repo.revoke(tkid, utc_now())
+        if token is None:
+            raise LookupError("token not found")
+        self.repo.db.commit()
+        return self._to_read(token)
+
+    def set_scope(self, tkid: UUID, scope: str) -> ApiTokenRead:
+        if scope not in TokenScope.ALL:
+            raise ValueError("access must be 'read' or 'write'!")
+        token = self.repo.set_scope(tkid, scope)
         if token is None:
             raise LookupError("token not found")
         self.repo.db.commit()

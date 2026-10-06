@@ -142,6 +142,7 @@ def assistants_page(request: Request, tokens: ApiTokens, grants: OAuthGrants):
 def create_token(
     request: Request,
     tokens: ApiTokens,
+    grants: OAuthGrants,
     name: Annotated[str, Form()] = "",
     scope: Annotated[str, Form()] = "read",
 ):
@@ -158,9 +159,21 @@ def create_token(
         {
             "created": created,
             "tokens": [t for t in tokens.list() if t.revoked is None],
+            "apps": grants.list(),
             "mcp_url": mcp_url(request),
         },
     )
+
+
+@router.post("/assistants/{tkid}/access")
+def change_token_access(tkid: UUID, tokens: ApiTokens, scope: Annotated[str, Form()] = ""):
+    try:
+        tokens.set_scope(tkid, scope)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="token not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return htmx_redirect("/app/profile/assistants", flash="access-changed")
 
 
 @router.post("/assistants/{tkid}/revoke")

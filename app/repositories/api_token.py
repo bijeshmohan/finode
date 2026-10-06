@@ -32,6 +32,15 @@ class ApiTokenRepository:
             self.db.flush()
         return token
 
+    def set_scope(self, tkid: UUID, scope: str) -> ApiToken | None:
+        token = self.read(tkid)
+        if token and token.revoked is None:
+            token.scope = scope
+            self.db.add(token)
+            self.db.flush()
+            return token
+        return None
+
     @staticmethod
     def by_hash(db: Session, token_hash: str) -> ApiToken | None:
         """Any user's token: used to find out who is calling, before there is a user."""

@@ -278,3 +278,16 @@ document.addEventListener("click", (event) => {
 });
 
 applyTheme(document.documentElement.getAttribute("data-theme"));
+
+// Copy buttons: data-copy names the element whose text is copied.
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-copy]");
+  if (!button) return;
+  const source = document.querySelector(button.dataset.copy);
+  if (!source || !navigator.clipboard) return;
+  navigator.clipboard.writeText(source.textContent.trim()).then(() => {
+    const label = button.textContent;
+    button.textContent = "Copied";
+    setTimeout(() => { button.textContent = label; }, 1500);
+  });
+});

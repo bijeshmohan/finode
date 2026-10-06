@@ -4,4 +4,4 @@
   <code class="secret" id="token-secret">{{ created.secret }}</code>
   {% with secret = created.secret %}{% include "partials/mcp_setup.html" %}{% endwith %}
 </section>
-{% with oob = true %}{% include "partials/token_list.html" %}{% endwith %}
+{% with oob = true %}{% include "partials/connections.html" %}{% endwith %}

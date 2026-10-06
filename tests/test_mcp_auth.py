@@ -9,6 +9,7 @@ from app.config import settings
 from app.mcp_server import transport
 from app.main import app
 from app.models.api_token import ApiToken
+from app.models.transaction import Transaction
 from app.repositories.api_token import ApiTokenRepository
 from app.schemas.api_token import ApiTokenCreate
 from app.services.api_token import ApiTokenService, hash_secret
@@ -65,15 +66,27 @@ async def test_a_read_write_token_is_told_it_can_write(session):
         assert "record_transaction" in c.instructions and "read-only" not in c.instructions
 
 
-async def test_a_read_only_token_cannot_see_or_call_write_tools(session, root_accounts):
+async def test_a_read_only_token_can_see_but_not_use_write_tools(session, root_accounts):
     secret = make_token(session, TEST_USER_ID, scope="read")
     async with running_app(session), mcp_client(secret) as c:
         names = {t.name for t in (await c.list_tools()).tools}
         assert "get_overview" in names and "list_accounts" in names
-        assert not names & {"record_transaction", "record_split", "update_transaction", "delete_transaction", "create_account", "set_price"}
-        with pytest.raises(ToolFailed):
-            payload(await c.call_tool("record_transaction", {"amount": "1", "from_account": "a", "to_account": "b"}))
-        assert "read-only" in c.instructions
+        writers = {"record_transaction", "record_split", "update_transaction", "delete_transaction", "create_account", "set_price"}
+        assert writers <= names, "listed so the assistant can explain, but they only refuse"
+        calls = {
+            "record_transaction": {"amount": "1", "from_account": "a", "to_account": "b"},
+            "record_split": {"postings": [{"account": "a", "side": "debit", "amount": "1"}, {"account": "b", "side": "credit", "amount": "1"}]},
+            "update_transaction": {"transaction_id": "00000000-0000-4000-8000-000000000001"},
+            "delete_transaction": {"transaction_id": "00000000-0000-4000-8000-000000000001"},
+            "create_account": {"name": "X", "parent": "Assets"},
+            "set_price": {"commodity": "BTC", "price": "1"},
+        }
+        assert set(calls) == writers
+        for tool, arguments in calls.items():
+            with pytest.raises(ToolFailed, match="read-only.*Profile > AI assistants"):
+                payload(await c.call_tool(tool, arguments))
+        assert "read-only" in c.instructions and "Profile > AI assistants" in c.instructions
+        assert not session.exec(Transaction.__table__.select()).all(), "nothing was written"
 
 
 async def test_each_token_sees_only_its_own_users_books(session, client, root_accounts):

@@ -1,0 +1,46 @@
+<div id="token-list" {{ 'hx-swap-oob="true"'|safe if oob }}>
+  {% if apps or tokens %}
+  <ul class="token-list">
+    {% for g in apps %}
+    <li>
+      <span>
+        <span class="token-name">{{ g.client_name }}</span>
+        <span class="badge {{ 'badge-write' if g.scope == 'write' }}">{{ "read & write" if g.scope == "write" else "read only" }}</span>
+        <span class="muted block">Signed in · connected {{ g.created.date()|friendly_date }} · {% if g.last_used %}last used {{ g.last_used.date()|friendly_date }}{% else %}never used{% endif %}</span>
+      </span>
+      <span class="row-actions">
+        {% if g.scope == "write" %}
+        <button type="button" class="secondary small" hx-post="/app/oauth/apps/{{ g.gid }}/access" hx-vals='{"scope": "read"}'>Make read only</button>
+        {% else %}
+        <button type="button" class="secondary small" hx-post="/app/oauth/apps/{{ g.gid }}/access" hx-vals='{"scope": "write"}'
+                hx-confirm="Let {{ g.client_name }} record, edit and delete transactions?">Allow changes</button>
+        {% endif %}
+        <button type="button" class="secondary small" hx-post="/app/oauth/apps/{{ g.gid }}/disconnect"
+                hx-confirm="Disconnect {{ g.client_name }}? It stops working at once.">Disconnect</button>
+      </span>
+    </li>
+    {% endfor %}
+    {% for t in tokens %}
+    <li>
+      <span>
+        <span class="token-name">{{ t.name }}</span>
+        <span class="badge {{ 'badge-write' if t.scope == 'write' }}">{{ "read & write" if t.scope == "write" else "read only" }}</span>
+        <span class="muted block">Token {{ t.prefix }}… · created {{ t.created.date()|friendly_date }} · {% if t.last_used %}last used {{ t.last_used.date()|friendly_date }}{% else %}never used{% endif %}</span>
+      </span>
+      <span class="row-actions">
+        {% if t.scope == "write" %}
+        <button type="button" class="secondary small" hx-post="/app/profile/assistants/{{ t.tkid }}/access" hx-vals='{"scope": "read"}'>Make read only</button>
+        {% else %}
+        <button type="button" class="secondary small" hx-post="/app/profile/assistants/{{ t.tkid }}/access" hx-vals='{"scope": "write"}'
+                hx-confirm="Let assistants using '{{ t.name }}' record, edit and delete transactions?">Allow changes</button>
+        {% endif %}
+        <button type="button" class="secondary small" hx-post="/app/profile/assistants/{{ t.tkid }}/revoke"
+                hx-confirm="Revoke '{{ t.name }}'? Assistants using it stop working at once.">Revoke</button>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing connected yet.</p>
+  {% endif %}
+</div>

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/access.html" import level %}
 {% block title %}Connect an app · finode{% endblock %}
 {% block content %}
 {% if problem %}
@@ -8,22 +9,23 @@
 <p class="error" role="alert">{{ problem }}</p>
 {% else %}
 <h1>Connect {{ details.client_name }}?</h1>
-<form class="card stack form-narrow" method="post" action="/app/oauth/consent">
+<form class="card stack" method="post" action="/app/oauth/consent">
   <input type="hidden" name="authorization_id" value="{{ details.authorization_id }}">
   <p><strong>{{ details.client_name }}</strong> wants to work with your finode books on your behalf.{% if details.client_uri %} <span class="muted">({{ details.client_uri }})</span>{% endif %}</p>
   {% if details.redirect_uri %}<p class="muted">After you decide, you'll be sent back to <code>{{ details.redirect_uri }}</code>.</p>{% endif %}
-  <fieldset class="stack plain">
-    <legend>What may it do?</legend>
-    <label class="choice"><input type="radio" name="access" value="read" checked>
-      <span>Read only<span class="hint">See balances, accounts and transactions. Can't change anything.</span></span></label>
-    <label class="choice"><input type="radio" name="access" value="write">
-      <span>Read &amp; write<span class="hint">Also record, edit and delete transactions, add accounts and set prices. Can't delete accounts. Everything it adds is marked with its name.</span></span></label>
-  </fieldset>
-  <p class="muted">You can disconnect it at any time under Profile › AI assistants. Only connect apps you trust.</p>
-  <div class="actions">
-    <button type="submit" name="action" value="allow">Allow</button>
-    <button type="submit" name="action" value="deny" class="secondary">Deny</button>
+  <h2 class="choose">What should it be allowed to do?</h2>
+  <div class="access-choice">
+    <div class="access-card">
+      <span>{{ level("read") }}</span>
+      <button type="submit" name="action" value="allow-read">Allow read only</button>
+    </div>
+    <div class="access-card">
+      <span>{{ level("write") }}</span>
+      <button type="submit" name="action" value="allow-write">Allow read &amp; write</button>
+    </div>
   </div>
+  <p class="muted">You can change this or disconnect the app any time under Profile › AI assistants. Only connect apps you trust.</p>
+  <div class="actions"><button type="submit" name="action" value="deny" class="secondary">Deny</button></div>
 </form>
 {% endif %}
 {% endblock %}
