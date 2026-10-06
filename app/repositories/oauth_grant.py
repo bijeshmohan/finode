@@ -42,6 +42,15 @@ class OAuthGrantRepository:
             self.db.flush()
         return grant
 
+    def set_scope(self, gid: UUID, scope: str) -> OAuthGrant | None:
+        grant = self.read(gid)
+        if grant and grant.revoked is None:
+            grant.scope = scope
+            self.db.add(grant)
+            self.db.flush()
+            return grant
+        return None
+
     @staticmethod
     def for_token(db: Session, user: UUID, client_id: str) -> OAuthGrant | None:
         """Find a grant from a verified token's claims, before there is a repository for the user."""

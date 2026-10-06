@@ -1,61 +1,45 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/access.html" import level %}
 {% block title %}AI assistants · finode{% endblock %}
 {% block content %}
 <a class="back" href="/app/profile">{{ icon("back") }}Profile</a>
 <h1>AI assistants</h1>
-<p class="muted form-narrow">Connect Claude, Cursor or another assistant that speaks MCP to your books. It can answer questions about your money and, if you allow it, record transactions for you. Everything it adds or changes is marked with the token's name.</p>
+<p class="muted form-narrow">Let Claude or another assistant that speaks MCP work with your books. Each connection is either <strong>read only</strong> (it answers questions) or <strong>read &amp; write</strong> (it can also record transactions). You can change that at any time.</p>
 
-<div id="new-token" class="form-narrow"></div>
-
-<section id="apps" class="card stack form-narrow">
-  <h2>Connected apps</h2>
-  <p class="muted">Apps you connected by signing in, such as Claude on the web or your phone. To add one, add <code>{{ mcp_url }}</code> as a custom connector in the app's settings, then choose what it may do on the finode page it opens.</p>
-  {% if apps %}
-  <ul class="token-list">
-    {% for g in apps %}
-    <li>
-      <span>
-        <span class="token-name">{{ g.client_name }}</span> <span class="badge">{{ "read & write" if g.scope == "write" else "read only" }}</span>
-        <span class="muted block">connected {{ g.created.date()|friendly_date }} · {% if g.last_used %}last used {{ g.last_used.date()|friendly_date }}{% else %}never used{% endif %}</span>
-      </span>
-      <button type="button" class="secondary small" hx-post="/app/oauth/apps/{{ g.gid }}/disconnect"
-              hx-confirm="Disconnect {{ g.client_name }}? It stops working at once.">Disconnect</button>
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p class="muted">None yet.</p>
-  {% endif %}
+<section class="card stack form-narrow">
+  <h2>Connected</h2>
+  {% include "partials/connections.html" %}
 </section>
 
 <section class="card stack form-narrow">
-  <h2>Create a token</h2>
-  <p class="muted">For tools that take a token instead, like Claude Code, Claude Desktop and Cursor.</p>
+  <h2>Connect by signing in</h2>
+  <p class="muted">For Claude on the web, Claude on your phone and other apps with a connector option. Add this address as a custom connector, then you'll choose the access level on a finode page.</p>
+  <div class="copy-row"><code class="secret" id="mcp-address">{{ mcp_url }}</code>
+    <button type="button" class="secondary small" data-copy="#mcp-address">Copy</button></div>
+</section>
+
+<section class="card stack form-narrow">
+  <h2>Connect with a token</h2>
+  <p class="muted">For tools that take a token, such as Claude Code, Claude Desktop and Cursor.</p>
   <form class="stack" hx-post="/app/profile/assistants" hx-target="#new-token" hx-swap="innerHTML">
     <label>Name
       <input type="text" name="name" maxlength="40" required autocomplete="off" placeholder="e.g. Claude Desktop">
       <span class="hint">Where you'll use it. It shows up next to everything the assistant records.</span>
     </label>
-    <fieldset class="stack plain">
-      <legend class="sr-only">Access</legend>
-      <label class="choice"><input type="radio" name="scope" value="read" checked>
-        <span>Read only<span class="hint">Answer questions. Can't change anything.</span></span></label>
-      <label class="choice"><input type="radio" name="scope" value="write">
-        <span>Read &amp; write<span class="hint">Also record, edit and delete transactions, add accounts and set prices. Can't delete accounts.</span></span></label>
+    <fieldset class="access-choice plain">
+      <legend>Access</legend>
+      <label class="access-card"><input type="radio" name="scope" value="read" checked><span>{{ level("read") }}</span></label>
+      <label class="access-card"><input type="radio" name="scope" value="write"><span>{{ level("write") }}</span></label>
     </fieldset>
     <p id="token-error" class="error" role="alert"></p>
     <div class="actions"><button type="submit">{{ icon("key") }}Create token</button></div>
   </form>
-</section>
-
-<section class="card stack form-narrow">
-  <h2>Your tokens</h2>
-  {% include "partials/token_list.html" %}
+  <div id="new-token"></div>
 </section>
 
 <details class="card stack form-narrow">
-  <summary>How to connect</summary>
+  <summary>Setup instructions for tokens</summary>
   {% with secret = none %}{% include "partials/mcp_setup.html" %}{% endwith %}
 </details>
 {% endblock %}

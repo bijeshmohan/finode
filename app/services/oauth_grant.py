@@ -34,6 +34,15 @@ class OAuthGrantService:
         self.repo.db.commit()
         return grant
 
+    def set_scope(self, gid: UUID, scope: str) -> OAuthGrant:
+        if scope not in TokenScope.ALL:
+            raise ValueError("access must be 'read' or 'write'!")
+        grant = self.repo.set_scope(gid, scope)
+        if grant is None:
+            raise LookupError("app not found")
+        self.repo.db.commit()
+        return grant
+
     @staticmethod
     def authenticate(db: Session, user: UUID, client_id: str) -> TokenOwner | None:
         """Who a verified OAuth token acts as and what it may do; None if the user never allowed that app,

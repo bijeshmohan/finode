@@ -51,7 +51,10 @@ def decide(
     access: Annotated[str, Form()] = "read",
 ):
     token = request.state.access_token
-    approve = action == "allow"
+    # The buttons carry the choice ("allow-read", "allow-write"); a bare "allow" uses the access field.
+    if action in ("allow-read", "allow-write"):
+        access = action.removeprefix("allow-")
+    approve = action in ("allow", "allow-read", "allow-write")
     try:
         if approve:
             # The app is whatever Supabase says it is for this request, not what the form claims.
@@ -63,6 +66,17 @@ def decide(
     if not oauth.is_web_url(redirect):
         return _problem(request, "The app asked to be opened in a way finode does not allow.")
     return RedirectResponse(redirect, status_code=303)
+
+
+@router.post("/apps/{gid}/access")
+def change_access(gid: UUID, grants: OAuthGrants, scope: Annotated[str, Form()] = ""):
+    try:
+        grants.set_scope(gid, scope)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="app not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return htmx_redirect("/app/profile/assistants", flash="access-changed")
 
 
 @router.post("/apps/{gid}/disconnect")

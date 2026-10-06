@@ -15,7 +15,7 @@ def test_page_shows_setup_with_this_servers_address(client):
     assert page.status_code == 200
     assert "<title>AI assistants · finode</title>" in page.text
     assert "http://testserver/mcp" in page.text and "YOUR_TOKEN" in page.text
-    assert "No tokens yet." in page.text
+    assert "Nothing connected yet." in page.text
 
 
 def test_creating_a_token_shows_it_once_and_lists_it(client):
@@ -91,3 +91,43 @@ def test_breakdown_is_also_in_the_json_api(client, root_accounts):
     assert report["lines"] == [{"account": "Food", "amount": "70.00"}]
     assert client.get("/reports/breakdown", params={"depth": 0}).status_code == 400
     assert client.get("/reports/breakdown", params={"root": "Assets"}).status_code == 422
+
+
+def test_page_explains_both_access_levels_on_the_token_form(client):
+    page = client.get("/app/profile/assistants").text
+    assert 'name="scope" value="read" checked' in page and 'name="scope" value="write"' in page
+    assert "Never edits or deletes accounts" in page and "Cannot change anything" in page
+    assert 'data-copy="#mcp-address"' in page
+
+
+def test_a_tokens_access_can_be_changed_without_a_new_token(client, session):
+    secret = make_token(session, TEST_USER_ID, name="Laptop", scope="read")
+    import re
+
+    page = client.get("/app/profile/assistants").text
+    tkid = re.search(r"/app/profile/assistants/([0-9a-f-]+)/access", page).group(1)
+    assert "Allow changes" in page
+    response = client.post(f"/app/profile/assistants/{tkid}/access", data={"scope": "write"})
+    assert response.headers["HX-Redirect"] == "/app/profile/assistants" and "access-changed" in response.headers["set-cookie"]
+    page = client.get("/app/profile/assistants").text
+    assert "Make read only" in page and "Allow changes" not in page
+    from app.services.api_token import ApiTokenService
+
+    assert ApiTokenService.authenticate(session, secret).scope == "write", "the same secret now writes"
+    assert client.post(f"/app/profile/assistants/{tkid}/access", data={"scope": "root"}).status_code == 400
+    assert client.post("/app/profile/assistants/00000000-0000-4000-8000-0000000000aa/access", data={"scope": "read"}).status_code == 404
+
+
+def test_connected_apps_and_tokens_share_one_list_and_apps_can_change_access(client, session):
+    from app.repositories.oauth_grant import OAuthGrantRepository
+    from app.services.oauth_grant import OAuthGrantService
+
+    make_token(session, TEST_USER_ID, name="Laptop")
+    grant = OAuthGrantService(OAuthGrantRepository(session, TEST_USER_ID)).allow("c1", "Claude", "read")
+    page = client.get("/app/profile/assistants").text
+    assert "Claude" in page and "Laptop" in page and "Signed in" in page
+    assert client.post(f"/app/oauth/apps/{grant.gid}/access", data={"scope": "write"}).headers["HX-Redirect"]
+    session.refresh(grant)
+    assert grant.scope == "write"
+    assert client.post(f"/app/oauth/apps/{grant.gid}/access", data={"scope": "x"}).status_code == 400
+    assert client.post("/app/oauth/apps/00000000-0000-4000-8000-0000000000aa/access", data={"scope": "read"}).status_code == 404

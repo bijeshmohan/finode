@@ -556,17 +556,38 @@ WRITE_TOOLS = [
 ]
 
 
+READ_ONLY_MESSAGE = (
+    "This connection is read-only, so nothing was changed. The user can allow changes in finode under "
+    "Profile > AI assistants (Change access), and then you can try again."
+)
+READ_ONLY_NOTE = (
+    "\nThis connection is read-only: the tools that change things are listed but always refuse. If the user asks "
+    "for a change, say so and tell them to allow read & write access in finode under Profile > AI assistants.\n"
+)
+
+
+def _refused(fn: Callable) -> Callable:
+    """The same tool for a read-only connection: it keeps its name and arguments but only explains."""
+
+    @wraps(fn)
+    def refuse(*args, **kwargs):
+        raise ToolError(READ_ONLY_MESSAGE)
+
+    summary = (fn.__doc__ or fn.__name__).strip().splitlines()[0]
+    refuse.__doc__ = f"Unavailable: this connection is read-only. (Would otherwise: {summary})"
+    return refuse
+
+
 def build_server(write: bool) -> MCPServer:
     server = MCPServer(
         name="finode",
         title="finode",
-        instructions=INSTRUCTIONS if write else INSTRUCTIONS + "\nThis connection is read-only: you cannot change anything.\n",
+        instructions=INSTRUCTIONS if write else INSTRUCTIONS + READ_ONLY_NOTE,
         website_url="https://finode.bijesh.me",
     )
     for fn in READ_TOOLS:
         server.add_tool(fn, annotations=READ)
-    if write:
-        for fn, annotations in WRITE_TOOLS:
-            server.add_tool(fn, annotations=annotations)
+    for fn, annotations in WRITE_TOOLS:
+        server.add_tool(fn if write else _refused(fn), annotations=annotations)
     server.prompt()(monthly_review)
     return server
