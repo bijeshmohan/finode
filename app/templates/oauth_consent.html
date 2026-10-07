@@ -4,12 +4,12 @@
 {% block title %}Connect an app · finode{% endblock %}
 {% block content %}
 {% if problem %}
-<a class="back" href="/app/profile/assistants">{{ icon("back") }}AI assistants</a>
+<a class="back" href="/profile/assistants">{{ icon("back") }}AI assistants</a>
 <h1>Can't connect</h1>
 <p class="error" role="alert">{{ problem }}</p>
 {% else %}
 <h1>Connect {{ details.client_name }}?</h1>
-<form class="card stack" method="post" action="/app/oauth/consent">
+<form class="card stack" method="post" action="/oauth/consent">
   <input type="hidden" name="authorization_id" value="{{ details.authorization_id }}">
   <p><strong>{{ details.client_name }}</strong> wants to work with your finode books on your behalf.{% if details.client_uri %} <span class="muted">({{ details.client_uri }})</span>{% endif %}</p>
   {% if details.redirect_uri %}<p class="muted">After you decide, you'll be sent back to <code>{{ details.redirect_uri }}</code>.</p>{% endif %}

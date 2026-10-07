@@ -144,8 +144,8 @@ def transactions_page(
             "active_filters": len(query),
             "roots": build_tree(all_accounts),
             "page": page,
-            "prev_url": f"/app/transactions?{urlencode({**query, 'page': page - 1})}" if page > 1 else None,
-            "next_url": f"/app/transactions?{urlencode({**query, 'page': page + 1})}" if has_next else None,
+            "prev_url": f"/transactions?{urlencode({**query, 'page': page - 1})}" if page > 1 else None,
+            "next_url": f"/transactions?{urlencode({**query, 'page': page + 1})}" if has_next else None,
         },
     )
 
@@ -159,9 +159,13 @@ def delete_transaction(tid: UUID, transactions: Transactions, back: str = ""):
     return htmx_redirect(safe_back(back), flash="transaction-deleted")
 
 
-def safe_back(value: str | None, default: str = "/app/transactions") -> str:
+# Paths that are not pages of the web app.
+NOT_PAGES = ("/api", "/mcp", "/static", "/.well-known", "/docs", "/openapi.json", "/app")
+
+
+def safe_back(value: str | None, default: str = "/transactions") -> str:
     """Only follow return paths inside the app (never another host)."""
-    if value and value.startswith("/app/") and not value.startswith("//") and "\\" not in value:
+    if value and value.startswith("/") and not value.startswith("//") and "\\" not in value and not value.startswith(NOT_PAGES):
         return value
     return default
 
@@ -243,7 +247,7 @@ def _after_save(back: str, another: str, mode: str) -> str:
         params = {"back": back} if back else {}
         if mode == "split":
             params["mode"] = "split"
-        return "/app/transactions/new" + (f"?{urlencode(params)}" if params else "")
+        return "/transactions/new" + (f"?{urlencode(params)}" if params else "")
     return safe_back(back)
 
 

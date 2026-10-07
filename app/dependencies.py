@@ -119,7 +119,7 @@ def get_transaction_service(
     ar: AccountRepository = Depends(get_account_repository),
     cr: CommodityRepository = Depends(get_commodity_repository),
 ) -> TransactionService:
-    origin = "web" if request.url.path.startswith("/app") else "api"
+    origin = "api" if request.url.path.startswith("/api/") else "web"
     return TransactionService(tr, ar, cr, origin=origin)
 
 

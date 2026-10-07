@@ -8,7 +8,7 @@
       {% for row in items %}
       {% set t = row.transaction %}
       <li>
-        <a class="tx" href="/app/transactions/{{ t.tid }}/edit">
+        <a class="tx" href="/transactions/{{ t.tid }}/edit">
           <span class="tx-main">
             <span class="tx-title">{{ t.payee or "No payee" }}</span>
             <span class="tx-sub">{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% if t.comment %} · {{ t.comment }}{% endif %}</span>

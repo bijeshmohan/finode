@@ -241,7 +241,7 @@ def create_account(
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/app/accounts/{created.aid}", flash="account-created")
+    return htmx_redirect(f"/accounts/{created.aid}", flash="account-created")
 
 
 @router.get("/{aid}")
@@ -281,7 +281,7 @@ def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Prof
 
 @router.get("/{aid}/register")
 def account_register(aid: UUID):
-    return RedirectResponse(f"/app/accounts/{aid}", status_code=301)
+    return RedirectResponse(f"/accounts/{aid}", status_code=301)
 
 
 @router.get("/{aid}/edit")
@@ -347,7 +347,7 @@ def update_account(
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/app/accounts/{aid}", flash="account-updated")
+    return htmx_redirect(f"/accounts/{aid}", flash="account-updated")
 
 
 @router.post("/{aid}/delete")
@@ -356,4 +356,4 @@ def delete_account(aid: UUID, accounts: Accounts):
         accounts.delete(aid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect("/app/accounts", flash="account-deleted")
+    return htmx_redirect("/accounts", flash="account-deleted")

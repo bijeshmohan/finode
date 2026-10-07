@@ -70,7 +70,7 @@ def update_profile(
         profiles.update(ProfileUpdate(first_name=first_name, last_name=last_name))
     except ValidationError as e:
         return htmx_error(validation_message(e), "#form-error")
-    return htmx_redirect("/app/profile", flash="profile-updated")
+    return htmx_redirect("/profile", flash="profile-updated")
 
 
 @router.post("/currency")
@@ -80,7 +80,7 @@ def update_currency(profiles: Profiles, currency: Annotated[str, Form()] = ""):
     except (ValidationError, ValueError) as e:
         message = validation_message(e) if isinstance(e, ValidationError) else str(e)
         return htmx_error(message, "#currency-error")
-    return htmx_redirect("/app/profile#currency", flash="currency-updated")
+    return htmx_redirect("/profile#currency", flash="currency-updated")
 
 
 @router.post("/depth")
@@ -116,7 +116,7 @@ def update_depth(
     except (ValidationError, ValueError) as e:
         message = validation_message(e) if isinstance(e, ValidationError) else str(e)
         return htmx_error(message, "#depth-error")
-    return htmx_redirect("/app/profile#depth", flash="depth-updated")
+    return htmx_redirect("/profile#depth", flash="depth-updated")
 
 
 def mcp_url(request: Request) -> str:
@@ -173,7 +173,7 @@ def change_token_access(tkid: UUID, tokens: ApiTokens, scope: Annotated[str, For
         raise HTTPException(status_code=404, detail="token not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return htmx_redirect("/app/profile/assistants", flash="access-changed")
+    return htmx_redirect("/profile/assistants", flash="access-changed")
 
 
 @router.post("/assistants/{tkid}/revoke")
@@ -182,4 +182,4 @@ def revoke_token(tkid: UUID, tokens: ApiTokens):
         tokens.revoke(tkid)
     except LookupError:
         raise HTTPException(status_code=404, detail="token not found")
-    return htmx_redirect("/app/profile/assistants", flash="token-revoked")
+    return htmx_redirect("/profile/assistants", flash="token-revoked")

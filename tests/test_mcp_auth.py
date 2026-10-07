@@ -90,7 +90,7 @@ async def test_a_read_only_token_can_see_but_not_use_write_tools(session, root_a
 
 
 async def test_each_token_sees_only_its_own_users_books(session, client, root_accounts):
-    client.post("/accounts/", json={"name": "Mine", "parent_id": root_accounts["Assets"], "balance": "500"})
+    client.post("/api/accounts/", json={"name": "Mine", "parent_id": root_accounts["Assets"], "balance": "500"})
     theirs = make_token(session, OTHER_USER, name="Theirs")
     async with running_app(session), mcp_client(theirs) as c:
         accounts = payload(await c.call_tool("list_accounts", {}))["accounts"]
@@ -164,4 +164,4 @@ def test_tokens_do_not_work_on_the_json_api(session, client):
 
     app.dependency_overrides.pop(require_authenticated_user, None)  # restored by the client fixture's teardown
     with TestClient(app) as plain:
-        assert plain.get("/accounts/", headers={"Authorization": f"Bearer {secret}"}).status_code == 401
+        assert plain.get("/api/accounts/", headers={"Authorization": f"Bearer {secret}"}).status_code == 401

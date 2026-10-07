@@ -12,7 +12,7 @@ async def cache_headers_middleware(request: Request, call_next):
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         else:
             response.headers["Cache-Control"] = "no-cache"
-    elif path.startswith("/app") and response.headers.get("content-type", "").startswith("text/html"):
+    elif response.headers.get("content-type", "").startswith("text/html"):
         # Pages show live balances; always revalidate and never share between users.
         response.headers["Cache-Control"] = "private, no-cache"
     return response

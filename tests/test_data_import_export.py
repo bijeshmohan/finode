@@ -26,11 +26,11 @@ account Assets:Bank:HDFC
 
 
 def _import(client: TestClient, text: str, **params):
-    return client.post("/import", files={"file": ("a.ledger", text.encode())}, params=params)
+    return client.post("/api/import", files={"file": ("a.ledger", text.encode())}, params=params)
 
 
 def _balances(client: TestClient) -> dict[str, str]:
-    return {a["name"]: a["balance"] for a in client.get("/accounts/").json()}
+    return {a["name"]: a["balance"] for a in client.get("/api/accounts/").json()}
 
 
 def test_dry_run_reports_without_saving(client: TestClient):
@@ -40,7 +40,7 @@ def test_dry_run_reports_without_saving(client: TestClient):
     assert body["errors"] == [] and body["transactions"] == 3
     assert body["date_from"] == "2026-09-01" and body["date_to"] == "2026-09-30"
     assert "Assets:Bank:HDFC" in body["new_accounts"]
-    assert client.get("/transactions/").json() == []
+    assert client.get("/api/transactions/").json() == []
 
 
 def test_import_creates_accounts_and_transactions(client: TestClient):
@@ -50,9 +50,9 @@ def test_import_creates_accounts_and_transactions(client: TestClient):
     assert balances["HDFC"] == "13749.50"
     assert balances["Food"] == "1250.50"
     assert balances["Salary"] == "5000.00"
-    accounts = {a["name"]: a for a in client.get("/accounts/").json()}
+    accounts = {a["name"]: a for a in client.get("/api/accounts/").json()}
     assert accounts["HDFC"]["details"] == "Salary account"
-    transactions = client.get("/transactions/").json()
+    transactions = client.get("/api/transactions/").json()
     assert len(transactions) == 3
     assert any(t["comment"] == "weekly groceries" and t["payee"] == "DMart" for t in transactions)
 
@@ -60,12 +60,12 @@ def test_import_creates_accounts_and_transactions(client: TestClient):
 def test_import_maps_top_level_aliases_and_opening_balances(client: TestClient):
     text = "2026-01-01 x\n    asset:Cash  50\n    equity:opening balances\n"
     assert _import(client, text).status_code == 200
-    equity = next(a for a in client.get("/accounts/").json() if a["name"] == "Opening Balances")
+    equity = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Opening Balances")
     assert equity["balance"] == "50.00"
 
 
 def test_import_rejected_when_transactions_exist(client: TestClient, account, expense_account):
-    client.post("/transactions/", json={"postings": [
+    client.post("/api/transactions/", json={"postings": [
         {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
         {"account": account["aid"], "side": "credit", "amount": "1.00"},
     ]})
@@ -79,8 +79,8 @@ def test_failed_import_saves_nothing(client: TestClient):
     response = _import(client, bad)
     assert response.status_code == 400
     assert any("does not balance" in e for e in response.json()["detail"]["errors"])
-    assert client.get("/transactions/").json() == []
-    assert not [a for a in client.get("/accounts/").json() if a["parent_id"] and a["name"] == "HDFC"]
+    assert client.get("/api/transactions/").json() == []
+    assert not [a for a in client.get("/api/accounts/").json() if a["parent_id"] and a["name"] == "HDFC"]
 
 
 def test_unknown_top_level_account_rejected(client: TestClient):
@@ -102,21 +102,21 @@ def test_long_payee_moves_to_note_and_zero_postings_skipped(client: TestClient):
     body = _import(client, text, dry_run="true").json()
     assert body["errors"] == [] and body["transactions"] == 1 and body["skipped_empty"] == 1
     assert _import(client, text).status_code == 200
-    [t] = client.get("/transactions/").json()
+    [t] = client.get("/api/transactions/").json()
     assert t["payee"] == "P" * 40 and t["comment"] == payee
 
 
 def test_empty_and_oversized_and_binary_files(client: TestClient):
     assert _import(client, "; nothing here\n", dry_run="true").json()["errors"] == ["The file has no transactions to import."]
-    big = client.post("/import", files={"file": ("a", b"x" * (5 * 1024 * 1024 + 1))})
+    big = client.post("/api/import", files={"file": ("a", b"x" * (5 * 1024 * 1024 + 1))})
     assert big.status_code == 400 and "5 MB" in big.json()["detail"]
-    bad = client.post("/import", files={"file": ("a", b"\xff\xfe\x00")})
+    bad = client.post("/api/import", files={"file": ("a", b"\xff\xfe\x00")})
     assert bad.status_code == 400 and "UTF-8" in bad.json()["detail"]
 
 
 def test_export_formats_and_headers(client: TestClient):
     _import(client, JOURNAL)
-    response = client.get("/export")
+    response = client.get("/api/export")
     assert response.status_code == 200
     assert response.headers["content-disposition"].startswith('attachment; filename="finode-')
     assert response.headers["content-disposition"].endswith('.ledger"')
@@ -125,36 +125,36 @@ def test_export_formats_and_headers(client: TestClient):
     assert "2026-09-03 DMart\n    ; weekly groceries\n" in text
     assert "Expenses:Food" in text and "-1250.50" in text
 
-    csv_response = client.get("/export", params={"format": "csv"})
+    csv_response = client.get("/api/export", params={"format": "csv"})
     assert csv_response.headers["content-disposition"].endswith('.csv"')
     lines = csv_response.content.decode("utf-8-sig").splitlines()
     assert lines[0] == "date,payee,note,account,debit,credit"
     assert "2026-09-03,DMart,weekly groceries,Expenses:Food,1250.50," in lines
-    assert client.get("/export", params={"format": "xml"}).status_code == 422
+    assert client.get("/api/export", params={"format": "xml"}).status_code == 422
 
 
 def test_csv_neutralises_spreadsheet_formulas(client: TestClient):
     _import(client, "2026-01-01 =HYPERLINK(1)\n    Expenses:A  5\n    Assets:B\n")
-    lines = client.get("/export", params={"format": "csv"}).text.splitlines()
+    lines = client.get("/api/export", params={"format": "csv"}).text.splitlines()
     assert any(line.startswith("2026-01-01,'=HYPERLINK(1),") for line in lines)
 
 
 def test_export_sanitises_colons_and_spaces_in_names(client: TestClient, root_accounts):
-    client.post("/accounts/", json={"name": "Rent  Flat", "parent_id": root_accounts["Expenses"]})
-    text = client.get("/export").text
+    client.post("/api/accounts/", json={"name": "Rent  Flat", "parent_id": root_accounts["Expenses"]})
+    text = client.get("/api/export").text
     assert "account Expenses:Rent Flat" in text
 
 
 def test_colon_in_account_name_rejected(client: TestClient, root_accounts):
-    response = client.post("/accounts/", json={"name": "a:b", "parent_id": root_accounts["Assets"]})
+    response = client.post("/api/accounts/", json={"name": "a:b", "parent_id": root_accounts["Assets"]})
     assert response.status_code == 422
 
 
 def test_export_then_import_round_trips_for_another_user(client: TestClient, session: Session):
     _import(client, JOURNAL)
-    client.post("/accounts/", json={"name": "Empty", "parent_id": next(
-        a["aid"] for a in client.get("/accounts/").json() if a["name"] == "Assets")})
-    exported = client.get("/export").text
+    client.post("/api/accounts/", json={"name": "Empty", "parent_id": next(
+        a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Assets")})
+    exported = client.get("/api/export").text
 
     other = UUID("00000000-0000-4000-8000-000000000002")
     ar, tr, pr = AccountRepository(session, other), TransactionRepository(session, other), ProfileRepository(session, other)

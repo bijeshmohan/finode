@@ -68,7 +68,7 @@ def add_commodity(
         return htmx_error(validation_message(e), "#commodity-error")
     except ValueError as e:
         return htmx_error(str(e), "#commodity-error")
-    return htmx_redirect("/app/commodities#mine", flash="commodity-added")
+    return htmx_redirect("/commodities#mine", flash="commodity-added")
 
 
 @router.post("/{cid}/delete")
@@ -79,7 +79,7 @@ def delete_commodity(cid: UUID, commodities: Commodities):
         raise HTTPException(status_code=404, detail="commodity not found")
     except ValueError as e:
         return htmx_error(str(e), "#mine-error")
-    return htmx_redirect("/app/commodities#mine", flash="commodity-deleted")
+    return htmx_redirect("/commodities#mine", flash="commodity-deleted")
 
 
 @router.post("/prices")
@@ -99,7 +99,7 @@ def set_price(
         return htmx_error(str(e).strip("'\""), "#price-error")
     except ValueError as e:
         return htmx_error(str(e), "#price-error")
-    return htmx_redirect("/app/commodities#prices", flash="price-saved")
+    return htmx_redirect("/commodities#prices", flash="price-saved")
 
 
 @router.post("/prices/{pid}/delete")
@@ -108,4 +108,4 @@ def delete_price(pid: UUID, prices: Prices):
         prices.delete(pid)
     except LookupError:
         raise HTTPException(status_code=404, detail="price not found")
-    return htmx_redirect("/app/commodities#prices", flash="price-deleted")
+    return htmx_redirect("/commodities#prices", flash="price-deleted")

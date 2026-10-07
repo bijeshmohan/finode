@@ -4,27 +4,27 @@ from fastapi.testclient import TestClient
 
 
 def _quick(client: TestClient, **data):
-    return client.post("/app/accounts/quick", data=data)
+    return client.post("/accounts/quick", data=data)
 
 
 def _by_name(client: TestClient, name: str) -> dict:
-    return next(a for a in client.get("/accounts/").json() if a["name"] == name)
+    return next(a for a in client.get("/api/accounts/").json() if a["name"] == name)
 
 
 # --- the pickers offer it ---------------------------------------------------
 
 
 def test_transaction_pickers_offer_a_new_account_entry(client: TestClient, account: dict):
-    for url in ("/app/transactions/new", "/app/transactions/new?mode=split", "/app/transactions/rows/new"):
+    for url in ("/transactions/new", "/transactions/new?mode=split", "/transactions/rows/new"):
         text = client.get(url).text
         assert '<option value="__new__">+ New account…</option>' in text, url
         assert "data-account-select" in text, url
-    assert '<dialog id="quick-account"' in client.get("/app/transactions/new").text
+    assert '<dialog id="quick-account"' in client.get("/transactions/new").text
 
 
 def test_edit_page_offers_it_too(client: TestClient, account: dict, expense_account: dict):
     tx = client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "postings": [
                 {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
@@ -32,39 +32,39 @@ def test_edit_page_offers_it_too(client: TestClient, account: dict, expense_acco
             ]
         },
     ).json()
-    assert "__new__" in client.get(f"/app/transactions/{tx['tid']}/edit").text
+    assert "__new__" in client.get(f"/transactions/{tx['tid']}/edit").text
 
 
 def test_other_pages_do_not_offer_it(client: TestClient, account: dict):
-    assert "__new__" not in client.get("/app/transactions").text
-    assert "__new__" not in client.get("/app/accounts/new").text
+    assert "__new__" not in client.get("/transactions").text
+    assert "__new__" not in client.get("/accounts/new").text
 
 
 # --- the sheet --------------------------------------------------------------
 
 
 def test_sheet_suggests_the_matching_root(client: TestClient, root_accounts: dict[str, str]):
-    text = client.get("/app/accounts/quick", params={"hint": "Expenses"}).text
+    text = client.get("/accounts/quick", params={"hint": "Expenses"}).text
     assert f'<option value="{root_accounts["Expenses"]}" data-root="Expenses" selected>' in text
     assert "Choose…" not in text
 
-    asset = client.get("/app/accounts/quick", params={"hint": "Assets"}).text
+    asset = client.get("/accounts/quick", params={"hint": "Assets"}).text
     assert f'value="{root_accounts["Assets"]}" data-root="Assets" selected' in asset
 
 
 def test_sheet_without_a_hint_asks_for_a_parent(client: TestClient, root_accounts: dict[str, str]):
-    text = client.get("/app/accounts/quick").text
+    text = client.get("/accounts/quick").text
     assert '<option value="">Choose…</option>' in text
     assert " selected>" not in text
-    client.get("/app/accounts/quick", params={"hint": "nonsense"})
+    client.get("/accounts/quick", params={"hint": "nonsense"})
 
 
 def test_sheet_lists_sub_groups_but_not_the_system_account(
     client: TestClient, root_accounts: dict[str, str]
 ):
-    client.post("/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]})
-    client.post("/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "5.00"})
-    text = client.get("/app/accounts/quick").text
+    client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]})
+    client.post("/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "5.00"})
+    text = client.get("/accounts/quick").text
     assert "Food</option>" in text
     assert "Opening Balances" not in text
     assert "data-balance-field hidden" in text
@@ -72,7 +72,7 @@ def test_sheet_lists_sub_groups_but_not_the_system_account(
 
 
 def test_options_list_reflects_new_accounts(client: TestClient, account: dict):
-    text = client.get("/app/accounts/options").text
+    text = client.get("/accounts/options").text
     assert '<option value="__new__">+ New account…</option>' in text
     assert f'<option value="{account["aid"]}" data-commodity="INR" >checking</option>' in text
 
@@ -108,7 +108,7 @@ def test_ignores_a_balance_for_income_and_expenses(
     for name, root in (("Gym", "Expenses"), ("Bonus", "Income")):
         assert _quick(client, name=name, parent_id=root_accounts[root], balance="99").status_code == 200
         assert _by_name(client, name)["balance"] == "0.00"
-    assert client.get("/transactions/").json() == []
+    assert client.get("/api/transactions/").json() == []
 
 
 def test_non_ascii_names_survive_the_header(client: TestClient, root_accounts: dict[str, str]):
@@ -117,7 +117,7 @@ def test_non_ascii_names_survive_the_header(client: TestClient, root_accounts: d
 
 
 def test_can_create_under_a_sub_group(client: TestClient, root_accounts: dict[str, str]):
-    food = client.post("/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     assert _quick(client, name="Dining", parent_id=food["aid"]).status_code == 200
     assert _by_name(client, "Dining")["parent_id"] == food["aid"]
 
@@ -160,7 +160,7 @@ def test_rejects_a_parent_that_already_has_transactions(
     client: TestClient, account: dict, expense_account: dict
 ):
     client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "postings": [
                 {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
@@ -175,7 +175,7 @@ def test_expense_category_with_transactions_can_gain_a_sub_account(
     client: TestClient, account: dict, expense_account: dict
 ):
     client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "postings": [
                 {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
@@ -191,7 +191,7 @@ def test_rejects_an_invalid_amount(client: TestClient, root_accounts: dict[str, 
         _quick(client, name="Wallet", parent_id=root_accounts["Assets"], balance="abc"),
         "not a valid amount",
     )
-    assert all(a["name"] != "Wallet" for a in client.get("/accounts/").json())
+    assert all(a["name"] != "Wallet" for a in client.get("/api/accounts/").json())
 
 
 def test_error_messages_escape_the_name(client: TestClient, root_accounts: dict[str, str]):

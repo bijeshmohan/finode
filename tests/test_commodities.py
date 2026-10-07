@@ -20,7 +20,7 @@ OTHER_USER = UUID("00000000-0000-4000-8000-000000000002")
 
 
 def test_the_built_in_currencies_are_the_iso_list(client):
-    response = client.get("/commodities/")
+    response = client.get("/api/commodities/")
     assert response.status_code == 200
     by_code = {c["code"]: c for c in response.json()}
     assert {code for code, *_ in SEED_COMMODITIES} == set(by_code) - {"BTC"}
@@ -40,8 +40,8 @@ def test_the_built_in_currencies_are_the_iso_list(client):
 
 
 def test_a_commodity_can_be_read_by_code(client):
-    assert client.get("/commodities/USD").json()["name"] == "US Dollar"
-    assert client.get("/commodities/NOPE").status_code == 404
+    assert client.get("/api/commodities/USD").json()["name"] == "US Dollar"
+    assert client.get("/api/commodities/NOPE").status_code == 404
 
 
 def test_seed_ids_are_stable_and_unique():
@@ -100,7 +100,7 @@ def test_the_default_currency_is_inr_for_a_new_user(session: Session):
 
 
 def test_the_profile_remembers_the_default_currency_chosen_at_creation(client):
-    assert client.get("/profile/").json()["default_currency"] == "INR"
+    assert client.get("/api/profile/").json()["default_currency"] == "INR"
 
 
 def test_a_missing_catalog_is_reported_clearly(session: Session):

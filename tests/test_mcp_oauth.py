@@ -141,8 +141,8 @@ async def test_an_ordinary_sign_in_token_does_not_work_on_mcp(session, jwts):
 
 async def test_marks_name_the_app(session, jwts, client, root_accounts):
     allow(session, name="Claude on phone", scope="write")
-    bank = client.post("/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
-    client.post("/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]})
+    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
+    client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(app_token(jwts)) as c:
         recorded = payload(await c.call_tool("record_transaction", {"amount": "9", "from_account": "Bank", "to_account": "Food"}))
     assert recorded["recorded"]["created_via"] == "assistant (Claude on phone)"
@@ -156,7 +156,7 @@ def test_an_apps_token_is_not_a_sign_in_for_the_json_api(session, monkeypatch):
 
     app.dependency_overrides.pop(require_authenticated_user, None)
     with TestClient(app) as plain:
-        response = plain.get("/accounts/", headers={"Authorization": "Bearer jwt-app"})
+        response = plain.get("/api/accounts/", headers={"Authorization": "Bearer jwt-app"})
     assert response.status_code == 401 and "connected app" in response.json()["detail"]
 
 
@@ -208,7 +208,7 @@ def consent_client(client):
 
 
 def test_consent_page_shows_the_app_and_asks_what_it_may_do(consent_client, fake):
-    page = consent_client.get(f"/app/oauth/consent?authorization_id={AUTH_ID}")
+    page = consent_client.get(f"/oauth/consent?authorization_id={AUTH_ID}")
     assert page.status_code == 200
     assert "Connect Claude?" in page.text and "https://claude.ai/api/mcp/auth_callback" in page.text
     assert 'name="action" value="allow-read"' in page.text and 'name="action" value="allow-write"' in page.text
@@ -220,7 +220,7 @@ def test_consent_page_shows_the_app_and_asks_what_it_may_do(consent_client, fake
 
 def test_allowing_records_the_level_and_sends_the_user_back_to_the_app(consent_client, fake, session):
     response = consent_client.post(
-        "/app/oauth/consent", data={"authorization_id": AUTH_ID, "action": "allow", "access": "write"}, follow_redirects=False
+        "/oauth/consent", data={"authorization_id": AUTH_ID, "action": "allow", "access": "write"}, follow_redirects=False
     )
     assert response.status_code == 303 and response.headers["location"] == "https://claude.ai/api/mcp/auth_callback?code=abc"
     grant = OAuthGrantRepository(session, TEST_USER_ID).by_client("client-1")
@@ -231,7 +231,7 @@ def test_allowing_records_the_level_and_sends_the_user_back_to_the_app(consent_c
 
 def test_denying_records_nothing(consent_client, fake, session):
     response = consent_client.post(
-        "/app/oauth/consent", data={"authorization_id": AUTH_ID, "action": "deny", "access": "write"}, follow_redirects=False
+        "/oauth/consent", data={"authorization_id": AUTH_ID, "action": "deny", "access": "write"}, follow_redirects=False
     )
     assert response.status_code == 303 and "error=access_denied" in response.headers["location"]
     assert OAuthGrantRepository(session, TEST_USER_ID).by_client("client-1") is None
@@ -239,7 +239,7 @@ def test_denying_records_nothing(consent_client, fake, session):
 
 def test_the_app_comes_from_supabase_not_the_form(consent_client, fake, session):
     consent_client.post(
-        "/app/oauth/consent",
+        "/oauth/consent",
         data={"authorization_id": AUTH_ID, "action": "allow", "access": "read", "client_id": "evil", "client_name": "Evil"},
         follow_redirects=False,
     )
@@ -248,17 +248,17 @@ def test_the_app_comes_from_supabase_not_the_form(consent_client, fake, session)
 
 
 def test_problems_are_explained(consent_client, fake):
-    assert "Start from the app" in consent_client.get("/app/oauth/consent").text
+    assert "Start from the app" in consent_client.get("/oauth/consent").text
     fake.status = 404
-    page = consent_client.get(f"/app/oauth/consent?authorization_id={AUTH_ID}")
+    page = consent_client.get(f"/oauth/consent?authorization_id={AUTH_ID}")
     assert page.status_code == 400 and "unknown or has expired" in page.text
     fake.status = 401
-    assert "sign in again" in consent_client.get(f"/app/oauth/consent?authorization_id={AUTH_ID}").text
+    assert "sign in again" in consent_client.get(f"/oauth/consent?authorization_id={AUTH_ID}").text
 
 
 def test_only_web_urls_are_followed_back(consent_client, fake, monkeypatch):
     monkeypatch.setattr(fake, "details", {**fake.details, "redirect_url": "javascript:alert(1)"})
-    page = consent_client.get(f"/app/oauth/consent?authorization_id={AUTH_ID}")
+    page = consent_client.get(f"/oauth/consent?authorization_id={AUTH_ID}")
     assert page.status_code == 400 and "does not allow" in page.text
     assert not oauth.is_web_url("javascript:alert(1)") and oauth.is_web_url("https://x.example/cb")
 
@@ -266,22 +266,22 @@ def test_only_web_urls_are_followed_back(consent_client, fake, monkeypatch):
 def test_unauthenticated_visitors_sign_in_and_come_back(client):
     app.dependency_overrides.pop(__import__("app.web_auth", fromlist=["x"]).web_login_required, None)
     with TestClient(app) as raw:
-        target = f"/app/oauth/consent?authorization_id={AUTH_ID}"
+        target = f"/oauth/consent?authorization_id={AUTH_ID}"
         response = raw.get(target, follow_redirects=False)
         assert response.status_code == 303
-        assert response.headers["location"] == "/app/login?next=%2Fapp%2Foauth%2Fconsent%3Fauthorization_id%3Dauth-123"
+        assert response.headers["location"] == "/login?next=%2Foauth%2Fconsent%3Fauthorization_id%3Dauth-123"
         login = raw.get(response.headers["location"])
         assert f'name="next" value="{target}"' in login.text
-        plain = raw.get("/app/login")
+        plain = raw.get("/login")
         assert 'name="next"' not in plain.text
 
 
 def test_only_the_consent_page_is_a_login_destination():
     from app.web_auth import safe_next
 
-    assert safe_next("/app/oauth/consent?authorization_id=x") == "/app/oauth/consent?authorization_id=x"
-    assert safe_next("/app/oauth/consent") == "/app/oauth/consent"
-    for bad in ("https://evil.example", "//evil.example", "/app/profile", "/app/oauth/consentX", "", None):
+    assert safe_next("/oauth/consent?authorization_id=x") == "/oauth/consent?authorization_id=x"
+    assert safe_next("/oauth/consent") == "/oauth/consent"
+    for bad in ("https://evil.example", "//evil.example", "/profile", "/oauth/consentX", "", None):
         assert safe_next(bad) is None
 
 
@@ -290,27 +290,27 @@ def test_only_the_consent_page_is_a_login_destination():
 
 def test_connected_apps_are_listed_and_can_be_disconnected(consent_client, fake, session):
     grant = allow(session, name="Claude on phone", scope="read")
-    page = consent_client.get("/app/profile/assistants").text
+    page = consent_client.get("/profile/assistants").text
     apps = text_of(element(page, "token-list"))
     assert "Claude on phone" in apps and "read only" in apps
-    response = consent_client.post(f"/app/oauth/apps/{grant.gid}/disconnect")
-    assert response.headers["HX-Redirect"] == "/app/profile/assistants" and "app-disconnected" in response.headers["set-cookie"]
+    response = consent_client.post(f"/oauth/apps/{grant.gid}/disconnect")
+    assert response.headers["HX-Redirect"] == "/profile/assistants" and "app-disconnected" in response.headers["set-cookie"]
     assert OAuthGrantRepository(session, TEST_USER_ID).read(grant.gid).revoked is not None
     assert any(m == "DELETE" and "client_id=client-1" in str(e["params"]) or e.get("params") == {"client_id": "client-1"} for m, u, e in fake.calls)
-    assert "Claude on phone" not in text_of(element(consent_client.get("/app/profile/assistants").text, "token-list"))
-    assert consent_client.post(f"/app/oauth/apps/{UUID(int=9)}/disconnect").status_code == 404
+    assert "Claude on phone" not in text_of(element(consent_client.get("/profile/assistants").text, "token-list"))
+    assert consent_client.post(f"/oauth/apps/{UUID(int=9)}/disconnect").status_code == 404
 
 
 def test_one_user_cannot_disconnect_anothers_app(consent_client, fake, session):
     theirs = allow(session, user=OTHER_USER, name="Theirs")
-    assert consent_client.post(f"/app/oauth/apps/{theirs.gid}/disconnect").status_code == 404
+    assert consent_client.post(f"/oauth/apps/{theirs.gid}/disconnect").status_code == 404
     assert OAuthGrantRepository(session, OTHER_USER).read(theirs.gid).revoked is None
 
 
 def test_each_consent_button_records_its_own_level(consent_client, fake, session):
     for action, scope in (("allow-read", "read"), ("allow-write", "write")):
         response = consent_client.post(
-            "/app/oauth/consent", data={"authorization_id": AUTH_ID, "action": action}, follow_redirects=False
+            "/oauth/consent", data={"authorization_id": AUTH_ID, "action": action}, follow_redirects=False
         )
         assert response.status_code == 303 and "code=abc" in response.headers["location"]
         from app.repositories.oauth_grant import OAuthGrantRepository

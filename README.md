@@ -19,7 +19,7 @@ The server runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/doc
 ## Web UI
 
 A server-rendered UI (Jinja2 templates + [htmx](https://htmx.org), no JavaScript
-build step) is served by the same app at http://localhost:8000/app/. Users sign
+build step) is served by the same app at http://localhost:8000/. Users sign
 in with email and password against Supabase Auth, so set `FINODE_SUPABASE_URL`
 and `FINODE_SUPABASE_ANON_KEY` first (see Configuration). Pages:
 
@@ -39,8 +39,8 @@ The layout adapts to the screen: phones get a bottom tab bar and a floating
 and dark themes follow the system setting.
 
 The browser keeps the Supabase tokens in `HttpOnly`, `SameSite=Lax` cookies
-scoped to `/app`, and the UI calls the same services as the JSON API. The JSON
-API itself only accepts `Authorization: Bearer` tokens. Behind HTTPS, set
+sent to the whole site, and the UI calls the same services as the JSON API. The JSON
+API (all under `/api`) only accepts `Authorization: Bearer` tokens. Behind HTTPS, set
 `FINODE_COOKIE_SECURE=true`. htmx is vendored in `app/static/`, so no CDN is
 needed.
 
@@ -103,7 +103,7 @@ app/
 ├── repositories/      tenant-scoped persistence over a Session
 ├── services/          ledger rules, balances, reports
 ├── routers/           FastAPI APIRouters (JSON API)
-│   └── web/           HTML routers served under /app
+│   └── web/           HTML routers served at the site root
 ├── templates/         Jinja2 templates (partials/ holds htmx fragments)
 └── static/            stylesheet, small script, vendored htmx
 
@@ -138,7 +138,7 @@ uv run alembic upgrade head
 - Accounts form a tree. Each user gets five system root accounts (`Assets`,
   `Liabilities`, `Equity`, `Income`, `Expenses`), created lazily on first
   access. Every other account must have a parent, and its type is that of its
-  root ancestor. Roots cannot be renamed, moved, or deleted. `GET /accounts/`
+  root ancestor. Roots cannot be renamed, moved, or deleted. `GET /api/accounts/`
   accepts `?type=<root name>` to filter by root.
 - Account balances are derived from postings. They are not stored as an
   authoritative mutable column.
@@ -153,5 +153,5 @@ uv run alembic upgrade head
 
 ## Other API endpoints
 
-- `GET /accounts/{aid}/register` — an account's transactions oldest first with a signed change and running balance
-- `GET /reports/summary` — assets, liabilities, net worth, and income/expenses for `date_from`..`date_to` (default: current month)
+- `GET /api/accounts/{aid}/register` — an account's transactions oldest first with a signed change and running balance
+- `GET /api/reports/summary` — assets, liabilities, net worth, and income/expenses for `date_from`..`date_to` (default: current month)

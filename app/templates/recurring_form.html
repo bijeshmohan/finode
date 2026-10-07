@@ -3,7 +3,7 @@
 {% from "partials/account_options.html" import account_options %}
 {% block title %}{{ "Edit" if editing else "New" }} recurring transaction · finode{% endblock %}
 {% block content %}
-<a class="back" href="/app/recurring">{{ icon("back") }}Recurring</a>
+<a class="back" href="/recurring">{{ icon("back") }}Recurring</a>
 <h1>{{ "Edit recurring transaction" if editing else "New recurring transaction" }}</h1>
 {% if editing %}
 <p class="muted origin">{{ schedule }}{% if rule.active %} · next on {{ rule.next_date|friendly_date }}{% elif status == "ended" %} · ended{% else %} · paused{% endif %}{% if rule.last_date %} · last recorded {{ rule.last_date|friendly_date }}{% endif %}</p>
@@ -11,7 +11,7 @@
 {% endif %}
 
 <form class="card stack form-narrow"
-      hx-post="{{ '/app/recurring/' ~ rule.rid ~ '/edit' if editing else '/app/recurring' }}">
+      hx-post="{{ '/recurring/' ~ rule.rid ~ '/edit' if editing else '/recurring' }}">
   <label class="amount-field">Amount
     <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off"
            value="{{ rule.amount if editing else '' }}" {{ "autofocus" if not editing }}>
@@ -78,15 +78,15 @@
   <h2>{{ "Paused" if not rule.active else "Active" }}</h2>
   {% if rule.active %}
   <p class="muted">Pause it to stop recording without losing the rule.</p>
-  <div class="actions"><button type="button" class="secondary" hx-post="/app/recurring/{{ rule.rid }}/pause">Pause</button></div>
+  <div class="actions"><button type="button" class="secondary" hx-post="/recurring/{{ rule.rid }}/pause">Pause</button></div>
   {% elif status != "ended" %}
   <p class="muted">Occurrences missed while it was paused are skipped.</p>
-  <div class="actions"><button type="button" hx-post="/app/recurring/{{ rule.rid }}/resume">Resume</button></div>
+  <div class="actions"><button type="button" hx-post="/recurring/{{ rule.rid }}/resume">Resume</button></div>
   {% else %}
   <p class="muted">It has ended. Move the end date to carry on.</p>
   {% endif %}
   <div class="actions">
-    <button type="button" class="danger" hx-post="/app/recurring/{{ rule.rid }}/delete"
+    <button type="button" class="danger" hx-post="/recurring/{{ rule.rid }}/delete"
             hx-confirm="Delete this recurring transaction? Transactions it already recorded are kept.">{{ icon("trash") }}Delete</button>
   </div>
 </section>

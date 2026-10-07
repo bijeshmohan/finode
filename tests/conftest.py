@@ -57,7 +57,7 @@ def client(session: Session) -> Generator[TestClient, None, None]:
 
 @pytest.fixture
 def root_accounts(client: TestClient) -> dict[str, str]:
-    response = client.get("/accounts/")
+    response = client.get("/api/accounts/")
     assert response.status_code == 200
     accounts = response.json()
     return {a["name"]: a["aid"] for a in accounts if a["parent_id"] is None}
@@ -66,7 +66,7 @@ def root_accounts(client: TestClient) -> dict[str, str]:
 @pytest.fixture
 def account(client: TestClient, root_accounts: dict[str, str]) -> dict:
     response = client.post(
-        "/accounts/",
+        "/api/accounts/",
         json={"name": "checking", "details": None, "parent_id": root_accounts["Assets"]},
     )
     assert response.status_code == 201
@@ -76,7 +76,7 @@ def account(client: TestClient, root_accounts: dict[str, str]) -> dict:
 @pytest.fixture
 def other_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
     response = client.post(
-        "/accounts/",
+        "/api/accounts/",
         json={"name": "savings", "details": None, "parent_id": root_accounts["Assets"]},
     )
     assert response.status_code == 201
@@ -86,7 +86,7 @@ def other_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
 @pytest.fixture
 def expense_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
     response = client.post(
-        "/accounts/",
+        "/api/accounts/",
         json={"name": "groceries", "details": None, "parent_id": root_accounts["Expenses"]},
     )
     assert response.status_code == 201
@@ -96,7 +96,7 @@ def expense_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
 @pytest.fixture
 def income_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
     response = client.post(
-        "/accounts/",
+        "/api/accounts/",
         json={"name": "salary", "details": None, "parent_id": root_accounts["Income"]},
     )
     assert response.status_code == 201

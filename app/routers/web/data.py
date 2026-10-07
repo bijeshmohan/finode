@@ -41,4 +41,4 @@ def import_confirm(request: Request, data: Data, file: UploadFile | None = File(
         return _preview(request, e.summary)
     except ValueError as e:
         return _preview(request, ImportSummary(errors=[str(e)]))
-    return htmx_redirect("/app/", flash="import-done")
+    return htmx_redirect("/", flash="import-done")

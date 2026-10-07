@@ -4,12 +4,12 @@
 {% block content %}
 <div class="page-head">
   <h1>Accounts</h1>
-  <a class="button secondary" href="/app/accounts/new">{{ icon("plus") }}Add account</a>
+  <a class="button secondary" href="/accounts/new">{{ icon("plus") }}Add account</a>
 </div>
 
 {% for root in roots %}
 <section class="account-group">
-  <a class="group-head plain" href="/app/accounts/{{ root.account.aid }}">
+  <a class="group-head plain" href="/accounts/{{ root.account.aid }}">
     <h2>{{ root.account.name }}</h2>
     <span class="group-total">{% if root.account.unpriced %}<span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span> {% endif %}{{ root.account.balance|money }}</span>
   </a>
@@ -17,7 +17,7 @@
   <ul class="card list">
     {% for node in root.walk() if node.kind != "root" %}
     <li>
-      <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/app/accounts/{{ node.account.aid }}"
+      <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}"
          style="--depth: {{ node.depth - 1 }}">
         <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}</span>
         <span class="account-balance">{% if node.account.unpriced %}<span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span> {% endif %}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
@@ -27,7 +27,7 @@
     {% endfor %}
   </ul>
   {% else %}
-  <a class="card add-first" href="/app/accounts/new?parent={{ root.account.aid }}">
+  <a class="card add-first" href="/accounts/new?parent={{ root.account.aid }}">
     {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan", "Equity": "an equity account", "Income": "an income source", "Expenses": "an expense category"}[root.account.name] or "an account" }}
   </a>
   {% endif %}

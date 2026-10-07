@@ -3,12 +3,12 @@
 {% block title %}Transactions · finode{% endblock %}
 {% block content %}
 <h1>Transactions</h1>
-<p class="muted"><a href="/app/recurring">Recurring transactions</a></p>
+<p class="muted"><a href="/recurring">Recurring transactions</a></p>
 <p id="page-error" class="error" role="alert">{{ error or "" }}</p>
 
 <details class="card filters" {{ "open" if active_filters or error }}>
   <summary>{{ icon("filter") }}Filters{% if active_filters %}<span class="count">{{ active_filters }}</span>{% endif %}</summary>
-  <form method="get" action="/app/transactions" class="grid-form">
+  <form method="get" action="/transactions" class="grid-form">
     <label>Account
       <select name="account">
         <option value="">All accounts</option>
@@ -25,7 +25,7 @@
     </label>
     <div class="actions">
       <button type="submit">Apply</button>
-      {% if active_filters %}<a class="button secondary" href="/app/transactions">Clear</a>{% endif %}
+      {% if active_filters %}<a class="button secondary" href="/transactions">Clear</a>{% endif %}
     </div>
   </form>
 </details>
@@ -35,7 +35,7 @@
 {% else %}
 <div class="card empty-state">
   <p>{{ "No transactions match these filters." if active_filters else "No transactions yet." }}</p>
-  {% if not active_filters %}<a class="button" href="/app/transactions/new">Record a transaction</a>{% endif %}
+  {% if not active_filters %}<a class="button" href="/transactions/new">Record a transaction</a>{% endif %}
 </div>
 {% endif %}
 

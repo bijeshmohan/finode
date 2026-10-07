@@ -37,19 +37,19 @@ def valid_jwt(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_protected_page_redirects_to_login(raw_client: TestClient):
-    response = raw_client.get("/app/")
+    response = raw_client.get("/")
     assert response.status_code == 303
-    assert response.headers["location"] == "/app/login"
+    assert response.headers["location"] == "/login"
 
 
 def test_protected_htmx_request_gets_hx_redirect(raw_client: TestClient):
-    response = raw_client.get("/app/", headers={"HX-Request": "true"})
+    response = raw_client.get("/", headers={"HX-Request": "true"})
     assert response.status_code == 401
-    assert response.headers["HX-Redirect"] == "/app/login"
+    assert response.headers["HX-Redirect"] == "/login"
 
 
 def test_login_page_renders(raw_client: TestClient):
-    response = raw_client.get("/app/login")
+    response = raw_client.get("/login")
     assert response.status_code == 200
     assert 'name="password"' in response.text
 
@@ -63,9 +63,9 @@ def test_login_success_sets_cookies(raw_client: TestClient, monkeypatch: pytest.
         lambda email, password: SessionTokens("good-token", "refresh-1", 3600),
     )
 
-    response = raw_client.post("/app/login", data={"email": "a@b.co", "password": "pw"})
+    response = raw_client.post("/login", data={"email": "a@b.co", "password": "pw"})
     assert response.status_code == 303
-    assert response.headers["location"] == "/app/"
+    assert response.headers["location"] == "/"
     cookies = response.headers.get_list("set-cookie")
     assert any(c.startswith(f"{ACCESS_COOKIE}=good-token") and "HttpOnly" in c for c in cookies)
     assert any(c.startswith(f"{REFRESH_COOKIE}=refresh-1") for c in cookies)
@@ -78,7 +78,7 @@ def test_login_invalid_credentials(raw_client: TestClient, monkeypatch: pytest.M
         raise InvalidCredentialsError()
 
     monkeypatch.setattr(web_auth_router, "sign_in", fail)
-    response = raw_client.post("/app/login", data={"email": "a@b.co", "password": "bad"})
+    response = raw_client.post("/login", data={"email": "a@b.co", "password": "bad"})
     assert response.status_code == 401
     assert "Invalid email or password." in response.text
     assert "set-cookie" not in response.headers
@@ -91,13 +91,13 @@ def test_login_service_unavailable(raw_client: TestClient, monkeypatch: pytest.M
         raise AuthUnavailableError("down")
 
     monkeypatch.setattr(web_auth_router, "sign_in", fail)
-    response = raw_client.post("/app/login", data={"email": "a@b.co", "password": "pw"})
+    response = raw_client.post("/login", data={"email": "a@b.co", "password": "pw"})
     assert response.status_code == 503
 
 
 def test_protected_page_with_valid_cookie(raw_client: TestClient, valid_jwt):
-    raw_client.cookies.set(ACCESS_COOKIE, "good-token", path="/app")
-    response = raw_client.get("/app/")
+    raw_client.cookies.set(ACCESS_COOKIE, "good-token", path="/")
+    response = raw_client.get("/")
     assert response.status_code == 200
     assert "Net worth" in response.text
 
@@ -108,10 +108,10 @@ def test_expired_access_token_is_refreshed(
     monkeypatch.setattr(
         web_auth, "refresh_session", lambda token: SessionTokens("good-token", "refresh-2", 3600)
     )
-    raw_client.cookies.set(ACCESS_COOKIE, "expired-token", path="/app")
-    raw_client.cookies.set(REFRESH_COOKIE, "refresh-1", path="/app")
+    raw_client.cookies.set(ACCESS_COOKIE, "expired-token", path="/")
+    raw_client.cookies.set(REFRESH_COOKIE, "refresh-1", path="/")
 
-    response = raw_client.get("/app/")
+    response = raw_client.get("/")
     assert response.status_code == 200
     cookies = response.headers.get_list("set-cookie")
     assert any(c.startswith(f"{ACCESS_COOKIE}=good-token") for c in cookies)
@@ -125,24 +125,24 @@ def test_failed_refresh_redirects_to_login(
         raise InvalidCredentialsError()
 
     monkeypatch.setattr(web_auth, "refresh_session", fail)
-    raw_client.cookies.set(ACCESS_COOKIE, "expired-token", path="/app")
-    raw_client.cookies.set(REFRESH_COOKIE, "revoked", path="/app")
+    raw_client.cookies.set(ACCESS_COOKIE, "expired-token", path="/")
+    raw_client.cookies.set(REFRESH_COOKIE, "revoked", path="/")
 
-    response = raw_client.get("/app/")
+    response = raw_client.get("/")
     assert response.status_code == 303
 
 
 def test_logout_clears_cookies(raw_client: TestClient):
-    response = raw_client.post("/app/logout")
+    response = raw_client.post("/logout")
     assert response.status_code == 303
-    assert response.headers["location"] == "/app/login"
+    assert response.headers["location"] == "/login"
     cookies = response.headers.get_list("set-cookie")
     assert any(c.startswith(f"{ACCESS_COOKIE}=") and "Max-Age=0" in c for c in cookies)
 
 
 def test_json_api_ignores_cookies(raw_client: TestClient, valid_jwt):
-    raw_client.cookies.set(ACCESS_COOKIE, "good-token", path="/app")
-    response = raw_client.get("/accounts/")
+    raw_client.cookies.set(ACCESS_COOKIE, "good-token", path="/")
+    response = raw_client.get("/api/accounts/")
     assert response.status_code == 401
 
 

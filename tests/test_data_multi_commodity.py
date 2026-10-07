@@ -39,14 +39,14 @@ def make(client, name, parent, commodity=None, **extra):
     body = {"name": name, "parent_id": parent, **extra}
     if commodity:
         body["commodity"] = commodity
-    response = client.post("/accounts/", json=body)
+    response = client.post("/api/accounts/", json=body)
     assert response.status_code == 201, response.text
     return response.json()
 
 
 def post(client, postings, currency=None, when=LONG_AGO, payee=None):
     response = client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "date": str(when),
             "payee": payee,
@@ -82,7 +82,7 @@ def rich(client, root_accounts, session):
         when=LAST_WEEK,
         payee="Sell INFY",
     )
-    client.post("/prices/", json={"commodity": "INFY", "quote": "INR", "date": str(LAST_WEEK), "price": "1650.5"})
+    client.post("/api/prices/", json={"commodity": "INFY", "quote": "INR", "date": str(LAST_WEEK), "price": "1650.5"})
     return {"bank": bank, "usd": usd, "infy": infy, "btc": btc}
 
 
@@ -90,7 +90,7 @@ def rich(client, root_accounts, session):
 
 
 def test_the_ledger_export_labels_amounts_and_writes_conversions(client, rich):
-    text = client.get("/export").text
+    text = client.get("/api/export").text
     assert "commodity 1,000.00 USD" in text
     assert "commodity 1,000 INFY  ; name:Infosys, kind:stock" in text
     assert "commodity 1,000.00000000 BTC" in text
@@ -106,7 +106,7 @@ def test_the_ledger_export_labels_amounts_and_writes_conversions(client, rich):
 
 def test_a_single_currency_export_has_no_commodities(client, account, expense_account):
     client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "postings": [
                 {"account": expense_account["aid"], "side": "debit", "amount": "9.99"},
@@ -114,14 +114,14 @@ def test_a_single_currency_export_has_no_commodities(client, account, expense_ac
             ]
         },
     )
-    text = client.get("/export").text
+    text = client.get("/api/export").text
     assert "INR" not in text and "commodity" not in text and "@@" not in text
     assert "9.99" in text
-    assert client.get("/export?format=csv").content.decode("utf-8-sig").splitlines()[0] == "date,payee,note,account,debit,credit"
+    assert client.get("/api/export?format=csv").content.decode("utf-8-sig").splitlines()[0] == "date,payee,note,account,debit,credit"
 
 
 def test_the_csv_export_adds_commodity_columns_when_needed(client, rich):
-    lines = client.get("/export?format=csv").content.decode("utf-8-sig").splitlines()
+    lines = client.get("/api/export?format=csv").content.decode("utf-8-sig").splitlines()
     assert lines[0] == "date,payee,note,account,debit,credit,commodity,value,currency"
     rows = [line.split(",") for line in lines[1:]]
     buy = next(r for r in rows if r[3] == "Assets:Wise" and r[4] == "100.00")
@@ -133,7 +133,7 @@ def test_the_csv_export_adds_commodity_columns_when_needed(client, rich):
 
 
 def test_the_export_round_trips_into_a_new_ledger(client, rich, session):
-    exported = client.get("/export").text
+    exported = client.get("/api/export").text
 
     newcomer = service_for(session, NEWCOMER)
     summary = newcomer.run_import(exported)
@@ -159,7 +159,7 @@ def test_the_export_round_trips_into_a_new_ledger(client, rich, session):
 
 
 def _import(client, text, **params):
-    return client.post("/import", files={"file": ("a.ledger", text.encode())}, params=params)
+    return client.post("/api/import", files={"file": ("a.ledger", text.encode())}, params=params)
 
 
 FOREIGN = """\
@@ -192,7 +192,7 @@ def test_import_reads_conversions_prices_and_new_commodities(client):
     assert body["prices"] == 1
     assert body["assets"] == "76650.00", "only the default-currency accounts count"
 
-    accounts = {a["name"]: a for a in client.get("/accounts/").json()}
+    accounts = {a["name"]: a for a in client.get("/api/accounts/").json()}
     assert accounts["Wise"]["commodity"] == "USD" and accounts["Wise"]["balance"] == "95.50"
     assert accounts["INFY"]["commodity"] == "INFY" and accounts["INFY"]["balance"] == "10.00"
     assert accounts["Zerodha"]["commodity"] == "INR", "a group without postings holds the default currency"
@@ -200,12 +200,12 @@ def test_import_reads_conversions_prices_and_new_commodities(client):
     assert accounts["Food"]["commodity"] == "USD"
     assert accounts["Opening Balances"]["commodity"] == "INR"
 
-    infy = next(c for c in client.get("/commodities/").json() if c["code"] == "INFY")
+    infy = next(c for c in client.get("/api/commodities/").json() if c["code"] == "INFY")
     assert infy["decimals"] == 2 and infy["kind"] == "other"
-    rate = client.get("/prices/rate", params={"commodity": "INFY", "quote": "INR"}).json()
+    rate = client.get("/api/prices/rate", params={"commodity": "INFY", "quote": "INR"}).json()
     assert Decimal(rate["rate"]) == Decimal("1500"), "the purchase is a price too"
 
-    by_payee = {t["payee"]: t for t in client.get("/transactions/").json()}
+    by_payee = {t["payee"]: t for t in client.get("/api/transactions/").json()}
     buy = by_payee["Buy USD"]
     assert buy["currency"] == "INR"
     assert {p["amount"]: p["value"] for p in buy["postings"]} == {"100.00": "8350.00", "8350.00": "8350.00"}
@@ -217,9 +217,9 @@ def test_import_reads_conversions_prices_and_new_commodities(client):
 def test_a_dry_run_changes_nothing(client):
     body = _import(client, FOREIGN, dry_run="true").json()
     assert body["errors"] == [] and body["new_commodities"] == ["INFY"] and body["prices"] == 1
-    assert client.get("/transactions/").json() == []
-    assert "INFY" not in {c["code"] for c in client.get("/commodities/").json()}
-    assert client.get("/prices/").json() == []
+    assert client.get("/api/transactions/").json() == []
+    assert "INFY" not in {c["code"] for c in client.get("/api/commodities/").json()}
+    assert client.get("/api/prices/").json() == []
 
 
 def test_symbols_resolve_to_commodities_and_unlabeled_amounts_to_the_default(client):
@@ -235,7 +235,7 @@ def test_symbols_resolve_to_commodities_and_unlabeled_amounts_to_the_default(cli
     Assets:Bank       -₹830
 """
     assert _import(client, text).status_code == 200
-    accounts = {a["name"]: a["commodity"] for a in client.get("/accounts/").json()}
+    accounts = {a["name"]: a["commodity"] for a in client.get("/api/accounts/").json()}
     assert accounts["Bank"] == "INR" and accounts["Cash"] == "INR" and accounts["Wallet"] == "USD"
 
 
@@ -247,7 +247,7 @@ commodity 1,000.000 NIFTYBEES  ; name:Nifty fund, kind:fund
     Assets:Bank              -3000 INR
 """
     assert _import(client, text).status_code == 200
-    fund = next(c for c in client.get("/commodities/").json() if c["code"] == "NIFTYBEES")
+    fund = next(c for c in client.get("/api/commodities/").json() if c["code"] == "NIFTYBEES")
     assert (fund["name"], fund["kind"], fund["decimals"]) == ("Nifty fund", "fund", 3)
 
 
@@ -272,7 +272,7 @@ def test_an_account_cannot_mix_commodities(client):
     errors = errors_of(client, text)
     assert any("'Assets:Wise' mixes EUR and USD, but an account holds one commodity" in e for e in errors)
     assert any("Equity:Opening Balances" in e and "can hold only one commodity" in e for e in errors)
-    assert client.get("/transactions/").json() == []
+    assert client.get("/api/transactions/").json() == []
 
 
 def test_a_transaction_in_two_commodities_needs_a_price(client):
@@ -329,22 +329,22 @@ def test_existing_accounts_keep_what_they_hold(client, root_accounts):
 def test_a_failed_import_saves_no_commodities_or_prices(client):
     bad = FOREIGN + "2026-01-08 oops\n    Expenses:Food  5\n    Assets:HDFC  -4\n"
     assert _import(client, bad).status_code == 400
-    assert "INFY" not in {c["code"] for c in client.get("/commodities/").json()}
-    assert client.get("/prices/").json() == []
-    assert client.get("/transactions/").json() == []
+    assert "INFY" not in {c["code"] for c in client.get("/api/commodities/").json()}
+    assert client.get("/api/prices/").json() == []
+    assert client.get("/api/transactions/").json() == []
 
 
 def test_importing_into_a_dollar_ledger_reads_dollars_as_the_default(client):
-    client.patch("/profile/", json={"default_currency": "USD"})
+    client.patch("/api/profile/", json={"default_currency": "USD"})
     text = "2026-01-01 a\n    Assets:Bank  $100\n    Equity:Opening Balances\n"
     assert _import(client, text).status_code == 200
-    accounts = {a["name"]: a for a in client.get("/accounts/").json()}
+    accounts = {a["name"]: a for a in client.get("/api/accounts/").json()}
     assert accounts["Bank"]["commodity"] == "USD"
-    assert Decimal(client.get("/reports/summary").json()["net_worth"]) == Decimal("100.00")
+    assert Decimal(client.get("/api/reports/summary").json()["net_worth"]) == Decimal("100.00")
 
 
 def test_a_hundred_dollars_for_a_rupee_ledger_is_valued_after_pricing(client):
     text = "2026-01-01 a\n    Assets:Bank  $100\n    Equity:Opening Balances\n"
     assert _import(client, text).status_code == 200
-    summary = client.get("/reports/summary").json()
+    summary = client.get("/api/reports/summary").json()
     assert summary["currency"] == "INR" and summary["unpriced"] is True

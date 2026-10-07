@@ -11,7 +11,7 @@
 {% endif %}
 
 {% if not editing or can_simplify %}
-{% set base = "/app/transactions/" ~ transaction.tid ~ "/edit" if editing else "/app/transactions/new" %}
+{% set base = "/transactions/" ~ transaction.tid ~ "/edit" if editing else "/transactions/new" %}
 {% set keep = ("&back=" ~ back|urlencode if back else "") ~ ("&account=" ~ account if account else "") %}
 <nav class="tabs form-narrow" aria-label="Form type">
   <a href="{{ base }}?mode=simple{{ keep }}" class="{{ 'active' if mode == 'simple' }}">Simple</a>
@@ -21,7 +21,7 @@
 
 {% if mode == "simple" %}
 <form class="card stack form-narrow"
-      hx-post="{{ '/app/transactions/' ~ transaction.tid ~ '/edit/simple' if editing else '/app/transactions' }}">
+      hx-post="{{ '/transactions/' ~ transaction.tid ~ '/edit/simple' if editing else '/transactions' }}">
   <input type="hidden" name="back" value="{{ back }}">
   <label class="amount-field">Amount
     <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off"
@@ -67,7 +67,7 @@
 
 {% else %}
 <form class="card stack split-form"
-      hx-post="{{ '/app/transactions/' ~ transaction.tid ~ '/edit' if editing else '/app/transactions/split' }}">
+      hx-post="{{ '/transactions/' ~ transaction.tid ~ '/edit' if editing else '/transactions/split' }}">
   <input type="hidden" name="back" value="{{ back }}">
   <div class="grid-form">
     <label>Date
@@ -102,7 +102,7 @@
 
   <div class="actions">
     <button type="button" class="secondary"
-            hx-get="/app/transactions/rows/new" hx-target="#postings" hx-swap="beforeend">{{ icon("plus") }}Add row</button>
+            hx-get="/transactions/rows/new" hx-target="#postings" hx-swap="beforeend">{{ icon("plus") }}Add row</button>
   </div>
   <p id="balance-status" class="balance-status" aria-live="polite"></p>
   <p id="form-error" class="error" role="alert"></p>
@@ -121,7 +121,7 @@
 <section class="danger-zone">
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
-          hx-post="/app/transactions/{{ transaction.tid }}/delete{{ '?back=' ~ back|urlencode if back }}"
+          hx-post="/transactions/{{ transaction.tid }}/delete{{ '?back=' ~ back|urlencode if back }}"
           hx-confirm="Delete this transaction? Account balances will change.">{{ icon("trash") }}Delete transaction</button>
 </section>
 {% endif %}

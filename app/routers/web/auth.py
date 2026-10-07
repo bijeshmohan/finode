@@ -36,7 +36,7 @@ def login(
     except AuthUnavailableError:
         error, status_code = "Sign-in is currently unavailable. Please try again later.", 503
     else:
-        response = RedirectResponse(safe_next(next) or "/app/", status_code=303)
+        response = RedirectResponse(safe_next(next) or "/", status_code=303)
         set_auth_cookies(response, tokens)
         return response
     return templates.TemplateResponse(
@@ -46,6 +46,6 @@ def login(
 
 @router.post("/logout")
 def logout():
-    response = RedirectResponse("/app/login", status_code=303)
+    response = RedirectResponse("/login", status_code=303)
     clear_auth_cookies(response)
     return response

@@ -4,7 +4,7 @@ from ...web_auth import web_login_required
 from . import accounts, auth, commodities, dashboard, data, oauth, profile, recurring, transactions
 
 
-router = APIRouter(prefix="/app", include_in_schema=False)
+router = APIRouter(include_in_schema=False)
 router.include_router(auth.router)
 
 protected = APIRouter(dependencies=[Depends(web_login_required)])

@@ -15,14 +15,14 @@ def make_account(client, name, parent, commodity=None, **extra):
     body = {"name": name, "parent_id": parent, **extra}
     if commodity:
         body["commodity"] = commodity
-    response = client.post("/accounts/", json=body)
+    response = client.post("/api/accounts/", json=body)
     assert response.status_code == 201, response.text
     return response.json()
 
 
 def latest(client):
     """The newest transaction dated LONG_AGO (opening balances are dated today)."""
-    return next(t for t in client.get("/transactions/").json() if t["date"] == LONG_AGO)
+    return next(t for t in client.get("/api/transactions/").json() if t["date"] == LONG_AGO)
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def buy_usd_form(bank, usd, **extra):
 
 
 def test_the_account_form_offers_what_it_holds(client):
-    page = client.get("/app/accounts/new").text
+    page = client.get("/accounts/new").text
     assert "Holds something other than INR?" in page
     holds = {v: t for v, _, t in options(page[page.index('name="commodity"'):page.index("</select>", page.index('name="commodity"'))])}
     assert holds[""].startswith("Same as where it belongs")
@@ -58,7 +58,7 @@ def test_the_account_form_offers_what_it_holds(client):
 
 def test_an_account_can_be_added_in_another_commodity(client, root_accounts):
     response = client.post(
-        "/app/accounts",
+        "/accounts",
         data={
             "name": "Wise",
             "parent_id": root_accounts["Assets"],
@@ -67,55 +67,55 @@ def test_an_account_can_be_added_in_another_commodity(client, root_accounts):
             "balance_value": "8300",
         },
     )
-    assert response.status_code == 200 and response.headers["HX-Redirect"].startswith("/app/accounts/")
-    wise = next(a for a in client.get("/accounts/").json() if a["name"] == "Wise")
+    assert response.status_code == 200 and response.headers["HX-Redirect"].startswith("/accounts/")
+    wise = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Wise")
     assert wise["commodity"] == "USD" and wise["balance"] == "100.00"
-    assert Decimal(client.get("/reports/summary").json()["net_worth"]) == Decimal("8300.00")
+    assert Decimal(client.get("/api/reports/summary").json()["net_worth"]) == Decimal("8300.00")
 
 
 def test_a_missing_worth_is_explained_in_the_form(client, root_accounts):
     response = client.post(
-        "/app/accounts",
+        "/accounts",
         data={"name": "Wise", "parent_id": root_accounts["Assets"], "commodity": "USD", "balance": "100"},
     )
     assert response.status_code == 400 and response.headers["HX-Retarget"] == "#form-error"
     assert "no USD price is known yet" in response.text
-    assert "Wise" not in {a["name"] for a in client.get("/accounts/").json()}
+    assert "Wise" not in {a["name"] for a in client.get("/api/accounts/").json()}
 
 
 def test_an_unknown_commodity_is_explained_in_the_form(client, root_accounts):
     response = client.post(
-        "/app/accounts", data={"name": "X", "parent_id": root_accounts["Assets"], "commodity": "ZZZ"}
+        "/accounts", data={"name": "X", "parent_id": root_accounts["Assets"], "commodity": "ZZZ"}
     )
     assert response.status_code == 400 and "unknown commodity" in response.text
 
 
 def test_the_quick_sheet_can_add_a_foreign_account(client, root_accounts):
-    sheet = client.get("/app/accounts/quick").text
+    sheet = client.get("/accounts/quick").text
     assert 'name="commodity"' in sheet and 'name="balance_value"' in sheet
     response = client.post(
-        "/app/accounts/quick",
+        "/accounts/quick",
         data={"name": "Wise", "parent_id": root_accounts["Assets"], "commodity": "USD", "balance": "10", "balance_value": "830"},
     )
     assert response.status_code == 200 and "account-added" in response.headers["HX-Trigger"]
-    assert next(a for a in client.get("/accounts/").json() if a["name"] == "Wise")["commodity"] == "USD"
+    assert next(a for a in client.get("/api/accounts/").json() if a["name"] == "Wise")["commodity"] == "USD"
 
 
 def test_the_edit_form_shows_and_changes_what_an_account_holds(client, root_accounts):
     fresh = make_account(client, "Later", root_accounts["Assets"])
-    page = client.get(f"/app/accounts/{fresh['aid']}/edit").text
+    page = client.get(f"/accounts/{fresh['aid']}/edit").text
     chosen = [v for v, selected, _ in options(page) if selected and v in ("INR", "USD", "EUR")]
     assert chosen == ["INR"]
 
-    response = client.post(f"/app/accounts/{fresh['aid']}/edit", data={"name": "Later", "parent_id": root_accounts["Assets"], "commodity": "EUR"})
+    response = client.post(f"/accounts/{fresh['aid']}/edit", data={"name": "Later", "parent_id": root_accounts["Assets"], "commodity": "EUR"})
     assert response.status_code == 200
-    assert client.get(f"/accounts/{fresh['aid']}").json()["commodity"] == "EUR"
+    assert client.get(f"/api/accounts/{fresh['aid']}").json()["commodity"] == "EUR"
 
 
 def test_what_an_account_holds_is_locked_once_it_has_postings(client, pair, root_accounts):
     bank, usd = pair
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
-    page = client.get(f"/app/accounts/{usd['aid']}/edit").text
+    client.post("/transactions", data=buy_usd_form(bank, usd))
+    page = client.get(f"/accounts/{usd['aid']}/edit").text
     assert "It has transactions, so what it holds can't change any more." in page
     assert 'name="commodity"' not in page
 
@@ -124,15 +124,15 @@ def test_what_an_account_holds_is_locked_once_it_has_postings(client, pair, root
 
 
 def test_the_simple_form_has_a_receive_field_and_unit_markers(client, pair):
-    page = client.get("/app/transactions/new").text
+    page = client.get("/transactions/new").text
     assert 'name="to_amount"' in page and "data-conversion" in page
     assert 'data-commodity="USD"' in page and 'data-commodity="INR"' in page
 
 
 def test_buying_usd_with_inr(client, pair):
     bank, usd = pair
-    response = client.post("/app/transactions", data=buy_usd_form(bank, usd))
-    assert response.status_code == 200 and response.headers["HX-Redirect"] == "/app/transactions"
+    response = client.post("/transactions", data=buy_usd_form(bank, usd))
+    assert response.status_code == 200 and response.headers["HX-Redirect"] == "/transactions"
     txn = latest(client)
     assert txn["currency"] == "INR"
     by_account = {p["account"]: p for p in txn["postings"]}
@@ -142,24 +142,24 @@ def test_buying_usd_with_inr(client, pair):
 
 def test_selling_usd_for_inr(client, pair):
     bank, usd = pair
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
+    client.post("/transactions", data=buy_usd_form(bank, usd))
     response = client.post(
-        "/app/transactions",
+        "/transactions",
         data={"amount": "40", "to_amount": "3400", "from_account": usd["aid"], "to_account": bank["aid"], "date": LONG_AGO},
     )
     assert response.status_code == 200
     txn = latest(client)
     values = {p["account"]: (p["amount"], p["value"]) for p in txn["postings"]}
     assert values[usd["aid"]] == ("40.00", "3400.00") and values[bank["aid"]] == ("3400.00", "3400.00")
-    assert client.get(f"/accounts/{usd['aid']}").json()["balance"] == "60.00"
+    assert client.get(f"/api/accounts/{usd['aid']}").json()["balance"] == "60.00"
 
 
 def test_moving_money_between_two_foreign_currencies_is_in_the_sending_one(client, root_accounts, pair):
     bank, usd = pair
     euro = make_account(client, "Euro pot", root_accounts["Assets"], "EUR")
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
+    client.post("/transactions", data=buy_usd_form(bank, usd))
     response = client.post(
-        "/app/transactions",
+        "/transactions",
         data={"amount": "50", "to_amount": "46", "from_account": usd["aid"], "to_account": euro["aid"], "date": LONG_AGO},
     )
     assert response.status_code == 200, response.text
@@ -172,31 +172,31 @@ def test_moving_money_between_two_foreign_currencies_is_in_the_sending_one(clien
 def test_a_transfer_within_one_foreign_commodity_is_in_that_commodity(client, root_accounts, pair):
     bank, usd = pair
     other = make_account(client, "Card USD", root_accounts["Assets"], "USD")
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
+    client.post("/transactions", data=buy_usd_form(bank, usd))
     response = client.post(
-        "/app/transactions",
+        "/transactions",
         data={"amount": "25", "from_account": usd["aid"], "to_account": other["aid"], "date": LONG_AGO},
     )
     assert response.status_code == 200, response.text
     assert latest(client)["currency"] == "USD"
-    assert client.get(f"/accounts/{other['aid']}").json()["balance"] == "25.00"
+    assert client.get(f"/api/accounts/{other['aid']}").json()["balance"] == "25.00"
 
 
 def test_the_receive_field_is_needed_between_different_things(client, pair):
     bank, usd = pair
-    response = client.post("/app/transactions", data=buy_usd_form(bank, usd, to_amount=""))
+    response = client.post("/transactions", data=buy_usd_form(bank, usd, to_amount=""))
     assert response.status_code == 400 and response.headers["HX-Retarget"] == "#form-error"
     assert "say how much USD arrives" in response.text
 
 
 def test_the_receive_field_must_match_between_the_same_thing(client, root_accounts, account, other_account):
     response = client.post(
-        "/app/transactions",
+        "/transactions",
         data={"amount": "10", "to_amount": "12", "from_account": account["aid"], "to_account": other_account["aid"]},
     )
     assert response.status_code == 400 and "the amount that arrives is the amount that leaves" in response.text
     ok = client.post(
-        "/app/transactions",
+        "/transactions",
         data={"amount": "10", "to_amount": "10.00", "from_account": account["aid"], "to_account": other_account["aid"]},
     )
     assert ok.status_code == 200
@@ -204,26 +204,26 @@ def test_the_receive_field_must_match_between_the_same_thing(client, root_accoun
 
 def test_editing_a_conversion_shows_and_keeps_both_amounts(client, pair):
     bank, usd = pair
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
+    client.post("/transactions", data=buy_usd_form(bank, usd))
     tid = latest(client)["tid"]
 
-    page = client.get(f"/app/transactions/{tid}/edit").text
-    assert f'hx-post="/app/transactions/{tid}/edit/simple"' in page
+    page = client.get(f"/transactions/{tid}/edit").text
+    assert f'hx-post="/transactions/{tid}/edit/simple"' in page
     assert 'name="to_amount"' in page and 'value="100.00"' in page and 'value="8350.00"' in page
     assert '<details class="more" data-conversion open>' in page
 
     response = client.post(
-        f"/app/transactions/{tid}/edit/simple",
+        f"/transactions/{tid}/edit/simple",
         data=buy_usd_form(bank, usd, amount="8400", to_amount="100"),
     )
     assert response.status_code == 200, response.text
-    values = {p["account"]: (p["amount"], p["value"]) for p in client.get(f"/transactions/{tid}").json()["postings"]}
+    values = {p["account"]: (p["amount"], p["value"]) for p in client.get(f"/api/transactions/{tid}").json()["postings"]}
     assert values[usd["aid"]] == ("100.00", "8400.00") and values[bank["aid"]] == ("8400.00", "8400.00")
 
 
 def test_a_plain_transaction_edits_as_before(client, account, expense_account):
     tx = client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "date": LONG_AGO,
             "postings": [
@@ -232,7 +232,7 @@ def test_a_plain_transaction_edits_as_before(client, account, expense_account):
             ],
         },
     ).json()
-    page = client.get(f"/app/transactions/{tx['tid']}/edit").text
+    page = client.get(f"/transactions/{tx['tid']}/edit").text
     assert '<details class="more" data-conversion >' in page, "collapsed when nothing converts"
 
 
@@ -240,24 +240,24 @@ def test_a_plain_transaction_edits_as_before(client, account, expense_account):
 
 
 def test_the_split_form_is_unchanged_for_a_single_currency(client, account, expense_account):
-    page = client.get("/app/transactions/new?mode=split").text
+    page = client.get("/transactions/new?mode=split").text
     assert 'name="currency"' not in page and 'name="value"' not in page
 
 
 def test_the_split_form_asks_for_currency_and_worth_once_something_else_is_held(client, pair):
-    page = client.get("/app/transactions/new?mode=split").text
+    page = client.get("/transactions/new?mode=split").text
     assert 'name="currency"' in page and 'name="value"' in page
     selected = [v for v, s, _ in options(page[page.index('name="currency"'):page.index("</select>", page.index('name="currency"'))]) if s]
     assert selected == ["INR"]
     assert "BTC" not in [v for v, _, _ in options(page[page.index('name="currency"'):page.index("</select>", page.index('name="currency"'))])]
-    row = client.get("/app/transactions/rows/new").text
+    row = client.get("/transactions/rows/new").text
     assert 'name="value"' in row
 
 
 def test_a_split_with_a_worth_for_the_foreign_row(client, pair):
     bank, usd = pair
     response = client.post(
-        "/app/transactions/split",
+        "/transactions/split",
         data={
             "date": LONG_AGO,
             "currency": "INR",
@@ -276,7 +276,7 @@ def test_a_split_with_a_worth_for_the_foreign_row(client, pair):
 def test_a_split_explains_a_missing_worth(client, pair):
     bank, usd = pair
     response = client.post(
-        "/app/transactions/split",
+        "/transactions/split",
         data={
             "date": LONG_AGO,
             "currency": "INR",
@@ -294,7 +294,7 @@ def test_editing_a_split_prefills_currency_and_worth(client, pair, root_accounts
     bank, usd = pair
     expense = make_account(client, "Fees", root_accounts["Expenses"])
     tid = client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "date": LONG_AGO,
             "postings": [
@@ -304,13 +304,13 @@ def test_editing_a_split_prefills_currency_and_worth(client, pair, root_accounts
             ],
         },
     ).json()["tid"]
-    page = client.get(f"/app/transactions/{tid}/edit").text
+    page = client.get(f"/transactions/{tid}/edit").text
     assert 'value="8330.00"' in page, "the foreign row shows its worth"
     assert page.count('name="value"') == 3
-    assert f'hx-post="/app/transactions/{tid}/edit"' in page
+    assert f'hx-post="/transactions/{tid}/edit"' in page
 
     again = client.post(
-        f"/app/transactions/{tid}/edit",
+        f"/transactions/{tid}/edit",
         data={
             "date": LONG_AGO,
             "currency": "INR",
@@ -321,7 +321,7 @@ def test_editing_a_split_prefills_currency_and_worth(client, pair, root_accounts
         },
     )
     assert again.status_code == 200, again.text
-    assert {p["account"]: p["value"] for p in client.get(f"/transactions/{tid}").json()["postings"]}[usd["aid"]] == "8340.00"
+    assert {p["account"]: p["value"] for p in client.get(f"/api/transactions/{tid}").json()["postings"]}[usd["aid"]] == "8340.00"
 
 
 # ---- reading the numbers ------------------------------------------------------------------------------------------
@@ -329,22 +329,22 @@ def test_editing_a_split_prefills_currency_and_worth(client, pair, root_accounts
 
 def test_an_account_page_shows_units_and_the_holding(client, pair):
     bank, usd = pair
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
-    text = client.get(f"/app/accounts/{usd['aid']}").text
+    client.post("/transactions", data=buy_usd_form(bank, usd))
+    text = client.get(f"/accounts/{usd['aid']}").text
     hero = text[text.index("hero-balance"):]
     assert hero.startswith('hero-balance">100.00 USD')
     body = text_of(text)
     assert "Worth 8,350.00 INR at 83.50 per USD" in body
     assert "Invested 8,350.00" in body and "Gain 0.00" in body
 
-    client.post("/prices/", json={"commodity": "USD", "quote": "INR", "price": "90"})
-    body = text_of(client.get(f"/app/accounts/{usd['aid']}").text)
+    client.post("/api/prices/", json={"commodity": "USD", "quote": "INR", "price": "90"})
+    body = text_of(client.get(f"/accounts/{usd['aid']}").text)
     assert "Worth 9,000.00 INR at 90.00 per USD" in body and "Gain 650.00" in body
 
 
 def test_an_account_page_for_an_ordinary_account_has_no_holding(client, pair):
     bank, _ = pair
-    body = text_of(client.get(f"/app/accounts/{bank['aid']}").text)
+    body = text_of(client.get(f"/accounts/{bank['aid']}").text)
     assert "Invested" not in body and "Worth" not in body
 
 
@@ -352,7 +352,7 @@ def test_an_unpriced_holding_is_called_out_on_the_account_page(client, root_acco
     wise = make_account(client, "Wise", root_accounts["Assets"], "USD")
     salary = make_account(client, "US Salary", root_accounts["Income"], "USD")
     client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "date": LONG_AGO,
             "currency": "USD",
@@ -362,49 +362,49 @@ def test_an_unpriced_holding_is_called_out_on_the_account_page(client, root_acco
             ],
         },
     )
-    body = text_of(client.get(f"/app/accounts/{wise['aid']}").text)
+    body = text_of(client.get(f"/accounts/{wise['aid']}").text)
     assert "There is no USD price in INR yet" in body
-    assert "partial" in client.get("/app/accounts").text
-    dashboard = text_of(client.get("/app/").text)
+    assert "partial" in client.get("/accounts").text
+    dashboard = text_of(client.get("/").text)
     assert "Some holdings have no price yet" in dashboard
 
 
 def test_the_accounts_list_labels_other_commodities(client, pair):
     bank, usd = pair
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
-    listing = text_of(client.get("/app/accounts").text)
+    client.post("/transactions", data=buy_usd_form(bank, usd))
+    listing = text_of(client.get("/accounts").text)
     assert "100.00 USD" in listing and "91,650.00" in listing and "91,650.00 INR" not in listing
 
 
 def test_the_transaction_list_shows_the_transactions_own_currency(client, pair, root_accounts):
     bank, usd = pair
     travel = make_account(client, "Travel", root_accounts["Expenses"], "USD")
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
+    client.post("/transactions", data=buy_usd_form(bank, usd))
     client.post(
-        "/app/transactions",
+        "/transactions",
         data={"amount": "40", "from_account": usd["aid"], "to_account": travel["aid"], "date": LONG_AGO, "payee": "Hotel"},
     )
-    listing = text_of(client.get("/app/transactions").text)
+    listing = text_of(client.get("/transactions").text)
     assert "−40.00 USD" in listing and "8,350.00" in listing
     assert "8,350.00 INR" not in listing
 
 
 def test_the_dashboard_totals_in_the_default_currency(client, pair):
     bank, usd = pair
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
-    body = text_of(client.get("/app/").text)
+    client.post("/transactions", data=buy_usd_form(bank, usd))
+    body = text_of(client.get("/").text)
     assert "Net worth 100,000.00 INR" in body
-    client.post("/app/profile/currency", data={"currency": "USD"})
-    body = text_of(client.get("/app/").text)
+    client.post("/profile/currency", data={"currency": "USD"})
+    body = text_of(client.get("/").text)
     assert "Net worth 1,197.60 USD" in body
 
 
 def test_moving_a_transaction_to_other_accounts_takes_the_new_currency(client, pair, root_accounts):
     bank, usd = pair
     card = make_account(client, "Card USD", root_accounts["Assets"], "USD")
-    client.post("/app/transactions", data=buy_usd_form(bank, usd))
+    client.post("/transactions", data=buy_usd_form(bank, usd))
     client.post(
-        "/app/transactions",
+        "/transactions",
         data={"amount": "25", "from_account": usd["aid"], "to_account": card["aid"], "date": LONG_AGO},
     )
     transfer = latest(client)
@@ -413,10 +413,10 @@ def test_moving_a_transaction_to_other_accounts_takes_the_new_currency(client, p
     savings = make_account(client, "Savings", root_accounts["Assets"], balance="1000")
     cash = make_account(client, "Cash", root_accounts["Assets"])
     response = client.post(
-        f"/app/transactions/{transfer['tid']}/edit/simple",
+        f"/transactions/{transfer['tid']}/edit/simple",
         data={"amount": "30", "from_account": savings["aid"], "to_account": cash["aid"], "date": LONG_AGO},
     )
     assert response.status_code == 200, response.text
-    moved = client.get(f"/transactions/{transfer['tid']}").json()
+    moved = client.get(f"/api/transactions/{transfer['tid']}").json()
     assert moved["currency"] == "INR"
     assert all(p["value"] == p["amount"] == "30.00" for p in moved["postings"])

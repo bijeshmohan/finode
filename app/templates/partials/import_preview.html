@@ -13,7 +13,7 @@
     <li>{{ summary.new_accounts|length }} new account{{ "" if summary.new_accounts|length == 1 else "s" }}{% if summary.accounts_reused %}, {{ summary.accounts_reused }} existing reused{% endif %}</li>
     <li>Assets {{ summary.assets|money }} · Liabilities {{ summary.liabilities|money }}{% if summary.other_commodities %} <span class="muted">(accounts in your default currency)</span>{% endif %}</li>
     {% if summary.new_commodities %}<li>New commodities: {{ summary.new_commodities|join(", ") }} <span class="muted">· added to your own list</span></li>{% endif %}
-    {% if summary.other_commodities %}<li>Also holds {{ summary.other_commodities|join(", ") }}. These are valued with the prices in the file{% if summary.prices %} ({{ summary.prices }} price{{ "" if summary.prices == 1 else "s" }}){% endif %} and the rates of your conversions; add more under <a href="/app/commodities">Assets &amp; prices</a>.</li>{% endif %}
+    {% if summary.other_commodities %}<li>Also holds {{ summary.other_commodities|join(", ") }}. These are valued with the prices in the file{% if summary.prices %} ({{ summary.prices }} price{{ "" if summary.prices == 1 else "s" }}){% endif %} and the rates of your conversions; add more under <a href="/commodities">Assets &amp; prices</a>.</li>{% endif %}
     {% if summary.prices and not summary.other_commodities %}<li>{{ summary.prices }} price{{ "" if summary.prices == 1 else "s" }}</li>{% endif %}
     {% if summary.skipped_empty %}<li class="muted">{{ summary.skipped_empty }} zero-amount transaction{{ "" if summary.skipped_empty == 1 else "s" }} skipped</li>{% endif %}
   </ul>
@@ -24,7 +24,7 @@
   </details>
   {% endif %}
   <div class="actions">
-    <button type="button" hx-post="/app/import" hx-include="#import-file" hx-encoding="multipart/form-data"
+    <button type="button" hx-post="/import" hx-include="#import-file" hx-encoding="multipart/form-data"
             hx-target="#import-preview" hx-swap="innerHTML">Import {{ summary.transactions }} transaction{{ "" if summary.transactions == 1 else "s" }}</button>
   </div>
 </div>

@@ -46,17 +46,17 @@ def dashboard(
         {
             "done": bool(used_roots & {"Assets", "Liabilities"}),
             "title": "Add a bank account, cash or card",
-            "href": f"/app/accounts/new?parent={roots['Assets']}",
+            "href": f"/accounts/new?parent={roots['Assets']}",
         },
         {
             "done": "Expenses" in used_roots,
             "title": "Add an expense category, like Groceries",
-            "href": f"/app/accounts/new?parent={roots['Expenses']}",
+            "href": f"/accounts/new?parent={roots['Expenses']}",
         },
         {
             "done": has_recorded,
             "title": "Record your first transaction",
-            "href": "/app/transactions/new",
+            "href": "/transactions/new",
         },
     ]
     return templates.TemplateResponse(
