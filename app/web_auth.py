@@ -12,7 +12,7 @@ from .config import settings
 ACCESS_COOKIE = "finode_access"
 REFRESH_COOKIE = "finode_refresh"
 REFRESH_MAX_AGE = 60 * 60 * 24 * 30
-LOGIN_PATH = "/app/login"
+LOGIN_PATH = "/login"
 
 
 class LoginRequired(Exception):
@@ -78,15 +78,15 @@ def set_auth_cookies(response: Response, tokens: SessionTokens) -> None:
         "httponly": True,
         "samesite": "lax",
         "secure": settings.cookie_secure,
-        "path": "/app",
+        "path": "/",
     }
     response.set_cookie(ACCESS_COOKIE, tokens.access_token, max_age=tokens.expires_in, **options)
     response.set_cookie(REFRESH_COOKIE, tokens.refresh_token, max_age=REFRESH_MAX_AGE, **options)
 
 
 def clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie(ACCESS_COOKIE, path="/app")
-    response.delete_cookie(REFRESH_COOKIE, path="/app")
+    response.delete_cookie(ACCESS_COOKIE, path="/")
+    response.delete_cookie(REFRESH_COOKIE, path="/")
 
 
 def web_login_required(request: Request) -> None:
@@ -122,7 +122,7 @@ def web_login_required(request: Request) -> None:
     raise LoginRequired()
 
 
-CONSENT_PATH = "/app/oauth/consent"
+CONSENT_PATH = "/oauth/consent"
 
 
 def safe_next(target: str | None) -> str | None:

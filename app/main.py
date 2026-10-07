@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
@@ -28,14 +29,9 @@ app.router.routes.append(Route("/mcp", endpoint=mcp_transport.MCPEndpoint(), met
 @app.get("/.well-known/oauth-protected-resource", include_in_schema=False)
 def protected_resource(request: Request):
     return mcp_transport.protected_resource_metadata(request.scope)
-app.include_router(accounts.router)
-app.include_router(commodities.router)
-app.include_router(prices.router)
-app.include_router(recurring.router)
-app.include_router(transactions.router)
-app.include_router(data.router)
-app.include_router(profile.router)
-app.include_router(reports.router)
+# The JSON API lives under /api; the web UI owns the site root.
+for api_router in (accounts, commodities, prices, recurring, transactions, data, profile, reports):
+    app.include_router(api_router.router, prefix="/api")
 app.include_router(web.router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.add_exception_handler(LoginRequired, login_required_handler)
@@ -44,6 +40,10 @@ app.middleware("http")(clear_shown_flash_middleware)
 app.middleware("http")(cache_headers_middleware)
 
 
-@app.get("/")
-def main():
-    return {"message": "welcome to finode"}
+@app.get("/app", include_in_schema=False)
+@app.get("/app/{rest:path}", include_in_schema=False)
+def moved_from_app(request: Request, rest: str = ""):
+    """The web UI used to live under /app: keep old bookmarks, the installed app and OAuth consent links working."""
+    target = "/" + rest
+    query = request.url.query
+    return RedirectResponse(target + (f"?{query}" if query else ""), status_code=301)

@@ -19,7 +19,7 @@
     </li>
     {% endfor %}
   </ol>
-  <p class="muted">Already keep a ledger file? <a href="/app/profile/data">Import it</a> instead.</p>
+  <p class="muted">Already keep a ledger file? <a href="/profile/data">Import it</a> instead.</p>
 </section>
 {% endif %}
 
@@ -31,7 +31,7 @@
     <div><dt>Assets</dt><dd>{{ summary.assets|money }}</dd></div>
     <div><dt>Liabilities</dt><dd>{{ summary.liabilities|money }}</dd></div>
   </dl>
-  {% if summary.unpriced %}<p class="muted">Some holdings have no price yet and are left out. <a href="/app/commodities#rates">Add prices</a></p>{% endif %}
+  {% if summary.unpriced %}<p class="muted">Some holdings have no price yet and are left out. <a href="/commodities#rates">Add prices</a></p>{% endif %}
 </section>
 
 <section class="card month">
@@ -46,14 +46,14 @@
 
 <div class="section-head">
   <h2>Recent transactions</h2>
-  {% if recent %}<a href="/app/transactions">View all</a>{% endif %}
+  {% if recent %}<a href="/transactions">View all</a>{% endif %}
 </div>
 {% if recent %}
   {% with rows=recent %}{% include "partials/transaction_list.html" %}{% endwith %}
 {% else %}
 <div class="card empty-state">
   <p>Nothing recorded yet.</p>
-  <a class="button" href="/app/transactions/new">Record a transaction</a>
+  <a class="button" href="/transactions/new">Record a transaction</a>
 </div>
 {% endif %}
 {% endblock %}

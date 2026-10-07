@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 
 def test_dashboard_empty_state(client: TestClient):
-    response = client.get("/app/")
+    response = client.get("/")
     assert response.status_code == 200
     assert "Net worth" in response.text
     assert "Nothing recorded yet" in response.text
@@ -18,7 +18,7 @@ def test_dashboard_shows_summary_and_recent_transactions(
     expense_account: dict,
 ):
     bank = client.post(
-        "/accounts/",
+        "/api/accounts/",
         json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"},
     ).json()
     today = date.today().isoformat()
@@ -27,7 +27,7 @@ def test_dashboard_shows_summary_and_recent_transactions(
         (expense_account, bank, "120.50", "Supermarket"),
     ):
         response = client.post(
-            "/transactions/",
+            "/api/transactions/",
             json={
                 "date": today,
                 "payee": payee,
@@ -39,7 +39,7 @@ def test_dashboard_shows_summary_and_recent_transactions(
         )
         assert response.status_code == 201
 
-    text = client.get("/app/").text
+    text = client.get("/").text
     assert "3,379.50" in text  # net worth: 1000 + 2500 - 120.50
     assert "2,500.00" in text  # income this month
     assert "120.50" in text  # expenses this month
@@ -51,7 +51,7 @@ def test_dashboard_limits_recent_transactions(
 ):
     for i in range(10):
         client.post(
-            "/transactions/",
+            "/api/transactions/",
             json={
                 "payee": f"tx-{i}",
                 "postings": [
@@ -60,7 +60,7 @@ def test_dashboard_limits_recent_transactions(
                 ],
             },
         )
-    text = client.get("/app/").text
+    text = client.get("/").text
     assert text.count('class="tx"') == 8
 
 
@@ -80,29 +80,29 @@ def test_friendly_date_filter():
 
 
 def test_onboarding_checklist_for_new_users(client: TestClient, root_accounts: dict[str, str]):
-    text = client.get("/app/").text
+    text = client.get("/").text
     assert "Get started" in text
-    assert f'href="/app/accounts/new?parent={root_accounts["Assets"]}"' in text
-    assert f'href="/app/accounts/new?parent={root_accounts["Expenses"]}"' in text
-    assert 'href="/app/transactions/new">Record your first transaction' in text
+    assert f'href="/accounts/new?parent={root_accounts["Assets"]}"' in text
+    assert f'href="/accounts/new?parent={root_accounts["Expenses"]}"' in text
+    assert 'href="/transactions/new">Record your first transaction' in text
 
 
 def test_onboarding_ticks_off_steps_and_ignores_opening_balances(
     client: TestClient, root_accounts: dict[str, str]
 ):
     bank = client.post(
-        "/accounts/",
+        "/api/accounts/",
         json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"},
     ).json()
-    text = client.get("/app/").text
+    text = client.get("/").text
     assert '<li class="done">' in text
     assert "Record your first transaction</a>" in text  # opening balance is not a recorded transaction
 
     food = client.post(
-        "/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}
+        "/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}
     ).json()
     client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "postings": [
                 {"account": food["aid"], "side": "debit", "amount": "5.00"},
@@ -110,7 +110,7 @@ def test_onboarding_ticks_off_steps_and_ignores_opening_balances(
             ]
         },
     )
-    assert "Get started" not in client.get("/app/").text
+    assert "Get started" not in client.get("/").text
 
 
 def test_money_filter_groups_digits_and_uses_a_true_minus():

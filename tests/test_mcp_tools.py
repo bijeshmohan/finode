@@ -18,7 +18,7 @@ def make(client, name, parent, commodity=None, **extra):
     body = {"name": name, "parent_id": parent, **extra}
     if commodity:
         body["commodity"] = commodity
-    response = client.post("/accounts/", json=body)
+    response = client.post("/api/accounts/", json=body)
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -79,7 +79,7 @@ async def test_record_by_short_names_and_read_it_back(session, client, books, se
         account = await call(c, "get_account", account="Assets:Bank:HDFC")
         assert account["balance"] == "9550.00" and account["recent"][0]["payee"] == "DMart"
 
-    stored = client.get(f"/transactions/{recorded['id']}").json()
+    stored = client.get(f"/api/transactions/{recorded['id']}").json()
     assert stored["created_via"] == "mcp:Claude" and stored["updated_via"] == "mcp:Claude"
 
 
@@ -169,22 +169,22 @@ async def test_split_update_and_delete(session, client, books, secret):
         assert deleted["payee"] == "BigBasket"
         with pytest.raises(ToolFailed, match="not found"):
             await call(c, "delete_transaction", transaction_id=split["id"])
-    assert client.get(f"/transactions/{split['id']}").status_code == 404
+    assert client.get(f"/api/transactions/{split['id']}").status_code == 404
 
 
 async def test_editing_a_web_entry_marks_who_changed_it(session, client, books, secret):
     created = client.post(
-        "/app/transactions",
+        "/transactions",
         data={"amount": "120", "from_account": books["hdfc"]["aid"], "to_account": books["groceries"]["aid"], "payee": "Shop"},
     )
     assert created.status_code == 200
-    tid = client.get("/transactions/").json()[0]["tid"]
+    tid = client.get("/api/transactions/").json()[0]["tid"]
     async with running_app(session), mcp_client(secret) as c:
         updated = (await call(c, "update_transaction", transaction_id=tid, note="eggs"))["updated"]
     assert updated["created_via"] == "web" and updated["updated_via"] == "assistant (Claude)"
-    page = client.get(f"/app/transactions/{tid}/edit").text
+    page = client.get(f"/transactions/{tid}/edit").text
     assert "Added by the app" in page and "last changed by Claude (AI assistant)" in page
-    listing = client.get("/app/transactions").text
+    listing = client.get("/transactions").text
     assert "Changed by Claude" in listing
 
 
@@ -226,7 +226,7 @@ async def test_spending_breakdown(session, books, secret):
 
 
 async def test_create_account_and_set_price(session, client, books, secret):
-    client.post("/commodities/", json={"code": "INFY", "name": "Infosys", "kind": "stock", "decimals": 0})
+    client.post("/api/commodities/", json={"code": "INFY", "name": "Infosys", "kind": "stock", "decimals": 0})
     async with running_app(session), mcp_client(secret) as c:
         created = (await call(c, "create_account", name="Infosys", parent="Assets", holds="INFY", opening_balance="10", opening_value="15000"))["created"]
         assert created == {"path": "Assets:Infosys", "holds": "INFY", "balance": "10.00"}
@@ -260,8 +260,8 @@ async def test_accounts_cannot_be_deleted_and_prompts_exist(session, secret):
 
 @pytest.mark.anyio
 async def test_assistants_can_list_create_and_stop_recurring_transactions(session, root_accounts, client):
-    client.post("/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "5000"})
-    client.post("/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
+    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "5000"})
+    client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         assert payload(await c.call_tool("list_recurring", {}))["recurring"] == []
         made = payload(await c.call_tool("create_recurring", {

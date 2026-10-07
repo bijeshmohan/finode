@@ -76,7 +76,7 @@ def change_access(gid: UUID, grants: OAuthGrants, scope: Annotated[str, Form()] 
         raise HTTPException(status_code=404, detail="app not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return htmx_redirect("/app/profile/assistants", flash="access-changed")
+    return htmx_redirect("/profile/assistants", flash="access-changed")
 
 
 @router.post("/apps/{gid}/disconnect")
@@ -86,4 +86,4 @@ def disconnect(request: Request, gid: UUID, grants: OAuthGrants):
     except LookupError:
         raise HTTPException(status_code=404, detail="app not found")
     oauth.revoke_grant(grant.client_id, request.state.access_token)
-    return htmx_redirect("/app/profile/assistants", flash="app-disconnected")
+    return htmx_redirect("/profile/assistants", flash="app-disconnected")

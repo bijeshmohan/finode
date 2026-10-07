@@ -153,7 +153,7 @@ async function openQuickAccount(select) {
   quickTarget = select;
   quickOpening = true;
   try {
-    await htmx.ajax("GET", `/app/accounts/quick?hint=${suggestedRoot(select)}`, {
+    await htmx.ajax("GET", `/accounts/quick?hint=${suggestedRoot(select)}`, {
       target: "#quick-account-body",
       swap: "innerHTML",
     });
@@ -227,7 +227,7 @@ document.addEventListener(
 
 document.body.addEventListener("account-added", async (event) => {
   const { aid, name } = event.detail;
-  const response = await fetch("/app/accounts/options", { headers: { "HX-Request": "true" } });
+  const response = await fetch("/accounts/options", { headers: { "HX-Request": "true" } });
   if (!response.ok) return;
   const options = await response.text();
   document.querySelectorAll("select[data-account-select]").forEach((select) => {

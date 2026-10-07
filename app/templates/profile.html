@@ -13,7 +13,7 @@
 <div class="settings form-narrow">
   <details id="name" class="setting">
     <summary><span class="setting-title">Name</span><span class="setting-value">{{ display_name or "Not set" }}</span>{{ icon("chevron-right") }}</summary>
-    <form class="stack" hx-post="/app/profile">
+    <form class="stack" hx-post="/profile">
       <div class="grid-form">
         <label>First name
           <input type="text" name="first_name" maxlength="40" autocomplete="given-name" value="{{ profile.first_name or '' }}">
@@ -30,7 +30,7 @@
 
   <details id="currency" class="setting">
     <summary><span class="setting-title">Default currency</span><span class="setting-value">{{ profile.default_currency }}</span>{{ icon("chevron-right") }}</summary>
-    <form class="stack" hx-post="/app/profile/currency">
+    <form class="stack" hx-post="/profile/currency">
       <p class="muted">Net worth, the dashboard and your reports add everything up in this currency. Accounts keep what they hold; this only changes how totals are shown.</p>
       <label>Currency
         <select name="currency">
@@ -40,7 +40,7 @@
       <p id="currency-error" class="error" role="alert"></p>
       <div class="actions">
         <button type="submit">Save currency</button>
-        <a class="button secondary" href="/app/commodities">Assets &amp; prices</a>
+        <a class="button secondary" href="/commodities">Assets &amp; prices</a>
       </div>
     </form>
   </details>
@@ -48,7 +48,7 @@
   <details id="depth" class="setting">
     <summary><span class="setting-title">Account depth</span>
       <span class="setting-value">{% for d in depths %}{{ d.root[:1] }} {{ d.value or "∞" }}{{ " · " if not loop.last }}{% endfor %}</span>{{ icon("chevron-right") }}</summary>
-    <form class="stack" hx-post="/app/profile/depth">
+    <form class="stack" hx-post="/profile/depth">
       <p class="muted">How many levels of sub-accounts each type may have. 1 is a flat list; 0 means no limit of your own.</p>
       <div class="grid-form">
         {% for d in depths %}
@@ -79,21 +79,21 @@
     </div>
   </details>
 
-  <a class="setting setting-link" id="recurring" href="/app/recurring">
+  <a class="setting setting-link" id="recurring" href="/recurring">
     <span class="setting-title">Recurring transactions</span><span class="setting-value">Rent, salary, subscriptions</span>{{ icon("chevron-right") }}
   </a>
-  <a class="setting setting-link" id="assistants" href="/app/profile/assistants">
+  <a class="setting setting-link" id="assistants" href="/profile/assistants">
     <span class="setting-title">AI assistants</span><span class="setting-value">MCP tokens</span>{{ icon("chevron-right") }}
   </a>
-  <a class="setting setting-link" id="assets" href="/app/commodities">
+  <a class="setting setting-link" id="assets" href="/commodities">
     <span class="setting-title">Assets &amp; prices</span><span class="setting-value">Stocks, funds, coins</span>{{ icon("chevron-right") }}
   </a>
-  <a class="setting setting-link" id="data" href="/app/profile/data">
+  <a class="setting setting-link" id="data" href="/profile/data">
     <span class="setting-title">Your data</span><span class="setting-value">Export &amp; import</span>{{ icon("chevron-right") }}
   </a>
 </div>
 
-<form method="post" action="/app/logout" class="form-narrow signout">
+<form method="post" action="/logout" class="form-narrow signout">
   <button type="submit" class="danger">{{ icon("logout") }}Sign out</button>
 </form>
 {% endblock %}

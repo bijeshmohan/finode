@@ -154,7 +154,7 @@ def create_recurring(
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect("/app/recurring", flash="recurring-saved")
+    return htmx_redirect("/recurring", flash="recurring-saved")
 
 
 @router.get("/{rid}/edit")
@@ -197,14 +197,14 @@ def update_recurring(
         return htmx_error(str(e), "#form-error")
     if rule is None:
         raise HTTPException(status_code=404, detail="recurring transaction not found")
-    return htmx_redirect("/app/recurring", flash="recurring-saved")
+    return htmx_redirect("/recurring", flash="recurring-saved")
 
 
 @router.post("/{rid}/pause")
 def pause_recurring(rid: UUID, recurring: Recurring):
     if recurring.set_active(rid, False) is None:
         raise HTTPException(status_code=404, detail="recurring transaction not found")
-    return htmx_redirect("/app/recurring", flash="recurring-paused")
+    return htmx_redirect("/recurring", flash="recurring-paused")
 
 
 @router.post("/{rid}/resume")
@@ -215,11 +215,11 @@ def resume_recurring(rid: UUID, recurring: Recurring):
         return htmx_error(str(e), "#form-error")
     if rule is None:
         raise HTTPException(status_code=404, detail="recurring transaction not found")
-    return htmx_redirect("/app/recurring", flash="recurring-resumed")
+    return htmx_redirect("/recurring", flash="recurring-resumed")
 
 
 @router.post("/{rid}/delete")
 def delete_recurring(rid: UUID, recurring: Recurring):
     if not recurring.delete(rid):
         raise HTTPException(status_code=404, detail="recurring transaction not found")
-    return htmx_redirect("/app/recurring", flash="recurring-deleted")
+    return htmx_redirect("/recurring", flash="recurring-deleted")

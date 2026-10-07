@@ -22,16 +22,16 @@
 <body class="{% block body_class %}app{% endblock %}">
   {% block header %}
   <header class="topbar">
-    <a class="brand" href="/app/"><img src="{{ asset_url('favicon.svg') }}" alt="" width="28" height="28"><span>finode</span></a>
+    <a class="brand" href="/"><img src="{{ asset_url('favicon.svg') }}" alt="" width="28" height="28"><span>finode</span></a>
     <nav class="topnav" aria-label="Main">
-      <a href="/app/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
-      <a href="/app/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>Accounts</a>
-      <a href="/app/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>Transactions</a>
+      <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+      <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>Accounts</a>
+      <a href="/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>Transactions</a>
     </nav>
     {% if not hide_fab %}
-    <a class="button topbar-new" href="/app/transactions/new">{{ icon("plus") }}<span>New transaction</span></a>
+    <a class="button topbar-new" href="/transactions/new">{{ icon("plus") }}<span>New transaction</span></a>
     {% endif %}
-    <a class="icon-button profile-link" href="/app/profile" title="Profile" {% if active == 'profile' %}aria-current="page"{% endif %}>{{ icon("user") }}<span class="sr-only">Profile</span></a>
+    <a class="icon-button profile-link" href="/profile" title="Profile" {% if active == 'profile' %}aria-current="page"{% endif %}>{{ icon("user") }}<span class="sr-only">Profile</span></a>
   </header>
   {% endblock %}
 
@@ -44,12 +44,12 @@
 
   {% block tabbar %}
   <nav class="tabbar" aria-label="Main">
-    <a href="/app/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>
-    <a href="/app/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
-    <a href="/app/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
+    <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>
+    <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
+    <a href="/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
   </nav>
   {% if not hide_fab %}
-  <a class="fab" href="/app/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>
+  <a class="fab" href="/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>
   {% endif %}
   {% endblock %}
 </body>

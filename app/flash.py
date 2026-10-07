@@ -37,7 +37,7 @@ MESSAGES = {
 def set_flash(response: Response, key: str) -> None:
     if key not in MESSAGES:
         raise ValueError(f"unknown flash message '{key}'")
-    response.set_cookie(FLASH_COOKIE, key, max_age=60, httponly=True, samesite="lax", path="/app")
+    response.set_cookie(FLASH_COOKIE, key, max_age=60, httponly=True, samesite="lax", path="/")
 
 
 def flash_message(request: Request) -> str | None:
@@ -53,5 +53,5 @@ async def clear_shown_flash_middleware(request: Request, call_next):
         and response.status_code == 200
         and response.headers.get("content-type", "").startswith("text/html")
     ):
-        response.delete_cookie(FLASH_COOKIE, path="/app")
+        response.delete_cookie(FLASH_COOKIE, path="/")
     return response

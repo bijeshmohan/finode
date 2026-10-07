@@ -2,28 +2,28 @@ from fastapi.testclient import TestClient
 
 
 def test_profile_page_shows_form_and_email(client: TestClient):
-    response = client.get("/app/profile")
+    response = client.get("/profile")
     assert response.status_code == 200
     assert 'name="first_name"' in response.text and 'name="last_name"' in response.text
     assert "test@example.com" in response.text
 
 
 def test_profile_page_shows_saved_names(client: TestClient):
-    client.patch("/profile/", json={"first_name": "Bijesh", "last_name": "Mohan"})
-    text = client.get("/app/profile").text
+    client.patch("/api/profile/", json={"first_name": "Bijesh", "last_name": "Mohan"})
+    text = client.get("/profile").text
     assert 'value="Bijesh"' in text and 'value="Mohan"' in text
 
 
 def test_saving_profile_redirects_with_flash(client: TestClient):
-    response = client.post("/app/profile", data={"first_name": "Bijesh", "last_name": ""})
+    response = client.post("/profile", data={"first_name": "Bijesh", "last_name": ""})
     assert response.status_code == 200
-    assert response.headers["HX-Redirect"] == "/app/profile"
-    profile = client.get("/profile/").json()
+    assert response.headers["HX-Redirect"] == "/profile"
+    profile = client.get("/api/profile/").json()
     assert profile["first_name"] == "Bijesh" and profile["last_name"] is None
 
 
 def test_saving_too_long_name_reports_error(client: TestClient):
-    response = client.post("/app/profile", data={"first_name": "x" * 41})
+    response = client.post("/profile", data={"first_name": "x" * 41})
     assert response.status_code == 400
     assert response.headers["HX-Retarget"] == "#form-error"
 
@@ -31,45 +31,45 @@ def test_saving_too_long_name_reports_error(client: TestClient):
 
 
 def test_top_bar_has_profile_link_and_no_sign_out(client: TestClient):
-    text = client.get("/app/").text
-    assert text.count('href="/app/profile"') == 1
-    assert "/app/logout" not in text
+    text = client.get("/").text
+    assert text.count('href="/profile"') == 1
+    assert "/logout" not in text
 
 
 def test_tab_bar_has_only_three_tabs(client: TestClient):
-    text = client.get("/app/").text
+    text = client.get("/").text
     tabbar = text[text.index('<nav class="tabbar"'):]
     tabbar = tabbar[: tabbar.index("</nav>")]
-    assert tabbar.count("<a ") == 3 and "/app/profile" not in tabbar
+    assert tabbar.count("<a ") == 3 and "/profile" not in tabbar
 
 
 def test_profile_page_has_sign_out(client: TestClient):
-    text = client.get("/app/profile").text
-    assert 'action="/app/logout"' in text and "Sign out" in text
+    text = client.get("/profile").text
+    assert 'action="/logout"' in text and "Sign out" in text
     assert text.count("test@example.com") >= 1 and "Signed in as" not in text
 
 
 def test_header_shows_initials_and_name(client: TestClient):
-    client.patch("/profile/", json={"first_name": "Bijesh", "last_name": "Mohan"})
-    text = client.get("/app/profile").text
+    client.patch("/api/profile/", json={"first_name": "Bijesh", "last_name": "Mohan"})
+    text = client.get("/profile").text
     assert '<span class="avatar" aria-hidden="true">BM</span>' in text and "<h1>Bijesh Mohan</h1>" in text
 
 
 def test_header_falls_back_to_email_initial(client: TestClient):
-    text = client.get("/app/profile").text
+    text = client.get("/profile").text
     assert '>T</span>' in text and "Your profile" in text
 
 
 def test_sections_are_collapsible_and_summarise_values(client: TestClient):
-    text = client.get("/app/profile").text
+    text = client.get("/profile").text
     for section in ("name", "currency", "depth", "appearance"):
         assert f'<details id="{section}" class="setting">' in text
     assert "Default currency</span><span class=\"setting-value\">INR" in text
 
 
 def test_theme_cookie_sets_data_theme(client: TestClient):
-    assert "data-theme" not in client.get("/app/profile").text.split("<head>")[0]
+    assert "data-theme" not in client.get("/profile").text.split("<head>")[0]
     client.cookies.set("finode_theme", "dark")
-    assert '<html lang="en" data-theme="dark">' in client.get("/app/profile").text
+    assert '<html lang="en" data-theme="dark">' in client.get("/profile").text
     client.cookies.set("finode_theme", "<script>")
-    assert "data-theme" not in client.get("/app/profile").text.split("<head>")[0]
+    assert "data-theme" not in client.get("/profile").text.split("<head>")[0]

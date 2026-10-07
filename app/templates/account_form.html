@@ -3,10 +3,10 @@
 {% set editing = node is not none %}
 {% block title %}{{ "Edit " ~ node.account.name if editing else "Add account" }} · finode{% endblock %}
 {% block content %}
-<a class="back" href="{{ '/app/accounts/' ~ node.account.aid if editing else '/app/accounts' }}">{{ icon("back") }}{{ node.account.name if editing else "Accounts" }}</a>
+<a class="back" href="{{ '/accounts/' ~ node.account.aid if editing else '/accounts' }}">{{ icon("back") }}{{ node.account.name if editing else "Accounts" }}</a>
 <h1>{{ "Edit account" if editing else "Add account" }}</h1>
 
-<form class="card stack form-narrow" hx-post="{{ '/app/accounts/' ~ node.account.aid ~ '/edit' if editing else '/app/accounts' }}">
+<form class="card stack form-narrow" hx-post="{{ '/accounts/' ~ node.account.aid ~ '/edit' if editing else '/accounts' }}">
   <label>Name
     <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
            placeholder="e.g. HDFC Savings" {{ "autofocus" if not editing }}>
@@ -34,7 +34,7 @@
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions">
     <button type="submit">{{ "Save changes" if editing else "Add account" }}</button>
-    <a class="button secondary" href="{{ '/app/accounts/' ~ node.account.aid if editing else '/app/accounts' }}">Cancel</a>
+    <a class="button secondary" href="{{ '/accounts/' ~ node.account.aid if editing else '/accounts' }}">Cancel</a>
   </div>
 </form>
 
@@ -42,7 +42,7 @@
 <section class="danger-zone form-narrow">
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
-          hx-post="/app/accounts/{{ node.account.aid }}/delete"
+          hx-post="/accounts/{{ node.account.aid }}/delete"
           hx-confirm="Delete account '{{ node.account.name }}'?">{{ icon("trash") }}Delete account</button>
   <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
 </section>
