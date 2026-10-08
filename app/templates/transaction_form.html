@@ -117,6 +117,24 @@
   <div id="quick-account-body" class="sheet-body"></div>
 </dialog>
 
+{% if editing and history %}
+<details class="card history">
+  <summary>History <span class="muted">· {{ history|length }} {{ "entry" if history|length == 1 else "entries" }}</span></summary>
+  <ol class="history-list">
+    {% for entry in history %}
+    <li>
+      <strong>{{ {"created": "Added", "updated": "Changed", "deleted": "Deleted"}[entry.action] }}</strong>
+      <span class="muted">{{ entry.at.strftime("%d %b %Y, %H:%M") }} UTC{% if entry.via %} · by {{ entry.via|origin_label }}{% endif %}</span>
+      <div class="muted">{{ entry.date|friendly_date }}{% if entry.payee %} · {{ entry.payee }}{% endif %}</div>
+      {% for p in entry.postings %}
+      <div class="history-posting">{{ p.side|capitalize }} {{ p.account }} <span class="amount">{{ p.amount|money }}</span></div>
+      {% endfor %}
+    </li>
+    {% endfor %}
+  </ol>
+</details>
+{% endif %}
+
 {% if editing %}
 <section class="danger-zone">
   <p id="page-error" class="error" role="alert"></p>

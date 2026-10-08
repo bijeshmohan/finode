@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal
 from uuid import UUID
 
@@ -25,8 +26,9 @@ def create_account(account: AccountCreate, accounts: Accounts):
 
 
 @router.get("/{aid}", response_model=AccountRead, status_code=200)
-def get_account(aid: UUID, accounts: Accounts):
-    account = accounts.read(aid)
+def get_account(aid: UUID, accounts: Accounts, as_of: date | None = None):
+    """The account with its balance as of a day (today by default: later entries do not count yet)."""
+    account = accounts.read(aid, as_of)
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
     return account
@@ -52,8 +54,13 @@ def get_account_register(aid: UUID, accounts: Accounts):
 
 
 @router.get("/", response_model=list[AccountRead], status_code=200)
-def get_accounts(accounts: Accounts, type: Literal["Assets", "Liabilities", "Equity", "Income", "Expenses"] | None = None):
-    return accounts.list(type)
+def get_accounts(
+    accounts: Accounts,
+    type: Literal["Assets", "Liabilities", "Equity", "Income", "Expenses"] | None = None,
+    as_of: date | None = None,
+):
+    """Accounts with their balances as of a day (today by default: later entries do not count yet)."""
+    return accounts.list(type, as_of)
 
 
 @router.patch("/{aid}", response_model=AccountRead, status_code=200)

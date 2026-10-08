@@ -123,3 +123,10 @@ liability accounts that already have postings cannot gain sub-accounts. Opening 
 direct balance edits are posted against the system equity account named
 `Opening Balances`, which cannot be renamed, moved, deleted, given
 sub-accounts or have its balance set directly.
+
+### Ledger integrity
+
+- **Database checks:** `postings` has `CHECK` constraints (`amount > 0`, `value > 0`, `side IN ('DEBIT','CREDIT')`), added by migration `a3c5e7f9b124`, which refuses to run if existing rows break them. Balance and "at least two postings" cannot be a plain check, so they live in `TransactionService._resolve`; `ReportService.trial_balance` (`/api/reports/trial-balance`, MCP `check_books`) re-checks every transaction from the stored rows and names the ones that fail. Any new code path that writes transactions must keep a test asserting `trial_balance().balanced`.
+- **Posting ids are stable:** `TransactionRepository._replace_postings` updates postings in place on edit (matching first on account and side, then on account), adding or removing only what is left, so anything that refers to a posting keeps working.
+- **History:** `transaction_history` is append-only (no foreign key, so a deleted transaction's trace survives it). `TransactionRepository` appends a row on create, update (skipped when nothing changed) and delete, so every path (web, API, import, recurring, MCP, balance adjustments) is covered; the row holds the transaction as it stood after the action. Read it with `TransactionService.history(tid)` / `.deleted()`; the edit page shows it. Never update or delete history rows.
+- **Balances by date:** account balances count postings dated up to `as_of` (today by default, so future-dated entries do not count yet; `?as_of=` on `/api/accounts`). The register still lists every entry.

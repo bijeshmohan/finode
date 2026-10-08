@@ -44,7 +44,10 @@ finode is the user's personal double-entry ledger.
 - Things that repeat (rent, salary, subscriptions) are recurring transactions: list_recurring shows
   them, create_recurring sets one up (finode then records each occurrence by itself, so do not also
   record the same payment by hand) and stop_recurring pauses one.
-- Dates are YYYY-MM-DD; today's date is used when you leave the date out.
+- Dates are YYYY-MM-DD; today's date is used when you leave the date out. Balances count entries
+  up to today: an entry dated in the future shows once its day comes.
+- check_books confirms that debits equal credits in every transaction and overall; use it when the
+  user doubts their numbers.
 - Changes you make are marked in finode as made by this assistant. Confirm with the user before
   deleting anything, and read back what you recorded.
 """
@@ -642,9 +645,32 @@ def monthly_review(month: Annotated[str | None, Field(description="YYYY-MM; this
     )
 
 
+@_tool_errors
+def check_books(as_of: str | None = None) -> dict[str, Any]:
+    """Check that the books are sound: debits equal credits in every transaction and overall.
+    Returns the trial balance (debits and credits per account) and any problems found.
+    as_of: a day (YYYY-MM-DD), today by default."""
+    try:
+        day = date.fromisoformat(as_of) if as_of else None
+    except ValueError:
+        raise ToolError(f"'{as_of}' is not a date: use YYYY-MM-DD!")
+    with services() as s:
+        trial = s.reports.trial_balance(day)
+        return {
+            "as_of": trial.as_of.isoformat(),
+            "balanced": trial.balanced,
+            "problems": trial.problems,
+            "totals": [{"currency": t.currency, "debit": text(t.debit), "credit": text(t.credit)} for t in trial.totals],
+            "accounts": [
+                {"account": line.account, "commodity": line.commodity, "debit": text(line.debit), "credit": text(line.credit)}
+                for line in trial.lines
+            ],
+        }
+
+
 READ_TOOLS = [
     get_overview, list_accounts, get_account, search_transactions, get_transaction, spending_breakdown, get_prices,
-    list_recurring,
+    list_recurring, check_books,
 ]
 WRITE_TOOLS = [
     (record_transaction, WRITE),

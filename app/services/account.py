@@ -280,14 +280,19 @@ class AccountService:
         self,
         account: Account,
         all_accounts: list[Account] | None = None,
+        as_of: date | None = None,
     ) -> tuple[Decimal, bool]:
         """The account's balance in what it holds, and whether part of it could not be valued.
+
+        Counts the postings dated up to `as_of` (today by default, so entries dated in the future
+        do not count yet) and values what is held in something else at the rate of that day.
 
         Sub-accounts that hold something else are valued at the latest price. A group of
         accounts without a price linking them is reported as partly unpriced, never as zero.
         """
         if all_accounts is None:
             all_accounts = self._ensure_roots()
+        as_of = as_of or date.today()
 
         accounts_by_id = {acc.aid: acc for acc in all_accounts}
         accounts_by_parent = {}
@@ -301,7 +306,7 @@ class AccountService:
         normal_side = self._normal_side(account, accounts_by_id)
         target = self._holds(account)
         totals: dict[UUID, Decimal] = {}
-        for posting in self.tr.postings_for_accounts(target_ids):
+        for posting in self.tr.postings_for_accounts(target_ids, date_to=as_of):
             held = accounts_by_id[posting.account].commodity_id or target.cid
             signed = posting.amount if posting.side == normal_side else -posting.amount
             totals[held] = totals.get(held, Decimal("0.00")) + signed
@@ -312,7 +317,7 @@ class AccountService:
             if held == target.cid or total == 0:
                 balance += total
                 continue
-            converted = self.prices.book().convert(total, held, target.cid, date.today(), target.decimals)
+            converted = self.prices.book().convert(total, held, target.cid, as_of, target.decimals)
             if converted is None:
                 unpriced = True
             else:
@@ -323,15 +328,17 @@ class AccountService:
         self,
         account: Account,
         all_accounts: list[Account] | None = None,
+        as_of: date | None = None,
     ) -> Decimal:
-        return self._valued_balance(account, all_accounts)[0]
+        return self._valued_balance(account, all_accounts, as_of)[0]
 
     def _to_read(
         self,
         account: Account,
         all_accounts: list[Account] | None = None,
+        as_of: date | None = None,
     ) -> AccountRead:
-        balance, unpriced = self._valued_balance(account, all_accounts)
+        balance, unpriced = self._valued_balance(account, all_accounts, as_of)
         return AccountRead(
             aid=account.aid,
             name=account.name,
@@ -469,14 +476,14 @@ class AccountService:
         self.ar.db.refresh(created)
         return self._to_read(created, all_accounts_with_created)
 
-    def read(self, aid: UUID) -> AccountRead | None:
+    def read(self, aid: UUID, as_of: date | None = None) -> AccountRead | None:
         all_accounts = self._ensure_roots()
         account = next((a for a in all_accounts if a.aid == aid), None)
         if not account:
             return None
-        return self._to_read(account, all_accounts)
+        return self._to_read(account, all_accounts, as_of)
 
-    def list(self, root_name: str | None = None) -> list[AccountRead]:
+    def list(self, root_name: str | None = None, as_of: date | None = None) -> list[AccountRead]:
         all_accounts = self._ensure_roots()
         accounts_by_id = {acc.aid: acc for acc in all_accounts}
 
@@ -486,7 +493,7 @@ class AccountService:
                 a for a in all_accounts
                 if self._get_root_name(a, accounts_by_id) == root_name
             ]
-        return [self._to_read(account, all_accounts) for account in filtered]
+        return [self._to_read(account, all_accounts, as_of) for account in filtered]
 
     def register(self, aid: UUID) -> list[RegisterEntry] | None:
         """Return the account's activity oldest first with a running balance.
@@ -598,6 +605,8 @@ class AccountService:
         invested_known = True
         for posting in self.tr.postings_for_account(aid):
             transaction = self.tr.read(posting.transaction)
+            if transaction.date > date.today():
+                continue  # not part of the balance yet either
             signed = posting.value if posting.side == normal_side else -posting.value
             if transaction.currency_id != default.cid:
                 signed = book.convert(signed, transaction.currency_id, default.cid, transaction.date, default.decimals)

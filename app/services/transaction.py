@@ -11,6 +11,8 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
     PostingRead,
+    HistoryPosting,
+    HistoryRead,
 )
 
 
@@ -156,6 +158,52 @@ class TransactionService:
             updated=transaction.updated,
         )
 
+    def _history_read(self, row, paths: dict[UUID, str]) -> HistoryRead:
+        snap = row.snapshot
+        currency = self._catalog().get(UUID(snap["currency_id"]))
+        return HistoryRead(
+            hid=row.hid,
+            transaction=row.transaction_id,
+            action=row.action,
+            at=row.at,
+            via=row.via,
+            date=date.fromisoformat(snap["date"]),
+            payee=snap.get("payee"),
+            comment=snap.get("comment"),
+            currency=currency.code if currency else snap["currency_id"],
+            postings=[
+                HistoryPosting(
+                    account=paths.get(UUID(p["account"]), p["account"]),
+                    side=p["side"],
+                    amount=Decimal(p["amount"]),
+                    value=Decimal(p["value"]),
+                )
+                for p in snap["postings"]
+            ],
+        )
+
+    def _account_paths(self) -> dict[UUID, str]:
+        accounts = {a.aid: a for a in self.ar.list()}
+        paths: dict[UUID, str] = {}
+        for aid, account in accounts.items():
+            chain, seen = [], set()
+            while account is not None and account.aid not in seen:
+                seen.add(account.aid)
+                chain.append(account.name)
+                account = accounts.get(account.parent_id) if account.parent_id else None
+            paths[aid] = ":".join(reversed(chain))
+        return paths
+
+    def history(self, tid: UUID) -> list[HistoryRead]:
+        """What happened to a transaction, oldest first; works for a deleted one too."""
+        paths = self._account_paths()
+        return [self._history_read(row, paths) for row in self.tr.history(tid)]
+
+    def deleted(self) -> list[HistoryRead]:
+        """Transactions that were deleted, as they were when deleted, newest first."""
+        paths = self._account_paths()
+        return [self._history_read(row, paths) for row in self.tr.deleted()]
+
     def validate(self, data: TransactionCreate) -> None:
         """Raise what create would raise, without saving anything."""
         self._resolve(data)
@@ -219,7 +267,7 @@ class TransactionService:
 
     def delete(self, tid: UUID) -> TransactionRead | None:
         transaction = self.read(tid)
-        deleted = self.tr.delete(tid)
+        deleted = self.tr.delete(tid, self.origin)
         if not deleted:
             raise ValueError(f"transaction with tid '{tid}' not found!")
         self.tr.db.commit()

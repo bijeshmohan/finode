@@ -4,7 +4,7 @@ from enum import Enum
 from uuid import UUID, uuid4
 
 from pydantic import field_validator
-from sqlalchemy import Index
+from sqlalchemy import CheckConstraint, Index
 from sqlmodel import Field
 
 from .utils import Amount, TimestampMixin
@@ -38,6 +38,12 @@ class Transaction(TimestampMixin, table=True):
 
 class Posting(TimestampMixin, table=True):
     __tablename__ = "postings"
+    # The ledger's own rules, enforced by the database as well as the service.
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_postings_amount_positive"),
+        CheckConstraint("value > 0", name="ck_postings_value_positive"),
+        CheckConstraint("side IN ('DEBIT', 'CREDIT')", name="ck_postings_side"),
+    )
 
     pid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")

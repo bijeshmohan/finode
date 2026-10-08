@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ..auth import require_authenticated_user
 from ..dependencies import Transactions
 from ..schemas.transaction import (
+    HistoryRead,
     TransactionCreate,
     TransactionRead,
     TransactionUpdate,
@@ -31,6 +32,21 @@ def create_transaction(
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/deleted", response_model=list[HistoryRead], status_code=200)
+def get_deleted_transactions(transactions: Transactions):
+    """Transactions that were deleted, as they were when deleted, newest first."""
+    return transactions.deleted()
+
+
+@router.get("/{tid}/history", response_model=list[HistoryRead], status_code=200)
+def get_transaction_history(tid: UUID, transactions: Transactions):
+    """Creation, edits and deletion of a transaction, oldest first (also for a deleted one)."""
+    history = transactions.history(tid)
+    if not history:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    return history
 
 
 @router.get("/{tid}", response_model=TransactionRead, status_code=200)
