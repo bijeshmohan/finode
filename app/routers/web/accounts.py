@@ -302,6 +302,9 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "opening_currency": accounts.opening_currency().code,
             "commodity_choices": accounts.commodity_choices(),
             "can_change_commodity": not accounts.has_postings(aid),
+            "root_name": root.account.name,
+            "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
+            "on_budget": node.account.on_budget,
             "parent_options": [
                 n
                 for n in _parent_options(roots, profiles.depth_limits(), exclude=node, keep=node.account.parent_id)
@@ -321,6 +324,8 @@ def update_account(
     balance: Annotated[str | None, Form()] = None,
     commodity: Annotated[str, Form()] = "",
     balance_value: Annotated[str, Form()] = "",
+    on_budget: Annotated[str | None, Form()] = None,
+    budget_choice: Annotated[str | None, Form()] = None,
 ):
     current = accounts.read(aid)
     if current is None:
@@ -341,6 +346,8 @@ def update_account(
             if new_balance != current.balance:
                 changes["balance"] = new_balance
                 changes["balance_value"] = _optional_amount(balance_value)
+        if budget_choice is not None and (on_budget is not None) != current.on_budget:
+            changes["on_budget"] = on_budget is not None
         if changes:
             accounts.update(aid, AccountUpdate(**changes))
     except ValidationError as e:

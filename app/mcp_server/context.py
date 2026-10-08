@@ -7,13 +7,14 @@ from sqlmodel import Session
 
 from ..repositories import (
     AccountRepository,
+    BudgetRepository,
     CommodityRepository,
     PriceRepository,
     ProfileRepository,
     RecurringRepository,
     TransactionRepository,
 )
-from ..services import AccountService, CommodityService, PriceService, RecurringService, ReportService, TransactionService
+from ..services import AccountService, BudgetService, CommodityService, PriceService, RecurringService, ReportService, TransactionService
 from ..services.api_token import TokenOwner
 
 
@@ -40,6 +41,7 @@ class Services:
     prices: PriceService
     commodities: CommodityService
     recurring: RecurringService
+    budget: BudgetService
 
 
 @contextmanager
@@ -61,6 +63,7 @@ def services() -> Iterator[Services]:
             reports=ReportService(accounts, tr),
             prices=prices,
             commodities=CommodityService(cr),
+            budget=BudgetService(accounts, tr, BudgetRepository(db, uid)),
             recurring=RecurringService(
                 RecurringRepository(db, uid), accounts, TransactionService(tr, ar, cr, origin="recurring")
             ),

@@ -1,0 +1,59 @@
+{#- The budget for one month; htmx swaps this whole block after every change. -#}
+{% from "partials/icons.html" import icon %}
+<div id="budget">
+  {% set rta = budget.ready_to_assign %}
+  <div class="ready {{ 'over' if rta < 0 else ('zero all-set' if rta == 0 and budget.lines else ('zero' if rta == 0 else '')) }}">
+    <span class="muted">Ready to assign</span>
+    <span class="figure">{{ rta|money }} {{ budget.currency }}</span>
+    {% if rta < 0 %}
+    <span>You have assigned {{ (-rta)|money }} more than you have. Lower a category, or add income.</span>
+    {% elif rta == 0 and budget.lines %}
+    <span>Every {{ budget.currency }} has a job.</span>
+    {% elif rta > 0 %}
+    <span>Give it a job: assign it to a category below.</span>
+    {% endif %}
+  </div>
+  <p id="budget-error" class="error" role="alert"></p>
+
+  {% if not budget.budget_accounts %}
+  <p class="card muted">No account is part of the budget yet. Open an asset account (or a credit card) and switch on <strong>Part of the budget</strong> in its edit page.</p>
+  {% endif %}
+  {% if budget.ignored_accounts %}
+  <p class="muted">Left out because they hold another currency or have sub-accounts: {{ budget.ignored_accounts|join(", ") }}.</p>
+  {% endif %}
+  {% if budget.unpriced %}
+  <p class="muted">Some spending is left out because no price converts it to {{ budget.currency }}.</p>
+  {% endif %}
+
+  {% if budget.lines %}
+  <div class="budget-columns" aria-hidden="true"><span>Category</span><span>Assigned</span><span>Available</span></div>
+  <div class="budget-list">
+    {% for line in budget.lines %}
+    <div class="budget-row {{ 'group' if line.group }}" {% if line.depth > 1 %}style="padding-left: {{ 0.9 + (line.depth - 1) * 1.1 }}rem"{% endif %}>
+      <div class="name">{{ line.name }}
+        {% if line.activity %}<small>{{ line.activity|money }} spent</small>{% endif %}
+      </div>
+      {% if line.group %}
+      <span class="assigned-fixed">{{ line.assigned|money }}</span>
+      <span class="avail {{ 'negative' if line.available < 0 else ('positive' if line.available > 0) }}">{{ line.available|money }}</span>
+      {% else %}
+      <form hx-post="/budget/assign" hx-trigger="change" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
+        <input type="hidden" name="category" value="{{ line.aid }}">
+        <input type="hidden" name="month" value="{{ month_key }}">
+        <input class="assign" type="text" name="amount" inputmode="decimal" autocomplete="off"
+               value="{{ line.assigned|money if line.assigned else '' }}" placeholder="0.00" aria-label="Assigned to {{ line.name }}">
+      </form>
+      <a class="avail {{ 'negative' if line.available < 0 else ('positive' if line.available > 0) }}"
+         href="/budget/move?month={{ month_key }}&source={{ line.aid }}" title="Move money">{{ line.available|money }}</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <p class="muted" style="margin-top:.75rem">
+    Assigned {{ budget.assigned|money }} · spent {{ budget.activity|money }} · available {{ budget.available|money }}.
+    Tap an available amount to move money to another category.
+  </p>
+  {% elif budget.budget_accounts %}
+  <p class="card muted">There are no expense categories yet. <a href="/accounts/new">Add an expense account</a> under Expenses, like Groceries.</p>
+  {% endif %}
+</div>

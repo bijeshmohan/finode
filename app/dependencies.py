@@ -11,6 +11,7 @@ from .services.api_token import ApiTokenService
 from .services.oauth_grant import OAuthGrantService
 from .repositories import (
     AccountRepository,
+    BudgetRepository,
     CommodityRepository,
     PriceRepository,
     ProfileRepository,
@@ -19,6 +20,7 @@ from .repositories import (
 )
 from .services import (
     AccountService,
+    BudgetService,
     CommodityService,
     DataService,
     PriceService,
@@ -142,6 +144,15 @@ def get_report_service(
     return ReportService(accounts, tr)
 
 
+def get_budget_service(
+    accounts: AccountService = Depends(get_account_service),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> BudgetService:
+    return BudgetService(accounts, tr, BudgetRepository(db, user.id))
+
+
 def get_api_token_service(
     db: Session = Depends(get_db_session),
     user: CurrentUser = Depends(require_authenticated_user),
@@ -167,5 +178,6 @@ Data = Annotated[DataService, Depends(get_data_service)]
 Profiles = Annotated[ProfileService, Depends(get_profile_service)]
 Recurring = Annotated[RecurringService, Depends(get_recurring_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]
+Budget = Annotated[BudgetService, Depends(get_budget_service)]
 ApiTokens = Annotated[ApiTokenService, Depends(get_api_token_service)]
 OAuthGrants = Annotated[OAuthGrantService, Depends(get_oauth_grant_service)]

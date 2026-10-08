@@ -302,3 +302,32 @@ async def test_assistants_can_check_the_books(session, root_accounts, client):
         assert {a["account"] for a in result["accounts"]} == {"Assets:Bank", "Equity:Opening Balances"}
         with pytest.raises(ToolFailed, match="YYYY-MM-DD"):
             payload(await c.call_tool("check_books", {"as_of": "yesterday"}))
+
+
+@pytest.mark.anyio
+async def test_assistants_can_read_and_plan_the_budget(session, root_accounts, client):
+    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]})
+    client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+        start = payload(await c.call_tool("get_budget", {}))
+        assert start["ready_to_assign"] == "1000.00" and start["budget_accounts"] == ["Assets:Bank"]
+        assert [x["category"] for x in start["categories"]] == ["Food", "Rent"]
+
+        after = payload(await c.call_tool("assign_to_category", {"category": "Food", "amount": "300"}))
+        assert after["ready_to_assign"] == "700.00"
+        assert after["categories"][0]["assigned"] == "300.00" and after["categories"][0]["available"] == "300.00"
+
+        moved = payload(await c.call_tool(
+            "move_budget_money", {"from_category": "Food", "to_category": "Rent", "amount": "120"}
+        ))
+        assert [x["available"] for x in moved["categories"]] == ["180.00", "120.00"]
+        assert moved["ready_to_assign"] == "700.00"
+
+        with pytest.raises(ToolFailed, match="only 180.00 is available"):
+            payload(await c.call_tool("move_budget_money", {"from_category": "Food", "to_category": "Rent", "amount": "500"}))
+        with pytest.raises(ToolFailed, match="not an expense account"):
+            payload(await c.call_tool("assign_to_category", {"category": "Bank", "amount": "5"}))
+        with pytest.raises(ToolFailed, match="YYYY-MM"):
+            payload(await c.call_tool("get_budget", {"month": "last"}))
+        assert payload(await c.call_tool("get_budget", {"month": "2020-01"}))["month"] == "2020-01"

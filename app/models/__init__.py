@@ -1,6 +1,7 @@
 from .auth import AuthUser
 from .account import Account
 from .api_token import ApiToken
+from .budget import BudgetAllocation
 from .oauth_grant import OAuthGrant
 from .commodity import Commodity
 from .price import Price
@@ -14,6 +15,7 @@ __all__ = [
     "AuthUser",
     "Account",
     "ApiToken",
+    "BudgetAllocation",
     "OAuthGrant",
     "Commodity",
     "Price",

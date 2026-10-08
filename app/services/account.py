@@ -16,6 +16,7 @@ from ..repositories import (
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.account import HoldingRead
 from ..schemas.transaction import TransactionCreate, PostingCreate
+from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from .depth import depth_limit
 from .prices import PriceService
@@ -347,6 +348,7 @@ class AccountService:
             commodity=self._commodity_code(account.commodity_id),
             balance=balance,
             unpriced=unpriced,
+            on_budget=account.on_budget,
             created=account.created,
             updated=account.updated,
         )
@@ -422,6 +424,14 @@ class AccountService:
         )
         self.prices.invalidate()
 
+    def _check_budgetable(self, parent: Account | None, commodity_id: UUID | None, accounts_by_id: dict) -> None:
+        """Only an asset or liability account holding a currency can be part of the budget."""
+        if parent is None or self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):
+            raise ValueError("only asset and liability accounts can be part of the budget!")
+        held = self.catalog().get(commodity_id) if commodity_id else None
+        if held is None or held.kind != "currency":
+            raise ValueError("only an account holding a currency can be part of the budget!")
+
     def _detect_cycle(self, account_id: UUID, proposed_parent_id: UUID | None) -> bool:
         if proposed_parent_id is None:
             return False
@@ -457,7 +467,15 @@ class AccountService:
             raise ValueError(f"system account '{account.name}' already exists!")
 
         commodity_id = self._new_account_commodity(parent, account.commodity)
-        created = self.ar.create(account, commodity_id=commodity_id)
+        accounts_by_id = {a.aid: a for a in all_accounts}
+        in_budget = account.on_budget
+        if in_budget is None:  # money in an asset account that holds a currency is budgeted unless said otherwise
+            in_budget = (
+                self._get_root_name(parent, accounts_by_id) == "Assets" and self.catalog()[commodity_id].kind == "currency"
+            )
+        elif in_budget:
+            self._check_budgetable(parent, commodity_id, accounts_by_id)
+        created = self.ar.create(account, commodity_id=commodity_id, on_budget=in_budget)
         all_accounts_with_created = all_accounts + [created]
 
         try:
@@ -707,7 +725,23 @@ class AccountService:
                     )
                 commodity_id = commodity.cid
 
-        updated = self.ar.update(aid, data, commodity_id)
+        on_budget = None
+        if data.on_budget is not None:
+            accounts_by_id = {a.aid: a for a in all_accounts}
+            if data.on_budget:
+                if is_system_root or account.parent_id is None:
+                    raise ValueError("only asset and liability accounts can be part of the budget!")
+                if self.ar.has_children(aid):
+                    raise ValueError("an account with sub-accounts cannot be part of the budget: use its sub-accounts!")
+                new_parent = next(
+                    (a for a in all_accounts if a.aid == (data.parent_id or account.parent_id)), None
+                )
+                self._check_budgetable(new_parent, commodity_id or account.commodity_id, accounts_by_id)
+            on_budget = data.on_budget
+        elif commodity_id is not None and account.on_budget and self.catalog()[commodity_id].kind != "currency":
+            on_budget = False  # no longer holds a currency
+
+        updated = self.ar.update(aid, data, commodity_id, on_budget)
         if not updated:
             raise RuntimeError(f"failed to update account with aid '{aid}'!")
 
@@ -753,6 +787,7 @@ class AccountService:
             raise AccountInUseError("account is used by a recurring transaction")
 
         account_read = self._to_read(account, all_accounts)
+        BudgetRepository(self.ar.db, self.ar.uid).delete_for_account(aid)  # only a plan: it goes with the category
         deleted = self.ar.delete(aid)
         if not deleted:
             raise ValueError(f"account with aid '{aid}' not found!")

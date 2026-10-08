@@ -32,6 +32,8 @@ class AccountCreate(AccountBase):
     # What the opening balance is worth in the opening-balances currency, when the account
     # holds something else and no price is known yet.
     balance_value: Decimal | None = Field(default=None, gt=0, decimal_places=8, max_digits=24)
+    # Whether the account's money is part of the budget. Default: yes for a new asset account holding a currency.
+    on_budget: bool | None = None
 
 
 class AccountRead(AccountBase):
@@ -41,6 +43,8 @@ class AccountRead(AccountBase):
     balance: Decimal = Field(decimal_places=8, max_digits=24)
     # True when part of the balance could not be valued because no price links it to the account's commodity.
     unpriced: bool = False
+    # True when the account's money is part of the budget.
+    on_budget: bool = False
     created: datetime
     updated: datetime
 
@@ -57,6 +61,7 @@ class AccountUpdate(BaseModel):
         max_digits=24,
     )
     balance_value: Decimal | None = Field(default=None, gt=0, decimal_places=8, max_digits=24)
+    on_budget: bool | None = None
 
     @field_validator("name")
     @classmethod

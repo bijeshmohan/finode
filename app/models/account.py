@@ -1,7 +1,7 @@
 from uuid import UUID, uuid4
 
 from pydantic import field_validator
-from sqlalchemy import Index, text
+from sqlalchemy import Index, false, text
 from sqlmodel import Field
 
 from .utils import TimestampMixin
@@ -26,6 +26,8 @@ class Account(TimestampMixin, table=True):
     details: str | None = Field(default=None, max_length=200)
     parent_id: UUID | None = Field(default=None, foreign_key="accounts.aid", nullable=True)
     # What the account holds. Root accounts hold nothing of their own (their total is valued in the default currency).
+    # Whether this asset or liability account (a bank, a credit card) is part of the budget (see services/budget.py).
+    on_budget: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
     commodity_id: UUID | None = Field(default=None, foreign_key="commodities.cid", nullable=True)
 
     @field_validator("name")

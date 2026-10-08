@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from .routers import accounts, commodities, data, prices, profile, recurring, reports, transactions, web
+from .routers import accounts, budget, commodities, data, prices, profile, recurring, reports, transactions, web
 from . import recurring_runner
 from .caching import cache_headers_middleware
 from .flash import clear_shown_flash_middleware
@@ -30,7 +30,7 @@ app.router.routes.append(Route("/mcp", endpoint=mcp_transport.MCPEndpoint(), met
 def protected_resource(request: Request):
     return mcp_transport.protected_resource_metadata(request.scope)
 # The JSON API lives under /api; the web UI owns the site root.
-for api_router in (accounts, commodities, prices, recurring, transactions, data, profile, reports):
+for api_router in (accounts, budget, commodities, prices, recurring, transactions, data, profile, reports):
     app.include_router(api_router.router, prefix="/api")
 app.include_router(web.router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
