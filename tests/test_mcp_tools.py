@@ -290,3 +290,15 @@ async def test_read_only_assistants_can_list_but_not_create_recurring(session, r
             payload(await c.call_tool("create_recurring", {"amount": "1", "from_account": "a", "to_account": "b"}))
         with pytest.raises(ToolFailed, match="read-only"):
             payload(await c.call_tool("stop_recurring", {"recurring_id": "x"}))
+
+
+@pytest.mark.anyio
+async def test_assistants_can_check_the_books(session, root_accounts, client):
+    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "250"})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
+        result = payload(await c.call_tool("check_books", {}))
+        assert result["balanced"] and result["problems"] == []
+        assert result["totals"] == [{"currency": "INR", "debit": "250.00", "credit": "250.00"}]
+        assert {a["account"] for a in result["accounts"]} == {"Assets:Bank", "Equity:Opening Balances"}
+        with pytest.raises(ToolFailed, match="YYYY-MM-DD"):
+            payload(await c.call_tool("check_books", {"as_of": "yesterday"}))

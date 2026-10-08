@@ -7,6 +7,7 @@ from .price import Price
 from .profile import Profile
 from .recurring import RecurringTransaction
 from .transaction import Transaction, Posting
+from .transaction_history import TransactionHistory
 
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "RecurringTransaction",
     "Transaction",
     "Posting",
+    "TransactionHistory",
 ]

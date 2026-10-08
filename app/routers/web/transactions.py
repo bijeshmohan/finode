@@ -393,6 +393,7 @@ def edit_transaction_page(
             account=None,
             back=safe_back(back, ""),
             back_url=safe_back(back),
+            history=list(reversed(transactions.history(tid))),
         ),
     )
 

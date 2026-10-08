@@ -1,5 +1,6 @@
 from datetime import date as Date, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -113,3 +114,27 @@ def validate_balanced_postings(postings: list[PostingCreate]) -> None:
             "transaction debits and credits must balance! If a row's account holds another currency or unit, "
             "say what that row is worth in the transaction's currency."
         )
+
+
+class HistoryPosting(BaseModel):
+    # Account path, e.g. "Expenses:Food:Groceries".
+    account: str
+    side: PostingSide
+    amount: Decimal
+    value: Decimal
+
+
+class HistoryRead(BaseModel):
+    """The transaction as it stood after one change (as it stood when deleted, for a deletion)."""
+
+    hid: UUID
+    transaction: UUID
+    action: Literal["created", "updated", "deleted"]
+    at: datetime
+    # "web", "api", "import", "recurring" or "mcp:<token name>"; None if unknown.
+    via: str | None = None
+    date: Date
+    payee: str | None = None
+    comment: str | None = None
+    currency: str
+    postings: list[HistoryPosting]
