@@ -130,3 +130,15 @@ sub-accounts or have its balance set directly.
 - **Posting ids are stable:** `TransactionRepository._replace_postings` updates postings in place on edit (matching first on account and side, then on account), adding or removing only what is left, so anything that refers to a posting keeps working.
 - **History:** `transaction_history` is append-only (no foreign key, so a deleted transaction's trace survives it). `TransactionRepository` appends a row on create, update (skipped when nothing changed) and delete, so every path (web, API, import, recurring, MCP, balance adjustments) is covered; the row holds the transaction as it stood after the action. Read it with `TransactionService.history(tid)` / `.deleted()`; the edit page shows it. Never update or delete history rows.
 - **Balances by date:** account balances count postings dated up to `as_of` (today by default, so future-dated entries do not count yet; `?as_of=` on `/api/accounts`). The register still lists every entry.
+
+### Budget (envelope budgeting)
+
+`services/budget.py` (`BudgetService`) gives every unit of money a job, YNAB-style, **on top of the ledger without changing it**. The only stored things are the plan (`budget_allocations`: user, month = first day, expense account, amount in the default currency; unique per month and account) and the flag `accounts.on_budget` (asset or liability accounts holding a currency; new asset accounts holding a currency default to yes, a card is opted in; the migration switched on existing asset leaves). Everything else is derived on demand, so editing the ledger can never leave it stale:
+
+- *cash* = debits minus credits on the budget's accounts (a flagged credit card counts as money owed), up to the month's last day; flagged accounts holding another currency or with sub-accounts are left out and listed;
+- *activity* of a category (an Expenses account) = postings to it in transactions that touch a budget account (spending from outside the budget is ignored), converted to the default currency at the transaction's date; unconvertible spending sets `unpriced`;
+- *available* = everything assigned up to the month minus activity up to it, so leftovers and overspending (negative) carry forward;
+- *ready to assign* = cash minus the sum of all categories' available. Moving money between categories (`move`, limited to what is available) never changes it.
+
+Groups show the sum of their sub-categories; a group posted to directly also gets an "(other)" row. Deleting a category deletes its plan rows. Web: `/budget?month=YYYY-MM` (inline assigning swaps `partials/budget_body.html`, `/budget/move` page), the account edit page has the "Part of the budget" checkbox; JSON API: `/api/budget/`, `PUT /api/budget/categories/{aid}`, `POST /api/budget/move`; MCP: `get_budget`, `assign_to_category`, `move_budget_money`. Not built yet: targets/underfunded, per-card payment envelopes, rolling cash-overspend into next month's ready to assign, assigning future months from ready to assign.
+

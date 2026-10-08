@@ -27,6 +27,7 @@
       <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
       <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>Accounts</a>
       <a href="/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>Transactions</a>
+      <a href="/budget" {% if active == 'budget' %}aria-current="page"{% endif %}>Budget</a>
     </nav>
     {% if not hide_fab %}
     <a class="button topbar-new" href="/transactions/new">{{ icon("plus") }}<span>New transaction</span></a>
@@ -47,6 +48,7 @@
     <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>
     <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
     <a href="/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
+    <a href="/budget" {% if active == 'budget' %}aria-current="page"{% endif %}>{{ icon("budget") }}<span>Budget</span></a>
   </nav>
   {% if not hide_fab %}
   <a class="fab" href="/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>

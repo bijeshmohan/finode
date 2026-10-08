@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Budget · finode{% endblock %}
+{% block content %}
+<div class="month-nav">
+  <a class="icon-button" href="/budget?month={{ previous }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
+  <h1>{{ month_name }}{% if is_current %} <span class="muted">· this month</span>{% endif %}</h1>
+  <a class="icon-button" href="/budget?month={{ next }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>
+</div>
+{% include "partials/budget_body.html" %}
+{% endblock %}

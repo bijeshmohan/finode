@@ -11,9 +11,9 @@ class AccountRepository:
         self.db = db
         self.uid = uid
 
-    def create(self, data: AccountCreate, commodity_id: UUID | None = None) -> Account:
-        values = data.model_dump(exclude={"balance", "balance_value", "commodity"})
-        account = Account(**values, commodity_id=commodity_id, user=self.uid)
+    def create(self, data: AccountCreate, commodity_id: UUID | None = None, on_budget: bool = False) -> Account:
+        values = data.model_dump(exclude={"balance", "balance_value", "commodity", "on_budget"})
+        account = Account(**values, commodity_id=commodity_id, on_budget=on_budget, user=self.uid)
         self.db.add(account)
         self.db.flush()
         return account
@@ -44,13 +44,17 @@ class AccountRepository:
         account = self.db.exec(statement).first()
         return account
 
-    def update(self, aid: UUID, data: AccountUpdate, commodity_id: UUID | None = None) -> Account | None:
+    def update(
+        self, aid: UUID, data: AccountUpdate, commodity_id: UUID | None = None, on_budget: bool | None = None
+    ) -> Account | None:
         account = self.read(aid)
         if not account:
             return None
-        values = data.model_dump(exclude_unset=True, exclude={"balance", "balance_value", "commodity"})
+        values = data.model_dump(exclude_unset=True, exclude={"balance", "balance_value", "commodity", "on_budget"})
         for key, value in values.items():
             setattr(account, key, value)
+        if on_budget is not None:
+            account.on_budget = on_budget
         if commodity_id is not None:
             account.commodity_id = commodity_id
         self.db.add(account)

@@ -1,4 +1,5 @@
 from .account import AccountService
+from .budget import BudgetService
 from .commodity import CommodityService
 from .data import DataService
 from .prices import PriceService
@@ -10,6 +11,7 @@ from .transaction import TransactionService
 
 __all__ = [
     "AccountService",
+    "BudgetService",
     "CommodityService",
     "DataService",
     "PriceService",

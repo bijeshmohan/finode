@@ -46,6 +46,10 @@ finode is the user's personal double-entry ledger.
   record the same payment by hand) and stop_recurring pauses one.
 - Dates are YYYY-MM-DD; today's date is used when you leave the date out. Balances count entries
   up to today: an entry dated in the future shows once its day comes.
+- The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
+  expense category's assigned, spent and available amounts; assign_to_category plans a month's money and
+  move_budget_money shifts it between categories. These only change the plan, never the ledger, and the
+  user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
 - check_books confirms that debits equal credits in every transaction and overall; use it when the
   user doubts their numbers.
 - Changes you make are marked in finode as made by this assistant. Confirm with the user before
@@ -645,6 +649,86 @@ def monthly_review(month: Annotated[str | None, Field(description="YYYY-MM; this
     )
 
 
+def _month(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value + "-01") if len(value.strip()) == 7 else date.fromisoformat(value.strip())
+    except ValueError:
+        raise ToolError(f"'{value}' is not a month: use YYYY-MM!")
+
+
+def _category(index: AccountIndex, text: str):
+    entry = index.find(text)
+    if entry.root != "Expenses" or entry.account.parent_id is None:
+        raise ToolError(f"'{entry.path}' is not an expense account: budget categories are expense accounts!")
+    return entry
+
+
+def _budget(data) -> dict[str, Any]:
+    return {
+        "month": data.month.strftime("%Y-%m"),
+        "currency": data.currency,
+        "ready_to_assign": text(data.ready_to_assign),
+        "assigned_this_month": text(data.assigned),
+        "spent_this_month": text(data.activity),
+        "available_total": text(data.available),
+        "budget_accounts": data.budget_accounts,
+        "categories": [
+            {
+                "category": line.path,
+                "is_group": line.group,
+                "assigned": text(line.assigned),
+                "spent": text(line.activity),
+                "available": text(line.available),
+            }
+            for line in data.lines
+        ],
+        **({"note": "Some spending could not be converted to the currency (no price), so it is left out."} if data.unpriced else {}),
+        **(
+            {"note_accounts": "No account is part of the budget yet: the user switches 'Part of the budget' on for an account."}
+            if not data.budget_accounts
+            else {}
+        ),
+    }
+
+
+@_tool_errors
+def get_budget(month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None) -> dict[str, Any]:
+    """The envelope budget for a month: what is still ready to assign, and for each expense category what
+    was assigned this month, what was spent and what is available (leftovers and overspending carry over).
+    Groups sum their sub-categories. Everything is in the default currency."""
+    with services() as s:
+        return _budget(s.budget.view(_month(month)))
+
+
+@_tool_errors
+def assign_to_category(
+    category: Annotated[str, Field(description="An expense account, e.g. Groceries or Expenses:Food:Groceries")],
+    amount: Annotated[Decimal, Field(ge=0, description="The month's total for the category (replaces what was assigned; 0 clears it)")],
+    month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
+) -> dict[str, Any]:
+    """Give money a job: set how much of a month is assigned to a category. This is a plan only; no transaction
+    is recorded. Check get_budget first so you don't assign more than is ready to assign."""
+    with services() as s:
+        entry = _category(_index(s), category)
+        return _budget(s.budget.assign(_month(month), entry.account.aid, amount))
+
+
+@_tool_errors
+def move_budget_money(
+    from_category: Annotated[str, Field(description="The expense category the money is available in")],
+    to_category: Annotated[str, Field(description="The expense category that should get it")],
+    amount: Annotated[Decimal, Field(gt=0, description="At most what is available in the first category")],
+    month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
+) -> dict[str, Any]:
+    """Move assigned money from one category to another. It does not change what is ready to assign."""
+    with services() as s:
+        index = _index(s)
+        source, target = _category(index, from_category), _category(index, to_category)
+        return _budget(s.budget.move(_month(month), source.account.aid, target.account.aid, amount))
+
+
 @_tool_errors
 def check_books(as_of: str | None = None) -> dict[str, Any]:
     """Check that the books are sound: debits equal credits in every transaction and overall.
@@ -670,7 +754,7 @@ def check_books(as_of: str | None = None) -> dict[str, Any]:
 
 READ_TOOLS = [
     get_overview, list_accounts, get_account, search_transactions, get_transaction, spending_breakdown, get_prices,
-    list_recurring, check_books,
+    list_recurring, check_books, get_budget,
 ]
 WRITE_TOOLS = [
     (record_transaction, WRITE),
@@ -681,6 +765,8 @@ WRITE_TOOLS = [
     (set_price, IDEMPOTENT_WRITE),
     (create_recurring, WRITE),
     (stop_recurring, IDEMPOTENT_WRITE),
+    (assign_to_category, IDEMPOTENT_WRITE),
+    (move_budget_money, WRITE),
 ]
 
 

@@ -36,11 +36,11 @@ def test_top_bar_has_profile_link_and_no_sign_out(client: TestClient):
     assert "/logout" not in text
 
 
-def test_tab_bar_has_only_three_tabs(client: TestClient):
+def test_tab_bar_has_only_four_tabs(client: TestClient):
     text = client.get("/").text
     tabbar = text[text.index('<nav class="tabbar"'):]
     tabbar = tabbar[: tabbar.index("</nav>")]
-    assert tabbar.count("<a ") == 3 and "/profile" not in tabbar
+    assert tabbar.count("<a ") == 4 and "Budget" in tabbar and "/profile" not in tabbar
 
 
 def test_profile_page_has_sign_out(client: TestClient):

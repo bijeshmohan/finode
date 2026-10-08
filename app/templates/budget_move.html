@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Move money · finode{% endblock %}
+{% block content %}
+<a class="back" href="/budget?month={{ month_key }}">{{ icon("back") }}Budget</a>
+<h1>Move money</h1>
+<p class="muted">{{ month_name }} · from what is available in a category to another category. It does not change what is left to assign.</p>
+<form class="card stack form-narrow" hx-post="/budget/move">
+  <input type="hidden" name="month" value="{{ month_key }}">
+  <label>Amount
+    <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" autofocus>
+  </label>
+  <label>From
+    <select name="from_category" required>
+      {% if not source %}<option value="">Choose…</option>{% endif %}
+      {% for line in lines %}
+      <option value="{{ line.aid }}" {{ "selected" if line.aid == source }}>{{ line.path }} · {{ line.available|money }} available</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>To
+    <select name="to_category" required>
+      <option value="">Choose…</option>
+      {% for line in lines %}
+      <option value="{{ line.aid }}">{{ line.path }} · {{ line.available|money }} available</option>
+      {% endfor %}
+    </select>
+  </label>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions">
+    <button type="submit">Move money</button>
+    <a class="button secondary" href="/budget?month={{ month_key }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
