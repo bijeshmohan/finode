@@ -15,7 +15,7 @@ def _by_name(client: TestClient, name: str) -> dict:
 
 
 def test_transaction_pickers_offer_a_new_account_entry(client: TestClient, account: dict):
-    for url in ("/transactions/new", "/transactions/new?mode=split", "/transactions/rows/new"):
+    for url in ("/transactions/new",):
         text = client.get(url).text
         assert '<option value="__new__">+ New account…</option>' in text, url
         assert "data-account-select" in text, url

@@ -24,7 +24,7 @@ def test_flash_is_shown_once_on_the_next_page(client: TestClient):
 
 def test_htmx_fragments_do_not_consume_the_flash(client: TestClient, account: dict):
     client.cookies.set(FLASH_COOKIE, "account-created", path="/")
-    fragment = client.get("/transactions/rows/new", headers={"HX-Request": "true"})
+    fragment = client.get("/accounts/options", headers={"HX-Request": "true"})
     assert "set-cookie" not in fragment.headers
 
 
