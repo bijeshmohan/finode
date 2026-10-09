@@ -742,19 +742,46 @@ label.check:has(input:checked) { border-color: var(--accent); background: var(--
 .ready.zero { background: var(--surface-2); }
 .ready.over { background: var(--danger-soft); color: var(--danger); }
 .ready.all-set .figure { color: var(--positive); }
+/* Every row, and the header above them, is a grid with the same fixed amount columns, so the
+   Assigned and Available cells line up whatever the figures or names are. */
 .budget-list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-.budget-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .6rem; padding: .6rem .9rem; border-top: 1px solid var(--border); }
+.budget-columns, .budget-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9rem 9rem;
+  align-items: center;
+  column-gap: .75rem;
+  padding-right: .9rem;
+}
+.budget-row { padding-top: .5rem; padding-bottom: .5rem; padding-left: .9rem; border-top: 1px solid var(--border); }
 .budget-row:first-child { border-top: 0; }
 .budget-row.group { background: var(--surface-2); font-weight: 600; }
+.budget-row .name { min-width: 0; overflow-wrap: anywhere; }
 .budget-row .name small { display: block; color: var(--muted); font-weight: 400; }
-.budget-row input.assign { width: 6.5rem; text-align: right; }
-.budget-row .assigned-fixed { width: 6.5rem; text-align: right; color: var(--muted); }
-.budget-row .avail { min-width: 5.5rem; text-align: right; padding: .25rem .6rem; border-radius: 999px; font-weight: 600; text-decoration: none; background: var(--surface-2); color: var(--text); }
+.budget-row .cell { display: flex; flex-direction: column; min-width: 0; }
+.budget-row .cell form { margin: 0; }
+.budget-row .cap { display: none; font-size: .72rem; font-weight: 500; color: var(--muted); text-align: right; padding-right: .7rem; }
+/* Same height, border and side padding in the input, the plain figure and the pill, so the digits end at the same edge. */
+.budget-row input.assign,
+.budget-row .figure {
+  box-sizing: border-box; width: 100%; min-height: var(--tap); border: 1px solid transparent; border-radius: var(--radius-sm);
+  padding: 0 .7rem; text-align: right; font-variant-numeric: tabular-nums;
+}
+.budget-row input.assign { border-color: var(--border); }
+.budget-row .figure { display: flex; align-items: center; justify-content: flex-end; text-decoration: none; font-weight: 600; white-space: nowrap; }
+.budget-row .figure.muted { font-weight: 500; }
+.budget-row .avail { background: var(--surface-2); color: var(--text); border-radius: 999px; }
 .budget-row .avail.positive { background: var(--accent-soft); color: var(--positive); }
 .budget-row .avail.negative { background: var(--danger-soft); color: var(--danger); }
-.budget-columns { display: grid; grid-template-columns: 1fr auto auto; gap: .6rem; padding: 0 .9rem .35rem; color: var(--muted); font-size: .8rem; }
-.budget-columns span:nth-child(2) { width: 6.5rem; text-align: right; }
-.budget-columns span:nth-child(3) { min-width: 5.5rem; text-align: right; }
+.budget-columns { padding-left: .9rem; padding-bottom: .35rem; color: var(--muted); font-size: .8rem; }
+.budget-columns span:nth-child(n+2) { text-align: right; padding-right: .7rem; }
+
+/* On a phone the name gets its own line and the two amounts share the next one in equal columns. */
+@media (max-width: 39.99rem) {
+  .budget-columns { display: none; }
+  .budget-row { grid-template-columns: 1fr 1fr; row-gap: .25rem; }
+  .budget-row .name { grid-column: 1 / -1; }
+  .budget-row .cap { display: block; }
+}
 
 /* Safari draws fieldsets with display:flex/grid badly (the legend becomes an item): keep them block */
 fieldset.plain { display: block; min-width: 0; }
