@@ -1,7 +1,10 @@
 <section class="card stack notice-card">
   <h2>{{ created.name }} is ready</h2>
   <p class="notice">Copy this token now. finode keeps only a fingerprint of it, so it can't be shown again.</p>
-  <code class="secret" id="token-secret">{{ created.secret }}</code>
+  <div class="secret-row">
+    <code class="secret" id="token-secret">{{ created.secret }}</code>
+    <button type="button" data-copy="#token-secret">Copy token</button>
+  </div>
   {% with secret = created.secret %}{% include "partials/mcp_setup.html" %}{% endwith %}
 </section>
 {% with oob = true %}{% include "partials/connections.html" %}{% endwith %}

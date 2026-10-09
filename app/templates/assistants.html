@@ -27,10 +27,12 @@
       <input type="text" name="name" maxlength="40" required autocomplete="off" placeholder="e.g. Claude Desktop">
       <span class="hint">Where you'll use it. It shows up next to everything the assistant records.</span>
     </label>
-    <fieldset class="access-choice plain">
+    <fieldset class="plain">
       <legend>Access</legend>
-      <label class="access-card"><input type="radio" name="scope" value="read" checked><span>{{ level("read") }}</span></label>
-      <label class="access-card"><input type="radio" name="scope" value="write"><span>{{ level("write") }}</span></label>
+      <div class="access-choice">
+        <label class="access-card"><input type="radio" name="scope" value="read" checked><span>{{ level("read") }}</span></label>
+        <label class="access-card"><input type="radio" name="scope" value="write"><span>{{ level("write") }}</span></label>
+      </div>
     </fieldset>
     <p id="token-error" class="error" role="alert"></p>
     <div class="actions"><button type="submit">{{ icon("key") }}Create token</button></div>
