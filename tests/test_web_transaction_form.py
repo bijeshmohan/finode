@@ -199,12 +199,12 @@ def test_edit_page_prefills_existing_postings(
     assert simple.status_code == 200
     assert 'value="Corner shop"' in simple.text
     assert 'value="2026-05-04"' in simple.text
-    assert simple.text.count('value="9.99"') == 1
+    assert simple.text.count('value="9.99"') == 3, "the simple amount, plus the two rows of the hidden split part"
     assert f'hx-post="/transactions/{tx["tid"]}/edit/simple"' in simple.text
     assert f'<option value="{expense_account["aid"]}" data-commodity="INR" selected>' in simple.text
 
     split = client.get(f"/transactions/{tx['tid']}/edit", params={"mode": "split"})
-    assert split.text.count('value="9.99"') == 2
+    assert split.text.count('value="9.99"') == 3
     assert f'hx-post="/transactions/{tx["tid"]}/edit"' in split.text
 
 
@@ -442,3 +442,33 @@ def test_delete_returns_to_the_page_it_came_from(client: TestClient, account: di
 def test_new_split_form_starts_with_a_debit_and_a_credit_row(client: TestClient, account: dict):
     text = client.get("/transactions/new", params={"mode": "split"}).text
     assert text.count('<option value="credit" selected>') == 1
+
+
+def test_one_form_holds_the_simple_and_the_split_parts(client: TestClient):
+    page = client.get("/transactions/new").text
+    assert 'class="tabs' not in page, "no Simple/Split tabs any more"
+    assert page.count("data-txn-form") == 1 and "Split across several accounts" in page
+    assert 'data-section="split" hidden' in page and 'data-section="simple" hidden' not in page
+    assert 'data-post-simple="/transactions"' in page and 'data-post-split="/transactions/split"' in page
+    assert 'hx-post="/transactions"' in page
+    assert 'name="from_account" required data-account-select disabled' not in page, "the simple controls are live"
+    assert "data-split-toggle checked" not in page
+
+
+def test_split_mode_opens_the_split_part_and_turns_off_the_simple_fields(client: TestClient):
+    page = client.get("/transactions/new?mode=split").text
+    assert 'data-section="simple" hidden' in page and 'data-section="split" hidden' not in page
+    assert 'hx-post="/transactions/split"' in page and "data-split-toggle checked" in page
+    assert 'name="from_account" required data-account-select disabled' in page, "a hidden required field must not block saving"
+
+
+def test_a_transaction_with_three_sides_stays_split(client: TestClient, account: dict, expense_account: dict):
+    other = client.post("/api/accounts/", json={"name": "Tips", "parent_id": expense_account["parent_id"]}).json()
+    tx = client.post("/api/transactions/", json={"postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "6"},
+        {"account": other["aid"], "side": "debit", "amount": "4"},
+        {"account": account["aid"], "side": "credit", "amount": "10"},
+    ]}).json()
+    page = client.get(f"/transactions/{tx['tid']}/edit").text
+    assert "data-split-toggle checked disabled" in page and "stays split" in page
+    assert "stays split" not in client.get("/transactions/new").text

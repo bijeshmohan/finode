@@ -330,3 +330,94 @@ document.addEventListener("change", (event) => {
   if (event.target.matches && event.target.matches("select[data-target-kind]")) syncTargetKind();
 });
 document.addEventListener("DOMContentLoaded", syncTargetKind);
+
+// ---- One transaction form: simple by default, or split across accounts ----
+function txnForm() {
+  return document.querySelector("form[data-txn-form]");
+}
+
+function isSplit(form) {
+  const toggle = form.querySelector("[data-split-toggle]");
+  return !!toggle && toggle.checked;
+}
+
+function applyTxnMode(form) {
+  const split = isSplit(form);
+  form.classList.toggle("is-split", split);
+  form.querySelectorAll("[data-section]").forEach((section) => {
+    const hide = (section.dataset.section === "split") !== split;
+    section.hidden = hide;
+    // A hidden part must not be validated or sent.
+    section.querySelectorAll("input, select, button").forEach((control) => {
+      if (!control.hasAttribute("hx-get")) control.disabled = hide;
+    });
+  });
+  updateBalanceStatus();
+  updateConversion();
+}
+
+function fillSplitFromSimple(form) {
+  const rows = form.querySelectorAll(".posting-row");
+  if (rows.length < 2) return;
+  const touched = [...rows].some((row) => row.querySelector('[name="amount"]').value.trim() || row.querySelector('select[name="account"]').value);
+  if (touched) return;
+  const paid = form.querySelector('[name="amount"]').value.trim();
+  const received = form.querySelector('[name="to_amount"]').value.trim();
+  const debit = rows[0];
+  const credit = rows[1];
+  debit.querySelector('select[name="account"]').value = form.querySelector('[name="to_account"]').value;
+  debit.querySelector('[name="side"]').value = "debit";
+  debit.querySelector('[name="amount"]').value = received || paid;
+  credit.querySelector('select[name="account"]').value = form.querySelector('[name="from_account"]').value;
+  credit.querySelector('[name="side"]').value = "credit";
+  credit.querySelector('[name="amount"]').value = paid;
+}
+
+// Back to simple only when the rows are exactly one debit and one credit.
+function fillSimpleFromSplit(form) {
+  const used = [...form.querySelectorAll(".posting-row")].filter(
+    (row) => row.querySelector('select[name="account"]').value || row.querySelector('[name="amount"]').value.trim()
+  );
+  if (used.length === 0) return true;
+  if (used.length !== 2) return false;
+  const [a, b] = used;
+  const sides = [a.querySelector('[name="side"]').value, b.querySelector('[name="side"]').value];
+  if (sides[0] === sides[1]) return false;
+  const debit = sides[0] === "debit" ? a : b;
+  const credit = debit === a ? b : a;
+  const paid = credit.querySelector('[name="amount"]').value.trim();
+  const received = debit.querySelector('[name="amount"]').value.trim();
+  form.querySelector('[name="from_account"]').value = credit.querySelector('select[name="account"]').value;
+  form.querySelector('[name="to_account"]').value = debit.querySelector('select[name="account"]').value;
+  form.querySelector('[name="amount"]').value = paid;
+  form.querySelector('[name="to_amount"]').value = received && received !== paid ? received : "";
+  return true;
+}
+
+document.body.addEventListener("change", (event) => {
+  const toggle = event.target.closest && event.target.closest("[data-split-toggle]");
+  if (!toggle) return;
+  const form = toggle.closest("form");
+  const note = form.querySelector("[data-split-note]");
+  if (note) note.textContent = "";
+  if (toggle.checked) {
+    fillSplitFromSimple(form);
+  } else if (!fillSimpleFromSplit(form)) {
+    toggle.checked = true;
+    if (note) note.textContent = "Rows with more than two sides can't be shown as a simple transaction: remove the extra rows first.";
+    return;
+  }
+  applyTxnMode(form);
+});
+
+// The form saves through the simple or the split route, whichever is showing.
+document.body.addEventListener("htmx:configRequest", (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.matches("form[data-txn-form]")) return;
+  event.detail.path = isSplit(form) ? form.dataset.postSplit : form.dataset.postSimple;
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  const form = txnForm();
+  if (form) applyTxnMode(form);
+});
