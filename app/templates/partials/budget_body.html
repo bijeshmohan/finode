@@ -13,6 +13,20 @@
     <span>Give it a job: assign it to a category below.</span>
     {% endif %}
   </div>
+  {% if budget.left_out_accounts %}
+  <div class="notice left-out">
+    <p><strong>{{ budget.left_out|money }} {{ budget.currency }}</strong> spent this month is not in the categories below, because it was paid from
+      accounts that are not part of the budget. Add them to count their spending and money:</p>
+    <ul class="plain-list flat">
+      {% for a in budget.left_out_accounts %}
+      <li>
+        <span>{{ a.path }} <span class="muted">· {{ a.entries }} {{ "entry" if a.entries == 1 else "entries" }}, {{ a.spent|money }}</span></span>
+        <button class="secondary" hx-post="/budget/accounts/{{ a.aid }}/include" hx-vals='{"month": "{{ month_key }}"}' hx-target="#budget" hx-swap="outerHTML">Add to budget</button>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
   {% if budget.overspent_last_month %}
   <p class="notice">{{ budget.overspent_last_month|money }} {{ budget.currency }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
   {% endif %}

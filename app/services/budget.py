@@ -7,7 +7,8 @@ from ..models.account import Account
 from ..models.budget import BudgetTarget
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, TransactionRepository
-from ..schemas.budget import TARGET_KINDS, BudgetLine, BudgetRead, BudgetTargetRead
+from ..schemas.budget import TARGET_KINDS, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead
+from ..schemas.account import AccountUpdate
 from .account import AccountService
 from .transaction import decimal_places
 
@@ -104,10 +105,18 @@ class BudgetService:
         categories = self._categories(accounts)
 
         in_budget: set[UUID] = set()
+        candidates: dict[UUID, Account] = {}  # could be in the budget but are not: assets/liabilities holding the currency
         budget_accounts: list[str] = []
         ignored: list[str] = []
         for a in accounts:
             if not a.on_budget:
+                if (
+                    a.parent_id is not None
+                    and a.aid not in parents
+                    and a.commodity_id == default.cid
+                    and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
+                ):
+                    candidates[a.aid] = a
                 continue
             label = ":".join(self._path_with_root(a, by_id))
             if a.commodity_id == default.cid and a.aid not in parents:
@@ -125,16 +134,38 @@ class BudgetService:
             if p.account in in_budget:
                 touching.add(p.transaction)
 
+        book = self.accounts.prices.book()
+        # Spending this month in transactions that touch no budget account: [value, accounts that paid].
+        outside: dict[UUID, list] = {}
+        for p in postings:
+            if p.transaction in touching:
+                continue
+            transaction = transactions[p.transaction]
+            if p.account in categories and month_start(transaction.date) == month:
+                value = p.value if p.side == PostingSide.DEBIT else -p.value
+                if transaction.currency_id != default.cid:
+                    value = book.convert(value, transaction.currency_id, default.cid, transaction.date, default.decimals) or ZERO
+                outside.setdefault(p.transaction, [ZERO, set()])[0] += value
+        for p in postings:
+            if p.transaction in outside and p.account in candidates:
+                outside[p.transaction][1].add(p.account)
+
+        allocations = self.br.list(up_to=month)
+        # Budgeting starts with the first month anything was assigned: earlier spending already left the
+        # accounts that cash is counted from, and must not show up as overspending.
+        start = min((row.month for row in allocations), default=month)
+
         cash = ZERO
         # What happened to each category in each month: [assigned, spent].
         by_category: dict[UUID, dict[date, list[Decimal]]] = {}
         unpriced = False
-        book = self.accounts.prices.book()
         for p in postings:
             if p.account in in_budget:
                 cash += p.amount if p.side == PostingSide.DEBIT else -p.amount
             if p.account in categories and p.transaction in touching:
                 transaction = transactions[p.transaction]
+                if month_start(transaction.date) < start:
+                    continue
                 value = p.value if p.side == PostingSide.DEBIT else -p.value
                 if transaction.currency_id != default.cid:
                     value = book.convert(value, transaction.currency_id, default.cid, transaction.date, default.decimals)
@@ -143,7 +174,7 @@ class BudgetService:
                         continue
                 figures = by_category.setdefault(p.account, {}).setdefault(month_start(transaction.date), [ZERO, ZERO])
                 figures[1] += value
-        for row in self.br.list(up_to=month):
+        for row in allocations:
             if row.account_id in categories:
                 by_category.setdefault(row.account_id, {}).setdefault(row.month, [ZERO, ZERO])[0] += row.amount
 
@@ -155,6 +186,21 @@ class BudgetService:
         total_activity = sum((v[1] for v in own.values()), ZERO)
         total_available = sum((v[2] for v in own.values()), ZERO)
         total_overspent = sum((v[3] for v in own.values()), ZERO)
+
+        left: dict[UUID, list] = {}
+        for value, payers in outside.values():
+            for aid in payers:
+                entry = left.setdefault(aid, [0, ZERO])
+                entry[0] += 1
+                entry[1] += value
+        left_out_accounts = sorted(
+            (
+                BudgetLeftOut(aid=aid, path=":".join(self._path_with_root(candidates[aid], by_id)), entries=n, spent=v)
+                for aid, (n, v) in left.items()
+            ),
+            key=lambda x: -x.spent,
+        )
+        left_out_total = sum((v[0] for v in outside.values() if v[1]), ZERO)
 
         targets = self.br.targets()
         needs: dict[UUID, tuple[Decimal, Decimal]] = {}
@@ -175,6 +221,8 @@ class BudgetService:
             available=total_available,
             overspent_last_month=total_overspent,
             underfunded=total_underfunded,
+            left_out=left_out_total,
+            left_out_accounts=left_out_accounts,
             unpriced=unpriced,
             budget_accounts=budget_accounts,
             ignored_accounts=ignored,
@@ -276,6 +324,14 @@ class BudgetService:
         default = self.accounts.default_currency()
         if decimal_places(amount) > default.decimals:
             raise BudgetError(f"{default.code} amounts can have at most {default.decimals} decimal places!")
+
+    def include_account(self, aid: UUID) -> None:
+        """Make an account part of the budget (its money and its spending count from now on)."""
+        try:
+            if self.accounts.update(aid, AccountUpdate(on_budget=True)) is None:
+                raise BudgetError("account not found!")
+        except ValueError as e:
+            raise BudgetError(str(e))
 
     def set_target(self, aid: UUID, kind: str, amount: Decimal, target_date: date | None = None) -> BudgetRead:
         """Say what a category should be funded with (replaces its target)."""

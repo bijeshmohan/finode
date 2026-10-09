@@ -700,6 +700,15 @@ def _budget(data) -> dict[str, Any]:
             }
             for line in data.lines
         ],
+        **(
+            {
+                "note_left_out": f"{text(data.left_out)} spent this month was paid from accounts outside the budget and is not counted: "
+                + ", ".join(a.path for a in data.left_out_accounts)
+                + ". The user can switch 'Part of the budget' on for them."
+            }
+            if data.left_out_accounts
+            else {}
+        ),
         **({"note": "Some spending could not be converted to the currency (no price), so it is left out."} if data.unpriced else {}),
         **(
             {"note_accounts": "No account is part of the budget yet: the user switches 'Part of the budget' on for an account."}
