@@ -139,8 +139,8 @@ main {
 .topnav a[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
 
 .topbar .topbar-new { display: none; }
-.topbar .settings-link { margin-left: auto; }
-.topbar .settings-link[aria-current="page"], .topbar .profile-link[aria-current="page"] { color: var(--accent); }
+.topbar .profile-link { margin-left: auto; }
+.topbar .profile-link[aria-current="page"] { color: var(--accent); }
 
 .icon-button {
   display: inline-grid;
@@ -202,7 +202,7 @@ body.app main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-botto
 @media (min-width: 48rem) {
   .topnav { display: flex; }
   .topbar .topbar-new { display: inline-flex; }
-  .topbar .settings-link { margin-left: 0; }
+  .topbar .profile-link { margin-left: 0; }
   .tabbar, .fab { display: none; }
   body.app main { padding: 2rem 1.5rem 4rem; }
 }
