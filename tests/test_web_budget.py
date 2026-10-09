@@ -119,3 +119,24 @@ def test_the_inline_amount_also_saves_on_the_return_key(client, setup):
     # iOS shows no decimal-pad return key, but a keyboard's Enter must not reload the page with a GET.
     page = client.get("/budget").text
     assert 'hx-trigger="change, submit"' in page and 'enterkeyhint="done"' in page
+
+
+def test_every_row_has_the_same_three_cells_so_the_columns_line_up(client, root_accounts, setup):
+    client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]})
+    page = client.get("/budget").text
+    rows = page.split('<div class="budget-row')[1:]
+    assert len(rows) == 3, "a group, its sub-category and a plain category"
+    for row in rows:
+        assert row.count('<div class="cell">') == 2, row[:200]
+        assert row.count('class="cap">Assigned') == 1 and row.count('class="cap">Available') == 1
+
+
+def test_the_stylesheet_gives_all_rows_and_the_header_the_same_fixed_columns():
+    from pathlib import Path
+
+    css = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
+    shared = css[css.index(".budget-columns, .budget-row {"):]
+    shared = shared[: shared.index("}")]
+    assert "grid-template-columns: minmax(0, 1fr) 9rem 9rem" in shared
+    assert "auto" not in shared.split("grid-template-columns")[1].split(";")[0], "auto columns size per row and drift"
+    assert "max-width: 39.99rem" in css

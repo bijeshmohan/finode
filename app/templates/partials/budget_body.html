@@ -33,18 +33,23 @@
       <div class="name">{{ line.name }}
         {% if line.activity %}<small>{{ line.activity|money }} spent</small>{% endif %}
       </div>
+      {% set tone = 'negative' if line.available < 0 else ('positive' if line.available > 0 else '') %}
       {% if line.group %}
-      <span class="assigned-fixed">{{ line.assigned|money }}</span>
-      <span class="avail {{ 'negative' if line.available < 0 else ('positive' if line.available > 0) }}">{{ line.available|money }}</span>
+      <div class="cell"><span class="cap">Assigned</span><span class="figure muted">{{ line.assigned|money }}</span></div>
+      <div class="cell"><span class="cap">Available</span><span class="figure avail {{ tone }}">{{ line.available|money }}</span></div>
       {% else %}
-      <form hx-post="/budget/assign" hx-trigger="change, submit" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
-        <input type="hidden" name="category" value="{{ line.aid }}">
-        <input type="hidden" name="month" value="{{ month_key }}">
-        <input class="assign" type="text" name="amount" inputmode="decimal" autocomplete="off" enterkeyhint="done"
-               value="{{ line.assigned|money if line.assigned else '' }}" placeholder="0.00" aria-label="Assigned to {{ line.name }}">
-      </form>
-      <a class="avail {{ 'negative' if line.available < 0 else ('positive' if line.available > 0) }}"
-         href="/budget/move?month={{ month_key }}&source={{ line.aid }}" title="Move money">{{ line.available|money }}</a>
+      <div class="cell">
+        <span class="cap">Assigned</span>
+        <form hx-post="/budget/assign" hx-trigger="change, submit" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
+          <input type="hidden" name="category" value="{{ line.aid }}">
+          <input type="hidden" name="month" value="{{ month_key }}">
+          <input class="assign" type="text" name="amount" inputmode="decimal" autocomplete="off" enterkeyhint="done"
+                 value="{{ line.assigned|money if line.assigned else '' }}" placeholder="0.00" aria-label="Assigned to {{ line.name }}">
+        </form>
+      </div>
+      <div class="cell"><span class="cap">Available</span>
+        <a class="figure avail {{ tone }}" href="/budget/move?month={{ month_key }}&source={{ line.aid }}" title="Move money">{{ line.available|money }}</a>
+      </div>
       {% endif %}
     </div>
     {% endfor %}
