@@ -24,6 +24,14 @@ class BudgetTargetSet(BaseModel):
     target_date: Date | None = None
 
 
+class BudgetLeftOut(BaseModel):
+    # An account that could be part of the budget but is not, and what it paid for this month.
+    aid: UUID
+    path: str
+    entries: int
+    spent: Decimal = Money
+
+
 class BudgetLine(BaseModel):
     aid: UUID
     # The category's name, and its path below Expenses, e.g. "Food:Groceries".
@@ -64,6 +72,10 @@ class BudgetRead(BaseModel):
     overspent_last_month: Decimal = Money
     # What the targets still need this month, all categories.
     underfunded: Decimal = Money
+    # Spending this month that is not counted in the categories because it was paid from accounts outside the
+    # budget (a credit card that was never switched on, for example), and those accounts.
+    left_out: Decimal = Money
+    left_out_accounts: list[BudgetLeftOut] = []
     # True when some spending could not be converted to the currency because no price links them.
     unpriced: bool = False
     # The accounts whose money is budgeted, and the flagged ones left out (another currency, sub-accounts).

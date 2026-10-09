@@ -346,10 +346,11 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
         client.post("/api/transactions/", json={"date": last.replace(day=on).isoformat(), "postings": [
             {"account": debit["aid"], "side": "debit", "amount": amount},
             {"account": credit["aid"], "side": "credit", "amount": amount}]})
+    client.put(f"/api/budget/categories/{food['aid']}", json={"month": last.isoformat(), "amount": "10"})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         data = payload(await c.call_tool("get_budget", {}))
-        assert data["overspent_last_month"] == "30.00" and data["ready_to_assign"] == "970.00"
-        assert data["categories"][0]["overspent_last_month"] == "30.00" and data["categories"][0]["available"] == "0.00"
+        assert data["overspent_last_month"] == "20.00" and data["ready_to_assign"] == "970.00"
+        assert data["categories"][0]["overspent_last_month"] == "20.00" and data["categories"][0]["available"] == "0.00"
 
 
 @pytest.mark.anyio

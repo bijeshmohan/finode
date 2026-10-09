@@ -150,9 +150,10 @@ def test_the_page_explains_last_months_overspending(client, root_accounts):
     food = account(client, root_accounts, "Food", "Expenses")
     last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
     move(client, salary, bank, "1000", on=last.replace(day=2).isoformat())
+    assign(client, food, "10", last)
     move(client, bank, food, "30", on=last.replace(day=5).isoformat())
     page = client.get("/budget").text
-    assert "was overspent last month" in page and "30.00 overspent last month" in page
+    assert "was overspent last month" in page and "20.00 overspent last month" in page
     assert "overspent last month" not in client.get(f"/budget?month={last:%Y-%m}").text
 
 
@@ -190,3 +191,16 @@ def test_target_form_errors_and_removal(client, setup):
     removed = client.post("/budget/target/delete", data={"category": rent})
     assert "budget-target-cleared" in removed.headers["set-cookie"]
     assert client.get(f"/budget/target?category={setup['bank']['aid']}").status_code == 404
+
+
+def test_the_page_offers_to_add_a_card_and_adding_it_counts_its_spending(client, root_accounts):
+    account(client, root_accounts, "Bank", "Assets", balance="1000")
+    card = account(client, root_accounts, "Card", "Liabilities")
+    food = account(client, root_accounts, "Food", "Expenses")
+    move(client, card, food, "75")
+    page = client.get("/budget").text
+    assert "not part of the budget" in page and "Liabilities:Card" in page and "Add to budget" in page
+    response = client.post(f"/budget/accounts/{card['aid']}/include", data={"month": THIS_MONTH.strftime("%Y-%m")})
+    assert response.status_code == 200 and 'id="budget"' in response.text
+    assert "Add to budget" not in response.text and "\u221275.00" in response.text
+    assert client.post(f"/budget/accounts/{food['aid']}/include", data={}).status_code == 400

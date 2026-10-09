@@ -153,3 +153,13 @@ def clear_target(budget: Budget, category: Annotated[UUID, Form()], month: Annot
     except BudgetError as e:
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target-cleared")
+
+
+@router.post("/accounts/{aid}/include")
+def include_account(request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = ""):
+    when = parse_month(month)
+    try:
+        budget.include_account(aid)
+    except BudgetError as e:
+        return htmx_error(str(e), "#budget-error")
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))

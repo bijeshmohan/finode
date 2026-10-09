@@ -799,3 +799,7 @@ fieldset.plain > * + * { margin-top: .9rem; }
 .budget-row .name small.target-note a:hover { text-decoration: underline; }
 form.notice.fund { display: flex; gap: .75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 form.notice.fund button { margin: 0; }
+
+.notice.left-out ul { margin: .5rem 0 0; }
+.notice.left-out li { display: flex; gap: .75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: .35rem 0; }
+.notice.left-out button { margin: 0; }
