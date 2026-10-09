@@ -224,42 +224,26 @@ def _split_postings(
     return postings
 
 
-def _as_simple(transaction: TransactionRead, commodities: dict[UUID, str | None]) -> dict | None:
-    """The simple-form fields for a plain two-sided transaction, else None."""
-    postings = transaction.postings
-    if len(postings) != 2 or postings[0].side == postings[1].side:
-        return None
-    debit = next(p for p in postings if p.side == PostingSide.DEBIT)
-    credit = next(p for p in postings if p.side == PostingSide.CREDIT)
-    converts = commodities.get(debit.account) != commodities.get(credit.account)
-    if debit.amount != credit.amount and not converts:
-        return None
-    return {
-        "from_id": credit.account,
-        "to_id": debit.account,
-        "amount": credit.amount,
-        "to_amount": debit.amount if converts else "",
-    }
-
-
-def _after_save(back: str, another: str, mode: str) -> str:
+def _after_save(back: str, another: str) -> str:
     if another:
-        params = {"back": back} if back else {}
-        if mode == "split":
-            params["mode"] = "split"
-        return "/transactions/new" + (f"?{urlencode(params)}" if params else "")
+        return "/transactions/new" + (f"?{urlencode({'back': back})}" if back else "")
     return safe_back(back)
+
+
+def _rows(postings, side: PostingSide, account_id: UUID | None = None) -> list[dict]:
+    """The rows of one side of the form: the transaction's own postings, or one blank row (maybe with an account)."""
+    found = [{"posting": p, "account": p.account} for p in postings if p.side == side]
+    return found or [{"posting": None, "account": account_id}]
 
 
 @router.get("/new")
 def new_transaction_page(
     request: Request,
     accounts: Accounts,
-    mode: str = "simple",
     account: UUID | None = None,
     back: str = "",
+    mode: str = "",  # old links; the form is one page now
 ):
-    mode = "split" if mode == "split" else "simple"
     all_accounts = accounts.list()
     from_id = to_id = None
     if account is not None:
@@ -274,22 +258,15 @@ def new_transaction_page(
         "transaction_form.html",
         _form_context(
             accounts,
-            mode=mode,
             today=date.today().isoformat(),
             transaction=None,
-            postings=[],
-            simple={"from_id": from_id, "to_id": to_id, "amount": "", "to_amount": ""},
+            total="",
+            from_rows=_rows([], PostingSide.CREDIT, from_id),
+            to_rows=_rows([], PostingSide.DEBIT, to_id),
             account=account,
             back=safe_back(back, ""),
             back_url=safe_back(back),
         ),
-    )
-
-
-@router.get("/rows/new")
-def new_posting_row(request: Request, accounts: Accounts):
-    return templates.TemplateResponse(
-        request, "partials/posting_row.html", _form_context(accounts, posting=None)
     )
 
 
@@ -323,7 +300,7 @@ def create_simple_transaction(
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(
-        _after_save(back, another, "simple"),
+        _after_save(back, another),
         flash="transaction-saved-next" if another else "transaction-saved",
     )
 
@@ -357,7 +334,7 @@ def create_split_transaction(
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(
-        _after_save(back, another, "split"),
+        _after_save(back, another),
         flash="transaction-saved-next" if another else "transaction-saved",
     )
 
@@ -368,28 +345,23 @@ def edit_transaction_page(
     tid: UUID,
     accounts: Accounts,
     transactions: Transactions,
-    mode: str = "",
     back: str = "",
+    mode: str = "",  # old links; the form is one page now
 ):
     transaction = transactions.read(tid)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
-    simple = _as_simple(transaction, {a.aid: a.commodity for a in accounts.list()})
-    if mode != "split" and simple is not None:
-        mode = "simple"
-    else:
-        mode = "split"
+    total = sum((p.value for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
         _form_context(
             accounts,
-            mode=mode,
             editing=True,
-            can_simplify=simple is not None,
             transaction=transaction,
-            postings=transaction.postings,
-            simple=simple or {"from_id": None, "to_id": None, "amount": "", "to_amount": ""},
+            total=total,
+            from_rows=_rows(transaction.postings, PostingSide.CREDIT),
+            to_rows=_rows(transaction.postings, PostingSide.DEBIT),
             account=None,
             back=safe_back(back, ""),
             back_url=safe_back(back),

@@ -1,0 +1,17 @@
+{#- One side of a transaction: an account and what it gets. `side` is credit (From) or debit (To). -#}
+{% from "partials/account_options.html" import account_options %}
+{% set foreign = posting and multi and account_commodity.get(posting.account) != transaction.currency %}
+<div class="txn-row" data-row {{ "data-touched" if posting }}>
+  <input type="hidden" name="side" value="{{ side }}">
+  <select name="account" aria-label="Account" data-account-select>
+    {{ account_options(groups, (posting.account if posting else selected), allow_new=True) }}
+  </select>
+  <input type="text" name="amount" class="row-amount" inputmode="decimal" placeholder="0.00" autocomplete="off"
+         aria-label="Amount" value="{{ posting.amount if posting else '' }}">
+  {% if multi %}
+  <input type="text" name="value" class="row-worth" inputmode="decimal" autocomplete="off" {{ "" if foreign else "hidden" }}
+         placeholder="Worth in {{ transaction.currency if transaction else currency }}" aria-label="Worth in the transaction's currency"
+         value="{{ posting.value if foreign else '' }}">
+  {% endif %}
+  <button type="button" class="icon-button" data-remove-row title="Remove" aria-label="Remove">×</button>
+</div>

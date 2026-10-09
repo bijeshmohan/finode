@@ -123,10 +123,6 @@ def test_what_an_account_holds_is_locked_once_it_has_postings(client, pair, root
 # ---- the simple transaction form ------------------------------------------------------------------------------
 
 
-def test_the_simple_form_has_a_receive_field_and_unit_markers(client, pair):
-    page = client.get("/transactions/new").text
-    assert 'name="to_amount"' in page and "data-conversion" in page
-    assert 'data-commodity="USD"' in page and 'data-commodity="INR"' in page
 
 
 def test_buying_usd_with_inr(client, pair):
@@ -202,56 +198,25 @@ def test_the_receive_field_must_match_between_the_same_thing(client, root_accoun
     assert ok.status_code == 200
 
 
-def test_editing_a_conversion_shows_and_keeps_both_amounts(client, pair):
-    bank, usd = pair
-    client.post("/transactions", data=buy_usd_form(bank, usd))
-    tid = latest(client)["tid"]
-
-    page = client.get(f"/transactions/{tid}/edit").text
-    assert f'hx-post="/transactions/{tid}/edit/simple"' in page
-    assert 'name="to_amount"' in page and 'value="100.00"' in page and 'value="8350.00"' in page
-    assert '<details class="more" data-conversion open>' in page
-
-    response = client.post(
-        f"/transactions/{tid}/edit/simple",
-        data=buy_usd_form(bank, usd, amount="8400", to_amount="100"),
-    )
-    assert response.status_code == 200, response.text
-    values = {p["account"]: (p["amount"], p["value"]) for p in client.get(f"/api/transactions/{tid}").json()["postings"]}
-    assert values[usd["aid"]] == ("100.00", "8400.00") and values[bank["aid"]] == ("8400.00", "8400.00")
 
 
-def test_a_plain_transaction_edits_as_before(client, account, expense_account):
-    tx = client.post(
-        "/api/transactions/",
-        json={
-            "date": LONG_AGO,
-            "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "9.99"},
-                {"account": account["aid"], "side": "credit", "amount": "9.99"},
-            ],
-        },
-    ).json()
-    page = client.get(f"/transactions/{tx['tid']}/edit").text
-    assert '<details class="more" data-conversion >' in page, "collapsed when nothing converts"
 
 
 # ---- the split form ----------------------------------------------------------------------------------------------
 
 
 def test_the_split_form_is_unchanged_for_a_single_currency(client, account, expense_account):
-    page = client.get("/transactions/new?mode=split").text
+    page = client.get("/transactions/new").text
     assert 'name="currency"' not in page and 'name="value"' not in page
 
 
 def test_the_split_form_asks_for_currency_and_worth_once_something_else_is_held(client, pair):
-    page = client.get("/transactions/new?mode=split").text
+    page = client.get("/transactions/new").text
     assert 'name="currency"' in page and 'name="value"' in page
     selected = [v for v, s, _ in options(page[page.index('name="currency"'):page.index("</select>", page.index('name="currency"'))]) if s]
     assert selected == ["INR"]
     assert "BTC" not in [v for v, _, _ in options(page[page.index('name="currency"'):page.index("</select>", page.index('name="currency"'))])]
-    row = client.get("/transactions/rows/new").text
-    assert 'name="value"' in row
+    assert page.count('name="value"') >= 3, "each row, and the one the new-row template clones"
 
 
 def test_a_split_with_a_worth_for_the_foreign_row(client, pair):
@@ -306,7 +271,8 @@ def test_editing_a_split_prefills_currency_and_worth(client, pair, root_accounts
     ).json()["tid"]
     page = client.get(f"/transactions/{tid}/edit").text
     assert 'value="8330.00"' in page, "the foreign row shows its worth"
-    assert page.count('name="value"') == 3
+    assert page.count('name="value"') == 4, "three rows and the new-row template"
+    assert page.count('class="row-worth" inputmode="decimal" autocomplete="off" hidden') == 3, "only the USD row shows a worth (the template and the two INR rows hide it)"
     assert f'hx-post="/transactions/{tid}/edit"' in page
 
     again = client.post(

@@ -10,77 +10,46 @@
 <p class="muted origin">{% if transaction.created_via %}Added by {{ transaction.created_via|origin_label }}{% endif %}{% if transaction.updated_via and transaction.updated_via != transaction.created_via %}{{ " · " if transaction.created_via }}last changed by {{ transaction.updated_via|origin_label }}{% endif %}</p>
 {% endif %}
 
-{% set split = mode == "split" %}
-{% set post_simple = "/transactions/" ~ transaction.tid ~ "/edit/simple" if editing else "/transactions" %}
-{% set post_split = "/transactions/" ~ transaction.tid ~ "/edit" if editing else "/transactions/split" %}
-{% set locked = editing and not can_simplify %}
-<form class="card stack txn-form {{ 'is-split' if split }}" data-txn-form
-      data-post-simple="{{ post_simple }}" data-post-split="{{ post_split }}"
-      hx-post="{{ post_split if split else post_simple }}">
+{% set post_url = "/transactions/" ~ transaction.tid ~ "/edit" if editing else "/transactions/split" %}
+<form class="card stack txn-form" data-txn-form {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
   <input type="hidden" name="back" value="{{ back }}">
 
-  <div data-section="simple" {{ "hidden" if split }}>
-    <div class="stack">
-      <label class="amount-field">Amount
-        <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off"
-               value="{{ simple.amount }}" {{ "autofocus" if not editing and not split }} {{ "disabled" if split }}>
-      </label>
-
-      <div class="from-to">
-        <label>From <span class="hint">where the money comes from</span>
-          <select name="from_account" required data-account-select {{ "disabled" if split }}>{{ account_options(groups, simple.from_id, allow_new=True) }}</select>
-        </label>
-        <button type="button" class="icon-button swap" data-swap-accounts title="Swap from and to">{{ icon("swap") }}<span class="sr-only">Swap from and to</span></button>
-        <label>To <span class="hint">where the money goes</span>
-          <select name="to_account" required data-account-select {{ "disabled" if split }}>{{ account_options(groups, simple.to_id, allow_new=True) }}</select>
-        </label>
-      </div>
-
-      <details class="more" data-conversion {{ "open" if simple.to_amount }}>
-        <summary>Different currencies or units?</summary>
-        <label>You receive <span class="hint" data-receive-unit>in the account it goes to, when that holds something else</span>
-          <input type="text" name="to_amount" inputmode="decimal" placeholder="0.00" autocomplete="off" value="{{ simple.to_amount }}" {{ "disabled" if split }}>
-        </label>
-        <p class="hint muted" data-rate-hint></p>
-      </details>
-    </div>
-  </div>
-
-  <div data-section="split" {{ "hidden" if not split }}>
-    <div class="stack">
-      {% if multi %}
-      <label>Currency <span class="hint">the transaction balances in this; rows in anything else say what they are worth in it</span>
-        <select name="currency" {{ "disabled" if not split }}>
-          {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == (transaction.currency if editing else currency) }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
-        </select>
-      </label>
-      {% endif %}
-      <p class="hint muted">Each row debits or credits one account. Debits must equal credits{% if multi %}, in the transaction's currency{% endif %}.</p>
-      <div id="postings" class="postings">
-        <div class="posting-head"><span>Account</span><span>Side</span><span>Amount</span><span></span></div>
-        {% if postings %}
-          {% for posting in postings %}{% include "partials/posting_row.html" %}{% endfor %}
-        {% else %}
-          {% set posting = none %}
-          {% include "partials/posting_row.html" %}
-          {% with default_side = "credit" %}{% include "partials/posting_row.html" %}{% endwith %}
-        {% endif %}
-      </div>
-      <div class="actions">
-        <button type="button" class="secondary"
-                hx-get="/transactions/rows/new" hx-target="#postings" hx-swap="beforeend">{{ icon("plus") }}Add row</button>
-      </div>
-      <p id="balance-status" class="balance-status" aria-live="polite"></p>
-    </div>
-  </div>
-
-  <div class="split-switch">
-    <label>
-      <input type="checkbox" data-split-toggle {{ "checked" if split }} {{ "disabled" if locked }}>
-      <span>Split across several accounts</span>
+  <div class="total-field">
+    <label class="amount-field">Amount
+      <input type="text" name="total" id="total" inputmode="decimal" placeholder="0.00" required autocomplete="off"
+             value="{{ total }}" {{ "autofocus" if not editing }}>
     </label>
-    <p class="hint muted" data-split-note>{% if locked %}This transaction has more than two sides, so it stays split.{% endif %}</p>
+    {% if multi %}
+    <label class="currency-field"><span class="sr-only">Currency</span>
+      <select name="currency" aria-label="Currency of the amount">
+        {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == (transaction.currency if editing else currency) }}>{{ c.code }}</option>{% endfor %}
+      </select>
+    </label>
+    {% else %}
+    <span class="currency-code muted">{{ currency }}</span>
+    {% endif %}
   </div>
+
+  {% for side, title, hint, rows in (("credit", "From", "where the money comes from", from_rows), ("debit", "To", "where the money goes", to_rows)) %}
+  <section class="txn-side" data-side-section="{{ side }}">
+    <div class="txn-side-head">
+      <h2>{{ title }} <span class="hint">{{ hint }}</span></h2>
+      {% if loop.first %}<button type="button" class="icon-button swap" data-swap-sides title="Swap From and To">{{ icon("swap") }}<span class="sr-only">Swap From and To</span></button>{% endif %}
+    </div>
+    <div class="txn-rows" data-rows="{{ side }}">
+      {% for r in rows %}
+        {% set posting = r.posting %}{% set selected = r.account %}
+        {% include "partials/txn_row.html" %}
+      {% endfor %}
+    </div>
+    <p class="side-status" data-status="{{ side }}" aria-live="polite"></p>
+  </section>
+  {% endfor %}
+
+  <template id="txn-row-template">
+    {% set posting = none %}{% set selected = none %}
+    {% set side = "credit" %}{% include "partials/txn_row.html" %}
+  </template>
 
   <div class="grid-form">
     <label>Date

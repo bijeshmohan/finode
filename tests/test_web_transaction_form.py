@@ -7,13 +7,6 @@ def _balance(client: TestClient, account: dict) -> str:
     return client.get(f"/api/accounts/{account['aid']}").json()["balance"]
 
 
-def test_new_transaction_page_simple_mode(client: TestClient, account: dict, expense_account: dict):
-    response = client.get("/transactions/new")
-    assert response.status_code == 200
-    assert 'name="from_account"' in response.text
-    assert 'name="to_account"' in response.text
-    assert date.today().isoformat() in response.text
-    assert "checking" in response.text
 
 
 def test_form_only_offers_postable_accounts(
@@ -37,18 +30,8 @@ def test_form_only_offers_postable_accounts(
     assert "Food › dining" in text.replace("food", "Food")
 
 
-def test_new_transaction_page_split_mode(client: TestClient, account: dict):
-    response = client.get("/transactions/new", params={"mode": "split"})
-    assert response.status_code == 200
-    assert response.text.count('class="posting-row"') == 2
-    assert 'id="balance-status"' in response.text
 
 
-def test_new_posting_row_fragment(client: TestClient, account: dict):
-    response = client.get("/transactions/rows/new")
-    assert response.status_code == 200
-    assert 'class="posting-row"' in response.text
-    assert "<html" not in response.text
 
 
 def test_create_simple_transaction(client: TestClient, account: dict, expense_account: dict):
@@ -199,13 +182,10 @@ def test_edit_page_prefills_existing_postings(
     assert simple.status_code == 200
     assert 'value="Corner shop"' in simple.text
     assert 'value="2026-05-04"' in simple.text
-    assert simple.text.count('value="9.99"') == 3, "the simple amount, plus the two rows of the hidden split part"
-    assert f'hx-post="/transactions/{tx["tid"]}/edit/simple"' in simple.text
+    assert simple.text.count('value="9.99"') == 3, "the total and one row on each side"
+    assert f'hx-post="/transactions/{tx["tid"]}/edit"' in simple.text
     assert f'<option value="{expense_account["aid"]}" data-commodity="INR" selected>' in simple.text
-
-    split = client.get(f"/transactions/{tx['tid']}/edit", params={"mode": "split"})
-    assert split.text.count('value="9.99"') == 3
-    assert f'hx-post="/transactions/{tx["tid"]}/edit"' in split.text
+    assert simple.text.count("data-touched") == 2, "existing rows are the user's own, never overwritten by a suggestion"
 
 
 def test_edit_missing_transaction_is_404(client: TestClient):
@@ -323,19 +303,6 @@ def _tx(client: TestClient, debit: dict, credit: dict, amount: str = "10.00") ->
     ).json()
 
 
-def test_new_form_prefills_from_for_asset_and_to_for_expense(
-    client: TestClient, account: dict, expense_account: dict
-):
-    from_asset = client.get("/transactions/new", params={"account": account["aid"]}).text
-    assert from_asset.count(f'<option value="{account["aid"]}" data-commodity="INR" selected>') == 1
-    assert from_asset.index('name="from_account"') < from_asset.index(
-        f'<option value="{account["aid"]}" data-commodity="INR" selected>'
-    ) < from_asset.index('name="to_account"')
-
-    to_expense = client.get("/transactions/new", params={"account": expense_account["aid"]}).text
-    assert to_expense.index('name="to_account"') < to_expense.index(
-        f'<option value="{expense_account["aid"]}" data-commodity="INR" selected>'
-    )
 
 
 def test_create_returns_to_the_page_it_came_from(
@@ -379,7 +346,7 @@ def test_save_and_add_another_reopens_the_form(
             "back": "/accounts",
         },
     )
-    assert split.headers["HX-Redirect"] == "/transactions/new?back=%2Faccounts&mode=split"
+    assert split.headers["HX-Redirect"] == "/transactions/new?back=%2Faccounts"
 
 
 def test_update_simple_transaction(client: TestClient, account: dict, other_account: dict, expense_account: dict):
@@ -439,30 +406,42 @@ def test_delete_returns_to_the_page_it_came_from(client: TestClient, account: di
     assert response.headers["HX-Redirect"] == back
 
 
-def test_new_split_form_starts_with_a_debit_and_a_credit_row(client: TestClient, account: dict):
-    text = client.get("/transactions/new", params={"mode": "split"}).text
-    assert text.count('<option value="credit" selected>') == 1
 
 
-def test_one_form_holds_the_simple_and_the_split_parts(client: TestClient):
+
+
+
+
+
+def test_new_page_has_a_total_and_a_row_on_each_side(client: TestClient, account: dict, expense_account: dict):
     page = client.get("/transactions/new").text
-    assert 'class="tabs' not in page, "no Simple/Split tabs any more"
-    assert page.count("data-txn-form") == 1 and "Split across several accounts" in page
-    assert 'data-section="split" hidden' in page and 'data-section="simple" hidden' not in page
-    assert 'data-post-simple="/transactions"' in page and 'data-post-split="/transactions/split"' in page
-    assert 'hx-post="/transactions"' in page
-    assert 'name="from_account" required data-account-select disabled' not in page, "the simple controls are live"
-    assert "data-split-toggle checked" not in page
+    assert 'class="tabs' not in page and "Split across" not in page
+    assert page.count("data-txn-form") == 1 and 'name="total"' in page and date.today().isoformat() in page
+    assert page.index('data-rows="credit"') < page.index('data-rows="debit"')
+    credit = page[page.index('data-rows="credit"'):page.index('data-rows="debit"')]
+    assert credit.count("class=\"txn-row\"") == 1 and 'name="side" value="credit"' in credit
+    assert 'name="side" value="debit"' in page[page.index('data-rows="debit"'):]
+    assert 'hx-post="/transactions/split"' in page
+    assert "<template" in page and "checking" in page
+    assert "data-touched" not in page, "a new form has nothing of the user's yet"
 
 
-def test_split_mode_opens_the_split_part_and_turns_off_the_simple_fields(client: TestClient):
-    page = client.get("/transactions/new?mode=split").text
-    assert 'data-section="simple" hidden' in page and 'data-section="split" hidden' not in page
-    assert 'hx-post="/transactions/split"' in page and "data-split-toggle checked" in page
-    assert 'name="from_account" required data-account-select disabled' in page, "a hidden required field must not block saving"
+def test_new_form_prefills_from_for_asset_and_to_for_expense(client: TestClient, account: dict, expense_account: dict):
+    selected = f'<option value="{account["aid"]}" data-commodity="INR" selected>'
+    from_asset = client.get("/transactions/new", params={"account": account["aid"]}).text
+    assert from_asset.count(selected) == 1
+    assert from_asset.index('data-rows="credit"') < from_asset.index(selected) < from_asset.index('data-rows="debit"')
+
+    to_expense = client.get("/transactions/new", params={"account": expense_account["aid"]}).text
+    expected = f'<option value="{expense_account["aid"]}" data-commodity="INR" selected>'
+    assert to_expense.index('data-rows="debit"') < to_expense.index(expected)
 
 
-def test_a_transaction_with_three_sides_stays_split(client: TestClient, account: dict, expense_account: dict):
+def test_old_mode_links_still_open_the_form(client: TestClient, account: dict):
+    assert client.get("/transactions/new?mode=split").status_code == 200
+
+
+def test_a_transaction_with_several_rows_shows_them_all(client: TestClient, account: dict, expense_account: dict):
     other = client.post("/api/accounts/", json={"name": "Tips", "parent_id": expense_account["parent_id"]}).json()
     tx = client.post("/api/transactions/", json={"postings": [
         {"account": expense_account["aid"], "side": "debit", "amount": "6"},
@@ -470,5 +449,5 @@ def test_a_transaction_with_three_sides_stays_split(client: TestClient, account:
         {"account": account["aid"], "side": "credit", "amount": "10"},
     ]}).json()
     page = client.get(f"/transactions/{tx['tid']}/edit").text
-    assert "data-split-toggle checked disabled" in page and "stays split" in page
-    assert "stays split" not in client.get("/transactions/new").text
+    debit = page[page.index('data-rows="debit"'):]
+    assert debit.count("data-touched") >= 2 and 'value="10.00"' in page and "Split across" not in page

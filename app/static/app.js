@@ -7,113 +7,6 @@ document.body.addEventListener("htmx:beforeSwap", (event) => {
   }
 });
 
-// Live debit/credit balance indicator for the split transaction form.
-// Amounts are handled as integer cents to avoid floating point errors.
-function toCents(text) {
-  const match = /^(\d*)(?:\.(\d*))?$/.exec(text.replace(/[,\s]/g, ""));
-  if (!match || (match[1] === "" && !match[2])) return null;
-  const whole = parseInt(match[1] || "0", 10);
-  const fraction = parseInt((match[2] || "").padEnd(2, "0").slice(0, 2), 10);
-  return whole * 100 + fraction;
-}
-
-function formatCents(cents) {
-  const sign = cents < 0 ? "-" : "";
-  const abs = Math.abs(cents);
-  const whole = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${sign}${whole}.${String(abs % 100).padStart(2, "0")}`;
-}
-
-function updateBalanceStatus() {
-  const status = document.getElementById("balance-status");
-  if (!status) return;
-  let debit = 0;
-  let credit = 0;
-  const currencySelect = document.querySelector('form [name="currency"]');
-  document.querySelectorAll(".posting-row").forEach((row) => {
-    // A row holding something other than the transaction's currency counts by its worth.
-    const worth = row.querySelector('[name="value"]');
-    const account = row.querySelector('select[name="account"]');
-    const held = account && account.selectedOptions[0] ? account.selectedOptions[0].dataset.commodity : "";
-    let text = worth && worth.value.trim() ? worth.value : null;
-    if (text === null) {
-      if (currencySelect && held && held !== currencySelect.value) return;
-      text = row.querySelector('[name="amount"]').value;
-    }
-    const cents = toCents(text);
-    if (cents === null) return;
-    if (row.querySelector('[name="side"]').value === "debit") debit += cents;
-    else credit += cents;
-  });
-  const diff = debit - credit;
-  status.classList.toggle("ok", diff === 0 && debit > 0);
-  status.classList.toggle("off", diff !== 0);
-  status.textContent =
-    diff === 0
-      ? `Balanced · debits ${formatCents(debit)} = credits ${formatCents(credit)}`
-      : `Unbalanced by ${formatCents(Math.abs(diff))} · debits ${formatCents(debit)}, credits ${formatCents(credit)}`;
-}
-
-document.body.addEventListener("input", updateBalanceStatus);
-document.body.addEventListener("change", updateBalanceStatus);
-document.body.addEventListener("htmx:afterSwap", updateBalanceStatus);
-document.body.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-remove-row]");
-  if (!button) return;
-  const rows = document.querySelectorAll(".posting-row");
-  if (rows.length > 2) button.closest(".posting-row").remove();
-  updateBalanceStatus();
-});
-document.addEventListener("DOMContentLoaded", updateBalanceStatus);
-
-// Simple form: when From and To hold different things, open the "You receive" field and show the rate.
-function heldBy(select) {
-  const option = select && select.selectedOptions[0];
-  return option ? option.dataset.commodity || "" : "";
-}
-
-function updateConversion() {
-  const form = document.querySelector("form [data-conversion]");
-  if (!form) return;
-  const from = document.querySelector('[name="from_account"]');
-  const to = document.querySelector('[name="to_account"]');
-  const source = heldBy(from);
-  const target = heldBy(to);
-  const differs = source !== "" && target !== "" && source !== target;
-  if (differs) form.open = true;
-  const unit = form.querySelector("[data-receive-unit]");
-  if (unit) unit.textContent = differs ? `in ${target}` : "in the account it goes to, when that holds something else";
-  const hint = form.querySelector("[data-rate-hint]");
-  if (!hint) return;
-  const paid = parseFloat(document.querySelector('[name="amount"]').value.replace(/,/g, ""));
-  const received = parseFloat(form.querySelector('[name="to_amount"]').value.replace(/,/g, ""));
-  if (!(differs && paid > 0 && received > 0)) {
-    hint.textContent = "";
-    return;
-  }
-  // Quote the rate the way people say it: the smaller unit's price in the larger one (1 USD = 83.5 INR).
-  const digits = { maximumSignificantDigits: 8 };
-  hint.textContent =
-    received >= paid
-      ? `1 ${source} = ${(received / paid).toLocaleString(undefined, digits)} ${target}`
-      : `1 ${target} = ${(paid / received).toLocaleString(undefined, digits)} ${source}`;
-}
-
-document.body.addEventListener("input", updateConversion);
-document.body.addEventListener("change", updateConversion);
-document.addEventListener("DOMContentLoaded", updateConversion);
-
-// Swap the From and To accounts in the simple transaction form.
-document.body.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-swap-accounts]");
-  if (!button) return;
-  const form = button.closest("form");
-  const from = form.querySelector('[name="from_account"]');
-  const to = form.querySelector('[name="to_account"]');
-  [from.value, to.value] = [to.value, from.value];
-  updateConversion();
-});
-
 // ---- Add an account without leaving the transaction form ----
 const NEW_ACCOUNT = "__new__";
 let quickTarget = null;
@@ -129,9 +22,7 @@ function rememberAccountChoices() {
 }
 
 function suggestedRoot(select) {
-  if (select.name === "to_account") return "Expenses";
-  if (select.name === "from_account") return "Assets";
-  const row = select.closest(".posting-row");
+  const row = select.closest("[data-row]");
   return row && row.querySelector('[name="side"]').value === "debit" ? "Expenses" : "Assets";
 }
 
@@ -331,93 +222,219 @@ document.addEventListener("change", (event) => {
 });
 document.addEventListener("DOMContentLoaded", syncTargetKind);
 
-// ---- One transaction form: simple by default, or split across accounts ----
-function txnForm() {
-  return document.querySelector("form[data-txn-form]");
+// ---- The transaction form: a total, then rows on each side until both sides add up to it ----
+// Amounts are BigInts with 8 decimals (the most the ledger keeps), so nothing is lost to floating point.
+const SCALE = 8;
+
+function parseDec(text) {
+  const match = /^(\d*)(?:\.(\d*))?$/.exec((text || "").replace(/[,\s]/g, ""));
+  if (!match || (match[1] === "" && !match[2])) return null;
+  const fraction = (match[2] || "").padEnd(SCALE, "0").slice(0, SCALE);
+  return BigInt(match[1] || "0") * 10n ** BigInt(SCALE) + BigInt(fraction);
 }
 
-function isSplit(form) {
-  const toggle = form.querySelector("[data-split-toggle]");
-  return !!toggle && toggle.checked;
+function formatDec(value) {
+  const sign = value < 0n ? "-" : "";
+  const abs = value < 0n ? -value : value;
+  const whole = (abs / 10n ** BigInt(SCALE)).toString();
+  let fraction = (abs % 10n ** BigInt(SCALE)).toString().padStart(SCALE, "0").replace(/0+$/, "");
+  fraction = fraction.padEnd(2, "0");
+  return `${sign}${whole}.${fraction}`;
 }
 
-function applyTxnMode(form) {
-  const split = isSplit(form);
-  form.classList.toggle("is-split", split);
-  form.querySelectorAll("[data-section]").forEach((section) => {
-    const hide = (section.dataset.section === "split") !== split;
-    section.hidden = hide;
-    // A hidden part must not be validated or sent.
-    section.querySelectorAll("input, select, button").forEach((control) => {
-      if (!control.hasAttribute("hx-get")) control.disabled = hide;
-    });
-  });
-  updateBalanceStatus();
-  updateConversion();
+function money(value) {
+  const [whole, fraction] = formatDec(value).split(".");
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction}`;
 }
 
-function fillSplitFromSimple(form) {
-  const rows = form.querySelectorAll(".posting-row");
-  if (rows.length < 2) return;
-  const touched = [...rows].some((row) => row.querySelector('[name="amount"]').value.trim() || row.querySelector('select[name="account"]').value);
-  if (touched) return;
-  const paid = form.querySelector('[name="amount"]').value.trim();
-  const received = form.querySelector('[name="to_amount"]').value.trim();
-  const debit = rows[0];
-  const credit = rows[1];
-  debit.querySelector('select[name="account"]').value = form.querySelector('[name="to_account"]').value;
-  debit.querySelector('[name="side"]').value = "debit";
-  debit.querySelector('[name="amount"]').value = received || paid;
-  credit.querySelector('select[name="account"]').value = form.querySelector('[name="from_account"]').value;
-  credit.querySelector('[name="side"]').value = "credit";
-  credit.querySelector('[name="amount"]').value = paid;
+const txnState = { currencyChosen: false };
+
+function rowAccount(row) {
+  return row.querySelector('select[name="account"]');
 }
 
-// Back to simple only when the rows are exactly one debit and one credit.
-function fillSimpleFromSplit(form) {
-  const used = [...form.querySelectorAll(".posting-row")].filter(
-    (row) => row.querySelector('select[name="account"]').value || row.querySelector('[name="amount"]').value.trim()
-  );
-  if (used.length === 0) return true;
-  if (used.length !== 2) return false;
-  const [a, b] = used;
-  const sides = [a.querySelector('[name="side"]').value, b.querySelector('[name="side"]').value];
-  if (sides[0] === sides[1]) return false;
-  const debit = sides[0] === "debit" ? a : b;
-  const credit = debit === a ? b : a;
-  const paid = credit.querySelector('[name="amount"]').value.trim();
-  const received = debit.querySelector('[name="amount"]').value.trim();
-  form.querySelector('[name="from_account"]').value = credit.querySelector('select[name="account"]').value;
-  form.querySelector('[name="to_account"]').value = debit.querySelector('select[name="account"]').value;
-  form.querySelector('[name="amount"]').value = paid;
-  form.querySelector('[name="to_amount"]').value = received && received !== paid ? received : "";
-  return true;
+function rowCommodity(row) {
+  const option = rowAccount(row).selectedOptions[0];
+  return option ? option.dataset.commodity || "" : "";
 }
 
-document.body.addEventListener("change", (event) => {
-  const toggle = event.target.closest && event.target.closest("[data-split-toggle]");
-  if (!toggle) return;
-  const form = toggle.closest("form");
-  const note = form.querySelector("[data-split-note]");
-  if (note) note.textContent = "";
-  if (toggle.checked) {
-    fillSplitFromSimple(form);
-  } else if (!fillSimpleFromSplit(form)) {
-    toggle.checked = true;
-    if (note) note.textContent = "Rows with more than two sides can't be shown as a simple transaction: remove the extra rows first.";
-    return;
+function txnCurrency(form) {
+  const select = form.querySelector('select[name="currency"]');
+  return select ? select.value : form.dataset.currency;
+}
+
+// A row holding something other than the transaction's currency says what it is worth in it.
+function isForeign(row, currency) {
+  const worth = row.querySelector('[name="value"]');
+  const held = rowCommodity(row);
+  return !!worth && held !== "" && held !== currency;
+}
+
+// The field that carries a row's share of the total: the amount, or the worth for a foreign row.
+function carrier(row, currency) {
+  return isForeign(row, currency) ? row.querySelector('[name="value"]') : row.querySelector('[name="amount"]');
+}
+
+function rowShare(row, currency) {
+  return parseDec(carrier(row, currency).value) || 0n;
+}
+
+function newRow(form, side) {
+  const template = form.querySelector("#txn-row-template");
+  const row = template.content.firstElementChild.cloneNode(true);
+  row.querySelector('[name="side"]').value = side;
+  // Copy the live account list: it may have gained accounts since the page loaded.
+  const live = form.querySelector("[data-rows] select[data-account-select]");
+  const select = rowAccount(row);
+  if (live) select.innerHTML = live.innerHTML;
+  select.value = "";
+  return row;
+}
+
+function setSuggestion(row, currency, text) {
+  const field = carrier(row, currency);
+  if (document.activeElement === field) return; // never overwrite what is being typed
+  field.value = text;
+  field.classList.toggle("suggested", text !== "");
+}
+
+function recomputeTxn(form) {
+  const total = parseDec(form.querySelector("#total").value) || 0n;
+  const select = form.querySelector('select[name="currency"]');
+  if (select && !txnState.currencyChosen) {
+    // Follow the accounts: the default currency when it is involved, else what they all hold.
+    const held = [...form.querySelectorAll("[data-row]")].map(rowCommodity).filter(Boolean);
+    const options = [...select.options].map((o) => o.value);
+    const wanted = held.includes(form.dataset.currency) ? form.dataset.currency
+      : held.length && held.every((h) => h === held[0]) && options.includes(held[0]) ? held[0] : null;
+    if (wanted) select.value = wanted;
   }
-  applyTxnMode(form);
-});
+  const currency = txnCurrency(form);
+  form.querySelectorAll("[data-row]").forEach((row) => {
+    const foreign = isForeign(row, currency);
+    const worth = row.querySelector('[name="value"]');
+    if (worth) {
+      worth.hidden = !foreign;
+      worth.placeholder = `Worth in ${currency}`;
+      if (!foreign) { worth.value = ""; worth.classList.remove("suggested"); }
+    }
+    row.querySelector('[name="amount"]').placeholder = foreign && rowCommodity(row) ? rowCommodity(row) : "0.00";
+    // A row whose account changed hands the share to the other field: a leftover suggestion there goes.
+    const idle = foreign ? row.querySelector('[name="amount"]') : worth;
+    if (idle && idle.classList.contains("suggested")) {
+      idle.value = "";
+      idle.classList.remove("suggested");
+    }
+  });
 
-// The form saves through the simple or the split route, whichever is showing.
-document.body.addEventListener("htmx:configRequest", (event) => {
-  const form = event.target;
-  if (!(form instanceof HTMLFormElement) || !form.matches("form[data-txn-form]")) return;
-  event.detail.path = isSplit(form) ? form.dataset.postSplit : form.dataset.postSimple;
-});
+  ["credit", "debit"].forEach((side) => {
+    const list = form.querySelector(`[data-rows="${side}"]`);
+    let rows = [...list.querySelectorAll("[data-row]")];
+    let touched = rows.filter((r) => r.hasAttribute("data-touched"));
+    let sum = touched.reduce((acc, r) => acc + rowShare(r, currency), 0n);
+    const remaining = total - sum;
+
+    // At most one untouched row, and only while something is left to allocate (or as the one row).
+    let open = rows.filter((r) => !r.hasAttribute("data-touched"));
+    if (remaining > 0n && open.length === 0) {
+      const row = newRow(form, side);
+      list.appendChild(row);
+      open = [row];
+    }
+    open.slice(1).forEach((row) => {
+      if (!rowAccount(row).value && !row.contains(document.activeElement)) row.remove();
+    });
+    rows = [...list.querySelectorAll("[data-row]")];
+    open = rows.filter((r) => !r.hasAttribute("data-touched"));
+    if (remaining <= 0n && rows.length > 1) {
+      open.forEach((row) => {
+        if (!rowAccount(row).value && !row.contains(document.activeElement)) row.remove();
+      });
+      rows = [...list.querySelectorAll("[data-row]")];
+      open = rows.filter((r) => !r.hasAttribute("data-touched"));
+    }
+    open.forEach((row, index) => setSuggestion(row, currency, index === 0 && remaining > 0n ? formatDec(remaining) : ""));
+    rows.forEach((row) => {
+      const only = rows.length === 1;
+      row.querySelector("[data-remove-row]").hidden = only && !rowAccount(row).value && !row.hasAttribute("data-touched");
+    });
+
+    const status = form.querySelector(`[data-status="${side}"]`);
+    const allocated = rows.reduce((acc, r) => acc + rowShare(r, currency), 0n);
+    const left = total - allocated;
+    status.classList.toggle("ok", total > 0n && left === 0n);
+    status.classList.toggle("off", left !== 0n && total > 0n && rows.some((r) => rowShare(r, currency) > 0n));
+    status.textContent =
+      total === 0n ? ""
+      : left === 0n ? `${money(total)} ${currency} allocated`
+      : left > 0n ? `${money(left)} ${currency} left to allocate`
+      : `${money(-left)} ${currency} over`;
+  });
+}
 
 document.addEventListener("DOMContentLoaded", () => {
-  const form = txnForm();
-  if (form) applyTxnMode(form);
+  const form = document.querySelector("form[data-txn-form]");
+  if (!form) return;
+  txnState.currencyChosen = form.hasAttribute("data-editing"); // an existing transaction keeps its currency
+  recomputeTxn(form);
+});
+
+document.body.addEventListener("input", (event) => {
+  const form = event.target.closest && event.target.closest("form[data-txn-form]");
+  if (!form) return;
+  const row = event.target.closest("[data-row]");
+  if (row) {
+    const currency = txnCurrency(form);
+    if (event.target === carrier(row, currency)) {
+      event.target.classList.remove("suggested");
+      if (event.target.value.trim() === "") row.removeAttribute("data-touched");
+      else row.setAttribute("data-touched", "");
+    }
+  }
+  recomputeTxn(form);
+});
+
+document.body.addEventListener("change", (event) => {
+  const form = event.target.closest && event.target.closest("form[data-txn-form]");
+  if (!form) return;
+  if (event.target.matches('select[name="currency"]')) txnState.currencyChosen = true;
+  recomputeTxn(form);
+});
+
+// Leaving a field lets the suggestion settle (it is never rewritten while typing).
+document.body.addEventListener("focusout", (event) => {
+  const form = event.target.closest && event.target.closest("form[data-txn-form]");
+  if (form) setTimeout(() => recomputeTxn(form), 0);
+});
+
+// A suggested amount is selected on entry, so typing replaces it.
+document.body.addEventListener("focusin", (event) => {
+  if (event.target.matches && event.target.matches("input.suggested")) event.target.select();
+});
+
+document.body.addEventListener("click", (event) => {
+  const form = event.target.closest && event.target.closest("form[data-txn-form]");
+  if (!form) return;
+  const remove = event.target.closest("[data-remove-row]");
+  if (remove) {
+    const row = remove.closest("[data-row]");
+    const list = row.parentElement;
+    if (list.querySelectorAll("[data-row]").length > 1) row.remove();
+    else {
+      rowAccount(row).value = "";
+      row.querySelectorAll('[name="amount"], [name="value"]').forEach((f) => { f.value = ""; });
+      row.removeAttribute("data-touched");
+    }
+    recomputeTxn(form);
+    return;
+  }
+  if (event.target.closest("[data-swap-sides]")) {
+    const from = form.querySelector('[data-rows="credit"]');
+    const to = form.querySelector('[data-rows="debit"]');
+    const fromRows = [...from.children];
+    const toRows = [...to.children];
+    fromRows.forEach((row) => { row.querySelector('[name="side"]').value = "debit"; to.appendChild(row); });
+    toRows.forEach((row) => { row.querySelector('[name="side"]').value = "credit"; from.appendChild(row); });
+    recomputeTxn(form);
+  }
 });
