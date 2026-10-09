@@ -316,3 +316,17 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   const target = event.detail && event.detail.target;
   if (target && target.id === "new-token") target.scrollIntoView({ behavior: "smooth", block: "start" });
 });
+
+// Budget target form: the month field only applies to "by a month" targets.
+function syncTargetKind() {
+  const select = document.querySelector("select[data-target-kind]");
+  const date = document.querySelector("label[data-target-date]");
+  if (!select || !date) return;
+  const show = select.value === "by_date";
+  date.hidden = !show;
+  date.querySelector("input").required = show;
+}
+document.addEventListener("change", (event) => {
+  if (event.target.matches && event.target.matches("select[data-target-kind]")) syncTargetKind();
+});
+document.addEventListener("DOMContentLoaded", syncTargetKind);

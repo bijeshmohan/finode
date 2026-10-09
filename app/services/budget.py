@@ -1,12 +1,13 @@
 import calendar
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 from uuid import UUID
 
 from ..models.account import Account
+from ..models.budget import BudgetTarget
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, TransactionRepository
-from ..schemas.budget import BudgetLine, BudgetRead
+from ..schemas.budget import TARGET_KINDS, BudgetLine, BudgetRead, BudgetTargetRead
 from .account import AccountService
 from .transaction import decimal_places
 
@@ -20,6 +21,29 @@ class BudgetError(ValueError):
 
 def month_start(day: date | None) -> date:
     return (day or date.today()).replace(day=1)
+
+
+def months_between(first: date, last: date) -> int:
+    return (last.year - first.year) * 12 + last.month - first.month
+
+
+def funding(target: BudgetTarget, assigned: Decimal, carried: Decimal, month: date, decimals: int) -> tuple[Decimal, Decimal]:
+    """(needed, underfunded) for a category in a month, from its target.
+
+    `carried` is what the category brought into the month. monthly needs the amount assigned each month;
+    refill needs what keeps the amount available; by_date saves the missing money evenly over the months
+    left, the whole of it once the date's month has come.
+    """
+    if target.kind == "monthly":
+        needed = target.amount
+    elif target.kind == "refill":
+        needed = max(ZERO, target.amount - carried)
+    else:
+        remaining = max(ZERO, target.amount - carried)
+        left = max(1, months_between(month, month_start(target.target_date)) + 1) if target.target_date else 1
+        step = Decimal(1).scaleb(-decimals)
+        needed = min(remaining, (remaining / left).quantize(step, rounding=ROUND_CEILING))
+    return needed + ZERO, max(ZERO, needed - assigned) + ZERO
 
 
 def month_end(month: date) -> date:
@@ -132,7 +156,15 @@ class BudgetService:
         total_available = sum((v[2] for v in own.values()), ZERO)
         total_overspent = sum((v[3] for v in own.values()), ZERO)
 
-        lines = self._lines(categories, by_id, parents, own)
+        targets = self.br.targets()
+        needs: dict[UUID, tuple[Decimal, Decimal]] = {}
+        for aid, target in targets.items():
+            if aid in own:
+                assigned, spent, available, _ = own[aid]
+                needs[aid] = funding(target, assigned, available - assigned + spent, month, default.decimals)
+        total_underfunded = sum((v[1] for v in needs.values()), ZERO)
+
+        lines = self._lines(categories, by_id, parents, own, targets, needs)
         read = BudgetRead(
             month=month,
             currency=default.code,
@@ -142,6 +174,7 @@ class BudgetService:
             activity=total_activity,
             available=total_available,
             overspent_last_month=total_overspent,
+            underfunded=total_underfunded,
             unpriced=unpriced,
             budget_accounts=budget_accounts,
             ignored_accounts=ignored,
@@ -182,7 +215,7 @@ class BudgetService:
             root = by_id[root.parent_id]
         return [root.name, *names]
 
-    def _lines(self, categories, by_id, parents, own) -> list[BudgetLine]:
+    def _lines(self, categories, by_id, parents, own, targets, needs) -> list[BudgetLine]:
         """The categories as a tree in display order: a group row (sums) before its sub-categories;
         a group that was itself posted to or assigned money also gets an '(other)' row of its own."""
         children: dict[UUID | None, list[Account]] = {}
@@ -197,23 +230,30 @@ class BudgetService:
             parts = [own.get(account.aid, zero)] + [total(c) for c in children.get(account.aid, [])]
             return tuple(sum((p[i] for p in parts), ZERO) for i in range(4))  # type: ignore[return-value]
 
+        def missing(account: Account) -> Decimal:
+            return needs.get(account.aid, (ZERO, ZERO))[1] + sum((missing(c) for c in children.get(account.aid, [])), ZERO)
+
+        def line(account: Account, name: str, depth: int, figures, group: bool = False, underfunded=None) -> BudgetLine:
+            a, s, v, o = figures
+            target = targets.get(account.aid) if not group else None
+            return BudgetLine(
+                aid=account.aid, name=name, path=":".join(self._path(account, by_id)), depth=depth, group=group,
+                assigned=a, activity=s, available=v, overspent_last_month=o,
+                target=BudgetTargetRead(kind=target.kind, amount=target.amount, target_date=target.target_date) if target else None,
+                needed=needs.get(account.aid, (ZERO, ZERO))[0] if target else ZERO,
+                underfunded=needs.get(account.aid, (ZERO, ZERO))[1] if underfunded is None else underfunded,
+            )
+
         lines: list[BudgetLine] = []
 
         def walk(account: Account, depth: int) -> None:
-            path = ":".join(self._path(account, by_id))
             kids = children.get(account.aid, [])
             if not kids:
-                a, s, v, o = own[account.aid]
-                lines.append(BudgetLine(aid=account.aid, name=account.name, path=path, depth=depth,
-                                        assigned=a, activity=s, available=v, overspent_last_month=o))
+                lines.append(line(account, account.name, depth, own[account.aid]))
                 return
-            a, s, v, o = total(account)
-            lines.append(BudgetLine(aid=account.aid, name=account.name, path=path, depth=depth, group=True,
-                                    assigned=a, activity=s, available=v, overspent_last_month=o))
-            if any(own[account.aid]):
-                a, s, v, o = own[account.aid]
-                lines.append(BudgetLine(aid=account.aid, name=f"{account.name} (other)", path=path, depth=depth + 1,
-                                        assigned=a, activity=s, available=v, overspent_last_month=o))
+            lines.append(line(account, account.name, depth, total(account), group=True, underfunded=missing(account)))
+            if any(own[account.aid]) or account.aid in targets:
+                lines.append(line(account, f"{account.name} (other)", depth + 1, own[account.aid]))
             for kid in kids:
                 walk(kid, depth + 1)
 
@@ -236,6 +276,49 @@ class BudgetService:
         default = self.accounts.default_currency()
         if decimal_places(amount) > default.decimals:
             raise BudgetError(f"{default.code} amounts can have at most {default.decimals} decimal places!")
+
+    def set_target(self, aid: UUID, kind: str, amount: Decimal, target_date: date | None = None) -> BudgetRead:
+        """Say what a category should be funded with (replaces its target)."""
+        account = self._category(aid)
+        if kind not in TARGET_KINDS:
+            raise BudgetError(f"the target must be one of: {', '.join(TARGET_KINDS)}!")
+        if amount <= 0:
+            raise BudgetError("the target amount must be positive!")
+        self._check_amount(amount)
+        if kind == "by_date":
+            if target_date is None:
+                raise BudgetError("a target by a date needs the date!")
+            if month_start(target_date) < month_start(None):
+                raise BudgetError("the date is in the past: choose this month or later!")
+        else:
+            target_date = None
+        self.br.set_target(account.aid, kind, amount, target_date)
+        self.br.db.commit()
+        return self.view(None)
+
+    def clear_target(self, aid: UUID) -> BudgetRead:
+        self._category(aid)
+        self.br.clear_target(aid)
+        self.br.db.commit()
+        return self.view(None)
+
+    def fund(self, month: date | None) -> BudgetRead:
+        """Assign what the targets still need, in display order, until there is nothing left to assign."""
+        month = month_start(month)
+        data = self.view(month)
+        if data.underfunded <= 0:
+            raise BudgetError("nothing is underfunded!")
+        if data.ready_to_assign <= 0:
+            raise BudgetError("there is nothing ready to assign: add income or lower another category first!")
+        left = data.ready_to_assign
+        for line in data.lines:
+            if line.group or line.underfunded <= 0 or left <= 0:
+                continue
+            add = min(line.underfunded, left)
+            self.br.set(month, line.aid, self.assigned(month, line.aid) + add)
+            left -= add
+        self.br.db.commit()
+        return self.view(month)
 
     def assigned(self, month: date, aid: UUID) -> Decimal:
         row = self.br.read(month, aid)

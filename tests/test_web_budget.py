@@ -154,3 +154,39 @@ def test_the_page_explains_last_months_overspending(client, root_accounts):
     page = client.get("/budget").text
     assert "was overspent last month" in page and "30.00 overspent last month" in page
     assert "overspent last month" not in client.get(f"/budget?month={last:%Y-%m}").text
+
+
+def test_rows_offer_a_target_and_show_what_is_missing(client, setup):
+    page = client.get("/budget").text
+    assert page.count("Set a target") == 2 and "Assign what is needed" not in page
+    form = client.get(f"/budget/target?category={setup['rent']['aid']}")
+    assert form.status_code == 200 and "Target for Rent" in form.text and 'name="kind"' in form.text
+    saved = client.post("/budget/target", data={"category": setup["rent"]["aid"], "kind": "monthly", "amount": "400"})
+    assert saved.headers["HX-Redirect"].startswith("/budget?month=") and "budget-target" in saved.headers["set-cookie"]
+    page = client.get("/budget").text
+    assert "Monthly 400.00" in page and "needs 400.00 more" in page
+    assert "Your targets still need 400.00" in page and "Assign what is needed" in page
+
+
+def test_fund_button_assigns_and_the_row_turns_funded(client, setup):
+    client.post("/budget/target", data={"category": setup["rent"]["aid"], "kind": "monthly", "amount": "400"})
+    response = client.post("/budget/fund", data={"month": THIS_MONTH.strftime("%Y-%m")})
+    assert response.status_code == 200 and 'id="budget"' in response.text
+    assert "funded" in response.text and "Assign what is needed" not in response.text
+    assert line(api_budget(client), "Rent")["assigned"] == "400.00"
+    nothing = client.post("/budget/fund", data={})
+    assert nothing.status_code == 400 and nothing.headers["HX-Retarget"] == "#budget-error"
+
+
+def test_target_form_errors_and_removal(client, setup):
+    rent = setup["rent"]["aid"]
+    bad = client.post("/budget/target", data={"category": rent, "kind": "by_date", "amount": "50", "target_date": ""})
+    assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#form-error"
+    assert client.post("/budget/target", data={"category": rent, "kind": "monthly", "amount": "abc"}).status_code == 400
+    ok = client.post("/budget/target", data={"category": rent, "kind": "by_date", "amount": "50", "target_date": THIS_MONTH.strftime("%Y-%m")})
+    assert ok.status_code == 200
+    page = client.get(f"/budget/target?category={rent}").text
+    assert "Remove target" in page and f'value="{THIS_MONTH:%Y-%m}"' in page
+    removed = client.post("/budget/target/delete", data={"category": rent})
+    assert "budget-target-cleared" in removed.headers["set-cookie"]
+    assert client.get(f"/budget/target?category={setup['bank']['aid']}").status_code == 404

@@ -350,3 +350,23 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
         data = payload(await c.call_tool("get_budget", {}))
         assert data["overspent_last_month"] == "30.00" and data["ready_to_assign"] == "970.00"
         assert data["categories"][0]["overspent_last_month"] == "30.00" and data["categories"][0]["available"] == "0.00"
+
+
+@pytest.mark.anyio
+async def test_assistants_can_set_targets_and_fund_them(session, root_accounts, client):
+    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+        data = payload(await c.call_tool("set_budget_target", {"category": "Rent", "kind": "monthly", "amount": "600"}))
+        rent = data["categories"][0]
+        assert rent["target"] == {"kind": "monthly", "amount": "600.00"} and rent["underfunded"] == "600.00"
+        assert data["underfunded"] == "600.00"
+        funded = payload(await c.call_tool("fund_budget_targets", {}))
+        assert funded["categories"][0]["assigned"] == "600.00" and funded["underfunded"] == "0.00"
+        assert "underfunded" not in funded["categories"][0]
+        gone = payload(await c.call_tool("set_budget_target", {"category": "Rent", "kind": "none"}))
+        assert "target" not in gone["categories"][0]
+        with pytest.raises(ToolFailed, match="amount is required"):
+            payload(await c.call_tool("set_budget_target", {"category": "Rent", "kind": "monthly"}))
+        with pytest.raises(ToolFailed, match="not an expense account"):
+            payload(await c.call_tool("set_budget_target", {"category": "Bank", "kind": "monthly", "amount": "5"}))

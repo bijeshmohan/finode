@@ -7,6 +7,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 
 from ...dependencies import Budget
 from ...services.budget import BudgetError, month_start
+from ...schemas.budget import TARGET_KINDS
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, parse_amount
 
@@ -92,3 +93,63 @@ def move(
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-moved")
+
+
+@router.post("/fund")
+def fund(request: Request, budget: Budget, month: Annotated[str, Form()] = ""):
+    when = parse_month(month)
+    try:
+        budget.fund(when)
+    except BudgetError as e:
+        return htmx_error(str(e), "#budget-error")
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
+
+
+def _target_line(budget: Budget, month: date, category: UUID):
+    line = next((l for l in budget.view(month).lines if l.aid == category and not l.name.endswith("(other)")), None)
+    if line is None:
+        raise HTTPException(status_code=404, detail="category not found")
+    return line
+
+
+@router.get("/target")
+def target_page(request: Request, budget: Budget, category: UUID, month: str = ""):
+    when = parse_month(month)
+    return templates.TemplateResponse(
+        request, "budget_target.html", {**_context(budget, when), "line": _target_line(budget, when, category)}
+    )
+
+
+@router.post("/target")
+def set_target(
+    budget: Budget,
+    category: Annotated[UUID, Form()],
+    kind: Annotated[str, Form()] = "monthly",
+    amount: Annotated[str, Form()] = "",
+    target_date: Annotated[str, Form()] = "",
+    month: Annotated[str, Form()] = "",
+):
+    when = parse_month(month)
+    try:
+        if kind not in TARGET_KINDS:
+            raise BudgetError("choose what kind of target it is!")
+        day = None
+        if kind == "by_date":
+            try:
+                day = date.fromisoformat(target_date.strip() + "-01") if len(target_date.strip()) == 7 else date.fromisoformat(target_date.strip())
+            except ValueError:
+                raise BudgetError("choose the month the money is needed by!")
+        budget.set_target(category, kind, parse_amount(amount), day)
+    except (BudgetError, ValueError) as e:
+        return htmx_error(str(e), "#form-error")
+    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target")
+
+
+@router.post("/target/delete")
+def clear_target(budget: Budget, category: Annotated[UUID, Form()], month: Annotated[str, Form()] = ""):
+    when = parse_month(month)
+    try:
+        budget.clear_target(category)
+    except BudgetError as e:
+        return htmx_error(str(e), "#form-error")
+    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target-cleared")

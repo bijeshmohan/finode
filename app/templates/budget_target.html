@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Target · finode{% endblock %}
+{% block content %}
+<a class="back" href="/budget?month={{ month_key }}">{{ icon("back") }}Budget</a>
+<h1>Target for {{ line.name }}</h1>
+<p class="muted">What this category should get. The budget then shows how much is still missing each month. A target never moves money by itself.</p>
+{% set t = line.target %}
+<form class="card stack form-narrow" hx-post="/budget/target">
+  <input type="hidden" name="month" value="{{ month_key }}">
+  <input type="hidden" name="category" value="{{ line.aid }}">
+  <label>Kind
+    <select name="kind" data-target-kind>
+      <option value="monthly" {{ "selected" if not t or t.kind == "monthly" }}>Assign a set amount every month</option>
+      <option value="refill" {{ "selected" if t and t.kind == "refill" }}>Keep an amount available (refill up to it)</option>
+      <option value="by_date" {{ "selected" if t and t.kind == "by_date" }}>Have an amount by a month</option>
+    </select>
+  </label>
+  <label>Amount ({{ budget.currency }})
+    <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" value="{{ t.amount|money if t else '' }}">
+  </label>
+  <label data-target-date>By (month)
+    <input type="month" name="target_date" value="{{ t.target_date.strftime('%Y-%m') if t and t.target_date else '' }}">
+  </label>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions">
+    <button type="submit">Save target</button>
+    <a class="button secondary" href="/budget?month={{ month_key }}">Cancel</a>
+  </div>
+</form>
+{% if t %}
+<form class="form-narrow" hx-post="/budget/target/delete" hx-confirm="Remove this target?">
+  <input type="hidden" name="month" value="{{ month_key }}">
+  <input type="hidden" name="category" value="{{ line.aid }}">
+  <button type="submit" class="danger">Remove target</button>
+</form>
+{% endif %}
+{% endblock %}
