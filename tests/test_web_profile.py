@@ -97,3 +97,10 @@ def test_gear_icon_only_in_the_tab_bar(client: TestClient):
 
 def test_old_profile_setting_routes_are_gone(client: TestClient):
     assert client.post("/profile/currency", data={"currency": "USD"}).status_code in (404, 405)
+
+
+def test_each_settings_entry_appears_once(client: TestClient):
+    text = client.get("/settings").text
+    for ident in ("name", "currency", "depth", "appearance", "recurring", "assets"):
+        assert text.count(f'id="{ident}"') <= 1, ident
+    assert text.count("Recurring transactions</span>") == 1 and text.count("Assets &amp; prices</span>") == 1
