@@ -1,5 +1,5 @@
 import calendar
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -102,8 +102,8 @@ class BudgetService:
                 touching.add(p.transaction)
 
         cash = ZERO
-        spent_through: dict[UUID, Decimal] = {}
-        spent_month: dict[UUID, Decimal] = {}
+        # What happened to each category in each month: [assigned, spent].
+        by_category: dict[UUID, dict[date, list[Decimal]]] = {}
         unpriced = False
         book = self.accounts.prices.book()
         for p in postings:
@@ -117,29 +117,20 @@ class BudgetService:
                     if value is None:
                         unpriced = True
                         continue
-                spent_through[p.account] = spent_through.get(p.account, ZERO) + value
-                if transaction.date >= month:
-                    spent_month[p.account] = spent_month.get(p.account, ZERO) + value
-
-        assigned_through: dict[UUID, Decimal] = {}
-        assigned_month: dict[UUID, Decimal] = {}
+                figures = by_category.setdefault(p.account, {}).setdefault(month_start(transaction.date), [ZERO, ZERO])
+                figures[1] += value
         for row in self.br.list(up_to=month):
-            if row.account_id not in categories:
-                continue
-            assigned_through[row.account_id] = assigned_through.get(row.account_id, ZERO) + row.amount
-            if row.month == month:
-                assigned_month[row.account_id] = row.amount
+            if row.account_id in categories:
+                by_category.setdefault(row.account_id, {}).setdefault(row.month, [ZERO, ZERO])[0] += row.amount
 
-        own: dict[UUID, tuple[Decimal, Decimal, Decimal]] = {}
+        previous = month_start(month - timedelta(days=1))
+        own: dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]] = {}
         for aid in categories:
-            own[aid] = (
-                assigned_month.get(aid, ZERO),
-                spent_month.get(aid, ZERO),
-                assigned_through.get(aid, ZERO) - spent_through.get(aid, ZERO),
-            )
+            own[aid] = self._roll(by_category.get(aid, {}), month, previous)
         total_assigned = sum((v[0] for v in own.values()), ZERO)
         total_activity = sum((v[1] for v in own.values()), ZERO)
         total_available = sum((v[2] for v in own.values()), ZERO)
+        total_overspent = sum((v[3] for v in own.values()), ZERO)
 
         lines = self._lines(categories, by_id, parents, own)
         read = BudgetRead(
@@ -150,12 +141,39 @@ class BudgetService:
             assigned=total_assigned,
             activity=total_activity,
             available=total_available,
+            overspent_last_month=total_overspent,
             unpriced=unpriced,
             budget_accounts=budget_accounts,
             ignored_accounts=ignored,
             lines=lines,
         )
         return read, own
+
+    @staticmethod
+    def _roll(
+        months: dict[date, list[Decimal]], month: date, previous: date
+    ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        """A category's figures for `month`: (assigned, spent, available, overspent last month).
+
+        What is left carries into the next month, but an overspent category starts the next month at
+        zero: the money it overspent has already left the budget's accounts, so it is taken out of
+        what is ready to assign instead (cash overspending, as YNAB treats it). Within the month it
+        happens in, the category just shows negative.
+        """
+        left = ZERO
+        last: date | None = None
+        for when in sorted(m for m in months if m < month):
+            assigned, spent = months[when]
+            left = max(ZERO, left) + assigned - spent
+            last = when
+        end_of_previous = left if last == previous else max(ZERO, left)
+        assigned, spent = months.get(month, (ZERO, ZERO))
+        return (
+            assigned,
+            spent,
+            max(ZERO, end_of_previous) + assigned - spent,
+            -end_of_previous if end_of_previous < 0 else ZERO,
+        )
 
     def _path_with_root(self, account: Account, by_id: dict[UUID, Account]) -> list[str]:
         names = self._path(account, by_id)
@@ -173,11 +191,11 @@ class BudgetService:
         for kids in children.values():
             kids.sort(key=lambda a: a.name.lower())
         expenses_root = next((a for a in by_id.values() if a.parent_id is None and a.name == "Expenses"), None)
-        zero = (ZERO, ZERO, ZERO)
+        zero = (ZERO, ZERO, ZERO, ZERO)
 
-        def total(account: Account) -> tuple[Decimal, Decimal, Decimal]:
+        def total(account: Account) -> tuple[Decimal, Decimal, Decimal, Decimal]:
             parts = [own.get(account.aid, zero)] + [total(c) for c in children.get(account.aid, [])]
-            return tuple(sum((p[i] for p in parts), ZERO) for i in range(3))  # type: ignore[return-value]
+            return tuple(sum((p[i] for p in parts), ZERO) for i in range(4))  # type: ignore[return-value]
 
         lines: list[BudgetLine] = []
 
@@ -185,17 +203,17 @@ class BudgetService:
             path = ":".join(self._path(account, by_id))
             kids = children.get(account.aid, [])
             if not kids:
-                a, s, v = own[account.aid]
+                a, s, v, o = own[account.aid]
                 lines.append(BudgetLine(aid=account.aid, name=account.name, path=path, depth=depth,
-                                        assigned=a, activity=s, available=v))
+                                        assigned=a, activity=s, available=v, overspent_last_month=o))
                 return
-            a, s, v = total(account)
+            a, s, v, o = total(account)
             lines.append(BudgetLine(aid=account.aid, name=account.name, path=path, depth=depth, group=True,
-                                    assigned=a, activity=s, available=v))
+                                    assigned=a, activity=s, available=v, overspent_last_month=o))
             if any(own[account.aid]):
-                a, s, v = own[account.aid]
+                a, s, v, o = own[account.aid]
                 lines.append(BudgetLine(aid=account.aid, name=f"{account.name} (other)", path=path, depth=depth + 1,
-                                        assigned=a, activity=s, available=v))
+                                        assigned=a, activity=s, available=v, overspent_last_month=o))
             for kid in kids:
                 walk(kid, depth + 1)
 
@@ -242,6 +260,8 @@ class BudgetService:
         if amount <= 0:
             raise BudgetError("the amount must be positive!")
         available = self._compute(month)[1][from_aid][2]
+        if available <= 0:
+            raise BudgetError(f"'{source.name}' has nothing available to move!")
         if amount > available:
             raise BudgetError(f"only {available:f} is available in '{source.name}'!")
         self.br.set(month, from_aid, self.assigned(month, from_aid) - amount)

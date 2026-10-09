@@ -140,3 +140,17 @@ def test_the_stylesheet_gives_all_rows_and_the_header_the_same_fixed_columns():
     assert "grid-template-columns: minmax(0, 1fr) 9rem 9rem" in shared
     assert "auto" not in shared.split("grid-template-columns")[1].split(";")[0], "auto columns size per row and drift"
     assert "max-width: 39.99rem" in css
+
+
+def test_the_page_explains_last_months_overspending(client, root_accounts):
+    from datetime import timedelta
+
+    bank = account(client, root_accounts, "Bank", "Assets")
+    salary = account(client, root_accounts, "Salary", "Income")
+    food = account(client, root_accounts, "Food", "Expenses")
+    last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
+    move(client, salary, bank, "1000", on=last.replace(day=2).isoformat())
+    move(client, bank, food, "30", on=last.replace(day=5).isoformat())
+    page = client.get("/budget").text
+    assert "was overspent last month" in page and "30.00 overspent last month" in page
+    assert "overspent last month" not in client.get(f"/budget?month={last:%Y-%m}").text

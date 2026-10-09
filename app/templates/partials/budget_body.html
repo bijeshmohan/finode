@@ -13,6 +13,9 @@
     <span>Give it a job: assign it to a category below.</span>
     {% endif %}
   </div>
+  {% if budget.overspent_last_month %}
+  <p class="notice">{{ budget.overspent_last_month|money }} {{ budget.currency }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
+  {% endif %}
   <p id="budget-error" class="error" role="alert"></p>
 
   {% if not budget.budget_accounts %}
@@ -32,6 +35,7 @@
     <div class="budget-row {{ 'group' if line.group }}" {% if line.depth > 1 %}style="padding-left: {{ 0.9 + (line.depth - 1) * 1.1 }}rem"{% endif %}>
       <div class="name">{{ line.name }}
         {% if line.activity %}<small>{{ line.activity|money }} spent</small>{% endif %}
+        {% if line.overspent_last_month %}<small class="over-note">{{ line.overspent_last_month|money }} overspent last month</small>{% endif %}
       </div>
       {% set tone = 'negative' if line.available < 0 else ('positive' if line.available > 0 else '') %}
       {% if line.group %}
