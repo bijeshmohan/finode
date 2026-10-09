@@ -279,15 +279,40 @@ document.addEventListener("click", (event) => {
 
 applyTheme(document.documentElement.getAttribute("data-theme"));
 
-// Copy buttons: data-copy names the element whose text is copied.
-document.addEventListener("click", (event) => {
+// Copy buttons: data-copy names the element whose text is copied. Safari on iOS may refuse the
+// clipboard API outside a plain tap, so fall back to selecting the text for the user to copy.
+function selectText(element) {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+async function copyText(source) {
+  const text = source.textContent.trim();
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (error) { /* try the fallback */ }
+  }
+  selectText(source);
+  try { return document.execCommand("copy"); } catch (error) { return false; }
+}
+
+document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-copy]");
   if (!button) return;
   const source = document.querySelector(button.dataset.copy);
-  if (!source || !navigator.clipboard) return;
-  navigator.clipboard.writeText(source.textContent.trim()).then(() => {
-    const label = button.textContent;
-    button.textContent = "Copied";
-    setTimeout(() => { button.textContent = label; }, 1500);
-  });
+  if (!source) return;
+  const label = button.dataset.label || button.textContent;
+  button.dataset.label = label;
+  const copied = await copyText(source);
+  if (!copied) selectText(source);
+  button.textContent = copied ? "Copied" : "Selected: press and hold to copy";
+  setTimeout(() => { button.textContent = label; }, 2500);
+});
+
+// A freshly created token appears below the form: bring it into view (it is only shown once).
+document.body.addEventListener("htmx:afterSwap", (event) => {
+  const target = event.detail && event.detail.target;
+  if (target && target.id === "new-token") target.scrollIntoView({ behavior: "smooth", block: "start" });
 });

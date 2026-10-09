@@ -275,6 +275,19 @@ input, select, textarea {
   border-radius: var(--radius-sm);
   padding: .55rem .7rem;
 }
+/* Checkboxes and radios keep their native look (the rule above would blank them on iOS Safari,
+   which shows nothing for an appearance-less checkbox) but get a size you can hit with a thumb. */
+input[type="checkbox"], input[type="radio"] {
+  -webkit-appearance: auto;
+  appearance: auto;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
 select {
   padding-right: 2.25rem;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a93a3' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -677,7 +690,7 @@ pre.snippet {
   padding: .6rem .75rem; overflow-x: auto; white-space: pre;
 }
 .choice { flex-direction: row; align-items: flex-start; gap: .5rem; color: var(--text); font-weight: 400; }
-.choice input { margin-top: .3rem; }
+.choice input { margin-top: .1rem; }
 .choice .hint { display: block; }
 .notice { background: var(--accent-soft); border-radius: var(--radius-sm); padding: .75rem; }
 fieldset.plain { border: 0; margin: 0; padding: 0; }
@@ -691,7 +704,7 @@ fieldset.plain { border: 0; margin: 0; padding: 0; }
   border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
 }
 label.access-card { flex-direction: row; align-items: flex-start; cursor: pointer; }
-label.access-card input { margin-top: .25rem; }
+label.access-card input { margin-top: .1rem; }
 label.access-card > span, .access-card > span { display: flex; flex-direction: column; gap: .4rem; }
 label.access-card:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .access-card button { margin-top: auto; }
@@ -715,8 +728,13 @@ h2.choose { font-size: 1rem; margin: 0; }
 .history-posting { font-size: .9rem; display: flex; justify-content: space-between; gap: 1rem; }
 
 /* ---------- Budget ---------- */
-label.check { flex-direction: row; align-items: flex-start; gap: .6rem; }
-label.check input { width: auto; margin-top: .25rem; }
+label.check {
+  flex-direction: row; align-items: flex-start; gap: .75rem; padding: .75rem; min-height: var(--tap);
+  color: var(--text); font-weight: 400; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+}
+label.check > span { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+label.check:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .month-nav { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin: .25rem 0 1rem; }
 .month-nav h1 { margin: 0; font-size: 1.15rem; text-align: center; flex: 1; }
 .ready { padding: 1rem; border-radius: var(--radius); text-align: center; background: var(--accent-soft); margin-bottom: 1rem; }
@@ -737,3 +755,10 @@ label.check input { width: auto; margin-top: .25rem; }
 .budget-columns { display: grid; grid-template-columns: 1fr auto auto; gap: .6rem; padding: 0 .9rem .35rem; color: var(--muted); font-size: .8rem; }
 .budget-columns span:nth-child(2) { width: 6.5rem; text-align: right; }
 .budget-columns span:nth-child(3) { min-width: 5.5rem; text-align: right; }
+
+/* Safari draws fieldsets with display:flex/grid badly (the legend becomes an item): keep them block */
+fieldset.plain { display: block; min-width: 0; }
+fieldset.plain > legend { padding: 0; margin-bottom: .4rem; font-size: .875rem; font-weight: 500; color: var(--muted); }
+fieldset.plain > * + * { margin-top: .9rem; }
+.secret { -webkit-user-select: text; user-select: text; }
+.secret-row { display: flex; flex-direction: column; gap: .5rem; }

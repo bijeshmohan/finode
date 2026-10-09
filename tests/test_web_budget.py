@@ -113,3 +113,9 @@ def test_the_account_page_can_switch_the_budget_on_and_off(client, root_accounts
 def test_the_budget_tab_is_in_the_navigation(client, setup):
     page = client.get("/").text
     assert page.count('href="/budget"') == 2
+
+
+def test_the_inline_amount_also_saves_on_the_return_key(client, setup):
+    # iOS shows no decimal-pad return key, but a keyboard's Enter must not reload the page with a GET.
+    page = client.get("/budget").text
+    assert 'hx-trigger="change, submit"' in page and 'enterkeyhint="done"' in page
