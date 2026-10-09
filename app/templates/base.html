@@ -32,6 +32,7 @@
     {% if not hide_fab %}
     <a class="button topbar-new" href="/transactions/new">{{ icon("plus") }}<span>New transaction</span></a>
     {% endif %}
+    <a class="icon-button settings-link" href="/settings" title="Settings" {% if active == 'settings' %}aria-current="page"{% endif %}>{{ icon("gear") }}<span class="sr-only">Settings</span></a>
     <a class="icon-button profile-link" href="/profile" title="Profile" {% if active == 'profile' %}aria-current="page"{% endif %}>{{ icon("user") }}<span class="sr-only">Profile</span></a>
   </header>
   {% endblock %}
@@ -49,6 +50,7 @@
     <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
     <a href="/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
     <a href="/budget" {% if active == 'budget' %}aria-current="page"{% endif %}>{{ icon("budget") }}<span>Budget</span></a>
+    <a href="/settings" {% if active == 'settings' %}aria-current="page"{% endif %}>{{ icon("gear") }}<span>Settings</span></a>
   </nav>
   {% if not hide_fab %}
   <a class="fab" href="/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>

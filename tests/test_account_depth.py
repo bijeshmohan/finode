@@ -115,25 +115,25 @@ def test_import_respects_limits(client: TestClient):
 # --- web ------------------------------------------------------------------
 
 
-def test_profile_page_shows_depth_card_with_hints(client: TestClient, root_accounts):
+def test_settings_page_shows_depth_card_with_hints(client: TestClient, root_accounts):
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     _make(client, "Groceries", food["aid"])
-    text = client.get("/profile").text
+    text = client.get("/settings").text
     assert 'name="max_depth_expenses"' in text and "Deepest now: 2" in text
     assert "No sub-accounts yet" in text
     assert f'max="{settings.max_account_depth}"' in text
 
 
 def test_saving_depth_limits_redirects_with_flash(client: TestClient):
-    response = client.post("/profile/depth", data={"max_depth_expenses": "2", "max_depth_assets": "0"})
-    assert response.headers["HX-Redirect"] == "/profile#depth"
+    response = client.post("/settings/depth", data={"max_depth_expenses": "2", "max_depth_assets": "0"})
+    assert response.headers["HX-Redirect"] == "/settings#depth"
     assert "depth-updated" in response.headers["set-cookie"]
     assert client.get("/api/profile/").json()["max_depth_expenses"] == 2
 
 
 @pytest.mark.parametrize("value,fragment", [("-1", "cannot be negative"), ("abc", "not a whole number")])
 def test_web_depth_validation_messages(client: TestClient, value, fragment):
-    response = client.post("/profile/depth", data={"max_depth_income": value})
+    response = client.post("/settings/depth", data={"max_depth_income": value})
     assert response.status_code == 400 and fragment in response.text
     assert response.headers["HX-Retarget"] == "#depth-error"
 
@@ -141,7 +141,7 @@ def test_web_depth_validation_messages(client: TestClient, value, fragment):
 def test_web_refuses_limit_below_existing_depth(client: TestClient, root_accounts):
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     _make(client, "Groceries", food["aid"])
-    response = client.post("/profile/depth", data={"max_depth_expenses": "1"})
+    response = client.post("/settings/depth", data={"max_depth_expenses": "1"})
     assert response.status_code == 400 and "Expenses › Food › Groceries" in response.text
 
 
@@ -161,7 +161,7 @@ def test_account_page_hides_add_sub_account_at_the_limit(client: TestClient, roo
     groceries = _make(client, "Groceries", food["aid"]).json()
     at_limit = client.get(f"/accounts/{groceries['aid']}").text
     assert f"/accounts/new?parent={groceries['aid']}" not in at_limit
-    assert "can be 2 levels deep" in at_limit and "/profile#depth" in at_limit
+    assert "can be 2 levels deep" in at_limit and "/settings#depth" in at_limit
     below = client.get(f"/accounts/{food['aid']}").text
     assert f"/accounts/new?parent={food['aid']}" in below
 
