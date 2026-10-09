@@ -394,10 +394,6 @@ td.row-actions button, td.row-actions a.button { min-height: 32px; padding: .2re
 .stat.primary .value { font-size: 2rem; }
 
 /* ---------- Transaction form ---------- */
-.tabs { display: flex; gap: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
-.tabs a { padding: .5rem 0; text-decoration: none; color: var(--muted); font-weight: 500; }
-.tabs a.active { color: var(--text); border-bottom: 2px solid var(--accent); }
-
 .postings { display: flex; flex-direction: column; gap: .5rem; }
 .posting-head, .posting-row {
   display: grid;
@@ -803,3 +799,12 @@ form.notice.fund button { margin: 0; }
 .notice.left-out ul { margin: .5rem 0 0; }
 .notice.left-out li { display: flex; gap: .75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: .35rem 0; }
 .notice.left-out button { margin: 0; }
+
+/* ---------- One transaction form (simple, or split across accounts) ---------- */
+[data-section][hidden] { display: none; }
+.txn-form { max-width: 36rem; }
+.txn-form.is-split { max-width: 46rem; }
+.split-switch { border-top: 1px solid var(--border); padding-top: .75rem; }
+.split-switch label { display: flex; align-items: center; gap: .6rem; min-height: var(--tap); cursor: pointer; font-weight: 500; }
+.split-switch input[type="checkbox"] { width: 1.25rem; height: 1.25rem; flex: none; }
+.split-switch .hint { margin: 0; }
