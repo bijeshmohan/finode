@@ -5,7 +5,7 @@ from .htmlutil import element, options, text_of
 
 
 def test_the_profile_offers_the_default_currency(client):
-    card = element(client.get("/profile").text, "currency")
+    card = element(client.get("/settings").text, "currency")
     choices = {value: selected for value, selected, _ in options(card)}
     assert choices["INR"] is True and choices["USD"] is False
     assert "BTC" not in choices, "only currencies can be the default"
@@ -13,18 +13,18 @@ def test_the_profile_offers_the_default_currency(client):
 
 
 def test_the_default_currency_can_be_changed_from_the_profile(client):
-    response = client.post("/profile/currency", data={"currency": "USD"})
-    assert response.status_code == 200 and response.headers["HX-Redirect"] == "/profile#currency"
+    response = client.post("/settings/currency", data={"currency": "USD"})
+    assert response.status_code == 200 and response.headers["HX-Redirect"] == "/settings#currency"
     assert client.get("/api/profile/").json()["default_currency"] == "USD"
-    card = element(client.get("/profile").text, "currency")
+    card = element(client.get("/settings").text, "currency")
     assert [value for value, selected, _ in options(card) if selected] == ["USD"]
 
 
 def test_a_bad_currency_is_explained_in_place(client):
-    response = client.post("/profile/currency", data={"currency": "BTC"})
+    response = client.post("/settings/currency", data={"currency": "BTC"})
     assert response.status_code == 400 and response.headers["HX-Retarget"] == "#currency-error"
     assert "not a currency" in response.text
-    response = client.post("/profile/currency", data={"currency": ""})
+    response = client.post("/settings/currency", data={"currency": ""})
     assert response.status_code == 400 and response.headers["HX-Retarget"] == "#currency-error"
 
 

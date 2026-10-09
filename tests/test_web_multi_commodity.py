@@ -394,7 +394,7 @@ def test_the_dashboard_totals_in_the_default_currency(client, pair):
     client.post("/transactions", data=buy_usd_form(bank, usd))
     body = text_of(client.get("/").text)
     assert "Net worth 100,000.00 INR" in body
-    client.post("/profile/currency", data={"currency": "USD"})
+    client.post("/settings/currency", data={"currency": "USD"})
     body = text_of(client.get("/").text)
     assert "Net worth 1,197.60 USD" in body
 

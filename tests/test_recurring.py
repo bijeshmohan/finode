@@ -266,8 +266,8 @@ def test_the_list_page_shows_rules_and_an_empty_state(client, accounts):
     assert 'href="/recurring/new"' in page
 
 
-def test_the_profile_and_transactions_pages_link_to_it(client):
-    assert 'href="/recurring"' in client.get("/profile").text
+def test_settings_and_transactions_pages_link_to_it(client):
+    assert 'href="/recurring"' in client.get("/settings").text
     assert 'href="/recurring"' in client.get("/transactions").text
 
 

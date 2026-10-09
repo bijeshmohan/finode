@@ -37,7 +37,7 @@ def commodities_page(request: Request, accounts: Accounts, commodities: Commodit
         request,
         "commodities.html",
         {
-            "active": "profile",
+            "active": "settings",
             "currency": default.code,
             "rates": rates,
             "prices": prices.list(),

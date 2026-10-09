@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Settings · finode{% endblock %}
+{% block content %}
+<header class="form-narrow">
+  <h1>Settings</h1>
+  <p class="muted">How finode works for you. Your name, sign-in and AI assistants are under <a href="/profile">Profile</a>.</p>
+</header>
+
+<div class="settings form-narrow">
+  <details id="currency" class="setting">
+    <summary><span class="setting-title">Default currency</span><span class="setting-value">{{ profile.default_currency }}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/settings/currency">
+      <p class="muted">Net worth, the dashboard and your reports add everything up in this currency. Accounts keep what they hold; this only changes how totals are shown.</p>
+      <label>Currency
+        <select name="currency">
+          {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == profile.default_currency }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <p id="currency-error" class="error" role="alert"></p>
+      <div class="actions">
+        <button type="submit">Save currency</button>
+        <a class="button secondary" href="/commodities">Assets &amp; prices</a>
+      </div>
+    </form>
+  </details>
+
+  <details id="depth" class="setting">
+    <summary><span class="setting-title">Account depth</span>
+      <span class="setting-value">{% for d in depths %}{{ d.root[:1] }} {{ d.value or "∞" }}{{ " · " if not loop.last }}{% endfor %}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/settings/depth">
+      <p class="muted">How many levels of sub-accounts each type may have. 1 is a flat list; 0 means no limit of your own.</p>
+      <div class="grid-form">
+        {% for d in depths %}
+        <label>{{ d.root }}
+          <input type="number" name="{{ d.field }}" min="0" max="{{ depth_cap }}" step="1" inputmode="numeric" value="{{ d.value }}">
+          <span class="hint">{% if d.deepest %}Deepest now: {{ d.deepest }}{% else %}No sub-accounts yet{% endif %}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <details class="more">
+        <summary>How limits work</summary>
+        <p class="muted">A limit can't be lower than your deepest existing account (the hint under each field). The application maximum is {{ depth_cap }}.</p>
+      </details>
+      <p id="depth-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">Save limits</button></div>
+    </form>
+  </details>
+
+  <details id="appearance" class="setting">
+    <summary><span class="setting-title">Appearance</span><span class="setting-value" data-theme-value>Match device</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">
+      <p class="muted">Applies to this browser only.</p>
+      <div class="segmented" role="group" aria-label="Theme">
+        <button type="button" class="secondary" data-theme-choice="auto" aria-pressed="true">Match device</button>
+        <button type="button" class="secondary" data-theme-choice="light" aria-pressed="false">Light</button>
+        <button type="button" class="secondary" data-theme-choice="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+  </details>
+
+  <a class="setting setting-link" id="recurring" href="/recurring">
+    <span class="setting-title">Recurring transactions</span><span class="setting-value">Rent, salary, subscriptions</span>{{ icon("chevron-right") }}
+  </a>
+  <a class="setting setting-link" id="recurring" href="/recurring">
+    <span class="setting-title">Recurring transactions</span><span class="setting-value">Rent, salary, subscriptions</span>{{ icon("chevron-right") }}
+  </a>
+  <a class="setting setting-link" id="assets" href="/commodities">
+    <span class="setting-title">Assets &amp; prices</span><span class="setting-value">Stocks, funds, coins</span>{{ icon("chevron-right") }}
+  </a>
+</div>
+{% endblock %}
