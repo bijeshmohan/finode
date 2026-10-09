@@ -791,3 +791,11 @@ fieldset.plain > * + * { margin-top: .9rem; }
 .secret-row { display: flex; flex-direction: column; gap: .5rem; }
 
 .budget-row .name small.over-note { color: var(--danger); }
+
+.budget-row .name small.target-note { font-size: .78rem; }
+.budget-row .name small.target-note a { color: var(--muted); text-decoration: none; }
+.budget-row .name small.target-note.short a { color: var(--danger); }
+.budget-row .name small.target-note.met a { color: var(--positive); }
+.budget-row .name small.target-note a:hover { text-decoration: underline; }
+form.notice.fund { display: flex; gap: .75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+form.notice.fund button { margin: 0; }

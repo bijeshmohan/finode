@@ -8,6 +8,22 @@ from pydantic import BaseModel, Field
 Money = Field(decimal_places=8, max_digits=24)
 
 
+TARGET_KINDS = ("monthly", "refill", "by_date")
+
+
+class BudgetTargetRead(BaseModel):
+    # monthly: assign `amount` every month; refill: keep `amount` available; by_date: have `amount` available by `target_date`.
+    kind: str
+    amount: Decimal = Money
+    target_date: Date | None = None
+
+
+class BudgetTargetSet(BaseModel):
+    kind: str
+    amount: Decimal = Field(gt=0, decimal_places=8, max_digits=24)
+    target_date: Date | None = None
+
+
 class BudgetLine(BaseModel):
     aid: UUID
     # The category's name, and its path below Expenses, e.g. "Food:Groceries".
@@ -25,6 +41,11 @@ class BudgetLine(BaseModel):
     # What the category was overspent by at the end of the previous month. It started this month at zero,
     # and that amount was taken out of what is ready to assign.
     overspent_last_month: Decimal = Money
+    # The category's target (none on groups), what it needs from this month's assigning, and what of that
+    # is still missing (zero when funded or without a target). A group sums its sub-categories' missing money.
+    target: BudgetTargetRead | None = None
+    needed: Decimal = Money
+    underfunded: Decimal = Money
 
 
 class BudgetRead(BaseModel):
@@ -41,6 +62,8 @@ class BudgetRead(BaseModel):
     available: Decimal = Money
     # Overspending in the previous month (all categories): already taken out of ready_to_assign.
     overspent_last_month: Decimal = Money
+    # What the targets still need this month, all categories.
+    underfunded: Decimal = Money
     # True when some spending could not be converted to the currency because no price links them.
     unpriced: bool = False
     # The accounts whose money is budgeted, and the flagged ones left out (another currency, sub-accounts).
@@ -54,6 +77,10 @@ class BudgetAssign(BaseModel):
     month: Date | None = None
     # The month's total for the category, not an addition to it.
     amount: Decimal = Field(decimal_places=8, max_digits=24)
+
+
+class BudgetFund(BaseModel):
+    month: Date | None = None
 
 
 class BudgetMove(BaseModel):

@@ -48,7 +48,8 @@ finode is the user's personal double-entry ledger.
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
   expense category's assigned, spent and available amounts; assign_to_category plans a month's money and
-  move_budget_money shifts it between categories. These only change the plan, never the ledger, and the
+  move_budget_money shifts it between categories; set_budget_target records what a category should get and
+  get_budget then reports what is underfunded (fund_budget_targets assigns it, only when asked). These only change the plan, never the ledger, and the
   user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
 - check_books confirms that debits equal credits in every transaction and overall; use it when the
   user doubts their numbers.
@@ -673,6 +674,7 @@ def _budget(data) -> dict[str, Any]:
         "assigned_this_month": text(data.assigned),
         "spent_this_month": text(data.activity),
         "available_total": text(data.available),
+        "underfunded": text(data.underfunded),
         "overspent_last_month": text(data.overspent_last_month),
         "budget_accounts": data.budget_accounts,
         "categories": [
@@ -683,6 +685,18 @@ def _budget(data) -> dict[str, Any]:
                 "spent": text(line.activity),
                 "available": text(line.available),
                 **({"overspent_last_month": text(line.overspent_last_month)} if line.overspent_last_month else {}),
+                **(
+                    {
+                        "target": {
+                            "kind": line.target.kind,
+                            "amount": text(line.target.amount),
+                            **({"by": line.target.target_date.isoformat()} if line.target.target_date else {}),
+                        }
+                    }
+                    if line.target
+                    else {}
+                ),
+                **({"underfunded": text(line.underfunded)} if line.underfunded else {}),
             }
             for line in data.lines
         ],
@@ -732,6 +746,32 @@ def move_budget_money(
 
 
 @_tool_errors
+def set_budget_target(
+    category: Annotated[str, Field(description="An expense account, e.g. Rent or Expenses:Food:Groceries")],
+    kind: Annotated[str, Field(description="monthly (assign the amount every month), refill (keep the amount available) or by_date (have the amount by a date); none removes the target")],
+    amount: Annotated[Decimal | None, Field(gt=0, description="Required except for none")] = None,
+    by: Annotated[str | None, Field(description="YYYY-MM or YYYY-MM-DD; only for by_date")] = None,
+) -> dict[str, Any]:
+    """Say what a category should be funded with, so get_budget can show what is still underfunded each month.
+    Replaces any earlier target of the category. Targets are a wish only; they never move money."""
+    with services() as s:
+        entry = _category(_index(s), category)
+        if kind == "none":
+            return _budget(s.budget.clear_target(entry.account.aid))
+        if amount is None:
+            raise ToolError("the amount is required for a target!")
+        return _budget(s.budget.set_target(entry.account.aid, kind, amount, _month(by)))
+
+
+@_tool_errors
+def fund_budget_targets(month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None) -> dict[str, Any]:
+    """Assign what the targets still need in a month, category by category, until nothing is ready to assign.
+    Only do this when the user asks to fund their targets."""
+    with services() as s:
+        return _budget(s.budget.fund(_month(month)))
+
+
+@_tool_errors
 def check_books(as_of: str | None = None) -> dict[str, Any]:
     """Check that the books are sound: debits equal credits in every transaction and overall.
     Returns the trial balance (debits and credits per account) and any problems found.
@@ -769,6 +809,8 @@ WRITE_TOOLS = [
     (stop_recurring, IDEMPOTENT_WRITE),
     (assign_to_category, IDEMPOTENT_WRITE),
     (move_budget_money, WRITE),
+    (set_budget_target, IDEMPOTENT_WRITE),
+    (fund_budget_targets, WRITE),
 ]
 
 

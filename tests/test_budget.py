@@ -430,3 +430,129 @@ def test_a_category_with_nothing_available_cannot_give_money_away(client, lastmo
               "amount": "5", "month": THIS_MONTH.isoformat()},
     )
     assert response.status_code == 400 and "nothing available to move" in response.json()["detail"]
+
+
+# ---- targets ------------------------------------------------------------------------------------------
+
+
+def fixture_budget(client, root_accounts):
+    bank = account(client, root_accounts, "Bank", "Assets", balance="2000")
+    food = account(client, root_accounts, "Food", "Expenses")
+    rent = account(client, root_accounts, "Rent", "Expenses")
+    return bank, food, rent
+
+
+def target(client, category, kind, amount, **extra):
+    response = client.put(f"/api/budget/categories/{category['aid']}/target", json={"kind": kind, "amount": amount, **extra})
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def line(data, name):
+    return next(l for l in data["lines"] if l["name"] == name)
+
+
+def test_monthly_target_is_underfunded_until_assigned(client, root_accounts):
+    bank, food, rent = fixture_budget(client, root_accounts)
+    data = target(client, rent, "monthly", "800")
+    assert line(data, "Rent")["underfunded"] == "800.00" and data["underfunded"] == "800.00"
+    assert line(data, "Rent")["target"]["kind"] == "monthly"
+    assign(client, rent, "300")
+    data = budget(client)
+    assert line(data, "Rent")["underfunded"] == "500.00"
+    assign(client, rent, "800")
+    data = budget(client)
+    assert line(data, "Rent")["underfunded"] == "0.00" and data["underfunded"] == "0.00"
+    assert line(data, "Rent")["needed"] == "800.00"
+
+
+def test_refill_target_counts_what_carried_over(client, root_accounts):
+    bank, food, rent = fixture_budget(client, root_accounts)
+    assign(client, food, "300", LAST_MONTH)
+    target(client, food, "refill", "400")
+    this = budget(client)
+    assert line(this, "Food")["needed"] == "100.00" and line(this, "Food")["underfunded"] == "100.00"
+    assign(client, food, "100")
+    assert line(budget(client), "Food")["underfunded"] == "0.00"
+    # In the month it started, nothing had carried in yet.
+    assert line(budget(client, LAST_MONTH), "Food")["needed"] == "400.00"
+
+
+def test_by_date_target_saves_evenly_over_the_months_left(client, root_accounts):
+    bank, food, rent = fixture_budget(client, root_accounts)
+    index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 2
+    end = date(index // 12, index % 12 + 1, 1)
+    target(client, rent, "by_date", "900", target_date=end.isoformat())  # this month and the next two
+    assert line(budget(client), "Rent")["needed"] == "300.00"
+    assign(client, rent, "300")
+    assert line(budget(client), "Rent")["underfunded"] == "0.00"
+    # Next month the 300 has carried in, so 600 remains over two months.
+    nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
+    assert line(budget(client, nxt), "Rent")["needed"] == "300.00"
+
+
+def test_by_date_in_the_final_month_needs_the_rest(client, root_accounts):
+    bank, food, rent = fixture_budget(client, root_accounts)
+    target(client, rent, "by_date", "1000", target_date=THIS_MONTH.isoformat())
+    assign(client, rent, "250")
+    data = budget(client)
+    assert line(data, "Rent")["needed"] == "1000.00" and line(data, "Rent")["underfunded"] == "750.00"
+
+
+def test_target_validation(client, root_accounts):
+    bank, food, rent = fixture_budget(client, root_accounts)
+    url = f"/api/budget/categories/{rent['aid']}/target"
+    assert client.put(url, json={"kind": "weekly", "amount": "5"}).status_code == 400
+    assert client.put(url, json={"kind": "monthly", "amount": "0"}).status_code == 422
+    assert client.put(url, json={"kind": "by_date", "amount": "5"}).status_code == 400
+    past = (LAST_MONTH).isoformat()
+    assert client.put(url, json={"kind": "by_date", "amount": "5", "target_date": past}).status_code == 400
+    assert client.put(f"/api/budget/categories/{bank['aid']}/target", json={"kind": "monthly", "amount": "5"}).status_code == 400
+    assert client.put(url, json={"kind": "monthly", "amount": "5.123"}).status_code == 400
+
+
+def test_replacing_and_clearing_a_target(client, root_accounts):
+    bank, food, rent = fixture_budget(client, root_accounts)
+    target(client, rent, "monthly", "800")
+    data = target(client, rent, "refill", "500")
+    assert line(data, "Rent")["target"]["kind"] == "refill" and line(data, "Rent")["target"]["amount"] == "500.00"
+    cleared = client.delete(f"/api/budget/categories/{rent['aid']}/target").json()
+    assert line(cleared, "Rent")["target"] is None and cleared["underfunded"] == "0.00"
+
+
+def test_groups_sum_their_children_underfunded(client, root_accounts):
+    bank, food, rent = fixture_budget(client, root_accounts)
+    groceries = account(client, root_accounts, "Groceries", "Expenses")
+    sub = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food["aid"]}).json()
+    client.post("/api/accounts/", json={"name": "Market", "parent_id": food["aid"]})
+    market = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Market")
+    target(client, sub, "monthly", "100")
+    data = target(client, market, "monthly", "50")
+    assert line(data, "Food")["underfunded"] == "150.00" and line(data, "Food")["group"] and line(data, "Food")["target"] is None
+    assert data["underfunded"] == "150.00"
+
+
+def test_fund_assigns_what_is_needed_within_ready_to_assign(client, root_accounts):
+    bank, food, rent = fixture_budget(client, root_accounts)  # 2000 ready to assign
+    target(client, rent, "monthly", "1500")
+    target(client, food, "monthly", "800")
+    response = client.post("/api/budget/fund", json={})
+    assert response.status_code == 200, response.text
+    data = response.json()
+    amounts = {l["name"]: l["assigned"] for l in data["lines"]}
+    assert amounts == {"Food": "800.00", "Rent": "1200.00"}, "in display order, until the money runs out"
+    assert data["ready_to_assign"] == "0.00" and data["underfunded"] != "0.00"
+    assert client.post("/api/budget/fund", json={}).status_code == 400, "nothing left to assign"
+
+
+def test_fund_with_nothing_underfunded_is_refused(client, root_accounts):
+    fixture_budget(client, root_accounts)
+    response = client.post("/api/budget/fund", json={})
+    assert response.status_code == 400 and "nothing is underfunded" in response.json()["detail"]
+
+
+def test_deleting_a_category_removes_its_target(client, root_accounts):
+    bank, food, rent = fixture_budget(client, root_accounts)
+    target(client, rent, "monthly", "800")
+    assert client.delete(f"/api/accounts/{rent['aid']}").status_code in (200, 204)
+    assert budget(client)["underfunded"] == "0.00"

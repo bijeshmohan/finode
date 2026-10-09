@@ -16,6 +16,13 @@
   {% if budget.overspent_last_month %}
   <p class="notice">{{ budget.overspent_last_month|money }} {{ budget.currency }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
   {% endif %}
+  {% if budget.underfunded %}
+  <form class="notice fund" hx-post="/budget/fund" hx-target="#budget" hx-swap="outerHTML">
+    <span>Your targets still need {{ budget.underfunded|money }} {{ budget.currency }} this month.</span>
+    <input type="hidden" name="month" value="{{ month_key }}">
+    <button type="submit" class="secondary" {{ "disabled" if rta <= 0 }}>Assign what is needed</button>
+  </form>
+  {% endif %}
   <p id="budget-error" class="error" role="alert"></p>
 
   {% if not budget.budget_accounts %}
@@ -35,6 +42,17 @@
     <div class="budget-row {{ 'group' if line.group }}" {% if line.depth > 1 %}style="padding-left: {{ 0.9 + (line.depth - 1) * 1.1 }}rem"{% endif %}>
       <div class="name">{{ line.name }}
         {% if line.activity %}<small>{{ line.activity|money }} spent</small>{% endif %}
+        {% if not line.group or line.target %}
+        <small class="target-note {{ 'short' if line.underfunded else ('met' if line.target) }}">
+          <a href="/budget/target?month={{ month_key }}&category={{ line.aid }}">
+          {%- if line.target -%}
+            {{ {"monthly": "Monthly", "refill": "Keep", "by_date": "Save"}[line.target.kind] }} {{ line.target.amount|money }}{% if line.target.target_date %} by {{ line.target.target_date.strftime("%b %Y") }}{% endif %}
+            · {% if line.underfunded %}needs {{ line.underfunded|money }} more{% else %}funded{% endif %}
+          {%- else -%}Set a target{%- endif -%}
+          </a>
+        </small>
+        {% elif line.underfunded %}<small class="target-note short">needs {{ line.underfunded|money }} more</small>
+        {% endif %}
         {% if line.overspent_last_month %}<small class="over-note">{{ line.overspent_last_month|money }} overspent last month</small>{% endif %}
       </div>
       {% set tone = 'negative' if line.available < 0 else ('positive' if line.available > 0 else '') %}

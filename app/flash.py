@@ -10,6 +10,8 @@ FLASH_COOKIE = "finode_flash"
 
 MESSAGES = {
     "budget-moved": "Money moved",
+    "budget-target": "Target saved",
+    "budget-target-cleared": "Target removed",
     "recurring-saved": "Recurring transaction saved. Anything already due has been recorded.",
     "recurring-paused": "Paused. Nothing will be recorded until you resume it.",
     "recurring-resumed": "Resumed. Occurrences missed while it was paused are skipped.",
