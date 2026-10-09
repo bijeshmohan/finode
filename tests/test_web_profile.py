@@ -87,9 +87,11 @@ def test_settings_page_holds_application_settings_not_profile(client: TestClient
     assert "AI assistants" in profile and "Your data" in profile and "First name" in profile
 
 
-def test_gear_is_in_the_top_bar_and_the_tab_bar(client: TestClient):
+def test_gear_icon_only_in_the_tab_bar(client: TestClient):
     text = client.get("/").text
-    assert text.count('href="/settings"') == 2
+    assert text.count('href="/settings"') == 2, "desktop text link and phone tab"
+    top = text[: text.index("</header>")]
+    assert "<circle cx=\"12\" cy=\"12\" r=\"3\"/>" not in top, "no gear icon beside the profile icon"
     assert 'aria-current="page"' in client.get("/settings").text.split('href="/settings"')[1][:80]
 
 
