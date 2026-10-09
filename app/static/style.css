@@ -789,3 +789,5 @@ fieldset.plain > legend { padding: 0; margin-bottom: .4rem; font-size: .875rem; 
 fieldset.plain > * + * { margin-top: .9rem; }
 .secret { -webkit-user-select: text; user-select: text; }
 .secret-row { display: flex; flex-direction: column; gap: .5rem; }
+
+.budget-row .name small.over-note { color: var(--danger); }

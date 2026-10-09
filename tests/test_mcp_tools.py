@@ -331,3 +331,22 @@ async def test_assistants_can_read_and_plan_the_budget(session, root_accounts, c
         with pytest.raises(ToolFailed, match="YYYY-MM"):
             payload(await c.call_tool("get_budget", {"month": "last"}))
         assert payload(await c.call_tool("get_budget", {"month": "2020-01"}))["month"] == "2020-01"
+
+
+@pytest.mark.anyio
+async def test_the_budget_tool_reports_last_months_overspending(session, root_accounts, client):
+    from datetime import date, timedelta
+
+    this = date.today().replace(day=1)
+    last = (this - timedelta(days=1)).replace(day=1)
+    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
+    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    for debit, credit, amount, on in ((bank, salary, "1000", 2), (food, bank, "30", 5)):
+        client.post("/api/transactions/", json={"date": last.replace(day=on).isoformat(), "postings": [
+            {"account": debit["aid"], "side": "debit", "amount": amount},
+            {"account": credit["aid"], "side": "credit", "amount": amount}]})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+        data = payload(await c.call_tool("get_budget", {}))
+        assert data["overspent_last_month"] == "30.00" and data["ready_to_assign"] == "970.00"
+        assert data["categories"][0]["overspent_last_month"] == "30.00" and data["categories"][0]["available"] == "0.00"

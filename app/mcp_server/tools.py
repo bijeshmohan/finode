@@ -673,6 +673,7 @@ def _budget(data) -> dict[str, Any]:
         "assigned_this_month": text(data.assigned),
         "spent_this_month": text(data.activity),
         "available_total": text(data.available),
+        "overspent_last_month": text(data.overspent_last_month),
         "budget_accounts": data.budget_accounts,
         "categories": [
             {
@@ -681,6 +682,7 @@ def _budget(data) -> dict[str, Any]:
                 "assigned": text(line.assigned),
                 "spent": text(line.activity),
                 "available": text(line.available),
+                **({"overspent_last_month": text(line.overspent_last_month)} if line.overspent_last_month else {}),
             }
             for line in data.lines
         ],
@@ -696,7 +698,7 @@ def _budget(data) -> dict[str, Any]:
 @_tool_errors
 def get_budget(month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None) -> dict[str, Any]:
     """The envelope budget for a month: what is still ready to assign, and for each expense category what
-    was assigned this month, what was spent and what is available (leftovers and overspending carry over).
+    was assigned this month, what was spent and what is available (leftovers carry over; a category overspent last month starts at zero and that amount was already taken out of ready to assign).
     Groups sum their sub-categories. Everything is in the default currency."""
     with services() as s:
         return _budget(s.budget.view(_month(month)))

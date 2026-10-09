@@ -22,6 +22,9 @@ class BudgetLine(BaseModel):
     assigned: Decimal = Money
     activity: Decimal = Money
     available: Decimal = Money
+    # What the category was overspent by at the end of the previous month. It started this month at zero,
+    # and that amount was taken out of what is ready to assign.
+    overspent_last_month: Decimal = Money
 
 
 class BudgetRead(BaseModel):
@@ -36,6 +39,8 @@ class BudgetRead(BaseModel):
     assigned: Decimal = Money
     activity: Decimal = Money
     available: Decimal = Money
+    # Overspending in the previous month (all categories): already taken out of ready_to_assign.
+    overspent_last_month: Decimal = Money
     # True when some spending could not be converted to the currency because no price links them.
     unpriced: bool = False
     # The accounts whose money is budgeted, and the flagged ones left out (another currency, sub-accounts).
