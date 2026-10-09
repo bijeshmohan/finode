@@ -119,3 +119,12 @@ def test_filters_open_with_count_only_when_active(client: TestClient, account: d
     assert '<details class="card filters" open>' in opened
     assert '<span class="count">2</span>' in opened
     assert "No transactions match these filters." in opened
+
+
+def test_recurring_is_an_icon_at_the_right_of_the_page_title(client):
+    page = client.get("/transactions").text
+    head = page[page.index('<div class="page-head">'):page.index("</div>", page.index('<div class="page-head">'))]
+    assert head.index("<h1>Transactions</h1>") < head.index('href="/recurring"')
+    assert "<svg" in head and 'title="Recurring transactions"' in head
+    assert 'class="sr-only">Recurring transactions' in head, "named for screen readers"
+    assert '<p class="muted"><a href="/recurring">' not in page, "no visible text link any more"
