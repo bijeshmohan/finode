@@ -14,42 +14,7 @@
 <form class="card stack txn-form" data-txn-form {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
   <input type="hidden" name="back" value="{{ back }}">
 
-  <div class="total-field">
-    <label class="amount-field">Amount
-      <input type="text" name="total" id="total" inputmode="decimal" placeholder="0.00" required autocomplete="off"
-             value="{{ total }}" {{ "autofocus" if not editing }}>
-    </label>
-    {% if multi %}
-    <label class="currency-field"><span class="sr-only">Currency</span>
-      <select name="currency" aria-label="Currency of the amount">
-        {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == (transaction.currency if editing else currency) }}>{{ c.code }}</option>{% endfor %}
-      </select>
-    </label>
-    {% else %}
-    <span class="currency-code muted">{{ currency }}</span>
-    {% endif %}
-  </div>
-
-  {% for side, title, hint, rows in (("credit", "From", "where the money comes from", from_rows), ("debit", "To", "where the money goes", to_rows)) %}
-  <section class="txn-side" data-side-section="{{ side }}">
-    <div class="txn-side-head">
-      <h2>{{ title }} <span class="hint">{{ hint }}</span></h2>
-      {% if loop.first %}<button type="button" class="icon-button swap" data-swap-sides title="Swap From and To">{{ icon("swap") }}<span class="sr-only">Swap From and To</span></button>{% endif %}
-    </div>
-    <div class="txn-rows" data-rows="{{ side }}">
-      {% for r in rows %}
-        {% set posting = r.posting %}{% set selected = r.account %}
-        {% include "partials/txn_row.html" %}
-      {% endfor %}
-    </div>
-    <p class="side-status" data-status="{{ side }}" aria-live="polite"></p>
-  </section>
-  {% endfor %}
-
-  <template id="txn-row-template">
-    {% set posting = none %}{% set selected = none %}
-    {% set side = "credit" %}{% include "partials/txn_row.html" %}
-  </template>
+  {% include "partials/txn_rows.html" %}
 
   <div class="grid-form">
     <label>Date

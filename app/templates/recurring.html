@@ -19,7 +19,7 @@
           <span class="tx-sub">{{ row.schedule }}{% if r.active %} · next {{ r.next_date|friendly_date }}{% endif %}{% if r.end_date %} · until {{ r.end_date|friendly_date }}{% endif %}</span>
           {% if r.last_error %}<span class="tx-sub error">Couldn't record {{ r.last_error }}</span>{% endif %}
         </span>
-        <span class="tx-amount">{{ r.amount|money|with_unit(row.unit, currency) }}</span>
+        <span class="tx-amount">{{ row.amount|money|with_unit(row.unit, currency) }}</span>
       </a>
     </li>
     {% endfor %}

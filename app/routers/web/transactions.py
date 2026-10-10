@@ -170,7 +170,7 @@ def safe_back(value: str | None, default: str = "/transactions") -> str:
     return default
 
 
-def _form_context(accounts: Accounts, **extra) -> dict:
+def form_context(accounts: Accounts, **extra) -> dict:
     all_accounts = accounts.list()
     default = accounts.default_currency().code
     wanted = extra.get("transaction").currency if extra.get("transaction") else None
@@ -201,7 +201,7 @@ def _simple_postings(
     return simple_postings(accounts, paid, received, UUID(from_account), UUID(to_account))
 
 
-def _split_postings(
+def split_postings(
     account: list[str], side: list[str], amount: list[str], value: list[str] | None = None
 ) -> list[PostingCreate]:
     value = value or [""] * len(account)
@@ -230,7 +230,7 @@ def _after_save(back: str, another: str) -> str:
     return safe_back(back)
 
 
-def _rows(postings, side: PostingSide, account_id: UUID | None = None) -> list[dict]:
+def form_rows(postings, side: PostingSide, account_id: UUID | None = None) -> list[dict]:
     """The rows of one side of the form: the transaction's own postings, or one blank row (maybe with an account)."""
     found = [{"posting": p, "account": p.account} for p in postings if p.side == side]
     return found or [{"posting": None, "account": account_id}]
@@ -256,13 +256,13 @@ def new_transaction_page(
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
-        _form_context(
+        form_context(
             accounts,
             today=date.today().isoformat(),
             transaction=None,
             total="",
-            from_rows=_rows([], PostingSide.CREDIT, from_id),
-            to_rows=_rows([], PostingSide.DEBIT, to_id),
+            from_rows=form_rows([], PostingSide.CREDIT, from_id),
+            to_rows=form_rows([], PostingSide.DEBIT, to_id),
             account=account,
             back=safe_back(back, ""),
             back_url=safe_back(back),
@@ -326,7 +326,7 @@ def create_split_transaction(
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
                 currency=currency.strip() or None,
-                postings=_split_postings(account, side, amount, value),
+                postings=split_postings(account, side, amount, value),
             )
         )
     except ValidationError as e:
@@ -355,13 +355,13 @@ def edit_transaction_page(
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
-        _form_context(
+        form_context(
             accounts,
             editing=True,
             transaction=transaction,
             total=total,
-            from_rows=_rows(transaction.postings, PostingSide.CREDIT),
-            to_rows=_rows(transaction.postings, PostingSide.DEBIT),
+            from_rows=form_rows(transaction.postings, PostingSide.CREDIT),
+            to_rows=form_rows(transaction.postings, PostingSide.DEBIT),
             account=None,
             back=safe_back(back, ""),
             back_url=safe_back(back),
@@ -412,7 +412,7 @@ def update_transaction(
         date_,
         payee,
         comment,
-        lambda: (currency.strip() or None, _split_postings(account, side, amount, value)),
+        lambda: (currency.strip() or None, split_postings(account, side, amount, value)),
         back,
     )
 

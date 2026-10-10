@@ -351,10 +351,27 @@ def list_recurring() -> dict[str, Any]:
             "recurring": [
                 {
                     "id": str(r.rid),
-                    "from": index.path(r.from_account),
-                    "to": index.path(r.to_account),
-                    "amount": text(r.amount),
-                    **({"received_amount": text(r.received_amount)} if r.received_amount else {}),
+                    **(
+                        {
+                            "currency": r.currency,
+                            "postings": [
+                                {
+                                    "account": index.path(p.account),
+                                    "side": p.side.value,
+                                    "amount": text(p.amount),
+                                    **({"worth": text(p.value)} if p.value is not None else {}),
+                                }
+                                for p in r.postings
+                            ],
+                        }
+                        if r.postings
+                        else {
+                            "from": index.path(r.from_account),
+                            "to": index.path(r.to_account),
+                            "amount": text(r.amount),
+                            **({"received_amount": text(r.received_amount)} if r.received_amount else {}),
+                        }
+                    ),
                     "payee": r.payee,
                     "note": r.comment,
                     "every": f"{r.every} {r.frequency}" if r.every != 1 else r.frequency,
