@@ -490,8 +490,29 @@ document.body.addEventListener("focusout", (event) => {
 });
 
 // A suggested amount is selected on entry, so typing replaces it.
+// Safari puts the caret back when the click or tap ends, so the selection is made after that too.
 document.body.addEventListener("focusin", (event) => {
-  if (event.target.matches && event.target.matches("input.suggested")) event.target.select();
+  const field = event.target;
+  if (!(field.matches && field.matches("input.suggested"))) return;
+  field.select();
+  field.dataset.fresh = "1";
+  setTimeout(() => {
+    if (field.classList.contains("suggested")) field.select();
+  }, 0);
+});
+document.body.addEventListener("mouseup", (event) => {
+  const field = event.target;
+  if (field.dataset && field.dataset.fresh) {
+    delete field.dataset.fresh;
+    if (field.classList.contains("suggested")) event.preventDefault();
+  }
+});
+document.body.addEventListener("touchend", (event) => {
+  const field = event.target;
+  if (field.dataset && field.dataset.fresh && field.classList.contains("suggested")) {
+    delete field.dataset.fresh;
+    event.preventDefault();
+  }
 });
 
 document.body.addEventListener("click", (event) => {

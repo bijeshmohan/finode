@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run dev server: `uv run fastapi dev` (auto-reload, http://localhost:8000)
 - Run prod-ish: `uv run fastapi run`
 - Run tests: `uv run pytest`
+- Run the browser tests: `scripts/browser-tests.sh` (needs Docker: the browser runs in Playwright's container, the tests and the app on this machine); `FINODE_BROWSER=webkit scripts/browser-tests.sh` for WebKit, the closest to iOS Safari. Where Playwright's own browsers work, `uv run playwright install chromium` then `uv run pytest tests/browser`. A plain `uv run pytest` skips them when there is no browser. `tests/browser/` starts the real app on a free port with a fresh in-memory database and drives it like a user; add a test there for any behaviour that lives in `app.js` or needs a real browser (the unit tests only see server-rendered HTML). Keep the playwright version in `pyproject.toml` and `scripts/browser-tests.sh` the same.
 - Generate a migration: `uv run alembic revision --autogenerate -m "description"` (always review before applying)
 - Add a dependency: `uv add <pkg>` (do not edit `pyproject.toml` by hand)
 - Deploy with Docker: `docker compose up -d --build` (runs migrations via the one-off `migrate` service, then the app behind Traefik; needs `.env` with `APP_DOMAIN`)
