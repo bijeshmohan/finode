@@ -3,6 +3,8 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
+from decimal import Decimal
+
 import pytest
 
 THIS_MONTH = date.today().replace(day=1)
@@ -658,3 +660,82 @@ def test_copying_skips_closed_categories(client, setup):
     data = client.post("/api/budget/copy", json={}).json()
     assert line(data, "Food")["assigned"] == "300.00"
     assert line(data, "Rent")["assigned"] == "0.00", "a closed category gets nothing more (what it holds just carries over)"
+# ---- credit card payments ----------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def card_books(client, root_accounts):
+    bank = account(client, root_accounts, "Bank", "Assets", balance="1000")
+    card = account(client, root_accounts, "Visa", "Liabilities", on_budget=True)
+    food = account(client, root_accounts, "Food", "Expenses")
+    return {"bank": bank, "card": card, "food": food}
+
+
+def identity(data):
+    """Ready to assign is always what is in the accounts, minus the card bills, minus the categories."""
+    money, reserved, available, later = (
+        Decimal(data[k]) for k in ("money_in_accounts", "reserved_for_cards", "available", "assigned_to_later_months")
+    )
+    assert Decimal(data["ready_to_assign"]) == money - reserved - available - later, data
+
+
+def test_a_card_shows_what_is_set_aside_for_its_bill(client, card_books):
+    assign(client, card_books["food"], "150")
+    move(client, card_books["card"], card_books["food"], "100")  # a purchase on the card
+    data = budget(client)
+    [card] = data["cards"]
+    assert card["path"] == "Liabilities:Visa" and card["owed"] == "100.00"
+    assert card["charged"] == "100.00" and card["paid"] == "0.00"
+    assert data["reserved_for_cards"] == "100.00" and data["money_in_accounts"] == "1000.00"
+    assert line(data, "Food")["available"] == "50.00" and data["ready_to_assign"] == "850.00"
+    identity(data)
+
+
+def test_paying_the_card_releases_nothing_else(client, card_books):
+    assign(client, card_books["food"], "150")
+    move(client, card_books["card"], card_books["food"], "100")
+    before = budget(client)["ready_to_assign"]
+    move(client, card_books["bank"], card_books["card"], "100")  # the payment from the bank
+    data = budget(client)
+    [card] = data["cards"]
+    assert card["owed"] == "0.00" and card["paid"] == "100.00" and card["charged"] == "100.00"
+    assert data["ready_to_assign"] == before and data["reserved_for_cards"] == "0.00"
+    assert data["money_in_accounts"] == "900.00"
+    identity(data)
+
+
+def test_a_card_in_credit_reserves_nothing(client, card_books):
+    move(client, card_books["card"], card_books["food"], "100")
+    move(client, card_books["bank"], card_books["card"], "150")  # paid too much
+    data = budget(client)
+    assert data["cards"][0]["owed"] == "0.00" and data["reserved_for_cards"] == "0.00"
+    identity(data)
+
+
+def test_cards_outside_the_budget_and_budgets_without_cards_show_none(client, card_books, root_accounts):
+    other = account(client, root_accounts, "Amex", "Liabilities")
+    move(client, other, card_books["food"], "10")
+    data = budget(client)
+    assert [c["path"] for c in data["cards"]] == ["Liabilities:Visa"]
+    client.patch(f"/api/accounts/{card_books['card']['aid']}", json={"on_budget": False})
+    data = budget(client)
+    assert data["cards"] == [] and data["reserved_for_cards"] == "0.00"
+    identity(data)
+
+
+def test_the_breakdown_also_holds_with_money_assigned_to_later_months(client, card_books):
+    assign(client, card_books["food"], "150")
+    move(client, card_books["card"], card_books["food"], "100")
+    assign(client, card_books["food"], "200", NEXT_MONTH)
+    data = budget(client)
+    assert data["assigned_to_later_months"] == "200.00" and data["reserved_for_cards"] == "100.00"
+    identity(data)
+    identity(budget(client, NEXT_MONTH))
+
+
+def test_card_figures_follow_the_month(client, card_books):
+    move(client, card_books["card"], card_books["food"], "40", on=LAST_MONTH.replace(day=5).isoformat())
+    this = budget(client, THIS_MONTH)["cards"][0]
+    last = budget(client, LAST_MONTH)["cards"][0]
+    assert this["owed"] == "40.00" and this["charged"] == "0.00", "still owed, but charged last month"
+    assert last["charged"] == "40.00" and last["owed"] == "40.00"

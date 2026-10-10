@@ -222,3 +222,17 @@ def test_the_page_says_when_money_is_assigned_to_later_months(client, setup):
     nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
     assign(client, setup["food"], "120", nxt)
     assert "120.00 INR is already assigned to later months" in client.get("/budget").text
+def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts):
+    account(client, root_accounts, "Bank", "Assets", balance="1000")
+    food = account(client, root_accounts, "Food", "Expenses")
+    assert "Credit card payments" not in client.get("/budget").text, "no card in the budget, no section"
+    card = account(client, root_accounts, "Visa", "Liabilities", on_budget=True)
+    move(client, card, food, "100")
+    page = client.get("/budget").text
+    assert "Credit card payments" in page and "Visa" in page
+    assert "Charged 100.00 · paid 0.00 this month" in page
+    assert "Money in your accounts 1,000.00 − set aside for card bills 100.00" in page
+    assert "= ready to assign" in page and "assigned to later months" not in page
+    nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
+    assign(client, food, "50", nxt)
+    assert "− assigned to later months 50.00 = ready to assign" in client.get("/budget").text

@@ -32,6 +32,19 @@ class BudgetLeftOut(BaseModel):
     spent: Decimal = Money
 
 
+class BudgetCard(BaseModel):
+    """A credit card (or other liability that is part of the budget): what is set aside to pay it."""
+
+    aid: UUID
+    path: str
+    # What is owed on it at the end of the month; that much of the budget's money is reserved for the bill and
+    # is already out of ready_to_assign. Zero for a card in credit.
+    owed: Decimal = Money
+    # Added to the card this month (purchases) and paid off it this month.
+    charged: Decimal = Money
+    paid: Decimal = Money
+
+
 class BudgetLine(BaseModel):
     aid: UUID
     # The category's name, and its path below Expenses, e.g. "Food:Groceries".
@@ -74,6 +87,11 @@ class BudgetRead(BaseModel):
     assigned_to_later_months: Decimal = Money
     # What copying last month's assignments would assign here (categories with nothing assigned this month yet).
     copyable: Decimal = Money
+    # Money in the budget's asset accounts and what is reserved for the cards' bills (sums of the cards' `owed`).
+    # ready_to_assign = money_in_accounts - reserved_for_cards - available - assigned_to_later_months.
+    money_in_accounts: Decimal = Money
+    reserved_for_cards: Decimal = Money
+    cards: list[BudgetCard] = []
     # What the targets still need this month, all categories.
     underfunded: Decimal = Money
     # Spending this month that is not counted in the categories because it was paid from accounts outside the
