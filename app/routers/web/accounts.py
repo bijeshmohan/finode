@@ -305,6 +305,14 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "root_name": root.account.name,
             "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
             "on_budget": node.account.on_budget,
+            "payment_category_id": node.account.payment_category_id,
+            "category_options": [
+                (n.account.aid, n.path.split(" › ", 1)[1])
+                for r in roots
+                if r.account.name == "Expenses"
+                for n in r.walk()
+                if n.account.parent_id is not None
+            ],
             "parent_options": [
                 n
                 for n in _parent_options(roots, profiles.depth_limits(), exclude=node, keep=node.account.parent_id)
@@ -326,6 +334,7 @@ def update_account(
     balance_value: Annotated[str, Form()] = "",
     on_budget: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
+    payment_category: Annotated[str, Form()] = "",
 ):
     current = accounts.read(aid)
     if current is None:
@@ -348,6 +357,10 @@ def update_account(
                 changes["balance_value"] = _optional_amount(balance_value)
         if budget_choice is not None and (on_budget is not None) != current.on_budget:
             changes["on_budget"] = on_budget is not None
+        if budget_choice is not None:
+            wanted = None if on_budget is not None or not payment_category.strip() else UUID(payment_category.strip())
+            if wanted != current.payment_category_id:
+                changes["payment_category_id"] = wanted
         if changes:
             accounts.update(aid, AccountUpdate(**changes))
     except ValidationError as e:

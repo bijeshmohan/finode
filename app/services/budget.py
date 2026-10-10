@@ -103,6 +103,12 @@ class BudgetService:
         by_id = {a.aid: a for a in accounts}
         parents = {a.parent_id for a in accounts if a.parent_id is not None}
         categories = self._categories(accounts)
+        # Accounts outside the budget (loans) whose payments are budgeted under a category.
+        payments = {
+            a.aid: a.payment_category_id
+            for a in accounts
+            if a.payment_category_id in categories and not a.on_budget
+        }
 
         in_budget: set[UUID] = set()
         candidates: dict[UUID, Account] = {}  # could be in the budget but are not: assets/liabilities holding the currency
@@ -111,7 +117,8 @@ class BudgetService:
         for a in accounts:
             if not a.on_budget:
                 if (
-                    a.parent_id is not None
+                    a.aid not in payments
+                    and a.parent_id is not None
                     and a.aid not in parents
                     and a.commodity_id == default.cid
                     and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
@@ -162,7 +169,9 @@ class BudgetService:
         for p in postings:
             if p.account in in_budget:
                 cash += p.amount if p.side == PostingSide.DEBIT else -p.amount
-            if p.account in categories and p.transaction in touching:
+            # Spending is what is posted to a category, and what is paid into an account that has one.
+            target = p.account if p.account in categories else (payments.get(p.account) if p.side == PostingSide.DEBIT else None)
+            if target is not None and p.transaction in touching:
                 transaction = transactions[p.transaction]
                 if month_start(transaction.date) < start:
                     continue
@@ -172,7 +181,7 @@ class BudgetService:
                     if value is None:
                         unpriced = True
                         continue
-                figures = by_category.setdefault(p.account, {}).setdefault(month_start(transaction.date), [ZERO, ZERO])
+                figures = by_category.setdefault(target, {}).setdefault(month_start(transaction.date), [ZERO, ZERO])
                 figures[1] += value
         for row in allocations:
             if row.account_id in categories:

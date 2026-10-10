@@ -438,3 +438,11 @@ document.body.addEventListener("click", (event) => {
     recomputeTxn(form);
   }
 });
+
+// Account form: a payment category only applies to an account outside the budget.
+document.body.addEventListener("change", (event) => {
+  const box = event.target.closest && event.target.closest('input[name="on_budget"]');
+  if (!box) return;
+  const field = box.closest("form").querySelector("[data-payment-category]");
+  if (field) field.hidden = box.checked;
+});

@@ -34,6 +34,13 @@
     <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
     <span>Part of the budget <span class="hint">Its money is what you assign to categories{{ " (a card counts as money you owe)" if root_name == "Liabilities" }}. Leave off for savings you don't budget, loans or investments.</span></span>
   </label>
+  <label data-payment-category {{ "hidden" if on_budget }}>Budget payments to this account under
+    <select name="payment_category">
+      <option value="">No category</option>
+      {% for aid, path in category_options %}<option value="{{ aid }}" {{ "selected" if aid == payment_category_id }}>{{ path }}</option>{% endfor %}
+    </select>
+    <span class="hint">For a loan: paying its EMI then spends this category, so assign the EMI to it each month. Interest the lender charges stays outside the budget.</span>
+  </label>
   {% endif %}
   <label>Notes
     <input type="text" name="details" maxlength="200" value="{{ (node.account.details or '') if editing else '' }}">

@@ -45,6 +45,8 @@ class AccountRead(AccountBase):
     unpriced: bool = False
     # True when the account's money is part of the budget.
     on_budget: bool = False
+    # An account outside the budget: the expense category that payments into it are budgeted under.
+    payment_category_id: UUID | None = None
     created: datetime
     updated: datetime
 
@@ -62,6 +64,8 @@ class AccountUpdate(BaseModel):
     )
     balance_value: Decimal | None = Field(default=None, gt=0, decimal_places=8, max_digits=24)
     on_budget: bool | None = None
+    # Send null to remove it; leave it out to keep it.
+    payment_category_id: UUID | None = None
 
     @field_validator("name")
     @classmethod

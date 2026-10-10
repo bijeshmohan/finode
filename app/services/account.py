@@ -349,6 +349,7 @@ class AccountService:
             balance=balance,
             unpriced=unpriced,
             on_budget=account.on_budget,
+            payment_category_id=account.payment_category_id,
             created=account.created,
             updated=account.updated,
         )
@@ -741,7 +742,24 @@ class AccountService:
         elif commodity_id is not None and account.on_budget and self.catalog()[commodity_id].kind != "currency":
             on_budget = False  # no longer holds a currency
 
-        updated = self.ar.update(aid, data, commodity_id, on_budget)
+        payment_category: UUID | None | type(...) = ...
+        if "payment_category_id" in data.model_fields_set:
+            payment_category = data.payment_category_id
+            if payment_category is not None:
+                accounts_by_id = {a.aid: a for a in all_accounts}
+                target = accounts_by_id.get(payment_category)
+                if target is None or target.parent_id is None or self._get_root_name(target, accounts_by_id) != "Expenses":
+                    raise ValueError("payments can only be budgeted under an expense category!")
+                if is_system_root or account.parent_id is None or self._get_root_name(account, accounts_by_id) not in ("Assets", "Liabilities"):
+                    raise ValueError("only asset and liability accounts can have a payment category!")
+                if self.ar.has_children(aid):
+                    raise ValueError("an account with sub-accounts cannot have one: use its sub-accounts!")
+                if on_budget if on_budget is not None else account.on_budget:
+                    raise ValueError("an account that is part of the budget doesn't need one: its money is already budgeted!")
+        elif on_budget and account.payment_category_id is not None:
+            payment_category = None  # now part of the budget itself
+
+        updated = self.ar.update(aid, data, commodity_id, on_budget, payment_category)
         if not updated:
             raise RuntimeError(f"failed to update account with aid '{aid}'!")
 
@@ -788,6 +806,7 @@ class AccountService:
 
         account_read = self._to_read(account, all_accounts)
         BudgetRepository(self.ar.db, self.ar.uid).delete_for_account(aid)  # only a plan: it goes with the category
+        self.ar.clear_payment_category(aid)
         deleted = self.ar.delete(aid)
         if not deleted:
             raise ValueError(f"account with aid '{aid}' not found!")
