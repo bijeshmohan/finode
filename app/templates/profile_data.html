@@ -14,6 +14,23 @@
   </div>
 </section>
 
+<section id="backup" class="card stack form-narrow">
+  <h2>Full backup</h2>
+  <p class="muted">One file with everything: settings, your own assets and prices, accounts (including which are part of the budget, and closed ones), transactions, recurring transactions and your budget. Keep it somewhere safe. It does not include access tokens or connected apps, which you set up again.</p>
+  <div class="actions"><a class="button secondary" href="/backup" download>Download backup</a></div>
+  {% if can_restore %}
+  <h3>Restore a backup</h3>
+  <p class="muted">Rebuilds your books from a backup file. You see what is in it first, and nothing is saved if anything is wrong.</p>
+  <form class="stack" hx-post="/restore/preview" hx-encoding="multipart/form-data" hx-target="#restore-preview" hx-swap="innerHTML">
+    <input type="file" id="restore-file" name="file" accept=".json,application/json" required>
+    <div class="actions"><button type="submit" class="secondary">Preview restore</button></div>
+  </form>
+  <div id="restore-preview" aria-live="polite"></div>
+  {% else %}
+  <p class="muted">A backup can only be restored into an empty ledger, so restoring is available before you add accounts or transactions.</p>
+  {% endif %}
+</section>
+
 <section id="import" class="card stack form-narrow">
   <h2>Import</h2>
   {% if can_import %}

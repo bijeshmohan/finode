@@ -355,6 +355,9 @@ class AccountService:
             updated=account.updated,
         )
 
+    def opening_balances_account(self) -> Account:
+        return self._opening_balances_account()
+
     def _opening_balances_account(self) -> Account:
         all_accounts = self._ensure_roots()
         equity_root = next(a for a in all_accounts if a.name == "Equity" and a.parent_id is None)

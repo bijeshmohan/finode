@@ -1,10 +1,12 @@
+import json
 from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 
 from ..auth import require_authenticated_user
-from ..dependencies import Data
+from ..dependencies import Backup, Data
+from ..schemas.backup import RestoreSummary
 from ..schemas.data import ImportSummary
 from ..services.data import ImportRejected
 
@@ -57,3 +59,41 @@ def import_data(data: Data, file: UploadFile | None = File(default=None), dry_ru
         return data.run_import(text)
     except ImportRejected as e:
         raise HTTPException(status_code=400, detail=e.summary.model_dump(mode="json"))
+
+
+def backup_response(backup) -> Response:
+    """Everything the user recorded as one JSON file (see services/backup.py)."""
+    body = json.dumps(backup.export(), indent=1, ensure_ascii=False).encode("utf-8")
+    return Response(
+        body,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="finode-backup-{date.today().isoformat()}.json"'},
+    )
+
+
+def read_backup(file: UploadFile | None) -> dict:
+    try:
+        data = json.loads(read_upload(file))
+    except json.JSONDecodeError:
+        raise ValueError("The file is not a finode backup (it is not valid JSON).")
+    if not isinstance(data, dict):
+        raise ValueError("The file is not a finode backup.")
+    return data
+
+
+@router.get("/backup")
+def backup(backup: Backup):
+    """A complete backup: settings, own assets, prices, accounts, transactions, recurring rules and the budget."""
+    return backup_response(backup)
+
+
+@router.post("/restore", response_model=RestoreSummary)
+def restore(backup: Backup, file: UploadFile | None = File(default=None), dry_run: bool = False):
+    """Restore a backup into an empty ledger, all or nothing (`dry_run` shows what would happen)."""
+    try:
+        summary = backup.restore(read_backup(file), dry_run=dry_run)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if summary.errors:
+        raise HTTPException(status_code=400, detail=summary.model_dump(mode="json"))
+    return summary

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from pydantic import ValidationError
 
 from ...auth import CurrentUser, require_authenticated_user
-from ...dependencies import ApiTokens, Data, OAuthGrants, Profiles
+from ...dependencies import ApiTokens, Backup, Data, OAuthGrants, Profiles
 from ...schemas.api_token import ApiTokenCreate
 from ...schemas.profile import ProfileUpdate
 from ...templating import templates
@@ -39,9 +39,11 @@ def profile_page(
 
 
 @router.get("/data")
-def data_page(request: Request, data: Data):
+def data_page(request: Request, data: Data, backup: Backup):
     return templates.TemplateResponse(
-        request, "profile_data.html", {"active": "profile", "can_import": data.can_import()}
+        request,
+        "profile_data.html",
+        {"active": "profile", "can_import": data.can_import(), "can_restore": backup.can_restore()},
     )
 
 
