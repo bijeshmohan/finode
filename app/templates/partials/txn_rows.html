@@ -1,4 +1,11 @@
 {#- The total, then rows on each side, until both add up (see recomputeTxn in app.js). Shared by the transaction and recurring forms. -#}
+  <div class="segmented kinds" role="group" aria-label="What kind of entry">
+    <input type="hidden" name="kind" value="{{ kind }}" data-kind-input>
+    {% for value, label in (("expense", "Expense"), ("income", "Income"), ("transfer", "Transfer"), ("other", "Other")) %}
+    <button type="button" class="secondary" data-kind="{{ value }}" aria-pressed="{{ 'true' if kind == value else 'false' }}">{{ label }}</button>
+    {% endfor %}
+  </div>
+
   <div class="total-field">
     <label class="amount-field">Amount
       <input type="text" name="total" id="total" inputmode="decimal" placeholder="0.00" required autocomplete="off"
@@ -18,7 +25,7 @@
   {% for side, title, hint, rows in (("credit", "From", "where the money comes from", from_rows), ("debit", "To", "where the money goes", to_rows)) %}
   <section class="txn-side" data-side-section="{{ side }}">
     <div class="txn-side-head">
-      <h2>{{ title }} <span class="hint">{{ hint }}</span></h2>
+      <h2>{{ title }} <span class="hint" data-side-hint>{{ hint }}</span></h2>
       {% if loop.first %}<button type="button" class="icon-button swap" data-swap-sides title="Swap From and To">{{ icon("swap") }}<span class="sr-only">Swap From and To</span></button>{% endif %}
     </div>
     <div class="txn-rows" data-rows="{{ side }}">

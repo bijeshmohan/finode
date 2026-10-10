@@ -23,7 +23,11 @@ function rememberAccountChoices() {
 
 function suggestedRoot(select) {
   const row = select.closest("[data-row]");
-  return row && row.querySelector('[name="side"]').value === "debit" ? "Expenses" : "Assets";
+  const side = row ? row.querySelector('[name="side"]').value : "credit";
+  const form = select.closest("form[data-txn-form]");
+  const roots = form && KINDS[form.dataset.txnKind] ? KINDS[form.dataset.txnKind][side].roots : null;
+  if (roots) return roots[0];
+  return side === "debit" ? "Expenses" : "Assets";
 }
 
 // Opening balances only make sense for money you hold or owe.
@@ -121,7 +125,23 @@ document.body.addEventListener("account-added", async (event) => {
   const response = await fetch("/accounts/options", { headers: { "HX-Request": "true" } });
   if (!response.ok) return;
   const options = await response.text();
+  const txnForm = document.querySelector("form[data-txn-form]");
+  if (txnForm) {
+    // The kind's filter applies to the fresh list too; a new account the kind doesn't offer switches to "Other".
+    txnForm._all = withoutSelection(options);
+    const target = quickTarget;
+    applyKind(txnForm, txnForm.dataset.txnKind);
+    if (target && target.value !== aid) {
+      target.value = aid;
+      if (target.value !== aid) {
+        applyKind(txnForm, "other");
+        target.value = aid;
+      }
+    }
+    if (target) target.dataset.previous = target.value;
+  }
   document.querySelectorAll("select[data-account-select]").forEach((select) => {
+    if (txnForm && txnForm.contains(select)) return;
     const wanted = select === quickTarget ? aid : select.value;
     select.innerHTML = options;
     select.value = wanted;
@@ -249,6 +269,67 @@ function money(value) {
 
 const txnState = { currencyChosen: false };
 
+// What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
+const KINDS = {
+  expense: {
+    credit: { roots: ["Assets", "Liabilities"], hint: "the account you paid with" },
+    debit: { roots: ["Expenses"], hint: "what it was for" },
+  },
+  income: {
+    credit: { roots: ["Income"], hint: "who paid you" },
+    debit: { roots: ["Assets", "Liabilities"], hint: "where it landed" },
+  },
+  transfer: {
+    credit: { roots: ["Assets", "Liabilities"], hint: "the account the money leaves" },
+    debit: { roots: ["Assets", "Liabilities"], hint: "the account it goes to" },
+  },
+  other: {
+    credit: { roots: null, hint: "where the money comes from" },
+    debit: { roots: null, hint: "where the money goes" },
+  },
+};
+
+function withoutSelection(html) {
+  const holder = document.createElement("select");
+  holder.innerHTML = html;
+  holder.querySelectorAll("option[selected]").forEach((option) => option.removeAttribute("selected"));
+  return holder.innerHTML;
+}
+
+// The account list for one side of a kind: the placeholder entries and the groups whose type it offers.
+function optionsFor(all, roots) {
+  if (!roots) return all;
+  const holder = document.createElement("select");
+  holder.innerHTML = all;
+  holder.querySelectorAll("optgroup").forEach((group) => {
+    if (!roots.includes(group.label)) group.remove();
+  });
+  return holder.innerHTML;
+}
+
+function applyKind(form, kind) {
+  if (!KINDS[kind]) kind = "other";
+  form.dataset.txnKind = kind;
+  form.querySelector("[data-kind-input]").value = kind;
+  form.querySelectorAll("[data-kind]").forEach((button) => {
+    button.setAttribute("aria-pressed", button.dataset.kind === kind ? "true" : "false");
+  });
+  form.querySelectorAll("[data-row]").forEach((row) => {
+    const select = rowAccount(row);
+    const side = row.querySelector('[name="side"]').value;
+    const current = select.value;
+    select.innerHTML = optionsFor(form._all, KINDS[kind][side].roots);
+    select.value = current; // stays when the kind still offers it, else the empty choice
+    if (select.value !== current) select.value = "";
+    select.dataset.previous = select.value;
+  });
+  ["credit", "debit"].forEach((side) => {
+    const hint = form.querySelector(`[data-side-section="${side}"] [data-side-hint]`);
+    if (hint) hint.textContent = KINDS[kind][side].hint;
+  });
+  recomputeTxn(form);
+}
+
 function rowAccount(row) {
   return row.querySelector('select[name="account"]');
 }
@@ -284,9 +365,8 @@ function newRow(form, side) {
   const row = template.content.firstElementChild.cloneNode(true);
   row.querySelector('[name="side"]').value = side;
   // Copy the live account list: it may have gained accounts since the page loaded.
-  const live = form.querySelector("[data-rows] select[data-account-select]");
   const select = rowAccount(row);
-  if (live) select.innerHTML = live.innerHTML;
+  select.innerHTML = optionsFor(form._all, (KINDS[form.dataset.txnKind] || KINDS.other)[side].roots);
   select.value = "";
   return row;
 }
@@ -376,7 +456,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.querySelector("form[data-txn-form]");
   if (!form) return;
   txnState.currencyChosen = form.hasAttribute("data-editing"); // an existing transaction keeps its currency
-  recomputeTxn(form);
+  const first = form.querySelector("select[data-account-select]");
+  form._all = first ? withoutSelection(first.innerHTML) : "";
+  applyKind(form, form.querySelector("[data-kind-input]").value);
 });
 
 document.body.addEventListener("input", (event) => {
@@ -435,8 +517,12 @@ document.body.addEventListener("click", (event) => {
     const toRows = [...to.children];
     fromRows.forEach((row) => { row.querySelector('[name="side"]').value = "debit"; to.appendChild(row); });
     toRows.forEach((row) => { row.querySelector('[name="side"]').value = "credit"; from.appendChild(row); });
-    recomputeTxn(form);
+    // An expense turned round is no longer an expense (a refund, say): every account is offered again.
+    applyKind(form, form.dataset.txnKind === "transfer" ? "transfer" : "other");
+    return;
   }
+  const kindButton = event.target.closest("[data-kind]");
+  if (kindButton) applyKind(form, kindButton.dataset.kind);
 });
 
 // Account form: a payment category only applies to an account outside the budget.

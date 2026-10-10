@@ -170,12 +170,34 @@ def safe_back(value: str | None, default: str = "/transactions") -> str:
     return default
 
 
+ASSET_LIKE = ("Assets", "Liabilities")
+
+
+def infer_kind(postings, roots: dict[UUID, str]) -> str:
+    """What a set of postings is, for the form's Expense / Income / Transfer buttons: an expense is money from
+    assets or liabilities into expenses, income comes from income into them, a transfer is between them;
+    anything else (equity, refunds, mixed) is "other", which offers every account."""
+    credit = {roots.get(p.account) for p in postings if p.side == PostingSide.CREDIT}
+    debit = {roots.get(p.account) for p in postings if p.side == PostingSide.DEBIT}
+    if debit == {"Expenses"} and credit and credit <= set(ASSET_LIKE):
+        return "expense"
+    if credit == {"Income"} and debit and debit <= set(ASSET_LIKE):
+        return "income"
+    if credit and debit and credit <= set(ASSET_LIKE) and debit <= set(ASSET_LIKE):
+        return "transfer"
+    return "other"
+
+
 def form_context(accounts: Accounts, **extra) -> dict:
     all_accounts = accounts.list()
     default = accounts.default_currency().code
     wanted = extra.get("transaction").currency if extra.get("transaction") else None
     # Accounts an entry being edited already uses stay offered even if they were closed since.
     keep = set(extra.pop("keep", ())) | {p.account for p in getattr(extra.get("transaction"), "postings", ())}
+    roots = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
+    if "kind" not in extra:
+        recorded = getattr(extra.get("transaction"), "postings", None)
+        extra["kind"] = infer_kind(recorded, roots) if recorded else "expense"
     return {
         "active": "transactions",
         "hide_fab": True,
@@ -248,12 +270,12 @@ def new_transaction_page(
 ):
     all_accounts = accounts.list()
     from_id = to_id = None
+    roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
     if account is not None:
-        roots = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
         # From an expense category the money arrives there; from anything else it leaves.
-        if roots.get(account) == "Expenses":
+        if roots_of.get(account) == "Expenses":
             to_id = account
-        elif account in roots:
+        elif account in roots_of:
             from_id = account
     return templates.TemplateResponse(
         request,
@@ -265,6 +287,7 @@ def new_transaction_page(
             total="",
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
+            kind={"Income": "income", "Equity": "other"}.get(roots_of.get(account), "expense"),
             account=account,
             back=safe_back(back, ""),
             back_url=safe_back(back),

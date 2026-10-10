@@ -14,7 +14,7 @@ from ...schemas.recurring import RecurringCreate, RecurringPostingData, Recurrin
 from ...services.schedule import describe
 from ...templating import templates
 from .accounts import build_tree
-from .transactions import form_context, form_rows, split_postings
+from .transactions import form_context, form_rows, infer_kind, split_postings
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
 
 
@@ -90,15 +90,18 @@ def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | N
     """The shared transaction rows (total, From and To) filled from the rule: simple and split alike."""
     if rule is None:
         transaction, total, from_rows, to_rows = None, "", form_rows([], PostingSide.CREDIT), form_rows([], PostingSide.DEBIT)
+        kind = "expense"
     else:
         recorded = recurring.as_transaction(rule)
         transaction = SimpleNamespace(currency=recorded.currency)
         total = sum((p.value or p.amount for p in recorded.postings if p.side == PostingSide.DEBIT), Decimal(0))
+        kind = infer_kind(recorded.postings, {n.account.aid: r.account.name for r in build_tree(accounts.list()) for n in r.walk()})
         from_rows = form_rows(recorded.postings, PostingSide.CREDIT)
         to_rows = form_rows(recorded.postings, PostingSide.DEBIT)
     return form_context(
         accounts,
         editing=rule is not None,
+        kind=kind,
         rule=rule,
         transaction=transaction,
         total=total,
