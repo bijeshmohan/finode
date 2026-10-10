@@ -204,3 +204,21 @@ def test_the_page_offers_to_add_a_card_and_adding_it_counts_its_spending(client,
     assert response.status_code == 200 and 'id="budget"' in response.text
     assert "Add to budget" not in response.text and "\u221275.00" in response.text
     assert client.post(f"/budget/accounts/{food['aid']}/include", data={}).status_code == 400
+
+
+def test_the_page_offers_to_copy_last_month_and_does_it(client, setup):
+    last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
+    assign(client, setup["food"], "300", last)
+    page = client.get("/budget").text
+    assert "Copy last month's amounts · 300.00" in page
+    response = client.post("/budget/copy", data={"month": THIS_MONTH.strftime("%Y-%m")})
+    assert response.status_code == 200 and 'id="budget"' in response.text
+    assert "Copy last month's amounts" not in response.text and 'value="300.00"' in response.text
+    again = client.post("/budget/copy", data={})
+    assert again.status_code == 400 and again.headers["HX-Retarget"] == "#budget-error"
+
+
+def test_the_page_says_when_money_is_assigned_to_later_months(client, setup):
+    nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
+    assign(client, setup["food"], "120", nxt)
+    assert "120.00 INR is already assigned to later months" in client.get("/budget").text

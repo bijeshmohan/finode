@@ -694,6 +694,7 @@ def _budget(data) -> dict[str, Any]:
         "spent_this_month": text(data.activity),
         "available_total": text(data.available),
         "underfunded": text(data.underfunded),
+        **({"assigned_to_later_months": text(data.assigned_to_later_months)} if data.assigned_to_later_months else {}),
         "overspent_last_month": text(data.overspent_last_month),
         "budget_accounts": data.budget_accounts,
         "categories": [
@@ -757,6 +758,16 @@ def assign_to_category(
     with services() as s:
         entry = _category(_index(s), category)
         return _budget(s.budget.assign(_month(month), entry.account.aid, amount))
+
+
+@_tool_errors
+def copy_budget_from_previous_month(
+    month: Annotated[str | None, Field(description="The month to fill, YYYY-MM; this month by default")] = None,
+) -> dict[str, Any]:
+    """Assign a month what each category got the month before, for categories with nothing assigned yet
+    (nothing is overwritten). A quick way to start a month; check get_budget afterwards."""
+    with services() as s:
+        return _budget(s.budget.copy_previous(_month(month)))
 
 
 @_tool_errors
@@ -837,6 +848,7 @@ WRITE_TOOLS = [
     (stop_recurring, IDEMPOTENT_WRITE),
     (assign_to_category, IDEMPOTENT_WRITE),
     (move_budget_money, WRITE),
+    (copy_budget_from_previous_month, IDEMPOTENT_WRITE),
     (set_budget_target, IDEMPOTENT_WRITE),
     (fund_budget_targets, WRITE),
 ]

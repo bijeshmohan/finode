@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Budget
-from ..schemas.budget import BudgetAssign, BudgetFund, BudgetMove, BudgetRead, BudgetTargetSet
+from ..schemas.budget import BudgetAssign, BudgetCopy, BudgetFund, BudgetMove, BudgetRead, BudgetTargetSet
 from ..services.budget import BudgetError
 
 
@@ -62,5 +62,14 @@ def fund(data: BudgetFund, budget: Budget):
     """Assign what the targets still need, until nothing is left to assign."""
     try:
         return budget.fund(data.month)
+    except BudgetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/copy", response_model=BudgetRead, status_code=200)
+def copy_previous_month(data: BudgetCopy, budget: Budget):
+    """Assign this month what each category got last month (categories that already have an amount are left alone)."""
+    try:
+        return budget.copy_previous(data.month)
     except BudgetError as e:
         raise HTTPException(status_code=400, detail=str(e))

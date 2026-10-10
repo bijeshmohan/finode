@@ -834,3 +834,6 @@ ul.list.nested { border-top: 1px solid var(--border); }
 .unused-toggle { margin: 1rem 0 0; text-align: center; }
 .link-button { background: none; border: 0; color: var(--accent); padding: .5rem; font: inherit; cursor: pointer; }
 .close-card { margin-top: 1rem; }
+
+form.copy-last { margin: .25rem 0 .75rem; }
+form.copy-last button { margin: 0; }

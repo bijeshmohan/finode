@@ -371,3 +371,19 @@ async def test_assistants_can_set_targets_and_fund_them(session, root_accounts, 
             payload(await c.call_tool("set_budget_target", {"category": "Rent", "kind": "monthly"}))
         with pytest.raises(ToolFailed, match="not an expense account"):
             payload(await c.call_tool("set_budget_target", {"category": "Bank", "kind": "monthly", "amount": "5"}))
+
+
+@pytest.mark.anyio
+async def test_assistants_can_copy_last_months_budget(session, root_accounts, client):
+    from datetime import date, timedelta
+
+    this = date.today().replace(day=1)
+    last = (this - timedelta(days=1)).replace(day=1)
+    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    client.put(f"/api/budget/categories/{food['aid']}", json={"month": last.isoformat(), "amount": "200"})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+        data = payload(await c.call_tool("copy_budget_from_previous_month", {}))
+        assert data["categories"][0]["assigned"] == "200.00" and data["ready_to_assign"] == "600.00"
+        with pytest.raises(ToolFailed, match="already assigned"):
+            payload(await c.call_tool("copy_budget_from_previous_month", {}))

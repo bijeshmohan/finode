@@ -1,6 +1,7 @@
 """Envelope budgeting on top of the ledger: ready to assign, assigning, moving, carrying over."""
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 
@@ -591,3 +592,69 @@ def test_spending_paid_from_equity_or_other_currencies_is_not_flagged(client, ro
     account(client, root_accounts, "Bank", "Assets", balance="10")
     move(client, equity, food, "5")
     assert budget(client)["left_out"] == "0.00"
+
+
+# ---- setting up a month quickly ------------------------------------------------------------------------------
+
+NEXT_MONTH = (THIS_MONTH + timedelta(days=32)).replace(day=1)
+
+
+def test_money_assigned_to_a_later_month_is_out_of_ready_to_assign_now(client, setup):
+    before = budget(client)["ready_to_assign"]
+    assign(client, setup["food"], "300", NEXT_MONTH)
+    now = budget(client)
+    assert Decimal(now["ready_to_assign"]) == Decimal(before) - 300
+    assert now["assigned_to_later_months"] == "300.00" and line(now, "Food")["assigned"] == "0.00"
+    nxt = budget(client, NEXT_MONTH)
+    assert nxt["ready_to_assign"] == now["ready_to_assign"], "the same money, seen from the later month"
+    assert line(nxt, "Food")["available"] == "300.00" and nxt["assigned_to_later_months"] == "0.00"
+
+
+def test_later_months_stack_up_and_clear(client, setup):
+    assign(client, setup["food"], "100", NEXT_MONTH)
+    after = (NEXT_MONTH + timedelta(days=32)).replace(day=1)
+    assign(client, setup["rent"], "200", after)
+    assert budget(client)["assigned_to_later_months"] == "300.00"
+    assign(client, setup["food"], "0", NEXT_MONTH)
+    assert budget(client)["assigned_to_later_months"] == "200.00"
+
+
+def test_copying_last_months_amounts(client, setup):
+    assign(client, setup["food"], "300", LAST_MONTH)
+    assign(client, setup["rent"], "500", LAST_MONTH)
+    assert budget(client)["copyable"] == "800.00"
+    response = client.post("/api/budget/copy", json={})
+    assert response.status_code == 200
+    data = response.json()
+    assert line(data, "Food")["assigned"] == "300.00" and line(data, "Rent")["assigned"] == "500.00"
+    assert data["copyable"] == "0.00"
+    assert client.post("/api/budget/copy", json={}).status_code == 400, "everything is already assigned"
+
+
+def test_copying_never_overwrites_what_is_assigned(client, setup):
+    assign(client, setup["food"], "300", LAST_MONTH)
+    assign(client, setup["rent"], "500", LAST_MONTH)
+    assign(client, setup["food"], "50")
+    assert budget(client)["copyable"] == "500.00"
+    data = client.post("/api/budget/copy", json={}).json()
+    assert line(data, "Food")["assigned"] == "50.00" and line(data, "Rent")["assigned"] == "500.00"
+
+
+def test_copying_with_nothing_last_month_is_explained(client, setup):
+    response = client.post("/api/budget/copy", json={})
+    assert response.status_code == 400 and "nothing assigned to copy" in response.json()["detail"]
+
+
+def test_copying_into_another_month_uses_the_month_before_it(client, setup):
+    assign(client, setup["food"], "70")
+    data = client.post("/api/budget/copy", json={"month": NEXT_MONTH.isoformat()}).json()
+    assert line(data, "Food")["assigned"] == "70.00" and data["month"] == NEXT_MONTH.isoformat()
+
+
+def test_copying_skips_closed_categories(client, setup):
+    assign(client, setup["food"], "300", LAST_MONTH)
+    assign(client, setup["rent"], "500", LAST_MONTH)
+    assert client.post(f"/api/accounts/{setup['rent']['aid']}/close").status_code == 200
+    data = client.post("/api/budget/copy", json={}).json()
+    assert line(data, "Food")["assigned"] == "300.00"
+    assert line(data, "Rent")["assigned"] == "0.00", "a closed category gets nothing more (what it holds just carries over)"
