@@ -29,6 +29,9 @@ class Account(TimestampMixin, table=True):
     # Whether this asset or liability account (a bank, a credit card) is part of the budget (see services/budget.py).
     on_budget: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
     commodity_id: UUID | None = Field(default=None, foreign_key="commodities.cid", nullable=True)
+    # For an asset or liability account outside the budget (a loan): the expense category its payments are
+    # budgeted under, so paying the EMI spends that category (see services/budget.py).
+    payment_category_id: UUID | None = Field(default=None, foreign_key="accounts.aid", nullable=True)
 
     @field_validator("name")
     @classmethod

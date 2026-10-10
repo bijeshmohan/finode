@@ -803,3 +803,4 @@ form.notice.fund button { margin: 0; }
   .txn-row select { grid-column: 1 / -1; }
   .txn-row .row-worth { grid-column: 1; }
 }
+[data-payment-category][hidden] { display: none; }
