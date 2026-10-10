@@ -43,16 +43,17 @@ def item(page: str, aid: str) -> str:
 
 def test_groups_are_rows_that_open_with_their_own_link(client, tree):
     page = client.get("/accounts").text
-    assert f'data-key="{tree["banks"]}" open' in page, "under Assets the first level of groups starts open"
+    assert f'data-key="{tree["banks"]}" open' not in page, "a group starts closed, under every type"
     assert f'data-key="{tree["food"]}" open' not in page, "under Expenses only the top level shows"
     assert f'href="/accounts/{tree["food"]}" title="Open Food"' in page
     assert f'href="/accounts/{tree["hdfc"]}"' in page and "data-account-search" in page and "data-toggle-all" in page
 
 
-def test_the_page_leads_with_net_worth(client, tree):
+def test_every_type_starts_open_and_there_is_no_net_worth_card(client, tree):
     page = client.get("/accounts").text
-    assert "Net worth" in page and "4,700.00" in page, "5000 in assets, 300 owed"
-    assert "Assets 5,000.00 · Liabilities 300.00" in page
+    heads = page.split('<details class="account-group"')[1:]
+    assert len(heads) == 5 and all(" open>" in h.split(">", 1)[0] + ">" for h in heads), "all five types open"
+    assert "Net worth" not in page and "net-worth" not in page
 
 
 def test_unused_accounts_are_tucked_away_but_new_ones_are_not(client, tree, session):

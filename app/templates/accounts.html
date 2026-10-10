@@ -38,14 +38,6 @@
   <a class="button secondary" href="/accounts/new">{{ icon("plus") }}Add account</a>
 </div>
 
-{% if net_worth is not none %}
-<div class="card net-worth">
-  <span class="muted">Net worth</span>
-  <span class="figure">{{ badge(assets) if partial }}{{ net_worth|money }} <small>{{ currency }}</small></span>
-  <span class="muted">Assets {{ assets.balance|money }} · Liabilities {{ liabilities.balance|money }}</span>
-</div>
-{% endif %}
-
 <div data-accounts>
   <div class="accounts-tools">
     <input type="search" data-account-search placeholder="Search accounts" aria-label="Search accounts" autocomplete="off">

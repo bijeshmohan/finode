@@ -133,8 +133,6 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 def accounts_page(request: Request, accounts: Accounts):
     roots = build_tree(accounts.list())
     unused = annotate_for_page(roots, accounts.used_account_ids(), date.today())
-    totals = {r.account.name: r.account for r in roots}
-    assets, liabilities = totals.get("Assets"), totals.get("Liabilities")
     return templates.TemplateResponse(
         request,
         "accounts.html",
@@ -144,29 +142,22 @@ def accounts_page(request: Request, accounts: Accounts):
             "currency": accounts.default_currency().code,
             "unused": unused,
             "closed": closed_count(roots),
-            "assets": assets,
-            "liabilities": liabilities,
-            "net_worth": (assets.balance - liabilities.balance) if assets and liabilities else None,
-            "partial": any(a.unpriced for a in (assets, liabilities) if a),
         },
     )
 
 
 # Accounts created within this many days always show, even before their first entry.
 NEW_ACCOUNT_DAYS = 7
-# Under these roots the first level of groups starts open; under the rest only the groups themselves show.
-OPEN_ROOTS = ("Assets", "Liabilities")
-
 
 def annotate_for_page(roots: list[Node], used: set[UUID], today: date) -> int:
     """Mark what the accounts page starts with: which groups are open and which accounts are unused.
     Returns how many accounts are unused (and so tucked away)."""
     cutoff = today - timedelta(days=NEW_ACCOUNT_DAYS)
 
-    def visit(node: Node, root: str) -> bool:
-        children = [visit(child, root) for child in node.children]
+    def visit(node: Node) -> bool:
+        children = [visit(child) for child in node.children]
         node.size = sum(c.size for c in node.children) if node.children else 1
-        node.open = node.kind == "root" or (root in OPEN_ROOTS and node.depth == 1)
+        node.open = node.kind == "root"  # every type starts open, showing one level of accounts; groups start closed
         node.closed = node.account.closed_on is not None
         node.unused = (
             node.kind == "user"
@@ -179,7 +170,7 @@ def annotate_for_page(roots: list[Node], used: set[UUID], today: date) -> int:
         return node.unused
 
     for root in roots:
-        visit(root, root.account.name)
+        visit(root)
     return sum(1 for root in roots for n in root.walk() if n.unused)
 
 
