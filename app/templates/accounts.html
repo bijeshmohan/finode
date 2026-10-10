@@ -1,36 +1,81 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
 {% block title %}Accounts · finode{% endblock %}
+
+{% macro badge(account) -%}
+  {%- if account.unpriced %}<span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span> {% endif -%}
+{%- endmacro %}
+
+{#- One account in the list: a group is a row that opens (with a link to its own page), a plain account links straight there. -#}
+{% macro entry(node) %}
+<li data-path="{{ node.path|lower }}" class="{{ 'unused-hidden' if node.unused }}">
+  {% if node.children %}
+  <details class="acct-group" data-key="{{ node.account.aid }}" {{ "open" if node.open }}>
+    <summary class="account-row group" style="--depth: {{ node.depth - 1 }}">
+      <span class="caret">{{ icon("caret") }}</span>
+      <span class="account-name">{{ node.account.name }} <small class="muted">{{ node.size }}</small></span>
+      <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
+      <a class="open-link" href="/accounts/{{ node.account.aid }}" title="Open {{ node.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ node.account.name }}</span></a>
+    </summary>
+    <ul class="list nested">
+      {% for child in node.children %}{{ entry(child) }}{% endfor %}
+    </ul>
+  </details>
+  {% else %}
+  <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}" style="--depth: {{ node.depth - 1 }}">
+    <span class="caret spacer"></span>
+    <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}</span>
+    <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
+    {{ icon("chevron-right") }}
+  </a>
+  {% endif %}
+</li>
+{% endmacro %}
+
 {% block content %}
 <div class="page-head">
   <h1>Accounts</h1>
   <a class="button secondary" href="/accounts/new">{{ icon("plus") }}Add account</a>
 </div>
 
-{% for root in roots %}
-<section class="account-group">
-  <a class="group-head plain" href="/accounts/{{ root.account.aid }}">
-    <h2>{{ root.account.name }}</h2>
-    <span class="group-total">{% if root.account.unpriced %}<span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span> {% endif %}{{ root.account.balance|money }}</span>
-  </a>
-  {% if root.children %}
-  <ul class="card list">
-    {% for node in root.walk() if node.kind != "root" %}
-    <li>
-      <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}"
-         style="--depth: {{ node.depth - 1 }}">
-        <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}</span>
-        <span class="account-balance">{% if node.account.unpriced %}<span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span> {% endif %}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
-        {{ icon("chevron-right") }}
-      </a>
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <a class="card add-first" href="/accounts/new?parent={{ root.account.aid }}">
-    {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan", "Equity": "an equity account", "Income": "an income source", "Expenses": "an expense category"}[root.account.name] or "an account" }}
-  </a>
+{% if net_worth is not none %}
+<div class="card net-worth">
+  <span class="muted">Net worth</span>
+  <span class="figure">{{ badge(assets) if partial }}{{ net_worth|money }} <small>{{ currency }}</small></span>
+  <span class="muted">Assets {{ assets.balance|money }} · Liabilities {{ liabilities.balance|money }}</span>
+</div>
+{% endif %}
+
+<div data-accounts>
+  <div class="accounts-tools">
+    <input type="search" data-account-search placeholder="Search accounts" aria-label="Search accounts" autocomplete="off">
+    <button type="button" class="secondary" data-toggle-all>Expand all</button>
+  </div>
+  <p class="muted" data-no-match hidden>No account matches.</p>
+
+  {% for root in roots %}
+  <details class="account-group" data-key="{{ root.account.aid }}" open>
+    <summary class="group-head">
+      <h2><span class="caret">{{ icon("caret") }}</span>{{ root.account.name }}</h2>
+      <span class="group-total">{{ badge(root.account) }}{{ root.account.balance|money }}</span>
+      <a class="open-link" href="/accounts/{{ root.account.aid }}" title="Open {{ root.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ root.account.name }}</span></a>
+    </summary>
+    {% if root.children %}
+    <ul class="card list">
+      {% for child in root.children %}{{ entry(child) }}{% endfor %}
+    </ul>
+    {% else %}
+    <a class="card add-first" href="/accounts/new?parent={{ root.account.aid }}">
+      {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan", "Equity": "an equity account", "Income": "an income source", "Expenses": "an expense category"}[root.account.name] or "an account" }}
+    </a>
+    {% endif %}
+  </details>
+  {% endfor %}
+
+  {% if unused %}
+  <p class="unused-toggle">
+    <button type="button" class="link-button" data-toggle-unused data-count="{{ unused }}">{{ unused }} unused account{{ "" if unused == 1 else "s" }} hidden · Show</button>
+  </p>
   {% endif %}
-</section>
-{% endfor %}
+</div>
 {% endblock %}

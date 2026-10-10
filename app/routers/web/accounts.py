@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -30,6 +31,10 @@ class Node:
     path: str = ""
     postable: bool = False
     children: list["Node"] = field(default_factory=list)
+    # For the accounts page: nothing has ever happened here, whether it starts open, how many accounts it holds.
+    unused: bool = False
+    open: bool = False
+    size: int = 0
 
     @property
     def is_leaf(self) -> bool:
@@ -124,11 +129,53 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 
 @router.get("")
 def accounts_page(request: Request, accounts: Accounts):
+    roots = build_tree(accounts.list())
+    unused = annotate_for_page(roots, accounts.used_account_ids(), date.today())
+    totals = {r.account.name: r.account for r in roots}
+    assets, liabilities = totals.get("Assets"), totals.get("Liabilities")
     return templates.TemplateResponse(
         request,
         "accounts.html",
-        {"active": "accounts", "roots": build_tree(accounts.list()), "currency": accounts.default_currency().code},
+        {
+            "active": "accounts",
+            "roots": roots,
+            "currency": accounts.default_currency().code,
+            "unused": unused,
+            "assets": assets,
+            "liabilities": liabilities,
+            "net_worth": (assets.balance - liabilities.balance) if assets and liabilities else None,
+            "partial": any(a.unpriced for a in (assets, liabilities) if a),
+        },
     )
+
+
+# Accounts created within this many days always show, even before their first entry.
+NEW_ACCOUNT_DAYS = 7
+# Under these roots the first level of groups starts open; under the rest only the groups themselves show.
+OPEN_ROOTS = ("Assets", "Liabilities")
+
+
+def annotate_for_page(roots: list[Node], used: set[UUID], today: date) -> int:
+    """Mark what the accounts page starts with: which groups are open and which accounts are unused.
+    Returns how many accounts are unused (and so tucked away)."""
+    cutoff = today - timedelta(days=NEW_ACCOUNT_DAYS)
+
+    def visit(node: Node, root: str) -> bool:
+        children = [visit(child, root) for child in node.children]
+        node.size = sum(c.size for c in node.children) if node.children else 1
+        node.open = node.kind == "root" or (root in OPEN_ROOTS and node.depth == 1)
+        node.unused = (
+            node.kind == "user"
+            and node.account.aid not in used
+            and node.account.balance == 0
+            and node.account.created.date() < cutoff
+            and all(children)
+        )
+        return node.unused
+
+    for root in roots:
+        visit(root, root.account.name)
+    return sum(1 for root in roots for n in root.walk() if n.unused)
 
 
 @router.get("/new")

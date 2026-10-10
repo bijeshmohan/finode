@@ -164,6 +164,9 @@ class TransactionRepository:
         )
         return [tuple(row) for row in self.db.exec(statement).all()]
 
+    def account_ids_with_postings(self) -> set[UUID]:
+        return set(self.db.exec(select(Posting.account).where(Posting.user == self.uid).distinct()).all())
+
     def postings_for_account(self, aid: UUID) -> list[Posting]:
         statement = select(Posting).where(
             Posting.account == aid,
