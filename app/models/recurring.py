@@ -21,7 +21,8 @@ class RecurringTransaction(TimestampMixin, table=True):
     """A rule that records the same money movement every so often (rent, salary, a subscription).
 
     It is the "simple" form of a transaction: `amount` leaves `from_account` and arrives in
-    `to_account` (`received_amount` when the two hold different things).
+    `to_account` (`received_amount` when the two hold different things), or a split across
+    several accounts (`recurring_postings`).
     """
 
     __tablename__ = "recurring_transactions"
@@ -32,9 +33,12 @@ class RecurringTransaction(TimestampMixin, table=True):
 
     rid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")
-    from_account: UUID = Field(foreign_key="accounts.aid")
-    to_account: UUID = Field(foreign_key="accounts.aid")
-    amount: Decimal = Field(sa_type=Amount())
+    # A simple rule has from_account, to_account and amount; a split rule has none of them but
+    # `recurring_postings` (and the `currency` it balances in) instead.
+    from_account: UUID | None = Field(default=None, foreign_key="accounts.aid")
+    to_account: UUID | None = Field(default=None, foreign_key="accounts.aid")
+    amount: Decimal | None = Field(default=None, sa_type=Amount())
+    currency: str | None = Field(default=None, max_length=12)
     received_amount: Decimal | None = Field(default=None, sa_type=Amount())
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
@@ -51,3 +55,23 @@ class RecurringTransaction(TimestampMixin, table=True):
     active: bool = Field(default=True)
     # Why the latest attempt to record it failed (an account that can no longer be posted to, say).
     last_error: str | None = Field(default=None, max_length=300)
+
+
+class RecurringPosting(TimestampMixin, table=True):
+    """One row of a split recurring transaction: an account, a side and an amount (and its worth in the
+    rule's currency when the account holds something else), exactly as a transaction's posting."""
+
+    __tablename__ = "recurring_postings"
+    __table_args__ = (
+        CheckConstraint("side IN ('debit', 'credit')", name="ck_recurring_postings_side"),
+        CheckConstraint("amount > 0", name="ck_recurring_postings_amount"),
+    )
+
+    rpid: UUID = Field(default_factory=uuid4, primary_key=True)
+    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    rid: UUID = Field(index=True, foreign_key="recurring_transactions.rid")
+    account: UUID = Field(foreign_key="accounts.aid")
+    side: str = Field(max_length=6)
+    amount: Decimal = Field(sa_type=Amount())
+    value: Decimal | None = Field(default=None, sa_type=Amount())
+    position: int = Field(default=0)

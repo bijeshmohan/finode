@@ -271,31 +271,36 @@ def test_settings_and_transactions_pages_link_to_it(client):
     assert 'href="/recurring"' in client.get("/transactions").text
 
 
+def form(accounts, amount="1500", **extra):
+    """What the page posts: a row on each side, like the transaction form."""
+    return {
+        "account": [accounts["rent"], accounts["bank"]], "side": ["debit", "credit"], "amount": [amount, amount],
+        "frequency": "monthly", "every": "1", "start": "2999-01-01", **extra,
+    }
+
+
 def test_creating_through_the_form(client, accounts, session):
     page = client.get("/recurring/new")
     assert page.status_code == 200 and 'name="frequency"' in page.text and 'name="start"' in page.text
-    response = client.post("/recurring", data={
-        "amount": "1500", "from_account": accounts["bank"], "to_account": accounts["rent"],
-        "frequency": "monthly", "every": "1", "start": "2999-01-01", "payee": "Landlord",
-    })
+    assert 'name="total"' in page.text and 'data-rows="credit"' in page.text and 'data-rows="debit"' in page.text
+    response = client.post("/recurring", data=form(accounts, payee="Landlord"))
+    assert client.get("/api/recurring/").json()[0]["from_account"] == accounts["bank"], "one on each side stays a plain rule"
     assert response.headers["HX-Redirect"] == "/recurring" and "recurring-saved" in response.headers["set-cookie"]
     assert "Landlord" in client.get("/recurring").text
 
 
 def test_the_form_reports_mistakes(client, accounts):
     def post(**data):
-        base = {"amount": "5", "from_account": accounts["bank"], "to_account": accounts["rent"],
-                "frequency": "monthly", "every": "1", "start": "2999-01-01"}
-        response = client.post("/recurring", data={**base, **data})
+        response = client.post("/recurring", data={**form(accounts, "5"), **data})
         assert response.status_code == 400 and response.headers["HX-Retarget"] == "#form-error"
         return response.text
 
-    assert "choose both" in post(from_account="")
+    assert "where the money comes from" in post(account=[accounts["rent"], ""], amount=["5", ""])
     assert "whole number" in post(every="x")
     assert "start date" in post(start="")
     assert "not a valid date" in post(end="31/12")
     assert "end date cannot be before" in post(end="2998-01-01")
-    assert "differ" in post(to_account=accounts["bank"])
+    assert "balance" in post(amount=["5", "6"]).lower()
 
 
 def test_editing_pausing_and_deleting_through_the_pages(client, accounts):
@@ -303,10 +308,7 @@ def test_editing_pausing_and_deleting_through_the_pages(client, accounts):
     rid = created["rid"]
     edit = client.get(f"/recurring/{rid}/edit")
     assert edit.status_code == 200 and "Landlord" in edit.text and "Pause" in edit.text
-    saved = client.post(f"/recurring/{rid}/edit", data={
-        "amount": "1600", "from_account": accounts["bank"], "to_account": accounts["rent"],
-        "frequency": "weekly", "every": "2", "start": "2999-01-01", "payee": "Landlord",
-    })
+    saved = client.post(f"/recurring/{rid}/edit", data=form(accounts, "1600", frequency="weekly", every="2", payee="Landlord"))
     assert saved.headers["HX-Redirect"] == "/recurring"
     assert "Every 2 weeks" in client.get("/recurring").text
     client.post(f"/recurring/{rid}/pause")
@@ -319,8 +321,7 @@ def test_editing_pausing_and_deleting_through_the_pages(client, accounts):
     missing = "00000000-0000-4000-8000-0000000000aa"
     for action in ("pause", "resume", "delete"):
         assert client.post(f"/recurring/{missing}/{action}", data={}).status_code == 404
-    full = {"amount": "1", "from_account": accounts["bank"], "to_account": accounts["rent"], "start": "2999-01-01"}
-    assert client.post(f"/recurring/{missing}/edit", data=full).status_code == 404
+    assert client.post(f"/recurring/{missing}/edit", data=form(accounts, "1")).status_code == 404
 
 
 def test_opening_the_dashboard_catches_up(client, accounts, session):
@@ -329,3 +330,126 @@ def test_opening_the_dashboard_catches_up(client, accounts, session):
     session.commit()
     assert client.get("/").status_code == 200
     assert len(transactions(session)) == 1
+
+
+# ---- split rules -------------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def split_accounts(client, accounts, root_accounts):
+    extra = {
+        name: client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root]}).json()["aid"]
+        for name, root in (("Water", "Expenses"), ("Savings", "Assets"))
+    }
+    return {**accounts, **extra}
+
+
+def split_rule(client, a, **fields):
+    body = {
+        "postings": [
+            {"account": a["rent"], "side": "debit", "amount": "1000"},
+            {"account": a["Water"], "side": "debit", "amount": "200"},
+            {"account": a["bank"], "side": "credit", "amount": "1200"},
+        ],
+        "frequency": "monthly", "start_date": "2026-01-01", "payee": "Landlord", **fields,
+    }
+    response = client.post("/api/recurring/", json=body)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_a_split_rule_records_every_row(client, split_accounts, session):
+    created = split_rule(client, split_accounts)
+    assert created["from_account"] is None and len(created["postings"]) == 3
+    recorded = transactions(session)
+    assert len(recorded) > 1
+    first = client.get("/api/transactions/", params={"date_from": "2026-01-01", "date_to": "2026-01-01"}).json()
+    split = next(t for t in first if t["payee"] == "Landlord")
+    assert sorted((p["side"], p["amount"]) for p in split["postings"]) == [
+        ("credit", "1200.00"), ("debit", "1000.00"), ("debit", "200.00"),
+    ]
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+    assert client.get(f"/api/recurring/{created['rid']}").json()["postings"][2]["side"] == "credit"
+
+
+def test_a_split_rule_must_balance_and_not_mix_shapes(client, split_accounts):
+    a = split_accounts
+    unbalanced = {"postings": [
+        {"account": a["rent"], "side": "debit", "amount": "1000"},
+        {"account": a["bank"], "side": "credit", "amount": "900"},
+    ], "start_date": "2999-01-01"}
+    assert client.post("/api/recurring/", json=unbalanced).status_code == 400
+    mixed = {**unbalanced, "from_account": a["bank"], "amount": "5"}
+    assert client.post("/api/recurring/", json=mixed).status_code == 422
+    assert client.post("/api/recurring/", json={"start_date": "2999-01-01"}).status_code == 422
+    one = {"postings": unbalanced["postings"][:1], "start_date": "2999-01-01"}
+    assert client.post("/api/recurring/", json=one).status_code == 422
+
+
+def test_a_split_rule_can_be_edited_into_a_plain_one_and_back(client, split_accounts):
+    a = split_accounts
+    rid = split_rule(client, a, start_date="2999-01-01")["rid"]
+    plain = {"from_account": a["bank"], "to_account": a["rent"], "amount": "1500", "start_date": "2999-01-01"}
+    updated = client.put(f"/api/recurring/{rid}", json=plain).json()
+    assert updated["postings"] == [] and updated["amount"] == "1500.00"
+    again = client.put(f"/api/recurring/{rid}", json={
+        "postings": [
+            {"account": a["rent"], "side": "debit", "amount": "1"},
+            {"account": a["Water"], "side": "debit", "amount": "2"},
+            {"account": a["bank"], "side": "credit", "amount": "3"},
+        ], "start_date": "2999-01-01"}).json()
+    assert len(again["postings"]) == 3 and again["from_account"] is None
+
+
+def test_an_account_a_split_rule_uses_cannot_be_deleted(client, split_accounts):
+    split_rule(client, split_accounts, start_date="2999-01-01")
+    assert client.delete(f"/api/accounts/{split_accounts['Water']}").status_code == 409
+
+
+def test_deleting_a_split_rule_removes_its_rows(client, split_accounts, session):
+    from app.models.recurring import RecurringPosting
+
+    rid = split_rule(client, split_accounts, start_date="2999-01-01")["rid"]
+    assert len(session.exec(RecurringPosting.__table__.select()).all()) == 3
+    assert client.delete(f"/api/recurring/{rid}").status_code in (200, 204)
+    assert session.exec(RecurringPosting.__table__.select()).all() == []
+
+
+def test_the_form_saves_a_split_and_shows_it_again(client, split_accounts):
+    a = split_accounts
+    response = client.post("/recurring", data={
+        "account": [a["rent"], a["Water"], a["bank"]], "side": ["debit", "debit", "credit"],
+        "amount": ["1000", "200", "1200"], "frequency": "monthly", "every": "1", "start": "2999-01-01", "payee": "Landlord",
+    })
+    assert response.headers["HX-Redirect"] == "/recurring", response.text
+    [stored] = client.get("/api/recurring/").json()
+    assert stored["from_account"] is None and len(stored["postings"]) == 3
+    listing = client.get("/recurring").text
+    assert "Landlord" in listing and "Bank" in listing and "Rent, Water" in listing and "1,200.00" in listing
+    page = client.get(f"/recurring/{stored['rid']}/edit").text
+    debit = page[page.index('data-rows="debit"'):]
+    assert page.count('class="txn-row"') >= 3 and 'value="1200.00"' in page and "data-touched" in debit
+    assert 'value="1000.00"' in page and 'value="200.00"' in page
+
+
+def test_the_edit_page_shows_a_plain_rule_as_one_row_each_side(client, accounts):
+    created = rule(client, accounts, start_date="2999-01-01")
+    page = client.get(f"/recurring/{created['rid']}/edit").text
+    credit = page[page.index('data-rows="credit"'):page.index('data-rows="debit"')]
+    assert credit.count('class="txn-row"') == 1 and 'value="1500.00"' in page
+
+
+def test_assistants_see_split_rules(session, client, split_accounts):
+    import asyncio
+
+    from .mcputil import make_token, mcp_client, payload, running_app
+
+    split_rule(client, split_accounts, start_date="2999-01-01")
+
+    async def go():
+        async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+            return payload(await c.call_tool("list_recurring", {}))["recurring"]
+
+    [item] = asyncio.run(go())
+    assert "from" not in item and len(item["postings"]) == 3
+    assert {p["side"] for p in item["postings"]} == {"debit", "credit"} and item["postings"][0]["account"]

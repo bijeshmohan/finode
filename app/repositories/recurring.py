@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
-from ..models.recurring import RecurringTransaction
+from ..models.recurring import RecurringPosting, RecurringTransaction
 from ..models.transaction import Transaction
 
 
@@ -39,7 +39,24 @@ class RecurringRepository:
         self.db.flush()
         return rule
 
+    def postings(self) -> dict[UUID, list[RecurringPosting]]:
+        """The rows of every split rule, by rule, in the order they were entered."""
+        found: dict[UUID, list[RecurringPosting]] = {}
+        statement = select(RecurringPosting).where(RecurringPosting.user == self.uid).order_by(RecurringPosting.position)
+        for row in self.db.exec(statement).all():
+            found.setdefault(row.rid, []).append(row)
+        return found
+
+    def set_postings(self, rid: UUID, rows: list[dict]) -> None:
+        for old in self.db.exec(select(RecurringPosting).where(RecurringPosting.rid == rid)).all():
+            self.db.delete(old)
+        self.db.flush()
+        for position, row in enumerate(rows):
+            self.db.add(RecurringPosting(user=self.uid, rid=rid, position=position, **row))
+        self.db.flush()
+
     def delete(self, rule: RecurringTransaction) -> None:
+        self.set_postings(rule.rid, [])
         # What it recorded stays: those transactions just stop pointing at the rule.
         for transaction in self.db.exec(select(Transaction).where(Transaction.recurring_id == rule.rid)).all():
             transaction.recurring_id = None
@@ -75,4 +92,5 @@ class RecurringRepository:
                 )
             ).first()
             is not None
+            or db.exec(select(RecurringPosting.rpid).where(RecurringPosting.account == aid)).first() is not None
         )

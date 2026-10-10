@@ -6,7 +6,7 @@ from .oauth_grant import OAuthGrant
 from .commodity import Commodity
 from .price import Price
 from .profile import Profile
-from .recurring import RecurringTransaction
+from .recurring import RecurringPosting, RecurringTransaction
 from .transaction import Transaction, Posting
 from .transaction_history import TransactionHistory
 

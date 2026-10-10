@@ -7,8 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from ..models.recurring import RecurringTransaction
 from ..models.utils import utc_now
 from ..repositories.recurring import RecurringRepository
-from ..schemas.recurring import RecurringCreate, RecurringRead, RecurringUpdate
-from ..schemas.transaction import TransactionCreate
+from ..models.transaction import PostingSide
+from ..schemas.recurring import RecurringCreate, RecurringPostingData, RecurringRead, RecurringUpdate
+from ..schemas.transaction import PostingCreate, TransactionCreate
 from . import schedule
 from .account import AccountService
 from .simple import simple_postings
@@ -28,24 +29,49 @@ class RecurringService:
         self.accounts = accounts
         self.transactions = transactions
 
-    @staticmethod
-    def _to_read(rule: RecurringTransaction) -> RecurringRead:
-        return RecurringRead.model_validate(rule, from_attributes=True)
+    def _to_read(self, rule: RecurringTransaction, rows: dict | None = None) -> RecurringRead:
+        rows = self.repo.postings() if rows is None else rows
+        read = RecurringRead.model_validate(rule, from_attributes=True)
+        read.postings = [
+            RecurringPostingData(account=p.account, side=PostingSide(p.side), amount=p.amount, value=p.value)
+            for p in rows.get(rule.rid, [])
+        ]
+        return read
 
     def list(self) -> list[RecurringRead]:
-        return [self._to_read(r) for r in self.repo.list()]
+        rows = self.repo.postings()
+        return [self._to_read(r, rows) for r in self.repo.list()]
 
     def read(self, rid: UUID) -> RecurringRead | None:
         rule = self.repo.read(rid)
         return self._to_read(rule) if rule else None
 
     def _transaction(self, rule_like, day: date) -> TransactionCreate:
+        if rule_like.postings:
+            return TransactionCreate(
+                date=day, payee=rule_like.payee, comment=rule_like.comment, currency=rule_like.currency,
+                postings=[
+                    PostingCreate(account=p.account, side=p.side, amount=p.amount, value=p.value)
+                    for p in rule_like.postings
+                ],
+            )
         currency, postings = simple_postings(
             self.accounts, rule_like.amount, rule_like.received_amount, rule_like.from_account, rule_like.to_account
         )
         return TransactionCreate(
             date=day, payee=rule_like.payee, comment=rule_like.comment, currency=currency, postings=postings
         )
+
+    @staticmethod
+    def _rows(data) -> list[dict]:
+        return [
+            {"account": p.account, "side": p.side.value, "amount": p.amount, "value": p.value}
+            for p in data.postings
+        ]
+
+    def as_transaction(self, rule: RecurringRead) -> TransactionCreate:
+        """The transaction a rule records (on its start date): its currency and postings, for showing it."""
+        return self._transaction(rule, rule.start_date)
 
     def _check(self, data: RecurringCreate | RecurringUpdate) -> None:
         """Refuse a rule that could never be recorded (same checks as recording it by hand)."""
@@ -55,8 +81,11 @@ class RecurringService:
         if len(self.repo.list()) >= MAX_RULES:
             raise ValueError(f"you can have at most {MAX_RULES} recurring transactions!")
         self._check(data)
-        rule = RecurringTransaction(**data.model_dump(), user=self.repo.uid, next_date=data.start_date)
+        rule = RecurringTransaction(
+            **data.model_dump(exclude={"postings"}), user=self.repo.uid, next_date=data.start_date
+        )
         self.repo.add(rule)
+        self.repo.set_postings(rule.rid, self._rows(data))
         self.repo.db.commit()
         self.repo.db.refresh(rule)
         return self._to_read(rule)
@@ -66,8 +95,9 @@ class RecurringService:
         if rule is None:
             return None
         self._check(data)
-        for field, value in data.model_dump().items():
+        for field, value in data.model_dump(exclude={"postings"}).items():
             setattr(rule, field, value)
+        self.repo.set_postings(rule.rid, self._rows(data))
         # Carry on after the last occurrence that was recorded (or from the start if none was yet).
         rule.next_date = (
             schedule.first_after(rule.start_date, rule.frequency, rule.every, rule.last_date)
@@ -126,7 +156,7 @@ class RecurringService:
             day = rule.next_date
             try:
                 if not self.repo.recorded(rule.rid, day):
-                    self.transactions.create(self._transaction(rule, day), recurring=(rule.rid, day))
+                    self.transactions.create(self._transaction(self._to_read(rule), day), recurring=(rule.rid, day))
                     recorded += 1
             except IntegrityError:
                 self.repo.db.rollback()  # another worker recorded it a moment ago
