@@ -17,5 +17,15 @@ entrypoint = "app.main:app"
 
 [dependency-groups]
 dev = [
+    "playwright==1.55.0",
     "pytest>=9.0.3",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "browser: drives the web UI in a real browser (skipped when no browser is available; see tests/browser/conftest.py)",
+]
+filterwarnings = [
+    "ignore:websockets.legacy is deprecated:DeprecationWarning",
+    "ignore:websockets.server.WebSocketServerProtocol is deprecated:DeprecationWarning",
 ]
