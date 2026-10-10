@@ -157,7 +157,21 @@ class BudgetService:
             if p.transaction in outside and p.account in candidates:
                 outside[p.transaction][1].add(p.account)
 
-        allocations = self.br.list(up_to=month)
+        every_row = self.br.list()
+        allocations = [row for row in every_row if row.month <= month]
+        # Money assigned to later months is out of what can be assigned now.
+        later = sum((row.amount for row in every_row if row.month > month and row.account_id in categories), ZERO)
+        previous_month = month_start(month - timedelta(days=1))
+        assigned_here = {row.account_id for row in allocations if row.month == month}
+        copyable = sum(
+            (
+                row.amount
+                for row in allocations
+                if row.month == previous_month and row.account_id in categories and row.account_id not in assigned_here
+                and categories[row.account_id].closed_on is None
+            ),
+            ZERO,
+        )
         # Budgeting starts with the first month anything was assigned: earlier spending already left the
         # accounts that cash is counted from, and must not show up as overspending.
         start = min((row.month for row in allocations), default=month)
@@ -223,7 +237,9 @@ class BudgetService:
         read = BudgetRead(
             month=month,
             currency=default.code,
-            ready_to_assign=cash - total_available,
+            ready_to_assign=cash - total_available - later,
+            assigned_to_later_months=later,
+            copyable=copyable,
             cash=cash,
             assigned=total_assigned,
             activity=total_activity,
@@ -404,6 +420,29 @@ class BudgetService:
         self._category(aid)
         self._check_amount(amount)
         self.br.set(month, aid, amount)
+        self.br.db.commit()
+        return self.view(month)
+
+    def copy_previous(self, month: date | None) -> BudgetRead:
+        """Assign this month what each category got last month, for the categories with nothing assigned yet."""
+        month = month_start(month)
+        previous = month_start(month - timedelta(days=1))
+        categories = self._categories(self.accounts.ar.list())
+        rows = self.br.list(up_to=month)
+        have = {row.account_id for row in rows if row.month == month}
+        wanted = [
+            row for row in rows
+            if row.month == previous and row.account_id in categories and row.account_id not in have
+            and categories[row.account_id].closed_on is None
+        ]
+        if not wanted:
+            raise BudgetError(
+                "last month has nothing assigned to copy!"
+                if not any(row.month == previous for row in rows)
+                else "everything last month had is already assigned this month!"
+            )
+        for row in wanted:
+            self.br.set(month, row.account_id, row.amount)
         self.br.db.commit()
         return self.view(month)
 

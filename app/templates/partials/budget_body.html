@@ -37,6 +37,15 @@
     <button type="submit" class="secondary" {{ "disabled" if rta <= 0 }}>Assign what is needed</button>
   </form>
   {% endif %}
+  {% if budget.assigned_to_later_months %}
+  <p class="muted calc">{{ budget.assigned_to_later_months|money }} {{ budget.currency }} is already assigned to later months, so it is not counted in Ready to assign.</p>
+  {% endif %}
+  {% if budget.copyable %}
+  <form class="copy-last" hx-post="/budget/copy" hx-target="#budget" hx-swap="outerHTML">
+    <input type="hidden" name="month" value="{{ month_key }}">
+    <button type="submit" class="secondary">Copy last month's amounts · {{ budget.copyable|money }}</button>
+  </form>
+  {% endif %}
   <p id="budget-error" class="error" role="alert"></p>
 
   {% if not budget.budget_accounts %}

@@ -163,3 +163,13 @@ def include_account(request: Request, budget: Budget, aid: UUID, month: Annotate
     except BudgetError as e:
         return htmx_error(str(e), "#budget-error")
     return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
+
+
+@router.post("/copy")
+def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()] = ""):
+    when = parse_month(month)
+    try:
+        budget.copy_previous(when)
+    except BudgetError as e:
+        return htmx_error(str(e), "#budget-error")
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))

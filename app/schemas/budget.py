@@ -70,6 +70,10 @@ class BudgetRead(BaseModel):
     available: Decimal = Money
     # Overspending in the previous month (all categories): already taken out of ready_to_assign.
     overspent_last_month: Decimal = Money
+    # Money already assigned to months after this one: it is out of ready_to_assign now.
+    assigned_to_later_months: Decimal = Money
+    # What copying last month's assignments would assign here (categories with nothing assigned this month yet).
+    copyable: Decimal = Money
     # What the targets still need this month, all categories.
     underfunded: Decimal = Money
     # Spending this month that is not counted in the categories because it was paid from accounts outside the
@@ -92,6 +96,11 @@ class BudgetAssign(BaseModel):
 
 
 class BudgetFund(BaseModel):
+    month: Date | None = None
+
+
+class BudgetCopy(BaseModel):
+    # Any day in the month to copy into (this month by default).
     month: Date | None = None
 
 
