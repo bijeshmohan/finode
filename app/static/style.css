@@ -837,3 +837,6 @@ ul.list.nested { border-top: 1px solid var(--border); }
 
 form.copy-last { margin: .25rem 0 .75rem; }
 form.copy-last button { margin: 0; }
+
+.segmented.kinds { flex-wrap: nowrap; }
+.segmented.kinds button { flex: 1 1 0; min-width: 0; padding-left: .25rem; padding-right: .25rem; }

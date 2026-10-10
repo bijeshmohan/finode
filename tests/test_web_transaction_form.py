@@ -451,3 +451,66 @@ def test_a_transaction_with_several_rows_shows_them_all(client: TestClient, acco
     page = client.get(f"/transactions/{tx['tid']}/edit").text
     debit = page[page.index('data-rows="debit"'):]
     assert debit.count("data-touched") >= 2 and 'value="10.00"' in page and "Split across" not in page
+
+
+# ---- the Expense / Income / Transfer buttons ---------------------------------------------------------------------
+
+
+def _kind(page: str) -> str:
+    start = page.index('name="kind" value="') + len('name="kind" value="')
+    return page[start:page.index('"', start)]
+
+
+def _pressed(page: str) -> list[str]:
+    return [label for label in ("Expense", "Income", "Transfer", "Other") if f'aria-pressed="true">{label}<' in page]
+
+
+def test_a_new_entry_starts_as_an_expense_with_four_buttons(client: TestClient, account: dict, expense_account: dict):
+    page = client.get("/transactions/new").text
+    assert _kind(page) == "expense" and _pressed(page) == ["Expense"]
+    for label in ("Expense", "Income", "Transfer", "Other"):
+        assert f">{label}</button>" in page
+    assert 'data-side-hint' in page
+
+
+def test_opening_a_form_from_an_account_picks_the_kind(client: TestClient, root_accounts, account: dict, expense_account: dict):
+    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
+    capital = client.post("/api/accounts/", json={"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
+    assert _kind(client.get("/transactions/new", params={"account": salary["aid"]}).text) == "income"
+    assert _kind(client.get("/transactions/new", params={"account": capital["aid"]}).text) == "other"
+    assert _kind(client.get("/transactions/new", params={"account": expense_account["aid"]}).text) == "expense"
+    assert _kind(client.get("/transactions/new", params={"account": account["aid"]}).text) == "expense"
+
+
+def test_editing_shows_what_the_entry_is(client: TestClient, root_accounts, account: dict, other_account: dict, expense_account: dict):
+    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
+    card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
+    capital = client.post("/api/accounts/", json={"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
+
+    def entry(debit, credit):
+        return client.post("/api/transactions/", json={"postings": [
+            {"account": debit["aid"], "side": "debit", "amount": "5"},
+            {"account": credit["aid"], "side": "credit", "amount": "5"},
+        ]}).json()["tid"]
+
+    expected = {
+        entry(expense_account, account): "expense",
+        entry(expense_account, card): "expense",
+        entry(account, salary): "income",
+        entry(card, account): "transfer",
+        entry(other_account, account): "transfer",
+        entry(account, capital): "other",
+        entry(account, expense_account): "other",  # a refund: money back from an expense
+    }
+    for tid, kind in expected.items():
+        assert _kind(client.get(f"/transactions/{tid}/edit").text) == kind, (tid, kind)
+
+
+def test_a_split_across_expenses_is_still_an_expense(client: TestClient, account: dict, expense_account: dict, root_accounts):
+    other = client.post("/api/accounts/", json={"name": "Tips", "parent_id": root_accounts["Expenses"]}).json()
+    tid = client.post("/api/transactions/", json={"postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "6"},
+        {"account": other["aid"], "side": "debit", "amount": "4"},
+        {"account": account["aid"], "side": "credit", "amount": "10"},
+    ]}).json()["tid"]
+    assert _kind(client.get(f"/transactions/{tid}/edit").text) == "expense"

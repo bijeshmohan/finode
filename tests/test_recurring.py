@@ -453,3 +453,10 @@ def test_assistants_see_split_rules(session, client, split_accounts):
     [item] = asyncio.run(go())
     assert "from" not in item and len(item["postings"]) == 3
     assert {p["side"] for p in item["postings"]} == {"debit", "credit"} and item["postings"][0]["account"]
+
+
+def test_the_recurring_form_has_the_kind_buttons(client, accounts):
+    new = client.get("/recurring/new").text
+    assert 'name="kind" value="expense"' in new and ">Transfer</button>" in new
+    created = rule(client, accounts, start_date="2999-01-01")
+    assert 'name="kind" value="expense"' in client.get(f"/recurring/{created['rid']}/edit").text
