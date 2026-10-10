@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from sqlmodel import Session, select
@@ -75,6 +76,12 @@ class AccountRepository:
         self.db.delete(account)
         self.db.flush()
         return account
+
+    def set_closed(self, aids: list[UUID], day: date | None) -> None:
+        for account in self.db.exec(select(Account).where(Account.user == self.uid, Account.aid.in_(aids))).all():
+            account.closed_on = day
+            self.db.add(account)
+        self.db.flush()
 
     def clear_payment_category(self, category_id: UUID) -> None:
         """Accounts whose payments were budgeted under this category (it is being deleted) stop pointing at it."""

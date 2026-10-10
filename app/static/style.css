@@ -823,8 +823,10 @@ details[open] > summary .caret, details[open] > summary.group-head .caret { tran
 .open-link { display: inline-grid; place-items: center; min-width: var(--tap); min-height: var(--tap); margin: calc(var(--tap) / -2 + .6rem) -.6rem calc(var(--tap) / -2 + .6rem) 0; color: var(--muted); }
 .open-link .icon { width: 1.1em; height: 1.1em; }
 ul.list.nested { border-top: 1px solid var(--border); }
-.unused-hidden { display: none; }
-.show-unused .unused-hidden, .searching .unused-hidden { display: list-item; }
+.unused-hidden, .closed-hidden { display: none; }
+.show-unused .unused-hidden:not(.closed-hidden), .searching .unused-hidden:not(.closed-hidden) { display: list-item; }
+.show-closed .closed-hidden, .searching .closed-hidden { display: list-item; }
 [data-accounts] li[hidden] { display: none !important; }
 .unused-toggle { margin: 1rem 0 0; text-align: center; }
 .link-button { background: none; border: 0; color: var(--accent); padding: .5rem; font: inherit; cursor: pointer; }
+.close-card { margin-top: 1rem; }

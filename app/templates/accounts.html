@@ -8,12 +8,12 @@
 
 {#- One account in the list: a group is a row that opens (with a link to its own page), a plain account links straight there. -#}
 {% macro entry(node) %}
-<li data-path="{{ node.path|lower }}" class="{{ 'unused-hidden' if node.unused }}">
+<li data-path="{{ node.path|lower }}" class="{{ 'unused-hidden' if node.unused }}{{ ' closed-hidden' if node.closed }}">
   {% if node.children %}
   <details class="acct-group" data-key="{{ node.account.aid }}" {{ "open" if node.open }}>
     <summary class="account-row group" style="--depth: {{ node.depth - 1 }}">
       <span class="caret">{{ icon("caret") }}</span>
-      <span class="account-name">{{ node.account.name }} <small class="muted">{{ node.size }}</small></span>
+      <span class="account-name">{{ node.account.name }}{% if node.closed %} <span class="badge">closed</span>{% endif %} <small class="muted">{{ node.size }}</small></span>
       <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
       <a class="open-link" href="/accounts/{{ node.account.aid }}" title="Open {{ node.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ node.account.name }}</span></a>
     </summary>
@@ -24,7 +24,7 @@
   {% else %}
   <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}" style="--depth: {{ node.depth - 1 }}">
     <span class="caret spacer"></span>
-    <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}</span>
+    <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}</span>
     <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
     {{ icon("chevron-right") }}
   </a>
@@ -72,9 +72,10 @@
   </details>
   {% endfor %}
 
-  {% if unused %}
+  {% if unused or closed %}
   <p class="unused-toggle">
-    <button type="button" class="link-button" data-toggle-unused data-count="{{ unused }}">{{ unused }} unused account{{ "" if unused == 1 else "s" }} hidden · Show</button>
+    {% if unused %}<button type="button" class="link-button" data-toggle-unused data-count="{{ unused }}">{{ unused }} unused account{{ "" if unused == 1 else "s" }} hidden · Show</button>{% endif %}
+    {% if closed %}<button type="button" class="link-button" data-toggle-closed data-count="{{ closed }}">{{ closed }} closed account{{ "" if closed == 1 else "s" }} · Show</button>{% endif %}
   </p>
   {% endif %}
 </div>

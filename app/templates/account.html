@@ -7,7 +7,8 @@
 
 <header class="account-hero card">
   <p class="muted crumbs">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}</p>
-  <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}</h1>
+  <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
+  {% if account.closed_on %}<p class="muted">Closed on {{ account.closed_on.strftime("%d %b %Y") }}. Its history stays; nothing can be added to it until you reopen it.</p>{% endif %}
   {% if account.details %}<p class="muted">{{ account.details }}</p>{% endif %}
   <p class="hero-balance">{{ account.balance|money|with_unit(account.commodity, currency) }}{% if account.unpriced %} <span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span>{% endif %}</p>
   {% if holding %}
@@ -27,17 +28,31 @@
   {% if at_limit %}<p class="muted">{{ root.account.name }} accounts can be {{ depth_limit }} level{{ "" if depth_limit == 1 else "s" }} deep, so this one can't have sub-accounts. <a href="/settings#depth">Change the limit</a></p>{% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
   <div class="actions">
-    {% if node.postable %}
+    {% if node.postable and not account.closed_on %}
     <a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">{{ icon("plus") }}New transaction</a>
     {% endif %}
     {% if node.kind == "user" %}
     <a class="button secondary" href="/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
     {% endif %}
-    {% if can_add_child %}
+    {% if can_add_child and not account.closed_on %}
     <a class="button secondary" href="/accounts/new?parent={{ account.aid }}">{{ icon("plus") }}Add sub-account</a>
     {% endif %}
   </div>
 </header>
+
+{% if node.kind == "user" %}
+<section class="card stack form-narrow close-card">
+  <p id="page-error" class="error" role="alert"></p>
+  {% if account.closed_on %}
+  <p class="muted">Reopen {{ account.name }}{% if node.children %} and everything inside it{% endif %} to use {{ "them" if node.children else "it" }} again.</p>
+  <div class="actions"><button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/reopen">Reopen account</button></div>
+  {% else %}
+  <p class="muted">Done with {{ account.name }}? Closing {{ "it and everything inside it" if node.children else "it" }} removes {{ "them" if node.children else "it" }} from your lists and pickers. The history stays, and you can reopen {{ "them" if node.children else "it" }} any time.{% if account.balance != 0 %} It has to be empty first: it still holds {{ account.balance|money }}.{% endif %}</p>
+  <div class="actions"><button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/close"
+    hx-confirm="Close {{ account.name }}? You can reopen it later.">Close account</button></div>
+  {% endif %}
+</section>
+{% endif %}
 
 <h2>Activity</h2>
 {% if entries %}
@@ -64,7 +79,7 @@
 {% else %}
 <div class="card empty-state">
   <p>No activity yet.</p>
-  {% if node.postable %}<a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">Record a transaction</a>{% endif %}
+  {% if node.postable and not account.closed_on %}<a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">Record a transaction</a>{% endif %}
 </div>
 {% endif %}
 {% endblock %}

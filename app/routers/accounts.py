@@ -90,3 +90,26 @@ def delete_account(aid: UUID, accounts: Accounts):
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
     return {"message": "account deleted successfully"}
+
+
+def _closing(action, aid: UUID):
+    try:
+        return action(aid)
+    except AccountInUseError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail="account not found")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{aid}/close", response_model=AccountRead, status_code=200)
+def close_account(aid: UUID, accounts: Accounts):
+    """Close an account (and everything inside it): its history stays, nothing more can be posted to it.
+    Refused while it holds a balance or a recurring transaction still uses it."""
+    return _closing(accounts.close, aid)
+
+
+@router.post("/{aid}/reopen", response_model=AccountRead, status_code=200)
+def reopen_account(aid: UUID, accounts: Accounts):
+    return _closing(accounts.reopen, aid)

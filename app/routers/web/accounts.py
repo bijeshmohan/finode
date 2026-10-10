@@ -33,6 +33,7 @@ class Node:
     children: list["Node"] = field(default_factory=list)
     # For the accounts page: nothing has ever happened here, whether it starts open, how many accounts it holds.
     unused: bool = False
+    closed: bool = False
     open: bool = False
     size: int = 0
 
@@ -73,11 +74,12 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
     return roots
 
 
-def posting_groups(roots: list[Node]) -> list[tuple[str, list[Node]]]:
-    """Accounts that transactions may post to, grouped by root."""
+def posting_groups(roots: list[Node], keep: set[UUID] = frozenset()) -> list[tuple[str, list[Node]]]:
+    """Accounts that transactions may post to, grouped by root. Closed accounts are left out, except those in
+    `keep` (what an entry being edited already uses)."""
     groups = []
     for root in roots:
-        postable = [n for n in root.walk() if n.postable]
+        postable = [n for n in root.walk() if n.postable and (n.account.closed_on is None or n.account.aid in keep)]
         if postable:
             groups.append((root.account.name, postable))
     return groups
@@ -141,6 +143,7 @@ def accounts_page(request: Request, accounts: Accounts):
             "roots": roots,
             "currency": accounts.default_currency().code,
             "unused": unused,
+            "closed": closed_count(roots),
             "assets": assets,
             "liabilities": liabilities,
             "net_worth": (assets.balance - liabilities.balance) if assets and liabilities else None,
@@ -164,8 +167,10 @@ def annotate_for_page(roots: list[Node], used: set[UUID], today: date) -> int:
         children = [visit(child, root) for child in node.children]
         node.size = sum(c.size for c in node.children) if node.children else 1
         node.open = node.kind == "root" or (root in OPEN_ROOTS and node.depth == 1)
+        node.closed = node.account.closed_on is not None
         node.unused = (
             node.kind == "user"
+            and not node.closed
             and node.account.aid not in used
             and node.account.balance == 0
             and node.account.created.date() < cutoff
@@ -176,6 +181,10 @@ def annotate_for_page(roots: list[Node], used: set[UUID], today: date) -> int:
     for root in roots:
         visit(root, root.account.name)
     return sum(1 for root in roots for n in root.walk() if n.unused)
+
+
+def closed_count(roots: list[Node]) -> int:
+    return sum(1 for root in roots for n in root.walk() if n.closed)
 
 
 @router.get("/new")
@@ -324,6 +333,24 @@ def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Prof
             else None,
         },
     )
+
+
+@router.post("/{aid}/close")
+def close_account(aid: UUID, accounts: Accounts):
+    try:
+        accounts.close(aid)
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect("/accounts", flash="account-closed")
+
+
+@router.post("/{aid}/reopen")
+def reopen_account(aid: UUID, accounts: Accounts):
+    try:
+        accounts.reopen(aid)
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/accounts/{aid}", flash="account-reopened")
 
 
 @router.get("/{aid}/register")

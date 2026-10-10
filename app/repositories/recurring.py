@@ -91,6 +91,23 @@ class RecurringRepository:
         return ids
 
     @staticmethod
+    def active_rules_using(db: Session, uid: UUID, aids: set[UUID]) -> list[RecurringTransaction]:
+        """Rules that still run and record into or out of any of these accounts."""
+        posting_rules = {
+            rid
+            for rid in db.exec(
+                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.account.in_(aids))
+            ).all()
+        }
+        return [
+            rule
+            for rule in db.exec(
+                select(RecurringTransaction).where(RecurringTransaction.user == uid, RecurringTransaction.active == True)  # noqa: E712
+            ).all()
+            if rule.from_account in aids or rule.to_account in aids or rule.rid in posting_rules
+        ]
+
+    @staticmethod
     def uses_account(db: Session, aid: UUID) -> bool:
         """Whether any rule records into or out of the account (so it cannot be deleted)."""
         return (

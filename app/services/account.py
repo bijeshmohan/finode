@@ -350,6 +350,7 @@ class AccountService:
             unpriced=unpriced,
             on_budget=account.on_budget,
             payment_category_id=account.payment_category_id,
+            closed_on=account.closed_on,
             created=account.created,
             updated=account.updated,
         )
@@ -425,6 +426,69 @@ class AccountService:
         )
         self.prices.invalidate()
 
+    # ---- closing ---------------------------------------------------------------------------------
+
+    def _subtree(self, aid: UUID, all_accounts: list[Account]) -> list[Account]:
+        children: dict[UUID, list[Account]] = {}
+        for a in all_accounts:
+            if a.parent_id is not None:
+                children.setdefault(a.parent_id, []).append(a)
+        found, queue = [], [next(a for a in all_accounts if a.aid == aid)]
+        while queue:
+            current = queue.pop()
+            found.append(current)
+            queue.extend(children.get(current.aid, []))
+        return found
+
+    def close(self, aid: UUID, today: date | None = None) -> AccountRead:
+        """Close an account, and everything inside it: nothing more can be posted to it and it leaves the
+        pickers and the accounts list, but its history stays. Refused while anything inside still holds a
+        balance (now or in a future-dated entry) or a recurring transaction still uses it."""
+        today = today or date.today()
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
+        if account is None:
+            raise ValueError("account not found!")
+        if self._is_root(account):
+            raise RootAccountError("cannot close system root accounts!")
+        if self.is_opening_balances(account, all_accounts):
+            raise SystemAccountError(f"cannot close system account '{account.name}'!")
+        subtree = self._subtree(aid, all_accounts)
+        for member in subtree:
+            for when in (today, date(2999, 12, 31)):
+                balance = self._to_read(member, all_accounts, when).balance
+                if balance != 0:
+                    raise ValueError(
+                        f"'{member.name}' still holds {balance:f}: move or spend it first, then close "
+                        f"{'it' if member.aid == aid else account.name}!"
+                    )
+        rules = RecurringRepository.active_rules_using(self.ar.db, self.ar.uid, {m.aid for m in subtree})
+        if rules:
+            label = rules[0].payee or "a recurring transaction"
+            raise AccountInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
+        budget = BudgetRepository(self.ar.db, self.ar.uid)
+        for member in subtree:
+            budget.clear_target(member.aid)
+            self.ar.clear_payment_category(member.aid)
+        self.ar.set_closed([m.aid for m in subtree if m.closed_on is None], today)
+        self.ar.db.commit()
+        return self._to_read(self.ar.read(aid), self._ensure_roots())
+
+    def reopen(self, aid: UUID) -> AccountRead:
+        """Reopen an account with everything inside it, and the groups above it (an open account sits in open groups)."""
+        all_accounts = self._ensure_roots()
+        by_id = {a.aid: a for a in all_accounts}
+        if aid not in by_id:
+            raise ValueError("account not found!")
+        ids = [m.aid for m in self._subtree(aid, all_accounts)]
+        current = by_id[aid]
+        while current.parent_id is not None:
+            current = by_id[current.parent_id]
+            ids.append(current.aid)
+        self.ar.set_closed([i for i in ids if by_id[i].closed_on is not None], None)
+        self.ar.db.commit()
+        return self._to_read(self.ar.read(aid), self._ensure_roots())
+
     def used_account_ids(self) -> set[UUID]:
         """Accounts that have postings or that a recurring rule records into: the rest are not in use (yet)."""
         used = self.tr.account_ids_with_postings()
@@ -463,6 +527,8 @@ class AccountService:
             raise ValueError("parent account not found!")
 
         self._validate_parent(parent, all_accounts)
+        if parent.closed_on is not None:
+            raise ValueError(f"'{parent.name}' is closed: reopen it to add accounts to it!")
         self._check_depth(parent, 1, all_accounts)
         if (
             self.is_opening_balances(
@@ -747,6 +813,13 @@ class AccountService:
             on_budget = data.on_budget
         elif commodity_id is not None and account.on_budget and self.catalog()[commodity_id].kind != "currency":
             on_budget = False  # no longer holds a currency
+
+        if account.closed_on is not None and "balance" in data.model_fields_set and data.balance is not None:
+            raise ValueError(f"'{account.name}' is closed: reopen it to change its balance!")
+        if data.parent_id and data.parent_id != account.parent_id:
+            new_home = next((a for a in all_accounts if a.aid == data.parent_id), None)
+            if new_home is not None and new_home.closed_on is not None:
+                raise ValueError(f"'{new_home.name}' is closed: reopen it to move accounts into it!")
 
         payment_category: UUID | None | type(...) = ...
         if "payment_category_id" in data.model_fields_set:

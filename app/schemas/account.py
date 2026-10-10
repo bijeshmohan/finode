@@ -47,6 +47,8 @@ class AccountRead(AccountBase):
     on_budget: bool = False
     # An account outside the budget: the expense category that payments into it are budgeted under.
     payment_category_id: UUID | None = None
+    # The day it was closed (no more postings; its history stays), or null while it is open.
+    closed_on: Date | None = None
     created: datetime
     updated: datetime
 

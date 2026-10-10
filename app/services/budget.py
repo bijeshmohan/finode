@@ -287,6 +287,14 @@ class BudgetService:
             parts = [own.get(account.aid, zero)] + [total(c) for c in children.get(account.aid, [])]
             return tuple(sum((p[i] for p in parts), ZERO) for i in range(4))  # type: ignore[return-value]
 
+        def visible(account: Account) -> bool:
+            """A closed category disappears from the budget once nothing is left in it for the month."""
+            return (
+                account.closed_on is None
+                or any(own.get(account.aid, zero))
+                or any(visible(c) for c in children.get(account.aid, []))
+            )
+
         def missing(account: Account) -> Decimal:
             return needs.get(account.aid, (ZERO, ZERO))[1] + sum((missing(c) for c in children.get(account.aid, [])), ZERO)
 
@@ -304,7 +312,7 @@ class BudgetService:
         lines: list[BudgetLine] = []
 
         def walk(account: Account, depth: int) -> None:
-            kids = children.get(account.aid, [])
+            kids = [k for k in children.get(account.aid, []) if visible(k)]
             if not kids:
                 lines.append(line(account, account.name, depth, own[account.aid]))
                 return
@@ -316,7 +324,8 @@ class BudgetService:
 
         if expenses_root is not None:
             for top in children.get(expenses_root.aid, []):
-                walk(top, 1)
+                if visible(top):
+                    walk(top, 1)
         return lines
 
     # ---- changing the plan -----------------------------------------------------------------------

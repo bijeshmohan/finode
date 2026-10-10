@@ -512,6 +512,15 @@ document.body.addEventListener("change", (event) => {
     });
   }
 
+  const closedButton = page.querySelector("[data-toggle-closed]");
+  if (closedButton) {
+    closedButton.addEventListener("click", () => {
+      const shown = page.classList.toggle("show-closed");
+      const n = closedButton.dataset.count;
+      closedButton.textContent = shown ? `Hide the ${n} closed` : `${n} closed account${n === "1" ? "" : "s"} · Show`;
+    });
+  }
+
   const input = page.querySelector("[data-account-search]");
   const nothing = page.querySelector("[data-no-match]");
   const wasOpen = new Map();
