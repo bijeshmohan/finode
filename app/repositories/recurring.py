@@ -83,6 +83,14 @@ class RecurringRepository:
         return list(db.exec(statement).all())
 
     @staticmethod
+    def account_ids_in_rules(db: Session, uid: UUID) -> set[UUID]:
+        ids: set[UUID] = set()
+        for rule in db.exec(select(RecurringTransaction).where(RecurringTransaction.user == uid)).all():
+            ids.update(a for a in (rule.from_account, rule.to_account) if a is not None)
+        ids.update(db.exec(select(RecurringPosting.account).where(RecurringPosting.user == uid)).all())
+        return ids
+
+    @staticmethod
     def uses_account(db: Session, aid: UUID) -> bool:
         """Whether any rule records into or out of the account (so it cannot be deleted)."""
         return (

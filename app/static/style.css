@@ -804,3 +804,27 @@ form.notice.fund button { margin: 0; }
   .txn-row .row-worth { grid-column: 1; }
 }
 [data-payment-category][hidden] { display: none; }
+
+/* ---------- Accounts page: groups that open, search, unused accounts tucked away ---------- */
+.net-worth { display: flex; flex-direction: column; gap: .15rem; margin-bottom: 1rem; }
+.net-worth .figure { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.net-worth .figure small { font-size: .9rem; font-weight: 500; color: var(--muted); }
+.accounts-tools { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+.accounts-tools input[type="search"] { flex: 1 1 12rem; min-width: 0; }
+.accounts-tools button { margin: 0; }
+details.account-group > summary.group-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: .6rem; }
+details.account-group > summary.group-head::-webkit-details-marker, details.acct-group > summary::-webkit-details-marker { display: none; }
+details.account-group > summary h2 { flex: 1; display: flex; align-items: center; gap: .25rem; }
+details.acct-group > summary { list-style: none; cursor: pointer; }
+.caret { display: inline-grid; place-items: center; width: 1.25rem; flex: none; color: var(--muted); transition: transform .12s; transform: rotate(-90deg); }
+.caret .icon { width: 1.1em; height: 1.1em; }
+details[open] > summary .caret, details[open] > summary.group-head .caret { transform: none; }
+.caret.spacer { height: 1px; }
+.open-link { display: inline-grid; place-items: center; min-width: var(--tap); min-height: var(--tap); margin: calc(var(--tap) / -2 + .6rem) -.6rem calc(var(--tap) / -2 + .6rem) 0; color: var(--muted); }
+.open-link .icon { width: 1.1em; height: 1.1em; }
+ul.list.nested { border-top: 1px solid var(--border); }
+.unused-hidden { display: none; }
+.show-unused .unused-hidden, .searching .unused-hidden { display: list-item; }
+[data-accounts] li[hidden] { display: none !important; }
+.unused-toggle { margin: 1rem 0 0; text-align: center; }
+.link-button { background: none; border: 0; color: var(--accent); padding: .5rem; font: inherit; cursor: pointer; }

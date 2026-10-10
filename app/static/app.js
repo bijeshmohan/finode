@@ -446,3 +446,115 @@ document.body.addEventListener("change", (event) => {
   const field = box.closest("form").querySelector("[data-payment-category]");
   if (field) field.hidden = box.checked;
 });
+
+// ---- Accounts page: groups open and close (and are remembered), search, unused accounts ----
+(function accountsPage() {
+  const page = document.querySelector("[data-accounts]");
+  if (!page) return;
+  const KEY = "finode.accounts.open";
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
+  } catch (error) {
+    saved = {};
+  }
+  const groups = [...page.querySelectorAll("details[data-key]")];
+  let searching = false;
+
+  function remember() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(saved));
+    } catch (error) {
+      // private mode: the page still works, it just forgets
+    }
+  }
+
+  groups.forEach((group) => {
+    if (group.dataset.key in saved) group.open = !!saved[group.dataset.key];
+  });
+  const toggleAll = page.querySelector("[data-toggle-all]");
+  function syncToggleAll() {
+    toggleAll.textContent = groups.every((group) => group.open) ? "Collapse all" : "Expand all";
+  }
+  syncToggleAll();
+  page.addEventListener(
+    "toggle",
+    (event) => {
+      const group = event.target;
+      if (searching || !group.dataset || !group.dataset.key) return;
+      saved[group.dataset.key] = group.open;
+      remember();
+      syncToggleAll();
+    },
+    true
+  );
+
+  // Tapping the arrow link inside a group row opens the account's page and must not also toggle the group.
+  page.addEventListener("click", (event) => {
+    if (event.target.closest(".open-link")) event.stopPropagation();
+  }, true);
+
+  function setAll(open) {
+    groups.forEach((group) => {
+      group.open = open;
+      saved[group.dataset.key] = open;
+    });
+    remember();
+  }
+  toggleAll.addEventListener("click", () => setAll(!groups.every((group) => group.open)));
+
+  const unusedButton = page.querySelector("[data-toggle-unused]");
+  if (unusedButton) {
+    unusedButton.addEventListener("click", () => {
+      const shown = page.classList.toggle("show-unused");
+      const n = unusedButton.dataset.count;
+      unusedButton.textContent = shown ? `Hide the ${n} unused` : `${n} unused account${n === "1" ? "" : "s"} hidden · Show`;
+    });
+  }
+
+  const input = page.querySelector("[data-account-search]");
+  const nothing = page.querySelector("[data-no-match]");
+  const wasOpen = new Map();
+  input.addEventListener("input", () => {
+    const query = input.value.trim().toLowerCase();
+    const items = [...page.querySelectorAll("li[data-path]")];
+    if (!query) {
+      if (searching) {
+        groups.forEach((group) => {
+          if (wasOpen.has(group)) group.open = wasOpen.get(group);
+        });
+        wasOpen.clear();
+      }
+      searching = false;
+      page.classList.remove("searching");
+      items.forEach((item) => (item.hidden = false));
+      groups.forEach((group) => {
+        if (group.parentElement === page) group.hidden = false;
+      });
+      nothing.hidden = true;
+      return;
+    }
+    if (!searching) groups.forEach((group) => wasOpen.set(group, group.open));
+    searching = true;
+    page.classList.add("searching");
+    // An account shows when its path matches (so a matching group brings its accounts) or when something inside does.
+    let any = false;
+    items.slice().reverse().forEach((item) => {
+      const inner = item.querySelectorAll("li[data-path]:not([hidden])").length > 0;
+      item.hidden = !(item.dataset.path.includes(query) || inner);
+      if (!item.hidden && !item.querySelector("li")) any = true;
+      if (!item.hidden && inner) {
+        const group = item.querySelector(":scope > details");
+        if (group) group.open = true;
+      }
+    });
+    groups.forEach((group) => {
+      if (group.parentElement !== page) return;
+      const named = group.querySelector("summary h2").textContent.toLowerCase().includes(query);
+      const found = !!group.querySelector("li:not([hidden])");
+      group.hidden = !found && !named;
+      if (found) group.open = true;
+    });
+    nothing.hidden = any;
+  });
+})();
