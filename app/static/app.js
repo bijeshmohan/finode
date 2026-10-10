@@ -451,7 +451,7 @@ document.body.addEventListener("change", (event) => {
 (function accountsPage() {
   const page = document.querySelector("[data-accounts]");
   if (!page) return;
-  const KEY = "finode.accounts.open";
+  const KEY = "finode.accounts.open.v2"; // v2: the defaults changed, so earlier choices are dropped
   let saved = {};
   try {
     saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {};

@@ -461,12 +461,15 @@ details.filters .count {
 .group-head h2 { margin: 0; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .group-total { font-size: .9rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
 
+/* Every account row is the same four columns (arrow, name, amount, link), so amounts line up on the right. */
+:root { --trail: 2.5rem; }
 .account-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto var(--trail);
   align-items: center;
-  gap: .75rem;
+  column-gap: .5rem;
   min-height: 52px;
-  padding: .55rem .75rem .55rem calc(1rem + var(--depth, 0) * 1.1rem);
+  padding: .55rem 0 .55rem calc(.75rem + var(--depth, 0) * 1.1rem);
   color: inherit;
   text-decoration: none;
 }
@@ -474,7 +477,8 @@ details.filters .count {
 .account-row .icon { color: var(--muted); width: 1.1em; height: 1.1em; }
 .account-name { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-row.system .account-name { color: var(--muted); font-weight: 400; }
-.account-balance { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.account-balance { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; text-align: right; justify-self: end; }
+.account-row > .icon { justify-self: center; }
 
 .add-first {
   display: flex;
@@ -812,7 +816,7 @@ form.notice.fund button { margin: 0; }
 .accounts-tools { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
 .accounts-tools input[type="search"] { flex: 1 1 12rem; min-width: 0; }
 .accounts-tools button { margin: 0; }
-details.account-group > summary.group-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: .6rem; }
+details.account-group > summary.group-head { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto var(--trail); align-items: center; column-gap: .5rem; padding-right: 1px; }
 details.account-group > summary.group-head::-webkit-details-marker, details.acct-group > summary::-webkit-details-marker { display: none; }
 details.account-group > summary h2 { flex: 1; display: flex; align-items: center; gap: .25rem; }
 details.acct-group > summary { list-style: none; cursor: pointer; }
@@ -820,7 +824,7 @@ details.acct-group > summary { list-style: none; cursor: pointer; }
 .caret .icon { width: 1.1em; height: 1.1em; }
 details[open] > summary .caret, details[open] > summary.group-head .caret { transform: none; }
 .caret.spacer { height: 1px; }
-.open-link { display: inline-grid; place-items: center; min-width: var(--tap); min-height: var(--tap); margin: calc(var(--tap) / -2 + .6rem) -.6rem calc(var(--tap) / -2 + .6rem) 0; color: var(--muted); }
+.open-link { display: grid; place-items: center; align-self: stretch; min-height: var(--tap); color: var(--muted); }
 .open-link .icon { width: 1.1em; height: 1.1em; }
 ul.list.nested { border-top: 1px solid var(--border); }
 .unused-hidden, .closed-hidden { display: none; }
