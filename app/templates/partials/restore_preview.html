@@ -1,0 +1,23 @@
+{% if summary.errors %}
+<div class="error" role="alert">
+  <strong>Nothing was restored.</strong>
+  <ul class="plain-list">
+    {% for message in summary.errors %}<li>{{ message }}</li>{% endfor %}
+  </ul>
+</div>
+{% else %}
+<div class="stack">
+  <p><strong>Ready to restore</strong></p>
+  <ul class="plain-list">
+    <li>{{ summary.accounts }} account{{ "" if summary.accounts == 1 else "s" }}, {{ summary.transactions }} transaction{{ "" if summary.transactions == 1 else "s" }}{% if summary.date_from %} from {{ summary.date_from.strftime("%-d %b %Y") }} to {{ summary.date_to.strftime("%-d %b %Y") }}{% endif %}</li>
+    {% if summary.recurring %}<li>{{ summary.recurring }} recurring transaction{{ "" if summary.recurring == 1 else "s" }}</li>{% endif %}
+    {% if summary.allocations or summary.targets %}<li>Budget: {{ summary.allocations }} assigned amount{{ "" if summary.allocations == 1 else "s" }}, {{ summary.targets }} target{{ "" if summary.targets == 1 else "s" }}</li>{% endif %}
+    {% if summary.prices %}<li>{{ summary.prices }} price{{ "" if summary.prices == 1 else "s" }}</li>{% endif %}
+    {% if summary.commodities %}<li>Your own assets: {{ summary.commodities|join(", ") }}</li>{% endif %}
+  </ul>
+  <div class="actions">
+    <button type="button" hx-post="/restore" hx-include="#restore-file" hx-encoding="multipart/form-data"
+            hx-target="#restore-preview" hx-swap="innerHTML">Restore everything</button>
+  </div>
+</div>
+{% endif %}

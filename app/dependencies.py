@@ -18,6 +18,7 @@ from .repositories import (
     RecurringRepository,
     TransactionRepository,
 )
+from .services.backup import BackupService
 from .services import (
     AccountService,
     BudgetService,
@@ -115,6 +116,17 @@ def get_data_service(
     return DataService(accounts, ar, tr, pr)
 
 
+def get_backup_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+    accounts: AccountService = Depends(get_account_service),
+    ar: AccountRepository = Depends(get_account_repository),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
+) -> BackupService:
+    return BackupService(accounts, ar, tr, pr, RecurringRepository(db, user.id), BudgetRepository(db, user.id))
+
+
 def get_transaction_service(
     request: Request,
     tr: TransactionRepository = Depends(get_transaction_repository),
@@ -175,6 +187,7 @@ Commodities = Annotated[CommodityService, Depends(get_commodity_service)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]
+Backup = Annotated[BackupService, Depends(get_backup_service)]
 Profiles = Annotated[ProfileService, Depends(get_profile_service)]
 Recurring = Annotated[RecurringService, Depends(get_recurring_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]
