@@ -67,6 +67,7 @@ class TransactionService:
         self,
         data: TransactionCreate | TransactionUpdate,
         current_currency: UUID | None = None,
+        keep_closed: set[UUID] = frozenset(),
     ) -> tuple[UUID | None, list[Decimal] | None]:
         """Check the postings and work out what each is worth in the transaction's currency.
 
@@ -88,6 +89,8 @@ class TransactionService:
                 raise ValueError(f"account with aid '{posting.account}' not found!")
             if account.parent_id is None:
                 raise InvalidPostingAccountError(f"cannot post to root account '{account.name}'!")
+            if account.closed_on is not None and account.aid not in keep_closed:
+                raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
             if self.ar.has_children(account.aid):
                 if accounts_by_id is None:
                     accounts_by_id = {a.aid: a for a in self.ar.list()}
@@ -257,7 +260,9 @@ class TransactionService:
         existing = self.tr.read(tid)
         if not existing:
             raise ValueError(f"transaction with tid '{tid}' not found!")
-        currency_id, values = self._resolve(data, existing.currency_id)
+        # Postings an entry already has on an account that was closed since stay allowed, so it can still be edited.
+        kept = {p.account for p in self.tr.postings(tid)}
+        currency_id, values = self._resolve(data, existing.currency_id, kept)
         transaction = self.tr.update(tid, data, currency_id, values, self.origin)
         if not transaction:
             raise RuntimeError(f"failed to update transaction with tid '{tid}'!")

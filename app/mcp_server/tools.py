@@ -169,6 +169,7 @@ def get_overview() -> dict[str, Any]:
 @_tool_errors
 def list_accounts(
     type: Annotated[AccountType | None, Field(description="Only accounts under this top-level account")] = None,
+    include_closed: Annotated[bool, Field(description="Also list accounts the user has closed (they cannot be posted to)")] = False,
 ) -> dict[str, Any]:
     """Every account with its path, what it holds and its balance. Top-level accounts show their
     total in the default currency; others show their balance in what they hold."""
@@ -181,12 +182,13 @@ def list_accounts(
                     "path": e.path,
                     "holds": e.account.commodity,
                     "balance": text(e.account.balance),
-                    "can_post": e.postable,
+                    "can_post": e.postable and e.account.closed_on is None,
+                    **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
                     **({"unpriced": True} if e.account.unpriced else {}),
                     **({"details": e.account.details} if e.account.details and not e.is_root else {}),
                 }
                 for e in index.sorted()
-                if type is None or e.root == type
+                if (type is None or e.root == type) and (include_closed or e.account.closed_on is None)
             ],
         }
 

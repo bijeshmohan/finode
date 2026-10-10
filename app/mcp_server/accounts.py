@@ -87,6 +87,8 @@ class AccountIndex:
         candidates = list(self.entries.values())
         exact = [e for e in candidates if folded(e) == wanted]
         matches = exact or [e for e in candidates if folded(e)[-len(wanted):] == wanted]
+        if len(matches) > 1:
+            matches = [e for e in matches if e.account.closed_on is None] or matches  # a closed twin is not the one meant
         if postable and len(matches) > 1:
             # "Food" under Expenses and a group "Food" under Assets: prefer what can take postings.
             matches = [e for e in matches if e.postable] or matches
@@ -106,6 +108,8 @@ class AccountIndex:
     def _check(entry: Entry, postable: bool, allow_root: bool) -> Entry:
         if entry.is_root and not allow_root:
             raise ValueError(f"'{entry.path}' is a top-level account: use one of its sub-accounts!")
+        if postable and entry.account.closed_on is not None:
+            raise ValueError(f"'{entry.path}' is closed: the user can reopen it in finode to use it!")
         if postable and not entry.postable:
             raise ValueError(
                 f"'{entry.path}' has sub-accounts, so post to one of them instead "

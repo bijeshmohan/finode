@@ -10,6 +10,8 @@ FLASH_COOKIE = "finode_flash"
 
 MESSAGES = {
     "budget-moved": "Money moved",
+    "account-closed": "Account closed",
+    "account-reopened": "Account reopened",
     "budget-target": "Target saved",
     "budget-target-cleared": "Target removed",
     "recurring-saved": "Recurring transaction saved. Anything already due has been recorded.",

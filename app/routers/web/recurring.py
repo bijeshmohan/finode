@@ -104,6 +104,7 @@ def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | N
         total=total,
         from_rows=from_rows,
         to_rows=to_rows,
+        keep={p.account for p in recorded.postings} if rule is not None else (),
         frequencies=FREQUENCIES,
         today=date.today().isoformat(),
         **extra,

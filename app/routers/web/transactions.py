@@ -174,10 +174,12 @@ def form_context(accounts: Accounts, **extra) -> dict:
     all_accounts = accounts.list()
     default = accounts.default_currency().code
     wanted = extra.get("transaction").currency if extra.get("transaction") else None
+    # Accounts an entry being edited already uses stay offered even if they were closed since.
+    keep = set(extra.pop("keep", ())) | {p.account for p in getattr(extra.get("transaction"), "postings", ())}
     return {
         "active": "transactions",
         "hide_fab": True,
-        "groups": posting_groups(build_tree(all_accounts)),
+        "groups": posting_groups(build_tree(all_accounts), keep),
         "currency": default,
         # The extra currency and worth fields only appear once something other than the default currency is in play.
         "multi": any(a.parent_id is not None and a.commodity != default for a in all_accounts)
