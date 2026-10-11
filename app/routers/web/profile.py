@@ -1,4 +1,5 @@
 from typing import Annotated
+from urllib.parse import quote
 
 from uuid import UUID
 
@@ -11,12 +12,21 @@ from ...dependencies import ApiTokens, Backup, Erase, Data, OAuthGrants, Profile
 from ...schemas.api_token import ApiTokenCreate
 from ...schemas.profile import ProfileUpdate
 from ...signup import delete_user
+from ...version import VERSION
 from ...templating import templates
 from ...web_auth import AuthUnavailableError, clear_auth_cookies
 from .utils import htmx_error, htmx_redirect, validation_message
 
 
 router = APIRouter(prefix="/profile")
+
+
+def _feedback_url() -> str | None:
+    """A mailto link that starts a feedback email to whoever runs finode (no personal data in it)."""
+    if not settings.feedback_email:
+        return None
+    body = f"What happened, or what would help?\n\n\n\n--\nfinode {VERSION}"
+    return f"mailto:{settings.feedback_email}?subject={quote('finode feedback')}&body={quote(body)}"
 
 
 @router.get("")
@@ -37,6 +47,8 @@ def profile_page(
             "email": user.email,
             "display_name": " ".join(names),
             "initials": initials,
+            "test_notice": settings.test_notice,
+            "feedback_url": _feedback_url(),
         },
     )
 

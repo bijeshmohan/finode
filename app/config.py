@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     login_attempts: int = Field(default=10, ge=0)
     signup_attempts: int = Field(default=5, ge=0)
     attempt_window_minutes: int = Field(default=15, ge=1)
+    # A test with invited people: shows the notice at sign-up (to be accepted) and under Profile.
+    test_notice: bool = False
+    # Where "Send feedback" (Profile) writes to; the link is hidden when empty.
+    feedback_email: str | None = None
     # Most people (profiles, you included) who may have an account; sign-up closes when it is reached. 0 = no limit.
     max_users: int = Field(default=10, ge=0)
     supabase_service_role_key: str | None = None

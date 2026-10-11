@@ -848,3 +848,5 @@ form.copy-last button { margin: 0; }
 .switch { margin: 1rem 0 0; text-align: center; font-size: .9rem; }
 .danger-card details.more { margin-top: .5rem; }
 .danger-card details.more form { padding-top: .5rem; }
+
+.test-notice { font-size: .9rem; }
