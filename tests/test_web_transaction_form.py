@@ -462,15 +462,26 @@ def _kind(page: str) -> str:
 
 
 def _pressed(page: str) -> list[str]:
-    return [label for label in ("Expense", "Income", "Transfer", "Other") if f'aria-pressed="true">{label}<' in page]
+    return [label for label in ("Income", "Transfer", "Expense") if f'aria-pressed="true">{label}<' in page]
 
 
-def test_a_new_entry_starts_as_an_expense_with_four_buttons(client: TestClient, account: dict, expense_account: dict):
+def test_a_new_entry_starts_as_an_expense_with_three_buttons_in_order(client: TestClient, account: dict, expense_account: dict):
     page = client.get("/transactions/new").text
     assert _kind(page) == "expense" and _pressed(page) == ["Expense"]
-    for label in ("Expense", "Income", "Transfer", "Other"):
-        assert f">{label}</button>" in page
-    assert 'data-side-hint' in page
+    order = [page.index(f">{label}</button>") for label in ("Income", "Transfer", "Expense")]
+    assert order == sorted(order), "Income, Transfer, Expense"
+    assert ">Other</button>" not in page, "no button for it: selecting nothing offers every account"
+    assert "data-side-hint" in page
+
+
+def test_an_entry_that_fits_no_kind_has_nothing_selected(client: TestClient, root_accounts, account: dict, expense_account: dict):
+    capital = client.post("/api/accounts/", json={"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
+    tid = client.post("/api/transactions/", json={"postings": [
+        {"account": account["aid"], "side": "debit", "amount": "5"},
+        {"account": capital["aid"], "side": "credit", "amount": "5"},
+    ]}).json()["tid"]
+    page = client.get(f"/transactions/{tid}/edit").text
+    assert _kind(page) == "other" and _pressed(page) == []
 
 
 def test_opening_a_form_from_an_account_picks_the_kind(client: TestClient, root_accounts, account: dict, expense_account: dict):
