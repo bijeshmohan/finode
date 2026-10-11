@@ -840,3 +840,5 @@ form.copy-last button { margin: 0; }
 
 .segmented.kinds { flex-wrap: nowrap; }
 .segmented.kinds button { flex: 1 1 0; min-width: 0; padding-left: .25rem; padding-right: .25rem; }
+.muted.calc { font-size: .82rem; margin: .25rem 0 .75rem; font-variant-numeric: tabular-nums; }
+.cards-list { margin-bottom: .25rem; }

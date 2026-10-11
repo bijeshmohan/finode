@@ -42,3 +42,21 @@ def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, 
     page.get_by_role("button", name="Assign what is needed").click()
     expect(page.locator(".target-note.met")).to_contain_text("funded")
     expect(page.locator(".ready .figure")).to_have_text("4,200.00 INR")
+
+
+def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Page, books, api: Api):
+    api.post("/transactions/", postings=[
+        {"account": books["food"]["aid"], "side": "debit", "amount": "120"},
+        {"account": books["card"]["aid"], "side": "credit", "amount": "120"},
+    ])
+    page.goto("/budget")
+    expect(page.get_by_text("Credit card payments")).to_be_visible()
+    expect(page.locator(".cards-list")).to_contain_text("Visa")
+    expect(page.locator(".cards-list")).to_contain_text("120.00")
+    expect(page.locator(".calc").first).to_contain_text("set aside for card bills 120.00")
+    # Assigning money to a category changes ready to assign, and the explanation follows it.
+    box = page.locator('input[aria-label="Assigned to Rent"]')
+    box.fill("500")
+    box.press("Tab")
+    expect(page.locator(".ready .figure")).to_have_text("4,500.00 INR")
+    expect(page.locator(".calc").first).to_contain_text("in categories 380.00")

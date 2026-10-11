@@ -695,6 +695,18 @@ def _budget(data) -> dict[str, Any]:
         "available_total": text(data.available),
         "underfunded": text(data.underfunded),
         **({"assigned_to_later_months": text(data.assigned_to_later_months)} if data.assigned_to_later_months else {}),
+        **(
+            {
+                "money_in_accounts": text(data.money_in_accounts),
+                "reserved_for_card_bills": text(data.reserved_for_cards),
+                "credit_cards": [
+                    {"card": c.path, "to_pay": text(c.owed), "charged_this_month": text(c.charged), "paid_this_month": text(c.paid)}
+                    for c in data.cards
+                ],
+            }
+            if data.cards
+            else {}
+        ),
         "overspent_last_month": text(data.overspent_last_month),
         "budget_accounts": data.budget_accounts,
         "categories": [

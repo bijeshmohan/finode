@@ -27,6 +27,9 @@
     </ul>
   </div>
   {% endif %}
+  {% if budget.cards %}
+  <p class="muted calc">Money in your accounts {{ budget.money_in_accounts|money }} − set aside for card bills {{ budget.reserved_for_cards|money }} − in categories {{ budget.available|money }}{% if budget.assigned_to_later_months %} − assigned to later months {{ budget.assigned_to_later_months|money }}{% endif %} = ready to assign.</p>
+  {% endif %}
   {% if budget.overspent_last_month %}
   <p class="notice">{{ budget.overspent_last_month|money }} {{ budget.currency }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
   {% endif %}
@@ -56,6 +59,23 @@
   {% endif %}
   {% if budget.unpriced %}
   <p class="muted">Some spending is left out because no price converts it to {{ budget.currency }}.</p>
+  {% endif %}
+
+  {% if budget.cards %}
+  <h2 class="list-title">Credit card payments</h2>
+  <div class="budget-list cards-list">
+    {% for card in budget.cards %}
+    <div class="budget-row">
+      <div class="name">{{ card.path.split(":")[-1] }}
+        <small>{% if card.charged or card.paid %}Charged {{ card.charged|money }} · paid {{ card.paid|money }} this month{% else %}Nothing charged or paid this month{% endif %}</small>
+      </div>
+      <div class="cell"><span class="cap">Assigned</span><span class="figure muted">—</span></div>
+      <div class="cell"><span class="cap">To pay</span><span class="figure avail {{ 'positive' if card.owed }}" title="Set aside for the next bill">{{ card.owed|money }}</span></div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="muted calc" style="margin-bottom:1rem">What you owe on a card is set aside automatically. Buying on a card spends the category; paying the bill from your bank changes nothing else.</p>
+  <h2 class="list-title">Categories</h2>
   {% endif %}
 
   {% if budget.lines %}

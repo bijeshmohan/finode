@@ -7,7 +7,7 @@ from ..models.account import Account
 from ..models.budget import BudgetTarget
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, TransactionRepository
-from ..schemas.budget import TARGET_KINDS, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead
+from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead
 from ..schemas.account import AccountUpdate
 from .account import AccountService
 from .transaction import decimal_places
@@ -176,6 +176,12 @@ class BudgetService:
         # accounts that cash is counted from, and must not show up as overspending.
         start = min((row.month for row in allocations), default=month)
 
+        liabilities = {
+            aid for aid in in_budget if AccountService.root_name(by_id[aid], by_id) == "Liabilities"
+        }
+        # Per card: [balance (debits - credits) to the month's end, charged this month, paid this month].
+        card_books: dict[UUID, list[Decimal]] = {aid: [ZERO, ZERO, ZERO] for aid in liabilities}
+
         cash = ZERO
         # What happened to each category in each month: [assigned, spent].
         by_category: dict[UUID, dict[date, list[Decimal]]] = {}
@@ -183,6 +189,11 @@ class BudgetService:
         for p in postings:
             if p.account in in_budget:
                 cash += p.amount if p.side == PostingSide.DEBIT else -p.amount
+                if p.account in liabilities:
+                    book_ = card_books[p.account]
+                    book_[0] += p.amount if p.side == PostingSide.DEBIT else -p.amount
+                    if month_start(transactions[p.transaction].date) == month:
+                        book_[2 if p.side == PostingSide.DEBIT else 1] += p.amount
             # Spending is what is posted to a category, and what is paid into an account that has one.
             target = p.account if p.account in categories else (payments.get(p.account) if p.side == PostingSide.DEBIT else None)
             if target is not None and p.transaction in touching:
@@ -225,6 +236,18 @@ class BudgetService:
         )
         left_out_total = sum((v[0] for v in outside.values() if v[1]), ZERO)
 
+        cards = sorted(
+            (
+                BudgetCard(
+                    aid=aid, path=":".join(self._path_with_root(by_id[aid], by_id)),
+                    owed=max(ZERO, -balance), charged=charged, paid=paid,
+                )
+                for aid, (balance, charged, paid) in card_books.items()
+            ),
+            key=lambda c: c.path,
+        )
+        reserved = sum((c.owed for c in cards), ZERO)
+
         targets = self.br.targets()
         needs: dict[UUID, tuple[Decimal, Decimal]] = {}
         for aid, target in targets.items():
@@ -246,6 +269,9 @@ class BudgetService:
             available=total_available,
             overspent_last_month=total_overspent,
             underfunded=total_underfunded,
+            money_in_accounts=cash + reserved,
+            reserved_for_cards=reserved,
+            cards=cards,
             left_out=left_out_total,
             left_out_accounts=left_out_accounts,
             unpriced=unpriced,
