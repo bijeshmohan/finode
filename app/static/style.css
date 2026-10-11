@@ -846,3 +846,5 @@ form.copy-last button { margin: 0; }
 /* ---------- Sign-in and sign-up ---------- */
 .login-notice { color: var(--positive); background: var(--accent-soft); border-radius: var(--radius-sm); padding: .6rem .75rem; margin: .5rem 0; }
 .switch { margin: 1rem 0 0; text-align: center; font-size: .9rem; }
+.danger-card details.more { margin-top: .5rem; }
+.danger-card details.more form { padding-top: .5rem; }

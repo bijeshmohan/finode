@@ -19,6 +19,7 @@ from .repositories import (
     TransactionRepository,
 )
 from .services.backup import BackupService
+from .services.erase import EraseService
 from .services import (
     AccountService,
     BudgetService,
@@ -116,6 +117,13 @@ def get_data_service(
     return DataService(accounts, ar, tr, pr)
 
 
+def get_erase_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> EraseService:
+    return EraseService(db, user.id)
+
+
 def get_backup_service(
     db: Session = Depends(get_db_session),
     user: CurrentUser = Depends(require_authenticated_user),
@@ -188,6 +196,7 @@ Accounts = Annotated[AccountService, Depends(get_account_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]
 Backup = Annotated[BackupService, Depends(get_backup_service)]
+Erase = Annotated[EraseService, Depends(get_erase_service)]
 Profiles = Annotated[ProfileService, Depends(get_profile_service)]
 Recurring = Annotated[RecurringService, Depends(get_recurring_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]

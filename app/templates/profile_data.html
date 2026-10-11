@@ -45,4 +45,36 @@
   <p class="muted">Importing is only available before you record transactions. Export your data first if you want to start over.</p>
   {% endif %}
 </section>
+<section id="erase" class="card stack form-narrow danger-card">
+  <h2>Erase or leave</h2>
+  <p class="muted">These can't be undone. Download a full backup first (above): it is the only way back.</p>
+
+  <details class="more">
+    <summary>Erase my books</summary>
+    <form class="stack" hx-post="/profile/data/erase" hx-confirm="Erase all your accounts, transactions and budget? This cannot be undone.">
+      <p class="muted">Deletes your accounts, transactions, budget, recurring transactions, own assets and prices, and the change history. You keep your login, your name and settings, and your assistants' access, so you can start again from an empty ledger.</p>
+      <label>Type <strong>{{ confirm_word }}</strong> to confirm
+        <input type="text" name="confirm" autocomplete="off" autocapitalize="off" required>
+      </label>
+      <p id="erase-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit" class="danger">Erase my books</button></div>
+    </form>
+  </details>
+
+  <details class="more">
+    <summary>Delete my account</summary>
+    {% if can_delete_login %}
+    <form class="stack" hx-post="/profile/data/delete-account" hx-confirm="Delete your account and everything in it? This cannot be undone.">
+      <p class="muted">Erases everything above and also removes your login, your settings and every assistant token and connected app. You are signed out for good, and you would have to sign up again to come back.</p>
+      <label>Type <strong>{{ confirm_word }}</strong> to confirm
+        <input type="text" name="confirm" autocomplete="off" autocapitalize="off" required>
+      </label>
+      <p id="delete-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit" class="danger">Delete my account</button></div>
+    </form>
+    {% else %}
+    <p class="muted">Deleting your login isn't set up here. Erase your books above and ask the person who runs finode to remove your login.</p>
+    {% endif %}
+  </details>
+</section>
 {% endblock %}

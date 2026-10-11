@@ -6,10 +6,13 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from pydantic import ValidationError
 
 from ...auth import CurrentUser, require_authenticated_user
-from ...dependencies import ApiTokens, Backup, Data, OAuthGrants, Profiles
+from ...config import settings
+from ...dependencies import ApiTokens, Backup, Erase, Data, OAuthGrants, Profiles
 from ...schemas.api_token import ApiTokenCreate
 from ...schemas.profile import ProfileUpdate
+from ...signup import delete_user
 from ...templating import templates
+from ...web_auth import AuthUnavailableError, clear_auth_cookies
 from .utils import htmx_error, htmx_redirect, validation_message
 
 
@@ -39,12 +42,57 @@ def profile_page(
 
 
 @router.get("/data")
-def data_page(request: Request, data: Data, backup: Backup):
+def data_page(
+    request: Request,
+    data: Data,
+    backup: Backup,
+    user: Annotated[CurrentUser, Depends(require_authenticated_user)],
+):
     return templates.TemplateResponse(
         request,
         "profile_data.html",
-        {"active": "profile", "can_import": data.can_import(), "can_restore": backup.can_restore()},
+        {
+            "active": "profile",
+            "can_import": data.can_import(),
+            "can_restore": backup.can_restore(),
+            "confirm_word": user.email or "DELETE",
+            "can_delete_login": settings.can_delete_logins,
+        },
     )
+
+
+def _confirmed(user: CurrentUser, typed: str) -> bool:
+    """The person types their email (or DELETE when the account has none) so a stray tap can't erase anything."""
+    expected = (user.email or "DELETE").strip().lower()
+    return typed.strip().lower() == expected
+
+
+@router.post("/data/erase")
+def erase_books(user: Annotated[CurrentUser, Depends(require_authenticated_user)], erase: Erase, confirm: Annotated[str, Form()] = ""):
+    if not _confirmed(user, confirm):
+        return htmx_error(f"Type {user.email or 'DELETE'} to confirm.", "#erase-error")
+    erase.erase_books()
+    return htmx_redirect("/", flash="books-erased")
+
+
+@router.post("/data/delete-account")
+def delete_account(user: Annotated[CurrentUser, Depends(require_authenticated_user)], erase: Erase, confirm: Annotated[str, Form()] = ""):
+    if not _confirmed(user, confirm):
+        return htmx_error(f"Type {user.email or 'DELETE'} to confirm.", "#delete-error")
+    if not settings.can_delete_logins:
+        return htmx_error("Deleting your login is not set up here: ask the person who runs finode.", "#delete-error")
+    erase.erase_everything()
+    try:
+        delete_user(user.id)
+    except AuthUnavailableError:
+        # The books are gone; the sign-in is not. Say so, and let them (or the admin) finish it.
+        return htmx_error(
+            "Your data was erased, but removing your login failed. Try again, or ask the person who runs finode.",
+            "#delete-error",
+        )
+    response = htmx_redirect("/login", flash="your-account-deleted")
+    clear_auth_cookies(response)
+    return response
 
 
 @router.post("")

@@ -75,6 +75,10 @@ REFERENCES = {
 }
 
 
+# Actions on the caller's own data (their whole account): they take no id, so B's use of them must leave A alone.
+OWN_DATA = {("POST", "/profile/data/erase"), ("POST", "/profile/data/delete-account")}
+
+
 def routes() -> set[tuple[str, str]]:
     found: set[tuple[str, str]] = set()
 
@@ -96,12 +100,13 @@ def test_every_route_is_covered():
     unclassified = sorted(
         (m, p) for m, p in routes()
         if "{" not in p and (m, p) not in PUBLIC and (m, p) not in LISTS and (m, p) not in REFERENCES
+        and (m, p) not in OWN_DATA
     )
     assert not unclassified, (
         f"classify these routes in tests/test_isolation.py (PUBLIC, LISTS or REFERENCES) and make sure the audit "
         f"exercises them: {unclassified}"
     )
-    stale = sorted(x for x in PUBLIC | LISTS | REFERENCES if x not in routes())
+    stale = sorted(x for x in PUBLIC | LISTS | REFERENCES | OWN_DATA if x not in routes())
     assert not stale, f"these audited routes no longer exist: {stale}"
 
 
@@ -109,7 +114,8 @@ def test_every_route_is_covered():
 
 
 def as_user(user_id: UUID):
-    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(id=user_id, email="x@example.com", claims={})
+    email = "test@example.com" if user_id == TEST_USER_ID else "x@example.com"  # as in tests/conftest.py
+    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(id=user_id, email=email, claims={})
 
 
 @contextmanager
@@ -348,6 +354,22 @@ def test_a_backup_is_only_ever_the_callers_own(client: TestClient, world: World)
     assert books_of(client, TEST_USER_ID) == before_a and books_of(client, B_USER) == before_b
     ids_a = {a["id"] for a in world.backup["accounts"]}
     assert not ids_a & {a["id"] for a in theirs["accounts"]}, "restoring makes new rows, never shares A's"
+
+
+def test_b_erasing_their_own_books_leaves_a_alone(client: TestClient, world: World, monkeypatch):
+    from app.config import settings
+    from app.routers.web import profile as profile_router
+
+    before_a = books_of(client, TEST_USER_ID)
+    monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
+    deleted = []
+    monkeypatch.setattr(profile_router, "delete_user", lambda user_id: deleted.append(user_id))
+    with signed_in_as(B_USER):
+        assert client.post("/profile/data/erase", data={"confirm": "x@example.com"}).headers["HX-Redirect"] == "/"
+        assert client.post("/profile/data/delete-account", data={"confirm": "x@example.com"}).headers["HX-Redirect"] == "/login"
+    assert deleted == [B_USER], "only B's login"
+    assert books_of(client, TEST_USER_ID) == before_a, "A's books are exactly as they were"
 
 
 # ---- the assistants' door -------------------------------------------------------------------------------------

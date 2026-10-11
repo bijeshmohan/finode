@@ -35,6 +35,11 @@ class Settings(BaseSettings):
         return v
 
     @property
+    def can_delete_logins(self) -> bool:
+        """Removing a person's sign-in needs Supabase's admin API (the service key)."""
+        return bool(self.supabase_service_role_key and self.supabase_url)
+
+    @property
     def signup_enabled(self) -> bool:
         """Sign-up is closed unless an invite code and the admin key are configured."""
         return bool(self.signup_code and self.supabase_service_role_key and self.supabase_url)

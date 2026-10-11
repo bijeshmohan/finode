@@ -62,6 +62,8 @@ page shows no link. To let invited people create accounts:
 
 `FINODE_MAX_USERS` (default 10, you included; 0 = no limit) closes sign-up once that many people have an account.
 
+With the service key set, people can also delete their own account (Profile › Your data › Delete my account): their data is erased and their Supabase login removed. Without it only "Erase my books" is offered.
+
 To close sign-up again, remove `FINODE_SIGNUP_CODE` and restart. There is no
 per-IP limit on code guesses, which is why the code must be long and random.
 Email verification and password reset are not implemented yet.
