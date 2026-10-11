@@ -19,6 +19,13 @@
     <label>Invite code
       <input type="password" name="invite_code" autocomplete="off" required>
     </label>
+    {% if test_notice %}
+    {% include "partials/test_notice.html" %}
+    <label class="check">
+      <input type="checkbox" name="accept" value="1" required {{ "checked" if accepted }}>
+      <span>I understand this is a test and have read the notice above.</span>
+    </label>
+    {% endif %}
     <button type="submit">Create account</button>
   </form>
   <p class="muted switch">Already have an account? <a href="/login">Sign in</a></p>

@@ -31,6 +31,17 @@
   <a class="setting setting-link" id="assistants" href="/profile/assistants">
     <span class="setting-title">AI assistants</span><span class="setting-value">MCP tokens</span>{{ icon("chevron-right") }}
   </a>
+  {% if test_notice %}
+  <details id="about" class="setting">
+    <summary><span class="setting-title">About this test</span><span class="setting-value">Please read</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">{% include "partials/test_notice.html" %}</div>
+  </details>
+  {% endif %}
+  {% if feedback_url %}
+  <a class="setting setting-link" id="feedback" href="{{ feedback_url }}">
+    <span class="setting-title">Send feedback</span><span class="setting-value">Something wrong, or an idea</span>{{ icon("chevron-right") }}
+  </a>
+  {% endif %}
   <a class="setting setting-link" id="data" href="/profile/data">
     <span class="setting-title">Your data</span><span class="setting-value">Export &amp; import</span>{{ icon("chevron-right") }}
   </a>

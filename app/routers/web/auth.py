@@ -97,9 +97,14 @@ def _require_signup_enabled() -> None:
         raise HTTPException(status_code=404, detail="Not Found")
 
 
-def _signup_form(request: Request, error: str | None = None, email: str = "", status_code: int = 200):
+def _signup_form(
+    request: Request, error: str | None = None, email: str = "", status_code: int = 200, accepted: bool = False
+):
     return templates.TemplateResponse(
-        request, "signup.html", {"error": error, "email": email}, status_code=status_code
+        request,
+        "signup.html",
+        {"error": error, "email": email, "test_notice": settings.test_notice, "accepted": accepted},
+        status_code=status_code,
     )
 
 
@@ -123,6 +128,7 @@ def signup(
     password: Annotated[str, Form()] = "",
     confirm_password: Annotated[str, Form()] = "",
     invite_code: Annotated[str, Form()] = "",
+    accept: Annotated[str, Form()] = "",
 ):
     _require_signup_enabled()
     email = email.strip()
@@ -139,6 +145,8 @@ def signup(
     # The invite code is checked first so nothing reaches Supabase without it.
     if not invite_code_is_valid(invite_code):
         return _signup_form(request, "Invalid invite code.", email, 403)
+    if settings.test_notice and not accept:
+        return _signup_form(request, "Please read the notice and tick the box to continue.", email, 400)
     if _is_full(db):
         return _signup_form(request, "Registration is full for now: ask the person who invited you.", email, 403)
     if not email or "@" not in email:
