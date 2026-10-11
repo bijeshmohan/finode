@@ -22,8 +22,18 @@ def test_the_kind_buttons_narrow_the_pickers(page: Page, books):
     assert (groups(page, "credit"), groups(page, "debit")) == (["Income"], ["Assets", "Liabilities"])
     page.get_by_role("button", name="Transfer", exact=True).click()
     assert groups(page, "credit") == groups(page, "debit") == ["Assets", "Liabilities"]
-    page.get_by_role("button", name="Other", exact=True).click()
-    assert len(groups(page, "credit")) == 5
+    page.get_by_role("button", name="Transfer", exact=True).click()  # tapping the selected kind again selects nothing
+    expect(page.locator("[data-kind][aria-pressed=true]")).to_have_count(0)
+    assert len(groups(page, "credit")) == 5 and len(groups(page, "debit")) == 5, "no kind offers every account"
+    page.get_by_role("button", name="Expense", exact=True).click()
+    assert (groups(page, "credit"), groups(page, "debit")) == (["Assets", "Liabilities"], ["Expenses"])
+
+
+def test_the_order_and_the_default(page: Page, books):
+    page.goto("/transactions/new")
+    labels = page.eval_on_selector_all("[data-kind]", "b => b.map(x => x.textContent)")
+    assert labels == ["Income", "Transfer", "Expense"]
+    expect(page.locator('[data-kind="expense"]')).to_have_attribute("aria-pressed", "true")
 
 
 def test_a_choice_survives_a_kind_that_still_offers_it(page: Page, books):
@@ -85,7 +95,7 @@ def test_swapping_from_and_to_offers_every_account(page: Page, books):
     page.click("[data-swap-sides]")
     assert page.input_value('[data-rows="credit"] select') == books["food"]["aid"]
     assert page.input_value('[data-rows="debit"] select') == books["checking"]["aid"]
-    expect(page.locator('[data-kind="other"]')).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("[data-kind][aria-pressed=true]")).to_have_count(0)  # nothing selected: every account
 
 
 def test_adding_an_account_from_the_picker(page: Page, books, api: Api):

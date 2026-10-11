@@ -543,7 +543,11 @@ document.body.addEventListener("click", (event) => {
     return;
   }
   const kindButton = event.target.closest("[data-kind]");
-  if (kindButton) applyKind(form, kindButton.dataset.kind);
+  if (kindButton) {
+    // Tapping the selected kind again selects nothing: every account is offered ("other").
+    const selected = kindButton.getAttribute("aria-pressed") === "true";
+    applyKind(form, selected ? "other" : kindButton.dataset.kind);
+  }
 });
 
 // Account form: a payment category only applies to an account outside the budget.

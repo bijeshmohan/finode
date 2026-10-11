@@ -1,7 +1,7 @@
 {#- The total, then rows on each side, until both add up (see recomputeTxn in app.js). Shared by the transaction and recurring forms. -#}
-  <div class="segmented kinds" role="group" aria-label="What kind of entry">
+  <div class="segmented kinds" role="group" aria-label="What kind of entry (tap the selected one again to offer every account)">
     <input type="hidden" name="kind" value="{{ kind }}" data-kind-input>
-    {% for value, label in (("expense", "Expense"), ("income", "Income"), ("transfer", "Transfer"), ("other", "Other")) %}
+    {% for value, label in (("income", "Income"), ("transfer", "Transfer"), ("expense", "Expense")) %}
     <button type="button" class="secondary" data-kind="{{ value }}" aria-pressed="{{ 'true' if kind == value else 'false' }}">{{ label }}</button>
     {% endfor %}
   </div>
