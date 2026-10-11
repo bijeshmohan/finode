@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     mcp_rate_limit: int = Field(default=120, ge=1)
     # How often (in minutes) due recurring transactions are recorded in the background; 0 turns it off.
     recurring_interval_minutes: int = Field(default=15, ge=0)
+    # Most people (profiles, you included) who may have an account; sign-up closes when it is reached. 0 = no limit.
+    max_users: int = Field(default=10, ge=0)
     supabase_service_role_key: str | None = None
     signup_code: str | None = None
 

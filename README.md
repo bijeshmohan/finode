@@ -40,7 +40,7 @@ and dark themes follow the system setting.
 
 ### Invite-only sign-up
 
-Registration is closed by default: `/app/signup` returns 404 and the login
+Registration is closed by default: `/signup` returns 404 and the login
 page shows no link. To let invited people create accounts:
 
 1. In Supabase, open Authentication → Sign In / Providers and turn **off**
@@ -56,9 +56,11 @@ page shows no link. To let invited people create accounts:
      only sent to Supabase's admin endpoint, never to browsers, and it must
      never be committed.
 3. Restart (`docker compose up -d --build`) and share the code with the people
-   you invite. They enter it on `/app/signup` along with an email and password
+   you invite. They enter it on `/signup` along with an email and password
    (min. 8 characters); accounts are created pre-confirmed (no email
    verification) and the user is signed in immediately.
+
+`FINODE_MAX_USERS` (default 10, you included; 0 = no limit) closes sign-up once that many people have an account.
 
 To close sign-up again, remove `FINODE_SIGNUP_CODE` and restart. There is no
 per-IP limit on code guesses, which is why the code must be long and random.

@@ -64,29 +64,29 @@ def supabase(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_signup_is_hidden_when_not_configured(raw_client: TestClient):
-    assert raw_client.get("/app/signup").status_code == 404
-    assert raw_client.post("/app/signup", data=FORM).status_code == 404
-    assert "/app/signup" not in raw_client.get("/app/login").text
+    assert raw_client.get("/signup").status_code == 404
+    assert raw_client.post("/signup", data=FORM).status_code == 404
+    assert "/signup" not in raw_client.get("/login").text
 
 
 def test_signup_is_hidden_without_the_admin_key(raw_client: TestClient, monkeypatch):
     monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
     monkeypatch.setattr(settings, "signup_code", CODE)
     monkeypatch.setattr(settings, "supabase_service_role_key", None)
-    assert raw_client.get("/app/signup").status_code == 404
+    assert raw_client.get("/signup").status_code == 404
 
 
 def test_signup_page_and_login_link_when_enabled(raw_client: TestClient, signup_on):
-    page = raw_client.get("/app/signup")
+    page = raw_client.get("/signup")
     assert page.status_code == 200
     assert 'name="invite_code"' in page.text
-    assert 'href="/app/signup"' in raw_client.get("/app/login").text
+    assert 'href="/signup"' in raw_client.get("/login").text
 
 
 def test_signup_success_signs_the_user_in(raw_client: TestClient, signup_on, supabase):
-    response = raw_client.post("/app/signup", data=FORM)
+    response = raw_client.post("/signup", data=FORM)
     assert response.status_code == 303
-    assert response.headers["location"] == "/app/"
+    assert response.headers["location"] == "/"
     cookies = response.headers.get_list("set-cookie")
     assert any(c.startswith(f"{ACCESS_COOKIE}=access-1") and "HttpOnly" in c for c in cookies)
     assert any(c.startswith(f"{REFRESH_COOKIE}=refresh-1") for c in cookies)
@@ -96,7 +96,7 @@ def test_signup_success_signs_the_user_in(raw_client: TestClient, signup_on, sup
 
 def test_wrong_invite_code_never_reaches_supabase(raw_client: TestClient, signup_on, supabase):
     for code in ("", "wrong", CODE.upper()):
-        response = raw_client.post("/app/signup", data={**FORM, "invite_code": code})
+        response = raw_client.post("/signup", data={**FORM, "invite_code": code})
         assert response.status_code == 403
         assert "Invalid invite code." in response.text
         assert "set-cookie" not in response.headers
@@ -113,14 +113,14 @@ def test_wrong_invite_code_never_reaches_supabase(raw_client: TestClient, signup
     ],
 )
 def test_signup_validation_errors(raw_client: TestClient, signup_on, supabase, changes, message):
-    response = raw_client.post("/app/signup", data={**FORM, **changes})
+    response = raw_client.post("/signup", data={**FORM, **changes})
     assert response.status_code == 400
     assert message in response.text
     assert supabase["create_user"] == []
 
 
 def test_failed_signup_keeps_email_but_not_secrets(raw_client: TestClient, signup_on, supabase):
-    response = raw_client.post("/app/signup", data={**FORM, "confirm_password": "different one"})
+    response = raw_client.post("/signup", data={**FORM, "confirm_password": "different one"})
     assert 'value="new@example.com"' in response.text
     assert "correct horse" not in response.text
     assert CODE not in response.text
@@ -142,7 +142,7 @@ def test_signup_supabase_failures(
         raise error
 
     monkeypatch.setattr(web_auth_router, "create_user", fail)
-    response = raw_client.post("/app/signup", data=FORM)
+    response = raw_client.post("/signup", data=FORM)
     assert response.status_code == status
     assert message in response.text
     assert "set-cookie" not in response.headers
@@ -157,21 +157,21 @@ def test_signup_falls_back_to_login_when_auto_sign_in_fails(
         raise error
 
     monkeypatch.setattr(web_auth_router, "sign_in", fail)
-    response = raw_client.post("/app/signup", data=FORM)
+    response = raw_client.post("/signup", data=FORM)
     assert response.status_code == 303
-    assert response.headers["location"] == "/app/login?created=1"
+    assert response.headers["location"] == "/login?created=1"
     assert "set-cookie" not in response.headers
 
-    login = raw_client.get("/app/login", params={"created": "1"})
+    login = raw_client.get("/login", params={"created": "1"})
     assert "Account created. Please sign in." in login.text
 
 
 def test_secrets_never_appear_in_responses(raw_client: TestClient, signup_on, supabase):
     pages = [
-        raw_client.get("/app/signup"),
-        raw_client.get("/app/login"),
-        raw_client.post("/app/signup", data={**FORM, "invite_code": "wrong"}),
-        raw_client.post("/app/signup", data=FORM),
+        raw_client.get("/signup"),
+        raw_client.get("/login"),
+        raw_client.post("/signup", data={**FORM, "invite_code": "wrong"}),
+        raw_client.post("/signup", data=FORM),
     ]
     for page in pages:
         assert CODE not in page.text
@@ -180,6 +180,35 @@ def test_secrets_never_appear_in_responses(raw_client: TestClient, signup_on, su
 
 
 def test_missing_form_fields_do_not_echo_input(raw_client: TestClient, signup_on, supabase):
-    response = raw_client.post("/app/signup", data={"password": "hunter2hunter2"})
+    response = raw_client.post("/signup", data={"password": "hunter2hunter2"})
     assert response.status_code == 403
     assert "hunter2hunter2" not in response.text
+
+
+def test_sign_up_closes_when_everyone_the_limit_allows_is_in(raw_client, session, signup_on, supabase, monkeypatch):
+    from uuid import uuid4
+
+    from app.models.profile import Profile
+
+    monkeypatch.setattr(settings, "max_users", 2)
+    session.add_all([Profile(user=uuid4()), Profile(user=uuid4())])
+    session.commit()
+    response = raw_client.post("/signup", data=FORM)
+    assert response.status_code == 403 and "Registration is full" in response.text
+    assert supabase["create_user"] == [], "nothing reached Supabase"
+    monkeypatch.setattr(settings, "max_users", 3)
+    assert raw_client.post("/signup", data=FORM).status_code == 303, "room for one more"
+    monkeypatch.setattr(settings, "max_users", 0)
+    assert raw_client.post("/signup", data=FORM).status_code == 303, "0 means no limit"
+
+
+def test_a_wrong_code_is_refused_before_the_limit_is_mentioned(raw_client, session, signup_on, supabase, monkeypatch):
+    from uuid import uuid4
+
+    from app.models.profile import Profile
+
+    monkeypatch.setattr(settings, "max_users", 1)
+    session.add(Profile(user=uuid4()))
+    session.commit()
+    response = raw_client.post("/signup", data={**FORM, "invite_code": "wrong"})
+    assert response.status_code == 403 and "Invalid invite code" in response.text

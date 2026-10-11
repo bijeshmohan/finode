@@ -1,9 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+from sqlmodel import Session, func, select
+
 from ...config import settings
+from ...dependencies import get_db_session
+from ...models.profile import Profile
 from ...signup import (
     EmailAlreadyRegisteredError,
     RateLimitedError,
@@ -23,6 +27,8 @@ from ...web_auth import (
 
 
 router = APIRouter()
+
+DBSession = Annotated[Session, Depends(get_db_session)]
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -81,9 +87,16 @@ def signup_page(request: Request):
     return _signup_form(request)
 
 
+def _is_full(db: DBSession) -> bool:
+    if not settings.max_users:
+        return False
+    return db.exec(select(func.count()).select_from(Profile)).one() >= settings.max_users
+
+
 @router.post("/signup")
 def signup(
     request: Request,
+    db: DBSession,
     email: Annotated[str, Form()] = "",
     password: Annotated[str, Form()] = "",
     confirm_password: Annotated[str, Form()] = "",
@@ -95,6 +108,8 @@ def signup(
     # The invite code is checked first so nothing reaches Supabase without it.
     if not invite_code_is_valid(invite_code):
         return _signup_form(request, "Invalid invite code.", email, 403)
+    if _is_full(db):
+        return _signup_form(request, "Registration is full for now: ask the person who invited you.", email, 403)
     if not email or "@" not in email:
         return _signup_form(request, "Enter a valid email address.", email, 400)
     if len(password) < MIN_PASSWORD_LENGTH:
