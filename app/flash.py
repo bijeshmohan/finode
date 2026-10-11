@@ -10,6 +10,8 @@ FLASH_COOKIE = "finode_flash"
 
 MESSAGES = {
     "budget-moved": "Money moved",
+    "books-erased": "Your books were erased",
+    "your-account-deleted": "Your account was deleted. Goodbye!",
     "restore-done": "Backup restored",
     "account-closed": "Account closed",
     "account-reopened": "Account reopened",

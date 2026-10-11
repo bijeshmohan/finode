@@ -36,6 +36,22 @@ def _admin_headers() -> dict[str, str]:
     return headers
 
 
+def delete_user(user_id) -> None:
+    """Delete a user's sign-in through Supabase's admin API (a user that is already gone counts as deleted)."""
+    if not settings.can_delete_logins:
+        raise AuthUnavailableError("deleting logins is not configured")
+    try:
+        response = httpx.delete(
+            f"{settings.supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}",
+            headers=_admin_headers(),
+            timeout=10,
+        )
+    except httpx.HTTPError:
+        raise AuthUnavailableError("the sign-in service is unreachable")
+    if response.status_code not in (200, 204, 404):
+        raise AuthUnavailableError("the sign-in service returned an unexpected response")
+
+
 def create_user(email: str, password: str) -> None:
     """Create an already-confirmed user through Supabase's admin API.
 
