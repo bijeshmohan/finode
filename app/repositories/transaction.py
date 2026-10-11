@@ -2,7 +2,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlalchemy import or_
+from sqlmodel import Session, func, select
 
 from .commodity import CommodityRepository
 from ..models.account import Account
@@ -163,6 +164,18 @@ class TransactionRepository:
             .where(Posting.user == self.uid, Account.commodity_id != Transaction.currency_id)
         )
         return [tuple(row) for row in self.db.exec(statement).all()]
+
+    def count(self) -> int:
+        return self.db.exec(select(func.count()).select_from(Transaction).where(Transaction.user == self.uid)).one()
+
+    def count_since(self, since: datetime, leaving_out: tuple[str, ...] = ()) -> int:
+        """Transactions created since a moment, not counting those made by the given origins (a recurring rule)."""
+        statement = select(func.count()).select_from(Transaction).where(
+            Transaction.user == self.uid, Transaction.created >= since
+        )
+        for origin in leaving_out:
+            statement = statement.where(or_(Transaction.created_via.is_(None), Transaction.created_via != origin))
+        return self.db.exec(statement).one()
 
     def account_ids_with_postings(self) -> set[UUID]:
         return set(self.db.exec(select(Posting.account).where(Posting.user == self.uid).distinct()).all())

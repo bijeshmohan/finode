@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from sqlalchemy import or_
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from ..commodity_seed import DEFAULT_CURRENCY_CODE
 from ..models.commodity import Commodity
@@ -34,6 +34,9 @@ class CommodityRepository:
         self.db.add(commodity)
         self.db.flush()
         return commodity
+
+    def count_own(self) -> int:
+        return self.db.exec(select(func.count()).select_from(Commodity).where(Commodity.user == self.uid)).one()
 
     def in_use(self, cid: UUID) -> bool:
         """Whether any account, transaction, price or profile refers to the commodity."""

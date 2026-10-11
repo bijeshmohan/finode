@@ -6,6 +6,7 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session, func, select
 
 from ...config import settings
+from ...ratelimit import attempts, minutes
 from ...dependencies import get_db_session
 from ...models.profile import Profile
 from ...signup import (
@@ -48,6 +49,14 @@ def login_page(request: Request, next: str = ""):
     return templates.TemplateResponse(request, "login.html", _login_context(request, next=next))
 
 
+def _client(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _window() -> float:
+    return settings.attempt_window_minutes * 60.0
+
+
 @router.post("/login")
 def login(
     request: Request,
@@ -55,13 +64,26 @@ def login(
     password: Annotated[str, Form()],
     next: Annotated[str, Form()] = "",
 ):
+    keys = [f"login:ip:{_client(request)}", f"login:email:{email.strip().lower()}"]
+    waits = [attempts.retry_after(k, settings.login_attempts, _window()) for k in keys]
+    if any(waits):
+        wait = max(w for w in waits if w)
+        message = f"Too many sign-in attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}."
+        response = templates.TemplateResponse(
+            request, "login.html", _login_context(request, message, email, next), status_code=429
+        )
+        response.headers["Retry-After"] = str(wait)
+        return response
     try:
         tokens = sign_in(email.strip(), password)
     except InvalidCredentialsError:
+        for k in keys:
+            attempts.hit(k)
         error, status_code = "Invalid email or password.", 401
     except AuthUnavailableError:
         error, status_code = "Sign-in is currently unavailable. Please try again later.", 503
     else:
+        attempts.reset(keys[1])
         response = RedirectResponse(safe_next(next) or "/", status_code=303)
         set_auth_cookies(response, tokens)
         return response
@@ -104,6 +126,15 @@ def signup(
 ):
     _require_signup_enabled()
     email = email.strip()
+    key = f"signup:ip:{_client(request)}"
+    wait = attempts.retry_after(key, settings.signup_attempts, _window())
+    if wait:
+        response = _signup_form(
+            request, f"Too many attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}.", email, 429
+        )
+        response.headers["Retry-After"] = str(wait)
+        return response
+    attempts.hit(key)
 
     # The invite code is checked first so nothing reaches Supabase without it.
     if not invite_code_is_valid(invite_code):

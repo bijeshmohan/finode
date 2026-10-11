@@ -16,6 +16,8 @@ from ..repositories import (
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.account import HoldingRead
 from ..schemas.transaction import TransactionCreate, PostingCreate
+from ..config import settings
+from ..limits import ensure_room
 from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from .depth import depth_limit
@@ -530,6 +532,7 @@ class AccountService:
             raise ValueError("parent account not found!")
 
         self._validate_parent(parent, all_accounts)
+        ensure_room(len(all_accounts), settings.max_accounts, "accounts")
         if parent.closed_on is not None:
             raise ValueError(f"'{parent.name}' is closed: reopen it to add accounts to it!")
         self._check_depth(parent, 1, all_accounts)

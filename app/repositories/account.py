@@ -1,7 +1,7 @@
 from datetime import date
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from ..models.account import Account
 from ..schemas.account import AccountCreate, AccountUpdate
@@ -18,6 +18,9 @@ class AccountRepository:
         self.db.add(account)
         self.db.flush()
         return account
+
+    def count(self) -> int:
+        return self.db.exec(select(func.count()).select_from(Account).where(Account.user == self.uid)).one()
 
     def read(self, aid: UUID) -> Account | None:
         statement = select(Account).where(

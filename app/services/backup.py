@@ -13,6 +13,8 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
+from ..config import settings
+from ..limits import LimitReached, ensure_room
 from ..models.commodity import CommodityKind
 from ..models.recurring import RecurringTransaction
 from ..models.transaction import PostingSide
@@ -171,6 +173,15 @@ class BackupService:
             ]
             return summary
         self._check(file, summary)
+        for room in (
+            lambda: ensure_room(len(file.accounts), settings.max_accounts, "accounts"),
+            lambda: ensure_room(len(file.transactions), settings.max_transactions, "transactions"),
+            lambda: ensure_room(len(file.commodities), settings.max_own_assets, "assets of your own"),
+        ):
+            try:
+                room()
+            except LimitReached as e:
+                summary.errors.append(f"this backup is bigger than your limits allow: {e}")
         summary.accounts = sum(1 for a in file.accounts if a.parent_id is not None)
         summary.transactions = len(file.transactions)
         summary.recurring = len(file.recurring)

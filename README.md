@@ -64,6 +64,8 @@ page shows no link. To let invited people create accounts:
 
 With the service key set, people can also delete their own account (Profile › Your data › Delete my account): their data is erased and their Supabase login removed. Without it only "Erase my books" is offered.
 
+Sign-in and sign-up attempts are rate limited per address (see `.env.example`), and each person has limits on accounts, transactions and own assets so nobody can fill the database.
+
 To close sign-up again, remove `FINODE_SIGNUP_CODE` and restart. There is no
 per-IP limit on code guesses, which is why the code must be long and random.
 Email verification and password reset are not implemented yet.
