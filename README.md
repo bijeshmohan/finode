@@ -38,6 +38,34 @@ The layout adapts to the screen: phones get a bottom tab bar and a floating
 "+" button for new transactions, wider screens a top navigation bar. Light
 and dark themes follow the system setting.
 
+### Invite-only sign-up
+
+Registration is closed by default: `/signup` returns 404 and the login
+page shows no link. To let invited people create accounts:
+
+1. In Supabase, open Authentication → Sign In / Providers and turn **off**
+   "Allow new users to sign up". Without this, anyone holding your public anon
+   key could register directly against Supabase and then log into finode.
+   Users created by finode go through the admin API, which this switch does
+   not block.
+2. Add to `.env`:
+   - `FINODE_SIGNUP_CODE` — an invite code of at least 16 characters, e.g.
+     `openssl rand -base64 24`
+   - `FINODE_SUPABASE_SERVICE_ROLE_KEY` — the `service_role` (or `sb_secret_…`)
+     key from Project Settings → API Keys. It is a server-side secret: it is
+     only sent to Supabase's admin endpoint, never to browsers, and it must
+     never be committed.
+3. Restart (`docker compose up -d --build`) and share the code with the people
+   you invite. They enter it on `/signup` along with an email and password
+   (min. 8 characters); accounts are created pre-confirmed (no email
+   verification) and the user is signed in immediately.
+
+`FINODE_MAX_USERS` (default 10, you included; 0 = no limit) closes sign-up once that many people have an account.
+
+To close sign-up again, remove `FINODE_SIGNUP_CODE` and restart. There is no
+per-IP limit on code guesses, which is why the code must be long and random.
+Email verification and password reset are not implemented yet.
+
 The browser keeps the Supabase tokens in `HttpOnly`, `SameSite=Lax` cookies
 sent to the whole site, and the UI calls the same services as the JSON API. The JSON
 API (all under `/api`) only accepts `Authorization: Bearer` tokens. Behind HTTPS, set
@@ -120,6 +148,7 @@ Environment variables (or a `.env` file at the project root) override defaults:
 - `FINODE_SUPABASE_URL` — Supabase project URL, used to fetch JWKS for protected API routes
 - `FINODE_SUPABASE_AUDIENCE` — expected JWT audience, default `authenticated`
 - `FINODE_SUPABASE_ANON_KEY` — Supabase anon (public) key, used by the web UI to sign users in
+- `FINODE_SIGNUP_CODE`, `FINODE_SUPABASE_SERVICE_ROLE_KEY` — enable invite-only sign-up (see above); both are optional
 - `FINODE_COOKIE_SECURE` — set `true` when serving over HTTPS so session cookies are `Secure`, default `false` (compose sets it to `true`)
 
 Keys without the `FINODE_` prefix (such as the compose settings above) are
