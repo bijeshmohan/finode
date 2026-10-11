@@ -18,6 +18,8 @@ from ..schemas.account import AccountCreate
 from ..schemas.commodity import CODE_PATTERN
 from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
+from ..config import settings
+from ..limits import LimitReached, ensure_room
 from .account import GROUP_POSTING_ROOT_NAMES, OPENING_BALANCES_ACCOUNT_NAME, AccountService
 from .depth import depth_limits
 
@@ -457,6 +459,15 @@ class DataService:
         summary.liabilities = totals["Liabilities"]
         if not plan.transactions and not errors:
             errors.append("The file has no transactions to import.")
+        for room in (
+            lambda: ensure_room(len(by_aid), settings.max_accounts, "accounts", len(plan.new_accounts)),
+            lambda: ensure_room(self.tr.count(), settings.max_transactions, "transactions", len(plan.transactions)),
+            lambda: ensure_room(self.cr.count_own(), settings.max_own_assets, "assets of your own", len(plan.new_commodities)),
+        ):
+            try:
+                room()
+            except LimitReached as e:
+                errors.append(f"This file is too big for your limits: {e}")
         if len(errors) > MAX_REPORTED_ERRORS:
             extra = len(errors) - MAX_REPORTED_ERRORS
             del errors[MAX_REPORTED_ERRORS:]

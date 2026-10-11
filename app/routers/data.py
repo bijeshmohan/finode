@@ -5,6 +5,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 
 from ..auth import require_authenticated_user
+from ..config import settings
+from ..limits import upload_limit_bytes
 from ..dependencies import Backup, Data
 from ..schemas.backup import RestoreSummary
 from ..schemas.data import ImportSummary
@@ -29,13 +31,13 @@ def export_response(data, kind: str) -> Response:
     )
 
 
-def read_upload(file: UploadFile | None) -> str:
+def read_upload(file: UploadFile | None, limit: int = MAX_IMPORT_BYTES) -> str:
     """The uploaded journal as text; raises ValueError with a user-facing reason."""
     if file is None or not file.filename:
         raise ValueError("Choose a file first.")
-    raw = file.file.read(MAX_IMPORT_BYTES + 1)
-    if len(raw) > MAX_IMPORT_BYTES:
-        raise ValueError("The file is larger than 5 MB.")
+    raw = file.file.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError(f"The file is larger than {limit // (1024 * 1024)} MB.")
     try:
         return raw.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -73,7 +75,7 @@ def backup_response(backup) -> Response:
 
 def read_backup(file: UploadFile | None) -> dict:
     try:
-        data = json.loads(read_upload(file))
+        data = json.loads(read_upload(file, upload_limit_bytes(settings.max_restore_mb)))
     except json.JSONDecodeError:
         raise ValueError("The file is not a finode backup (it is not valid JSON).")
     if not isinstance(data, dict):

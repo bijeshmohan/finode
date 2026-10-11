@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from ..config import settings
+from ..limits import ensure_room
 from ..models.commodity import Commodity
 from ..repositories import CommodityRepository
 from ..schemas.commodity import CommodityCreate, CommodityRead
@@ -31,6 +33,7 @@ class CommodityService:
         """Add a commodity of the user's own, for anything that is not a built-in currency."""
         if self.cr.read_by_code(data.code):
             raise ValueError(f"'{data.code}' already exists: use that one instead, or pick another code (for example {data.code}.NS)!")
+        ensure_room(self.cr.count_own(), settings.max_own_assets, "assets of your own")
         commodity = self.cr.create(**data.model_dump())
         self.cr.db.commit()
         self.cr.db.refresh(commodity)

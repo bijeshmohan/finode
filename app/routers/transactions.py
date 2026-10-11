@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..dependencies import Transactions
+from ..limits import LimitReached
 from ..schemas.transaction import (
     HistoryRead,
     TransactionCreate,
@@ -28,7 +29,7 @@ def create_transaction(
 ):
     try:
         return transactions.create(transaction)
-    except InvalidPostingError as e:
+    except (InvalidPostingError, LimitReached) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

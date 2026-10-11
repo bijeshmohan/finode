@@ -18,6 +18,16 @@ from app.web_auth import web_login_required
 TEST_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
 
 
+@pytest.fixture(autouse=True)
+def fresh_attempt_limits():
+    """The sign-in and sign-up counters live in memory: every test starts with a clean slate."""
+    from app.ratelimit import attempts
+
+    attempts.clear()
+    yield
+    attempts.clear()
+
+
 @pytest.fixture
 def session() -> Generator[Session, None, None]:
     engine = create_engine(

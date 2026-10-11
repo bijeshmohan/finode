@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     mcp_rate_limit: int = Field(default=120, ge=1)
     # How often (in minutes) due recurring transactions are recorded in the background; 0 turns it off.
     recurring_interval_minutes: int = Field(default=15, ge=0)
+    # What one person may hold (0 = no limit): so nobody can fill the shared database.
+    max_accounts: int = Field(default=500, ge=0)
+    max_transactions: int = Field(default=100_000, ge=0)
+    max_transactions_per_day: int = Field(default=1_000, ge=0)
+    max_postings_per_transaction: int = Field(default=100, ge=0)
+    max_own_assets: int = Field(default=50, ge=0)
+    max_restore_mb: int = Field(default=25, ge=1)
+    # Failed sign-ins, and sign-up attempts, allowed per address in the window (0 = no limit).
+    login_attempts: int = Field(default=10, ge=0)
+    signup_attempts: int = Field(default=5, ge=0)
+    attempt_window_minutes: int = Field(default=15, ge=1)
     # Most people (profiles, you included) who may have an account; sign-up closes when it is reached. 0 = no limit.
     max_users: int = Field(default=10, ge=0)
     supabase_service_role_key: str | None = None

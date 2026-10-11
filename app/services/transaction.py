@@ -1,7 +1,9 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
+from ..config import settings
+from ..limits import ensure_room
 from ..models.commodity import Commodity
 from ..models.transaction import Transaction, Posting, PostingSide
 from ..repositories import AccountRepository, CommodityRepository, TransactionRepository
@@ -80,6 +82,10 @@ class TransactionService:
                 raise InvalidPostingError("changing a transaction's currency means entering its postings again!")
             return None, None
 
+        if settings.max_postings_per_transaction and len(postings) > settings.max_postings_per_transaction:
+            raise InvalidPostingError(
+                f"a transaction can have at most {settings.max_postings_per_transaction} postings: split it into several!"
+            )
         currency = self._currency(data.currency, current_currency)
         accounts_by_id = None
         values: list[Decimal] = []
@@ -211,7 +217,15 @@ class TransactionService:
         """Raise what create would raise, without saving anything."""
         self._resolve(data)
 
+    def _check_limits(self) -> None:
+        ensure_room(self.tr.count(), settings.max_transactions, "transactions")
+        if settings.max_transactions_per_day and self.origin not in ("recurring", "import"):
+            midnight = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            made = self.tr.count_since(midnight, leaving_out=("recurring", "import"))
+            ensure_room(made, settings.max_transactions_per_day, "new transactions a day")
+
     def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
+        self._check_limits()
         currency_id, values = self._resolve(data)
         transaction = self.tr.create(data, currency_id, values, self.origin, recurring)
         self.tr.db.commit()
