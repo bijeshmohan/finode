@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     login_attempts: int = Field(default=10, ge=0)
     signup_attempts: int = Field(default=5, ge=0)
     attempt_window_minutes: int = Field(default=15, ge=1)
+    # "Forgot password": needs email sending set up in Supabase (custom SMTP) and its recovery email
+    # template pointing at /reset (see README). Off until then, so nobody is offered a link that sends nothing.
+    password_reset: bool = False
+    reset_attempts: int = Field(default=5, ge=0)
     # A test with invited people: shows the notice at sign-up (to be accepted) and under Profile.
     test_notice: bool = False
     # Where "Send feedback" (Profile) writes to; the link is hidden when empty.
@@ -53,6 +57,10 @@ class Settings(BaseSettings):
     def can_delete_logins(self) -> bool:
         """Removing a person's sign-in needs Supabase's admin API (the service key)."""
         return bool(self.supabase_service_role_key and self.supabase_url)
+
+    @property
+    def reset_enabled(self) -> bool:
+        return bool(self.password_reset and self.supabase_url and self.supabase_anon_key)
 
     @property
     def signup_enabled(self) -> bool:

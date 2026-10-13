@@ -6,6 +6,8 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session, func, select
 
 from ...config import settings
+from ...flash import set_flash
+from ...reset import PasswordRejectedError, ResetLinkInvalidError, reset_password, send_reset_email
 from ...ratelimit import attempts, minutes
 from ...dependencies import get_db_session
 from ...models.profile import Profile
@@ -41,6 +43,7 @@ def _login_context(request: Request, error: str | None = None, email: str = "", 
         "next": safe_next(next) or "",
         "notice": "Account created. Please sign in." if request.query_params.get("created") else None,
         "signup_enabled": settings.signup_enabled,
+        "reset_enabled": settings.reset_enabled,
     }
 
 
@@ -184,4 +187,97 @@ def signup(
 def logout():
     response = RedirectResponse("/login", status_code=303)
     clear_auth_cookies(response)
+    return response
+
+
+# ---- forgotten password -------------------------------------------------------------------------------------
+
+
+def _require_reset_enabled() -> None:
+    if not settings.reset_enabled:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+def _forgot_form(request: Request, error: str | None = None, email: str = "", sent: bool = False, status_code: int = 200):
+    return templates.TemplateResponse(
+        request, "forgot.html", {"error": error, "email": email, "sent": sent}, status_code=status_code
+    )
+
+
+@router.get("/forgot")
+def forgot_page(request: Request):
+    _require_reset_enabled()
+    return _forgot_form(request)
+
+
+@router.post("/forgot")
+def forgot(request: Request, email: Annotated[str, Form()] = ""):
+    _require_reset_enabled()
+    email = email.strip()
+    keys = [f"reset:ip:{_client(request)}", f"reset:email:{email.lower()}"]
+    waits = [attempts.retry_after(k, settings.reset_attempts, _window()) for k in keys]
+    if any(waits):
+        wait = max(w for w in waits if w)
+        response = _forgot_form(
+            request, f"Too many attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}.", email,
+            status_code=429,
+        )
+        response.headers["Retry-After"] = str(wait)
+        return response
+    if not email or "@" not in email:
+        return _forgot_form(request, "Enter the email address you signed up with.", email, status_code=400)
+    for k in keys:
+        attempts.hit(k)
+    try:
+        send_reset_email(email)
+    except AuthUnavailableError:
+        return _forgot_form(request, "Could not send the email right now. Please try again later.", email, status_code=503)
+    # The same answer whether or not the address has an account, so this cannot be used to find out who does.
+    return _forgot_form(request, email=email, sent=True)
+
+
+def _reset_form(request: Request, token_hash: str, error: str | None = None, status_code: int = 200):
+    return templates.TemplateResponse(
+        request, "reset.html", {"error": error, "token_hash": token_hash}, status_code=status_code
+    )
+
+
+@router.get("/reset")
+def reset_page(request: Request, token_hash: str = ""):
+    _require_reset_enabled()
+    if not token_hash:
+        return _forgot_form(request, "That link is not valid. Ask for a new one.", status_code=400)
+    return _reset_form(request, token_hash)
+
+
+@router.post("/reset")
+def reset(
+    request: Request,
+    token_hash: Annotated[str, Form()] = "",
+    password: Annotated[str, Form()] = "",
+    confirm_password: Annotated[str, Form()] = "",
+):
+    _require_reset_enabled()
+    key = f"reset-link:ip:{_client(request)}"
+    wait = attempts.retry_after(key, settings.reset_attempts * 2, _window())
+    if wait:
+        response = _reset_form(request, token_hash, f"Too many attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}.", 429)
+        response.headers["Retry-After"] = str(wait)
+        return response
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return _reset_form(request, token_hash, f"Password must be at least {MIN_PASSWORD_LENGTH} characters.", 400)
+    if password != confirm_password:
+        return _reset_form(request, token_hash, "Passwords do not match.", 400)
+    attempts.hit(key)
+    try:
+        tokens = reset_password(token_hash, password)
+    except ResetLinkInvalidError:
+        return _forgot_form(request, "That link has expired or was already used. Ask for a new one.", status_code=400)
+    except PasswordRejectedError as e:
+        return _reset_form(request, token_hash, str(e), 400)
+    except AuthUnavailableError:
+        return _reset_form(request, token_hash, "Could not change the password right now. Please try again later.", 503)
+    response = RedirectResponse("/", status_code=303)
+    set_auth_cookies(response, tokens)
+    set_flash(response, "password-reset")
     return response
