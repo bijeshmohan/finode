@@ -41,6 +41,7 @@ A_WORDS = [
 # Doors that need no sign-in, or have their own kind of sign-in (checked on their own).
 PUBLIC = {
     ("GET", "/login"), ("POST", "/login"), ("POST", "/logout"), ("GET", "/signup"), ("POST", "/signup"),
+    ("GET", "/forgot"), ("POST", "/forgot"), ("GET", "/reset"), ("POST", "/reset"),
     ("GET", "/.well-known/oauth-protected-resource"), ("GET", "/.well-known/oauth-protected-resource/mcp"),
     ("GET", "/docs"), ("HEAD", "/docs"), ("GET", "/docs/oauth2-redirect"), ("HEAD", "/docs/oauth2-redirect"),
     ("GET", "/redoc"), ("HEAD", "/redoc"), ("GET", "/openapi.json"), ("HEAD", "/openapi.json"),

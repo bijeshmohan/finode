@@ -9,6 +9,7 @@ from fastapi import Request, Response
 FLASH_COOKIE = "finode_flash"
 
 MESSAGES = {
+    "password-reset": "Your password was changed. You are signed in.",
     "budget-moved": "Money moved",
     "books-erased": "Your books were erased",
     "your-account-deleted": "Your account was deleted. Goodbye!",

@@ -19,6 +19,15 @@ TEST_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
 
 
 @pytest.fixture(autouse=True)
+def deployment_settings_off(monkeypatch: pytest.MonkeyPatch):
+    """Settings a real deployment switches on in .env must not change what the tests see."""
+    from app.config import settings
+
+    for name, value in (("test_notice", False), ("feedback_email", None), ("password_reset", False)):
+        monkeypatch.setattr(settings, name, value)
+
+
+@pytest.fixture(autouse=True)
 def fresh_attempt_limits():
     """The sign-in and sign-up counters live in memory: every test starts with a clean slate."""
     from app.ratelimit import attempts

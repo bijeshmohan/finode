@@ -115,6 +115,16 @@ The image (see `Dockerfile`) installs dependencies from `uv.lock`, runs as an
 unprivileged user and has a health check on `/`. `.dockerignore` keeps `.env`,
 local databases and tests out of it.
 
+### Forgot password
+
+Off until you set `FINODE_PASSWORD_RESET=true`, because Supabase must be able to send email first:
+
+1. Supabase › Authentication › Emails › SMTP Settings: enable custom SMTP with your mail provider's host, port, user and password, and a sender address on your own domain (for Zoho Mail: `smtp.zoho.com` or `smtp.zoho.in` to match your data centre, port 465, the mailbox's full address, an app password).
+2. Authentication › Emails › Templates › **Reset Password**: make the link `<a href="{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}">Choose a new password</a>`. The Site URL (Authentication › URL Configuration) must be the public address of this app.
+3. Set `FINODE_PASSWORD_RESET=true` and restart. The sign-in page then shows "Forgot your password?".
+
+The link only opens a form; the token is spent when the new password is submitted, so mail scanners that open links cannot use it up. `/forgot` always answers the same whether or not the address has an account, and is rate limited (`FINODE_RESET_ATTEMPTS`).
+
 ### Backups
 
 The `backup` service dumps the database (the `public` schema: everyone's books,

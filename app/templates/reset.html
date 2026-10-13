@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}New password · finode{% endblock %}
+{% block body_class %}bare{% endblock %}
+{% block header %}{% endblock %}
+{% block tabbar %}{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1 class="brand-title"><img src="{{ asset_url('favicon.svg') }}" alt="" width="36" height="36">finode</h1>
+  <p class="muted">Choose a new password.</p>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/reset" class="stack">
+    <input type="hidden" name="token_hash" value="{{ token_hash }}">
+    <label>New password
+      <input type="password" name="password" autocomplete="new-password" minlength="8" required autofocus>
+    </label>
+    <label>Confirm password
+      <input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+    </label>
+    <button type="submit">Change password</button>
+  </form>
+</section>
+{% endblock %}
