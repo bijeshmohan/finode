@@ -115,6 +115,30 @@ The image (see `Dockerfile`) installs dependencies from `uv.lock`, runs as an
 unprivileged user and has a health check on `/`. `.dockerignore` keeps `.env`,
 local databases and tests out of it.
 
+### Backups
+
+The `backup` service dumps the database (the `public` schema: everyone's books,
+settings and tokens) at 02:00 UTC every night into `./backups` as
+`finode-<time>.sql.gz` and keeps 14 days. Each file is checked before it is
+kept; a failed run is logged (`docker compose logs backup`) and leaves the
+older files alone. Set `BACKUP_UID`/`BACKUP_GID` to your own (`id -u`, `id -g`)
+so you own the files. Logins live in Supabase Auth and are not in the dump.
+
+A dump on the same machine does not survive losing the machine: copy
+`./backups` somewhere else (for example `rclone sync backups remote:finode`
+from cron).
+
+To restore into an empty Postgres (rehearsed against production data; the
+restored row counts matched). On Supabase the `auth` schema already exists:
+
+```bash
+psql "$URL" -c 'drop schema public cascade'          # fresh database only
+gzip -dc backups/finode-<time>.sql.gz | psql "$URL" -v ON_ERROR_STOP=1
+```
+
+A plain Postgres has no `auth.users`, so create a stand-in table with the
+users' ids first or the foreign keys fail.
+
 ## Tests
 
 ```bash
