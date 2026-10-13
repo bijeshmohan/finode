@@ -115,6 +115,10 @@ Profile › Your data has two destructive actions (the person types their email 
 
 `tests/test_isolation.py` is the guard for multi-user use: person A has a ledger that uses every feature, person B signs in and tries to reach it by every route that takes an id (all must answer 400/403/404 and nothing of A's may come back, A's books unchanged afterwards), by every list and page (only B's data), by naming A's accounts, categories, recurring rules or private assets inside B's own requests (API and forms), through B's assistant token, and without any sign-in. `test_every_route_is_covered` fails when a route is added that is not classified there (`PUBLIC`, `LISTS` or `REFERENCES`; routes with an id are swept automatically), so a new endpoint cannot ship without deciding what it does with other people's data. Every query must be filtered by the user (`self.uid` in repositories); the audit was checked by removing that filter from four repositories, and it failed each time. Keep A's names out of static template text (the audit looks for them in B's pages).
 
+### Automatic backups
+
+`scripts/db-backup.sh` runs in the `backup` compose service (postgres image): nightly `pg_dump --schema=public` gzipped into `./backups`, verified (gzip test and the ledger tables present) before it replaces a `.partial` file, old files removed after `BACKUP_KEEP_DAYS`. Restoring was rehearsed into a scratch Postgres (row counts equal to production); the dump references `auth.users`, so a restore needs Supabase or a stand-in table. The copy off the machine is not automated yet.
+
 ### Docker
 
 `Dockerfile` is multi-stage: uv resolves `uv.lock` into `/opt/venv`, and the runtime stage copies only that venv plus `app/`, `migrations/`, `alembic.ini` and `pyproject.toml` (needed for the `[tool.fastapi]` entrypoint). If a new top-level file is needed at runtime, add it to the `COPY` lines and check `.dockerignore`. `compose.yaml` targets an existing Traefik on an external network; production uses Supabase Postgres, so there is no database service. Uvicorn reads `WEB_CONCURRENCY` and `FORWARDED_ALLOW_IPS` from the environment.
