@@ -110,6 +110,7 @@ class BackupTarget(BaseModel):
     kind: str
     amount: Decimal
     target_date: Date | None = None
+    weekday: int | None = None
 
 
 class BackupFile(BaseModel):

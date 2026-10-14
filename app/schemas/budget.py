@@ -8,20 +8,23 @@ from pydantic import BaseModel, Field
 Money = Field(decimal_places=8, max_digits=24)
 
 
-TARGET_KINDS = ("monthly", "refill", "by_date")
+TARGET_KINDS = ("monthly", "weekly", "refill", "by_date", "yearly")
 
 
 class BudgetTargetRead(BaseModel):
-    # monthly: assign `amount` every month; refill: keep `amount` available; by_date: have `amount` available by `target_date`.
+    # monthly: assign `amount` every month; weekly: `amount` every week, on `weekday` (0 = Monday); refill: keep `amount`
+    # available; by_date: have `amount` available by `target_date`; yearly: the same every year, in `target_date`'s month.
     kind: str
     amount: Decimal = Money
     target_date: Date | None = None
+    weekday: int | None = None
 
 
 class BudgetTargetSet(BaseModel):
     kind: str
     amount: Decimal = Field(gt=0, decimal_places=8, max_digits=24)
     target_date: Date | None = None
+    weekday: int | None = Field(default=None, ge=0, le=6)
 
 
 class BudgetLeftOut(BaseModel):
@@ -67,6 +70,8 @@ class BudgetLine(BaseModel):
     target: BudgetTargetRead | None = None
     needed: Decimal = Money
     underfunded: Decimal = Money
+    # A "by a month" target whose month has passed and is still short.
+    overdue: bool = False
 
 
 class BudgetRead(BaseModel):

@@ -134,7 +134,9 @@ class BackupService:
                 for row in self.br.list()
             ],
             targets=[
-                BackupTarget(account_id=t.account_id, kind=t.kind, amount=t.amount, target_date=t.target_date)
+                BackupTarget(
+                    account_id=t.account_id, kind=t.kind, amount=t.amount, target_date=t.target_date, weekday=t.weekday
+                )
                 for t in self.br.targets().values()
             ],
         )
@@ -371,7 +373,7 @@ class BackupService:
             for row in file.allocations:
                 self.br.set(row.month, ids[row.account_id], row.amount)
             for target in file.targets:
-                self.br.set_target(ids[target.account_id], target.kind, target.amount, target.target_date)
+                self.br.set_target(ids[target.account_id], target.kind, target.amount, target.target_date, target.weekday)
             db.commit()
         except Exception:
             db.rollback()

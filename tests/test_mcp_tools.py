@@ -94,6 +94,20 @@ async def test_ambiguous_and_unknown_accounts_are_explained(session, books, secr
             await call(c, "record_transaction", amount="1", from_account="HDFC", to_account=name)
 
 
+async def test_weekly_and_yearly_targets(session, books, client, secret):
+    async with running_app(session), mcp_client(secret) as c:
+        weekly = payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "weekly", "amount": "200", "weekday": "friday"}))
+        line = next(l for l in weekly["categories"] if l["category"].endswith("Groceries"))
+        assert line["target"]["kind"] == "weekly" and line["target"]["weekday"] == "Friday" and line["underfunded"] != "0.00"
+        yearly = payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "yearly", "amount": "1200", "by": "2030-03"}))
+        line = next(l for l in yearly["categories"] if l["category"].endswith("Groceries"))
+        assert line["target"]["kind"] == "yearly" and line["target"]["by"] == "2030-03-01" and "weekday" not in line["target"]
+        with pytest.raises(ToolFailed, match="the weekday must be one of"):
+            payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "weekly", "amount": "5", "weekday": "someday"}))
+        with pytest.raises(ToolFailed, match="day of the week"):
+            payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "weekly", "amount": "5"}))
+
+
 async def test_ledger_rules_still_apply(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         with pytest.raises(ToolFailed, match="sub-accounts"):

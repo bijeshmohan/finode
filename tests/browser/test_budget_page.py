@@ -60,3 +60,28 @@ def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Pag
     box.press("Tab")
     expect(page.locator(".ready .figure")).to_have_text("4,500.00 INR")
     expect(page.locator(".calc").first).to_contain_text("in categories 380.00")
+
+
+def test_the_target_form_shows_the_fields_each_kind_needs(page: Page, books):
+    page.goto(f"/budget/target?category={books['rent']['aid']}")
+    day, month = page.locator("label[data-target-weekday]"), page.locator("label[data-target-date]")
+    expect(day).to_be_hidden()
+    expect(month).to_be_hidden()
+    page.locator("select[data-target-kind]").select_option("weekly")
+    expect(day).to_be_visible()
+    expect(month).to_be_hidden()
+    page.locator("select[data-target-kind]").select_option("yearly")
+    expect(day).to_be_hidden()
+    expect(month).to_be_visible()
+    expect(month).to_contain_text("Due in")
+    page.locator("select[data-target-kind]").select_option("by_date")
+    expect(month).to_contain_text("By (month)")
+
+
+def test_a_weekly_target_is_saved_from_the_form(page: Page, books):
+    page.goto(f"/budget/target?category={books['rent']['aid']}")
+    page.locator("select[data-target-kind]").select_option("weekly")
+    page.locator("select[name=weekday]").select_option("4")
+    page.locator("input[name=amount]").fill("100")
+    page.get_by_role("button", name="Save target").click()
+    expect(page.locator(".target-note.short")).to_contain_text("Weekly 100.00 on Fris")
