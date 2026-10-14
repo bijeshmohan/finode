@@ -3,10 +3,10 @@
 {% set editing = node is not none %}
 {% block title %}{{ "Edit " ~ node.account.name if editing else "Add account" }} · finode{% endblock %}
 {% block content %}
-<a class="back" href="{{ '/app/accounts/' ~ node.account.aid if editing else '/app/accounts' }}">{{ icon("back") }}{{ node.account.name if editing else "Accounts" }}</a>
+<a class="back" href="{{ '/accounts/' ~ node.account.aid if editing else '/accounts' }}">{{ icon("back") }}{{ node.account.name if editing else "Accounts" }}</a>
 <h1>{{ "Edit account" if editing else "Add account" }}</h1>
 
-<form class="card stack form-narrow" hx-post="{{ '/app/accounts/' ~ node.account.aid ~ '/edit' if editing else '/app/accounts' }}">
+<form class="card stack form-narrow" hx-post="{{ '/accounts/' ~ node.account.aid ~ '/edit' if editing else '/accounts' }}">
   <label>Name
     <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
            placeholder="e.g. HDFC Savings" {{ "autofocus" if not editing }}>
@@ -27,13 +27,28 @@
     <span class="hint">{{ "Changing this records an adjustment against Opening Balances." if editing else "Optional. Recorded as an opening balance." }}</span>
   </label>
   {% endif %}
+  {% include "partials/commodity_fields.html" %}
+  {% if editing and can_budget %}
+  <input type="hidden" name="budget_choice" value="1">
+  <label class="check">
+    <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
+    <span>Part of the budget <span class="hint">Its money is what you assign to categories{{ " (a card counts as money you owe)" if root_name == "Liabilities" }}. Leave off for savings you don't budget, loans or investments.</span></span>
+  </label>
+  <label data-payment-category {{ "hidden" if on_budget }}>Budget payments to this account under
+    <select name="payment_category">
+      <option value="">No category</option>
+      {% for aid, path in category_options %}<option value="{{ aid }}" {{ "selected" if aid == payment_category_id }}>{{ path }}</option>{% endfor %}
+    </select>
+    <span class="hint">For a loan: paying its EMI then spends this category, so assign the EMI to it each month. Interest the lender charges stays outside the budget.</span>
+  </label>
+  {% endif %}
   <label>Notes
     <input type="text" name="details" maxlength="200" value="{{ (node.account.details or '') if editing else '' }}">
   </label>
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions">
     <button type="submit">{{ "Save changes" if editing else "Add account" }}</button>
-    <a class="button secondary" href="{{ '/app/accounts/' ~ node.account.aid if editing else '/app/accounts' }}">Cancel</a>
+    <a class="button secondary" href="{{ '/accounts/' ~ node.account.aid if editing else '/accounts' }}">Cancel</a>
   </div>
 </form>
 
@@ -41,7 +56,7 @@
 <section class="danger-zone form-narrow">
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
-          hx-post="/app/accounts/{{ node.account.aid }}/delete"
+          hx-post="/accounts/{{ node.account.aid }}/delete"
           hx-confirm="Delete account '{{ node.account.name }}'?">{{ icon("trash") }}Delete account</button>
   <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
 </section>

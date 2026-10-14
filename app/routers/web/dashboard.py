@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 
-from ...dependencies import Accounts, Reports, Transactions
+from ...dependencies import Accounts, Recurring, Reports, Transactions
 from ...services.account import AccountService
 from ...templating import templates
 from .transactions import AccountIndex, to_row
@@ -11,13 +11,23 @@ router = APIRouter()
 RECENT_LIMIT = 8
 
 
+def _catch_up(recurring: Recurring) -> None:
+    """Record what has fallen due; a problem here must never stop the page from opening."""
+    try:
+        recurring.process_due()
+    except Exception:
+        recurring.repo.db.rollback()
+
+
 @router.get("/")
 def dashboard(
     request: Request,
     accounts: Accounts,
     reports: Reports,
     transactions: Transactions,
+    recurring: Recurring,
 ):
+    _catch_up(recurring)
     summary = reports.summary()
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts)
@@ -36,17 +46,17 @@ def dashboard(
         {
             "done": bool(used_roots & {"Assets", "Liabilities"}),
             "title": "Add a bank account, cash or card",
-            "href": f"/app/accounts/new?parent={roots['Assets']}",
+            "href": f"/accounts/new?parent={roots['Assets']}",
         },
         {
             "done": "Expenses" in used_roots,
             "title": "Add an expense category, like Groceries",
-            "href": f"/app/accounts/new?parent={roots['Expenses']}",
+            "href": f"/accounts/new?parent={roots['Expenses']}",
         },
         {
             "done": has_recorded,
             "title": "Record your first transaction",
-            "href": "/app/transactions/new",
+            "href": "/transactions/new",
         },
     ]
     return templates.TemplateResponse(
@@ -55,6 +65,7 @@ def dashboard(
         {
             "active": "dashboard",
             "summary": summary,
+            "currency": summary.currency,
             "recent": recent,
             "steps": steps if not all(step["done"] for step in steps) else None,
         },

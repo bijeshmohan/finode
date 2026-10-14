@@ -2,26 +2,52 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Profile · finode{% endblock %}
 {% block content %}
-<h1>Profile</h1>
+<header class="profile-head form-narrow">
+  <span class="avatar" aria-hidden="true">{{ initials }}</span>
+  <div>
+    <h1>{{ display_name or "Your profile" }}</h1>
+    {% if email %}<p class="muted">{{ email }}</p>{% endif %}
+  </div>
+</header>
 
-<form class="card stack form-narrow" hx-post="/app/profile">
-  <div class="grid-form">
-    <label>First name
-      <input type="text" name="first_name" maxlength="40" autocomplete="given-name" value="{{ profile.first_name or '' }}">
-    </label>
-    <label>Last name
-      <input type="text" name="last_name" maxlength="40" autocomplete="family-name" value="{{ profile.last_name or '' }}">
-    </label>
-  </div>
-  {% if email %}
-  <label>Email
-    <input type="text" value="{{ email }}" readonly disabled>
-    <span class="hint">Used to sign in.</span>
-  </label>
+<div class="settings form-narrow">
+  <details id="name" class="setting">
+    <summary><span class="setting-title">Name</span><span class="setting-value">{{ display_name or "Not set" }}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/profile">
+      <div class="grid-form">
+        <label>First name
+          <input type="text" name="first_name" maxlength="40" autocomplete="given-name" value="{{ profile.first_name or '' }}">
+        </label>
+        <label>Last name
+          <input type="text" name="last_name" maxlength="40" autocomplete="family-name" value="{{ profile.last_name or '' }}">
+        </label>
+      </div>
+      {% if email %}<p class="hint muted">Your email ({{ email }}) is used to sign in and can't be changed here.</p>{% endif %}
+      <p id="form-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">Save name</button></div>
+    </form>
+  </details>
+
+  <a class="setting setting-link" id="assistants" href="/profile/assistants">
+    <span class="setting-title">AI assistants</span><span class="setting-value">MCP tokens</span>{{ icon("chevron-right") }}
+  </a>
+  {% if test_notice %}
+  <details id="about" class="setting">
+    <summary><span class="setting-title">About this test</span><span class="setting-value">Please read</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">{% include "partials/test_notice.html" %}</div>
+  </details>
   {% endif %}
-  <p id="form-error" class="error" role="alert"></p>
-  <div class="actions">
-    <button type="submit">Save changes</button>
-  </div>
+  {% if feedback_url %}
+  <a class="setting setting-link" id="feedback" href="{{ feedback_url }}">
+    <span class="setting-title">Send feedback</span><span class="setting-value">Something wrong, or an idea</span>{{ icon("chevron-right") }}
+  </a>
+  {% endif %}
+  <a class="setting setting-link" id="data" href="/profile/data">
+    <span class="setting-title">Your data</span><span class="setting-value">Export &amp; import</span>{{ icon("chevron-right") }}
+  </a>
+</div>
+
+<form method="post" action="/logout" class="form-narrow signout">
+  <button type="submit" class="danger">{{ icon("logout") }}Sign out</button>
 </form>
 {% endblock %}

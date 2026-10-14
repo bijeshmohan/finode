@@ -1,6 +1,7 @@
+from datetime import date
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from ..models.account import Account
 from ..schemas.account import AccountCreate, AccountUpdate
@@ -11,12 +12,15 @@ class AccountRepository:
         self.db = db
         self.uid = uid
 
-    def create(self, data: AccountCreate) -> Account:
-        values = data.model_dump(exclude={"balance"})
-        account = Account(**values, user=self.uid)
+    def create(self, data: AccountCreate, commodity_id: UUID | None = None, on_budget: bool = False) -> Account:
+        values = data.model_dump(exclude={"balance", "balance_value", "commodity", "on_budget"})
+        account = Account(**values, commodity_id=commodity_id, on_budget=on_budget, user=self.uid)
         self.db.add(account)
         self.db.flush()
         return account
+
+    def count(self) -> int:
+        return self.db.exec(select(func.count()).select_from(Account).where(Account.user == self.uid)).one()
 
     def read(self, aid: UUID) -> Account | None:
         statement = select(Account).where(
@@ -44,13 +48,26 @@ class AccountRepository:
         account = self.db.exec(statement).first()
         return account
 
-    def update(self, aid: UUID, data: AccountUpdate) -> Account | None:
+    def update(
+        self,
+        aid: UUID,
+        data: AccountUpdate,
+        commodity_id: UUID | None = None,
+        on_budget: bool | None = None,
+        payment_category: UUID | None | type(...) = ...,
+    ) -> Account | None:
         account = self.read(aid)
         if not account:
             return None
-        values = data.model_dump(exclude_unset=True, exclude={"balance"})
+        values = data.model_dump(exclude_unset=True, exclude={"balance", "balance_value", "commodity", "on_budget", "payment_category_id"})
         for key, value in values.items():
             setattr(account, key, value)
+        if on_budget is not None:
+            account.on_budget = on_budget
+        if payment_category is not ...:
+            account.payment_category_id = payment_category
+        if commodity_id is not None:
+            account.commodity_id = commodity_id
         self.db.add(account)
         self.db.flush()
         return account
@@ -62,6 +79,21 @@ class AccountRepository:
         self.db.delete(account)
         self.db.flush()
         return account
+
+    def set_closed(self, aids: list[UUID], day: date | None) -> None:
+        for account in self.db.exec(select(Account).where(Account.user == self.uid, Account.aid.in_(aids))).all():
+            account.closed_on = day
+            self.db.add(account)
+        self.db.flush()
+
+    def clear_payment_category(self, category_id: UUID) -> None:
+        """Accounts whose payments were budgeted under this category (it is being deleted) stop pointing at it."""
+        for account in self.db.exec(
+            select(Account).where(Account.user == self.uid, Account.payment_category_id == category_id)
+        ).all():
+            account.payment_category_id = None
+            self.db.add(account)
+        self.db.flush()
 
     def has_children(self, aid: UUID) -> bool:
         statement = select(Account).where(

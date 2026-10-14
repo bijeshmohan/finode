@@ -14,12 +14,12 @@ uv run alembic upgrade head       # create / migrate the database
 uv run fastapi dev                # start the dev server
 ```
 
-The server runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/docs`.
+The server runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/docs` once you set `FINODE_API_DOCS=true` (off by default, because they are public).
 
 ## Web UI
 
 A server-rendered UI (Jinja2 templates + [htmx](https://htmx.org), no JavaScript
-build step) is served by the same app at http://localhost:8000/app/. Users sign
+build step) is served by the same app at http://localhost:8000/. Users sign
 in with email and password against Supabase Auth, so set `FINODE_SUPABASE_URL`
 and `FINODE_SUPABASE_ANON_KEY` first (see Configuration). Pages:
 
@@ -38,9 +38,41 @@ The layout adapts to the screen: phones get a bottom tab bar and a floating
 "+" button for new transactions, wider screens a top navigation bar. Light
 and dark themes follow the system setting.
 
+### Invite-only sign-up
+
+Registration is closed by default: `/signup` returns 404 and the login
+page shows no link. To let invited people create accounts:
+
+1. In Supabase, open Authentication → Sign In / Providers and turn **off**
+   "Allow new users to sign up". Without this, anyone holding your public anon
+   key could register directly against Supabase and then log into finode.
+   Users created by finode go through the admin API, which this switch does
+   not block.
+2. Add to `.env`:
+   - `FINODE_SIGNUP_CODE` — an invite code of at least 16 characters, e.g.
+     `openssl rand -base64 24`
+   - `FINODE_SUPABASE_SERVICE_ROLE_KEY` — the `service_role` (or `sb_secret_…`)
+     key from Project Settings → API Keys. It is a server-side secret: it is
+     only sent to Supabase's admin endpoint, never to browsers, and it must
+     never be committed.
+3. Restart (`docker compose up -d --build`) and share the code with the people
+   you invite. They enter it on `/signup` along with an email and password
+   (min. 8 characters); accounts are created pre-confirmed (no email
+   verification) and the user is signed in immediately.
+
+`FINODE_MAX_USERS` (default 10, you included; 0 = no limit) closes sign-up once that many people have an account.
+
+With the service key set, people can also delete their own account (Profile › Your data › Delete my account): their data is erased and their Supabase login removed. Without it only "Erase my books" is offered.
+
+Sign-in and sign-up attempts are rate limited per address (see `.env.example`), and each person has limits on accounts, transactions and own assets so nobody can fill the database.
+
+To close sign-up again, remove `FINODE_SIGNUP_CODE` and restart. There is no
+per-IP limit on code guesses, which is why the code must be long and random.
+Email verification and password reset are not implemented yet.
+
 The browser keeps the Supabase tokens in `HttpOnly`, `SameSite=Lax` cookies
-scoped to `/app`, and the UI calls the same services as the JSON API. The JSON
-API itself only accepts `Authorization: Bearer` tokens. Behind HTTPS, set
+sent to the whole site, and the UI calls the same services as the JSON API. The JSON
+API (all under `/api`) only accepts `Authorization: Bearer` tokens. Behind HTTPS, set
 `FINODE_COOKIE_SECURE=true`. htmx is vendored in `app/static/`, so no CDN is
 needed.
 
@@ -83,6 +115,40 @@ The image (see `Dockerfile`) installs dependencies from `uv.lock`, runs as an
 unprivileged user and has a health check on `/`. `.dockerignore` keeps `.env`,
 local databases and tests out of it.
 
+### Forgot password
+
+Off until you set `FINODE_PASSWORD_RESET=true`, because Supabase must be able to send email first:
+
+1. Supabase › Authentication › Emails › SMTP Settings: enable custom SMTP with your mail provider's host, port, user and password, and a sender address on your own domain (for Zoho Mail: `smtp.zoho.com` or `smtp.zoho.in` to match your data centre, port 465, the mailbox's full address, an app password).
+2. Authentication › Emails › Templates › **Reset Password**: make the link `<a href="{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}">Choose a new password</a>`. The Site URL (Authentication › URL Configuration) must be the public address of this app.
+3. Set `FINODE_PASSWORD_RESET=true` and restart. The sign-in page then shows "Forgot your password?".
+
+The link only opens a form; the token is spent when the new password is submitted, so mail scanners that open links cannot use it up. `/forgot` always answers the same whether or not the address has an account, and is rate limited (`FINODE_RESET_ATTEMPTS`).
+
+### Backups
+
+The `backup` service dumps the database (the `public` schema: everyone's books,
+settings and tokens) at 02:00 UTC every night into `./backups` as
+`finode-<time>.sql.gz` and keeps 14 days. Each file is checked before it is
+kept; a failed run is logged (`docker compose logs backup`) and leaves the
+older files alone. Set `BACKUP_UID`/`BACKUP_GID` to your own (`id -u`, `id -g`)
+so you own the files. Logins live in Supabase Auth and are not in the dump.
+
+A dump on the same machine does not survive losing the machine: copy
+`./backups` somewhere else (for example `rclone sync backups remote:finode`
+from cron).
+
+To restore into an empty Postgres (rehearsed against production data; the
+restored row counts matched). On Supabase the `auth` schema already exists:
+
+```bash
+psql "$URL" -c 'drop schema public cascade'          # fresh database only
+gzip -dc backups/finode-<time>.sql.gz | psql "$URL" -v ON_ERROR_STOP=1
+```
+
+A plain Postgres has no `auth.users`, so create a stand-in table with the
+users' ids first or the foreign keys fail.
+
 ## Tests
 
 ```bash
@@ -103,7 +169,7 @@ app/
 ├── repositories/      tenant-scoped persistence over a Session
 ├── services/          ledger rules, balances, reports
 ├── routers/           FastAPI APIRouters (JSON API)
-│   └── web/           HTML routers served under /app
+│   └── web/           HTML routers served at the site root
 ├── templates/         Jinja2 templates (partials/ holds htmx fragments)
 └── static/            stylesheet, small script, vendored htmx
 
@@ -120,6 +186,7 @@ Environment variables (or a `.env` file at the project root) override defaults:
 - `FINODE_SUPABASE_URL` — Supabase project URL, used to fetch JWKS for protected API routes
 - `FINODE_SUPABASE_AUDIENCE` — expected JWT audience, default `authenticated`
 - `FINODE_SUPABASE_ANON_KEY` — Supabase anon (public) key, used by the web UI to sign users in
+- `FINODE_SIGNUP_CODE`, `FINODE_SUPABASE_SERVICE_ROLE_KEY` — enable invite-only sign-up (see above); both are optional
 - `FINODE_COOKIE_SECURE` — set `true` when serving over HTTPS so session cookies are `Secure`, default `false` (compose sets it to `true`)
 
 Keys without the `FINODE_` prefix (such as the compose settings above) are
@@ -138,7 +205,7 @@ uv run alembic upgrade head
 - Accounts form a tree. Each user gets five system root accounts (`Assets`,
   `Liabilities`, `Equity`, `Income`, `Expenses`), created lazily on first
   access. Every other account must have a parent, and its type is that of its
-  root ancestor. Roots cannot be renamed, moved, or deleted. `GET /accounts/`
+  root ancestor. Roots cannot be renamed, moved, or deleted. `GET /api/accounts/`
   accepts `?type=<root name>` to filter by root.
 - Account balances are derived from postings. They are not stored as an
   authoritative mutable column.
@@ -153,5 +220,9 @@ uv run alembic upgrade head
 
 ## Other API endpoints
 
-- `GET /accounts/{aid}/register` — an account's transactions oldest first with a signed change and running balance
-- `GET /reports/summary` — assets, liabilities, net worth, and income/expenses for `date_from`..`date_to` (default: current month)
+- `GET /api/accounts/{aid}/register` — an account's transactions oldest first with a signed change and running balance
+- `GET /api/budget/?month=YYYY-MM` — ready to assign and each expense category's assigned, spent and available; `PUT /api/budget/categories/{aid}` sets a category's amount for a month; `POST /api/budget/move` moves available money between categories
+- `PUT`/`DELETE /api/budget/categories/{aid}/target` set or remove a category's target (`monthly`, `refill`, `by_date`); `POST /api/budget/fund` assigns what the targets still need
+- `GET /api/reports/trial-balance` — every account's debits and credits up to `as_of` (default today) and a list of problems; `balanced` is false when a transaction does not balance
+- `GET /api/transactions/{tid}/history` and `GET /api/transactions/deleted` — the append-only log of creations, edits and deletions
+- `GET /api/reports/summary` — assets, liabilities, net worth, and income/expenses for `date_from`..`date_to` (default: current month)

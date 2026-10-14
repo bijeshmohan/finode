@@ -7,16 +7,23 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 
 from .flash import flash_message
+from .models.utils import normalize_amount
 
 
 BASE_DIR = Path(__file__).parent
 
 
 def money(value: Decimal | str | None) -> str:
+    """Thousands separators and at least two decimals; coins and fund units keep their extra places."""
     if value is None:
         return ""
     # A true minus sign lines up with "+" and reads better than a hyphen.
-    return format(Decimal(value), ",.2f").replace("-", "\u2212")
+    return format(normalize_amount(Decimal(value)), ",f").replace("-", "\u2212")
+
+
+def with_unit(text: str, code: str | None, default: str | None) -> str:
+    """Append what the amount is in, unless it is in the currency everything is reported in."""
+    return f"{text} {code}" if code and code != default else text
 
 
 @lru_cache
@@ -42,8 +49,19 @@ def friendly_date(value: date) -> str:
     return f"{value.day} {value:%b %Y}"
 
 
+def origin_label(origin: str | None) -> str | None:
+    """Who entered or changed a transaction, for people: "Claude (AI assistant)", "an import"."""
+    if not origin:
+        return None
+    if origin.startswith("mcp:"):
+        return f"{origin[4:]} (AI assistant)"
+    return {"web": "the app", "api": "the API", "import": "an import", "recurring": "a recurring transaction"}.get(origin, origin)
+
+
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["money"] = money
+templates.env.filters["with_unit"] = with_unit
 templates.env.filters["friendly_date"] = friendly_date
+templates.env.filters["origin_label"] = origin_label
 templates.env.globals["flash_message"] = flash_message
 templates.env.globals["asset_url"] = asset_url

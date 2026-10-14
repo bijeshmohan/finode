@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import HTTPException, Request, Response
@@ -11,7 +12,7 @@ from .config import settings
 ACCESS_COOKIE = "finode_access"
 REFRESH_COOKIE = "finode_refresh"
 REFRESH_MAX_AGE = 60 * 60 * 24 * 30
-LOGIN_PATH = "/app/login"
+LOGIN_PATH = "/login"
 
 
 class LoginRequired(Exception):
@@ -77,15 +78,15 @@ def set_auth_cookies(response: Response, tokens: SessionTokens) -> None:
         "httponly": True,
         "samesite": "lax",
         "secure": settings.cookie_secure,
-        "path": "/app",
+        "path": "/",
     }
     response.set_cookie(ACCESS_COOKIE, tokens.access_token, max_age=tokens.expires_in, **options)
     response.set_cookie(REFRESH_COOKIE, tokens.refresh_token, max_age=REFRESH_MAX_AGE, **options)
 
 
 def clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie(ACCESS_COOKIE, path="/app")
-    response.delete_cookie(REFRESH_COOKIE, path="/app")
+    response.delete_cookie(ACCESS_COOKIE, path="/")
+    response.delete_cookie(REFRESH_COOKIE, path="/")
 
 
 def web_login_required(request: Request) -> None:
@@ -99,7 +100,7 @@ def web_login_required(request: Request) -> None:
     token = request.cookies.get(ACCESS_COOKIE)
     if token:
         try:
-            auth.verify_supabase_jwt(token)
+            auth.reject_app_token(auth.verify_supabase_jwt(token))
         except HTTPException as e:
             if e.status_code != 401:
                 raise
@@ -121,9 +122,22 @@ def web_login_required(request: Request) -> None:
     raise LoginRequired()
 
 
+CONSENT_PATH = "/oauth/consent"
+
+
+def safe_next(target: str | None) -> str | None:
+    """Where to go after signing in: only the OAuth consent page, which an app sends people to."""
+    if target and target.startswith(CONSENT_PATH) and target[len(CONSENT_PATH):len(CONSENT_PATH) + 1] in ("", "?"):
+        return target
+    return None
+
+
 def login_required_handler(request: Request, exc: LoginRequired) -> Response:
     if request.headers.get("HX-Request"):
         return Response(status_code=401, headers={"HX-Redirect": LOGIN_PATH})
+    if request.method == "GET" and request.url.path == CONSENT_PATH:
+        target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        return RedirectResponse(f"{LOGIN_PATH}?{urlencode({'next': target})}", status_code=303)
     return RedirectResponse(LOGIN_PATH, status_code=303)
 
 

@@ -1,14 +1,27 @@
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 
-from ..models import Account
+from ..models import Account, Commodity
 from ..models.transaction import PostingSide
-from ..repositories import AccountRepository, TransactionRepository
+from ..repositories import (
+    AccountRepository,
+    CommodityRepository,
+    PriceRepository,
+    ProfileRepository,
+    TransactionRepository,
+)
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
+from ..schemas.account import HoldingRead
 from ..schemas.transaction import TransactionCreate, PostingCreate
+from ..config import settings
+from ..limits import ensure_room
+from ..repositories.budget import BudgetRepository
+from ..repositories.recurring import RecurringRepository
+from .depth import depth_limit
+from .prices import PriceService
 
 
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
@@ -23,6 +36,10 @@ class AccountInUseError(ValueError):
     ...
 
 
+class AccountDepthError(ValueError):
+    ...
+
+
 class SystemAccountError(ValueError):
     ...
 
@@ -32,9 +49,67 @@ class RootAccountError(SystemAccountError):
 
 
 class AccountService:
-    def __init__(self, ar: AccountRepository, tr: TransactionRepository):
+    def __init__(
+        self,
+        ar: AccountRepository,
+        tr: TransactionRepository,
+        pr: ProfileRepository,
+        cr: CommodityRepository | None = None,
+        prices: PriceService | None = None,
+    ):
         self.ar = ar
         self.tr = tr
+        self.pr = pr
+        self.cr = cr or CommodityRepository(ar.db, ar.uid)
+        self.prices = prices or PriceService(PriceRepository(ar.db, ar.uid), tr)
+        self._catalog: dict[UUID, Commodity] | None = None
+        self._default: Commodity | None = None
+
+    def reset_defaults(self) -> None:
+        """Forget what was looked up before a setting changed."""
+        self._catalog = None
+        self._default = None
+
+    def catalog(self) -> dict[UUID, Commodity]:
+        if self._catalog is None:
+            self._catalog = {c.cid: c for c in self.cr.list()}
+        return self._catalog
+
+    def default_currency(self) -> Commodity:
+        if self._default is None:
+            self._default = self.cr.default_currency()
+        return self._default
+
+    def _holds(self, account: Account) -> Commodity:
+        """What an account holds; root accounts are totalled in the default currency."""
+        if account.commodity_id is None:
+            return self.default_currency()
+        return self.catalog()[account.commodity_id]
+
+    def _commodity_code(self, commodity_id: UUID | None) -> str | None:
+        if commodity_id is None:
+            return self.default_currency().code
+        commodity = self.catalog().get(commodity_id)
+        return commodity.code if commodity else None
+
+    def _new_account_commodity(self, parent: Account, code: str | None = None) -> UUID:
+        """A new account holds what was asked for, else what its parent holds, else the default currency."""
+        if code:
+            commodity = self.cr.read_by_code(code.upper())
+            if commodity is None:
+                raise ValueError(f"unknown commodity '{code}'!")
+            return commodity.cid
+        return parent.commodity_id or self.default_currency().cid
+
+    @staticmethod
+    def _check_places(commodity: Commodity, amount: Decimal) -> None:
+        exponent = amount.normalize().as_tuple().exponent
+        places = max(0, -exponent) if isinstance(exponent, int) else 0
+        if places > commodity.decimals:
+            raise ValueError(
+                f"{commodity.code} amounts can have at most {commodity.decimals} "
+                f"decimal place{'' if commodity.decimals == 1 else 's'}!"
+            )
 
     @staticmethod
     def _is_root(account: Account) -> bool:
@@ -59,6 +134,52 @@ class AccountService:
             raise ValueError(
                 f"cannot add sub-accounts to '{parent.name}' because it has postings!"
             )
+
+    @staticmethod
+    def _depth(account: Account, accounts_by_id: dict[UUID, Account]) -> int:
+        """Levels below the top-level account (a top-level account is 0)."""
+        depth = 0
+        seen = {account.aid}
+        while account.parent_id is not None and account.parent_id in accounts_by_id:
+            account = accounts_by_id[account.parent_id]
+            if account.aid in seen:
+                break
+            seen.add(account.aid)
+            depth += 1
+        return depth
+
+    def account_depths(self) -> list[tuple[str, int, str]]:
+        """(top-level account name, depth, path) for every non-top-level account."""
+        all_accounts = self._ensure_roots()
+        by_id = {a.aid: a for a in all_accounts}
+        result = []
+        for account in all_accounts:
+            if account.parent_id is None:
+                continue
+            names, current, seen = [], account, set()
+            while current.aid not in seen:
+                seen.add(current.aid)
+                names.append(current.name)
+                if current.parent_id is None or current.parent_id not in by_id:
+                    break
+                current = by_id[current.parent_id]
+            result.append((current.name, len(names) - 1, " › ".join(reversed(names))))
+        return result
+
+    def _check_depth(self, parent: Account, levels_below_parent: int, all_accounts: list[Account]) -> None:
+        """Refuse a new or moved subtree that would go deeper than the user's limit."""
+        by_id = {a.aid: a for a in all_accounts}
+        root = self._get_root_name(parent, by_id)
+        resulting = self._depth(parent, by_id) + levels_below_parent
+        limit = depth_limit(self.pr.read(), root)
+        if resulting > limit:
+            raise AccountDepthError(
+                f"{root} accounts can be at most {limit} level{'' if limit == 1 else 's'} deep, "
+                f"and this would be {resulting}. You can raise the limit in your profile."
+            )
+
+    def ensure_roots(self) -> list[Account]:
+        return self._ensure_roots()
 
     def _ensure_roots(self) -> list[Account]:
         """Return all accounts, lazily provisioning the user's system roots.
@@ -116,6 +237,20 @@ class AccountService:
             return PostingSide.CREDIT
         return PostingSide.DEBIT
 
+    def _height(self, aid: UUID, all_accounts: list[Account]) -> int:
+        """Levels of sub-accounts below an account (0 for a leaf)."""
+        children: dict[UUID, list[UUID]] = {}
+        for a in all_accounts:
+            if a.parent_id is not None:
+                children.setdefault(a.parent_id, []).append(a.aid)
+        height, level, seen = 0, [aid], {aid}
+        while True:
+            level = [c for p in level for c in children.get(p, []) if c not in seen]
+            if not level:
+                return height
+            seen.update(level)
+            height += 1
+
     def _get_descendants(
         self,
         parent_id: UUID,
@@ -144,13 +279,23 @@ class AccountService:
                 accounts_by_parent.setdefault(acc.parent_id, []).append(acc)
         return [account_id] + self._get_descendants(account_id, accounts_by_parent)
 
-    def _balance_for(
+    def _valued_balance(
         self,
         account: Account,
         all_accounts: list[Account] | None = None,
-    ) -> Decimal:
+        as_of: date | None = None,
+    ) -> tuple[Decimal, bool]:
+        """The account's balance in what it holds, and whether part of it could not be valued.
+
+        Counts the postings dated up to `as_of` (today by default, so entries dated in the future
+        do not count yet) and values what is held in something else at the rate of that day.
+
+        Sub-accounts that hold something else are valued at the latest price. A group of
+        accounts without a price linking them is reported as partly unpriced, never as zero.
+        """
         if all_accounts is None:
             all_accounts = self._ensure_roots()
+        as_of = as_of or date.today()
 
         accounts_by_id = {acc.aid: acc for acc in all_accounts}
         accounts_by_parent = {}
@@ -161,33 +306,59 @@ class AccountService:
         descendant_ids = self._get_descendants(account.aid, accounts_by_parent)
         target_ids = [account.aid] + descendant_ids
 
-        debit_total = Decimal("0.00")
-        credit_total = Decimal("0.00")
-        for posting in self.tr.postings_for_accounts(target_ids):
-            if posting.side == PostingSide.DEBIT:
-                debit_total += posting.amount
-            else:
-                credit_total += posting.amount
-
         normal_side = self._normal_side(account, accounts_by_id)
-        if normal_side == PostingSide.DEBIT:
-            return debit_total - credit_total
-        return credit_total - debit_total
+        target = self._holds(account)
+        totals: dict[UUID, Decimal] = {}
+        for posting in self.tr.postings_for_accounts(target_ids, date_to=as_of):
+            held = accounts_by_id[posting.account].commodity_id or target.cid
+            signed = posting.amount if posting.side == normal_side else -posting.amount
+            totals[held] = totals.get(held, Decimal("0.00")) + signed
+
+        balance = Decimal("0.00")
+        unpriced = False
+        for held, total in totals.items():
+            if held == target.cid or total == 0:
+                balance += total
+                continue
+            converted = self.prices.book().convert(total, held, target.cid, as_of, target.decimals)
+            if converted is None:
+                unpriced = True
+            else:
+                balance += converted
+        return balance, unpriced
+
+    def _balance_for(
+        self,
+        account: Account,
+        all_accounts: list[Account] | None = None,
+        as_of: date | None = None,
+    ) -> Decimal:
+        return self._valued_balance(account, all_accounts, as_of)[0]
 
     def _to_read(
         self,
         account: Account,
         all_accounts: list[Account] | None = None,
+        as_of: date | None = None,
     ) -> AccountRead:
+        balance, unpriced = self._valued_balance(account, all_accounts, as_of)
         return AccountRead(
             aid=account.aid,
             name=account.name,
             details=account.details,
             parent_id=account.parent_id,
-            balance=self._balance_for(account, all_accounts),
+            commodity=self._commodity_code(account.commodity_id),
+            balance=balance,
+            unpriced=unpriced,
+            on_budget=account.on_budget,
+            payment_category_id=account.payment_category_id,
+            closed_on=account.closed_on,
             created=account.created,
             updated=account.updated,
         )
+
+    def opening_balances_account(self) -> Account:
+        return self._opening_balances_account()
 
     def _opening_balances_account(self) -> Account:
         all_accounts = self._ensure_roots()
@@ -200,7 +371,8 @@ class AccountService:
                 name=OPENING_BALANCES_ACCOUNT_NAME,
                 details="System account for opening balance adjustments",
                 parent_id=equity_root.aid,
-            )
+            ),
+            commodity_id=self.default_currency().cid,
         )
 
     def _post_balance_adjustment(
@@ -210,7 +382,13 @@ class AccountService:
         payee: str,
         comment: str,
         all_accounts: list[Account],
+        worth: Decimal | None = None,
     ) -> None:
+        """Post `amount` of what the account holds against Opening Balances.
+
+        When the account holds something other than the opening-balances account's currency,
+        the adjustment is valued in that currency: `worth` if the user gave it, else the latest price.
+        """
         if amount == 0:
             return
 
@@ -224,25 +402,111 @@ class AccountService:
         if amount < 0:
             account_side, opening_side = opening_side, account_side
 
-        self.tr.create(
-            TransactionCreate(
-                date=date.today(),
-                payee=payee,
-                comment=comment,
-                postings=[
-                    PostingCreate(
-                        account=account.aid,
-                        side=account_side,
-                        amount=adjustment,
-                    ),
-                    PostingCreate(
-                        account=opening_account.aid,
-                        side=opening_side,
-                        amount=adjustment,
-                    ),
-                ],
+        held = self._holds(account)
+        self._check_places(held, adjustment)
+        currency = self._holds(opening_account)
+        postings = [PostingCreate(account=account.aid, side=account_side, amount=adjustment)]
+        values: list[Decimal] | None = None
+        if held.cid == currency.cid:
+            postings.append(PostingCreate(account=opening_account.aid, side=opening_side, amount=adjustment))
+        else:
+            value = abs(worth) if worth is not None else self.prices.book().convert(
+                adjustment, held.cid, currency.cid, date.today()
             )
+            if value is None:
+                raise ValueError(
+                    f"no {held.code} price is known yet: say what {adjustment:f} {held.code} is worth in {currency.code}!"
+                )
+            value = value.quantize(Decimal(1).scaleb(-currency.decimals), rounding=ROUND_HALF_UP)
+            if value <= 0:
+                raise ValueError(f"that amount of {held.code} is worth less than the smallest unit of {currency.code}!")
+            postings[0].value = value
+            postings.append(PostingCreate(account=opening_account.aid, side=opening_side, amount=value))
+            values = [value, value]
+
+        self.tr.create(
+            TransactionCreate(date=date.today(), payee=payee, comment=comment, postings=postings),
+            currency.cid,
+            values,
         )
+        self.prices.invalidate()
+
+    # ---- closing ---------------------------------------------------------------------------------
+
+    def _subtree(self, aid: UUID, all_accounts: list[Account]) -> list[Account]:
+        children: dict[UUID, list[Account]] = {}
+        for a in all_accounts:
+            if a.parent_id is not None:
+                children.setdefault(a.parent_id, []).append(a)
+        found, queue = [], [next(a for a in all_accounts if a.aid == aid)]
+        while queue:
+            current = queue.pop()
+            found.append(current)
+            queue.extend(children.get(current.aid, []))
+        return found
+
+    def close(self, aid: UUID, today: date | None = None) -> AccountRead:
+        """Close an account, and everything inside it: nothing more can be posted to it and it leaves the
+        pickers and the accounts list, but its history stays. Refused while anything inside still holds a
+        balance (now or in a future-dated entry) or a recurring transaction still uses it."""
+        today = today or date.today()
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
+        if account is None:
+            raise ValueError("account not found!")
+        if self._is_root(account):
+            raise RootAccountError("cannot close system root accounts!")
+        if self.is_opening_balances(account, all_accounts):
+            raise SystemAccountError(f"cannot close system account '{account.name}'!")
+        subtree = self._subtree(aid, all_accounts)
+        for member in subtree:
+            for when in (today, date(2999, 12, 31)):
+                balance = self._to_read(member, all_accounts, when).balance
+                if balance != 0:
+                    raise ValueError(
+                        f"'{member.name}' still holds {balance:f}: move or spend it first, then close "
+                        f"{'it' if member.aid == aid else account.name}!"
+                    )
+        rules = RecurringRepository.active_rules_using(self.ar.db, self.ar.uid, {m.aid for m in subtree})
+        if rules:
+            label = rules[0].payee or "a recurring transaction"
+            raise AccountInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
+        budget = BudgetRepository(self.ar.db, self.ar.uid)
+        for member in subtree:
+            budget.clear_target(member.aid)
+            self.ar.clear_payment_category(member.aid)
+        self.ar.set_closed([m.aid for m in subtree if m.closed_on is None], today)
+        self.ar.db.commit()
+        return self._to_read(self.ar.read(aid), self._ensure_roots())
+
+    def reopen(self, aid: UUID) -> AccountRead:
+        """Reopen an account with everything inside it, and the groups above it (an open account sits in open groups)."""
+        all_accounts = self._ensure_roots()
+        by_id = {a.aid: a for a in all_accounts}
+        if aid not in by_id:
+            raise ValueError("account not found!")
+        ids = [m.aid for m in self._subtree(aid, all_accounts)]
+        current = by_id[aid]
+        while current.parent_id is not None:
+            current = by_id[current.parent_id]
+            ids.append(current.aid)
+        self.ar.set_closed([i for i in ids if by_id[i].closed_on is not None], None)
+        self.ar.db.commit()
+        return self._to_read(self.ar.read(aid), self._ensure_roots())
+
+    def used_account_ids(self) -> set[UUID]:
+        """Accounts that have postings or that a recurring rule records into: the rest are not in use (yet)."""
+        used = self.tr.account_ids_with_postings()
+        used |= RecurringRepository.account_ids_in_rules(self.ar.db, self.ar.uid)
+        return used
+
+    def _check_budgetable(self, parent: Account | None, commodity_id: UUID | None, accounts_by_id: dict) -> None:
+        """Only an asset or liability account holding a currency can be part of the budget."""
+        if parent is None or self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):
+            raise ValueError("only asset and liability accounts can be part of the budget!")
+        held = self.catalog().get(commodity_id) if commodity_id else None
+        if held is None or held.kind != "currency":
+            raise ValueError("only an account holding a currency can be part of the budget!")
 
     def _detect_cycle(self, account_id: UUID, proposed_parent_id: UUID | None) -> bool:
         if proposed_parent_id is None:
@@ -268,6 +532,10 @@ class AccountService:
             raise ValueError("parent account not found!")
 
         self._validate_parent(parent, all_accounts)
+        ensure_room(len(all_accounts), settings.max_accounts, "accounts")
+        if parent.closed_on is not None:
+            raise ValueError(f"'{parent.name}' is closed: reopen it to add accounts to it!")
+        self._check_depth(parent, 1, all_accounts)
         if (
             self.is_opening_balances(
                 Account(name=account.name, parent_id=account.parent_id, user=self.ar.uid),
@@ -277,28 +545,42 @@ class AccountService:
         ):
             raise ValueError(f"system account '{account.name}' already exists!")
 
-        created = self.ar.create(account)
+        commodity_id = self._new_account_commodity(parent, account.commodity)
+        accounts_by_id = {a.aid: a for a in all_accounts}
+        in_budget = account.on_budget
+        if in_budget is None:  # money in an asset account that holds a currency is budgeted unless said otherwise
+            in_budget = (
+                self._get_root_name(parent, accounts_by_id) == "Assets" and self.catalog()[commodity_id].kind == "currency"
+            )
+        elif in_budget:
+            self._check_budgetable(parent, commodity_id, accounts_by_id)
+        created = self.ar.create(account, commodity_id=commodity_id, on_budget=in_budget)
         all_accounts_with_created = all_accounts + [created]
 
-        self._post_balance_adjustment(
-            created,
-            account.balance,
-            "Opening balance",
-            "Initial account balance",
-            all_accounts_with_created,
-        )
+        try:
+            self._post_balance_adjustment(
+                created,
+                account.balance,
+                "Opening balance",
+                "Initial account balance",
+                all_accounts_with_created,
+                account.balance_value,
+            )
+        except ValueError:
+            self.ar.db.rollback()
+            raise
         self.ar.db.commit()
         self.ar.db.refresh(created)
         return self._to_read(created, all_accounts_with_created)
 
-    def read(self, aid: UUID) -> AccountRead | None:
+    def read(self, aid: UUID, as_of: date | None = None) -> AccountRead | None:
         all_accounts = self._ensure_roots()
         account = next((a for a in all_accounts if a.aid == aid), None)
         if not account:
             return None
-        return self._to_read(account, all_accounts)
+        return self._to_read(account, all_accounts, as_of)
 
-    def list(self, root_name: str | None = None) -> list[AccountRead]:
+    def list(self, root_name: str | None = None, as_of: date | None = None) -> list[AccountRead]:
         all_accounts = self._ensure_roots()
         accounts_by_id = {acc.aid: acc for acc in all_accounts}
 
@@ -308,7 +590,7 @@ class AccountService:
                 a for a in all_accounts
                 if self._get_root_name(a, accounts_by_id) == root_name
             ]
-        return [self._to_read(account, all_accounts) for account in filtered]
+        return [self._to_read(account, all_accounts, as_of) for account in filtered]
 
     def register(self, aid: UUID) -> list[RegisterEntry] | None:
         """Return the account's activity oldest first with a running balance.
@@ -325,11 +607,28 @@ class AccountService:
         accounts_by_id = {acc.aid: acc for acc in all_accounts}
         target_ids = self.subtree_ids(aid, all_accounts)
         normal_side = self._normal_side(account, accounts_by_id)
+        target = self._holds(account)
 
         changes: dict[UUID, Decimal] = {}
+        unpriced_in: set[UUID] = set()
+        dates: dict[UUID, date] = {}
         for posting in self.tr.postings_for_accounts(target_ids):
             signed = posting.amount if posting.side == normal_side else -posting.amount
+            held = accounts_by_id[posting.account].commodity_id or target.cid
+            if held != target.cid:
+                # Sub-accounts holding something else count at the rate of the day.
+                if posting.transaction not in dates:
+                    dates[posting.transaction] = self.tr.read(posting.transaction).date
+                converted = self.prices.book().convert(
+                    signed, held, target.cid, dates[posting.transaction], target.decimals
+                )
+                if converted is None:
+                    unpriced_in.add(posting.transaction)
+                    continue
+                signed = converted
             changes[posting.transaction] = changes.get(posting.transaction, Decimal("0.00")) + signed
+        for tid in unpriced_in:
+            changes.setdefault(tid, Decimal("0.00"))
 
         transactions = [self.tr.read(tid) for tid in changes]
         transactions = [t for t in transactions if t is not None]
@@ -355,9 +654,76 @@ class AccountService:
                     counter_accounts=counter_accounts,
                     change=changes[transaction.tid],
                     balance=balance,
+                    unpriced=transaction.tid in unpriced_in,
                 )
             )
         return entries
+
+    def opening_currency(self) -> Commodity:
+        """What balances are valued in when an account holding something else is opened: the currency of
+        the Opening Balances account, which is the default currency from when it was first needed."""
+        all_accounts = self._ensure_roots()
+        equity = next(a for a in all_accounts if a.name == "Equity" and a.parent_id is None)
+        opening = self.ar.read_by_name(OPENING_BALANCES_ACCOUNT_NAME, equity.aid)
+        return self._holds(opening) if opening else self.default_currency()
+
+    def commodity_of(self, aid: UUID) -> Commodity | None:
+        """What an account holds (None for an unknown account)."""
+        account = self.ar.read(aid)
+        return self._holds(account) if account else None
+
+    def has_postings(self, aid: UUID) -> bool:
+        return bool(self.tr.postings_for_account(aid))
+
+    def commodity_choices(self) -> list[Commodity]:
+        """What an account can hold: the built-in currencies and the user's own assets."""
+        return sorted(self.catalog().values(), key=lambda c: (c.user is not None, c.kind != "currency", c.code))
+
+    def holding(self, aid: UUID) -> HoldingRead | None:
+        """What an account holding something other than the default currency is worth.
+
+        `invested` is what the postings to the account were worth when they were made, in the
+        default currency; the difference to today's value is the gain (or loss).
+        """
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
+        default = self.default_currency()
+        if account is None or account.commodity_id in (None, default.cid) or any(
+            a.parent_id == aid for a in all_accounts
+        ):
+            return None
+        held = self._holds(account)
+        accounts_by_id = {acc.aid: acc for acc in all_accounts}
+        normal_side = self._normal_side(account, accounts_by_id)
+        quantity = self._balance_for(account, all_accounts)
+        book = self.prices.book()
+
+        invested = Decimal("0.00")
+        invested_known = True
+        for posting in self.tr.postings_for_account(aid):
+            transaction = self.tr.read(posting.transaction)
+            if transaction.date > date.today():
+                continue  # not part of the balance yet either
+            signed = posting.value if posting.side == normal_side else -posting.value
+            if transaction.currency_id != default.cid:
+                signed = book.convert(signed, transaction.currency_id, default.cid, transaction.date, default.decimals)
+                if signed is None:
+                    invested_known = False
+                    continue
+            invested += signed
+
+        value = book.convert(quantity, held.cid, default.cid, date.today(), default.decimals) if quantity else Decimal("0.00")
+        rate = book.rate(held.cid, default.cid, date.today())
+        return HoldingRead(
+            commodity=held.code,
+            currency=default.code,
+            quantity=quantity,
+            value=value,
+            invested=invested if invested_known else None,
+            gain=value - invested if value is not None and invested_known else None,
+            rate=rate.value if rate else None,
+            rate_as_of=rate.as_of if rate else None,
+        )
 
     def update(self, aid: UUID, data: AccountUpdate) -> AccountRead | None:
         all_accounts = self._ensure_roots()
@@ -393,6 +759,7 @@ class AccountService:
 
                 if parent_id != account.parent_id:
                     self._validate_parent(parent, all_accounts)
+                    self._check_depth(parent, 1 + self._height(aid, all_accounts), all_accounts)
 
                 if self._detect_cycle(aid, parent_id):
                     raise ValueError("cyclic parent relationship detected!")
@@ -423,8 +790,61 @@ class AccountService:
             if self.ar.has_children(aid):
                 raise ValueError("cannot set balance of an account with sub-accounts!")
 
-        previous_balance = self._balance_for(account, all_accounts)
-        updated = self.ar.update(aid, data)
+        commodity_id = None
+        if data.commodity:
+            commodity = self.cr.read_by_code(data.commodity.upper())
+            if commodity is None:
+                raise ValueError(f"unknown commodity '{data.commodity}'!")
+            if commodity.cid != account.commodity_id:
+                if is_system_root or is_opening:
+                    raise SystemAccountError(f"cannot change what '{account.name}' holds!")
+                if self.tr.postings_for_account(aid):
+                    raise ValueError(
+                        f"cannot change what '{account.name}' holds because it has postings!"
+                    )
+                commodity_id = commodity.cid
+
+        on_budget = None
+        if data.on_budget is not None:
+            accounts_by_id = {a.aid: a for a in all_accounts}
+            if data.on_budget:
+                if is_system_root or account.parent_id is None:
+                    raise ValueError("only asset and liability accounts can be part of the budget!")
+                if self.ar.has_children(aid):
+                    raise ValueError("an account with sub-accounts cannot be part of the budget: use its sub-accounts!")
+                new_parent = next(
+                    (a for a in all_accounts if a.aid == (data.parent_id or account.parent_id)), None
+                )
+                self._check_budgetable(new_parent, commodity_id or account.commodity_id, accounts_by_id)
+            on_budget = data.on_budget
+        elif commodity_id is not None and account.on_budget and self.catalog()[commodity_id].kind != "currency":
+            on_budget = False  # no longer holds a currency
+
+        if account.closed_on is not None and "balance" in data.model_fields_set and data.balance is not None:
+            raise ValueError(f"'{account.name}' is closed: reopen it to change its balance!")
+        if data.parent_id and data.parent_id != account.parent_id:
+            new_home = next((a for a in all_accounts if a.aid == data.parent_id), None)
+            if new_home is not None and new_home.closed_on is not None:
+                raise ValueError(f"'{new_home.name}' is closed: reopen it to move accounts into it!")
+
+        payment_category: UUID | None | type(...) = ...
+        if "payment_category_id" in data.model_fields_set:
+            payment_category = data.payment_category_id
+            if payment_category is not None:
+                accounts_by_id = {a.aid: a for a in all_accounts}
+                target = accounts_by_id.get(payment_category)
+                if target is None or target.parent_id is None or self._get_root_name(target, accounts_by_id) != "Expenses":
+                    raise ValueError("payments can only be budgeted under an expense category!")
+                if is_system_root or account.parent_id is None or self._get_root_name(account, accounts_by_id) not in ("Assets", "Liabilities"):
+                    raise ValueError("only asset and liability accounts can have a payment category!")
+                if self.ar.has_children(aid):
+                    raise ValueError("an account with sub-accounts cannot have one: use its sub-accounts!")
+                if on_budget if on_budget is not None else account.on_budget:
+                    raise ValueError("an account that is part of the budget doesn't need one: its money is already budgeted!")
+        elif on_budget and account.payment_category_id is not None:
+            payment_category = None  # now part of the budget itself
+
+        updated = self.ar.update(aid, data, commodity_id, on_budget, payment_category)
         if not updated:
             raise RuntimeError(f"failed to update account with aid '{aid}'!")
 
@@ -432,13 +852,18 @@ class AccountService:
 
         if "balance" in data.model_fields_set and data.balance is not None:
             current_balance = self._balance_for(updated, all_accounts)
-            self._post_balance_adjustment(
-                updated,
-                data.balance - current_balance,
-                "Balance adjustment",
-                "Result of direct account balance update",
-                all_accounts,
-            )
+            try:
+                self._post_balance_adjustment(
+                    updated,
+                    data.balance - current_balance,
+                    "Balance adjustment",
+                    "Result of direct account balance update",
+                    all_accounts,
+                    data.balance_value,
+                )
+            except ValueError:
+                self.ar.db.rollback()
+                raise
 
         self.ar.db.commit()
         self.ar.db.refresh(updated)
@@ -461,8 +886,12 @@ class AccountService:
             raise AccountInUseError("account has sub-accounts")
         if self.tr.postings_for_account(aid):
             raise AccountInUseError("account has postings")
+        if RecurringRepository.uses_account(self.ar.db, aid):
+            raise AccountInUseError("account is used by a recurring transaction")
 
         account_read = self._to_read(account, all_accounts)
+        BudgetRepository(self.ar.db, self.ar.uid).delete_for_account(aid)  # only a plan: it goes with the category
+        self.ar.clear_payment_category(aid)
         deleted = self.ar.delete(aid)
         if not deleted:
             raise ValueError(f"account with aid '{aid}' not found!")

@@ -1,12 +1,36 @@
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlmodel import Session, create_engine
 
 from .auth import CurrentUser, require_authenticated_user
 from .config import settings
-from .repositories import AccountRepository, ProfileRepository, TransactionRepository
-from .services import AccountService, ProfileService, ReportService, TransactionService
+from .repositories.api_token import ApiTokenRepository
+from .repositories.oauth_grant import OAuthGrantRepository
+from .services.api_token import ApiTokenService
+from .services.oauth_grant import OAuthGrantService
+from .repositories import (
+    AccountRepository,
+    BudgetRepository,
+    CommodityRepository,
+    PriceRepository,
+    ProfileRepository,
+    RecurringRepository,
+    TransactionRepository,
+)
+from .services.backup import BackupService
+from .services.erase import EraseService
+from .services import (
+    AccountService,
+    BudgetService,
+    CommodityService,
+    DataService,
+    PriceService,
+    ProfileService,
+    RecurringService,
+    ReportService,
+    TransactionService,
+)
 
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
@@ -38,24 +62,99 @@ def get_profile_repository(
     return ProfileRepository(db, user.id)
 
 
-def get_profile_service(
-    pr: ProfileRepository = Depends(get_profile_repository),
-) -> ProfileService:
-    return ProfileService(pr)
+def get_commodity_repository(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> CommodityRepository:
+    return CommodityRepository(db, user.id)
+
+
+def get_price_repository(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> PriceRepository:
+    return PriceRepository(db, user.id)
+
+
+def get_price_service(
+    pr: PriceRepository = Depends(get_price_repository),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    cr: CommodityRepository = Depends(get_commodity_repository),
+) -> PriceService:
+    return PriceService(pr, tr, cr)
+
+
+def get_commodity_service(
+    cr: CommodityRepository = Depends(get_commodity_repository),
+) -> CommodityService:
+    return CommodityService(cr)
 
 
 def get_account_service(
     ar: AccountRepository = Depends(get_account_repository),
     tr: TransactionRepository = Depends(get_transaction_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
+    cr: CommodityRepository = Depends(get_commodity_repository),
+    prices: PriceService = Depends(get_price_service),
 ) -> AccountService:
-    return AccountService(ar, tr)
+    return AccountService(ar, tr, pr, cr, prices)
+
+
+def get_profile_service(
+    pr: ProfileRepository = Depends(get_profile_repository),
+    accounts: AccountService = Depends(get_account_service),
+    cr: CommodityRepository = Depends(get_commodity_repository),
+) -> ProfileService:
+    return ProfileService(pr, accounts, cr)
+
+
+def get_data_service(
+    accounts: AccountService = Depends(get_account_service),
+    ar: AccountRepository = Depends(get_account_repository),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
+) -> DataService:
+    return DataService(accounts, ar, tr, pr)
+
+
+def get_erase_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> EraseService:
+    return EraseService(db, user.id)
+
+
+def get_backup_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+    accounts: AccountService = Depends(get_account_service),
+    ar: AccountRepository = Depends(get_account_repository),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
+) -> BackupService:
+    return BackupService(accounts, ar, tr, pr, RecurringRepository(db, user.id), BudgetRepository(db, user.id))
 
 
 def get_transaction_service(
+    request: Request,
     tr: TransactionRepository = Depends(get_transaction_repository),
     ar: AccountRepository = Depends(get_account_repository),
+    cr: CommodityRepository = Depends(get_commodity_repository),
 ) -> TransactionService:
-    return TransactionService(tr, ar)
+    origin = "api" if request.url.path.startswith("/api/") else "web"
+    return TransactionService(tr, ar, cr, origin=origin)
+
+
+def get_recurring_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+    accounts: AccountService = Depends(get_account_service),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    ar: AccountRepository = Depends(get_account_repository),
+    cr: CommodityRepository = Depends(get_commodity_repository),
+) -> RecurringService:
+    # What a rule records is marked as made by the rule, not by whoever happened to open the page.
+    return RecurringService(RecurringRepository(db, user.id), accounts, TransactionService(tr, ar, cr, origin="recurring"))
 
 
 def get_report_service(
@@ -65,10 +164,42 @@ def get_report_service(
     return ReportService(accounts, tr)
 
 
+def get_budget_service(
+    accounts: AccountService = Depends(get_account_service),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> BudgetService:
+    return BudgetService(accounts, tr, BudgetRepository(db, user.id))
+
+
+def get_api_token_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> ApiTokenService:
+    return ApiTokenService(ApiTokenRepository(db, user.id))
+
+
+def get_oauth_grant_service(
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> OAuthGrantService:
+    return OAuthGrantService(OAuthGrantRepository(db, user.id))
+
+
 DB = Annotated[Session, Depends(get_db_session)]
 AR = Annotated[AccountRepository, Depends(get_account_repository)]
 TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
+Prices = Annotated[PriceService, Depends(get_price_service)]
+Commodities = Annotated[CommodityService, Depends(get_commodity_service)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
+Data = Annotated[DataService, Depends(get_data_service)]
+Backup = Annotated[BackupService, Depends(get_backup_service)]
+Erase = Annotated[EraseService, Depends(get_erase_service)]
 Profiles = Annotated[ProfileService, Depends(get_profile_service)]
+Recurring = Annotated[RecurringService, Depends(get_recurring_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]
+Budget = Annotated[BudgetService, Depends(get_budget_service)]
+ApiTokens = Annotated[ApiTokenService, Depends(get_api_token_service)]
+OAuthGrants = Annotated[OAuthGrantService, Depends(get_oauth_grant_service)]

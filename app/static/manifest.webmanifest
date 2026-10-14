@@ -1,8 +1,8 @@
 {
   "name": "finode",
   "short_name": "finode",
-  "start_url": "/app/",
-  "scope": "/app/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f5f6f8",
   "theme_color": "#f5f6f8",

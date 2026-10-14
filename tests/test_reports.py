@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 def _transfer(client: TestClient, debit: dict, credit: dict, amount: str, on: str):
     response = client.post(
-        "/transactions/",
+        "/api/transactions/",
         json={
             "date": on,
             "postings": [
@@ -18,7 +18,7 @@ def _transfer(client: TestClient, debit: dict, credit: dict, amount: str, on: st
 
 
 def test_summary_empty(client: TestClient):
-    response = client.get("/reports/summary")
+    response = client.get("/api/reports/summary")
     assert response.status_code == 200
     data = response.json()
     assert data["net_worth"] == "0.00"
@@ -35,11 +35,11 @@ def test_summary_net_worth_and_period_totals(
     expense_account: dict,
 ):
     bank = client.post(
-        "/accounts/",
+        "/api/accounts/",
         json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"},
     ).json()
     card = client.post(
-        "/accounts/",
+        "/api/accounts/",
         json={"name": "card", "parent_id": root_accounts["Liabilities"], "balance": "200.00"},
     ).json()
     _transfer(client, bank, income_account, "500.00", "2026-03-10")
@@ -47,7 +47,7 @@ def test_summary_net_worth_and_period_totals(
     _transfer(client, expense_account, card, "30.00", "2026-04-01")
 
     march = client.get(
-        "/reports/summary", params={"date_from": "2026-03-01", "date_to": "2026-03-31"}
+        "/api/reports/summary", params={"date_from": "2026-03-01", "date_to": "2026-03-31"}
     ).json()
     assert march["income"] == "500.00"
     assert march["expenses"] == "120.00"
@@ -58,7 +58,7 @@ def test_summary_net_worth_and_period_totals(
     assert march["net_worth"] == "1150.00"
 
     april = client.get(
-        "/reports/summary", params={"date_from": "2026-04-01", "date_to": "2026-04-30"}
+        "/api/reports/summary", params={"date_from": "2026-04-01", "date_to": "2026-04-30"}
     ).json()
     assert april["income"] == "0.00"
     assert april["expenses"] == "30.00"
@@ -66,7 +66,7 @@ def test_summary_net_worth_and_period_totals(
 
 def test_summary_rejects_inverted_period(client: TestClient):
     response = client.get(
-        "/reports/summary", params={"date_from": "2026-05-01", "date_to": "2026-04-01"}
+        "/api/reports/summary", params={"date_from": "2026-05-01", "date_to": "2026-04-01"}
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "period start must not be after period end!"

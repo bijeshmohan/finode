@@ -1,0 +1,121 @@
+from datetime import date
+from uuid import UUID
+
+from sqlalchemy import or_
+from sqlmodel import Session, select
+
+from ..models.recurring import RecurringPosting, RecurringTransaction
+from ..models.transaction import Transaction
+
+
+class RecurringRepository:
+    def __init__(self, db: Session, uid: UUID):
+        self.db = db
+        self.uid = uid
+
+    def list(self) -> list[RecurringTransaction]:
+        statement = (
+            select(RecurringTransaction)
+            .where(RecurringTransaction.user == self.uid)
+            .order_by(RecurringTransaction.next_date, RecurringTransaction.created)
+        )
+        return self.db.exec(statement).all()
+
+    def read(self, rid: UUID) -> RecurringTransaction | None:
+        return self.db.exec(
+            select(RecurringTransaction).where(RecurringTransaction.rid == rid, RecurringTransaction.user == self.uid)
+        ).first()
+
+    def due(self, today: date) -> list[RecurringTransaction]:
+        statement = select(RecurringTransaction).where(
+            RecurringTransaction.user == self.uid,
+            RecurringTransaction.active == True,  # noqa: E712
+            RecurringTransaction.next_date <= today,
+        )
+        return self.db.exec(statement).all()
+
+    def add(self, rule: RecurringTransaction) -> RecurringTransaction:
+        self.db.add(rule)
+        self.db.flush()
+        return rule
+
+    def postings(self) -> dict[UUID, list[RecurringPosting]]:
+        """The rows of every split rule, by rule, in the order they were entered."""
+        found: dict[UUID, list[RecurringPosting]] = {}
+        statement = select(RecurringPosting).where(RecurringPosting.user == self.uid).order_by(RecurringPosting.position)
+        for row in self.db.exec(statement).all():
+            found.setdefault(row.rid, []).append(row)
+        return found
+
+    def set_postings(self, rid: UUID, rows: list[dict]) -> None:
+        for old in self.db.exec(select(RecurringPosting).where(RecurringPosting.rid == rid)).all():
+            self.db.delete(old)
+        self.db.flush()
+        for position, row in enumerate(rows):
+            self.db.add(RecurringPosting(user=self.uid, rid=rid, position=position, **row))
+        self.db.flush()
+
+    def delete(self, rule: RecurringTransaction) -> None:
+        self.set_postings(rule.rid, [])
+        # What it recorded stays: those transactions just stop pointing at the rule.
+        for transaction in self.db.exec(select(Transaction).where(Transaction.recurring_id == rule.rid)).all():
+            transaction.recurring_id = None
+            self.db.add(transaction)
+        self.db.flush()
+        self.db.delete(rule)
+        self.db.flush()
+
+    def recorded(self, rid: UUID, day: date) -> bool:
+        return (
+            self.db.exec(
+                select(Transaction.tid).where(Transaction.recurring_id == rid, Transaction.recurring_date == day)
+            ).first()
+            is not None
+        )
+
+    @staticmethod
+    def users_with_due(db: Session, today: date) -> list[UUID]:
+        statement = (
+            select(RecurringTransaction.user)
+            .where(RecurringTransaction.active == True, RecurringTransaction.next_date <= today)  # noqa: E712
+            .distinct()
+        )
+        return list(db.exec(statement).all())
+
+    @staticmethod
+    def account_ids_in_rules(db: Session, uid: UUID) -> set[UUID]:
+        ids: set[UUID] = set()
+        for rule in db.exec(select(RecurringTransaction).where(RecurringTransaction.user == uid)).all():
+            ids.update(a for a in (rule.from_account, rule.to_account) if a is not None)
+        ids.update(db.exec(select(RecurringPosting.account).where(RecurringPosting.user == uid)).all())
+        return ids
+
+    @staticmethod
+    def active_rules_using(db: Session, uid: UUID, aids: set[UUID]) -> list[RecurringTransaction]:
+        """Rules that still run and record into or out of any of these accounts."""
+        posting_rules = {
+            rid
+            for rid in db.exec(
+                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.account.in_(aids))
+            ).all()
+        }
+        return [
+            rule
+            for rule in db.exec(
+                select(RecurringTransaction).where(RecurringTransaction.user == uid, RecurringTransaction.active == True)  # noqa: E712
+            ).all()
+            if rule.from_account in aids or rule.to_account in aids or rule.rid in posting_rules
+        ]
+
+    @staticmethod
+    def uses_account(db: Session, aid: UUID) -> bool:
+        """Whether any rule records into or out of the account (so it cannot be deleted)."""
+        return (
+            db.exec(
+                select(RecurringTransaction.rid).where(
+                    or_(RecurringTransaction.from_account == aid, RecurringTransaction.to_account == aid)
+                )
+            ).first()
+            is not None
+            or db.exec(select(RecurringPosting.rpid).where(RecurringPosting.account == aid)).first() is not None
+        )

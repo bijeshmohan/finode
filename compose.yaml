@@ -6,6 +6,9 @@
 #   TRAEFIK_ENTRYPOINT   HTTPS entrypoint (default: websecure)
 #   TRAEFIK_CERTRESOLVER ACME resolver (default: le)
 #   WEB_CONCURRENCY      uvicorn workers (default: 2)
+#   BACKUP_PATH          host folder for nightly database dumps (default: ./backups)
+#   BACKUP_UID, BACKUP_GID  owner of the dump files (default 1000:1000; use `id -u`)
+#   BACKUP_KEEP_DAYS, BACKUP_HOUR   how long to keep dumps (14) and when (02 UTC)
 
 name: finode
 
@@ -42,6 +45,21 @@ services:
       traefik.http.routers.finode.tls: "true"
       traefik.http.routers.finode.tls.certresolver: ${TRAEFIK_CERTRESOLVER:-le}
       traefik.http.services.finode.loadbalancer.server.port: "8000"
+
+  # Nightly dump of the database into ./backups (kept BACKUP_KEEP_DAYS days,
+  # default 14). Restore notes: README, "Backups".
+  backup:
+    image: postgres:17-alpine
+    env_file: .env
+    restart: unless-stopped
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    environment:
+      BACKUP_DIR: /backups
+    volumes:
+      - ./scripts/db-backup.sh:/backup.sh:ro
+      - ${BACKUP_PATH:-./backups}:/backups
+    networks: [default]
 
 networks:
   proxy:

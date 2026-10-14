@@ -112,6 +112,16 @@ def verify_supabase_jwt(token: str) -> dict[str, Any]:
     return payload
 
 
+def reject_app_token(claims: dict[str, Any]) -> None:
+    """Tokens Supabase issued to an OAuth app (an AI assistant) carry a `client_id`. They work on /mcp only,
+    where the access level the user granted is enforced; everywhere else they would be a full sign-in."""
+    if claims.get("client_id"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="this token belongs to a connected app and only works with the MCP server",
+        )
+
+
 def require_authenticated_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
@@ -127,6 +137,7 @@ def require_authenticated_user(
         )
 
     claims = verify_supabase_jwt(token)
+    reject_app_token(claims)
     try:
         user_id = UUID(claims["sub"])
     except ValueError:

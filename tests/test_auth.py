@@ -31,7 +31,7 @@ class FakeJwksClient:
 
 def test_accounts_require_authentication():
     with TestClient(app) as client:
-        response = client.get("/accounts/")
+        response = client.get("/api/accounts/")
 
     assert response.status_code == 401
     assert response.json() == {"detail": "missing authentication token"}
@@ -78,17 +78,17 @@ def test_users_can_only_access_their_own_data(session: Session):
     try:
         with TestClient(app) as client:
             authenticate_as(USER_A_ID)
-            roots = {a["name"]: a["aid"] for a in client.get("/accounts/").json() if a["parent_id"] is None}
+            roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
             account = client.post(
-                "/accounts/",
+                "/api/accounts/",
                 json={"name": "checking", "details": None, "parent_id": roots["Assets"]},
             ).json()
             expense_account = client.post(
-                "/accounts/",
+                "/api/accounts/",
                 json={"name": "groceries", "parent_id": roots["Expenses"]},
             ).json()
             transaction = client.post(
-                "/transactions/",
+                "/api/transactions/",
                 json={
                     "postings": [
                         {
@@ -106,12 +106,12 @@ def test_users_can_only_access_their_own_data(session: Session):
             ).json()
 
             authenticate_as(USER_B_ID)
-            assert len(client.get("/accounts/").json()) == 5
-            assert client.get("/transactions/").json() == []
-            assert client.get(f"/accounts/{account['aid']}").status_code == 404
-            assert client.get(f"/transactions/{transaction['tid']}").status_code == 404
+            assert len(client.get("/api/accounts/").json()) == 5
+            assert client.get("/api/transactions/").json() == []
+            assert client.get(f"/api/accounts/{account['aid']}").status_code == 404
+            assert client.get(f"/api/transactions/{transaction['tid']}").status_code == 404
             response = client.post(
-                "/transactions/",
+                "/api/transactions/",
                 json={
                     "postings": [
                         {

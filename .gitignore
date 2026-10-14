@@ -98,3 +98,4 @@ secrets/
 *.temp
 .tmp/
 .temp/
+backups/
