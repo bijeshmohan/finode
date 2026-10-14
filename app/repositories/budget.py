@@ -44,12 +44,16 @@ class BudgetRepository:
         rows = self.db.exec(select(BudgetTarget).where(BudgetTarget.user == self.uid)).all()
         return {r.account_id: r for r in rows}
 
-    def set_target(self, account_id: UUID, kind: str, amount: Decimal, target_date: date | None) -> None:
+    def set_target(
+        self, account_id: UUID, kind: str, amount: Decimal, target_date: date | None, weekday: int | None = None
+    ) -> None:
         row = self.targets().get(account_id)
         if row is None:
-            row = BudgetTarget(user=self.uid, account_id=account_id, kind=kind, amount=amount, target_date=target_date)
+            row = BudgetTarget(
+                user=self.uid, account_id=account_id, kind=kind, amount=amount, target_date=target_date, weekday=weekday
+            )
         else:
-            row.kind, row.amount, row.target_date = kind, amount, target_date
+            row.kind, row.amount, row.target_date, row.weekday = kind, amount, target_date, weekday
         self.db.add(row)
         self.db.flush()
 

@@ -12,15 +12,26 @@
   <label>Kind
     <select name="kind" data-target-kind>
       <option value="monthly" {{ "selected" if not t or t.kind == "monthly" }}>Assign a set amount every month</option>
+      <option value="weekly" {{ "selected" if t and t.kind == "weekly" }}>Assign a set amount every week</option>
       <option value="refill" {{ "selected" if t and t.kind == "refill" }}>Keep an amount available (refill up to it)</option>
       <option value="by_date" {{ "selected" if t and t.kind == "by_date" }}>Have an amount by a month</option>
+      <option value="yearly" {{ "selected" if t and t.kind == "yearly" }}>Save for something that falls due every year</option>
     </select>
   </label>
   <label>Amount ({{ budget.currency }})
     <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" value="{{ t.amount|money if t else '' }}">
   </label>
-  <label data-target-date>By (month)
+  <label data-target-weekday>Each week on
+    <select name="weekday">
+      {% for name in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] %}
+      <option value="{{ loop.index0 }}" {{ "selected" if (t and t.weekday == loop.index0) or (not t or t.weekday is none) and loop.index0 == 0 }}>{{ name }}</option>
+      {% endfor %}
+    </select>
+    <small class="muted">A month needs the amount once for each such day in it (four or five times).</small>
+  </label>
+  <label data-target-date><span data-target-date-label>By (month)</span>
     <input type="month" name="target_date" value="{{ t.target_date.strftime('%Y-%m') if t and t.target_date else '' }}">
+    <small class="muted" data-target-yearly-note hidden>The month it falls due each year (the year does not matter). The budget saves for it evenly and starts over once it has passed.</small>
   </label>
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions">

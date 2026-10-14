@@ -65,6 +65,8 @@ def rich(client, root_accounts):
     client.put(f"/api/budget/categories/{groceries['aid']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}", json={"month": "2026-09-01", "amount": "15000"})
     client.put(f"/api/budget/categories/{groceries['aid']}/target", json={"kind": "monthly", "amount": "3000"})
+    client.put(f"/api/budget/categories/{emi['aid']}/target", json={"kind": "weekly", "amount": "250", "weekday": 2})
+    client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "yearly", "amount": "1200", "target_date": "2019-09-01"})
     return {"bank": bank, "groceries": groceries}
 
 
@@ -106,7 +108,7 @@ def canonical(doc: dict) -> dict:
             for r in doc["recurring"]
         ),
         "allocations": sorted((a["month"], paths[a["account_id"]], a["amount"]) for a in doc["allocations"]),
-        "targets": sorted((paths[t["account_id"]], t["kind"], t["amount"]) for t in doc["targets"]),
+        "targets": sorted((paths[t["account_id"]], t["kind"], t["amount"], t["target_date"], t["weekday"]) for t in doc["targets"]),
     }
 
 
@@ -123,7 +125,7 @@ def test_the_backup_has_everything(client, rich):
     assert any(a["on_budget"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
-    assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 1
+    assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 3
     assert len(doc["prices"]) == 1 and doc["prices"][0]["commodity"] == "BTC" and doc["prices"][0]["quote"] == "INR"
     assert set(doc) == {"format", "version", "exported_at", "profile", "commodities", "prices", "accounts", "transactions", "recurring", "allocations", "targets"}, "no tokens or connected apps"
 

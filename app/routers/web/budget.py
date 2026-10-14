@@ -127,6 +127,7 @@ def set_target(
     kind: Annotated[str, Form()] = "monthly",
     amount: Annotated[str, Form()] = "",
     target_date: Annotated[str, Form()] = "",
+    weekday: Annotated[str, Form()] = "",
     month: Annotated[str, Form()] = "",
 ):
     when = parse_month(month)
@@ -134,12 +135,18 @@ def set_target(
         if kind not in TARGET_KINDS:
             raise BudgetError("choose what kind of target it is!")
         day = None
-        if kind == "by_date":
+        if kind in ("by_date", "yearly"):
             try:
                 day = date.fromisoformat(target_date.strip() + "-01") if len(target_date.strip()) == 7 else date.fromisoformat(target_date.strip())
             except ValueError:
-                raise BudgetError("choose the month the money is needed by!")
-        budget.set_target(category, kind, parse_amount(amount), day)
+                raise BudgetError("choose the month the money is needed by!" if kind == "by_date" else "choose the month it falls due each year!")
+        day_of_week = None
+        if kind == "weekly":
+            try:
+                day_of_week = int(weekday)
+            except ValueError:
+                raise BudgetError("choose the day of the week!")
+        budget.set_target(category, kind, parse_amount(amount), day, day_of_week)
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target")

@@ -20,6 +20,7 @@ from ..schemas.price import PriceCreate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead, TransactionUpdate
 from ..services.simple import simple_postings
+from ..services.budget import WEEKDAYS
 from .accounts import AccountIndex
 from .context import Services, services
 
@@ -723,12 +724,14 @@ def _budget(data) -> dict[str, Any]:
                             "kind": line.target.kind,
                             "amount": text(line.target.amount),
                             **({"by": line.target.target_date.isoformat()} if line.target.target_date else {}),
+                            **({"weekday": WEEKDAYS[line.target.weekday]} if line.target.weekday is not None else {}),
                         }
                     }
                     if line.target
                     else {}
                 ),
                 **({"underfunded": text(line.underfunded)} if line.underfunded else {}),
+                **({"overdue": True} if line.overdue else {}),
             }
             for line in data.lines
         ],
@@ -799,9 +802,10 @@ def move_budget_money(
 @_tool_errors
 def set_budget_target(
     category: Annotated[str, Field(description="An expense account, e.g. Rent or Expenses:Food:Groceries")],
-    kind: Annotated[str, Field(description="monthly (assign the amount every month), refill (keep the amount available) or by_date (have the amount by a date); none removes the target")],
+    kind: Annotated[str, Field(description="monthly (assign the amount every month), weekly (the amount every week), refill (keep the amount available), by_date (have the amount by a month) or yearly (the amount falls due every year); none removes the target")],
     amount: Annotated[Decimal | None, Field(gt=0, description="Required except for none")] = None,
-    by: Annotated[str | None, Field(description="YYYY-MM or YYYY-MM-DD; only for by_date")] = None,
+    by: Annotated[str | None, Field(description="YYYY-MM or YYYY-MM-DD; for by_date, and for yearly the month it falls due (the year does not matter)")] = None,
+    weekday: Annotated[str | None, Field(description="Monday ... Sunday; only for weekly")] = None,
 ) -> dict[str, Any]:
     """Say what a category should be funded with, so get_budget can show what is still underfunded each month.
     Replaces any earlier target of the category. Targets are a wish only; they never move money."""
@@ -811,7 +815,13 @@ def set_budget_target(
             return _budget(s.budget.clear_target(entry.account.aid))
         if amount is None:
             raise ToolError("the amount is required for a target!")
-        return _budget(s.budget.set_target(entry.account.aid, kind, amount, _month(by)))
+        day = None
+        if weekday is not None:
+            names = [w.lower() for w in WEEKDAYS]
+            if weekday.strip().lower() not in names:
+                raise ToolError("the weekday must be one of: " + ", ".join(WEEKDAYS) + "!")
+            day = names.index(weekday.strip().lower())
+        return _budget(s.budget.set_target(entry.account.aid, kind, amount, _month(by), day))
 
 
 @_tool_errors
