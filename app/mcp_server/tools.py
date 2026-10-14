@@ -23,6 +23,7 @@ from ..services.simple import simple_postings
 from ..services.budget import WEEKDAYS
 from .accounts import AccountIndex
 from .context import Services, services
+from ..clock import local_today
 
 
 INSTRUCTIONS = """\
@@ -316,7 +317,7 @@ def get_prices(
         held = sorted(
             {a.commodity for a in s.accounts.list() if a.parent_id is not None and a.commodity and a.commodity != default.code}
         )
-        today = date.today()
+        today = local_today()
         rates = []
         for code in held:
             rate = s.prices.rate(code, default.code, today)
@@ -653,7 +654,7 @@ def stop_recurring(
 
 
 def _today() -> date:
-    return date.today()
+    return local_today()
 
 
 # ---- prompts ---------------------------------------------------------------------------------------

@@ -23,6 +23,7 @@ from .repositories import (
 )
 from .services import AccountService, PriceService, RecurringService, TransactionService
 from .services.recurring import ORIGIN
+from .clock import local_today
 
 log = logging.getLogger("finode.recurring")
 FIRST_RUN_DELAY_SECONDS = 60
@@ -30,7 +31,7 @@ FIRST_RUN_DELAY_SECONDS = 60
 
 def run_once(today: date | None = None) -> int:
     """Record what is due for every user; returns how many transactions were recorded."""
-    today = today or date.today()
+    today = today or local_today()
     recorded = 0
     with context.session_factory() as db:
         users = RecurringRepository.users_with_due(db, today)

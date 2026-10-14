@@ -22,6 +22,7 @@ from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from .depth import depth_limit
 from .prices import PriceService
+from ..clock import local_today
 
 
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
@@ -295,7 +296,7 @@ class AccountService:
         """
         if all_accounts is None:
             all_accounts = self._ensure_roots()
-        as_of = as_of or date.today()
+        as_of = as_of or local_today()
 
         accounts_by_id = {acc.aid: acc for acc in all_accounts}
         accounts_by_parent = {}
@@ -411,7 +412,7 @@ class AccountService:
             postings.append(PostingCreate(account=opening_account.aid, side=opening_side, amount=adjustment))
         else:
             value = abs(worth) if worth is not None else self.prices.book().convert(
-                adjustment, held.cid, currency.cid, date.today()
+                adjustment, held.cid, currency.cid, local_today()
             )
             if value is None:
                 raise ValueError(
@@ -425,7 +426,7 @@ class AccountService:
             values = [value, value]
 
         self.tr.create(
-            TransactionCreate(date=date.today(), payee=payee, comment=comment, postings=postings),
+            TransactionCreate(date=local_today(), payee=payee, comment=comment, postings=postings),
             currency.cid,
             values,
         )
@@ -449,7 +450,7 @@ class AccountService:
         """Close an account, and everything inside it: nothing more can be posted to it and it leaves the
         pickers and the accounts list, but its history stays. Refused while anything inside still holds a
         balance (now or in a future-dated entry) or a recurring transaction still uses it."""
-        today = today or date.today()
+        today = today or local_today()
         all_accounts = self._ensure_roots()
         account = next((a for a in all_accounts if a.aid == aid), None)
         if account is None:
@@ -702,7 +703,7 @@ class AccountService:
         invested_known = True
         for posting in self.tr.postings_for_account(aid):
             transaction = self.tr.read(posting.transaction)
-            if transaction.date > date.today():
+            if transaction.date > local_today():
                 continue  # not part of the balance yet either
             signed = posting.value if posting.side == normal_side else -posting.value
             if transaction.currency_id != default.cid:
@@ -712,8 +713,8 @@ class AccountService:
                     continue
             invested += signed
 
-        value = book.convert(quantity, held.cid, default.cid, date.today(), default.decimals) if quantity else Decimal("0.00")
-        rate = book.rate(held.cid, default.cid, date.today())
+        value = book.convert(quantity, held.cid, default.cid, local_today(), default.decimals) if quantity else Decimal("0.00")
+        rate = book.rate(held.cid, default.cid, local_today())
         return HoldingRead(
             commodity=held.code,
             currency=default.code,

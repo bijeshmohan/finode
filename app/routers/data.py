@@ -11,6 +11,7 @@ from ..dependencies import Backup, Data
 from ..schemas.backup import RestoreSummary
 from ..schemas.data import ImportSummary
 from ..services.data import ImportRejected
+from ..clock import local_today
 
 
 MAX_IMPORT_BYTES = 5 * 1024 * 1024
@@ -20,7 +21,7 @@ router = APIRouter(tags=["data"], dependencies=[Depends(require_authenticated_us
 
 def export_response(data, kind: str) -> Response:
     """The user's data as a downloadable file (`kind` is "ledger" or "csv")."""
-    stamp = date.today().isoformat()
+    stamp = local_today().isoformat()
     if kind == "csv":
         # A BOM makes Excel read the file as UTF-8.
         body, media, ext = data.export_csv().encode("utf-8-sig"), "text/csv; charset=utf-8", "csv"
@@ -69,7 +70,7 @@ def backup_response(backup) -> Response:
     return Response(
         body,
         media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="finode-backup-{date.today().isoformat()}.json"'},
+        headers={"Content-Disposition": f'attachment; filename="finode-backup-{local_today().isoformat()}.json"'},
     )
 
 

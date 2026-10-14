@@ -1,8 +1,9 @@
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
 from ..config import settings
+from ..clock import local_midnight_utc
 from ..limits import ensure_room
 from ..models.commodity import Commodity
 from ..models.transaction import Transaction, Posting, PostingSide
@@ -220,7 +221,7 @@ class TransactionService:
     def _check_limits(self) -> None:
         ensure_room(self.tr.count(), settings.max_transactions, "transactions")
         if settings.max_transactions_per_day and self.origin not in ("recurring", "import"):
-            midnight = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            midnight = local_midnight_utc()
             made = self.tr.count_since(midnight, leaving_out=("recurring", "import"))
             ensure_room(made, settings.max_transactions_per_day, "new transactions a day")
 

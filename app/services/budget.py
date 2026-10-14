@@ -11,6 +11,7 @@ from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine
 from ..schemas.account import AccountUpdate
 from .account import AccountService
 from .transaction import decimal_places
+from ..clock import local_today
 
 
 ZERO = Decimal("0.00")
@@ -21,7 +22,7 @@ class BudgetError(ValueError):
 
 
 def month_start(day: date | None) -> date:
-    return (day or date.today()).replace(day=1)
+    return (day or local_today()).replace(day=1)
 
 
 def months_between(first: date, last: date) -> int:

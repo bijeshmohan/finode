@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..models.transaction import PostingSide
+from ..clock import local_today
 
 
 class PostingBase(BaseModel):
@@ -45,7 +46,7 @@ class PostingRead(PostingBase):
 
 
 class TransactionBase(BaseModel):
-    date: Date = Field(default_factory=Date.today)
+    date: Date = Field(default_factory=local_today)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
 

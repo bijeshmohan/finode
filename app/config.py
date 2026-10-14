@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     login_attempts: int = Field(default=10, ge=0)
     signup_attempts: int = Field(default=5, ge=0)
     attempt_window_minutes: int = Field(default=15, ge=1)
+    # The time zone "today" is read in (an IANA name such as Asia/Kolkata); the server's own clock when empty.
+    timezone: str | None = None
     # Interactive API docs (/docs, /redoc, /openapi.json) are public when on; off unless you are developing.
     api_docs: bool = False
     # "Forgot password": needs email sending set up in Supabase (custom SMTP) and its recovery email
@@ -53,6 +55,19 @@ class Settings(BaseSettings):
                 f"FINODE_SIGNUP_CODE must be at least {MIN_SIGNUP_CODE_LENGTH} characters "
                 "(generate one with: openssl rand -base64 24)"
             )
+        return v
+
+    @field_validator("timezone")
+    @classmethod
+    def timezone_must_exist(cls, v: str | None) -> str | None:
+        if not v:
+            return None
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        try:
+            ZoneInfo(v)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError(f"FINODE_TIMEZONE must be a time zone name such as Asia/Kolkata, not {v!r}")
         return v
 
     @property
