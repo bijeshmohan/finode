@@ -126,7 +126,7 @@ def test_settings_page_shows_depth_card_with_hints(client: TestClient, root_acco
 
 def test_saving_depth_limits_redirects_with_flash(client: TestClient):
     response = client.post("/settings/depth", data={"max_depth_expenses": "2", "max_depth_assets": "0"})
-    assert response.headers["HX-Redirect"] == "/settings#depth"
+    assert response.headers["HX-Redirect"] == "/settings?saved=depth#depth"
     assert "depth-updated" in response.headers["set-cookie"]
     assert client.get("/api/profile/").json()["max_depth_expenses"] == 2
 

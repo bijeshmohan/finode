@@ -10,6 +10,7 @@ from ..repositories import BudgetRepository, TransactionRepository
 from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead
 from ..schemas.account import AccountUpdate
 from .account import AccountService
+from .lock import locked_through
 from .transaction import decimal_places
 from ..clock import local_today
 
@@ -479,6 +480,7 @@ class BudgetService:
     def fund(self, month: date | None) -> BudgetRead:
         """Assign what the targets still need, in display order, until there is nothing left to assign."""
         month = month_start(month)
+        self._check_open(month)
         data = self.view(month)
         if data.underfunded <= 0:
             raise BudgetError("nothing is underfunded!")
@@ -494,6 +496,15 @@ class BudgetService:
         self.br.db.commit()
         return self.view(month)
 
+    def _check_open(self, month: date) -> None:
+        """A month that ends inside the period lock is closed: what was assigned in it stays as it was."""
+        lock = locked_through(self.br.db, self.br.uid)
+        if lock is not None and month_end(month) <= lock:
+            raise BudgetError(
+                f"{month:%B %Y} is in a locked period (everything up to {lock:%d %b %Y} is closed): "
+                "move or remove the lock under Settings to change it!"
+            )
+
     def assigned(self, month: date, aid: UUID) -> Decimal:
         row = self.br.read(month, aid)
         return row.amount if row else ZERO
@@ -501,6 +512,7 @@ class BudgetService:
     def assign(self, month: date | None, aid: UUID, amount: Decimal) -> BudgetRead:
         """Set what a category gets in a month (0 removes it)."""
         month = month_start(month)
+        self._check_open(month)
         self._category(aid)
         self._check_amount(amount)
         self.br.set(month, aid, amount)
@@ -510,6 +522,7 @@ class BudgetService:
     def copy_previous(self, month: date | None) -> BudgetRead:
         """Assign this month what each category got last month, for the categories with nothing assigned yet."""
         month = month_start(month)
+        self._check_open(month)
         previous = month_start(month - timedelta(days=1))
         categories = self._categories(self.accounts.ar.list())
         rows = self.br.list(up_to=month)
@@ -533,6 +546,7 @@ class BudgetService:
     def move(self, month: date | None, from_aid: UUID, to_aid: UUID, amount: Decimal) -> BudgetRead:
         """Take money from one category's available and give it to another, in a month."""
         month = month_start(month)
+        self._check_open(month)
         if from_aid == to_aid:
             raise BudgetError("choose two different categories!")
         source, target = self._category(from_aid), self._category(to_aid)

@@ -85,3 +85,19 @@ def test_a_weekly_target_is_saved_from_the_form(page: Page, books):
     page.locator("input[name=amount]").fill("100")
     page.get_by_role("button", name="Save target").click()
     expect(page.locator(".target-note.short")).to_contain_text("Weekly 100.00 on Fris")
+
+
+def test_locking_the_books_from_settings_stops_an_edit(page: Page, books, api: Api):
+    entry = api.post("/transactions/", date=str(THIS_MONTH - timedelta(days=5)), postings=[
+        {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
+        {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
+    ])
+    page.goto("/settings")
+    page.locator("#lock summary").click()
+    page.fill('input[name="locked_through"]', str(THIS_MONTH - timedelta(days=1)))
+    page.get_by_role("button", name="Save lock").click()
+    expect(page.locator("#lock .setting-value")).to_have_text((THIS_MONTH - timedelta(days=1)).strftime("up to %d %b %Y"))
+    page.goto(f"/transactions/{entry['tid']}/edit")
+    expect(page.get_by_text("This entry is in a locked period")).to_be_visible()
+    expect(page.get_by_role("button", name="Save changes")).to_be_disabled()
+    expect(page.get_by_role("button", name="Delete transaction")).to_be_disabled()

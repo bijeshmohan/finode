@@ -71,6 +71,7 @@ def rich(client, root_accounts):
     client.put(f"/api/budget/categories/{groceries['aid']}/target", json={"kind": "monthly", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}/target", json={"kind": "weekly", "amount": "250", "weekday": 2})
     client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "yearly", "amount": "1200", "target_date": "2019-09-01"})
+    assert client.patch("/api/profile/", json={"locked_through": "2026-08-31"}).status_code == 200  # the books are closed up to then
     return {"bank": bank, "groceries": groceries}
 
 

@@ -22,6 +22,7 @@ from ...templating import templates
 from .accounts import build_tree, posting_groups
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
 from ...clock import local_today
+from ...services.lock import locked_through
 
 
 router = APIRouter(prefix="/transactions")
@@ -329,12 +330,14 @@ def edit_transaction_page(
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
     total = sum((p.value for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
+    lock = locked_through(transactions.tr.db, transactions.tr.uid)
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
         form_context(
             accounts,
             editing=True,
+            locked_by=lock if lock is not None and transaction.date <= lock else None,
             transaction=transaction,
             total=total,
             from_rows=form_rows(transaction.postings, PostingSide.CREDIT),

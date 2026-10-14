@@ -21,6 +21,8 @@ MESSAGES = {
     "account-order-reset": "Back in alphabetical order",
     "account-reopened": "Account reopened",
     "budget-note": "Note saved",
+    "lock-saved": "Locked: nothing up to that day can be changed",
+    "lock-removed": "Lock removed",
     "budget-target": "Target saved",
     "budget-target-cleared": "Target removed",
     "recurring-saved": "Recurring transaction saved. Anything already due has been recorded.",

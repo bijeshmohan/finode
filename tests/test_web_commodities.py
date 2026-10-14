@@ -14,7 +14,7 @@ def test_the_profile_offers_the_default_currency(client):
 
 def test_the_default_currency_can_be_changed_from_the_profile(client):
     response = client.post("/settings/currency", data={"currency": "USD"})
-    assert response.status_code == 200 and response.headers["HX-Redirect"] == "/settings#currency"
+    assert response.status_code == 200 and response.headers["HX-Redirect"] == "/settings?saved=currency#currency"
     assert client.get("/api/profile/").json()["default_currency"] == "USD"
     card = element(client.get("/settings").text, "currency")
     assert [value for value, selected, _ in options(card) if selected] == ["USD"]

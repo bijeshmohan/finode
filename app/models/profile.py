@@ -1,3 +1,4 @@
+from datetime import date as Date
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint
@@ -29,3 +30,5 @@ class Profile(TimestampMixin, table=True):
     max_depth_equity: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     max_depth_income: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     max_depth_expenses: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
+    # Period lock: nothing dated on or before this day can be added, changed or deleted (see services/lock.py).
+    locked_through: Date | None = Field(default=None)
