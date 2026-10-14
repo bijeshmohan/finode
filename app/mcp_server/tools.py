@@ -20,8 +20,10 @@ from ..schemas.price import PriceCreate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead, TransactionUpdate
 from ..services.simple import simple_postings
+from ..services.budget import WEEKDAYS
 from .accounts import AccountIndex
 from .context import Services, services
+from ..clock import local_today
 
 
 INSTRUCTIONS = """\
@@ -43,7 +45,8 @@ finode is the user's personal double-entry ledger.
   with a split to Income:Capital Gain.
 - Things that repeat (rent, salary, subscriptions) are recurring transactions: list_recurring shows
   them, create_recurring sets one up (finode then records each occurrence by itself, so do not also
-  record the same payment by hand) and stop_recurring pauses one.
+  record the same payment by hand; give postings instead of from/to/amount for a split), stop_recurring
+  pauses one and skip_recurring_occurrence leaves out just the next occurrence.
 - Dates are YYYY-MM-DD; today's date is used when you leave the date out. Balances count entries
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
@@ -315,7 +318,7 @@ def get_prices(
         held = sorted(
             {a.commodity for a in s.accounts.list() if a.parent_id is not None and a.commodity and a.commodity != default.code}
         )
-        today = date.today()
+        today = local_today()
         rates = []
         for code in held:
             rate = s.prices.rate(code, default.code, today)
@@ -589,9 +592,9 @@ def set_price(
 
 @_tool_errors
 def create_recurring(
-    amount: Annotated[Amount, Field(description="How much leaves the 'from' account each time")],
-    from_account: AccountRef,
-    to_account: AccountRef,
+    amount: Annotated[Amount | None, Field(description="How much leaves the 'from' account each time (a simple rule; not with postings)")] = None,
+    from_account: Annotated[AccountRef | None, Field(description="A simple rule: where the money comes from")] = None,
+    to_account: Annotated[AccountRef | None, Field(description="A simple rule: where it goes")] = None,
     frequency: Annotated[Literal["daily", "weekly", "monthly", "yearly"], Field(description="The unit between occurrences")] = "monthly",
     every: Annotated[int, Field(ge=1, le=366, description="Every N units: 2 with weekly is fortnightly")] = 1,
     start_date: Annotated[date | None, Field(description="First occurrence, YYYY-MM-DD; today when left out. Past dates are recorded right away")] = None,
@@ -599,19 +602,33 @@ def create_recurring(
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
     received_amount: Annotated[Decimal | None, Field(gt=0, description="Only when the accounts hold different things")] = None,
+    postings: Annotated[
+        list[PostingIn] | None,
+        Field(min_length=2, description="Instead of from, to and amount: a split over several accounts, like record_split (debits must equal credits)"),
+    ] = None,
+    currency: Annotated[str | None, Field(description="With postings: what they balance in; the default currency when left out")] = None,
 ) -> dict[str, Any]:
     """Set up a transaction that finode records by itself on a schedule (rent, salary, a subscription).
-    Check list_recurring first so you don't create a duplicate."""
+    Give from_account, to_account and amount for a simple one, or postings for a split (a salary with
+    deductions, a bill over several categories). Check list_recurring first so you don't create a duplicate."""
     with services() as s:
         index = _index(s)
-        source = index.find(from_account, postable=True)
-        target = index.find(to_account, postable=True)
+        if postings:
+            if any(v is not None for v in (amount, from_account, to_account, received_amount)):
+                raise ToolError("give either from_account, to_account and amount, or postings, not both!")
+            source = target = None
+            shape = {"postings": [p.model_dump() | {"account": index.find(p.account, postable=True).account.aid} for p in postings],
+                     "currency": currency}
+        else:
+            if None in (amount, from_account, to_account):
+                raise ToolError("give from_account, to_account and amount, or postings!")
+            source = index.find(from_account, postable=True)
+            target = index.find(to_account, postable=True)
+            shape = {"from_account": source.account.aid, "to_account": target.account.aid, "amount": amount,
+                     "received_amount": received_amount}
         created = s.recurring.create(
             RecurringCreate(
-                from_account=source.account.aid,
-                to_account=target.account.aid,
-                amount=amount,
-                received_amount=received_amount,
+                **shape,
                 payee=payee,
                 comment=note,
                 frequency=frequency,
@@ -622,12 +639,17 @@ def create_recurring(
         )
         s.recurring.process_due()
         rule = s.recurring.read(created.rid)
+        what = (
+            {"from": source.path, "to": target.path, "amount": text(rule.amount)}
+            if source is not None
+            else {"postings": [
+                {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)} for p in rule.postings
+            ]}
+        )
         return {
             "created": {
                 "id": str(rule.rid),
-                "from": source.path,
-                "to": target.path,
-                "amount": text(rule.amount),
+                **what,
                 "every": f"{rule.every} {rule.frequency}" if rule.every != 1 else rule.frequency,
                 "next_due": rule.next_date.isoformat() if rule.active else None,
             }
@@ -651,8 +673,29 @@ def stop_recurring(
         return {"paused": str(rule.rid)}
 
 
+@_tool_errors
+def skip_recurring_occurrence(
+    recurring_id: Annotated[str, Field(description="The id from list_recurring")],
+) -> dict[str, Any]:
+    """Leave out the next occurrence of a running recurring transaction (a month without the subscription):
+    nothing is recorded for it and the rule carries on with the one after. Only when the user asks."""
+    with services() as s:
+        try:
+            rid = UUID(recurring_id.strip())
+        except ValueError:
+            raise ToolError(f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!")
+        before = s.recurring.read(rid)
+        if before is None:
+            raise ToolError("no recurring transaction has that id!")
+        rule = s.recurring.skip_next(rid)
+        return {
+            "skipped": before.next_date.isoformat(),
+            "next_due": rule.next_date.isoformat() if rule.active else None,
+        }
+
+
 def _today() -> date:
-    return date.today()
+    return local_today()
 
 
 # ---- prompts ---------------------------------------------------------------------------------------
@@ -723,12 +766,14 @@ def _budget(data) -> dict[str, Any]:
                             "kind": line.target.kind,
                             "amount": text(line.target.amount),
                             **({"by": line.target.target_date.isoformat()} if line.target.target_date else {}),
+                            **({"weekday": WEEKDAYS[line.target.weekday]} if line.target.weekday is not None else {}),
                         }
                     }
                     if line.target
                     else {}
                 ),
                 **({"underfunded": text(line.underfunded)} if line.underfunded else {}),
+                **({"overdue": True} if line.overdue else {}),
             }
             for line in data.lines
         ],
@@ -799,9 +844,10 @@ def move_budget_money(
 @_tool_errors
 def set_budget_target(
     category: Annotated[str, Field(description="An expense account, e.g. Rent or Expenses:Food:Groceries")],
-    kind: Annotated[str, Field(description="monthly (assign the amount every month), refill (keep the amount available) or by_date (have the amount by a date); none removes the target")],
+    kind: Annotated[str, Field(description="monthly (assign the amount every month), weekly (the amount every week), refill (keep the amount available), by_date (have the amount by a month) or yearly (the amount falls due every year); none removes the target")],
     amount: Annotated[Decimal | None, Field(gt=0, description="Required except for none")] = None,
-    by: Annotated[str | None, Field(description="YYYY-MM or YYYY-MM-DD; only for by_date")] = None,
+    by: Annotated[str | None, Field(description="YYYY-MM or YYYY-MM-DD; for by_date, and for yearly the month it falls due (the year does not matter)")] = None,
+    weekday: Annotated[str | None, Field(description="Monday ... Sunday; only for weekly")] = None,
 ) -> dict[str, Any]:
     """Say what a category should be funded with, so get_budget can show what is still underfunded each month.
     Replaces any earlier target of the category. Targets are a wish only; they never move money."""
@@ -811,7 +857,13 @@ def set_budget_target(
             return _budget(s.budget.clear_target(entry.account.aid))
         if amount is None:
             raise ToolError("the amount is required for a target!")
-        return _budget(s.budget.set_target(entry.account.aid, kind, amount, _month(by)))
+        day = None
+        if weekday is not None:
+            names = [w.lower() for w in WEEKDAYS]
+            if weekday.strip().lower() not in names:
+                raise ToolError("the weekday must be one of: " + ", ".join(WEEKDAYS) + "!")
+            day = names.index(weekday.strip().lower())
+        return _budget(s.budget.set_target(entry.account.aid, kind, amount, _month(by), day))
 
 
 @_tool_errors
@@ -858,6 +910,7 @@ WRITE_TOOLS = [
     (set_price, IDEMPOTENT_WRITE),
     (create_recurring, WRITE),
     (stop_recurring, IDEMPOTENT_WRITE),
+    (skip_recurring_occurrence, WRITE),
     (assign_to_category, IDEMPOTENT_WRITE),
     (move_budget_money, WRITE),
     (copy_budget_from_previous_month, IDEMPOTENT_WRITE),

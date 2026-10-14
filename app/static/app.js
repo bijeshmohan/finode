@@ -228,14 +228,20 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   if (target && target.id === "new-token") target.scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
-// Budget target form: the month field only applies to "by a month" targets.
+// Budget target form: the month field belongs to "by a month" and yearly targets, the day of the week to weekly ones.
 function syncTargetKind() {
   const select = document.querySelector("select[data-target-kind]");
   const date = document.querySelector("label[data-target-date]");
+  const weekday = document.querySelector("label[data-target-weekday]");
   if (!select || !date) return;
-  const show = select.value === "by_date";
+  const show = select.value === "by_date" || select.value === "yearly";
   date.hidden = !show;
   date.querySelector("input").required = show;
+  const label = date.querySelector("[data-target-date-label]");
+  if (label) label.textContent = select.value === "yearly" ? "Due in (month)" : "By (month)";
+  const note = date.querySelector("[data-target-yearly-note]");
+  if (note) note.hidden = select.value !== "yearly";
+  if (weekday) weekday.hidden = select.value !== "weekly";
 }
 document.addEventListener("change", (event) => {
   if (event.target.matches && event.target.matches("select[data-target-kind]")) syncTargetKind();

@@ -16,6 +16,7 @@ from ...templating import templates
 from .accounts import build_tree
 from .transactions import form_context, form_rows, infer_kind, split_postings
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
+from ...clock import local_today
 
 
 router = APIRouter(prefix="/recurring")
@@ -109,7 +110,7 @@ def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | N
         to_rows=to_rows,
         keep={p.account for p in recorded.postings} if rule is not None else (),
         frequencies=FREQUENCIES,
-        today=date.today().isoformat(),
+        today=local_today().isoformat(),
         **extra,
     )
 
@@ -245,6 +246,17 @@ def pause_recurring(rid: UUID, recurring: Recurring):
     if recurring.set_active(rid, False) is None:
         raise HTTPException(status_code=404, detail="recurring transaction not found")
     return htmx_redirect("/recurring", flash="recurring-paused")
+
+
+@router.post("/{rid}/skip")
+def skip_recurring(rid: UUID, recurring: Recurring):
+    try:
+        rule = recurring.skip_next(rid)
+    except ValueError as e:
+        return htmx_error(str(e), "#form-error")
+    if rule is None:
+        raise HTTPException(status_code=404, detail="recurring transaction not found")
+    return htmx_redirect("/recurring", flash="recurring-skipped")
 
 
 @router.post("/{rid}/resume")

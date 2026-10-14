@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..auth import require_authenticated_user
 from ..dependencies import Prices
 from ..schemas.price import PriceCreate, PriceRead, RateRead
+from ..clock import local_today
 
 
 router = APIRouter(
@@ -27,7 +28,7 @@ def list_prices(prices: Prices, commodity: str | None = None):
 def get_rate(prices: Prices, commodity: str, quote: str, on: date | None = None):
     """How many `quote` one `commodity` is worth, from the latest price on or before the day."""
     try:
-        return prices.rate(commodity, quote, on or date.today())
+        return prices.rate(commodity, quote, on or local_today())
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

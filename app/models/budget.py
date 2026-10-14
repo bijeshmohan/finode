@@ -29,9 +29,11 @@ class BudgetAllocation(TimestampMixin, table=True):
 class BudgetTarget(TimestampMixin, table=True):
     """What a category should be funded with, so the budget can say how much is still missing.
 
-    `kind` is `monthly` (assign `amount` every month), `refill` (keep `amount` available: assign what the
-    carried-over money doesn't cover) or `by_date` (have `amount` available by `target_date`, saved up
-    evenly month by month). Only the wish is stored; what is underfunded is derived (services/budget.py).
+    `kind` is `monthly` (assign `amount` every month), `weekly` (`amount` every week, on `weekday`, 0 = Monday:
+    a month needs the amount once for each such day in it), `refill` (keep `amount` available: assign what the
+    carried-over money doesn't cover), `by_date` (have `amount` available by `target_date`, saved up evenly
+    month by month) or `yearly` (the same, every year in the month of `target_date`; it rolls on to next year
+    once that month has passed). Only the wish is stored; what is underfunded is derived (services/budget.py).
     """
 
     __tablename__ = "budget_targets"
@@ -43,3 +45,4 @@ class BudgetTarget(TimestampMixin, table=True):
     kind: str = Field(max_length=16)
     amount: Decimal = Field(sa_type=Amount())
     target_date: Date | None = None
+    weekday: int | None = None

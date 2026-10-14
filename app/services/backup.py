@@ -100,6 +100,7 @@ class BackupService:
                 BackupAccount(
                     id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details, commodity=code(a.commodity_id),
                     on_budget=a.on_budget, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
+                    pinned=a.pinned, position=a.position,
                 )
                 for a in accounts
             ],
@@ -125,7 +126,7 @@ class BackupService:
                     ],
                     payee=r.payee, comment=r.comment, frequency=r.frequency, every=r.every,
                     start_date=r.start_date, end_date=r.end_date, next_date=r.next_date, last_date=r.last_date,
-                    active=r.active, last_error=r.last_error,
+                    skipped_date=r.skipped_date, active=r.active, last_error=r.last_error,
                 )
                 for r in self.rr.list()
             ],
@@ -134,7 +135,9 @@ class BackupService:
                 for row in self.br.list()
             ],
             targets=[
-                BackupTarget(account_id=t.account_id, kind=t.kind, amount=t.amount, target_date=t.target_date)
+                BackupTarget(
+                    account_id=t.account_id, kind=t.kind, amount=t.amount, target_date=t.target_date, weekday=t.weekday
+                )
                 for t in self.br.targets().values()
             ],
         )
@@ -329,6 +332,8 @@ class BackupService:
                     continue
                 account = self.ar.read(ids[a.id])
                 account.closed_on = a.closed_on
+                account.pinned = a.pinned and a.closed_on is None
+                account.position = a.position
                 account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)
             db.flush()
@@ -342,7 +347,7 @@ class BackupService:
                     amount=r.amount, received_amount=r.received_amount, currency=r.currency,
                     payee=r.payee, comment=r.comment, frequency=r.frequency, every=r.every,
                     start_date=r.start_date, end_date=r.end_date, next_date=r.next_date, last_date=r.last_date,
-                    active=r.active, last_error=r.last_error,
+                    skipped_date=r.skipped_date, active=r.active, last_error=r.last_error,
                 )
                 self.rr.add(rule)
                 self.rr.set_postings(
@@ -371,7 +376,7 @@ class BackupService:
             for row in file.allocations:
                 self.br.set(row.month, ids[row.account_id], row.amount)
             for target in file.targets:
-                self.br.set_target(ids[target.account_id], target.kind, target.amount, target.target_date)
+                self.br.set_target(ids[target.account_id], target.kind, target.amount, target.target_date, target.weekday)
             db.commit()
         except Exception:
             db.rollback()

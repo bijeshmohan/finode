@@ -12,6 +12,7 @@ from ...schemas.commodity import CommodityCreate
 from ...schemas.price import PriceCreate
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
+from ...clock import local_today
 
 
 router = APIRouter(prefix="/commodities")
@@ -27,7 +28,7 @@ KIND_LABELS = {
 @router.get("")
 def commodities_page(request: Request, accounts: Accounts, commodities: Commodities, prices: Prices):
     default = accounts.default_currency()
-    today = date.today()
+    today = local_today()
     listed = commodities.list()
     held = sorted(
         {a.commodity for a in accounts.list() if a.parent_id is not None and a.commodity and a.commodity != default.code}
@@ -91,7 +92,7 @@ def set_price(
     price: Annotated[str, Form()] = "",
 ):
     try:
-        on = date.fromisoformat(date_.strip()) if date_.strip() else date.today()
+        on = date.fromisoformat(date_.strip()) if date_.strip() else local_today()
         prices.set(PriceCreate(commodity=commodity, quote=quote, date=on, price=parse_amount(price)))
     except ValidationError as e:
         return htmx_error(validation_message(e), "#price-error")

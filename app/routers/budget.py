@@ -42,9 +42,10 @@ def move(data: BudgetMove, budget: Budget):
 
 @router.put("/categories/{aid}/target", response_model=BudgetRead, status_code=200)
 def set_target(aid: UUID, data: BudgetTargetSet, budget: Budget):
-    """Set a category's target: monthly (assign X every month), refill (keep X available) or by_date (X by a date)."""
+    """Set a category's target: monthly (X every month), weekly (X every week, on `weekday`, 0 = Monday), refill (keep X
+    available), by_date (X by a month) or yearly (X every year, in the month of `target_date`)."""
     try:
-        return budget.set_target(aid, data.kind, data.amount, data.target_date)
+        return budget.set_target(aid, data.kind, data.amount, data.target_date, data.weekday)
     except BudgetError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

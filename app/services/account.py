@@ -22,6 +22,7 @@ from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from .depth import depth_limit
 from .prices import PriceService
+from ..clock import local_today
 
 
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
@@ -295,7 +296,7 @@ class AccountService:
         """
         if all_accounts is None:
             all_accounts = self._ensure_roots()
-        as_of = as_of or date.today()
+        as_of = as_of or local_today()
 
         accounts_by_id = {acc.aid: acc for acc in all_accounts}
         accounts_by_parent = {}
@@ -353,6 +354,8 @@ class AccountService:
             on_budget=account.on_budget,
             payment_category_id=account.payment_category_id,
             closed_on=account.closed_on,
+            pinned=account.pinned,
+            position=account.position,
             created=account.created,
             updated=account.updated,
         )
@@ -411,7 +414,7 @@ class AccountService:
             postings.append(PostingCreate(account=opening_account.aid, side=opening_side, amount=adjustment))
         else:
             value = abs(worth) if worth is not None else self.prices.book().convert(
-                adjustment, held.cid, currency.cid, date.today()
+                adjustment, held.cid, currency.cid, local_today()
             )
             if value is None:
                 raise ValueError(
@@ -425,7 +428,7 @@ class AccountService:
             values = [value, value]
 
         self.tr.create(
-            TransactionCreate(date=date.today(), payee=payee, comment=comment, postings=postings),
+            TransactionCreate(date=local_today(), payee=payee, comment=comment, postings=postings),
             currency.cid,
             values,
         )
@@ -449,7 +452,7 @@ class AccountService:
         """Close an account, and everything inside it: nothing more can be posted to it and it leaves the
         pickers and the accounts list, but its history stays. Refused while anything inside still holds a
         balance (now or in a future-dated entry) or a recurring transaction still uses it."""
-        today = today or date.today()
+        today = today or local_today()
         all_accounts = self._ensure_roots()
         account = next((a for a in all_accounts if a.aid == aid), None)
         if account is None:
@@ -476,8 +479,74 @@ class AccountService:
             budget.clear_target(member.aid)
             self.ar.clear_payment_category(member.aid)
         self.ar.set_closed([m.aid for m in subtree if m.closed_on is None], today)
+        self.ar.set_pinned([m.aid for m in subtree], False)
         self.ar.db.commit()
         return self._to_read(self.ar.read(aid), self._ensure_roots())
+
+    def _own(self, aid: UUID) -> tuple[Account, list[Account]]:
+        """An account the person made themselves (not a top-level type or the system's Opening Balances) and all accounts."""
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
+        if account is None:
+            raise ValueError("account not found!")
+        if self._is_root(account) or self.is_opening_balances(account, all_accounts):
+            raise SystemAccountError("only accounts you made yourself can be pinned or placed!")
+        return account, all_accounts
+
+    def set_pinned(self, aid: UUID, pinned: bool) -> AccountRead:
+        """Pin an account to the top of the accounts page, or take it off again."""
+        account, _ = self._own(aid)
+        if pinned and account.closed_on is not None:
+            raise ValueError("a closed account cannot be pinned: reopen it first!")
+        self.ar.set_pinned([aid], pinned)
+        self.ar.db.commit()
+        return self._to_read(self.ar.read(aid), self._ensure_roots())
+
+    @staticmethod
+    def order_key(account: Account) -> tuple:
+        """How siblings are listed: the ones placed by hand first, in their order, then the rest by name."""
+        return (account.position is None, account.position or 0, account.name.lower())
+
+    def move(self, aid: UUID, direction: str) -> AccountRead:
+        """Move an account one place up or down among the accounts in the same group. The first time, the
+        current order of the group is written down, so what you see is what stays."""
+        if direction not in ("up", "down"):
+            raise ValueError("direction must be up or down!")
+        account, all_accounts = self._own(aid)
+        siblings = sorted((a for a in all_accounts if a.parent_id == account.parent_id), key=self.order_key)
+        at = next(i for i, a in enumerate(siblings) if a.aid == aid)
+        other = at - 1 if direction == "up" else at + 1
+        if 0 <= other < len(siblings):
+            siblings[at], siblings[other] = siblings[other], siblings[at]
+        self.ar.set_positions({a.aid: i for i, a in enumerate(siblings)})
+        self.ar.db.commit()
+        return self._to_read(self.ar.read(aid), self._ensure_roots())
+
+    def reset_order(self, aid: UUID) -> AccountRead:
+        """Put the account's group back in alphabetical order."""
+        account, all_accounts = self._own(aid)
+        self.ar.set_positions({a.aid: None for a in all_accounts if a.parent_id == account.parent_id})
+        self.ar.db.commit()
+        return self._to_read(self.ar.read(aid), self._ensure_roots())
+
+    def recent(self, limit: int = 5) -> list[UUID]:
+        """The accounts used most recently by hand that can still be used: not closed, not pinned, not the system's."""
+        all_accounts = self._ensure_roots()
+        by_id = {a.aid: a for a in all_accounts}
+        out: list[UUID] = []
+        equity = next((a for a in all_accounts if a.name == "Equity" and a.parent_id is None), None)
+        opening = self.ar.read_by_name(OPENING_BALANCES_ACCOUNT_NAME, equity.aid) if equity else None
+        for aid in self.ar.recent_account_ids(limit * 4, opening.aid if opening else None):
+            account = by_id.get(aid)
+            if (
+                account is None or account.closed_on is not None or account.pinned
+                or self._is_root(account) or self.is_opening_balances(account, all_accounts)
+            ):
+                continue
+            out.append(aid)
+            if len(out) == limit:
+                break
+        return out
 
     def reopen(self, aid: UUID) -> AccountRead:
         """Reopen an account with everything inside it, and the groups above it (an open account sits in open groups)."""
@@ -702,7 +771,7 @@ class AccountService:
         invested_known = True
         for posting in self.tr.postings_for_account(aid):
             transaction = self.tr.read(posting.transaction)
-            if transaction.date > date.today():
+            if transaction.date > local_today():
                 continue  # not part of the balance yet either
             signed = posting.value if posting.side == normal_side else -posting.value
             if transaction.currency_id != default.cid:
@@ -712,8 +781,8 @@ class AccountService:
                     continue
             invested += signed
 
-        value = book.convert(quantity, held.cid, default.cid, date.today(), default.decimals) if quantity else Decimal("0.00")
-        rate = book.rate(held.cid, default.cid, date.today())
+        value = book.convert(quantity, held.cid, default.cid, local_today(), default.decimals) if quantity else Decimal("0.00")
+        rate = book.rate(held.cid, default.cid, local_today())
         return HoldingRead(
             commodity=held.code,
             currency=default.code,

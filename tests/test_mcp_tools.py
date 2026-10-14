@@ -94,6 +94,20 @@ async def test_ambiguous_and_unknown_accounts_are_explained(session, books, secr
             await call(c, "record_transaction", amount="1", from_account="HDFC", to_account=name)
 
 
+async def test_weekly_and_yearly_targets(session, books, client, secret):
+    async with running_app(session), mcp_client(secret) as c:
+        weekly = payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "weekly", "amount": "200", "weekday": "friday"}))
+        line = next(l for l in weekly["categories"] if l["category"].endswith("Groceries"))
+        assert line["target"]["kind"] == "weekly" and line["target"]["weekday"] == "Friday" and line["underfunded"] != "0.00"
+        yearly = payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "yearly", "amount": "1200", "by": "2030-03"}))
+        line = next(l for l in yearly["categories"] if l["category"].endswith("Groceries"))
+        assert line["target"]["kind"] == "yearly" and line["target"]["by"] == "2030-03-01" and "weekday" not in line["target"]
+        with pytest.raises(ToolFailed, match="the weekday must be one of"):
+            payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "weekly", "amount": "5", "weekday": "someday"}))
+        with pytest.raises(ToolFailed, match="day of the week"):
+            payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "weekly", "amount": "5"}))
+
+
 async def test_ledger_rules_still_apply(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         with pytest.raises(ToolFailed, match="sub-accounts"):
@@ -426,3 +440,39 @@ async def test_assistants_can_copy_last_months_budget(session, root_accounts, cl
         assert data["categories"][0]["assigned"] == "200.00" and data["ready_to_assign"] == "600.00"
         with pytest.raises(ToolFailed, match="already assigned"):
             payload(await c.call_tool("copy_budget_from_previous_month", {}))
+
+
+@pytest.mark.anyio
+async def test_assistants_can_create_split_recurring_transactions_and_skip_one(session, root_accounts, client):
+    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "5000"})
+    client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
+    client.post("/api/accounts/", json={"name": "Water", "parent_id": root_accounts["Expenses"]})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+        made = payload(await c.call_tool("create_recurring", {
+            "postings": [
+                {"account": "Rent", "side": "debit", "amount": "1400"},
+                {"account": "Water", "side": "debit", "amount": "100"},
+                {"account": "Bank", "side": "credit", "amount": "1500"},
+            ],
+            "payee": "Landlord", "start_date": "2999-01-01",
+        }))["created"]
+        assert made["next_due"] == "2999-01-01" and len(made["postings"]) == 3
+        listed = payload(await c.call_tool("list_recurring", {}))["recurring"][0]
+        assert {p["account"] for p in listed["postings"]} == {"Expenses:Rent", "Expenses:Water", "Assets:Bank"}
+        with pytest.raises(ToolFailed, match="not both"):
+            payload(await c.call_tool("create_recurring", {"amount": "1", "from_account": "Bank", "to_account": "Rent",
+                "postings": [{"account": "Rent", "side": "debit", "amount": "1"}, {"account": "Bank", "side": "credit", "amount": "1"}]}))
+        with pytest.raises(ToolFailed, match="or postings"):
+            payload(await c.call_tool("create_recurring", {"amount": "1"}))
+        with pytest.raises(ToolFailed, match="balance"):
+            payload(await c.call_tool("create_recurring", {"postings": [
+                {"account": "Rent", "side": "debit", "amount": "10"}, {"account": "Bank", "side": "credit", "amount": "9"}]}))
+
+        skipped = payload(await c.call_tool("skip_recurring_occurrence", {"recurring_id": made["id"]}))
+        assert skipped["skipped"] == "2999-01-01" and skipped["next_due"] == "2999-02-01"
+        assert payload(await c.call_tool("list_recurring", {}))["recurring"][0]["next_due"] == "2999-02-01"
+        with pytest.raises(ToolFailed, match="no recurring transaction"):
+            payload(await c.call_tool("skip_recurring_occurrence", {"recurring_id": "00000000-0000-4000-8000-0000000000aa"}))
+        await c.call_tool("stop_recurring", {"recurring_id": made["id"]})
+        with pytest.raises(ToolFailed, match="resume it first"):
+            payload(await c.call_tool("skip_recurring_occurrence", {"recurring_id": made["id"]}))

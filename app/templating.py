@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from .flash import flash_message
 from .models.utils import normalize_amount
+from .clock import local_today
 
 
 BASE_DIR = Path(__file__).parent
@@ -39,7 +40,7 @@ def asset_url(path: str) -> str:
 
 def friendly_date(value: date) -> str:
     """Today / Yesterday / Mon, 28 Sep / 28 Sep 2025."""
-    today = date.today()
+    today = local_today()
     if value == today:
         return "Today"
     if value == today - timedelta(days=1):

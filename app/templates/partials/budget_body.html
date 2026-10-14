@@ -89,8 +89,9 @@
         <small class="target-note {{ 'short' if line.underfunded else ('met' if line.target) }}">
           <a href="/budget/target?month={{ month_key }}&category={{ line.aid }}">
           {%- if line.target -%}
-            {{ {"monthly": "Monthly", "refill": "Keep", "by_date": "Save"}[line.target.kind] }} {{ line.target.amount|money }}{% if line.target.target_date %} by {{ line.target.target_date.strftime("%b %Y") }}{% endif %}
-            · {% if line.underfunded %}needs {{ line.underfunded|money }} more{% else %}funded{% endif %}
+            {{ {"monthly": "Monthly", "weekly": "Weekly", "refill": "Keep", "by_date": "Save", "yearly": "Yearly"}[line.target.kind] }} {{ line.target.amount|money }}
+            {%- if line.target.kind == "weekly" %} on {{ ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][line.target.weekday or 0] }}s{% elif line.target.kind == "yearly" %} in {{ line.target.target_date.strftime("%b") }}{% elif line.target.target_date %} by {{ line.target.target_date.strftime("%b %Y") }}{% endif %}
+            · {% if line.overdue %}overdue, {% endif %}{% if line.underfunded %}needs {{ line.underfunded|money }} more{% else %}funded{% endif %}
           {%- else -%}Set a target{%- endif -%}
           </a>
         </small>

@@ -25,6 +25,7 @@ and `FINODE_SUPABASE_ANON_KEY` first (see Configuration). Pages:
 
 - **Dashboard** — net worth, this month's income and spending, recent
   transactions, and a "Get started" checklist for new users
+- **Month summary** — tap the month on the dashboard: income, spending and what was left, spending per category against the month before, and the last six months side by side
 - **Accounts** — accounts grouped by type with balances; each opens an
   **account page** with its activity, running balance and actions
 - **Transactions** — grouped by day, filterable by account and date; tap one
@@ -183,6 +184,7 @@ Environment variables (or a `.env` file at the project root) override defaults:
 
 - `FINODE_DATABASE_URL` — default `sqlite:///./finode.db`
 - `FINODE_DATABASE_ECHO` — default `true`
+- `FINODE_TIMEZONE` — the time zone "today" is read in, e.g. `Asia/Kolkata`; the server's own clock when empty
 - `FINODE_SUPABASE_URL` — Supabase project URL, used to fetch JWKS for protected API routes
 - `FINODE_SUPABASE_AUDIENCE` — expected JWT audience, default `authenticated`
 - `FINODE_SUPABASE_ANON_KEY` — Supabase anon (public) key, used by the web UI to sign users in

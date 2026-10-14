@@ -53,11 +53,11 @@ LISTS = {
     ("GET", "/"), ("GET", "/accounts"), ("GET", "/accounts/new"), ("GET", "/accounts/options"), ("GET", "/accounts/quick"),
     ("GET", "/api/accounts/"), ("GET", "/api/backup"), ("GET", "/api/budget/"), ("GET", "/api/commodities/"),
     ("GET", "/api/export"), ("GET", "/api/prices/"), ("GET", "/api/prices/rate"), ("GET", "/api/profile/"),
-    ("GET", "/api/recurring/"), ("GET", "/api/reports/breakdown"), ("GET", "/api/reports/summary"),
+    ("GET", "/api/recurring/"), ("GET", "/api/reports/breakdown"), ("GET", "/api/reports/month"), ("GET", "/api/reports/summary"),
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"), ("GET", "/api/transactions/deleted"),
     ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/move"), ("GET", "/commodities"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
-    ("GET", "/recurring/new"), ("GET", "/settings"), ("GET", "/transactions"), ("GET", "/transactions/new"),
+    ("GET", "/recurring/new"), ("GET", "/settings"), ("GET", "/summary"), ("GET", "/transactions"), ("GET", "/transactions/new"),
 }
 
 # Routes that take A's ids or names inside the request: refused (see `test_b_cannot_use_a_s_things_in_requests`).
@@ -259,6 +259,8 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, world: World):
             seen += 1
         # The numbers are B's too: the same endpoints, read as data.
         assert client.get("/api/reports/summary").json()["net_worth"] == "660.00"
+        month = client.get("/api/reports/month").json()
+        assert not leaked(world, json.dumps(month)) and {l["account"] for l in month["spending"] + month["earnings"]} <= {"Bills"}
         trial = client.get("/api/reports/trial-balance").json()
         assert trial["balanced"] and {a["account"] for a in trial["lines"]} <= {"Assets:Mine", "Expenses:Bills", "Equity:Opening Balances"}
         assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"]} == {"Mine", "Bills", "Opening Balances"}

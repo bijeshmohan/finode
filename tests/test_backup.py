@@ -45,6 +45,8 @@ def rich(client, root_accounts):
     salary = acct(client, "Salary", root_accounts["Income"])
     client.patch(f"/api/accounts/{loan['aid']}", json={"payment_category_id": emi["aid"]})
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
+    assert client.post(f"/api/accounts/{bank['aid']}/pin").status_code == 200
+    assert client.post(f"/api/accounts/{loan['aid']}/move", params={"direction": "up"}).status_code == 200  # Liabilities: Home Loan before Visa
 
     tx(client, [line(groceries, "debit", "250"), line(card, "credit", "250")], date="2026-09-03", payee="DMart")
     tx(client, [line(bank, "debit", "90000"), line(salary, "credit", "90000")], date="2026-09-01", payee="Employer")
@@ -62,9 +64,13 @@ def rich(client, root_accounts):
         "postings": [line(groceries, "debit", "60"), line(food, "debit", "40"), line(bank, "credit", "100")],
         "frequency": "weekly", "start_date": "2999-01-01", "payee": "Split rule",
     })
+    rid = next(r["rid"] for r in client.get("/api/recurring/").json() if r["payee"] == "Split rule")
+    assert client.post(f"/api/recurring/{rid}/skip").status_code == 200  # a skipped occurrence is part of the rule's state
     client.put(f"/api/budget/categories/{groceries['aid']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}", json={"month": "2026-09-01", "amount": "15000"})
     client.put(f"/api/budget/categories/{groceries['aid']}/target", json={"kind": "monthly", "amount": "3000"})
+    client.put(f"/api/budget/categories/{emi['aid']}/target", json={"kind": "weekly", "amount": "250", "weekday": 2})
+    client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "yearly", "amount": "1200", "target_date": "2019-09-01"})
     return {"bank": bank, "groceries": groceries}
 
 
@@ -91,7 +97,7 @@ def canonical(doc: dict) -> dict:
         "prices": doc["prices"],
         "accounts": sorted(
             (paths[a["id"]], a["details"], a["commodity"], a["on_budget"], a["closed_on"] is not None,
-             paths.get(a["payment_category_id"]))
+             paths.get(a["payment_category_id"]), a["pinned"], a["position"])
             for a in doc["accounts"]
         ),
         "transactions": [
@@ -102,11 +108,11 @@ def canonical(doc: dict) -> dict:
         "recurring": sorted(
             (r["payee"], paths.get(r["from_account"]), paths.get(r["to_account"]), r["amount"], r["currency"],
              sorted((paths[p["account"]], p["side"], p["amount"], p["value"]) for p in r["postings"]),
-             r["frequency"], r["start_date"], r["next_date"], r["last_date"], r["active"])
+             r["frequency"], r["start_date"], r["next_date"], r["last_date"], r["skipped_date"], r["active"])
             for r in doc["recurring"]
         ),
         "allocations": sorted((a["month"], paths[a["account_id"]], a["amount"]) for a in doc["allocations"]),
-        "targets": sorted((paths[t["account_id"]], t["kind"], t["amount"]) for t in doc["targets"]),
+        "targets": sorted((paths[t["account_id"]], t["kind"], t["amount"], t["target_date"], t["weekday"]) for t in doc["targets"]),
     }
 
 
@@ -123,7 +129,7 @@ def test_the_backup_has_everything(client, rich):
     assert any(a["on_budget"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
-    assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 1
+    assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 3
     assert len(doc["prices"]) == 1 and doc["prices"][0]["commodity"] == "BTC" and doc["prices"][0]["quote"] == "INR"
     assert set(doc) == {"format", "version", "exported_at", "profile", "commodities", "prices", "accounts", "transactions", "recurring", "allocations", "targets"}, "no tokens or connected apps"
 

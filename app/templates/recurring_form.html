@@ -5,7 +5,7 @@
 <a class="back" href="/recurring">{{ icon("back") }}Recurring</a>
 <h1>{{ "Edit recurring transaction" if editing else "New recurring transaction" }}</h1>
 {% if editing %}
-<p class="muted origin">{{ schedule }}{% if rule.active %} · next on {{ rule.next_date|friendly_date }}{% elif status == "ended" %} · ended{% else %} · paused{% endif %}{% if rule.last_date %} · last recorded {{ rule.last_date|friendly_date }}{% endif %}</p>
+<p class="muted origin">{{ schedule }}{% if rule.active %} · next on {{ rule.next_date|friendly_date }}{% elif status == "ended" %} · ended{% else %} · paused{% endif %}{% if rule.last_date %} · last recorded {{ rule.last_date|friendly_date }}{% endif %}{% if rule.skipped_date and (not rule.last_date or rule.skipped_date > rule.last_date) %} · skipped {{ rule.skipped_date|friendly_date }}{% endif %}</p>
 {% if rule.last_error %}<p class="error" role="alert">Couldn't record {{ rule.last_error }}. It will try again on the next run; fix the accounts or this rule.</p>{% endif %}
 {% endif %}
 
@@ -57,6 +57,9 @@
   {% if rule.active %}
   <p class="muted">Pause it to stop recording without losing the rule.</p>
   <div class="actions"><button type="button" class="secondary" hx-post="/recurring/{{ rule.rid }}/pause">Pause</button></div>
+  <p class="muted">Just this once? Skip the next one ({{ rule.next_date|friendly_date }}): nothing is recorded for it and the rule carries on after it.</p>
+  <div class="actions"><button type="button" class="secondary" hx-post="/recurring/{{ rule.rid }}/skip"
+    hx-confirm="Skip {{ rule.next_date.strftime('%d %b %Y') }}? Nothing will be recorded for it.">Skip {{ rule.next_date|friendly_date }}</button></div>
   {% elif status != "ended" %}
   <p class="muted">Occurrences missed while it was paused are skipped.</p>
   <div class="actions"><button type="button" hx-post="/recurring/{{ rule.rid }}/resume">Resume</button></div>

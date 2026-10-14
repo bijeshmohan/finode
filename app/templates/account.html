@@ -33,12 +33,27 @@
     {% endif %}
     {% if node.kind == "user" %}
     <a class="button secondary" href="/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
+    {% if not account.closed_on %}
+    <button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/pin" hx-vals='{"pinned": "{{ 0 if account.pinned else 1 }}"}'
+      aria-pressed="{{ 'true' if account.pinned else 'false' }}">{{ icon("pin") }}{{ "Unpin" if account.pinned else "Pin" }}</button>
+    {% endif %}
     {% endif %}
     {% if can_add_child and not account.closed_on %}
     <a class="button secondary" href="/accounts/new?parent={{ account.aid }}">{{ icon("plus") }}Add sub-account</a>
     {% endif %}
   </div>
 </header>
+
+{% if node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand) %}
+<section class="card stack form-narrow order-card">
+  <p class="muted">Accounts in {{ "this group" if node.account.parent_id else "this type" }} are listed {{ "in the order you chose" if ordered_by_hand else "alphabetically" }}{% if node.account.aid and root.account.name == "Expenses" %}; the budget lists categories the same way{% endif %}.</p>
+  <div class="actions">
+    {% if can_move_up %}<button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "up"}'>{{ icon("arrow-up") }}Move up</button>{% endif %}
+    {% if can_move_down %}<button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "down"}'>{{ icon("arrow-down") }}Move down</button>{% endif %}
+    {% if ordered_by_hand %}<button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/reset-order">A–Z</button>{% endif %}
+  </div>
+</section>
+{% endif %}
 
 {% if node.kind == "user" %}
 <section class="card stack form-narrow close-card">

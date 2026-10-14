@@ -508,7 +508,7 @@ def test_by_date_in_the_final_month_needs_the_rest(client, root_accounts):
 def test_target_validation(client, root_accounts):
     bank, food, rent = fixture_budget(client, root_accounts)
     url = f"/api/budget/categories/{rent['aid']}/target"
-    assert client.put(url, json={"kind": "weekly", "amount": "5"}).status_code == 400
+    assert client.put(url, json={"kind": "daily", "amount": "5"}).status_code == 400
     assert client.put(url, json={"kind": "monthly", "amount": "0"}).status_code == 422
     assert client.put(url, json={"kind": "by_date", "amount": "5"}).status_code == 400
     past = (LAST_MONTH).isoformat()

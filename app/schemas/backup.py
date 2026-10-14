@@ -50,6 +50,8 @@ class BackupAccount(BaseModel):
     on_budget: bool = False
     closed_on: Date | None = None
     payment_category_id: UUID | None = None
+    pinned: bool = False
+    position: int | None = None
 
 
 class BackupPosting(BaseModel):
@@ -95,6 +97,7 @@ class BackupRecurring(BaseModel):
     end_date: Date | None = None
     next_date: Date
     last_date: Date | None = None
+    skipped_date: Date | None = None
     active: bool = True
     last_error: str | None = None
 
@@ -110,6 +113,7 @@ class BackupTarget(BaseModel):
     kind: str
     amount: Decimal
     target_date: Date | None = None
+    weekday: int | None = None
 
 
 class BackupFile(BaseModel):

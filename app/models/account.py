@@ -35,6 +35,10 @@ class Account(TimestampMixin, table=True):
     # For an asset or liability account outside the budget (a loan): the expense category its payments are
     # budgeted under, so paying the EMI spends that category (see services/budget.py).
     payment_category_id: UUID | None = Field(default=None, foreign_key="accounts.aid", nullable=True)
+    # Pinned accounts are listed at the top of the accounts page.
+    pinned: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    # The place among its siblings when the user ordered them by hand; empty means alphabetical, after the placed ones.
+    position: int | None = Field(default=None)
 
     @field_validator("name")
     @classmethod
