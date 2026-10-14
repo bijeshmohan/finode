@@ -476,3 +476,14 @@ async def test_assistants_can_create_split_recurring_transactions_and_skip_one(s
         await c.call_tool("stop_recurring", {"recurring_id": made["id"]})
         with pytest.raises(ToolFailed, match="resume it first"):
             payload(await c.call_tool("skip_recurring_occurrence", {"recurring_id": made["id"]}))
+
+
+@pytest.mark.anyio
+async def test_get_budget_shows_category_notes(session, books, client, secret):
+    rent = client.post("/api/accounts/", json={"name": "Rent", "parent_id": books["food"]["parent_id"]}).json()
+    client.put(f"/api/budget/categories/{rent['aid']}/note", json={"note": "Due on the 5th"})
+    async with running_app(session), mcp_client(secret) as c:
+        data = payload(await c.call_tool("get_budget", {}))
+        mine = next(l for l in data["categories"] if l["category"].endswith("Rent"))
+        assert mine["note"] == "Due on the 5th"
+        assert all("note" not in l for l in data["categories"] if not l["category"].endswith("Rent"))

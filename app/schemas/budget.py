@@ -72,6 +72,8 @@ class BudgetLine(BaseModel):
     underfunded: Decimal = Money
     # A "by a month" target whose month has passed and is still short.
     overdue: bool = False
+    # The category's note (the account's details), if it has one.
+    note: str | None = None
 
 
 class BudgetRead(BaseModel):
@@ -109,6 +111,11 @@ class BudgetRead(BaseModel):
     budget_accounts: list[str]
     ignored_accounts: list[str]
     lines: list[BudgetLine]
+
+
+class BudgetNoteSet(BaseModel):
+    # A short note for the category, e.g. "Due on the 5th, pay by UPI"; empty or null removes it.
+    note: str | None = Field(default=None, max_length=200)
 
 
 class BudgetAssign(BaseModel):

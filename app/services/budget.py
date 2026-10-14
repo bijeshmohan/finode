@@ -385,6 +385,7 @@ class BudgetService:
                 ) if target else None,
                 needed=needs.get(account.aid, (ZERO, ZERO))[0] if target else ZERO,
                 underfunded=needs.get(account.aid, (ZERO, ZERO))[1] if underfunded is None else underfunded,
+                note=account.details if name == account.name else None,
             )
 
         lines: list[BudgetLine] = []
@@ -457,6 +458,16 @@ class BudgetService:
             weekday = None
         self.br.set_target(account.aid, kind, amount, target_date, weekday)
         self.br.db.commit()
+        return self.view(None)
+
+    def set_note(self, aid: UUID, note: str | None) -> BudgetRead:
+        """A short note on a category (kept as the account's details, so it is in backups and on the account's page)."""
+        account = self._category(aid)
+        note = (note or "").strip() or None
+        if note is not None and len(note) > 200:
+            raise BudgetError("a note can be at most 200 characters!")
+        if note != account.details:
+            self.accounts.update(aid, AccountUpdate(details=note))
         return self.view(None)
 
     def clear_target(self, aid: UUID) -> BudgetRead:
