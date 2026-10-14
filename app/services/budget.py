@@ -7,7 +7,7 @@ from ..models.account import Account
 from ..models.budget import BudgetTarget
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, TransactionRepository
-from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead
+from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead, BudgetWeek
 from ..schemas.account import AccountUpdate
 from .account import AccountService
 from .transaction import decimal_places
@@ -36,6 +36,21 @@ def weekday_count(month: date, weekday: int) -> int:
     """How many times a day of the week (0 = Monday) falls in the month."""
     first, days = calendar.monthrange(month.year, month.month)
     return sum(1 for d in range(days) if (first + d) % 7 == weekday)
+
+
+def weeks_of(month: date, weekday: int) -> list[tuple[date, date, bool]]:
+    """The month cut into weeks that start on `weekday` (0 = Monday): (first day, last day, funded this month).
+    The days before the first such day belong to a week funded last month; the last week stops at the month's end."""
+    last = month_end(month)
+    first = month + timedelta(days=(weekday - month.weekday()) % 7)
+    weeks = []
+    if first > month:
+        weeks.append((month, min(first - timedelta(days=1), last), False))
+    day = first
+    while day <= last:
+        weeks.append((day, min(day + timedelta(days=6), last), True))
+        day += timedelta(days=7)
+    return weeks
 
 
 def due_month(target: BudgetTarget, month: date) -> date | None:
@@ -213,6 +228,9 @@ class BudgetService:
         card_books: dict[UUID, list[Decimal]] = {aid: [ZERO, ZERO, ZERO] for aid in liabilities}
 
         cash = ZERO
+        weekly = {aid for aid, t in self.br.targets().items() if t.kind == "weekly"}
+        # What was spent day by day this month in the categories with a weekly target.
+        daily: dict[UUID, dict[date, Decimal]] = {}
         # What happened to each category in each month: [assigned, spent].
         by_category: dict[UUID, dict[date, list[Decimal]]] = {}
         unpriced = False
@@ -238,6 +256,9 @@ class BudgetService:
                         continue
                 figures = by_category.setdefault(target, {}).setdefault(month_start(transaction.date), [ZERO, ZERO])
                 figures[1] += value
+                if target in weekly and month_start(transaction.date) == month:
+                    days = daily.setdefault(target, {})
+                    days[transaction.date] = days.get(transaction.date, ZERO) + value
         for row in allocations:
             if row.account_id in categories:
                 by_category.setdefault(row.account_id, {}).setdefault(row.month, [ZERO, ZERO])[0] += row.amount
@@ -287,10 +308,22 @@ class BudgetService:
         total_underfunded = sum((v[1] for v in needs.values()), ZERO)
 
         lines = self._lines(categories, by_id, parents, own, targets, needs)
+        today = local_today()
         for line in lines:
             target = targets.get(line.aid)
             if target is not None and line.target is not None:
                 line.overdue = is_overdue(target, month, needs.get(line.aid, (ZERO, ZERO))[1])
+                if target.kind == "weekly" and not line.name.endswith("(other)"):
+                    spent_by_day = daily.get(line.aid, {})
+                    line.weeks = [
+                        BudgetWeek(
+                            start=first, end=last,
+                            spent=sum((v for d, v in spent_by_day.items() if first <= d <= last), ZERO),
+                            allowance=target.amount if funded else None,
+                            current=first <= today <= last,
+                        )
+                        for first, last, funded in weeks_of(month, target.weekday or 0)
+                    ]
         read = BudgetRead(
             month=month,
             currency=default.code,

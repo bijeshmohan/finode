@@ -476,3 +476,15 @@ async def test_assistants_can_create_split_recurring_transactions_and_skip_one(s
         await c.call_tool("stop_recurring", {"recurring_id": made["id"]})
         with pytest.raises(ToolFailed, match="resume it first"):
             payload(await c.call_tool("skip_recurring_occurrence", {"recurring_id": made["id"]}))
+
+
+@pytest.mark.anyio
+async def test_get_budget_lists_the_weeks_of_a_weekly_target(session, books, client, secret):
+    rent = client.post("/api/accounts/", json={"name": "Pocket money", "parent_id": books["food"]["parent_id"]}).json()
+    client.put(f"/api/budget/categories/{rent['aid']}/target", json={"kind": "weekly", "amount": "100", "weekday": 0})
+    async with running_app(session), mcp_client(secret) as c:
+        data = payload(await c.call_tool("get_budget", {}))
+        mine = next(l for l in data["categories"] if l["category"].endswith("Pocket money"))
+        assert mine["weeks"] and all({"from", "to", "spent"} <= set(w) for w in mine["weeks"])
+        assert all(w["allowance"] == "100.00" for w in mine["weeks"] if "allowance" in w)
+        assert all("weeks" not in l for l in data["categories"] if not l["category"].endswith("Pocket money"))

@@ -48,6 +48,19 @@ class BudgetCard(BaseModel):
     paid: Decimal = Money
 
 
+class BudgetWeek(BaseModel):
+    """One week of a category with a weekly target (weeks start on the target's day), clipped to the month."""
+
+    start: Date
+    end: Date
+    # What was spent in it, and what the target allows for it. None for the days before the month's first such
+    # day: that week was funded last month.
+    spent: Decimal = Money
+    allowance: Decimal | None = None
+    # The week that includes today.
+    current: bool = False
+
+
 class BudgetLine(BaseModel):
     aid: UUID
     # The category's name, and its path below Expenses, e.g. "Food:Groceries".
@@ -72,6 +85,8 @@ class BudgetLine(BaseModel):
     underfunded: Decimal = Money
     # A "by a month" target whose month has passed and is still short.
     overdue: bool = False
+    # With a weekly target: the month week by week.
+    weeks: list[BudgetWeek] = []
 
 
 class BudgetRead(BaseModel):
