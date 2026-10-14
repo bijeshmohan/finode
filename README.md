@@ -14,7 +14,7 @@ uv run alembic upgrade head       # create / migrate the database
 uv run fastapi dev                # start the dev server
 ```
 
-The server runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/docs`.
+The server runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/docs` once you set `FINODE_API_DOCS=true` (off by default, because they are public).
 
 ## Web UI
 

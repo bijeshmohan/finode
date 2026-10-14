@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     login_attempts: int = Field(default=10, ge=0)
     signup_attempts: int = Field(default=5, ge=0)
     attempt_window_minutes: int = Field(default=15, ge=1)
+    # Interactive API docs (/docs, /redoc, /openapi.json) are public when on; off unless you are developing.
+    api_docs: bool = False
     # "Forgot password": needs email sending set up in Supabase (custom SMTP) and its recovery email
     # template pointing at /reset (see README). Off until then, so nobody is offered a link that sends nothing.
     password_reset: bool = False

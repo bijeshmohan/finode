@@ -68,7 +68,10 @@ def test_origin_is_recorded_for_web_api_and_import(client, root_accounts):
         },
     ).json()
     assert api["created_via"] == "api" and api["updated_via"] == "api"
-    client.post("/transactions", data={"amount": "7", "from_account": bank["aid"], "to_account": food["aid"]})
+    client.post(
+        "/transactions/split",
+        data={"account": [food["aid"], bank["aid"]], "side": ["debit", "credit"], "amount": ["7", "7"]},
+    )
     web = next(t for t in client.get("/api/transactions/").json() if t["tid"] != api["tid"])
     assert web["created_via"] == "web"
     listing = client.get("/transactions").text
@@ -85,7 +88,10 @@ def test_imports_are_marked(client):
 def test_breakdown_is_also_in_the_json_api(client, root_accounts):
     bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
-    client.post("/transactions", data={"amount": "70", "from_account": bank["aid"], "to_account": food["aid"]})
+    client.post(
+        "/transactions/split",
+        data={"account": [food["aid"], bank["aid"]], "side": ["debit", "credit"], "amount": ["70", "70"]},
+    )
     report = client.get("/api/reports/breakdown").json()
     assert report["root"] == "Expenses" and report["total"] == "70.00"
     assert report["lines"] == [{"account": "Food", "amount": "70.00"}]

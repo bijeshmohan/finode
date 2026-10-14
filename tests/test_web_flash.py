@@ -6,8 +6,8 @@ from app.flash import FLASH_COOKIE, MESSAGES, set_flash
 
 def test_saving_a_transaction_sets_a_flash(client: TestClient, account: dict, expense_account: dict):
     response = client.post(
-        "/transactions",
-        data={"amount": "1", "from_account": account["aid"], "to_account": expense_account["aid"]},
+        "/transactions/split",
+        data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": ["1", "1"]},
     )
     assert f"{FLASH_COOKIE}=transaction-saved" in response.headers["set-cookie"]
 

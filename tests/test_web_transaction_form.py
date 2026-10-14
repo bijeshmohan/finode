@@ -36,12 +36,12 @@ def test_form_only_offers_postable_accounts(
 
 def test_create_simple_transaction(client: TestClient, account: dict, expense_account: dict):
     response = client.post(
-        "/transactions",
+        "/transactions/split",
         data={
             "date": "2026-05-04",
-            "amount": "42.50",
-            "from_account": account["aid"],
-            "to_account": expense_account["aid"],
+            "account": [expense_account["aid"], account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["42.50", "42.50"],
             "payee": "Market",
             "comment": "weekly",
         },
@@ -63,22 +63,14 @@ def test_create_simple_transaction_defaults_to_today(
     client: TestClient, account: dict, expense_account: dict
 ):
     client.post(
-        "/transactions",
-        data={"amount": "1", "from_account": account["aid"], "to_account": expense_account["aid"]},
+        "/transactions/split",
+        data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": ["1", "1"]},
     )
     [tx] = client.get("/api/transactions/").json()
     assert tx["date"] == date.today().isoformat()
     assert tx["payee"] is None
 
 
-def test_create_simple_transaction_rejects_same_account(client: TestClient, account: dict):
-    response = client.post(
-        "/transactions",
-        data={"amount": "5", "from_account": account["aid"], "to_account": account["aid"]},
-    )
-    assert response.status_code == 400
-    assert response.headers["HX-Retarget"] == "#form-error"
-    assert "must differ" in response.text
 
 
 def test_create_simple_transaction_rejects_bad_amounts(
@@ -86,8 +78,8 @@ def test_create_simple_transaction_rejects_bad_amounts(
 ):
     for amount in ("0", "-3", "abc", "1.234", ""):
         response = client.post(
-            "/transactions",
-            data={"amount": amount, "from_account": account["aid"], "to_account": expense_account["aid"]},
+            "/transactions/split",
+            data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": [amount, amount]},
         )
         assert response.status_code == 400, amount
     assert client.get("/api/transactions/").json() == []
@@ -97,8 +89,8 @@ def test_create_simple_transaction_rejects_root_account(
     client: TestClient, root_accounts: dict[str, str], account: dict
 ):
     response = client.post(
-        "/transactions",
-        data={"amount": "5", "from_account": account["aid"], "to_account": root_accounts["Expenses"]},
+        "/transactions/split",
+        data={"account": [root_accounts["Expenses"], account["aid"]], "side": ["debit", "credit"], "amount": ["5", "5"]},
     )
     assert response.status_code == 400
     assert "root account" in response.text
@@ -310,8 +302,8 @@ def test_create_returns_to_the_page_it_came_from(
 ):
     back = f"/accounts/{account['aid']}"
     response = client.post(
-        "/transactions",
-        data={"amount": "3", "from_account": account["aid"], "to_account": expense_account["aid"], "back": back},
+        "/transactions/split",
+        data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": ["3", "3"], "back": back},
     )
     assert response.headers["HX-Redirect"] == back
 
@@ -321,8 +313,13 @@ def test_return_path_must_stay_inside_the_app(
 ):
     for back in ("https://evil.example", "//evil.example/", "/api/accounts/", "/static/x", "/mcp", "/app\\x"):
         response = client.post(
-            "/transactions",
-            data={"amount": "1", "from_account": account["aid"], "to_account": expense_account["aid"], "back": back},
+            "/transactions/split",
+            data={
+                "account": [expense_account["aid"], account["aid"]],
+                "side": ["debit", "credit"],
+                "amount": ["1", "1"],
+                "back": back,
+            },
         )
         assert response.headers["HX-Redirect"] == "/transactions", back
 
@@ -331,8 +328,8 @@ def test_save_and_add_another_reopens_the_form(
     client: TestClient, account: dict, expense_account: dict
 ):
     simple = client.post(
-        "/transactions",
-        data={"amount": "1", "from_account": account["aid"], "to_account": expense_account["aid"], "another": "1"},
+        "/transactions/split",
+        data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": ["1", "1"], "another": "1"},
     )
     assert simple.headers["HX-Redirect"] == "/transactions/new"
 
@@ -349,15 +346,15 @@ def test_save_and_add_another_reopens_the_form(
     assert split.headers["HX-Redirect"] == "/transactions/new?back=%2Faccounts"
 
 
-def test_update_simple_transaction(client: TestClient, account: dict, other_account: dict, expense_account: dict):
+def test_update_transaction_to_other_accounts(client: TestClient, account: dict, other_account: dict, expense_account: dict):
     tx = _tx(client, expense_account, account)
     response = client.post(
-        f"/transactions/{tx['tid']}/edit/simple",
+        f"/transactions/{tx['tid']}/edit",
         data={
             "date": "2026-07-01",
-            "amount": "15.50",
-            "from_account": other_account["aid"],
-            "to_account": expense_account["aid"],
+            "account": [expense_account["aid"], other_account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["15.50", "15.50"],
             "payee": "moved",
         },
     )
@@ -371,14 +368,6 @@ def test_update_simple_transaction(client: TestClient, account: dict, other_acco
     assert _balance(client, account) == "0.00"
 
 
-def test_update_simple_transaction_validates(client: TestClient, account: dict, expense_account: dict):
-    tx = _tx(client, expense_account, account)
-    response = client.post(
-        f"/transactions/{tx['tid']}/edit/simple",
-        data={"date": "2026-07-01", "amount": "0", "from_account": account["aid"], "to_account": expense_account["aid"]},
-    )
-    assert response.status_code == 400
-    assert response.headers["HX-Retarget"] == "#form-error"
 
 
 def test_multi_posting_transactions_edit_in_split_mode_only(
