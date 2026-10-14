@@ -355,7 +355,7 @@ class BudgetService:
         for a in categories.values():
             children.setdefault(a.parent_id, []).append(a)
         for kids in children.values():
-            kids.sort(key=lambda a: a.name.lower())
+            kids.sort(key=AccountService.order_key)
         expenses_root = next((a for a in by_id.values() if a.parent_id is None and a.name == "Expenses"), None)
         zero = (ZERO, ZERO, ZERO, ZERO)
 

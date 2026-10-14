@@ -50,6 +50,8 @@ class BackupAccount(BaseModel):
     on_budget: bool = False
     closed_on: Date | None = None
     payment_category_id: UUID | None = None
+    pinned: bool = False
+    position: int | None = None
 
 
 class BackupPosting(BaseModel):
