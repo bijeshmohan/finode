@@ -18,7 +18,6 @@ from ...schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
-from ...services.simple import simple_postings
 from ...templating import templates
 from .accounts import build_tree, posting_groups
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
@@ -212,19 +211,6 @@ def form_context(accounts: Accounts, **extra) -> dict:
     }
 
 
-def _simple_postings(
-    accounts: Accounts, amount: str, to_amount: str, from_account: str, to_account: str
-) -> tuple[str, list[PostingCreate]]:
-    """The simple form's fields as postings and a currency (see services.simple)."""
-    if not from_account or not to_account:
-        raise ValueError("choose both a from and a to account!")
-    if from_account == to_account:
-        raise ValueError("the from and to accounts must differ!")
-    paid = parse_amount(amount)
-    received = parse_amount(to_amount) if to_amount.strip() else None
-    return simple_postings(accounts, paid, received, UUID(from_account), UUID(to_account))
-
-
 def split_postings(
     account: list[str], side: list[str], amount: list[str], value: list[str] | None = None
 ) -> list[PostingCreate]:
@@ -292,41 +278,6 @@ def new_transaction_page(
             back=safe_back(back, ""),
             back_url=safe_back(back),
         ),
-    )
-
-
-@router.post("")
-def create_simple_transaction(
-    accounts: Accounts,
-    transactions: Transactions,
-    amount: Annotated[str, Form()] = "",
-    to_amount: Annotated[str, Form()] = "",
-    from_account: Annotated[str, Form()] = "",
-    to_account: Annotated[str, Form()] = "",
-    date_: Annotated[str, Form(alias="date")] = "",
-    payee: Annotated[str, Form()] = "",
-    comment: Annotated[str, Form()] = "",
-    back: Annotated[str, Form()] = "",
-    another: Annotated[str, Form()] = "",
-):
-    try:
-        currency, postings = _simple_postings(accounts, amount, to_amount, from_account, to_account)
-        transactions.create(
-            TransactionCreate(
-                date=date_ or date.today(),
-                payee=payee.strip() or None,
-                comment=comment.strip() or None,
-                currency=currency,
-                postings=postings,
-            )
-        )
-    except ValidationError as e:
-        return htmx_error(validation_message(e), "#form-error")
-    except ValueError as e:
-        return htmx_error(str(e), "#form-error")
-    return htmx_redirect(
-        _after_save(back, another),
-        flash="transaction-saved-next" if another else "transaction-saved",
     )
 
 
@@ -438,30 +389,5 @@ def update_transaction(
         payee,
         comment,
         lambda: (currency.strip() or None, split_postings(account, side, amount, value)),
-        back,
-    )
-
-
-@router.post("/{tid}/edit/simple")
-def update_simple_transaction(
-    tid: UUID,
-    accounts: Accounts,
-    transactions: Transactions,
-    date_: Annotated[str, Form(alias="date")] = "",
-    amount: Annotated[str, Form()] = "",
-    to_amount: Annotated[str, Form()] = "",
-    from_account: Annotated[str, Form()] = "",
-    to_account: Annotated[str, Form()] = "",
-    payee: Annotated[str, Form()] = "",
-    comment: Annotated[str, Form()] = "",
-    back: Annotated[str, Form()] = "",
-):
-    return _update(
-        transactions,
-        tid,
-        date_,
-        payee,
-        comment,
-        lambda: _simple_postings(accounts, amount, to_amount, from_account, to_account),
         back,
     )

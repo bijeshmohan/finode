@@ -11,6 +11,7 @@ from .caching import cache_headers_middleware
 from .flash import clear_shown_flash_middleware
 from .mcp_server import transport as mcp_transport
 from .templating import BASE_DIR
+from .config import settings
 from .web_auth import LoginRequired, login_required_handler, refreshed_cookies_middleware
 
 
@@ -20,7 +21,13 @@ async def lifespan(_: FastAPI):
         yield
 
 
-app = FastAPI(title="finode", lifespan=lifespan)
+app = FastAPI(
+    title="finode",
+    lifespan=lifespan,
+    docs_url="/docs" if settings.api_docs else None,
+    redoc_url="/redoc" if settings.api_docs else None,
+    openapi_url="/openapi.json" if settings.api_docs else None,
+)
 # The MCP server for AI assistants (personal access tokens; see app/mcp_server).
 app.router.routes.append(Route("/mcp", endpoint=mcp_transport.MCPEndpoint(), methods=["GET", "POST", "DELETE"]))
 

@@ -115,6 +115,40 @@ async def test_ledger_rules_still_apply(session, books, secret):
             await call(c, "record_transaction", amount="-5", from_account="HDFC", to_account="Groceries")
 
 
+async def test_which_currency_a_move_is_in(session, books, client, root_accounts, secret):
+    euro = make(client, "Euro pot", root_accounts["Assets"], "EUR")
+    card_usd = make(client, "Card USD", root_accounts["Assets"], "USD")
+    async with running_app(session), mcp_client(secret) as c:
+        await call(c, "record_transaction", amount="8350", from_account="HDFC", to_account="Wise", received_amount="100")
+
+        # selling USD for INR: the transaction is in INR, the USD side worth what the INR side is
+        sold = (await call(c, "record_transaction", amount="40", from_account="Wise", to_account="HDFC", received_amount="3400"))["recorded"]
+        assert sold["currency"] == "INR"
+        values = {p["account"]: (p["amount"], p.get("value", p["amount"])) for p in sold["postings"]}
+        assert values["Assets:Wise"] == ("40.00", "3400.00") and values["Assets:Bank:HDFC"] == ("3400.00", "3400.00")
+
+        # between two foreign currencies: in the sending one
+        crossed = (await call(c, "record_transaction", amount="50", from_account="Wise", to_account="Euro pot", received_amount="46"))["recorded"]
+        assert crossed["currency"] == "USD"
+        values = {p["account"]: (p["amount"], p.get("value", p["amount"])) for p in crossed["postings"]}
+        assert values["Assets:Wise"] == ("50.00", "50.00") and values["Assets:Euro pot"] == ("46.00", "50.00")
+
+        # within one foreign commodity: in that commodity
+        same = (await call(c, "record_transaction", amount="25", from_account="Wise", to_account="Card USD"))["recorded"]
+        assert same["currency"] == "USD"
+    assert client.get(f"/api/accounts/{card_usd['aid']}").json()["balance"] == "25.00"
+    assert client.get(f"/api/accounts/{euro['aid']}").json()["balance"] == "46.00"
+
+
+async def test_a_received_amount_must_match_between_the_same_thing(session, books, client, root_accounts, secret):
+    other = make(client, "Other bank", root_accounts["Assets"])
+    async with running_app(session), mcp_client(secret) as c:
+        with pytest.raises(ToolFailed, match="the amount that arrives is the amount that leaves"):
+            await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Other bank", received_amount="12")
+        await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Other bank", received_amount="10")
+    assert client.get(f"/api/accounts/{other['aid']}").json()["balance"] == "10.00"
+
+
 async def test_conversion_and_holding_value(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         recorded = (
@@ -174,8 +208,13 @@ async def test_split_update_and_delete(session, client, books, secret):
 
 async def test_editing_a_web_entry_marks_who_changed_it(session, client, books, secret):
     created = client.post(
-        "/transactions",
-        data={"amount": "120", "from_account": books["hdfc"]["aid"], "to_account": books["groceries"]["aid"], "payee": "Shop"},
+        "/transactions/split",
+        data={
+            "account": [books["groceries"]["aid"], books["hdfc"]["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["120", "120"],
+            "payee": "Shop",
+        },
     )
     assert created.status_code == 200
     tid = client.get("/api/transactions/").json()[0]["tid"]

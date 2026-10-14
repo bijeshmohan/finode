@@ -23,7 +23,10 @@ def deployment_settings_off(monkeypatch: pytest.MonkeyPatch):
     """Settings a real deployment switches on in .env must not change what the tests see."""
     from app.config import settings
 
-    for name, value in (("test_notice", False), ("feedback_email", None), ("password_reset", False)):
+    for name, value in (
+        ("test_notice", False), ("feedback_email", None), ("password_reset", False),
+        ("signup_code", None), ("supabase_service_role_key", None), ("max_users", 10),
+    ):
         monkeypatch.setattr(settings, name, value)
 
 

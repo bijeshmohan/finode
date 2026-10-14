@@ -43,8 +43,6 @@ PUBLIC = {
     ("GET", "/login"), ("POST", "/login"), ("POST", "/logout"), ("GET", "/signup"), ("POST", "/signup"),
     ("GET", "/forgot"), ("POST", "/forgot"), ("GET", "/reset"), ("POST", "/reset"),
     ("GET", "/.well-known/oauth-protected-resource"), ("GET", "/.well-known/oauth-protected-resource/mcp"),
-    ("GET", "/docs"), ("HEAD", "/docs"), ("GET", "/docs/oauth2-redirect"), ("HEAD", "/docs/oauth2-redirect"),
-    ("GET", "/redoc"), ("HEAD", "/redoc"), ("GET", "/openapi.json"), ("HEAD", "/openapi.json"),
     ("GET", "/app"), ("GET", "/app/{rest:path}"),
     ("DELETE", "/mcp"), ("GET", "/mcp"), ("HEAD", "/mcp"), ("POST", "/mcp"),  # bearer tokens, tested below
     ("GET", "/oauth/consent"), ("POST", "/oauth/consent"),  # a Supabase authorization id of the signed-in user
@@ -72,7 +70,7 @@ REFERENCES = {
     ("POST", "/budget/target/delete"), ("POST", "/commodities"), ("POST", "/commodities/prices"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
     ("POST", "/recurring"), ("POST", "/restore"), ("POST", "/restore/preview"), ("POST", "/settings/currency"),
-    ("POST", "/settings/depth"), ("POST", "/transactions"), ("POST", "/transactions/split"),
+    ("POST", "/settings/depth"), ("POST", "/transactions/split"),
 }
 
 
@@ -215,7 +213,6 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("PUT", "/api/recurring/{rid}"): {"json": {"from_account": mine, "to_account": bills, "amount": "1", "start_date": "2999-01-01"}},
         ("POST", "/accounts/{aid}/edit"): {"data": {"name": "hacked"}},
         ("POST", "/transactions/{tid}/edit"): {"data": rows},
-        ("POST", "/transactions/{tid}/edit/simple"): {"data": {"date": "2026-10-01", "amount": "5", "from_account": mine, "to_account": bills}},
         ("POST", "/recurring/{rid}/edit"): {"data": {**rows, "frequency": "monthly", "every": "1", "start": "2999-01-01"}},
         ("POST", "/oauth/apps/{gid}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{tkid}/access"): {"data": {"scope": "read"}},
@@ -320,8 +317,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         # the web forms
         refused("form tx with A's account", "POST", "/transactions/split", data={
             "date": "2026-10-01", "account": [a["Groceries"], mine], "side": ["debit", "credit"], "amount": ["5", "5"]})
-        refused("simple tx with A's account", "POST", "/transactions", data={
-            "amount": "5", "from_account": a["HDFC"], "to_account": bills})
         refused("form recurring with A's", "POST", "/recurring", data={
             "account": [a["Groceries"], mine], "side": ["debit", "credit"], "amount": ["5", "5"],
             "frequency": "monthly", "every": "1", "start": "2999-01-01"})
