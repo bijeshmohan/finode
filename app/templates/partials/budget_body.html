@@ -84,6 +84,7 @@
     {% for line in budget.lines %}
     <div class="budget-row {{ 'group' if line.group }}" {% if line.depth > 1 %}style="padding-left: {{ 0.9 + (line.depth - 1) * 1.1 }}rem"{% endif %}>
       <div class="name">{{ line.name }}
+        {% if line.note %}<small class="category-note">{{ line.note }}</small>{% endif %}
         {% if line.activity %}<small>{{ line.activity|money }} spent</small>{% endif %}
         {% if not line.group or line.target %}
         <small class="target-note {{ 'short' if line.underfunded else ('met' if line.target) }}">

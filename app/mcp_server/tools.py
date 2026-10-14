@@ -755,6 +755,7 @@ def _budget(data) -> dict[str, Any]:
         "categories": [
             {
                 "category": line.path,
+                **({"note": line.note} if line.note else {}),
                 "is_group": line.group,
                 "assigned": text(line.assigned),
                 "spent": text(line.activity),
