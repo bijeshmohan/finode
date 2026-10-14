@@ -94,6 +94,8 @@ def update_transaction(
 def delete_transaction(tid: UUID, transactions: Transactions):
     try:
         transaction = transactions.delete(tid)
+    except InvalidPostingError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError:
         raise HTTPException(status_code=404, detail="transaction not found")
     if not transaction:

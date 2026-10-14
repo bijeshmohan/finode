@@ -7,9 +7,10 @@ from ..models.account import Account
 from ..models.budget import BudgetTarget
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, TransactionRepository
-from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead
+from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead, BudgetWeek
 from ..schemas.account import AccountUpdate
 from .account import AccountService
+from .lock import locked_through
 from .transaction import decimal_places
 from ..clock import local_today
 
@@ -36,6 +37,21 @@ def weekday_count(month: date, weekday: int) -> int:
     """How many times a day of the week (0 = Monday) falls in the month."""
     first, days = calendar.monthrange(month.year, month.month)
     return sum(1 for d in range(days) if (first + d) % 7 == weekday)
+
+
+def weeks_of(month: date, weekday: int) -> list[tuple[date, date, bool]]:
+    """The month cut into weeks that start on `weekday` (0 = Monday): (first day, last day, funded this month).
+    The days before the first such day belong to a week funded last month; the last week stops at the month's end."""
+    last = month_end(month)
+    first = month + timedelta(days=(weekday - month.weekday()) % 7)
+    weeks = []
+    if first > month:
+        weeks.append((month, min(first - timedelta(days=1), last), False))
+    day = first
+    while day <= last:
+        weeks.append((day, min(day + timedelta(days=6), last), True))
+        day += timedelta(days=7)
+    return weeks
 
 
 def due_month(target: BudgetTarget, month: date) -> date | None:
@@ -213,6 +229,9 @@ class BudgetService:
         card_books: dict[UUID, list[Decimal]] = {aid: [ZERO, ZERO, ZERO] for aid in liabilities}
 
         cash = ZERO
+        weekly = {aid for aid, t in self.br.targets().items() if t.kind == "weekly"}
+        # What was spent day by day this month in the categories with a weekly target.
+        daily: dict[UUID, dict[date, Decimal]] = {}
         # What happened to each category in each month: [assigned, spent].
         by_category: dict[UUID, dict[date, list[Decimal]]] = {}
         unpriced = False
@@ -238,6 +257,9 @@ class BudgetService:
                         continue
                 figures = by_category.setdefault(target, {}).setdefault(month_start(transaction.date), [ZERO, ZERO])
                 figures[1] += value
+                if target in weekly and month_start(transaction.date) == month:
+                    days = daily.setdefault(target, {})
+                    days[transaction.date] = days.get(transaction.date, ZERO) + value
         for row in allocations:
             if row.account_id in categories:
                 by_category.setdefault(row.account_id, {}).setdefault(row.month, [ZERO, ZERO])[0] += row.amount
@@ -287,10 +309,22 @@ class BudgetService:
         total_underfunded = sum((v[1] for v in needs.values()), ZERO)
 
         lines = self._lines(categories, by_id, parents, own, targets, needs)
+        today = local_today()
         for line in lines:
             target = targets.get(line.aid)
             if target is not None and line.target is not None:
                 line.overdue = is_overdue(target, month, needs.get(line.aid, (ZERO, ZERO))[1])
+                if target.kind == "weekly" and not line.name.endswith("(other)"):
+                    spent_by_day = daily.get(line.aid, {})
+                    line.weeks = [
+                        BudgetWeek(
+                            start=first, end=last,
+                            spent=sum((v for d, v in spent_by_day.items() if first <= d <= last), ZERO),
+                            allowance=target.amount if funded else None,
+                            current=first <= today <= last,
+                        )
+                        for first, last, funded in weeks_of(month, target.weekday or 0)
+                    ]
         read = BudgetRead(
             month=month,
             currency=default.code,
@@ -385,6 +419,7 @@ class BudgetService:
                 ) if target else None,
                 needed=needs.get(account.aid, (ZERO, ZERO))[0] if target else ZERO,
                 underfunded=needs.get(account.aid, (ZERO, ZERO))[1] if underfunded is None else underfunded,
+                note=account.details if name == account.name else None,
             )
 
         lines: list[BudgetLine] = []
@@ -459,6 +494,16 @@ class BudgetService:
         self.br.db.commit()
         return self.view(None)
 
+    def set_note(self, aid: UUID, note: str | None) -> BudgetRead:
+        """A short note on a category (kept as the account's details, so it is in backups and on the account's page)."""
+        account = self._category(aid)
+        note = (note or "").strip() or None
+        if note is not None and len(note) > 200:
+            raise BudgetError("a note can be at most 200 characters!")
+        if note != account.details:
+            self.accounts.update(aid, AccountUpdate(details=note))
+        return self.view(None)
+
     def clear_target(self, aid: UUID) -> BudgetRead:
         self._category(aid)
         self.br.clear_target(aid)
@@ -468,6 +513,7 @@ class BudgetService:
     def fund(self, month: date | None) -> BudgetRead:
         """Assign what the targets still need, in display order, until there is nothing left to assign."""
         month = month_start(month)
+        self._check_open(month)
         data = self.view(month)
         if data.underfunded <= 0:
             raise BudgetError("nothing is underfunded!")
@@ -483,6 +529,15 @@ class BudgetService:
         self.br.db.commit()
         return self.view(month)
 
+    def _check_open(self, month: date) -> None:
+        """A month that ends inside the period lock is closed: what was assigned in it stays as it was."""
+        lock = locked_through(self.br.db, self.br.uid)
+        if lock is not None and month_end(month) <= lock:
+            raise BudgetError(
+                f"{month:%B %Y} is in a locked period (everything up to {lock:%d %b %Y} is closed): "
+                "move or remove the lock under Settings to change it!"
+            )
+
     def assigned(self, month: date, aid: UUID) -> Decimal:
         row = self.br.read(month, aid)
         return row.amount if row else ZERO
@@ -490,6 +545,7 @@ class BudgetService:
     def assign(self, month: date | None, aid: UUID, amount: Decimal) -> BudgetRead:
         """Set what a category gets in a month (0 removes it)."""
         month = month_start(month)
+        self._check_open(month)
         self._category(aid)
         self._check_amount(amount)
         self.br.set(month, aid, amount)
@@ -499,6 +555,7 @@ class BudgetService:
     def copy_previous(self, month: date | None) -> BudgetRead:
         """Assign this month what each category got last month, for the categories with nothing assigned yet."""
         month = month_start(month)
+        self._check_open(month)
         previous = month_start(month - timedelta(days=1))
         categories = self._categories(self.accounts.ar.list())
         rows = self.br.list(up_to=month)
@@ -522,6 +579,7 @@ class BudgetService:
     def move(self, month: date | None, from_aid: UUID, to_aid: UUID, amount: Decimal) -> BudgetRead:
         """Take money from one category's available and give it to another, in a month."""
         month = month_start(month)
+        self._check_open(month)
         if from_aid == to_aid:
             raise BudgetError("choose two different categories!")
         source, target = self._category(from_aid), self._category(to_aid)

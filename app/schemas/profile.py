@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -29,6 +29,8 @@ class ProfileUpdate(BaseModel):
     max_depth_equity: int | None = Field(default=None, ge=0)
     max_depth_income: int | None = Field(default=None, ge=0)
     max_depth_expenses: int | None = Field(default=None, ge=0)
+    # Close the books up to and including this day (a day before today at the latest); null opens them again.
+    locked_through: date | None = None
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -58,5 +60,6 @@ class ProfileRead(BaseModel):
     max_depth_equity: int = 0
     max_depth_income: int = 0
     max_depth_expenses: int = 0
+    locked_through: date | None = None
     created: datetime
     updated: datetime

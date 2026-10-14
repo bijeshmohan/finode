@@ -755,6 +755,7 @@ def _budget(data) -> dict[str, Any]:
         "categories": [
             {
                 "category": line.path,
+                **({"note": line.note} if line.note else {}),
                 "is_group": line.group,
                 "assigned": text(line.assigned),
                 "spent": text(line.activity),
@@ -774,6 +775,16 @@ def _budget(data) -> dict[str, Any]:
                 ),
                 **({"underfunded": text(line.underfunded)} if line.underfunded else {}),
                 **({"overdue": True} if line.overdue else {}),
+                **(
+                    {"weeks": [
+                        {
+                            "from": w.start.isoformat(), "to": w.end.isoformat(), "spent": text(w.spent),
+                            **({"allowance": text(w.allowance)} if w.allowance is not None else {}),
+                        }
+                        for w in line.weeks
+                    ]}
+                    if line.weeks else {}
+                ),
             }
             for line in data.lines
         ],

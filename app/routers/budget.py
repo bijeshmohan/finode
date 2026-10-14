@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Budget
-from ..schemas.budget import BudgetAssign, BudgetCopy, BudgetFund, BudgetMove, BudgetRead, BudgetTargetSet
+from ..schemas.budget import BudgetAssign, BudgetCopy, BudgetFund, BudgetMove, BudgetNoteSet, BudgetRead, BudgetTargetSet
 from ..services.budget import BudgetError
 
 
@@ -36,6 +36,15 @@ def move(data: BudgetMove, budget: Budget):
     """Move money that is available in one category to another."""
     try:
         return budget.move(data.month, data.from_category, data.to_category, data.amount)
+    except BudgetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/categories/{aid}/note", response_model=BudgetRead, status_code=200)
+def set_note(aid: UUID, data: BudgetNoteSet, budget: Budget):
+    """Put a short note on a category (an expense account); an empty note removes it."""
+    try:
+        return budget.set_note(aid, data.note)
     except BudgetError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

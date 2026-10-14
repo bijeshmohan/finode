@@ -152,6 +152,21 @@ def set_target(
     return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target")
 
 
+@router.post("/note")
+def set_note(
+    budget: Budget,
+    category: Annotated[UUID, Form()],
+    note: Annotated[str, Form()] = "",
+    month: Annotated[str, Form()] = "",
+):
+    when = parse_month(month)
+    try:
+        budget.set_note(category, note)
+    except (BudgetError, ValueError) as e:
+        return htmx_error(str(e), "#note-error")
+    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-note")
+
+
 @router.post("/target/delete")
 def clear_target(budget: Budget, category: Annotated[UUID, Form()], month: Annotated[str, Form()] = ""):
     when = parse_month(month)

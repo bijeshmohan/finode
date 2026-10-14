@@ -39,6 +39,16 @@
     <a class="button secondary" href="/budget?month={{ month_key }}">Cancel</a>
   </div>
 </form>
+<form class="card stack form-narrow note-card" hx-post="/budget/note">
+  <input type="hidden" name="month" value="{{ month_key }}">
+  <input type="hidden" name="category" value="{{ line.aid }}">
+  <label>Note
+    <textarea name="note" rows="2" maxlength="200" placeholder="e.g. Due on the 5th, pay by UPI">{{ line.note or "" }}</textarea>
+    <small class="muted">Shown under the category's name on the budget, and as its details on the account's page.</small>
+  </label>
+  <p id="note-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit" class="secondary">Save note</button></div>
+</form>
 {% if t %}
 <form class="form-narrow" hx-post="/budget/target/delete" hx-confirm="Remove this target?">
   <input type="hidden" name="month" value="{{ month_key }}">

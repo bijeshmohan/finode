@@ -66,11 +66,11 @@ REFERENCES = {
     ("POST", "/api/budget/fund"), ("POST", "/api/budget/move"), ("POST", "/api/commodities/"),
     ("POST", "/api/import"), ("POST", "/api/prices/"), ("PATCH", "/api/profile/"), ("POST", "/api/recurring/"),
     ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/budget/assign"), ("POST", "/budget/copy"),
-    ("POST", "/budget/fund"), ("POST", "/budget/move"), ("GET", "/budget/target"), ("POST", "/budget/target"),
+    ("POST", "/budget/fund"), ("POST", "/budget/move"), ("POST", "/budget/note"), ("GET", "/budget/target"), ("POST", "/budget/target"),
     ("POST", "/budget/target/delete"), ("POST", "/commodities"), ("POST", "/commodities/prices"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
     ("POST", "/recurring"), ("POST", "/restore"), ("POST", "/restore/preview"), ("POST", "/settings/currency"),
-    ("POST", "/settings/depth"), ("POST", "/transactions/split"),
+    ("POST", "/settings/depth"), ("POST", "/settings/lock"), ("POST", "/transactions/split"),
 }
 
 
@@ -210,6 +210,7 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("PATCH", "/api/transactions/{tid}"): {"json": {"payee": "hacked"}},
         ("PUT", "/api/budget/categories/{aid}"): {"json": {"amount": "5"}},
         ("PUT", "/api/budget/categories/{aid}/target"): {"json": {"kind": "monthly", "amount": "5"}},
+        ("PUT", "/api/budget/categories/{aid}/note"): {"json": {"note": "hacked"}},
         ("PUT", "/api/recurring/{rid}"): {"json": {"from_account": mine, "to_account": bills, "amount": "1", "start_date": "2999-01-01"}},
         ("POST", "/accounts/{aid}/edit"): {"data": {"name": "hacked"}},
         ("POST", "/transactions/{tid}/edit"): {"data": rows},
@@ -324,6 +325,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "frequency": "monthly", "every": "1", "start": "2999-01-01"})
         refused("assign A's category", "POST", "/budget/assign", data={"category": a["Groceries"], "amount": "5"})
         refused("A's target", "POST", "/budget/target", data={"category": a["Groceries"], "kind": "monthly", "amount": "5"})
+        refused("note on A's category", "POST", "/budget/note", data={"category": a["Groceries"], "note": "hacked"})
         refused("clear A's target", "POST", "/budget/target/delete", data={"category": a["Groceries"]})
         refused("A's target page", "GET", "/budget/target", params={"category": a["Groceries"]})
         refused("move A's money", "POST", "/budget/move", data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
