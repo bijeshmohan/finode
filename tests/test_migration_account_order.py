@@ -35,3 +35,11 @@ def test_upgrade_keeps_existing_accounts_unpinned_and_downgrade_removes_the_colu
     assert not row.pinned and row.position is None
     command.downgrade(config, "a7c9e1b3d5f6")
     assert not {"pinned", "position"} & {c["name"] for c in sa.inspect(engine).get_columns("accounts")}
+
+
+def test_skipped_date_is_added_to_recurring_transactions_and_removed(alembic):
+    config, engine = alembic
+    command.upgrade(config, "c9e1a3b5d7f2")
+    assert "skipped_date" in {c["name"] for c in sa.inspect(engine).get_columns("recurring_transactions")}
+    command.downgrade(config, "b8d0f2a4c6e1")
+    assert "skipped_date" not in {c["name"] for c in sa.inspect(engine).get_columns("recurring_transactions")}

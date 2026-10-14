@@ -24,6 +24,7 @@ MESSAGES = {
     "budget-target-cleared": "Target removed",
     "recurring-saved": "Recurring transaction saved. Anything already due has been recorded.",
     "recurring-paused": "Paused. Nothing will be recorded until you resume it.",
+    "recurring-skipped": "Skipped. Nothing was recorded for that one; the next one is on its way as usual.",
     "recurring-resumed": "Resumed. Occurrences missed while it was paused are skipped.",
     "recurring-deleted": "Recurring transaction deleted. What it recorded is kept.",
     "transaction-saved": "Transaction saved",

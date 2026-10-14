@@ -57,6 +57,18 @@ def pause_recurring(rid: UUID, recurring: Recurring):
     return rule
 
 
+@router.post("/{rid}/skip", response_model=RecurringRead)
+def skip_recurring(rid: UUID, recurring: Recurring):
+    """Leave the next occurrence out (nothing is recorded for it); the rule carries on with the one after."""
+    try:
+        rule = recurring.skip_next(rid)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if rule is None:
+        raise HTTPException(status_code=404, detail="recurring transaction not found")
+    return rule
+
+
 @router.post("/{rid}/resume", response_model=RecurringRead)
 def resume_recurring(rid: UUID, recurring: Recurring):
     try:

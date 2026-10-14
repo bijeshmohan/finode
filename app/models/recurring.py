@@ -52,6 +52,8 @@ class RecurringTransaction(TimestampMixin, table=True):
     # The next occurrence that has not been recorded yet, and the last one that was.
     next_date: Date
     last_date: Date | None = Field(default=None)
+    # The occurrence the person skipped most recently: nothing was recorded for it, and it stays skipped when the rule is edited.
+    skipped_date: Date | None = Field(default=None)
     active: bool = Field(default=True)
     # Why the latest attempt to record it failed (an account that can no longer be posted to, say).
     last_error: str | None = Field(default=None, max_length=300)

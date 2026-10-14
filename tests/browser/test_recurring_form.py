@@ -31,3 +31,14 @@ def test_a_plain_rule_stays_plain(page: Page, books, api: Api):
     page.wait_for_url("**/recurring")
     [rule] = api.get("/recurring/")
     assert rule["from_account"] == books["checking"]["aid"] and rule["postings"] == []
+
+
+def test_skipping_the_next_occurrence_from_the_edit_page(page: Page, books, api: Api):
+    rule = api.post("/recurring/", from_account=books["checking"]["aid"], to_account=books["rent"]["aid"], amount="900",
+                    frequency="monthly", start_date="2999-01-01", payee="Landlord")
+    page.goto(f"/recurring/{rule['rid']}/edit")
+    page.once("dialog", lambda dialog: dialog.accept())
+    page.get_by_role("button", name="Skip 1 Jan 2999").click()
+    page.wait_for_url("**/recurring")
+    expect(page.get_by_text("Nothing was recorded for that one")).to_be_visible()
+    assert api.get(f"/recurring/{rule['rid']}")["next_date"] == "2999-02-01"

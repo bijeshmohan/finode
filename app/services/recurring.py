@@ -100,10 +100,10 @@ class RecurringService:
             setattr(rule, field, value)
         self.repo.set_postings(rule.rid, self._rows(data))
         # Carry on after the last occurrence that was recorded (or from the start if none was yet).
+        # ... and what was skipped stays skipped.
+        handled = max((d for d in (rule.last_date, rule.skipped_date) if d), default=None)
         rule.next_date = (
-            schedule.first_after(rule.start_date, rule.frequency, rule.every, rule.last_date)
-            if rule.last_date
-            else rule.start_date
+            schedule.first_after(rule.start_date, rule.frequency, rule.every, handled) if handled else rule.start_date
         )
         rule.last_error = None
         if rule.end_date is not None and rule.next_date > rule.end_date:
@@ -127,6 +127,26 @@ class RecurringService:
             if rule.end_date is not None and rule.next_date > rule.end_date:
                 raise ValueError("this recurring transaction has already ended: change its end date to resume it!")
         rule.active = active
+        self.repo.add(rule)
+        self.repo.db.commit()
+        self.repo.db.refresh(rule)
+        return self._to_read(rule)
+
+    def skip_next(self, rid: UUID) -> RecurringRead | None:
+        """Leave the next occurrence out: nothing is recorded for it and the rule carries on with the one after.
+        Meant for one-offs (a month without the subscription); it also clears a problem that kept an occurrence from being recorded."""
+        rule = self.repo.read(rid)
+        if rule is None:
+            return None
+        if not rule.active:
+            raise ValueError("it is paused or has ended: resume it first, then you can skip an occurrence!")
+        day = rule.next_date
+        rule.skipped_date = day
+        rule.next_date = schedule.first_after(rule.start_date, rule.frequency, rule.every, day)
+        rule.last_error = None
+        if rule.end_date is not None and rule.next_date > rule.end_date:
+            rule.active = False  # that was the last one
+        rule.updated = utc_now()
         self.repo.add(rule)
         self.repo.db.commit()
         self.repo.db.refresh(rule)

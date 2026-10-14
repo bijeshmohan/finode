@@ -88,6 +88,8 @@ class RecurringRead(RecurringBase):
     rid: UUID
     next_date: Date
     last_date: Date | None = None
+    # The occurrence skipped most recently (nothing was recorded for it).
+    skipped_date: Date | None = None
     active: bool
     last_error: str | None = None
     created: datetime
