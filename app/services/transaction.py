@@ -4,6 +4,7 @@ from uuid import UUID
 
 from ..config import settings
 from ..clock import local_midnight_utc
+from .lock import LockedPeriodError as _LockedPeriodError, refuse_locked
 from ..limits import ensure_room
 from ..models.commodity import Commodity
 from ..models.transaction import Transaction, Posting, PostingSide
@@ -21,6 +22,10 @@ from ..schemas.transaction import (
 
 class InvalidPostingError(ValueError):
     ...
+
+
+class LockedPeriodError(InvalidPostingError, _LockedPeriodError):
+    """The date is inside the locked period (a 400 for the API, like any other invalid entry)."""
 
 
 class InvalidPostingAccountError(InvalidPostingError):
@@ -225,7 +230,14 @@ class TransactionService:
             made = self.tr.count_since(midnight, leaving_out=("recurring", "import"))
             ensure_room(made, settings.max_transactions_per_day, "new transactions a day")
 
+    def _refuse_locked(self, *days: date | None) -> None:
+        try:
+            refuse_locked(self.tr.db, self.tr.uid, *days)
+        except _LockedPeriodError as e:
+            raise LockedPeriodError(str(e)) from None
+
     def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
+        self._refuse_locked(data.date)
         self._check_limits()
         currency_id, values = self._resolve(data)
         transaction = self.tr.create(data, currency_id, values, self.origin, recurring)
@@ -275,6 +287,7 @@ class TransactionService:
         existing = self.tr.read(tid)
         if not existing:
             raise ValueError(f"transaction with tid '{tid}' not found!")
+        self._refuse_locked(existing.date, getattr(data, "date", None) if "date" in data.model_fields_set else None)
         # Postings an entry already has on an account that was closed since stay allowed, so it can still be edited.
         kept = {p.account for p in self.tr.postings(tid)}
         currency_id, values = self._resolve(data, existing.currency_id, kept)
@@ -287,6 +300,8 @@ class TransactionService:
 
     def delete(self, tid: UUID) -> TransactionRead | None:
         transaction = self.read(tid)
+        if transaction is not None:
+            self._refuse_locked(transaction.date)
         deleted = self.tr.delete(tid, self.origin)
         if not deleted:
             raise ValueError(f"transaction with tid '{tid}' not found!")

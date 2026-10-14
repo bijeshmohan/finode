@@ -25,6 +25,19 @@
     </form>
   </details>
 
+  <details id="lock" class="setting">
+    <summary><span class="setting-title">Period lock</span><span class="setting-value">{{ profile.locked_through.strftime("up to %d %b %Y") if profile.locked_through else "off" }}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/settings/lock">
+      <p class="muted">Close the books up to a day, say the end of last month once you have checked it. Nothing dated on or before that day can be added, changed or deleted, the budget of those months is frozen, and recurring transactions leave out what falls in them. Remove the lock any time to make a correction.</p>
+      <label>Lock everything up to and including
+        <input type="date" name="locked_through" value="{{ profile.locked_through.isoformat() if profile.locked_through else '' }}" max="{{ yesterday }}">
+        <span class="hint">Leave it empty to remove the lock. Yesterday is the latest day you can lock.</span>
+      </label>
+      <p id="lock-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">Save lock</button></div>
+    </form>
+  </details>
+
   <details id="depth" class="setting">
     <summary><span class="setting-title">Account depth</span>
       <span class="setting-value">{% for d in depths %}{{ d.root[:1] }} {{ d.value or "∞" }}{{ " · " if not loop.last }}{% endfor %}</span>{{ icon("chevron-right") }}</summary>
