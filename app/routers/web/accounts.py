@@ -65,7 +65,7 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
         node.depth = depth
         node.postable = node.kind != "root" and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
         node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
-        node.children.sort(key=lambda n: n.account.name.lower())
+        node.children.sort(key=lambda n: (n.account.position is None, n.account.position or 0, n.account.name.lower()))
         for child in node.children:
             finish(child, depth + 1, node.path, root_name)
 
@@ -134,11 +134,19 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 def accounts_page(request: Request, accounts: Accounts):
     roots = build_tree(accounts.list())
     unused = annotate_for_page(roots, accounts.used_account_ids(), local_today())
+    nodes = {n.account.aid: n for root in roots for n in root.walk()}
+    pinned = sorted(
+        (n for n in nodes.values() if n.account.pinned and n.kind == "user" and n.account.closed_on is None),
+        key=lambda n: n.path.lower(),
+    )
+    recent = [nodes[aid] for aid in accounts.recent(RECENT_ACCOUNTS) if aid in nodes]
     return templates.TemplateResponse(
         request,
         "accounts.html",
         {
             "active": "accounts",
+            "pinned": pinned,
+            "recent": recent,
             "roots": roots,
             "currency": accounts.default_currency().code,
             "unused": unused,
@@ -146,6 +154,9 @@ def accounts_page(request: Request, accounts: Accounts):
         },
     )
 
+
+# How many recently used accounts the accounts page lists.
+RECENT_ACCOUNTS = 5
 
 # Accounts created within this many days always show, even before their first entry.
 NEW_ACCOUNT_DAYS = 7
@@ -306,11 +317,16 @@ def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Prof
         and not at_limit
         and (not has_own_postings or root.account.name in GROUP_POSTING_ROOT_NAMES)
     )
+    siblings = next((p.children for r in roots for p in r.walk() if node in p.children), [])
+    place = next((i for i, s in enumerate(siblings) if s is node), 0)
     return templates.TemplateResponse(
         request,
         "account.html",
         {
             "active": "accounts",
+            "can_move_up": node.kind == "user" and place > 0,
+            "can_move_down": node.kind == "user" and place < len(siblings) - 1,
+            "ordered_by_hand": any(s.account.position is not None for s in siblings),
             "node": node,
             "root": root,
             "entries": list(reversed(entries)),
@@ -343,6 +359,34 @@ def reopen_account(aid: UUID, accounts: Accounts):
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
     return htmx_redirect(f"/accounts/{aid}", flash="account-reopened")
+
+
+@router.post("/{aid}/pin")
+def pin_account(aid: UUID, accounts: Accounts, pinned: Annotated[str, Form()] = "1"):
+    on = pinned != "0"
+    try:
+        accounts.set_pinned(aid, on)
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/accounts/{aid}", flash="account-pinned" if on else "account-unpinned")
+
+
+@router.post("/{aid}/move")
+def move_account(aid: UUID, accounts: Accounts, direction: Annotated[str, Form()] = "up"):
+    try:
+        accounts.move(aid, direction)
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/accounts/{aid}", flash="account-moved")
+
+
+@router.post("/{aid}/reset-order")
+def reset_account_order(aid: UUID, accounts: Accounts):
+    try:
+        accounts.reset_order(aid)
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/accounts/{aid}", flash="account-order-reset")
 
 
 @router.get("/{aid}/register")

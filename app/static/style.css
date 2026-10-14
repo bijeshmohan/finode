@@ -833,7 +833,7 @@ ul.list.nested { border-top: 1px solid var(--border); }
 [data-accounts] li[hidden] { display: none !important; }
 .unused-toggle { margin: 1rem 0 0; text-align: center; }
 .link-button { background: none; border: 0; color: var(--accent); padding: .5rem; font: inherit; cursor: pointer; }
-.close-card { margin-top: 1rem; }
+.close-card, .order-card { margin-top: 1rem; }
 
 form.copy-last { margin: .25rem 0 .75rem; }
 form.copy-last button { margin: 0; }
@@ -871,3 +871,9 @@ form.copy-last button { margin: 0; }
 .shares .amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .shares .bar { height: .45rem; background: var(--surface-2); border-radius: 999px; margin: .3rem 0; overflow: hidden; }
 .shares .bar i { display: block; height: 100%; border-radius: 999px; }
+
+/* ---------- Pinned and recent accounts ---------- */
+.quick { margin-bottom: 1rem; }
+.quick h2 { margin: 0 0 .4rem; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.quick .path { display: block; font-weight: 400; }
+.searching .quick { display: none; }

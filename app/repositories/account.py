@@ -1,9 +1,10 @@
 from datetime import date
 from uuid import UUID
 
-from sqlmodel import Session, func, select
+from sqlmodel import Session, func, or_, select
 
 from ..models.account import Account
+from ..models.transaction import Posting, Transaction
 from ..schemas.account import AccountCreate, AccountUpdate
 
 
@@ -60,6 +61,8 @@ class AccountRepository:
         if not account:
             return None
         values = data.model_dump(exclude_unset=True, exclude={"balance", "balance_value", "commodity", "on_budget", "payment_category_id"})
+        if "parent_id" in values and values["parent_id"] != account.parent_id:
+            account.position = None  # in a new group it starts alphabetically, after the ones placed by hand
         for key, value in values.items():
             setattr(account, key, value)
         if on_budget is not None:
@@ -85,6 +88,41 @@ class AccountRepository:
             account.closed_on = day
             self.db.add(account)
         self.db.flush()
+
+    def set_pinned(self, aids: list[UUID], pinned: bool) -> None:
+        for account in self.db.exec(select(Account).where(Account.user == self.uid, Account.aid.in_(aids))).all():
+            account.pinned = pinned
+            self.db.add(account)
+        self.db.flush()
+
+    def set_positions(self, positions: dict[UUID, int | None]) -> None:
+        for account in self.db.exec(
+            select(Account).where(Account.user == self.uid, Account.aid.in_(list(positions)))
+        ).all():
+            account.position = positions[account.aid]
+            self.db.add(account)
+        self.db.flush()
+
+    def recent_account_ids(self, limit: int, leave_out: UUID | None = None) -> list[UUID]:
+        """The accounts the person recorded something in most recently, newest first. Entries made by recurring rules
+        or imports do not count, nor do entries that touch `leave_out` (opening balances: creating an account is not using it)."""
+        latest = func.max(Transaction.created)
+        opening = (
+            select(Posting.transaction).where(Posting.account == leave_out) if leave_out is not None else None
+        )
+        rows = self.db.exec(
+            select(Posting.account)
+            .join(Transaction, Transaction.tid == Posting.transaction)
+            .where(
+                Transaction.user == self.uid,
+                or_(Transaction.created_via.is_(None), Transaction.created_via.notin_(("recurring", "import"))),
+                *([Transaction.tid.notin_(opening)] if opening is not None else []),
+            )
+            .group_by(Posting.account)
+            .order_by(latest.desc())
+            .limit(limit)
+        ).all()
+        return list(rows)
 
     def clear_payment_category(self, category_id: UUID) -> None:
         """Accounts whose payments were budgeted under this category (it is being deleted) stop pointing at it."""

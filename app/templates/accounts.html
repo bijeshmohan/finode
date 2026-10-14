@@ -32,6 +32,25 @@
 </li>
 {% endmacro %}
 
+{#- A short flat list above the tree: pinned accounts, and the ones used last. -#}
+{% macro quick(title, nodes, kind) %}
+<section class="quick" data-quick>
+  <h2>{{ title }}</h2>
+  <ul class="card list">
+    {% for node in nodes %}
+    <li>
+      <a class="account-row" href="/accounts/{{ node.account.aid }}" style="--depth: 0">
+        <span class="caret spacer"></span>
+        <span class="account-name">{{ node.account.name }}<small class="muted path">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "" }}</small></span>
+        <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
+        {{ icon("chevron-right") }}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endmacro %}
+
 {% block content %}
 <div class="page-head">
   <h1>Accounts</h1>
@@ -44,6 +63,9 @@
     <button type="button" class="secondary" data-toggle-all>Expand all</button>
   </div>
   <p class="muted" data-no-match hidden>No account matches.</p>
+
+  {% if pinned %}{{ quick("Pinned", pinned) }}{% endif %}
+  {% if recent %}{{ quick("Recently used", recent) }}{% endif %}
 
   {% for root in roots %}
   <details class="account-group" data-key="{{ root.account.aid }}" open>

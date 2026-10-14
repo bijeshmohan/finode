@@ -91,3 +91,34 @@ def test_closing_an_account_from_its_page(page: Page, api, books):
     assert "assets › cash" not in visible(page)
     page.get_by_role("button", name="1 closed account").click()
     assert "assets › cash" in visible(page)
+
+
+def test_pinning_from_the_account_page_puts_it_at_the_top_of_the_list(page: Page, api, books):
+    banks, _ = nested(api, books)
+    hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
+    page.goto(f"/accounts/{hdfc['aid']}")
+    page.get_by_role("button", name="Pin", exact=True).click()
+    expect(page.get_by_role("button", name="Unpin")).to_be_visible()
+    page.goto("/accounts")
+    quick = page.locator("[data-quick]").first
+    expect(quick.locator("h2")).to_have_text("Pinned")
+    expect(quick.locator(".account-name")).to_contain_text("HDFC")
+    expect(quick.locator(".path")).to_have_text("Assets › Banks")
+    # searching shows the tree's own rows instead, so nothing appears twice
+    page.locator("[data-account-search]").fill("hdfc")
+    expect(page.locator("[data-quick]")).to_have_count(1)
+    expect(page.locator("[data-quick]").first).to_be_hidden()
+    page.locator("[data-account-search]").fill("")
+    expect(page.locator("[data-quick]").first).to_be_visible()
+
+
+def test_moving_an_account_changes_the_order_on_the_page(page: Page, api, books):
+    banks, _ = nested(api, books)
+    sbi = next(a for a in api.get("/accounts/") if a["name"] == "SBI")
+    page.goto(f"/accounts/{sbi['aid']}")
+    page.get_by_role("button", name="Move up").click()
+    expect(page.get_by_role("button", name="A–Z")).to_be_visible()
+    page.goto("/accounts")
+    page.locator('details[data-key="%s"] > summary' % banks["aid"]).click()
+    names = page.locator('details[data-key="%s"] li[data-path] .account-name' % banks["aid"]).all_inner_texts()
+    assert [n.split()[0] for n in names] == ["SBI", "HDFC"]
