@@ -36,7 +36,7 @@
 </section>
 
 <section class="card month">
-  <h2>{{ summary.period_start.strftime("%B %Y") }}</h2>
+  <h2><a href="/summary">{{ summary.period_start.strftime("%B %Y") }} <span class="muted">· details ›</span></a></h2>
   <dl class="split three">
     <div><dt>Income</dt><dd class="pos">{{ summary.income|money }}</dd></div>
     <div><dt>Spent</dt><dd>{{ summary.expenses|money }}</dd></div>

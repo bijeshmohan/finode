@@ -117,6 +117,10 @@ Profile › Your data has two destructive actions (the person types their email 
 
 The interactive API docs (`/docs`, `/redoc`, `/openapi.json`) are off unless `FINODE_API_DOCS=true`.
 
+### Month summary
+
+`/summary?month=YYYY-MM` (web, `routers/web/summary.py`, `summary.html`; the dashboard's month card links to it) and `GET /api/reports/month` (`ReportService.month_report`, `MonthReportRead`): a month's income, spending and left over, the savings rate (net as a percentage of income, none when nothing came in), spending and earnings per **top-level account** below Expenses/Income (group totals, largest first, with the month before for comparison and each one's share), and the totals of the six months ending with it for a plain CSS bar chart (no JavaScript library). It is computed from postings in one pass over the six months, converted to the default currency at each transaction's date like `summary` and `breakdown` (`unpriced` flags what could not be valued); transfers and Equity are neither income nor spending. The current month counts up to today and is never compared with a whole month (the page shows last month in full instead of up/down); months that have not started are refused (the page redirects to this month). It reads the books only, so nothing else needs to know about it.
+
 ### What day it is
 
 Never call `date.today()`: use `clock.local_today()` (and `local_now()`, `local_midnight_utc()` for the per-day limit). `FINODE_TIMEZONE` (an IANA name such as `Asia/Kolkata`, validated at start-up) is the zone "today" is read in for the whole installation, so entries, the recurring runner, the budget's current month and "Today" in lists follow the people's clock and not the server's; unset, the server's own clock is used. Timestamps stay in UTC. It is per installation, not per person: a person in another zone would need a profile column and the recurring runner would need each rule's owner's zone. Dependency `tzdata` is there so the slim Docker image has zone data.

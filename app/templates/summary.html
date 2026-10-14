@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Summary · finode{% endblock %}
+{% macro change(now, before, partial=False) -%}
+  {%- if before == 0 and now == 0 -%}
+  {%- elif partial -%}{{ before|money }} in all of last month
+  {%- elif before == 0 -%}new
+  {%- elif now > before -%}up {{ (now - before)|money }} on last month
+  {%- elif now < before -%}down {{ (before - now)|money }} on last month
+  {%- else -%}same as last month
+  {%- endif -%}
+{%- endmacro %}
+{% block content %}
+<div class="month-nav">
+  <a class="icon-button" href="/summary?month={{ previous }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
+  <h1>{{ month_name }}{% if is_current %} <span class="muted">· so far</span>{% endif %}</h1>
+  {% if is_current %}<span class="icon-button" aria-hidden="true"></span>
+  {% else %}<a class="icon-button" href="/summary?month={{ next }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>{% endif %}
+</div>
+
+<section class="card month">
+  <dl class="split three">
+    <div><dt>Income</dt><dd class="pos">{{ report.income|money }}</dd></div>
+    <div><dt>Spent</dt><dd>{{ report.expenses|money }}</dd></div>
+    <div><dt>Left over</dt><dd class="{{ 'pos' if report.net >= 0 else 'neg' }}">{{ report.net|money }}</dd></div>
+  </dl>
+  <p class="muted summary-notes">
+    {{ report.currency }}.
+    {% if report.savings_rate is not none %}{% if report.net >= 0 %}You kept {{ report.savings_rate }}% of what came in.{% else %}You spent {{ (-report.savings_rate)|round(1) }}% more than came in.{% endif %}{% elif report.expenses %}Nothing came in this month.{% endif %}
+    {% if report.previous_expenses or report.expenses %}Spending {% if is_current %}so far; last month: {{ report.previous_expenses|money }}{% else %}{{ change(report.expenses, report.previous_expenses) }}{% endif %}.{% endif %}
+  </p>
+  {% if report.unpriced %}<p class="muted">Some amounts have no price in {{ report.currency }} yet and are left out. <a href="/commodities#rates">Add prices</a></p>{% endif %}
+</section>
+
+<section class="card stack summary-card">
+  <h2>The last six months</h2>
+  {% if scale %}
+  <ul class="trend" aria-label="Income and spending for the last six months">
+    {% for t in report.trend %}
+    <li {% if t.month == report.month %}class="current"{% endif %} aria-label="{{ t.month.strftime('%B %Y') }}: income {{ t.income|money }}, spent {{ t.expenses|money }}">
+      <a href="/summary?month={{ t.month.strftime('%Y-%m') }}">
+        <span class="bars" aria-hidden="true">
+          <i class="in" style="height: {{ ((t.income / scale) * 100)|round(1) if t.income > 0 else 0 }}%"></i>
+          <i class="out" style="height: {{ ((t.expenses / scale) * 100)|round(1) if t.expenses > 0 else 0 }}%"></i>
+        </span>
+        <small>{{ t.month.strftime('%b') }}</small>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted legend"><span class="key in"></span> income <span class="key out"></span> spent</p>
+  {% else %}
+  <p class="muted">Nothing recorded in these months yet.</p>
+  {% endif %}
+</section>
+
+<section class="card stack summary-card">
+  <h2>Where the money went</h2>
+  {% if report.spending %}
+  <ul class="shares">
+    {% for line in report.spending %}
+    <li>
+      <div class="row"><span class="name">{{ line.account }}</span><span class="amount">{{ line.amount|money }}</span></div>
+      <div class="bar" aria-hidden="true"><i style="width: {{ line.share }}%"></i></div>
+      <small class="muted">{{ line.share }}% of spending{% if line.previous or line.amount %} · {{ change(line.amount, line.previous, is_current) }}{% endif %}</small>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No spending recorded{% if is_current %} yet this month{% endif %}.</p>
+  {% endif %}
+</section>
+
+{% if report.earnings %}
+<section class="card stack summary-card">
+  <h2>Where it came from</h2>
+  <ul class="shares">
+    {% for line in report.earnings %}
+    <li>
+      <div class="row"><span class="name">{{ line.account }}</span><span class="amount">{{ line.amount|money }}</span></div>
+      <div class="bar in" aria-hidden="true"><i style="width: {{ line.share }}%"></i></div>
+      <small class="muted">{{ line.share }}% of income{% if line.previous or line.amount %} · {{ change(line.amount, line.previous, is_current) }}{% endif %}</small>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

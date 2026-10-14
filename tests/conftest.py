@@ -25,7 +25,7 @@ def deployment_settings_off(monkeypatch: pytest.MonkeyPatch):
 
     for name, value in (
         ("test_notice", False), ("feedback_email", None), ("password_reset", False),
-        ("signup_code", None), ("supabase_service_role_key", None), ("max_users", 10),
+        ("signup_code", None), ("supabase_service_role_key", None), ("max_users", 10), ("timezone", None),
     ):
         monkeypatch.setattr(settings, name, value)
 
