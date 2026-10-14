@@ -487,3 +487,15 @@ async def test_get_budget_shows_category_notes(session, books, client, secret):
         mine = next(l for l in data["categories"] if l["category"].endswith("Rent"))
         assert mine["note"] == "Due on the 5th"
         assert all("note" not in l for l in data["categories"] if not l["category"].endswith("Rent"))
+
+
+@pytest.mark.anyio
+async def test_get_budget_lists_the_weeks_of_a_weekly_target(session, books, client, secret):
+    rent = client.post("/api/accounts/", json={"name": "Pocket money", "parent_id": books["food"]["parent_id"]}).json()
+    client.put(f"/api/budget/categories/{rent['aid']}/target", json={"kind": "weekly", "amount": "100", "weekday": 0})
+    async with running_app(session), mcp_client(secret) as c:
+        data = payload(await c.call_tool("get_budget", {}))
+        mine = next(l for l in data["categories"] if l["category"].endswith("Pocket money"))
+        assert mine["weeks"] and all({"from", "to", "spent"} <= set(w) for w in mine["weeks"])
+        assert all(w["allowance"] == "100.00" for w in mine["weeks"] if "allowance" in w)
+        assert all("weeks" not in l for l in data["categories"] if not l["category"].endswith("Pocket money"))

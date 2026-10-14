@@ -98,6 +98,19 @@
         </small>
         {% elif line.underfunded %}<small class="target-note short">needs {{ line.underfunded|money }} more</small>
         {% endif %}
+        {% if line.weeks %}
+        <details class="weeks">
+          <summary>By week</summary>
+          <ul>
+            {% for w in line.weeks %}
+            <li class="{{ 'current' if w.current }}{{ ' over' if w.allowance is not none and w.spent > w.allowance }}">
+              <span class="range">{% if w.start == w.end %}{{ w.start.day }} {{ w.start.strftime("%b") }}{% else %}{{ w.start.day }}{% if w.start.month != w.end.month %} {{ w.start.strftime("%b") }}{% endif %} – {{ w.end.day }} {{ w.end.strftime("%b") }}{% endif %}</span>
+              <span class="figures">{{ w.spent|money }}{% if w.allowance is not none %} of {{ w.allowance|money }}{% else %} <em>(funded last month)</em>{% endif %}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
         {% if line.overspent_last_month %}<small class="over-note">{{ line.overspent_last_month|money }} overspent last month</small>{% endif %}
       </div>
       {% set tone = 'negative' if line.available < 0 else ('positive' if line.available > 0 else '') %}

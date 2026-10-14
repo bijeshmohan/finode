@@ -101,3 +101,18 @@ def test_locking_the_books_from_settings_stops_an_edit(page: Page, books, api: A
     expect(page.get_by_text("This entry is in a locked period")).to_be_visible()
     expect(page.get_by_role("button", name="Save changes")).to_be_disabled()
     expect(page.get_by_role("button", name="Delete transaction")).to_be_disabled()
+
+
+def test_a_weekly_target_opens_into_its_weeks(page: Page, books, api: Api):
+    api.put(f"/budget/categories/{books['food']['aid']}/target", kind="weekly", amount="100", weekday=THIS_MONTH.weekday())
+    api.post("/transactions/", date=str(THIS_MONTH), postings=[
+        {"account": books["food"]["aid"], "side": "debit", "amount": "130"},
+        {"account": books["checking"]["aid"], "side": "credit", "amount": "130"},
+    ])
+    page.goto("/budget")
+    weeks = page.locator("details.weeks").first
+    expect(weeks.locator("li").first).to_be_hidden()  # closed until opened
+    weeks.locator("summary").click()
+    expect(weeks.locator("li").first).to_contain_text("130.00 of 100.00")
+    expect(weeks.locator("li.over")).to_have_count(1)
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
