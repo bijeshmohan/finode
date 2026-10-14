@@ -248,6 +248,17 @@ def pause_recurring(rid: UUID, recurring: Recurring):
     return htmx_redirect("/recurring", flash="recurring-paused")
 
 
+@router.post("/{rid}/skip")
+def skip_recurring(rid: UUID, recurring: Recurring):
+    try:
+        rule = recurring.skip_next(rid)
+    except ValueError as e:
+        return htmx_error(str(e), "#form-error")
+    if rule is None:
+        raise HTTPException(status_code=404, detail="recurring transaction not found")
+    return htmx_redirect("/recurring", flash="recurring-skipped")
+
+
 @router.post("/{rid}/resume")
 def resume_recurring(rid: UUID, recurring: Recurring):
     try:

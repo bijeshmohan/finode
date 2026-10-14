@@ -64,6 +64,8 @@ def rich(client, root_accounts):
         "postings": [line(groceries, "debit", "60"), line(food, "debit", "40"), line(bank, "credit", "100")],
         "frequency": "weekly", "start_date": "2999-01-01", "payee": "Split rule",
     })
+    rid = next(r["rid"] for r in client.get("/api/recurring/").json() if r["payee"] == "Split rule")
+    assert client.post(f"/api/recurring/{rid}/skip").status_code == 200  # a skipped occurrence is part of the rule's state
     client.put(f"/api/budget/categories/{groceries['aid']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}", json={"month": "2026-09-01", "amount": "15000"})
     client.put(f"/api/budget/categories/{groceries['aid']}/target", json={"kind": "monthly", "amount": "3000"})
@@ -106,7 +108,7 @@ def canonical(doc: dict) -> dict:
         "recurring": sorted(
             (r["payee"], paths.get(r["from_account"]), paths.get(r["to_account"]), r["amount"], r["currency"],
              sorted((paths[p["account"]], p["side"], p["amount"], p["value"]) for p in r["postings"]),
-             r["frequency"], r["start_date"], r["next_date"], r["last_date"], r["active"])
+             r["frequency"], r["start_date"], r["next_date"], r["last_date"], r["skipped_date"], r["active"])
             for r in doc["recurring"]
         ),
         "allocations": sorted((a["month"], paths[a["account_id"]], a["amount"]) for a in doc["allocations"]),

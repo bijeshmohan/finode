@@ -97,6 +97,7 @@ class BackupRecurring(BaseModel):
     end_date: Date | None = None
     next_date: Date
     last_date: Date | None = None
+    skipped_date: Date | None = None
     active: bool = True
     last_error: str | None = None
 

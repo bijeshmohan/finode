@@ -126,7 +126,7 @@ class BackupService:
                     ],
                     payee=r.payee, comment=r.comment, frequency=r.frequency, every=r.every,
                     start_date=r.start_date, end_date=r.end_date, next_date=r.next_date, last_date=r.last_date,
-                    active=r.active, last_error=r.last_error,
+                    skipped_date=r.skipped_date, active=r.active, last_error=r.last_error,
                 )
                 for r in self.rr.list()
             ],
@@ -347,7 +347,7 @@ class BackupService:
                     amount=r.amount, received_amount=r.received_amount, currency=r.currency,
                     payee=r.payee, comment=r.comment, frequency=r.frequency, every=r.every,
                     start_date=r.start_date, end_date=r.end_date, next_date=r.next_date, last_date=r.last_date,
-                    active=r.active, last_error=r.last_error,
+                    skipped_date=r.skipped_date, active=r.active, last_error=r.last_error,
                 )
                 self.rr.add(rule)
                 self.rr.set_postings(
