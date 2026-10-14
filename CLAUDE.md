@@ -117,6 +117,10 @@ Profile › Your data has two destructive actions (the person types their email 
 
 The interactive API docs (`/docs`, `/redoc`, `/openapi.json`) are off unless `FINODE_API_DOCS=true`.
 
+### What day it is
+
+Never call `date.today()`: use `clock.local_today()` (and `local_now()`, `local_midnight_utc()` for the per-day limit). `FINODE_TIMEZONE` (an IANA name such as `Asia/Kolkata`, validated at start-up) is the zone "today" is read in for the whole installation, so entries, the recurring runner, the budget's current month and "Today" in lists follow the people's clock and not the server's; unset, the server's own clock is used. Timestamps stay in UTC. It is per installation, not per person: a person in another zone would need a profile column and the recurring runner would need each rule's owner's zone. Dependency `tzdata` is there so the slim Docker image has zone data.
+
 ### Forgotten passwords
 
 `app/reset.py` and `/forgot`, `/reset` (`routers/web/auth.py`), on only when `FINODE_PASSWORD_RESET=true` (`settings.reset_enabled`; 404 otherwise, and the sign-in page shows no link). `/forgot` asks Supabase (`/auth/v1/recover`, anon key) to email a link and always shows the same answer; the email template in Supabase must link to `{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}`. `GET /reset` only renders a form (scanners open links); `POST /reset` verifies the token (`/auth/v1/verify`, type recovery), sets the password (`PUT /auth/v1/user`) and signs the person in. Attempts are limited by address and email (`FINODE_RESET_ATTEMPTS`). The routes are `PUBLIC` in the isolation audit.

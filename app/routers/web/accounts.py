@@ -13,6 +13,7 @@ from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...services.account import GROUP_POSTING_ROOT_NAMES, AccountService
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
+from ...clock import local_today
 
 
 router = APIRouter(prefix="/accounts")
@@ -132,7 +133,7 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 @router.get("")
 def accounts_page(request: Request, accounts: Accounts):
     roots = build_tree(accounts.list())
-    unused = annotate_for_page(roots, accounts.used_account_ids(), date.today())
+    unused = annotate_for_page(roots, accounts.used_account_ids(), local_today())
     return templates.TemplateResponse(
         request,
         "accounts.html",

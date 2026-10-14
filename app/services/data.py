@@ -22,6 +22,7 @@ from ..config import settings
 from ..limits import LimitReached, ensure_room
 from .account import GROUP_POSTING_ROOT_NAMES, OPENING_BALANCES_ACCOUNT_NAME, AccountService
 from .depth import depth_limits
+from ..clock import local_today
 
 
 MAX_REPORTED_ERRORS = 20
@@ -223,7 +224,7 @@ class DataService:
             if len(lines) >= 2:
                 entries.append(LedgerTransaction(t.date, t.payee or "", [t.comment] if t.comment else [], lines))
         if not labeled:
-            return write(decls, entries, date.today())
+            return write(decls, entries, local_today())
 
         prices = [
             PriceDecl(p.date, p.commodity, p.price, p.quote)
@@ -241,7 +242,7 @@ class DataService:
             for c in sorted(catalog.values(), key=lambda c: c.code)
             if c.code in used
         ]
-        return write(decls, entries, date.today(), declared, prices, labeled=True)
+        return write(decls, entries, local_today(), declared, prices, labeled=True)
 
     def export_csv(self) -> str:
         accounts, paths, postings, transactions = self._snapshot()

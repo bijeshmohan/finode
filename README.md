@@ -183,6 +183,7 @@ Environment variables (or a `.env` file at the project root) override defaults:
 
 - `FINODE_DATABASE_URL` — default `sqlite:///./finode.db`
 - `FINODE_DATABASE_ECHO` — default `true`
+- `FINODE_TIMEZONE` — the time zone "today" is read in, e.g. `Asia/Kolkata`; the server's own clock when empty
 - `FINODE_SUPABASE_URL` — Supabase project URL, used to fetch JWKS for protected API routes
 - `FINODE_SUPABASE_AUDIENCE` — expected JWT audience, default `authenticated`
 - `FINODE_SUPABASE_ANON_KEY` — Supabase anon (public) key, used by the web UI to sign users in

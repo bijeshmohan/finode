@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..models.transaction import PostingSide
+from ..clock import local_today
 
 
 FrequencyName = Literal["daily", "weekly", "monthly", "yearly"]
@@ -35,7 +36,7 @@ class RecurringBase(BaseModel):
     comment: str | None = Field(default=None, max_length=200)
     frequency: FrequencyName = "monthly"
     every: int = Field(default=1, ge=1, le=366)
-    start_date: Date = Field(default_factory=Date.today)
+    start_date: Date = Field(default_factory=local_today)
     end_date: Date | None = None
 
     @field_validator("amount", "received_amount")

@@ -21,6 +21,7 @@ from ...schemas.transaction import (
 from ...templating import templates
 from .accounts import build_tree, posting_groups
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
+from ...clock import local_today
 
 
 router = APIRouter(prefix="/transactions")
@@ -268,7 +269,7 @@ def new_transaction_page(
         "transaction_form.html",
         form_context(
             accounts,
-            today=date.today().isoformat(),
+            today=local_today().isoformat(),
             transaction=None,
             total="",
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
@@ -298,7 +299,7 @@ def create_split_transaction(
     try:
         transactions.create(
             TransactionCreate(
-                date=date_ or date.today(),
+                date=date_ or local_today(),
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
                 currency=currency.strip() or None,

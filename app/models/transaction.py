@@ -8,6 +8,7 @@ from sqlalchemy import CheckConstraint, Index
 from sqlmodel import Field
 
 from .utils import Amount, TimestampMixin
+from ..clock import local_today
 
 
 class PostingSide(str, Enum):
@@ -22,7 +23,7 @@ class Transaction(TimestampMixin, table=True):
 
     tid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")
-    date: Date = Field(default_factory=Date.today)
+    date: Date = Field(default_factory=local_today)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
     # The currency the transaction balances in: the postings' `value` is expressed in it.

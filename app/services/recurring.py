@@ -15,6 +15,7 @@ from .account import AccountService
 from .simple import simple_postings
 from .transaction import TransactionService
 from .validation import validation_message
+from ..clock import local_today
 
 
 # One run records at most this many missed occurrences of a rule (a daily rule left for a year).
@@ -116,7 +117,7 @@ class RecurringService:
         rule = self.repo.read(rid)
         if rule is None:
             return None
-        today = today or date.today()
+        today = today or local_today()
         if active and not rule.active:
             # Occurrences that fell due while it was paused are skipped, not recorded late.
             rule.next_date = max(
@@ -142,7 +143,7 @@ class RecurringService:
     def process_due(self, today: date | None = None) -> int:
         """Record every occurrence that has fallen due; returns how many were recorded. Safe to call
         often and from several workers at once: an occurrence is only ever recorded once."""
-        today = today or date.today()
+        today = today or local_today()
         recorded = 0
         for rule in self.repo.due(today):
             recorded += self._catch_up(rule, today)

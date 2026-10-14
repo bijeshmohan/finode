@@ -12,6 +12,7 @@ from ..schemas.report import (
     TrialBalanceTotal,
 )
 from .account import AccountService
+from ..clock import local_today
 
 
 class ReportService:
@@ -29,7 +30,7 @@ class ReportService:
 
         The period defaults to the current month so far.
         """
-        today = date.today()
+        today = local_today()
         period_start = period_start or today.replace(day=1)
         period_end = period_end or today
         if period_start > period_end:
@@ -93,7 +94,7 @@ class ReportService:
             raise ValueError("a breakdown is of Income or Expenses!")
         if depth < 1:
             raise ValueError("depth must be at least 1!")
-        today = date.today()
+        today = local_today()
         period_start = period_start or today.replace(day=1)
         period_end = period_end or today
         if period_start > period_end:
@@ -149,7 +150,7 @@ class ReportService:
         debits and credits balance on. The check also looks at each transaction on its own, so a
         problem is named rather than hidden in a total.
         """
-        as_of = as_of or date.today()
+        as_of = as_of or local_today()
         accounts = {a.aid: a for a in self.accounts.ar.list()}
         catalog = self.accounts.catalog()
         paths: dict = {}
