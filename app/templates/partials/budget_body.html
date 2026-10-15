@@ -111,6 +111,9 @@
           </ul>
         </details>
         {% endif %}
+        {% if not line.group %}{% set total = line.activity + line.available %}
+        <span class="bar {{ 'over' if line.available < 0 }}" aria-hidden="true"><i style="width: {{ 100 if line.available < 0 else (((line.activity / total) * 100)|round|int if total > 0 else 0) }}%"></i></span>
+        {% endif %}
         {% if line.overspent_last_month %}<small class="over-note">{{ line.overspent_last_month|money }} overspent last month</small>{% endif %}
       </div>
       {% set tone = 'negative' if line.available < 0 else ('positive' if line.available > 0 else '') %}

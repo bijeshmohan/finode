@@ -1052,3 +1052,31 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
   }
   .sheet-grab { display: block; width: 2.5rem; height: 4px; margin: -.25rem auto 1rem; border-radius: 2px; background: var(--border); }
 }
+
+/* ---------- Budget, the calm version: one number, flat rows, a thin bar under each category ---------- */
+.month-nav { margin: 0 0 .5rem; }
+.month-nav h1 { font-size: 1rem; font-weight: 600; }
+.month-nav .icon-button { color: var(--faint); }
+.ready, .ready.zero, .ready.over { background: none; text-align: left; padding: .25rem 0 1.25rem; margin-bottom: 0; border-radius: 0; }
+.ready { display: flex; flex-direction: column; gap: .15rem; }
+.ready > .muted { font-size: .8125rem; }
+.ready .figure { font-size: 2.5rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
+.ready > span:last-child:not(.figure):not(.muted) { font-size: .8125rem; color: var(--muted); }
+.ready.over, .ready.over .figure { color: var(--danger); }
+.ready.over > span:last-child { color: var(--danger); }
+.ready.all-set .figure { color: var(--text); }
+.budget-list { background: none; border: 0; box-shadow: none; border-radius: 0; overflow: visible; }
+.budget-row { border-top: 0; padding: .6rem 0; }
+.budget-row.group { background: none; font-weight: 600; font-size: .8125rem; color: var(--muted); padding-top: 1.1rem; padding-bottom: .2rem; }
+.budget-row.group .figure, .budget-row.group .figure.muted { font-weight: 500; }
+.budget-row .name { font-weight: 500; }
+.budget-row .name .bar { display: block; height: 3px; margin: .5rem 0 .15rem; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.budget-row .name .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
+.budget-row .name .bar.over i { background: var(--danger); }
+.budget-row .avail, .budget-row .avail.positive, .budget-row .avail.negative { background: none; border-radius: 0; color: var(--text); }
+.budget-row .avail.negative { color: var(--danger); }
+.budget-row input.assign { border-color: transparent; background: var(--surface-2); border-radius: 999px; font-weight: 500; }
+.budget-row input.assign:focus { background: var(--surface); border-color: var(--text); }
+.budget-columns { padding-left: 0; padding-right: 0; font-size: .75rem; }
+.budget-row .name small.target-note { font-size: .75rem; }
+.budget-row .name small.target-note.met a { color: var(--muted); }
