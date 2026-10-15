@@ -1,0 +1,7 @@
+{#- The quick-add bar: type an amount and who ("250 swiggy"), press Enter, and the form opens filled in. -#}
+{% from "partials/icons.html" import icon %}
+<form class="composer" action="/transactions/new" method="get">
+  <input type="text" name="q" placeholder="Add a transaction…" autocomplete="off" enterkeyhint="go"
+         aria-label="Add a transaction: an amount and who, for example 250 swiggy">
+  <button type="submit" class="composer-go" aria-label="Add">{{ icon("plus") }}</button>
+</form>

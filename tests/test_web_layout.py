@@ -2,12 +2,19 @@ from fastapi.testclient import TestClient
 
 
 def test_app_shell_has_desktop_sidebar_mobile_tabbar_and_new_button(client: TestClient):
-    page = client.get("/").text
+    page = client.get("/accounts").text
     assert 'class="sidebar"' in page
     assert 'class="tabbar"' in page
     assert 'class="fab" href="/transactions/new"' in page
     assert 'class="button secondary sidebar-new" href="/transactions/new"' in page
+    assert 'href="/accounts" aria-current="page"' in page
+
+
+def test_home_has_the_quick_add_bar_instead_of_the_floating_button(client: TestClient):
+    page = client.get("/").text
+    assert 'class="composer"' in page and 'class="fab"' not in page
     assert 'href="/" aria-current="page"' in page
+    assert 'class="button secondary sidebar-new"' in page, "wide screens keep the sidebar's button"
     assert 'rel="icon" href="/static/favicon.svg?v=' in page
     assert "viewport-fit=cover" in page
 

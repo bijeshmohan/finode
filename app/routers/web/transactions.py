@@ -242,6 +242,98 @@ def _after_save(back: str, another: str) -> str:
     return safe_back(back)
 
 
+@dataclass
+class PayeeHabit:
+    """What the person did the last time they paid someone: who, and which accounts they used."""
+
+    payee: str
+    count: int
+    from_id: UUID
+    to_id: UUID
+    kind: str
+    from_name: str
+    to_name: str
+    exact: bool = False
+
+
+HABIT_HISTORY = 300  # how many recent transactions the suggestions look at
+
+
+def payee_habits(transactions: Transactions, accounts: Accounts, query: str = "", limit: int = 6) -> tuple[list[PayeeHabit], UUID | None]:
+    """Suggestions for the payee field, and the account most often paid from lately.
+
+    Only entries with one account on each side count (a split has no single route to repeat), and only accounts
+    that can still be used. Payees you pay often come first; typing narrows them to those starting with, then
+    containing, what was typed.
+    """
+    all_accounts = accounts.list()
+    index = AccountIndex.build(all_accounts)
+    usable = {a.aid for a in all_accounts if a.parent_id is not None and a.closed_on is None}
+    wanted = query.strip().lower()
+    seen: dict[str, dict] = {}
+    from_counts: dict[UUID, int] = {}
+    for position, t in enumerate(transactions.list(limit=HABIT_HISTORY)):
+        credits = [p for p in t.postings if p.side == PostingSide.CREDIT]
+        debits = [p for p in t.postings if p.side == PostingSide.DEBIT]
+        simple = (
+            len(credits) == 1 and len(debits) == 1
+            and credits[0].account in usable and debits[0].account in usable
+            and "Equity" not in (index.roots.get(credits[0].account), index.roots.get(debits[0].account))  # opening balances are not a payee
+        )
+        if simple and position < 40 and index.roots.get(credits[0].account) in ASSET_LIKE:
+            from_counts[credits[0].account] = from_counts.get(credits[0].account, 0) + 1
+        payee = (t.payee or "").strip()
+        if not payee or not simple:
+            continue
+        entry = seen.setdefault(payee.lower(), {"payee": payee, "count": 0, "route": (credits[0].account, debits[0].account), "order": position})
+        entry["count"] += 1  # the first one seen is the newest: its route is the one repeated
+    habits = []
+    for key, entry in seen.items():
+        if wanted and wanted not in key:
+            continue
+        from_id, to_id = entry["route"]
+        roots = index.roots
+        habits.append((
+            0 if wanted and key == wanted else 1 if key.startswith(wanted) else 2, -entry["count"], entry["order"],
+            PayeeHabit(
+                payee=entry["payee"], count=entry["count"], from_id=from_id, to_id=to_id,
+                kind=infer_kind([_P(from_id, PostingSide.CREDIT), _P(to_id, PostingSide.DEBIT)], roots),
+                from_name=index.names.get(from_id, "?"), to_name=index.names.get(to_id, "?"), exact=bool(wanted) and key == wanted,
+            ),
+        ))
+    habits.sort(key=lambda h: h[:3])
+    favourite = max(from_counts, key=from_counts.get) if from_counts else None
+    return [h[3] for h in habits[:limit]], favourite
+
+
+@dataclass
+class _P:
+    """Just enough of a posting for infer_kind."""
+
+    account: UUID
+    side: PostingSide
+
+
+def split_quick_entry(text: str) -> tuple[str, str]:
+    """What was typed in the quick-add bar: "250 swiggy" -> ("250", "swiggy"); "swiggy 250" works too."""
+    import re
+
+    text = (text or "").strip()
+    found = re.match(r"^(\d[\d,]*(?:\.\d+)?)\s*(.*)$", text) or re.match(r"^(.*?)\s+(\d[\d,]*(?:\.\d+)?)$", text)
+    if not found:
+        return "", text
+    first, second = found.groups()
+    number, words = (first, second) if first[:1].isdigit() else (second, first)
+    return number.replace(",", ""), words.strip()
+
+
+@router.get("/suggest")
+def suggest_payees(request: Request, accounts: Accounts, transactions: Transactions, payee: str = ""):
+    """The chips under the payee field: people you pay, with the accounts you used the last time."""
+    habits, _ = payee_habits(transactions, accounts, payee)
+    return templates.TemplateResponse(request, "partials/payee_chips.html", {"habits": habits})
+
+
 def form_rows(postings, side: PostingSide, account_id: UUID | None = None) -> list[dict]:
     """The rows of one side of the form: the transaction's own postings, or one blank row (maybe with an account)."""
     found = [{"posting": p, "account": p.account} for p in postings if p.side == side]
@@ -252,19 +344,31 @@ def form_rows(postings, side: PostingSide, account_id: UUID | None = None) -> li
 def new_transaction_page(
     request: Request,
     accounts: Accounts,
+    transactions: Transactions,
     account: UUID | None = None,
     back: str = "",
+    q: str = "",  # what was typed in the quick-add bar: "250 swiggy"
     mode: str = "",  # old links; the form is one page now
 ):
     all_accounts = accounts.list()
     from_id = to_id = None
     roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
+    amount_text, payee_text = split_quick_entry(q)
+    kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account), "expense")
+    habits, favourite = payee_habits(transactions, accounts, payee_text) if (payee_text or account is None) else ([], None)
     if account is not None:
         # From an expense category the money arrives there; from anything else it leaves.
         if roots_of.get(account) == "Expenses":
             to_id = account
         elif account in roots_of:
             from_id = account
+    else:
+        match = next((h for h in habits if h.exact), None)
+        if match is not None:  # a payee you have paid before: the same accounts as last time
+            from_id, to_id, kind = match.from_id, match.to_id, match.kind
+            payee_text = match.payee  # spelled the way you wrote it before
+        elif favourite is not None:
+            from_id = favourite  # otherwise the account you paid from most lately
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
@@ -272,10 +376,11 @@ def new_transaction_page(
             accounts,
             today=local_today().isoformat(),
             transaction=None,
-            total="",
+            total=amount_text,
+            new_payee=payee_text,
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
-            kind={"Income": "income", "Equity": "other"}.get(roots_of.get(account), "expense"),
+            kind=kind,
             account=account,
             back=safe_back(back, ""),
             back_url=safe_back(back),

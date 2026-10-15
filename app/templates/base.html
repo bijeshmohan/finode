@@ -58,7 +58,7 @@
     <a href="/budget" {% if active == 'budget' %}aria-current="page"{% endif %}>{{ icon("budget") }}<span>Budget</span></a>
     <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
   </nav>
-  {% if not hide_fab %}
+  {% if not hide_fab and not no_fab %}
   <a class="fab" href="/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>
   {% endif %}
   {% endblock %}
