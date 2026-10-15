@@ -338,13 +338,15 @@ function applyKind(form, kind) {
 
 // The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
-  if (!event.target || event.target.id !== "txn-sheet-body") return;
-  const dialog = document.getElementById("txn-sheet");
+  const id = event.target && event.target.id;
+  if (id !== "txn-sheet-body" && id !== "cat-sheet-body") return;
+  const dialog = document.getElementById(id.replace("-body", ""));
   if (dialog && !dialog.open) dialog.showModal();
+  const first = dialog && dialog.querySelector("[data-autofocus]");
+  if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
 });
 document.body.addEventListener("click", (event) => {
-  const dialog = document.getElementById("txn-sheet");
-  if (dialog && event.target === dialog) dialog.close();
+  if (event.target instanceof HTMLDialogElement && event.target.classList.contains("sheet-bottom")) event.target.close();
 });
 
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
@@ -615,7 +617,7 @@ document.body.addEventListener("change", (event) => {
 (function accountsPage() {
   const page = document.querySelector("[data-accounts]");
   if (!page) return;
-  const KEY = "finode.accounts.open.v2"; // v2: the defaults changed, so earlier choices are dropped
+  const KEY = "finode.accounts.open.v3"; // v3: the defaults changed again (only Assets and Liabilities start open)
   let saved = {};
   try {
     saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
@@ -636,11 +638,6 @@ document.body.addEventListener("change", (event) => {
   groups.forEach((group) => {
     if (group.dataset.key in saved) group.open = !!saved[group.dataset.key];
   });
-  const toggleAll = page.querySelector("[data-toggle-all]");
-  function syncToggleAll() {
-    toggleAll.textContent = groups.every((group) => group.open) ? "Collapse all" : "Expand all";
-  }
-  syncToggleAll();
   page.addEventListener(
     "toggle",
     (event) => {
@@ -648,7 +645,6 @@ document.body.addEventListener("change", (event) => {
       if (searching || !group.dataset || !group.dataset.key) return;
       saved[group.dataset.key] = group.open;
       remember();
-      syncToggleAll();
     },
     true
   );
@@ -657,15 +653,6 @@ document.body.addEventListener("change", (event) => {
   page.addEventListener("click", (event) => {
     if (event.target.closest(".open-link")) event.stopPropagation();
   }, true);
-
-  function setAll(open) {
-    groups.forEach((group) => {
-      group.open = open;
-      saved[group.dataset.key] = open;
-    });
-    remember();
-  }
-  toggleAll.addEventListener("click", () => setAll(!groups.every((group) => group.open)));
 
   const unusedButton = page.querySelector("[data-toggle-unused]");
   if (unusedButton) {

@@ -132,7 +132,8 @@ def test_the_page_shows_the_weeks_and_marks_an_overspent_one(client, setup):
     assign(client, setup["food"], "300")
     client.post("/budget/target", data={"category": setup["food"]["aid"], "kind": "weekly", "amount": "100", "weekday": str(THIS_MONTH.weekday())})
     spend(client, setup, THIS_MONTH, "130")
-    page = client.get("/budget").text
+    assert 'class="weeks"' not in client.get("/budget").text, "the weeks are in the category's sheet"
+    page = client.get(f"/budget/category/{setup['food']['aid']}/sheet").text
     assert 'class="weeks"' in page and "By week" in page
     text = squash(page)
     assert "130.00 of 100.00" in text and "0.00 of 100.00" in text
