@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from ..models import Account, Commodity
-from ..models.transaction import PostingSide
+from ..models.transaction import Posting, PostingSide
 from ..repositories import (
     AccountRepository,
     CommodityRepository,
@@ -280,11 +280,19 @@ class AccountService:
                 accounts_by_parent.setdefault(acc.parent_id, []).append(acc)
         return [account_id] + self._get_descendants(account_id, accounts_by_parent)
 
+    def _postings_by_account(self, all_accounts: list[Account], as_of: date | None) -> dict[UUID, list[Posting]]:
+        """Every posting up to `as_of`, grouped by account, in one query: what a list of balances is computed from."""
+        grouped: dict[UUID, list[Posting]] = {}
+        for posting in self.tr.postings_for_accounts([a.aid for a in all_accounts], date_to=as_of or local_today()):
+            grouped.setdefault(posting.account, []).append(posting)
+        return grouped
+
     def _valued_balance(
         self,
         account: Account,
         all_accounts: list[Account] | None = None,
         as_of: date | None = None,
+        postings: dict[UUID, list[Posting]] | None = None,
     ) -> tuple[Decimal, bool]:
         """The account's balance in what it holds, and whether part of it could not be valued.
 
@@ -310,7 +318,12 @@ class AccountService:
         normal_side = self._normal_side(account, accounts_by_id)
         target = self._holds(account)
         totals: dict[UUID, Decimal] = {}
-        for posting in self.tr.postings_for_accounts(target_ids, date_to=as_of):
+        rows = (
+            self.tr.postings_for_accounts(target_ids, date_to=as_of)
+            if postings is None
+            else (p for aid in target_ids for p in postings.get(aid, ()))
+        )
+        for posting in rows:
             held = accounts_by_id[posting.account].commodity_id or target.cid
             signed = posting.amount if posting.side == normal_side else -posting.amount
             totals[held] = totals.get(held, Decimal("0.00")) + signed
@@ -341,8 +354,9 @@ class AccountService:
         account: Account,
         all_accounts: list[Account] | None = None,
         as_of: date | None = None,
+        postings: dict[UUID, list[Posting]] | None = None,
     ) -> AccountRead:
-        balance, unpriced = self._valued_balance(account, all_accounts, as_of)
+        balance, unpriced = self._valued_balance(account, all_accounts, as_of, postings)
         return AccountRead(
             aid=account.aid,
             name=account.name,
@@ -659,7 +673,8 @@ class AccountService:
                 a for a in all_accounts
                 if self._get_root_name(a, accounts_by_id) == root_name
             ]
-        return [self._to_read(account, all_accounts, as_of) for account in filtered]
+        postings = self._postings_by_account(all_accounts, as_of)  # one query for every balance
+        return [self._to_read(account, all_accounts, as_of, postings) for account in filtered]
 
     def register(self, aid: UUID) -> list[RegisterEntry] | None:
         """Return the account's activity oldest first with a running balance.
@@ -680,16 +695,15 @@ class AccountService:
 
         changes: dict[UUID, Decimal] = {}
         unpriced_in: set[UUID] = set()
-        dates: dict[UUID, date] = {}
-        for posting in self.tr.postings_for_accounts(target_ids):
+        rows = self.tr.postings_for_accounts(target_ids)
+        loaded = self.tr.read_many(list({p.transaction for p in rows}))  # one query for every transaction it needs
+        for posting in rows:
             signed = posting.amount if posting.side == normal_side else -posting.amount
             held = accounts_by_id[posting.account].commodity_id or target.cid
             if held != target.cid:
                 # Sub-accounts holding something else count at the rate of the day.
-                if posting.transaction not in dates:
-                    dates[posting.transaction] = self.tr.read(posting.transaction).date
                 converted = self.prices.book().convert(
-                    signed, held, target.cid, dates[posting.transaction], target.decimals
+                    signed, held, target.cid, loaded[posting.transaction].date, target.decimals
                 )
                 if converted is None:
                     unpriced_in.add(posting.transaction)
@@ -699,16 +713,16 @@ class AccountService:
         for tid in unpriced_in:
             changes.setdefault(tid, Decimal("0.00"))
 
-        transactions = [self.tr.read(tid) for tid in changes]
-        transactions = [t for t in transactions if t is not None]
+        transactions = [loaded[tid] for tid in changes if tid in loaded]
         transactions.sort(key=lambda t: (t.date, t.created))
+        postings_of = self.tr.postings_for_transactions(list(changes))
 
         entries = []
         balance = Decimal("0.00")
         for transaction in transactions:
             balance += changes[transaction.tid]
             counter_accounts = []
-            for posting in self.tr.postings(transaction.tid):
+            for posting in postings_of.get(transaction.tid, []):
                 if posting.account in target_ids:
                     continue
                 name = accounts_by_id[posting.account].name

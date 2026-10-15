@@ -102,6 +102,13 @@ class TransactionRepository:
         transaction = self.db.exec(statement).first()
         return transaction
 
+    def read_many(self, tids: list[UUID]) -> dict[UUID, Transaction]:
+        """Several transactions in one query."""
+        if not tids:
+            return {}
+        rows = self.db.exec(select(Transaction).where(Transaction.tid.in_(list(tids)), Transaction.user == self.uid)).all()
+        return {t.tid: t for t in rows}
+
     def list(
         self,
         account_ids: list[UUID] | None = None,
@@ -140,6 +147,15 @@ class TransactionRepository:
         )
         postings = self.db.exec(statement).all()
         return postings
+
+    def postings_for_transactions(self, tids: list[UUID]) -> dict[UUID, list[Posting]]:
+        """The postings of several transactions in one query (a list of transactions must not ask once per row)."""
+        grouped: dict[UUID, list[Posting]] = {}
+        if not tids:
+            return grouped
+        for posting in self.db.exec(select(Posting).where(Posting.transaction.in_(tids), Posting.user == self.uid)).all():
+            grouped.setdefault(posting.transaction, []).append(posting)
+        return grouped
 
     def all_postings(self) -> list[Posting]:
         return self.db.exec(select(Posting).where(Posting.user == self.uid)).all()
