@@ -9,6 +9,7 @@
   --faint: #9a9a93;
   --border: #e4e3de;
   --field-border: #e4e3de;
+  --tile-border: #e4e3de;
   --accent: #1b1b19;
   --accent-hover: #3a3a36;
   --accent-soft: #f1f0ec;
@@ -38,6 +39,7 @@
     --faint: #85847b;
     --border: #302f2c;
     --field-border: #45443f;
+    --tile-border: #262624;
     --accent: #f3f2ee;
     --accent-hover: #ffffff;
     --accent-soft: #262624;
@@ -60,6 +62,7 @@
   --faint: #85847b;
   --border: #302f2c;
   --field-border: #45443f;
+  --tile-border: #262624;
   --accent: #f3f2ee;
   --accent-hover: #ffffff;
   --accent-soft: #262624;
@@ -1115,3 +1118,36 @@ button.switch span { width: 26px; height: 26px; border-radius: 50%; background: 
 button.switch[aria-checked="true"] { background: var(--text); }
 button.switch[aria-checked="true"] span { transform: translateX(20px); background: var(--on-accent); }
 .setting > summary .icon:last-child, a.setting-link .icon:last-child { margin-left: auto; }
+
+/* ---------- Bento: each group of rows is its own soft tile, with a gap between tiles ---------- */
+.tx-day ul.card.list, .account-group > ul.card.list, .quick > ul.card.list, .budget-tile, .budget-list.cards-list, .settings .tile {
+  background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); box-shadow: none;
+  padding: 0 1rem; overflow: hidden;
+}
+.tx-list { display: flex; flex-direction: column; gap: 1rem; }
+.tx-day + .tx-day { margin-top: 0; }
+.tx-day-head { margin: 0 0 .4rem .25rem; }
+.tx-day ul.card.list > li + li, .account-group > ul.card.list > li + li, .quick > ul.card.list > li + li { border-top-color: var(--surface-2); }
+.account-group > ul.card.list { padding: 0 .5rem; }
+.account-group + .account-group { margin-top: 1.25rem; }
+.group-head { padding: 0 .25rem; }
+.quick { margin-bottom: 1.25rem; }
+.quick h2 { margin-left: .25rem; }
+ul.list.nested { border-top-color: var(--surface-2); }
+.add-first { background: var(--surface); }
+
+/* Budget: a tile per group of categories */
+.budget-list { gap: .75rem; }
+.budget-tile .budget-row + .budget-row { border-top: 1px solid var(--surface-2); }
+.budget-tile .budget-row.group { border-top: 0; padding-top: .85rem; padding-bottom: .35rem; }
+.budget-tile .budget-row.group + .budget-row { border-top: 0; }
+.budget-list.cards-list .budget-row + .budget-row { border-top: 1px solid var(--surface-2); }
+.budget-columns { padding-left: 1rem; padding-right: 1rem; }
+
+/* Settings: a tile per section */
+.settings .tile .setting:last-child { border-bottom: 0; }
+.settings .tile .setting > summary, .settings .tile a.setting-link { min-height: 52px; }
+.settings .tile details.setting > form, .settings .tile details.setting > .stack { padding: .75rem 0 1rem; }
+.settings .tile details.setting[open] > summary { border-bottom: 0; }
+.settings.dimmed .tile .setting-plain { opacity: .45; }
+.settings-label { margin: 1.25rem 0 .4rem .25rem; }

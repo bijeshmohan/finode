@@ -81,7 +81,10 @@
   {% if budget.lines %}
   <div class="budget-columns" aria-hidden="true"><span>Category</span><span>Assigned</span><span>Available</span></div>
   <div class="budget-list">
+    {% set ns = namespace(open=false, last_top_group=false) %}
     {% for line in budget.lines %}
+    {% if line.depth == 1 and (line.group or ns.last_top_group or not ns.open) %}{% if ns.open %}</div>{% endif %}<div class="budget-tile">{% set ns.open = true %}{% endif %}
+    {% if line.depth == 1 %}{% set ns.last_top_group = line.group %}{% endif %}
     <div class="budget-row {{ 'group' if line.group }}" {% if line.depth > 1 %}style="padding-left: {{ 0.9 + (line.depth - 1) * 1.1 }}rem"{% endif %}>
       <div class="name">{{ line.name }}
         {% if line.note %}<small class="category-note">{{ line.note }}</small>{% endif %}
@@ -136,6 +139,7 @@
       {% endif %}
     </div>
     {% endfor %}
+    {% if ns.open %}</div>{% endif %}
   </div>
   <p class="muted" style="margin-top:.75rem">
     Assigned {{ budget.assigned|money }} · spent {{ budget.activity|money }} · available {{ budget.available|money }}.

@@ -14,6 +14,7 @@
 
 <div class="settings form-narrow">
   <h2 class="settings-label">Preferences</h2>
+  <div class="tile">
   <details id="currency" class="setting">
     <summary><span class="setting-title">Default currency</span><span class="setting-value">{{ profile.default_currency }}</span>{{ icon("chevron-right") }}</summary>
     <form class="stack" hx-post="/settings/currency">
@@ -44,7 +45,10 @@
   </details>
 
 
+  </div>
+
   <h2 class="settings-label">Your data</h2>
+  <div class="tile">
   <a class="setting setting-link" id="data" href="/profile/data">
     <span class="setting-title">Backup, export and import</span>{{ icon("chevron-right") }}
   </a>
@@ -52,12 +56,18 @@
     <span class="setting-title">Recurring transactions</span>{{ icon("chevron-right") }}
   </a>
 
+  </div>
+
   <h2 class="settings-label">Connections</h2>
+  <div class="tile">
   <a class="setting setting-link" id="assistants" href="/profile/assistants">
     <span class="setting-title">AI assistants</span>{{ icon("chevron-right") }}
   </a>
 
+  </div>
+
   <h2 class="settings-label">More</h2>
+  <div class="tile">
   <a class="setting setting-link" id="advanced" href="/settings/advanced">
     <span class="setting-title">Advanced</span><span class="setting-value">{{ "On" if profile.advanced else "Off" }}</span>{{ icon("chevron-right") }}
   </a>
@@ -71,6 +81,7 @@
     <span class="setting-title">About this test</span>{{ icon("chevron-right") }}
   </a>
   {% endif %}
+  </div>
 </div>
 
 <form method="post" action="/logout" class="form-narrow signout">

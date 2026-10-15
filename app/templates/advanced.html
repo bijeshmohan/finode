@@ -15,7 +15,7 @@
 </div>
 <p id="advanced-error" class="error" role="alert"></p>
 
-<div class="settings form-narrow {{ '' if profile.advanced else 'dimmed' }}">
+<div class="settings form-narrow {{ '' if profile.advanced else 'dimmed' }}"><div class="tile">
   <div class="setting setting-plain"><span class="setting-title">Budget targets</span><span class="setting-value">Monthly, weekly, yearly or by a date</span></div>
   <div class="setting setting-plain"><span class="setting-title">Pinned and ordered accounts</span><span class="setting-value">Pin, order by hand, close accounts</span></div>
 
@@ -64,6 +64,6 @@
   <div class="setting setting-plain"><span class="setting-title">Account depth limits</span><span class="setting-value">How many levels of sub-accounts</span></div>
   <div class="setting setting-plain"><span class="setting-title">Several currencies and assets</span><span class="setting-value">Prices, shares, coins</span></div>
   {% endif %}
-</div>
+</div></div>
 <p class="muted small-print form-narrow">Switched off, none of these show anywhere else in the app: no targets on the budget, no pin button, no lock. Turn it on whenever you need one.</p>
 {% endblock %}
