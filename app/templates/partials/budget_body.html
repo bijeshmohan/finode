@@ -1,5 +1,50 @@
 {#- The budget for one month; htmx swaps this whole block after every change. -#}
 {% from "partials/icons.html" import icon %}
+
+{#- A category's caption: what was spent of what there was, what a target still needs, the note... -#}
+{% macro caption(line, extra="") %}
+  {% set total = line.activity + line.available %}
+  {% set parts = [] %}
+  {% if extra %}{% set _ = parts.append(extra) %}{% endif %}
+  {% if line.activity or line.available > 0 %}{% set _ = parts.append(line.activity|money ~ " of " ~ (total if total > 0 else line.activity)|money ~ " spent") %}{% endif %}
+  {% if advanced and line.underfunded %}{% set _ = parts.append(("overdue, " if line.overdue else "") ~ "needs " ~ line.underfunded|money ~ " more") %}{% endif %}
+  {% if line.overspent_last_month %}{% set _ = parts.append(line.overspent_last_month|money ~ " overspent last month") %}{% endif %}
+  {% if line.note %}{% set _ = parts.append(line.note) %}{% endif %}
+  {% if parts %}<span class="cap {{ 'short' if extra or (advanced and line.underfunded) else '' }}">{{ parts|join(" · ") }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro bar(line) -%}
+  {% set total = line.activity + line.available %}
+  <span class="bar {{ 'over' if line.available < 0 }}" aria-hidden="true"><i style="width: {{ 100 if line.available < 0 else (((line.activity / total) * 100)|round|int if total > 0 else 0) }}%"></i></span>
+{%- endmacro %}
+
+{#- One category (or a group's own "everything else" line) as a row that opens its sheet. -#}
+{% macro leaf(line, depth, label=None) %}
+<a class="r catrow" href="/budget/target?month={{ month_key }}&category={{ line.aid }}" hx-get="/budget/category/{{ line.aid }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false"
+   style="--d: {{ depth }}">
+  <span class="l1"><span class="cat-name">{{ label or line.name }}</span><span class="cat-left {{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span></span>
+  {{ bar(line) }}
+  {{ caption(line) }}
+</a>
+{% endmacro %}
+
+{#- A group folds: its row shows everything inside it; opened, its categories follow, then its own "everything else". -#}
+{% macro group(n, depth) %}
+{% set line = n.line %}
+{% set over = n.over %}
+<details class="grp" data-key="{{ line.aid }}" {{ "open" if over }}>
+  <summary class="r gsum" style="--d: {{ depth }}">
+    <span class="l1"><span class="cat-name"><span class="gcaret">{{ icon("caret") }}</span>{{ line.name }}<em class="cnt">{{ n.count }}</em></span><span class="cat-left {{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span></span>
+    {{ bar(line) }}
+    {{ caption(line, (over ~ " over") if over else "") }}
+  </summary>
+  <div class="gkids">
+    {% for c in n.children %}{% if c.is_group %}{{ group(c, depth + 1) }}{% else %}{{ leaf(c.line, depth + 1) }}{% endif %}{% endfor %}
+    {{ leaf(n.other, depth + 1, "Everything else") }}
+  </div>
+</details>
+{% endmacro %}
+
 <div id="budget">
   {% set rta = budget.ready_to_assign %}
   <div class="ready {{ 'over' if rta < 0 else ('zero all-set' if rta == 0 and budget.lines else ('zero' if rta == 0 else '')) }}">
@@ -13,47 +58,41 @@
     <span>Give it a job: tap a category below.</span>
     {% endif %}
   </div>
-  <details class="how">
-    <summary>How this works</summary>
-    {% if budget.cards %}
-    <p class="muted calc">Money in your accounts {{ budget.money_in_accounts|money }} − set aside for card bills {{ budget.reserved_for_cards|money }} − in categories {{ budget.available|money }}{% if budget.assigned_to_later_months %} − assigned to later months {{ budget.assigned_to_later_months|money }}{% endif %} = ready to assign.</p>
-    <p class="muted calc">What you owe on a card is set aside automatically. Buying on a card spends the category; paying the bill from your bank changes nothing else.</p>
-    {% endif %}
-    {% if budget.assigned_to_later_months %}
-    <p class="muted calc">{{ budget.assigned_to_later_months|money }} {{ budget.currency }} is already assigned to later months, so it is not counted in Ready to assign.</p>
-    {% endif %}
-    <p class="muted calc">Tap a category to assign money to it, move money to another category{% if advanced %} or set a target{% endif %}. Assigned {{ budget.assigned|money }} · spent {{ budget.activity|money }} · available {{ budget.available|money }}.</p>
-  </details>
 
-  {% if budget.left_out_accounts %}
-  <div class="notice left-out">
-    <p><strong>{{ budget.left_out|money }} {{ budget.currency }}</strong> spent this month is not in the categories below, because it was paid from
-      accounts that are not part of the budget. Add them to count their spending and money:</p>
-    <ul class="plain-list flat">
-      {% for a in budget.left_out_accounts %}
-      <li>
-        <span>{{ a.path }} <span class="muted">· {{ a.entries }} {{ "entry" if a.entries == 1 else "entries" }}, {{ a.spent|money }}</span></span>
-        <button class="secondary" hx-post="/budget/accounts/{{ a.aid }}/include" hx-vals='{"month": "{{ month_key }}"}' hx-target="#budget" hx-swap="outerHTML">Add to budget</button>
-      </li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
-  {% if budget.overspent_last_month %}
-  <p class="notice">{{ budget.overspent_last_month|money }} {{ budget.currency }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
-  {% endif %}
-  {% if advanced and budget.underfunded %}
-  <form class="notice fund" hx-post="/budget/fund" hx-target="#budget" hx-swap="outerHTML">
-    <span>Your targets still need {{ budget.underfunded|money }} {{ budget.currency }} this month.</span>
-    <input type="hidden" name="month" value="{{ month_key }}">
-    <button type="submit" class="secondary" {{ "disabled" if rta <= 0 }}>Assign what is needed</button>
-  </form>
-  {% endif %}
-  {% if budget.copyable %}
-  <form class="copy-last" hx-post="/budget/copy" hx-target="#budget" hx-swap="outerHTML">
-    <input type="hidden" name="month" value="{{ month_key }}">
-    <button type="submit" class="secondary">Copy last month's amounts · {{ budget.copyable|money }}</button>
-  </form>
+  {% if attention %}
+  <details class="attn">
+    <summary><span>{{ attention }} thing{{ "" if attention == 1 else "s" }} need{{ "s" if attention == 1 }} you</span><span class="gcaret">{{ icon("caret") }}</span></summary>
+    {% if budget.left_out_accounts %}
+    <div class="attn-item left-out">
+      <p><strong>{{ budget.left_out|money }} {{ budget.currency }}</strong> spent this month is not in the categories below, because it was paid from
+        accounts that are not part of the budget. Add them to count their spending and money:</p>
+      <ul class="plain-list flat">
+        {% for a in budget.left_out_accounts %}
+        <li>
+          <span>{{ a.path }} <span class="muted">· {{ a.entries }} {{ "entry" if a.entries == 1 else "entries" }}, {{ a.spent|money }}</span></span>
+          <button class="secondary" hx-post="/budget/accounts/{{ a.aid }}/include" hx-vals='{"month": "{{ month_key }}"}' hx-target="#budget" hx-swap="outerHTML">Add to budget</button>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if budget.overspent_last_month %}
+    <p class="attn-item">{{ budget.overspent_last_month|money }} {{ budget.currency }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
+    {% endif %}
+    {% if advanced and budget.underfunded %}
+    <form class="attn-item fund" hx-post="/budget/fund" hx-target="#budget" hx-swap="outerHTML">
+      <span>Your targets still need {{ budget.underfunded|money }} {{ budget.currency }} this month.</span>
+      <input type="hidden" name="month" value="{{ month_key }}">
+      <button type="submit" class="secondary" {{ "disabled" if rta <= 0 }}>Assign what is needed</button>
+    </form>
+    {% endif %}
+    {% if budget.copyable %}
+    <form class="attn-item copy-last" hx-post="/budget/copy" hx-target="#budget" hx-swap="outerHTML">
+      <input type="hidden" name="month" value="{{ month_key }}">
+      <button type="submit" class="secondary">Copy last month's amounts · {{ budget.copyable|money }}</button>
+    </form>
+    {% endif %}
+  </details>
   {% endif %}
   <p id="budget-error" class="error" role="alert"></p>
 
@@ -65,6 +104,25 @@
   {% endif %}
   {% if budget.unpriced %}
   <p class="muted budget-fine">Some spending is left out because no price converts it to {{ budget.currency }}.</p>
+  {% endif %}
+
+  {% if tree %}
+  <div class="gh"><span>Categories</span><span>Left</span></div>
+  <div class="budget-list tile" data-budget-tree>
+    {% for n in tree %}
+    <div class="top {{ 'unused-hidden' if n.line.aid in unused_ids }}">
+      {% if n.is_group %}{{ group(n, 0) }}{% else %}{{ leaf(n.line, 0) }}{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% if unused_count %}
+  <p class="unused-toggle"><button type="button" class="link-button" data-toggle-budget-unused data-count="{{ unused_count }}">{{ unused_count }} unused group{{ "" if unused_count == 1 else "s" }} hidden · Show</button></p>
+  {% endif %}
+  <dialog id="cat-sheet" class="sheet sheet-bottom" aria-label="Category">
+    <div id="cat-sheet-body" class="sheet-body"></div>
+  </dialog>
+  {% elif budget.budget_accounts %}
+  <p class="card muted">There are no expense categories yet. <a href="/accounts/new">Add an expense account</a> under Expenses, like Groceries.</p>
   {% endif %}
 
   {% if budget.cards %}
@@ -79,42 +137,15 @@
   </div>
   {% endif %}
 
-  {% if budget.lines %}
-  <div class="budget-list">
-    {% set ns = namespace(open=false, last_top_group=false) %}
-    {% for line in budget.lines %}
-    {% if line.depth == 1 and (line.group or ns.last_top_group or not ns.open) %}
-      {% if ns.open %}</div>{% endif %}
-      {% if line.group %}<div class="gh"><span>{{ line.name }}</span><span>{{ line.available|money }}</span></div>{% elif not ns.open %}<div class="gh"><span>Categories</span><span>Left</span></div>{% endif %}
-      <div class="budget-tile tile">{% set ns.open = true %}
+  <details class="how">
+    <summary>How this works</summary>
+    {% if budget.cards %}
+    <p class="muted calc">Money in your accounts {{ budget.money_in_accounts|money }} − set aside for card bills {{ budget.reserved_for_cards|money }} − in categories {{ budget.available|money }}{% if budget.assigned_to_later_months %} − assigned to later months {{ budget.assigned_to_later_months|money }}{% endif %} = ready to assign.</p>
+    <p class="muted calc">What you owe on a card is set aside automatically. Buying on a card spends the category; paying the bill from your bank changes nothing else.</p>
     {% endif %}
-    {% if line.depth == 1 %}{% set ns.last_top_group = line.group %}{% endif %}
-    {% if line.group and line.depth == 1 %}
-    {# the heading above the tile names it #}
-    {% elif line.group %}
-    <div class="subhead" style="padding-left: {{ (line.depth - 2) * 1.1 }}rem"><span>{{ line.name }}</span><span>{{ line.available|money }}</span></div>
-    {% else %}
-    {% set tone = 'negative' if line.available < 0 else '' %}
-    {% set total = line.activity + line.available %}
-    {% set parts = [] %}
-    {% if line.activity or line.available > 0 %}{% set _ = parts.append(line.activity|money ~ " of " ~ (total if total > 0 else line.activity)|money ~ " spent") %}{% endif %}
-    {% if advanced and line.target and line.underfunded %}{% set _ = parts.append(("overdue, " if line.overdue else "") ~ "needs " ~ line.underfunded|money ~ " more") %}{% elif advanced and line.underfunded %}{% set _ = parts.append("needs " ~ line.underfunded|money ~ " more") %}{% endif %}
-    {% if line.overspent_last_month %}{% set _ = parts.append(line.overspent_last_month|money ~ " overspent last month") %}{% endif %}
-    {% if line.note %}{% set _ = parts.append(line.note) %}{% endif %}
-    <a class="r catrow" href="/budget/target?month={{ month_key }}&category={{ line.aid }}" hx-get="/budget/category/{{ line.aid }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false"
-       {% if line.depth > 1 %}style="padding-left: {{ (line.depth - 1) * 1.1 }}rem"{% endif %}>
-      <span class="l1"><span class="cat-name">{{ line.name }}</span><span class="cat-left {{ tone }}">{{ line.available|money }}</span></span>
-      <span class="bar {{ 'over' if line.available < 0 }}" aria-hidden="true"><i style="width: {{ 100 if line.available < 0 else (((line.activity / total) * 100)|round|int if total > 0 else 0) }}%"></i></span>
-      {% if parts %}<span class="cap {{ 'short' if advanced and line.underfunded else '' }}">{{ parts|join(" · ") }}</span>{% endif %}
-    </a>
+    {% if budget.assigned_to_later_months %}
+    <p class="muted calc">{{ budget.assigned_to_later_months|money }} {{ budget.currency }} is already assigned to later months, so it is not counted in Ready to assign.</p>
     {% endif %}
-    {% endfor %}
-    {% if ns.open %}</div>{% endif %}
-  </div>
-  <dialog id="cat-sheet" class="sheet sheet-bottom" aria-label="Category">
-    <div id="cat-sheet-body" class="sheet-body"></div>
-  </dialog>
-  {% elif budget.budget_accounts %}
-  <p class="card muted">There are no expense categories yet. <a href="/accounts/new">Add an expense account</a> under Expenses, like Groceries.</p>
-  {% endif %}
+    <p class="muted calc">Tap a category to assign money to it, move money to another category{% if advanced %} or set a target{% endif %}. A group's total adds up everything inside it; "Everything else" is money for the group that is not in one of its categories. Assigned {{ budget.assigned|money }} · spent {{ budget.activity|money }} · available {{ budget.available|money }}.</p>
+  </details>
 </div>

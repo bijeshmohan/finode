@@ -1192,3 +1192,34 @@ details.account-group > summary.group-head { padding-right: 1rem; }
 .group-head h2 { gap: 0; }
 .account-row { gap: .5rem; }
 details.account-group > summary.group-head { padding-right: calc(1rem + 1px); }
+
+/* The budget tree: groups fold, a leaf opens its sheet. Rows indent with --d. */
+.budget-list.tile { padding: 0 1rem; display: block; }
+.budget-list .top + .top { border-top: 1px solid var(--surface-2); }
+.budget-list .top > .r { border-top: 0; }
+.budget-list .r { padding-left: calc(var(--d, 0) * 1rem); }
+.gkids > * { border-top: 1px solid var(--surface-2); }
+details.grp > summary { list-style: none; cursor: pointer; display: block; }
+details.grp > summary::-webkit-details-marker { display: none; }
+.gcaret { display: inline-grid; place-items: center; width: 1rem; margin-right: .35rem; color: var(--faint); transform: rotate(-90deg); transition: transform .12s; }
+.gcaret .icon { width: 1rem; height: 1rem; }
+details[open] > summary .gcaret, details[open].attn > summary .gcaret { transform: none; }
+.cat-name { display: inline-flex; align-items: center; min-width: 0; }
+.cnt { margin-left: .4rem; font-style: normal; font-weight: 400; font-size: .8125rem; color: var(--faint); }
+.gsum .cat-name { font-weight: 600; }
+.gkids .catrow .cat-name, .gkids .gsum .cat-name { font-weight: 500; }
+.attn { margin: .25rem 0 .5rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
+.attn > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; font-weight: 500; cursor: pointer; list-style: none; }
+.attn > summary::-webkit-details-marker { display: none; }
+.attn-item { margin: 0; padding: .75rem 0; border-top: 1px solid var(--surface-2); color: var(--muted); }
+.attn-item p { margin: 0 0 .4rem; }
+form.attn-item.fund { display: flex; gap: .75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.attn-item button { margin: 0; }
+.unused-hidden { display: none; }
+.show-budget-unused .unused-hidden { display: block; }
+details.how { margin: 1.25rem 0 0; }
+
+.gsum .bar { display: block; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.gsum .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
+.gsum .bar.over i { background: var(--danger); }
+.gsum .cap { display: block; margin-top: .3rem; }

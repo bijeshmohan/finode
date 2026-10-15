@@ -124,19 +124,46 @@ def test_the_inline_amount_also_saves_on_the_return_key(client, setup):
     assert 'hx-post="/budget/assign"' in sheet and 'enterkeyhint="done"' in sheet and 'type="submit"' in sheet
 
 
-def test_a_category_is_one_row_with_a_bar_and_a_caption_in_a_tile_under_its_group(client, root_accounts, setup):
+def test_a_group_is_a_row_that_folds_and_its_categories_follow_with_everything_else(client, root_accounts, setup):
     client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]})
     page = client.get("/budget").text
-    assert page.count('class="r catrow"') == 2, "the sub-category and the plain category are rows"
-    assert '<div class="gh"><span>Food</span>' in page, "the group is the heading above its tile"
-    assert page.count('<div class="budget-tile tile">') == 2, "a tile for the group, one for the loose category"
+    assert page.count('<details class="grp"') == 1 and 'class="r gsum"' in page, "Food is one folding row"
+    assert "<em class=\"cnt\">1</em>" in page, "it says how many categories are inside"
+    assert page.count('class="r catrow"') == 3, "Groceries, Food's own 'Everything else' and the plain Rent"
+    assert "Everything else" in page
     assert 'name="amount"' not in page, "no input boxes on the page: assigning happens in the sheet"
-    assert page.count('class="bar') == 2 and 'aria-label="Category"' in page
+    assert page.count('class="bar') == 4 and 'aria-label="Category"' in page
 
 
-def test_the_sheet_of_a_group_or_an_unknown_category_is_not_offered(client, root_accounts, setup):
-    client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]})
-    assert client.get(f"/budget/category/{setup['food']['aid']}/sheet").status_code == 404, "a group has no amount of its own"
+def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client, root_accounts, setup):
+    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    sheet = client.get(f"/budget/category/{setup['food']['aid']}/sheet")
+    assert sheet.status_code == 200 and "Food · everything else" in sheet.text, "a group has a sheet of its own"
+    assign(client, groceries, "100")
+    client.post("/budget/assign", data={"category": setup["food"]["aid"], "month": THIS_MONTH.strftime("%Y-%m"), "amount": "40"})
+    food = line(api_budget(client), "Food")
+    assert food["assigned"] == "140.00", "the group's total adds up its own and its categories' money"
+    assert 'value="40.00"' in client.get(f"/budget/category/{setup['food']['aid']}/sheet").text
+
+
+def test_unused_groups_are_tucked_away_once_something_is_in_use_but_plain_categories_stay(client, root_accounts, setup):
+    travel = account(client, root_accounts, "Travel", "Expenses")
+    client.post("/api/accounts/", json={"name": "Stay", "parent_id": travel["aid"]})
+    assert "unused-hidden" not in client.get("/budget").text, "nothing in use yet: everything shows"
+    assign(client, setup["food"], "100")
+    page = client.get("/budget").text
+    assert page.count('class="top unused-hidden"') == 1 and "1 unused group hidden" in page, "the empty Travel group"
+    assert 'class="top "' in page and "Rent" in page.split("data-toggle-budget-unused")[0], "Rent is a plain category: it stays"
+
+
+def test_what_needs_you_is_one_row_that_opens(client, setup):
+    last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
+    assign(client, setup["food"], "300", last)
+    page = client.get("/budget").text
+    assert "1 thing needs you" in page and "Copy last month's amounts" in page
+
+
+def test_the_sheet_of_a_plain_account_is_not_offered(client, root_accounts, setup):
     assert client.get(f"/budget/category/{setup['bank']['aid']}/sheet").status_code == 404
     assert client.get("/budget/category/00000000-0000-4000-8000-0000000000ff/sheet").status_code == 404
 

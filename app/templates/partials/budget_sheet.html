@@ -2,8 +2,8 @@
 <div class="sheet-grab" aria-hidden="true"></div>
 <div class="sheet-title">
   <div>
-    <h2>{{ line.name }}</h2>
-    <p class="muted">{{ month_name }}{% if line.path and ":" in line.path %} · {{ line.path.rsplit(":", 1)[0].split(":")[-1] }}{% endif %}</p>
+    <h2>{% if line.name.endswith("(other)") %}{{ line.name[:-8] }} · everything else{% else %}{{ line.name }}{% endif %}</h2>
+    <p class="muted">{{ month_name }}{% if line.name.endswith("(other)") %} · money for the group that is not in one of its categories{% elif line.path and ":" in line.path %} · {{ line.path.rsplit(":", 1)[0].split(":")[-1] }}{% endif %}</p>
   </div>
   <div class="sheet-amount {{ 'over' if line.available < 0 }}">{{ line.available|money }}<small class="muted">left</small></div>
 </div>
