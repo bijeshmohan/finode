@@ -60,7 +60,7 @@ On a new entry the amount carries `data-autofocus` (not `autofocus`): `app.js` f
 
 ### Signs and the pace tick
 
-Amounts in transaction lists, the details sheet and an account's activity show **no minus on ordinary spending** (the default, so a long list is not a column of signs): income is `+` and green (`.tx-amount.income`), transfers plain. A real negative (an overdrawn account, an overspent category's "left", a debt) keeps its `−` and red; the `money` filter still writes a true minus sign. Bars of the current month carry a **dot showing how far through the month today is** (`clock.month_progress`, `.pace` inside `.glance-bar` on Home and `.bar` on the budget; `pace` is None for other months, which have no today): a fill ahead of the dot is spending faster than the month passes.
+Amounts in transaction lists, the details sheet and an account's activity show **no minus on ordinary spending** (the default, so a long list is not a column of signs): income is `+` and green (`.tx-amount.income`), transfers plain. A real negative (an overdrawn account, an overspent category's "left", a debt) keeps its `−` and red; the `money` filter still writes a true minus sign. Bars of the current month carry a **tick (a short vertical line) showing how far through the month today is** (`clock.month_progress`, `.pace` inside `.glance-bar` on Home and `.bar` on the budget; `pace` is None for other months, which have no today): a fill ahead of the tick is spending faster than the month passes.
 
 ### Offline, failed saves and loading
 
