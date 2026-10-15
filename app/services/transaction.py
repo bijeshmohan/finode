@@ -158,7 +158,7 @@ class TransactionService:
             updated=posting.updated,
         )
 
-    def _to_read(self, transaction: Transaction) -> TransactionRead:
+    def _to_read(self, transaction: Transaction, postings: list[Posting] | None = None) -> TransactionRead:
         return TransactionRead(
             tid=transaction.tid,
             currency=self._commodity_code(transaction.currency_id),
@@ -168,7 +168,10 @@ class TransactionService:
             created_via=transaction.created_via,
             updated_via=transaction.updated_via,
             recurring_id=transaction.recurring_id,
-            postings=[self._posting_to_read(posting) for posting in self.tr.postings(transaction.tid)],
+            postings=[
+                self._posting_to_read(posting)
+                for posting in (postings if postings is not None else self.tr.postings(transaction.tid))
+            ],
             created=transaction.created,
             updated=transaction.updated,
         )
@@ -277,7 +280,8 @@ class TransactionService:
     ) -> list[TransactionRead]:
         account_ids = self._account_subtree(account) if account else None
         transactions = self.tr.list(account_ids, date_from, date_to, limit, offset)
-        return [self._to_read(transaction) for transaction in transactions]
+        postings = self.tr.postings_for_transactions([t.tid for t in transactions])  # one query, not one per row
+        return [self._to_read(transaction, postings.get(transaction.tid, [])) for transaction in transactions]
 
     def update(
         self,
