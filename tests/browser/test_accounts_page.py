@@ -26,13 +26,16 @@ def nested(api: Api, books):
     return banks, food
 
 
-def test_every_type_starts_open_with_its_groups_closed(page: Page, api, books):
+def test_assets_and_liabilities_start_open_and_the_other_types_folded(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
     shown = visible(page)
-    assert "assets › checking" in shown and "assets › banks" in shown and "expenses › rent" in shown
-    assert "assets › banks › hdfc" not in shown and "expenses › food › dining" not in shown, "groups start closed"
-    assert page.locator("details.account-group[open]").count() == 5
+    assert "assets › checking" in shown and "assets › banks" in shown
+    assert "expenses › rent" not in shown, "Income, Equity and Expenses start folded to one line"
+    assert "assets › banks › hdfc" not in shown, "groups start closed"
+    assert page.locator("details.account-group[open]").count() == 2
+    page.locator("details.account-group > summary", has_text="Expenses").click()
+    assert "expenses › rent" in visible(page) and "expenses › food › dining" not in visible(page)
 
 
 def test_opening_a_group_is_remembered_after_a_reload(page: Page, api, books):
@@ -42,10 +45,9 @@ def test_opening_a_group_is_remembered_after_a_reload(page: Page, api, books):
     assert "assets › banks › hdfc" in visible(page)
     page.reload()
     assert "assets › banks › hdfc" in visible(page), "still open after a reload"
-    page.get_by_role("button", name="Expand all").click()
-    page.get_by_role("button", name="Collapse all").click()
+    page.locator(f'details[data-key="{banks["aid"]}"] > summary').click()
     page.reload()
-    assert not visible(page), "everything collapsed, and remembered"
+    assert "assets › banks › hdfc" not in visible(page), "closed again, and remembered"
 
 
 def test_the_open_link_of_a_group_goes_to_its_page(page: Page, api, books):
@@ -86,6 +88,7 @@ def test_unused_and_closed_accounts_are_tucked_away(page: Page, api, books, sess
 def test_closing_an_account_from_its_page(page: Page, api, books):
     page.goto(f"/accounts/{books['cash']['aid']}")
     page.once("dialog", lambda dialog: dialog.accept())
+    page.get_by_label("More actions").click()
     page.get_by_role("button", name="Close account").click()
     page.wait_for_url("**/accounts")
     assert "assets › cash" not in visible(page)
@@ -97,11 +100,13 @@ def test_pinning_from_the_account_page_puts_it_at_the_top_of_the_list(page: Page
     banks, _ = nested(api, books)
     hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
     page.goto(f"/accounts/{hdfc['aid']}")
+    page.get_by_label("More actions").click()
     page.get_by_role("button", name="Pin", exact=True).click()
+    page.get_by_label("More actions").click()
     expect(page.get_by_role("button", name="Unpin")).to_be_visible()
     page.goto("/accounts")
     quick = page.locator("[data-quick]").first
-    expect(quick.locator("h2")).to_have_text("Pinned")
+    expect(quick.locator(".gh")).to_have_text("Pinned")
     expect(quick.locator(".account-name")).to_contain_text("HDFC")
     expect(quick.locator(".path")).to_have_text("Assets › Banks")
     # searching shows the tree's own rows instead, so nothing appears twice
@@ -116,7 +121,9 @@ def test_moving_an_account_changes_the_order_on_the_page(page: Page, api, books)
     banks, _ = nested(api, books)
     sbi = next(a for a in api.get("/accounts/") if a["name"] == "SBI")
     page.goto(f"/accounts/{sbi['aid']}")
+    page.get_by_label("More actions").click()
     page.get_by_role("button", name="Move up").click()
+    page.get_by_label("More actions").click()
     expect(page.get_by_role("button", name="A–Z")).to_be_visible()
     page.goto("/accounts")
     page.locator('details[data-key="%s"] > summary' % banks["aid"]).click()

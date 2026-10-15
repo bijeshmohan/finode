@@ -173,8 +173,8 @@ def test_recently_used_accounts(client, books):
     spend(client, books["food"], books["wallet"])
     spend(client, books["travel"], books["sbi"])
     text = client.get("/accounts").text
-    quick = text[text.index("data-quick"):text.index('<details class="account-group"')]
-    assert "Recently used" in squash(quick)
+    quick = text[text.index('<details class="quick recent"'):]
+    assert "Recently used" in squash(quick), "folded at the bottom of the page"
     names = re.findall(r'<span class="account-name">(\w+)', quick)
     # newest entry first (the two accounts of one entry are equally recent), each account once, five at most
     assert len(names) == 5 and len(set(names)) == 5
@@ -186,10 +186,9 @@ def test_recent_leaves_out_pinned_closed_and_the_systems_accounts(client, books)
     spend(client, books["food"], books["wallet"], "5")
     client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
     text = client.get("/accounts").text
-    quick = text[text.index("data-quick"):text.index('<details class="account-group"')]
-    recent = quick[quick.index("Recently used"):]
+    recent = text[text.index('<details class="quick recent"'):]
     assert "HDFC" not in recent and "Food" in recent and "Opening Balances" not in recent
-    pinned = quick[:quick.index("Recently used")]
+    pinned = text[text.index("data-quick"):text.index('<details class="account-group"')]
     assert "HDFC" in pinned
 
 
@@ -208,7 +207,7 @@ def test_recent_shows_at_most_five(client, books, root_accounts):
     for account in [books["rent"], books["food"], books["travel"], *extra]:
         spend(client, account, books["wallet"], "1")
     text = client.get("/accounts").text
-    quick = text[text.index("data-quick"):text.index('<details class="account-group"')]
+    quick = text[text.index('<details class="quick recent"'):]
     assert len(re.findall(r'<li>\s*<a class="account-row"', quick)) == 5
 
 

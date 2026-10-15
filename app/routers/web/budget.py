@@ -51,6 +51,17 @@ def budget_page(request: Request, budget: Budget, month: str = ""):
     return templates.TemplateResponse(request, "budget.html", _context(budget, parse_month(month)))
 
 
+@router.get("/category/{aid}/sheet")
+def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = ""):
+    """One category in the sheet over the budget: assign, what was spent, the target, the week by week."""
+    when = parse_month(month)
+    context = _context(budget, when)
+    line = next((l for l in context["budget"].lines if l.aid == aid and not l.group), None)
+    if line is None:
+        raise HTTPException(status_code=404, detail="category not found")
+    return templates.TemplateResponse(request, "partials/budget_sheet.html", {**context, "line": line})
+
+
 @router.post("/assign")
 def assign(
     request: Request,
@@ -58,12 +69,13 @@ def assign(
     category: Annotated[UUID, Form()],
     month: Annotated[str, Form()] = "",
     amount: Annotated[str, Form()] = "",
+    sheet: Annotated[str, Form()] = "",
 ):
     when = parse_month(month)
     try:
         budget.assign(when, category, parse_amount(amount, default=parse_amount("0")))
     except (BudgetError, ValueError) as e:
-        return htmx_error(str(e), "#budget-error")
+        return htmx_error(str(e), "#cat-sheet-error" if sheet else "#budget-error")
     return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
 
 

@@ -46,14 +46,17 @@ def test_groups_are_rows_that_open_with_their_own_link(client, tree):
     assert f'data-key="{tree["banks"]}" open' not in page, "a group starts closed, under every type"
     assert f'data-key="{tree["food"]}" open' not in page, "under Expenses only the top level shows"
     assert f'href="/accounts/{tree["food"]}" title="Open Food"' in page
-    assert f'href="/accounts/{tree["hdfc"]}"' in page and "data-account-search" in page and "data-toggle-all" in page
+    assert f'href="/accounts/{tree["hdfc"]}"' in page and "data-account-search" in page and "data-toggle-all" not in page, "no Collapse all button"
 
 
-def test_every_type_starts_open_and_there_is_no_net_worth_card(client, tree):
+def test_assets_and_liabilities_start_open_the_other_types_folded_and_there_is_no_net_worth_card(client, tree):
     page = client.get("/accounts").text
     heads = page.split('<details class="account-group"')[1:]
-    assert len(heads) == 5 and all(" open>" in h.split(">", 1)[0] + ">" for h in heads), "all five types open"
+    assert len(heads) == 5
+    opened = [h.split("<h2>")[1].split("</span>")[1].split("<")[0] for h in heads if " open>" in h.split(">", 1)[0] + ">"]
+    assert opened == ["Assets", "Liabilities"], "only these two start open"
     assert "Net worth" not in page and "net-worth" not in page
+    assert 'class="circ-button" href="/accounts/new"' in page, "the round + adds an account"
 
 
 def test_unused_accounts_are_tucked_away_but_new_ones_are_not(client, tree, session):

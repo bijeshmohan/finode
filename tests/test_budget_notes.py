@@ -64,7 +64,8 @@ def test_the_page_shows_the_note_and_the_form_saves_it(client, setup):
     saved = client.post("/budget/note", data={"category": rent, "note": "Due on the 5th"})
     assert saved.status_code == 200 and saved.headers["HX-Redirect"].startswith("/budget?month=")
     assert "budget-note" in saved.headers["set-cookie"]
-    assert 'class="category-note">Due on the 5th<' in client.get("/budget").text
+    assert "Due on the 5th" in client.get("/budget").text, "the note is the row's caption"
+    assert "Due on the 5th" in client.get(f"/budget/category/{rent}/sheet").text
     assert "Due on the 5th</textarea>" in client.get(f"/budget/target?category={rent}").text
 
 
