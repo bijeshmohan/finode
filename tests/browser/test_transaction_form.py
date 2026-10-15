@@ -32,7 +32,7 @@ def test_the_kind_buttons_narrow_the_pickers(page: Page, books):
 def test_the_order_and_the_default(page: Page, books):
     page.goto("/transactions/new")
     labels = page.eval_on_selector_all("[data-kind]", "b => b.map(x => x.textContent)")
-    assert labels == ["Income", "Transfer", "Expense"]
+    assert labels == ["Expense", "Income", "Transfer"]
     expect(page.locator('[data-kind="expense"]')).to_have_attribute("aria-pressed", "true")
 
 
