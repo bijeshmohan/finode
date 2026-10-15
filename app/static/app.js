@@ -776,3 +776,10 @@ document.body.addEventListener("change", (event) => {
   window.addEventListener("beforeunload", () => bar(true));
   window.addEventListener("pageshow", () => bar((pending = 0) > 0));
 })();
+
+// A new entry opens with the amount ready to type on a computer. On a phone nothing is focused: the grey 0.00 stays
+// visible, and tapping the amount hides it, shows the cursor and opens the keyboard (a script cannot open the keyboard).
+(() => {
+  const first = document.querySelector("[data-autofocus]");
+  if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
+})();
