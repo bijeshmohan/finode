@@ -280,8 +280,7 @@ def test_an_unpriced_holding_is_called_out_on_the_account_page(client, root_acco
     body = text_of(client.get(f"/accounts/{wise['aid']}").text)
     assert "There is no USD price in INR yet" in body
     assert "partial" in client.get("/accounts").text
-    dashboard = text_of(client.get("/").text)
-    assert "Some holdings have no price yet" in dashboard
+    assert client.get("/api/reports/summary").json()["unpriced"] is True
 
 
 def test_the_accounts_list_labels_other_commodities(client, pair):
@@ -312,14 +311,14 @@ def test_the_transaction_list_shows_the_transactions_own_currency(client, pair, 
     assert "8,350.00 INR" not in listing
 
 
-def test_the_dashboard_totals_in_the_default_currency(client, pair):
+def test_the_totals_are_in_the_default_currency(client, pair):
     bank, usd = pair
     buy_usd(client, bank, usd)
-    body = text_of(client.get("/").text)
-    assert "Net worth 100,000.00 INR" in body
+    summary = client.get("/api/reports/summary").json()
+    assert (summary["net_worth"], summary["currency"]) == ("100000.00", "INR")
     client.post("/settings/currency", data={"currency": "USD"})
-    body = text_of(client.get("/").text)
-    assert "Net worth 1,197.60 USD" in body
+    summary = client.get("/api/reports/summary").json()
+    assert (summary["net_worth"], summary["currency"]) == ("1197.60", "USD")
 
 
 def test_moving_a_transaction_to_other_accounts_takes_the_new_currency(client, pair, root_accounts):

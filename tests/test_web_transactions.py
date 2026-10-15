@@ -112,13 +112,13 @@ def test_transaction_amounts_are_signed_by_kind(
 
 def test_filters_open_with_count_only_when_active(client: TestClient, account: dict):
     closed = client.get("/transactions").text
-    assert '<details class="card filters" >' in closed
+    assert '<details class="filters" >' in closed
     opened = client.get(
         "/transactions", params={"account": account["aid"], "date_from": "2026-01-01"}
     ).text
-    assert '<details class="card filters" open>' in opened
+    assert '<details class="filters" open>' in opened
     assert '<span class="count">2</span>' in opened
-    assert "No transactions match these filters." in opened
+    assert "Nothing matches." in opened
 
 
 def test_recurring_is_an_icon_at_the_right_of_the_page_title(client):

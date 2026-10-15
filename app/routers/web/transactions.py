@@ -28,6 +28,13 @@ from ...services.lock import locked_through
 router = APIRouter(prefix="/transactions")
 
 PAGE_SIZE = 25
+# "spending" and "transfers" are the older spellings of the chips and keep working in saved links.
+KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer", "spending": "expense", "transfers": "transfer"}
+
+
+def _chip_url(base: dict, value: str) -> str:
+    params = {**base, **({"kind": value} if value else {})}
+    return "/transactions" + (f"?{urlencode(params)}" if params else "")
 
 
 @dataclass
@@ -104,6 +111,8 @@ def transactions_page(
     account: str = "",
     date_from: str = "",
     date_to: str = "",
+    q: str = "",
+    kind: str = "",
     page: int = 1,
 ):
     try:
@@ -113,6 +122,7 @@ def transactions_page(
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts)
     page = max(page, 1)
+    kind = KIND_FILTERS.get(kind, "")  # one spelling from here on
 
     error = None
     rows: list[TransactionRow] = []
@@ -124,6 +134,8 @@ def transactions_page(
             _parse_date(date_to),
             PAGE_SIZE + 1,
             (page - 1) * PAGE_SIZE,
+            q,
+            KIND_FILTERS.get(kind),
         )
     except ValueError as e:
         error = f"Invalid filter: {e}"
@@ -133,6 +145,9 @@ def transactions_page(
 
     filters = {"account": account, "date_from": date_from, "date_to": date_to}
     query = {k: v for k, v in filters.items() if v}
+    # What is typed in the search box and the chosen chip also travel with the page links.
+    base = {**query, **({"q": q.strip()} if q.strip() else {})}
+    shown = {**base, **({"kind": kind} if kind else {})}
     return templates.TemplateResponse(
         request,
         "transactions.html",
@@ -143,20 +158,57 @@ def transactions_page(
             "error": error,
             "filters": filters,
             "active_filters": len(query),
+            "q": q.strip(),
+            "kind": kind,
+            "chips": [
+                {"label": label, "value": value, "href": _chip_url(base, value)}
+                for label, value in (("All", ""), ("Expense", "expense"), ("Income", "income"), ("Transfer", "transfer"))
+            ],
+            "searching": bool(q.strip() or kind or query),
             "roots": build_tree(all_accounts),
             "page": page,
-            "prev_url": f"/transactions?{urlencode({**query, 'page': page - 1})}" if page > 1 else None,
-            "next_url": f"/transactions?{urlencode({**query, 'page': page + 1})}" if has_next else None,
+            "prev_url": f"/transactions?{urlencode({**shown, 'page': page - 1})}" if page > 1 else None,
+            "next_url": f"/transactions?{urlencode({**shown, 'page': page + 1})}" if has_next else None,
+        },
+    )
+
+
+@router.get("/{tid}/sheet")
+def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transactions: Transactions):
+    """The details of one transaction, for the sheet that opens over a list (the edit page has the rest)."""
+    transaction = transactions.read(tid)
+    if transaction is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    row = to_row(transaction, AccountIndex.build(accounts.list()))
+    names = AccountIndex.build(accounts.list()).names
+    lock = locked_through(transactions.tr.db, transactions.tr.uid)
+    labels = {
+        "expense": ("Paid from", "Spent on"),
+        "income": ("From", "Received in"),
+        "transfer": ("From", "To"),
+    }[row.kind]
+    return templates.TemplateResponse(
+        request,
+        "partials/txn_sheet.html",
+        {
+            "row": row,
+            "t": transaction,
+            "currency": accounts.default_currency().code,
+            "from_label": labels[0],
+            "to_label": labels[1],
+            "from_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
+            "to_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.DEBIT],
+            "locked_by": lock if lock is not None and transaction.date <= lock else None,
         },
     )
 
 
 @router.post("/{tid}/delete")
-def delete_transaction(tid: UUID, transactions: Transactions, back: str = ""):
+def delete_transaction(tid: UUID, transactions: Transactions, back: str = "", sheet: Annotated[str, Form()] = ""):
     try:
         transactions.delete(tid)
     except ValueError as e:
-        return htmx_error(str(e), "#page-error")
+        return htmx_error(str(e), "#sheet-error" if sheet else "#page-error")
     return htmx_redirect(safe_back(back), flash="transaction-deleted")
 
 
@@ -242,6 +294,98 @@ def _after_save(back: str, another: str) -> str:
     return safe_back(back)
 
 
+@dataclass
+class PayeeHabit:
+    """What the person did the last time they paid someone: who, and which accounts they used."""
+
+    payee: str
+    count: int
+    from_id: UUID
+    to_id: UUID
+    kind: str
+    from_name: str
+    to_name: str
+    exact: bool = False
+
+
+HABIT_HISTORY = 300  # how many recent transactions the suggestions look at
+
+
+def payee_habits(transactions: Transactions, accounts: Accounts, query: str = "", limit: int = 6) -> tuple[list[PayeeHabit], UUID | None]:
+    """Suggestions for the payee field, and the account most often paid from lately.
+
+    Only entries with one account on each side count (a split has no single route to repeat), and only accounts
+    that can still be used. Payees you pay often come first; typing narrows them to those starting with, then
+    containing, what was typed.
+    """
+    all_accounts = accounts.list()
+    index = AccountIndex.build(all_accounts)
+    usable = {a.aid for a in all_accounts if a.parent_id is not None and a.closed_on is None}
+    wanted = query.strip().lower()
+    seen: dict[str, dict] = {}
+    from_counts: dict[UUID, int] = {}
+    for position, t in enumerate(transactions.list(limit=HABIT_HISTORY)):
+        credits = [p for p in t.postings if p.side == PostingSide.CREDIT]
+        debits = [p for p in t.postings if p.side == PostingSide.DEBIT]
+        simple = (
+            len(credits) == 1 and len(debits) == 1
+            and credits[0].account in usable and debits[0].account in usable
+            and "Equity" not in (index.roots.get(credits[0].account), index.roots.get(debits[0].account))  # opening balances are not a payee
+        )
+        if simple and position < 40 and index.roots.get(credits[0].account) in ASSET_LIKE:
+            from_counts[credits[0].account] = from_counts.get(credits[0].account, 0) + 1
+        payee = (t.payee or "").strip()
+        if not payee or not simple:
+            continue
+        entry = seen.setdefault(payee.lower(), {"payee": payee, "count": 0, "route": (credits[0].account, debits[0].account), "order": position})
+        entry["count"] += 1  # the first one seen is the newest: its route is the one repeated
+    habits = []
+    for key, entry in seen.items():
+        if wanted and wanted not in key:
+            continue
+        from_id, to_id = entry["route"]
+        roots = index.roots
+        habits.append((
+            0 if wanted and key == wanted else 1 if key.startswith(wanted) else 2, -entry["count"], entry["order"],
+            PayeeHabit(
+                payee=entry["payee"], count=entry["count"], from_id=from_id, to_id=to_id,
+                kind=infer_kind([_P(from_id, PostingSide.CREDIT), _P(to_id, PostingSide.DEBIT)], roots),
+                from_name=index.names.get(from_id, "?"), to_name=index.names.get(to_id, "?"), exact=bool(wanted) and key == wanted,
+            ),
+        ))
+    habits.sort(key=lambda h: h[:3])
+    favourite = max(from_counts, key=from_counts.get) if from_counts else None
+    return [h[3] for h in habits[:limit]], favourite
+
+
+@dataclass
+class _P:
+    """Just enough of a posting for infer_kind."""
+
+    account: UUID
+    side: PostingSide
+
+
+def split_quick_entry(text: str) -> tuple[str, str]:
+    """What was typed in the quick-add bar: "250 swiggy" -> ("250", "swiggy"); "swiggy 250" works too."""
+    import re
+
+    text = (text or "").strip()
+    found = re.match(r"^(\d[\d,]*(?:\.\d+)?)\s*(.*)$", text) or re.match(r"^(.*?)\s+(\d[\d,]*(?:\.\d+)?)$", text)
+    if not found:
+        return "", text
+    first, second = found.groups()
+    number, words = (first, second) if first[:1].isdigit() else (second, first)
+    return number.replace(",", ""), words.strip()
+
+
+@router.get("/suggest")
+def suggest_payees(request: Request, accounts: Accounts, transactions: Transactions, payee: str = ""):
+    """The chips under the payee field: people you pay, with the accounts you used the last time."""
+    habits, _ = payee_habits(transactions, accounts, payee)
+    return templates.TemplateResponse(request, "partials/payee_chips.html", {"habits": habits})
+
+
 def form_rows(postings, side: PostingSide, account_id: UUID | None = None) -> list[dict]:
     """The rows of one side of the form: the transaction's own postings, or one blank row (maybe with an account)."""
     found = [{"posting": p, "account": p.account} for p in postings if p.side == side]
@@ -252,19 +396,56 @@ def form_rows(postings, side: PostingSide, account_id: UUID | None = None) -> li
 def new_transaction_page(
     request: Request,
     accounts: Accounts,
+    transactions: Transactions,
     account: UUID | None = None,
     back: str = "",
+    q: str = "",  # what was typed in the quick-add bar: "250 swiggy"
+    repeat: UUID | None = None,  # "add again": a copy of this transaction, dated today
     mode: str = "",  # old links; the form is one page now
 ):
     all_accounts = accounts.list()
+    if repeat is not None:
+        again = transactions.read(repeat)
+        if again is None:
+            raise HTTPException(status_code=404, detail="transaction not found")
+        roots = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
+        return templates.TemplateResponse(
+            request,
+            "transaction_form.html",
+            form_context(
+                accounts,
+                today=local_today().isoformat(),
+                transaction=None,
+                copy_of=again,
+                total=sum((p.value for p in again.postings if p.side == PostingSide.DEBIT), Decimal(0)),
+                new_payee=again.payee or "",
+                new_note=again.comment or "",
+                from_rows=form_rows(again.postings, PostingSide.CREDIT),
+                to_rows=form_rows(again.postings, PostingSide.DEBIT),
+                kind=infer_kind(again.postings, roots),
+                account=None,
+                back=safe_back(back, ""),
+                back_url=safe_back(back),
+            ),
+        )
     from_id = to_id = None
     roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
+    amount_text, payee_text = split_quick_entry(q)
+    kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account), "expense")
+    habits, favourite = payee_habits(transactions, accounts, payee_text) if (payee_text or account is None) else ([], None)
     if account is not None:
         # From an expense category the money arrives there; from anything else it leaves.
         if roots_of.get(account) == "Expenses":
             to_id = account
         elif account in roots_of:
             from_id = account
+    else:
+        match = next((h for h in habits if h.exact), None)
+        if match is not None:  # a payee you have paid before: the same accounts as last time
+            from_id, to_id, kind = match.from_id, match.to_id, match.kind
+            payee_text = match.payee  # spelled the way you wrote it before
+        elif favourite is not None:
+            from_id = favourite  # otherwise the account you paid from most lately
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
@@ -272,10 +453,11 @@ def new_transaction_page(
             accounts,
             today=local_today().isoformat(),
             transaction=None,
-            total="",
+            total=amount_text,
+            new_payee=payee_text,
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
-            kind={"Income": "income", "Equity": "other"}.get(roots_of.get(account), "expense"),
+            kind=kind,
             account=account,
             back=safe_back(back, ""),
             back_url=safe_back(back),

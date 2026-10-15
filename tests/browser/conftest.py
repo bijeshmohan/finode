@@ -82,7 +82,9 @@ def page(browser: "Browser", live_server: str) -> Generator["Page", None, None]:
     page = context.new_page()
     page.set_default_timeout(8000)
     errors: list[str] = []
-    page.on("pageerror", lambda error: errors.append(str(error)))
+    # WebKit reports a background request that was cancelled by a navigation (or by the page closing) as an error
+    # "... due to access control checks"; it has no effect for a person using the app.
+    page.on("pageerror", lambda error: errors.append(str(error)) if "due to access control checks" not in str(error) else None)
     yield page
     context.close()
     assert not errors, f"JavaScript errors in the page: {errors}"

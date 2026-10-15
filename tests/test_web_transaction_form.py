@@ -451,14 +451,14 @@ def _kind(page: str) -> str:
 
 
 def _pressed(page: str) -> list[str]:
-    return [label for label in ("Income", "Transfer", "Expense") if f'aria-pressed="true">{label}<' in page]
+    return [label for label in ("Expense", "Income", "Transfer") if f'aria-pressed="true">{label}<' in page]
 
 
 def test_a_new_entry_starts_as_an_expense_with_three_buttons_in_order(client: TestClient, account: dict, expense_account: dict):
     page = client.get("/transactions/new").text
     assert _kind(page) == "expense" and _pressed(page) == ["Expense"]
-    order = [page.index(f">{label}</button>") for label in ("Income", "Transfer", "Expense")]
-    assert order == sorted(order), "Income, Transfer, Expense"
+    order = [page.index(f">{label}</button>") for label in ("Expense", "Income", "Transfer")]
+    assert order == sorted(order), "Expense, Income, Transfer"
     assert ">Other</button>" not in page, "no button for it: selecting nothing offers every account"
     assert "data-side-hint" in page
 

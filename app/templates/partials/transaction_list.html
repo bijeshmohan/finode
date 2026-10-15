@@ -8,7 +8,7 @@
       {% for row in items %}
       {% set t = row.transaction %}
       <li>
-        <a class="tx" href="/transactions/{{ t.tid }}/edit">
+        <a class="tx" href="/transactions/{{ t.tid }}/edit" hx-get="/transactions/{{ t.tid }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
           <span class="tx-main">
             <span class="tx-title">{{ t.payee or "No payee" }}</span>
             <span class="tx-sub">{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% if t.comment %} · {{ t.comment }}{% endif %}</span>
@@ -23,3 +23,6 @@
   </section>
   {% endfor %}
 </div>
+<dialog id="txn-sheet" class="sheet sheet-bottom" aria-label="Transaction details">
+  <div id="txn-sheet-body" class="sheet-body"></div>
+</dialog>

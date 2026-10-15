@@ -9,6 +9,10 @@ from ..models.profile import Profile
 from ..schemas.profile import ProfileUpdate
 
 
+# New people start with the rarely used features hidden (tests switch this on so they see everything).
+NEW_PROFILE_ADVANCED = False
+
+
 class ProfileRepository:
     def __init__(self, db: Session, uid: UUID):
         self.db = db
@@ -17,13 +21,18 @@ class ProfileRepository:
     def read(self) -> Profile | None:
         return self.db.exec(select(Profile).where(Profile.user == self.uid)).first()
 
+    def advanced(self) -> bool:
+        """Whether the rarely used features are shown; a person with no profile row yet gets the default."""
+        profile = self.read()
+        return profile.advanced if profile is not None else NEW_PROFILE_ADVANCED
+
     def get_or_create(self) -> Profile:
         """The user's profile, created empty on first access (race-safe via the primary key)."""
         profile = self.read()
         if profile:
             return profile
         try:
-            profile = Profile(user=self.uid, default_commodity_id=self._default_currency_id())
+            profile = Profile(user=self.uid, default_commodity_id=self._default_currency_id(), advanced=NEW_PROFILE_ADVANCED)
             self.db.add(profile)
             self.db.commit()
         except IntegrityError:

@@ -131,7 +131,7 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 
 
 @router.get("")
-def accounts_page(request: Request, accounts: Accounts):
+def accounts_page(request: Request, accounts: Accounts, profiles: Profiles):
     roots = build_tree(accounts.list())
     unused = annotate_for_page(roots, accounts.used_account_ids(), local_today())
     nodes = {n.account.aid: n for root in roots for n in root.walk()}
@@ -145,7 +145,7 @@ def accounts_page(request: Request, accounts: Accounts):
         "accounts.html",
         {
             "active": "accounts",
-            "pinned": pinned,
+            "pinned": pinned if profiles.advanced() else [],
             "recent": recent,
             "roots": roots,
             "currency": accounts.default_currency().code,
@@ -324,6 +324,7 @@ def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Prof
         "account.html",
         {
             "active": "accounts",
+            "advanced": profiles.advanced(),
             "can_move_up": node.kind == "user" and place > 0,
             "can_move_down": node.kind == "user" and place < len(siblings) - 1,
             "ordered_by_hand": any(s.account.position is not None for s in siblings),

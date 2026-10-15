@@ -1,11 +1,4 @@
 {#- The total, then rows on each side, until both add up (see recomputeTxn in app.js). Shared by the transaction and recurring forms. -#}
-  <div class="segmented kinds" role="group" aria-label="What kind of entry (tap the selected one again to offer every account)">
-    <input type="hidden" name="kind" value="{{ kind }}" data-kind-input>
-    {% for value, label in (("income", "Income"), ("transfer", "Transfer"), ("expense", "Expense")) %}
-    <button type="button" class="secondary" data-kind="{{ value }}" aria-pressed="{{ 'true' if kind == value else 'false' }}">{{ label }}</button>
-    {% endfor %}
-  </div>
-
   <div class="total-field">
     <label class="amount-field">Amount
       <input type="text" name="total" id="total" inputmode="decimal" placeholder="0.00" required autocomplete="off"
@@ -20,6 +13,15 @@
     {% else %}
     <span class="currency-code muted">{{ currency }}</span>
     {% endif %}
+  </div>
+
+  {% if with_payee %}{% include "partials/txn_payee.html" %}{% endif %}
+
+  <div class="segmented kinds" role="group" aria-label="What kind of entry (tap the selected one again to offer every account)">
+    <input type="hidden" name="kind" value="{{ kind }}" data-kind-input>
+    {% for value, label in (("expense", "Expense"), ("income", "Income"), ("transfer", "Transfer")) %}
+    <button type="button" class="secondary" data-kind="{{ value }}" aria-pressed="{{ 'true' if kind == value else 'false' }}">{{ label }}</button>
+    {% endfor %}
   </div>
 
   {% for side, title, hint, rows in (("credit", "From", "where the money comes from", from_rows), ("debit", "To", "where the money goes", to_rows)) %}

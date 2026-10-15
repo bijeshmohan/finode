@@ -8,8 +8,20 @@
 </div>
 <p id="page-error" class="error" role="alert">{{ error or "" }}</p>
 
-<details class="card filters" {{ "open" if active_filters or error }}>
-  <summary>{{ icon("filter") }}Filters{% if active_filters %}<span class="count">{{ active_filters }}</span>{% endif %}</summary>
+<form class="tx-search" method="get" action="/transactions" role="search">
+  <label class="search-pill">
+    <span class="sr-only">Search transactions</span>{{ icon("search") }}
+    <input type="search" name="q" value="{{ q }}" placeholder="Search" autocomplete="off" enterkeyhint="search">
+  </label>
+  {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+  {% for key in ("account", "date_from", "date_to") %}{% if filters[key] %}<input type="hidden" name="{{ key }}" value="{{ filters[key] }}">{% endif %}{% endfor %}
+</form>
+<div class="chips tx-kinds" role="group" aria-label="Show">
+  {% for c in chips %}<a class="chip" href="{{ c.href }}" aria-pressed="{{ 'true' if kind == c.value else 'false' }}">{{ c.label }}</a>{% endfor %}
+</div>
+
+<details class="filters" {{ "open" if active_filters or error }}>
+  <summary>{{ icon("filter") }}More filters{% if active_filters %}<span class="count">{{ active_filters }}</span>{% endif %}</summary>
   <form method="get" action="/transactions" class="grid-form">
     <label>Account
       <select name="account">
@@ -19,6 +31,7 @@
         {% endfor %}{% endfor %}
       </select>
     </label>
+    {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}{% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
     <label>From
       <input type="date" name="date_from" value="{{ filters.date_from }}">
     </label>
@@ -36,8 +49,8 @@
   {% include "partials/transaction_list.html" %}
 {% else %}
 <div class="card empty-state">
-  <p>{{ "No transactions match these filters." if active_filters else "No transactions yet." }}</p>
-  {% if not active_filters %}<a class="button" href="/transactions/new">Record a transaction</a>{% endif %}
+  <p>{{ "Nothing matches." if searching else "No transactions yet." }}</p>
+  {% if not searching %}<a class="button" href="/transactions/new">Record a transaction</a>{% else %}<a class="button secondary" href="/transactions">Show everything</a>{% endif %}
 </div>
 {% endif %}
 

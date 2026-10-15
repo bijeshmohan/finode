@@ -336,6 +336,48 @@ function applyKind(form, kind) {
   recomputeTxn(form);
 }
 
+// The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
+document.body.addEventListener("htmx:afterSwap", (event) => {
+  if (!event.target || event.target.id !== "txn-sheet-body") return;
+  const dialog = document.getElementById("txn-sheet");
+  if (dialog && !dialog.open) dialog.showModal();
+});
+document.body.addEventListener("click", (event) => {
+  const dialog = document.getElementById("txn-sheet");
+  if (dialog && event.target === dialog) dialog.close();
+});
+
+// A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
+function applySuggestion(form, chip, focus = true) {
+  const payee = form.querySelector("#payee");
+  if (payee && focus) payee.value = chip.dataset.payee; // never rewrite what is being typed
+  applyKind(form, chip.dataset.suggestKind);
+  [["credit", chip.dataset.from], ["debit", chip.dataset.to]].forEach(([side, id]) => {
+    const select = form.querySelector(`[data-rows="${side}"] select[name="account"]`);
+    if (!select) return;
+    select.value = id;
+    select.dataset.previous = select.value;
+  });
+  form.querySelectorAll("[data-suggest]").forEach((c) => c.setAttribute("aria-pressed", c === chip ? "true" : "false"));
+  recomputeTxn(form);
+  if (!focus) return;
+  const total = form.querySelector("#total");
+  (total && !total.value.trim() ? total : form.querySelector('button[type="submit"]')).focus();
+}
+
+// Typing a payee you know in full fills the accounts too, once, while nothing is chosen yet; focus stays where it is.
+document.body.addEventListener("htmx:afterSwap", (event) => {
+  if (!event.target || event.target.id !== "payee-chips") return;
+  const form = event.target.closest("form[data-txn-form]");
+  const exact = event.target.querySelector("[data-suggest][data-exact]");
+  if (!form || !exact) return;
+  const nothingChosen = ["credit", "debit"].every((side) => {
+    const select = form.querySelector(`[data-rows="${side}"] select[name="account"]`);
+    return select && !select.value;
+  });
+  if (nothingChosen) applySuggestion(form, exact, false);
+});
+
 function rowAccount(row) {
   return row.querySelector('select[name="account"]');
 }
@@ -548,6 +590,11 @@ document.body.addEventListener("click", (event) => {
     applyKind(form, form.dataset.txnKind === "transfer" ? "transfer" : "other");
     return;
   }
+  const chip = event.target.closest("[data-suggest]");
+  if (chip) {
+    applySuggestion(form, chip);
+    return;
+  }
   const kindButton = event.target.closest("[data-kind]");
   if (kindButton) {
     // Tapping the selected kind again selects nothing: every account is offered ("other").
@@ -683,4 +730,49 @@ document.body.addEventListener("change", (event) => {
     });
     nothing.hidden = any;
   });
+})();
+
+// ---- Offline, failed requests and loading ----
+// One banner says what is wrong (the entry on the page is never cleared: a failed save leaves the form as it was).
+(() => {
+  const banner = document.getElementById("net-banner");
+  if (!banner) return;
+  let timer = null;
+  function show(text, kind) {
+    banner.textContent = text;
+    banner.dataset.kind = kind;
+    banner.hidden = false;
+    clearTimeout(timer);
+    if (kind !== "offline") timer = setTimeout(hide, 10000);
+  }
+  function hide() {
+    banner.hidden = true;
+  }
+  function sync() {
+    if (navigator.onLine === false) show("You\u2019re offline. You can look around, but nothing can be saved until you\u2019re back.", "offline");
+    else if (banner.dataset.kind === "offline") hide();
+  }
+  window.addEventListener("online", sync);
+  window.addEventListener("offline", sync);
+  sync();
+
+  document.body.addEventListener("htmx:sendError", () => {
+    if (navigator.onLine === false) return sync();
+    show("Couldn\u2019t save just now. Your entry is still here. Check your connection and try again.", "error");
+  });
+  document.body.addEventListener("htmx:timeout", () => show("That took too long. Your entry is still here. Try again.", "error"));
+  document.body.addEventListener("htmx:responseError", (event) => {
+    if (event.detail.xhr.status >= 500) show("Something went wrong on our side. Your entry is still here. Try again in a moment.", "error");
+  });
+  document.body.addEventListener("htmx:afterRequest", (event) => {
+    if (event.detail.successful && banner.dataset.kind === "error") hide();
+  });
+
+  // A thin bar at the top while a request or a page is loading.
+  let pending = 0;
+  const bar = (on) => document.body.classList.toggle("loading", on);
+  document.body.addEventListener("htmx:beforeRequest", () => bar(++pending > 0));
+  document.body.addEventListener("htmx:afterRequest", () => bar((pending = Math.max(0, pending - 1)) > 0));
+  window.addEventListener("beforeunload", () => bar(true));
+  window.addEventListener("pageshow", () => bar((pending = 0) > 0));
 })();

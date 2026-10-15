@@ -2,12 +2,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import or_
+from sqlalchemy import and_, not_, or_
 from sqlmodel import Session, func, select
 
 from .commodity import CommodityRepository
 from ..models.account import Account
-from ..models.transaction import Transaction, Posting
+from ..models.transaction import Posting, PostingSide, Transaction
 from ..models.transaction_history import TransactionHistory
 from ..schemas.transaction import TransactionCreate, TransactionUpdate
 
@@ -102,6 +102,13 @@ class TransactionRepository:
         transaction = self.db.exec(statement).first()
         return transaction
 
+    def read_many(self, tids: list[UUID]) -> dict[UUID, Transaction]:
+        """Several transactions in one query."""
+        if not tids:
+            return {}
+        rows = self.db.exec(select(Transaction).where(Transaction.tid.in_(list(tids)), Transaction.user == self.uid)).all()
+        return {t.tid: t for t in rows}
+
     def list(
         self,
         account_ids: list[UUID] | None = None,
@@ -109,8 +116,36 @@ class TransactionRepository:
         date_to: date | None = None,
         limit: int | None = None,
         offset: int = 0,
+        text: str | None = None,
+        kind: str | None = None,
+        kind_accounts: tuple[list[UUID], list[UUID]] | None = None,
     ) -> list[Transaction]:
+        """Transactions, newest first. `text` matches the payee, the note or the name of an account used; `kind`
+        (expense, income or transfer) is told by `kind_accounts`, the ids under Expenses and under Income."""
         statement = select(Transaction).where(Transaction.user == self.uid)
+        if text:
+            named = (
+                select(Posting.transaction)
+                .join(Account, Account.aid == Posting.account)
+                .where(Posting.user == self.uid, Account.name.icontains(text, autoescape=True))
+            )
+            statement = statement.where(or_(
+                Transaction.payee.icontains(text, autoescape=True),
+                Transaction.comment.icontains(text, autoescape=True),
+                Transaction.tid.in_(named),
+            ))
+        if kind and kind_accounts is not None:
+            expense_ids, income_ids = kind_accounts
+            spends = Transaction.tid.in_(select(Posting.transaction).where(
+                Posting.user == self.uid, Posting.side == PostingSide.DEBIT, Posting.account.in_(expense_ids)))
+            earns = Transaction.tid.in_(select(Posting.transaction).where(
+                Posting.user == self.uid, Posting.side == PostingSide.CREDIT, Posting.account.in_(income_ids)))
+            # The same order as the rows are told apart in the list: spending first, then income, else a transfer.
+            statement = statement.where({
+                "expense": spends,
+                "income": and_(earns, not_(spends)),
+                "transfer": and_(not_(spends), not_(earns)),
+            }[kind])
         if account_ids is not None:
             statement = statement.where(
                 Transaction.tid.in_(
@@ -140,6 +175,15 @@ class TransactionRepository:
         )
         postings = self.db.exec(statement).all()
         return postings
+
+    def postings_for_transactions(self, tids: list[UUID]) -> dict[UUID, list[Posting]]:
+        """The postings of several transactions in one query (a list of transactions must not ask once per row)."""
+        grouped: dict[UUID, list[Posting]] = {}
+        if not tids:
+            return grouped
+        for posting in self.db.exec(select(Posting).where(Posting.transaction.in_(tids), Posting.user == self.uid)).all():
+            grouped.setdefault(posting.transaction, []).append(posting)
+        return grouped
 
     def all_postings(self) -> list[Posting]:
         return self.db.exec(select(Posting).where(Posting.user == self.uid)).all()

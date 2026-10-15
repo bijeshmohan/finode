@@ -1,13 +1,16 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
-{% block title %}Dashboard · finode{% endblock %}
+{% block title %}Home · finode{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
+<h1 class="sr-only">Home</h1>
 
-{% if steps %}
-<section class="card onboarding">
-  <h2>Get started</h2>
-  <p class="muted">Three steps to see where your money goes.</p>
+{% if not has_recorded %}
+<section class="home-empty">
+  <p class="glance-label">{{ month_name }}</p>
+  <p class="home-headline">Nothing recorded yet.</p>
+  <p class="muted">Add your first transaction and this page starts to fill in.</p>
+  {% if steps %}
+  <p class="section-label">Get started · {{ steps_done }} of {{ steps_total }}</p>
   <ol class="steps">
     {% for step in steps %}
     <li class="{{ 'done' if step.done }}">
@@ -19,42 +22,29 @@
     </li>
     {% endfor %}
   </ol>
-  <p class="muted">Amounts are in <strong>{{ currency }}</strong>. Using another currency? Change it in <a href="/settings#currency">Settings</a> before you add accounts.</p>
-  <p class="muted">Already keep a ledger file? <a href="/profile/data">Import it</a> instead. Keep a backup safe from time to time: <a href="/profile/data#backup">Profile › Your data</a>.</p>
+  <p class="muted small-print">Amounts are in <strong>{{ currency }}</strong>. Using another currency? Change it in <a href="/settings#currency">Settings</a> before you add accounts. Already keep a ledger file? <a href="/profile/data">Import it</a>. Keep a backup safe from time to time: <a href="/profile/data#backup">Profile › Your data</a>.</p>
+  {% endif %}
+</section>
+{% elif glance.has_budget %}
+<section class="glance">
+  <p class="glance-label">{{ "Over budget in" if glance.left < 0 else "Left to spend in" }} {{ month_name }}</p>
+  <p class="glance-figure {{ 'over' if glance.left < 0 }}">{{ glance.left|money }}<small>{{ currency }}</small></p>
+  <div class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent"><i style="width: {{ glance.percent }}%"></i></div>
+  <p class="glance-note">Spent {{ glance.spent|money }} of {{ glance.of|money }} · <a href="/summary">Details</a></p>
+</section>
+{% else %}
+<section class="glance">
+  <p class="glance-label">Spent in {{ month_name }}</p>
+  <p class="glance-figure">{{ summary.expenses|money }}<small>{{ currency }}</small></p>
+  <p class="glance-note">{% if summary.income %}Income {{ summary.income|money }} · {% endif %}<a href="/budget">Set up your budget</a> to see what is left to spend · <a href="/summary">Details</a></p>
 </section>
 {% endif %}
 
-<div class="overview">
-<section class="card networth">
-  <span class="label">Net worth</span>
-  <span class="value">{{ summary.net_worth|money }} <small>{{ summary.currency }}</small></span>
-  <dl class="split">
-    <div><dt>Assets</dt><dd>{{ summary.assets|money }}</dd></div>
-    <div><dt>Liabilities</dt><dd>{{ summary.liabilities|money }}</dd></div>
-  </dl>
-  {% if summary.unpriced %}<p class="muted">Some holdings have no price yet and are left out. <a href="/commodities#rates">Add prices</a></p>{% endif %}
-</section>
-
-<section class="card month">
-  <h2><a href="/summary">{{ summary.period_start.strftime("%B %Y") }} <span class="muted">· details ›</span></a></h2>
-  <dl class="split three">
-    <div><dt>Income</dt><dd class="pos">{{ summary.income|money }}</dd></div>
-    <div><dt>Spent</dt><dd>{{ summary.expenses|money }}</dd></div>
-    <div><dt>Net</dt><dd class="{{ 'pos' if summary.net_income >= 0 else 'neg' }}">{{ summary.net_income|money }}</dd></div>
-  </dl>
-</section>
-</div>
-
+{% if has_recorded %}
 <div class="section-head">
-  <h2>Recent transactions</h2>
-  {% if recent %}<a href="/transactions">View all</a>{% endif %}
+  <h2>Recent</h2>
+  <a href="/transactions">View all</a>
 </div>
-{% if recent %}
-  {% with rows=recent %}{% include "partials/transaction_list.html" %}{% endwith %}
-{% else %}
-<div class="card empty-state">
-  <p>Nothing recorded yet.</p>
-  <a class="button" href="/transactions/new">Record a transaction</a>
-</div>
+{% with rows=recent %}{% include "partials/transaction_list.html" %}{% endwith %}
 {% endif %}
 {% endblock %}

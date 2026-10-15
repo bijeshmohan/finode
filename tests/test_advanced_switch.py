@@ -1,0 +1,92 @@
+"""The Advanced switch: off hides the rarely used features (never the data), on shows them again."""
+
+import pytest
+
+
+@pytest.fixture
+def books(client, root_accounts):
+    def make(name, root, **extra):
+        response = client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra})
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    bank, food = make("Bank", "Assets", balance="1000"), make("Food", "Expenses")
+    client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "monthly", "amount": "300"})
+    return {"bank": bank, "food": food}
+
+
+def switch(client, on):
+    response = client.post("/settings/advanced", data={"advanced": "1" if on else "0"})
+    assert response.status_code == 200, response.text
+    return response
+
+
+def test_new_people_start_with_it_off(session):
+    from uuid import uuid4
+
+    from app.repositories import profile as repository
+
+    repository.NEW_PROFILE_ADVANCED = False  # what production does; the test fixture turns it on for the others
+    try:
+        assert repository.ProfileRepository(session, uuid4()).get_or_create().advanced is False
+    finally:
+        repository.NEW_PROFILE_ADVANCED = True
+
+
+def test_the_switch_saves_and_shows_in_settings(client):
+    assert client.get("/api/profile/").json()["advanced"] is True
+    assert "advanced-off" in switch(client, False).headers["set-cookie"]
+    assert client.get("/api/profile/").json()["advanced"] is False
+    assert 'id="advanced"' in (page := client.get("/settings").text) and ">Off<" in page
+    switch(client, True)
+    assert ">On<" in client.get("/settings").text
+
+
+def test_off_hides_the_lock_depth_and_assets_but_explains_them(client):
+    switch(client, False)
+    page = client.get("/settings/advanced").text
+    assert 'aria-checked="false"' in page and 'id="lock"' not in page and 'id="depth"' not in page and 'href="/commodities"' not in page
+    assert "Period lock" in page, "listed, dimmed, so people know it exists"
+    switch(client, True)
+    page = client.get("/settings/advanced").text
+    assert 'aria-checked="true"' in page and 'id="lock"' in page and 'id="depth"' in page and 'href="/commodities"' in page
+
+
+def test_off_hides_targets_on_the_budget_and_keeps_the_money(client, books):
+    on = client.get("/budget").text
+    assert "Monthly 300.00" in on and "Assign what is needed" in on
+    switch(client, False)
+    off = client.get("/budget").text
+    assert "Monthly 300.00" not in off and "Assign what is needed" not in off and "Set a target" not in off
+    assert 'aria-label="Assigned to Food"' in off, "assigning stays"
+    assert client.get("/api/budget/").json()["underfunded"] == "300.00", "the data is untouched"
+
+
+def test_off_hides_pin_order_and_close_on_an_account(client, books):
+    aid = books["bank"]["aid"]
+    on = client.get(f"/accounts/{aid}").text
+    assert "/pin" in on and "Close account" in on
+    switch(client, False)
+    off = client.get(f"/accounts/{aid}").text
+    assert "/pin" not in off and "Close account" not in off and "listed alphabetically" not in off
+    assert "Edit" in off and "New transaction" in off
+
+
+def test_a_closed_account_can_still_be_reopened_with_the_switch_off(client, books):
+    aid = books["food"]["aid"]
+    assert client.post(f"/api/accounts/{aid}/close").status_code == 200
+    switch(client, False)
+    assert "Reopen account" in client.get(f"/accounts/{aid}").text
+
+
+def test_pinned_accounts_are_not_listed_while_off(client, books):
+    client.post(f"/api/accounts/{books['bank']['aid']}/pin")
+    assert 'data-quick' in client.get("/accounts").text and ">Pinned<" in client.get("/accounts").text
+    switch(client, False)
+    assert ">Pinned<" not in client.get("/accounts").text
+
+
+def test_the_switch_is_in_the_backup(client):
+    switch(client, False)
+    backup = client.get("/api/backup").json()
+    assert backup["profile"]["advanced"] is False

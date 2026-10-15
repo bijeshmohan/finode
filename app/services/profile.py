@@ -23,6 +23,7 @@ class ProfileService:
             last_name=profile.last_name,
             default_currency=self.cr.default_currency().code,
             locked_through=profile.locked_through,
+            advanced=profile.advanced,
             created=profile.created,
             updated=profile.updated,
             **{field: getattr(profile, field) for field in ROOT_DEPTH_FIELDS.values()},
@@ -30,6 +31,10 @@ class ProfileService:
 
     def read(self) -> ProfileRead:
         return self._to_read(self.pr.get_or_create())
+
+    def advanced(self) -> bool:
+        """Whether the rarely used features are shown (one cheap query; a person with no profile row yet gets the default)."""
+        return self.pr.advanced()
 
     def depth_limits(self) -> dict[str, int]:
         """Effective depth limit per top-level account (does not create the profile)."""
