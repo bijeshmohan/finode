@@ -58,3 +58,9 @@ def test_dark_theme_defines_the_same_tokens_in_both_dark_blocks():
 def test_the_logo_follows_the_ink_palette_in_light_and_dark(client: TestClient):
     svg = client.get("/static/favicon.svg").text
     assert "#2563eb" not in svg and "prefers-color-scheme:dark" in svg
+
+
+def test_every_page_has_the_banner_and_the_loading_bar_but_the_banner_starts_hidden(client: TestClient):
+    page = client.get("/").text
+    assert '<div id="net-banner" class="net-banner" role="status" aria-live="polite" hidden></div>' in page
+    assert 'class="loadbar"' in page

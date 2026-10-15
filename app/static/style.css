@@ -1151,3 +1151,20 @@ ul.list.nested { border-top-color: var(--surface-2); }
 .settings .tile details.setting[open] > summary { border-bottom: 0; }
 .settings.dimmed .tile .setting-plain { opacity: .45; }
 .settings-label { margin: 1.25rem 0 .4rem .25rem; }
+
+/* ---------- Loading, offline and failed saves ---------- */
+.net-banner { margin: .5rem 1rem 0; padding: .7rem .9rem; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--muted); font-size: .875rem; line-height: 1.4; }
+.net-banner[data-kind="error"] { background: var(--danger-soft); color: var(--danger); }
+.net-banner[hidden] { display: none; }
+@media (min-width: 60rem) { .net-banner { margin: .75rem 2rem 0; } }
+.loadbar { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 60; overflow: hidden; opacity: 0; transition: opacity .15s .2s; pointer-events: none; }
+.loadbar::before { content: ""; position: absolute; inset: 0; width: 40%; background: var(--text); animation: loadbar 1s ease-in-out infinite; }
+body.loading .loadbar { opacity: 1; }
+@keyframes loadbar { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .loadbar::before { animation: none; width: 100%; opacity: .4; } }
+/* A form that is being sent cannot be sent twice. */
+form.htmx-request button[type="submit"], form.htmx-request button:not([type]) { opacity: .55; pointer-events: none; }
+
+/* Empty states: a short sentence and one clear next step, no box */
+.empty-state.card { background: none; border: 0; padding: 2.5rem 1rem; }
+.empty-state p { font-size: 1.0625rem; color: var(--muted); }
