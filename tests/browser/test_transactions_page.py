@@ -21,7 +21,8 @@ def test_tapping_a_row_opens_the_details_sheet(page: Page, books, api: Api):
     sheet = page.locator("#txn-sheet")
     expect(sheet).to_be_visible()
     expect(sheet).to_contain_text("Swiggy")
-    expect(sheet).to_contain_text("−597.00")
+    expect(sheet).to_contain_text("597.00")
+    expect(sheet).not_to_contain_text("−597.00")
     expect(sheet).to_contain_text("Paid from")
     assert page.url.endswith("/transactions"), "the sheet is not a new page"
 

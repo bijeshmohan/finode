@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 
 from ...dependencies import Accounts, Budget, Recurring, Reports, Transactions
 from ...services.account import AccountService
+from ...clock import month_progress
 from ...templating import templates
 from .transactions import AccountIndex, to_row
 
@@ -72,6 +73,7 @@ def dashboard(
         "spent": month.activity,
         "of": to_spend,
         "percent": int(min(max(month.activity / to_spend, Decimal(0)), Decimal(1)) * 100) if to_spend > 0 else 0,
+        "pace": month_progress(),  # how far through the month today is: the tick on the bar
     }
     return templates.TemplateResponse(
         request,

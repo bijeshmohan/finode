@@ -65,7 +65,7 @@ def test_account_page_shows_balance_activity_and_actions(
 
     text = client.get(f"/accounts/{bank['aid']}").text
     assert "70.00" in text
-    assert "lunch" in text and "−30.00" in text
+    assert "lunch" in text and "30.00" in text and "−30.00" not in text
     assert f'href="/transactions/new?account={bank["aid"]}&back=/accounts/{bank["aid"]}"' in text
     assert f'href="/accounts/{bank["aid"]}/edit"' in text
     # it has postings, so it cannot gain sub-accounts
