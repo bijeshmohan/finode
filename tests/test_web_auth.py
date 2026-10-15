@@ -99,7 +99,7 @@ def test_protected_page_with_valid_cookie(raw_client: TestClient, valid_jwt):
     raw_client.cookies.set(ACCESS_COOKIE, "good-token", path="/")
     response = raw_client.get("/")
     assert response.status_code == 200
-    assert "Add a transaction" in response.text
+    assert "Nothing recorded yet" in response.text
 
 
 def test_expired_access_token_is_refreshed(
