@@ -129,3 +129,19 @@ def test_moving_an_account_changes_the_order_on_the_page(page: Page, api, books)
     page.locator('details[data-key="%s"] > summary' % banks["aid"]).click()
     names = page.locator('details[data-key="%s"] li[data-path] .account-name' % banks["aid"]).all_inner_texts()
     assert [n.split()[0] for n in names] == ["SBI", "HDFC"]
+
+
+def test_names_and_amounts_line_up_in_every_row(page: Page, api, books):
+    nested(api, books)
+    page.goto("/accounts")
+    page.locator("details.account-group > summary", has_text="Expenses").click()
+    rights = page.eval_on_selector_all(
+        ".account-row .account-balance, .group-total",
+        "els => els.filter(e => e.checkVisibility()).map(e => Math.round(e.getBoundingClientRect().right))",
+    )
+    lefts = page.eval_on_selector_all(
+        ".account-row[style*='--depth: 0'] .account-name",
+        "els => els.filter(e => e.checkVisibility()).map(e => Math.round(e.getBoundingClientRect().left))",
+    )
+    assert len(rights) >= 8 and len(set(rights)) == 1, f"amounts end at the same edge: {rights}"
+    assert len(lefts) >= 4 and len(set(lefts)) == 1, f"names start at the same edge, groups and plain accounts alike: {lefts}"

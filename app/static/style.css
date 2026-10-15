@@ -1182,3 +1182,13 @@ details.menu > summary::-webkit-details-marker { display: none; }
 .menu-note { margin: 0; padding: .6rem 0; font-size: .8125rem; line-height: 1.45; color: var(--muted); border-top: 1px solid var(--surface-2); }
 
 .budget-fine { font-size: .8125rem; }
+
+/* Every row (and every type heading) has the same slots, so names line up and so do amounts: [arrow] name ... amount [link]. */
+.account-row .caret, .account-row .caret.spacer { flex: none; width: 1.25rem; }
+.account-row .open-link, .account-row .trail, .group-head .open-link { flex: none; width: 1.5rem; display: grid; place-items: center; }
+.account-row .trail { height: 1px; }
+details.account-group > summary.group-head { padding-right: 1rem; }
+.group-head .caret { flex: none; width: 1.25rem; }
+.group-head h2 { gap: 0; }
+.account-row { gap: .5rem; }
+details.account-group > summary.group-head { padding-right: calc(1rem + 1px); }

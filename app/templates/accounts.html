@@ -23,8 +23,10 @@
   </details>
   {% else %}
   <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}" style="--depth: {{ node.depth - 1 }}">
+    <span class="caret spacer" aria-hidden="true"></span>
     <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}</span>
     <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
+    <span class="trail" aria-hidden="true"></span>
   </a>
   {% endif %}
 </li>
@@ -38,6 +40,7 @@
       <a class="account-row" href="/accounts/{{ node.account.aid }}" style="--depth: 0">
         <span class="account-name">{{ node.account.name }}<small class="muted path">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "" }}</small></span>
         <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
+        <span class="trail" aria-hidden="true"></span>
       </a>
     </li>
     {% endfor %}
