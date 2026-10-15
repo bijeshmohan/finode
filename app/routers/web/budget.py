@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Form, HTTPException, Request
 
 from ...dependencies import Budget
+from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, month_start
 from ...schemas.budget import TARGET_KINDS
 from ...templating import templates
@@ -41,6 +42,7 @@ def _context(budget: Budget, month: date) -> dict:
         "next": shift(data.month, 1).strftime("%Y-%m"),
         "is_current": data.month == month_start(None),
         "active": "budget",
+        "advanced": ProfileRepository(budget.br.db, budget.br.uid).advanced(),
     }
 
 

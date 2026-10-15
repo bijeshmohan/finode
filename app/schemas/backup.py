@@ -23,6 +23,7 @@ class BackupProfile(BaseModel):
     max_depth_income: int = 0
     max_depth_expenses: int = 0
     locked_through: Date | None = None
+    advanced: bool = False
 
 
 class BackupCommodity(BaseModel):

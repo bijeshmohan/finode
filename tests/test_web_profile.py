@@ -67,9 +67,12 @@ def test_header_falls_back_to_email_initial(client: TestClient):
 def test_sections_are_collapsible_and_summarise_values(client: TestClient):
     assert '<details id="name" class="setting">' in client.get("/profile").text
     text = client.get("/settings").text
-    for section in ("currency", "depth", "appearance"):
+    for section in ("currency", "appearance"):
         assert f'<details id="{section}" class="setting">' in text
     assert "Default currency</span><span class=\"setting-value\">INR" in text
+    advanced = client.get("/settings/advanced").text
+    for section in ("lock", "depth"):
+        assert f'<details id="{section}" class="setting">' in advanced
 
 
 def test_theme_cookie_sets_data_theme(client: TestClient):
@@ -82,13 +85,15 @@ def test_theme_cookie_sets_data_theme(client: TestClient):
 
 def test_settings_page_holds_application_settings_not_profile(client: TestClient):
     settings = client.get("/settings").text
-    for title in ("Default currency", "Account depth", "Appearance", "Recurring transactions", "Assets &amp; prices"):
+    for title in ("Default currency", "Appearance", "Recurring transactions", "AI assistants", "Advanced"):
         assert title in settings, title
+    for title in ("Account depth", "Period lock"):
+        assert title not in settings, title
     assert "First name" not in settings and "MCP tokens" not in settings
     profile = client.get("/profile").text
     for title in ("Default currency", "Account depth", "Appearance"):
         assert title not in profile, title
-    assert "AI assistants" in profile and "Your data" in profile and "First name" in profile
+    assert "Your data" in profile and "First name" in profile
 
 
 def test_settings_is_reached_from_the_avatar_and_the_sidebar(client: TestClient):
@@ -105,6 +110,6 @@ def test_old_profile_setting_routes_are_gone(client: TestClient):
 
 def test_each_settings_entry_appears_once(client: TestClient):
     text = client.get("/settings").text
-    for ident in ("name", "currency", "depth", "appearance", "recurring", "assets"):
+    for ident in ("currency", "appearance", "recurring", "advanced", "assistants"):
         assert text.count(f'id="{ident}"') <= 1, ident
-    assert text.count("Recurring transactions</span>") == 1 and text.count("Assets &amp; prices</span>") == 1
+    assert text.count("Recurring transactions</span>") == 1

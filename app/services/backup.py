@@ -87,6 +87,7 @@ class BackupService:
                 max_depth_income=profile.max_depth_income,
                 max_depth_expenses=profile.max_depth_expenses,
                 locked_through=profile.locked_through,
+                advanced=profile.advanced,
             ),
             commodities=[
                 BackupCommodity(code=c.code, name=c.name, kind=c.kind, decimals=c.decimals, symbol=c.symbol)
@@ -296,6 +297,7 @@ class BackupService:
             fields = file.profile
             profile.first_name, profile.last_name = fields.first_name, fields.last_name
             profile.locked_through = fields.locked_through
+            profile.advanced = fields.advanced
             for key in ("assets", "liabilities", "equity", "income", "expenses"):
                 setattr(profile, f"max_depth_{key}", getattr(fields, f"max_depth_{key}"))
             existing = {c.code: c for c in self.cr.list() if c.user is not None}

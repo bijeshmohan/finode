@@ -1,7 +1,7 @@
 from datetime import date as Date
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint
+from sqlalchemy import CheckConstraint, false
 from sqlmodel import Field
 
 from .utils import TimestampMixin
@@ -32,3 +32,5 @@ class Profile(TimestampMixin, table=True):
     max_depth_expenses: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     # Period lock: nothing dated on or before this day can be added, changed or deleted (see services/lock.py).
     locked_through: Date | None = Field(default=None)
+    # Show the rarely used features (targets, lock, depth limits, pinning, closing...). Off hides them, never the data.
+    advanced: bool = Field(default=False, sa_column_kwargs={"server_default": false()})

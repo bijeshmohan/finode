@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Advanced · finode{% endblock %}
+{% block content %}
+<a class="back" href="/settings">{{ icon("back") }}Settings</a>
+<h1>Advanced</h1>
+
+<div class="switch-row form-narrow">
+  <div>
+    <p class="switch-title">Show advanced features</p>
+    <p class="muted">Everything below stays out of your way until you switch this on. Your data is never touched.</p>
+  </div>
+  <button type="button" class="switch" role="switch" aria-checked="{{ 'true' if profile.advanced else 'false' }}" aria-label="Show advanced features"
+          hx-post="/settings/advanced" hx-vals='{"advanced": "{{ 0 if profile.advanced else 1 }}"}'><span></span></button>
+</div>
+<p id="advanced-error" class="error" role="alert"></p>
+
+<div class="settings form-narrow {{ '' if profile.advanced else 'dimmed' }}">
+  <div class="setting setting-plain"><span class="setting-title">Budget targets</span><span class="setting-value">Monthly, weekly, yearly or by a date</span></div>
+  <div class="setting setting-plain"><span class="setting-title">Pinned and ordered accounts</span><span class="setting-value">Pin, order by hand, close accounts</span></div>
+
+  {% if profile.advanced %}
+  <details id="lock" class="setting">
+    <summary><span class="setting-title">Period lock</span><span class="setting-value">{{ profile.locked_through.strftime("up to %d %b %Y") if profile.locked_through else "off" }}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/settings/lock">
+      <p class="muted">Close the books up to a day, say the end of last month once you have checked it. Nothing dated on or before that day can be added, changed or deleted, the budget of those months is frozen, and recurring transactions leave out what falls in them. Remove the lock any time to make a correction.</p>
+      <label>Lock everything up to and including
+        <input type="date" name="locked_through" value="{{ profile.locked_through.isoformat() if profile.locked_through else '' }}" max="{{ yesterday }}">
+        <span class="hint">Leave it empty to remove the lock. Yesterday is the latest day you can lock.</span>
+      </label>
+      <p id="lock-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">Save lock</button></div>
+    </form>
+  </details>
+
+  <details id="depth" class="setting">
+    <summary><span class="setting-title">Account depth</span>
+      <span class="setting-value">{% for d in depths %}{{ d.root[:1] }} {{ d.value or "∞" }}{{ " · " if not loop.last }}{% endfor %}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/settings/depth">
+      <p class="muted">How many levels of sub-accounts each type may have. 1 is a flat list; 0 means no limit of your own.</p>
+      <div class="grid-form">
+        {% for d in depths %}
+        <label>{{ d.root }}
+          <input type="number" name="{{ d.field }}" min="0" max="{{ depth_cap }}" step="1" inputmode="numeric" value="{{ d.value }}">
+          <span class="hint">{% if d.deepest %}Deepest now: {{ d.deepest }}{% else %}No sub-accounts yet{% endif %}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <details class="more">
+        <summary>How limits work</summary>
+        <p class="muted">A limit can't be lower than your deepest existing account (the hint under each field). The application maximum is {{ depth_cap }}.</p>
+      </details>
+      <p id="depth-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">Save limits</button></div>
+    </form>
+  </details>
+
+
+  <a class="setting setting-link" id="assets" href="/commodities">
+    <span class="setting-title">Assets &amp; prices</span><span class="setting-value">Stocks, funds, coins</span>{{ icon("chevron-right") }}
+  </a>
+  {% else %}
+  <div class="setting setting-plain"><span class="setting-title">Period lock</span><span class="setting-value">Close the books up to a day</span></div>
+  <div class="setting setting-plain"><span class="setting-title">Account depth limits</span><span class="setting-value">How many levels of sub-accounts</span></div>
+  <div class="setting setting-plain"><span class="setting-title">Several currencies and assets</span><span class="setting-value">Prices, shares, coins</span></div>
+  {% endif %}
+</div>
+<p class="muted small-print form-narrow">Switched off, none of these show anywhere else in the app: no targets on the budget, no pin button, no lock. Turn it on whenever you need one.</p>
+{% endblock %}

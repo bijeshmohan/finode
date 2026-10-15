@@ -25,7 +25,7 @@
   </dl>
   {% endif %}
   {% endif %}
-  {% if at_limit %}<p class="muted">{{ root.account.name }} accounts can be {{ depth_limit }} level{{ "" if depth_limit == 1 else "s" }} deep, so this one can't have sub-accounts. <a href="/settings#depth">Change the limit</a></p>{% endif %}
+  {% if at_limit %}<p class="muted">{{ root.account.name }} accounts can be {{ depth_limit }} level{{ "" if depth_limit == 1 else "s" }} deep, so this one can't have sub-accounts. {% if advanced %}<a href="/settings/advanced#depth">Change the limit</a>{% endif %}</p>{% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
   <div class="actions">
     {% if node.postable and not account.closed_on %}
@@ -33,7 +33,7 @@
     {% endif %}
     {% if node.kind == "user" %}
     <a class="button secondary" href="/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
-    {% if not account.closed_on %}
+    {% if advanced and not account.closed_on %}
     <button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/pin" hx-vals='{"pinned": "{{ 0 if account.pinned else 1 }}"}'
       aria-pressed="{{ 'true' if account.pinned else 'false' }}">{{ icon("pin") }}{{ "Unpin" if account.pinned else "Pin" }}</button>
     {% endif %}
@@ -44,7 +44,7 @@
   </div>
 </header>
 
-{% if node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand) %}
+{% if advanced and node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand) %}
 <section class="card stack form-narrow order-card">
   <p class="muted">Accounts in {{ "this group" if node.account.parent_id else "this type" }} are listed {{ "in the order you chose" if ordered_by_hand else "alphabetically" }}{% if node.account.aid and root.account.name == "Expenses" %}; the budget lists categories the same way{% endif %}.</p>
   <div class="actions">
@@ -55,7 +55,7 @@
 </section>
 {% endif %}
 
-{% if node.kind == "user" %}
+{% if node.kind == "user" and (advanced or account.closed_on) %}
 <section class="card stack form-narrow close-card">
   <p id="page-error" class="error" role="alert"></p>
   {% if account.closed_on %}
