@@ -5,7 +5,7 @@
 
 {% block content %}
 <a class="back" href="{{ back_url }}">{{ icon("back") }}Back</a>
-<h1>{{ "Edit transaction" if editing else "New transaction" }}</h1>
+<h1 class="sr-only">{{ "Edit transaction" if editing else "New transaction" }}</h1>
 {% if locked_by %}
 <p class="notice" role="status">This entry is in a locked period: everything up to {{ locked_by.strftime("%d %b %Y") }} is closed, so it can't be changed or deleted. <a href="/settings#lock">Change the lock</a></p>
 {% endif %}
@@ -14,22 +14,20 @@
 {% endif %}
 
 {% set post_url = "/transactions/" ~ transaction.tid ~ "/edit" if editing else "/transactions/split" %}
-<form class="card stack txn-form" data-txn-form {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
+<form class="stack txn-form" data-txn-form {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
   <input type="hidden" name="back" value="{{ back }}">
 
+  {% set with_payee = true %}
   {% include "partials/txn_rows.html" %}
 
   <div class="grid-form">
     <label>Date
       <input type="date" name="date" value="{{ transaction.date if editing else today }}" required>
     </label>
-    <label>Payee
-      <input type="text" name="payee" maxlength="40" placeholder="e.g. DMart" value="{{ (transaction.payee or '') if editing else '' }}">
+    <label>Note
+      <input type="text" name="comment" maxlength="200" placeholder="Optional" value="{{ (transaction.comment or '') if editing else '' }}">
     </label>
   </div>
-  <label>Note
-    <input type="text" name="comment" maxlength="200" value="{{ (transaction.comment or '') if editing else '' }}">
-  </label>
 
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions form-actions">

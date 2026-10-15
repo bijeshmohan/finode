@@ -921,3 +921,90 @@ form.copy-last button { margin: 0; }
 .weeks li.current .range { font-weight: 700; }
 .weeks li.over .figures { color: var(--danger); }
 .weeks li .figures em { font-style: normal; color: var(--muted); }
+
+/* ---------- Add a transaction: the amount first, then who, then the accounts ---------- */
+.txn-form { max-width: 30rem; margin: 0 auto; gap: 1.25rem; }
+.total-field { justify-content: center; align-items: flex-end; gap: .5rem; padding-top: .5rem; }
+.total-field .amount-field { flex: 0 1 15rem; align-items: center; font-size: 0; }
+.total-field .amount-field input {
+  font-size: 3.5rem; font-weight: 600; letter-spacing: -.03em; text-align: center; line-height: 1.1;
+  min-height: 4.5rem; padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 0;
+}
+.total-field .amount-field input::placeholder { color: var(--border); opacity: 1; }
+.total-field .currency-code { padding-bottom: 1.2rem; font-weight: 500; font-size: .95rem; }
+
+.payee-field { display: flex; flex-direction: column; gap: .75rem; }
+.payee-label { font-size: 0; }
+.payee-label input {
+  font-size: 1.125rem; font-weight: 500; padding: .5rem 0; border: 0; border-bottom: 1px solid var(--border);
+  border-radius: 0; background: transparent; box-shadow: none;
+}
+.payee-label input:focus { border-bottom-color: var(--text); box-shadow: none; }
+.chips { display: flex; flex-wrap: wrap; gap: .5rem; min-height: 2.25rem; }
+button.chip {
+  min-height: 2.25rem; padding: 0 .875rem; border-radius: 999px; font-size: .875rem; font-weight: 500;
+  color: var(--text); background: var(--surface); border: 1px solid var(--border);
+}
+button.chip:hover { background: var(--surface-2); }
+button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+
+.segmented.kinds { gap: 4px; padding: 3px; background: var(--surface-2); border-radius: var(--radius-sm); }
+.segmented.kinds button {
+  min-height: 2.25rem; border: 0; border-radius: 9px; background: transparent; color: var(--muted);
+  font-size: .84rem; font-weight: 500; box-shadow: none;
+}
+.segmented.kinds button:hover { background: transparent; color: var(--text); }
+.segmented.kinds button[aria-pressed="true"] { color: var(--text); font-weight: 600; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 10%); }
+
+.txn-side-head h2 { font-size: .8125rem; font-weight: 500; color: var(--muted); margin: 0; }
+.txn-side-head .hint { font-weight: 400; color: var(--faint); }
+.txn-row { grid-template-columns: minmax(0, 1fr) 7rem var(--tap); gap: .25rem .5rem; }
+.txn-row select, .txn-row input {
+  border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background-color: transparent; box-shadow: none;
+  padding-left: 0; font-weight: 500;
+}
+.txn-row select { background-position: right 0 center; padding-right: 1.5rem; }
+.txn-row input.row-amount { text-align: right; padding-right: 0; }
+.txn-row:has(input.suggested) select, .txn-row:has(input.suggested) input { border-bottom-style: dashed; }
+.txn-row select:focus, .txn-row input:focus { border-bottom-color: var(--text); box-shadow: none; }
+@media (max-width: 40rem) {
+  .txn-row { grid-template-columns: minmax(0, 1fr) 7rem var(--tap); background: transparent; padding: 0; border-radius: 0; }
+  .txn-row select { grid-column: auto; }
+  .txn-row .row-worth { grid-column: 1 / 3; }
+}
+.form-actions { flex-direction: column; }
+.form-actions button { width: 100%; min-height: 3.375rem; font-size: 1rem; }
+
+/* ---------- Home: one number, a quick-add bar, plain rows ---------- */
+.glance { padding: .5rem 0 1.25rem; }
+.glance-label { margin: 0; font-size: .8125rem; color: var(--muted); }
+.glance-figure { margin: .25rem 0 0; font-size: 2.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
+.glance-figure small { margin-left: .4rem; font-size: .875rem; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+.glance-figure.over { color: var(--negative); }
+.glance-bar { margin-top: .9rem; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.glance-bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
+.glance-note { margin: .5rem 0 0; font-size: .8125rem; color: var(--muted); }
+.home-empty { padding: .5rem 0 1rem; }
+.home-headline { margin: .25rem 0 .5rem; font-size: 1.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
+.section-label { margin: 2rem 0 .25rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
+.small-print { font-size: .8125rem; line-height: 1.5; }
+
+.composer {
+  display: flex; align-items: center; gap: .5rem; height: 3.25rem; padding: 0 .5rem 0 1.25rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface); box-shadow: var(--shadow);
+}
+.composer input { flex: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.composer input:focus { border: 0; box-shadow: none; }
+.composer-go { flex: none; width: 2.375rem; height: 2.375rem; min-height: 0; padding: 0; border-radius: 50%; }
+@media (max-width: 59.99rem) {
+  .composer { position: fixed; left: 1rem; right: 1rem; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + .625rem); z-index: 21; }
+}
+@media (min-width: 60rem) { .composer { margin: .5rem 0 1rem; } }
+
+/* Transaction rows: no boxes, a hairline between them */
+.tx-day ul.card.list { padding: 0; background: transparent; border: 0; border-radius: 0; }
+.tx-day-head { margin-left: 0; font-size: .8125rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.tx { padding: .6rem 0; min-height: 56px; }
+.tx:hover { background: transparent; }
+.tx-title { font-weight: 500; }
+.tx-amount { font-weight: 500; }

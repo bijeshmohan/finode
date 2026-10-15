@@ -6,9 +6,10 @@ from fastapi.testclient import TestClient
 def test_dashboard_empty_state(client: TestClient):
     response = client.get("/")
     assert response.status_code == 200
-    assert "Net worth" in response.text
+    assert "Net worth" not in response.text, "Home is one number now; net worth is in the reports"
     assert "Nothing recorded yet" in response.text
-    assert date.today().strftime("%B %Y") in response.text
+    assert date.today().strftime("%B") in response.text
+    assert 'class="composer"' in response.text and 'action="/transactions/new"' in response.text
 
 
 def test_dashboard_shows_summary_and_recent_transactions(
@@ -40,10 +41,41 @@ def test_dashboard_shows_summary_and_recent_transactions(
         assert response.status_code == 201
 
     text = client.get("/").text
-    assert "3,379.50" in text  # net worth: 1000 + 2500 - 120.50
-    assert "2,500.00" in text  # income this month
-    assert "120.50" in text  # expenses this month
+    assert "Spent in" in text and "120.50" in text  # no budget yet: what was spent this month
+    assert "Income 2,500.00" in " ".join(text.split())
+    assert 'href="/budget"' in text and "Set up your budget" in text
     assert "Employer" in text and "Supermarket" in text
+    assert client.get("/api/reports/summary").json()["net_worth"] == "3379.50"  # 1000 + 2500 - 120.50
+
+
+def test_dashboard_shows_what_is_left_to_spend_once_there_is_a_budget(
+    client: TestClient, root_accounts: dict[str, str], expense_account: dict
+):
+    bank = client.post(
+        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
+    ).json()
+    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "400"})
+    client.post("/api/transactions/", json={"payee": "Shop", "postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "100"},
+        {"account": bank["aid"], "side": "credit", "amount": "100"}]})
+    text = " ".join(client.get("/").text.split())
+    assert "Left to spend in" in text and "300.00" in text
+    assert "Spent 100.00 of 400.00" in text
+    assert 'style="width: 25%"' in text
+
+
+def test_dashboard_says_over_budget_when_a_category_is_overspent(
+    client: TestClient, root_accounts: dict[str, str], expense_account: dict
+):
+    bank = client.post(
+        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
+    ).json()
+    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "50"})
+    client.post("/api/transactions/", json={"payee": "Shop", "postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "80"},
+        {"account": bank["aid"], "side": "credit", "amount": "80"}]})
+    text = " ".join(client.get("/").text.split())
+    assert "Over budget in" in text and "−30.00" in text and 'style="width: 100%"' in text
 
 
 def test_dashboard_limits_recent_transactions(

@@ -1,0 +1,11 @@
+{#- The payee field with the chips of people you pay. The chips come from /transactions/suggest as you type. -#}
+<div class="payee-field">
+  <label class="payee-label">Payee
+    <input type="text" id="payee" name="payee" maxlength="40" placeholder="Who or what?" autocomplete="off" autocapitalize="words"
+           value="{{ (transaction.payee or '') if editing else (new_payee or '') }}">
+  </label>
+  {% if not editing %}
+  <div class="chips" id="payee-chips" role="group" aria-label="People you pay" hx-get="/transactions/suggest"
+       hx-trigger="load, input changed delay:150ms from:#payee" hx-include="#payee" hx-swap="innerHTML"></div>
+  {% endif %}
+</div>
