@@ -54,6 +54,10 @@ UI conventions (keep pages working on phones first):
 
 `app/web_auth.py` signs users in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies. `web_login_required` verifies the cookie (refreshing it when expired) and stores the token in `request.state`, which `require_authenticated_user` accepts in addition to a bearer header, so repositories stay tenant-scoped. The JSON API never reads cookies. Sign-up is invite-only: `app/signup.py` checks the invite code (constant time) and creates pre-confirmed users through Supabase's admin API with the service key, which must stay server-side — never render it, log it or send it to the browser. `settings.signup_enabled` gates the routes (404 otherwise). In tests, `tests/conftest.py` overrides both dependencies; use a client without the `web_login_required` override (see `tests/test_web_auth.py`) to test real authentication.
 
+### Bento tiles
+
+Rows are grouped into soft rounded tiles (`--surface` with a `--tile-border` hairline, a hairline between rows inside, a gap between tiles) so groups are easy to tell apart while the page stays minimal: a tile per day in transaction lists (`.tx-day ul.card.list`), per account type and per "Pinned"/"Recently used" block on the accounts page, per group of categories on the budget (`.budget-tile`, opened in `budget_body.html` at each top-level group and at the first plain category after one) and per section in Settings (`.tile`). The tile rule is one block at the end of `style.css`; new lists should reuse it rather than draw their own borders.
+
 ### Dark mode
 
 Both dark blocks at the top of `style.css` (the automatic `prefers-color-scheme` one and the manual `data-theme="dark"` one) must define the same tokens (a test compares them). Use tokens only, never literal colours (the one exception is the white switch knob, which switches to `--on-accent` when on). Form fields use `--field-border` (stronger than the hairline `--border` in dark so empty fields are visible), the big amount placeholder uses `--faint`, and `favicon.svg` switches between ink and paper with `prefers-color-scheme`. `apple-touch-icon.png` is still the older blue mark.
