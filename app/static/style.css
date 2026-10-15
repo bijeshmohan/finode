@@ -8,6 +8,7 @@
   --muted: #7b7b74;
   --faint: #9a9a93;
   --border: #e4e3de;
+  --field-border: #e4e3de;
   --accent: #1b1b19;
   --accent-hover: #3a3a36;
   --accent-soft: #f1f0ec;
@@ -34,8 +35,9 @@
     --surface-2: #262624;
     --text: #f3f2ee;
     --muted: #8f8e86;
-    --faint: #7a7971;
+    --faint: #85847b;
     --border: #302f2c;
+    --field-border: #45443f;
     --accent: #f3f2ee;
     --accent-hover: #ffffff;
     --accent-soft: #262624;
@@ -55,8 +57,9 @@
   --surface-2: #262624;
   --text: #f3f2ee;
   --muted: #8f8e86;
-  --faint: #7a7971;
+  --faint: #85847b;
   --border: #302f2c;
+  --field-border: #45443f;
   --accent: #f3f2ee;
   --accent-hover: #ffffff;
   --accent-soft: #262624;
@@ -303,7 +306,7 @@ input, select, textarea {
   width: 100%;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: var(--radius-sm);
   padding: .55rem .7rem;
 }
@@ -930,7 +933,7 @@ form.copy-last button { margin: 0; }
   font-size: 3.5rem; font-weight: 600; letter-spacing: -.03em; text-align: center; line-height: 1.1;
   min-height: 4.5rem; padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 0;
 }
-.total-field .amount-field input::placeholder { color: var(--border); opacity: 1; }
+.total-field .amount-field input::placeholder { color: var(--faint); opacity: .55; }
 .total-field .currency-code { padding-bottom: 1.2rem; font-weight: 500; font-size: .95rem; }
 
 .payee-field { display: flex; flex-direction: column; gap: .75rem; }
@@ -1122,5 +1125,5 @@ button.switch { flex: none; width: 52px; height: 32px; min-height: 0; padding: 3
 button.switch:hover { background: var(--border); }
 button.switch span { width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 25%); transition: transform .15s; }
 button.switch[aria-checked="true"] { background: var(--text); }
-button.switch[aria-checked="true"] span { transform: translateX(20px); }
+button.switch[aria-checked="true"] span { transform: translateX(20px); background: var(--on-accent); }
 .setting > summary .icon:last-child, a.setting-link .icon:last-child { margin-left: auto; }

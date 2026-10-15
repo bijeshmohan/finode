@@ -42,3 +42,19 @@ def test_favicon_is_served(client: TestClient):
     response = client.get("/static/favicon.svg")
     assert response.status_code == 200
     assert response.text.startswith("<svg")
+
+
+def test_dark_theme_defines_the_same_tokens_in_both_dark_blocks():
+    """The automatic dark block and the manual `data-theme=dark` block must stay in step."""
+    from pathlib import Path
+
+    css = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
+    auto = css[css.index("@media (prefers-color-scheme: dark)"):css.index(':root[data-theme="dark"]')]
+    manual = css[css.index(':root[data-theme="dark"]'):css.index("/* ---------- Base")]
+    names = lambda block: {line.split(":")[0].strip() for line in block.splitlines() if line.strip().startswith("--")}
+    assert names(auto) == names(manual) and "--field-border" in names(auto)
+
+
+def test_the_logo_follows_the_ink_palette_in_light_and_dark(client: TestClient):
+    svg = client.get("/static/favicon.svg").text
+    assert "#2563eb" not in svg and "prefers-color-scheme:dark" in svg
