@@ -277,9 +277,19 @@ class TransactionService:
         date_to: date | None = None,
         limit: int | None = None,
         offset: int = 0,
+        text: str | None = None,
+        kind: str | None = None,
     ) -> list[TransactionRead]:
         account_ids = self._account_subtree(account) if account else None
-        transactions = self.tr.list(account_ids, date_from, date_to, limit, offset)
+        if kind not in (None, "", "expense", "income", "transfer"):
+            raise ValueError("the kind must be expense, income or transfer!")
+        kind_accounts = None
+        if kind:
+            roots = {a.name: a.aid for a in self.ar.list() if a.parent_id is None}
+            kind_accounts = tuple(self._account_subtree(roots[name]) if name in roots else [] for name in ("Expenses", "Income"))
+        transactions = self.tr.list(
+            account_ids, date_from, date_to, limit, offset, (text or "").strip() or None, kind or None, kind_accounts
+        )
         postings = self.tr.postings_for_transactions([t.tid for t in transactions])  # one query, not one per row
         return [self._to_read(transaction, postings.get(transaction.tid, [])) for transaction in transactions]
 

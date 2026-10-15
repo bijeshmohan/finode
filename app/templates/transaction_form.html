@@ -25,7 +25,7 @@
       <input type="date" name="date" value="{{ transaction.date if editing else today }}" required>
     </label>
     <label>Note
-      <input type="text" name="comment" maxlength="200" placeholder="Optional" value="{{ (transaction.comment or '') if editing else '' }}">
+      <input type="text" name="comment" maxlength="200" placeholder="Optional" value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
     </label>
   </div>
 
