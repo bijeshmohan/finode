@@ -1080,3 +1080,25 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
 .budget-columns { padding-left: 0; padding-right: 0; font-size: .75rem; }
 .budget-row .name small.target-note { font-size: .75rem; }
 .budget-row .name small.target-note.met a { color: var(--muted); }
+
+/* ---------- Accounts, the calm version: flat rows, quiet type headings, a pill search ---------- */
+.account-group > ul.card.list, .quick > ul.card.list { background: none; border: 0; box-shadow: none; border-radius: 0; }
+.account-group + .account-group { margin-top: .75rem; }
+.group-head { padding: 0; margin-bottom: 0; min-height: 44px; }
+.group-head h2 { font-size: .8125rem; letter-spacing: .03em; color: var(--text); opacity: .75; }
+.group-total { font-size: .875rem; font-weight: 500; }
+.account-row { min-height: 46px; padding-top: .35rem; padding-bottom: .35rem; padding-left: calc(.25rem + var(--depth, 0) * 1.1rem); border-radius: var(--radius-sm); }
+.account-balance { font-weight: 500; }
+ul.list > li + li { border-top-color: var(--border); }
+.account-group > ul.card.list > li + li, .quick > ul.card.list > li + li, ul.list.nested { border-top-color: var(--surface-2); }
+.quick h2 { text-transform: none; letter-spacing: 0; font-size: .8125rem; font-weight: 500; }
+.accounts-tools input[type="search"] { border-radius: 999px; background: var(--surface-2); border-color: transparent; padding-left: 1rem; }
+.accounts-tools input[type="search"]:focus { background: var(--surface); border-color: var(--text); }
+.accounts-tools button { border-radius: 999px; }
+.add-first { border-radius: var(--radius); }
+
+/* An account's own page */
+.account-hero.card { background: none; border: 0; box-shadow: none; padding: 0 0 .75rem; }
+.hero-balance { font-size: 2.5rem; font-weight: 600; letter-spacing: -.03em; margin: .15rem 0 .75rem; }
+.account-hero h1 { font-size: 1.25rem; }
+.order-card.card, .close-card.card { background: none; border: 0; box-shadow: none; padding: 0; margin-top: .5rem; }
