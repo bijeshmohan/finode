@@ -29,7 +29,7 @@
 <section class="glance">
   <p class="glance-label">{{ "Over budget in" if glance.left < 0 else "Left to spend in" }} {{ month_name }}</p>
   <p class="glance-figure {{ 'over' if glance.left < 0 }}">{{ glance.left|money }}<small>{{ currency }}</small></p>
-  <div class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent"><i style="width: {{ glance.percent }}%"></i></div>
+  <div class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent, and {{ glance.pace }}% of the month has passed"><i style="width: {{ glance.percent }}%"></i><b class="pace" style="left: {{ glance.pace }}%"></b></div>
   <p class="glance-note">Spent {{ glance.spent|money }} of {{ glance.of|money }} · <a href="/summary">Details</a></p>
 </section>
 {% else %}

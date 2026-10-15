@@ -82,7 +82,7 @@
             <span class="tx-title">{{ e.payee or "No payee" }}</span>
             <span class="tx-sub">{{ e.counter_accounts|join(", ") }}{% if e.comment %} · {{ e.comment }}{% endif %}</span>
           </span>
-          <span class="tx-amount {{ 'income' if e.change > 0 }}">{{ "+" if e.change > 0 else "−" }}{{ (e.change|abs)|money|with_unit(account.commodity, currency) }}<small>{{ e.balance|money }}</small></span>
+          <span class="tx-amount {{ 'income' if e.change > 0 }}">{{ "+" if e.change > 0 }}{{ (e.change|abs)|money|with_unit(account.commodity, currency) }}<small>{{ e.balance|money }}</small></span>
         </a>
       </li>
       {% endfor %}

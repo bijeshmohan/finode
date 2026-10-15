@@ -23,3 +23,11 @@ def local_today() -> date:
 def local_midnight_utc() -> datetime:
     """The start of today, as a UTC moment (to compare with stored timestamps)."""
     return local_now().replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+
+def month_progress(today: date | None = None) -> int:
+    """How far through its month a day is, as a whole percentage (the 15th of a 30-day month is 50)."""
+    from calendar import monthrange
+
+    day = today or local_today()
+    return round(100 * day.day / monthrange(day.year, day.month)[1])

@@ -15,7 +15,7 @@
 
 {% macro bar(line) -%}
   {% set total = line.activity + line.available %}
-  <span class="bar {{ 'over' if line.available < 0 }}" aria-hidden="true"><i style="width: {{ 100 if line.available < 0 else (((line.activity / total) * 100)|round|int if total > 0 else 0) }}%"></i></span>
+  <span class="bar {{ 'over' if line.available < 0 }}" aria-hidden="true"><i style="width: {{ 100 if line.available < 0 else (((line.activity / total) * 100)|round|int if total > 0 else 0) }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
 {%- endmacro %}
 
 {#- One category (or a group's own "everything else" line) as a row that opens its sheet. -#}

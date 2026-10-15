@@ -1223,3 +1223,9 @@ details.how { margin: 1.25rem 0 0; }
 .gsum .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
 .gsum .bar.over i { background: var(--danger); }
 .gsum .cap { display: block; margin-top: .3rem; }
+
+/* Where today falls in the month, on the bars of the current month: a bar ahead of the dot is spending faster than the month passes. */
+.glance-bar, .bar { position: relative; overflow: visible; }
+.glance-bar i, .bar i { max-width: 100%; }
+.pace { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--text); border: 2px solid var(--surface); box-sizing: border-box; pointer-events: none; }
+.glance-bar .pace { border-color: var(--bg); }

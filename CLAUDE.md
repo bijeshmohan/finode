@@ -58,6 +58,10 @@ UI conventions (keep pages working on phones first):
 
 On a new entry the amount carries `data-autofocus` (not `autofocus`): `app.js` focuses it only when the device has a mouse (`(hover: hover) and (pointer: fine)`). On a phone nothing is focused, because a script cannot open the keyboard: the grey 0.00 stays visible until the person taps the amount, which hides it (`:focus::placeholder`), shows the cursor and opens the keyboard. Tapping a payee chip still focuses the amount (a real tap, so the keyboard opens).
 
+### Signs and the pace tick
+
+Amounts in transaction lists, the details sheet and an account's activity show **no minus on ordinary spending** (the default, so a long list is not a column of signs): income is `+` and green (`.tx-amount.income`), transfers plain. A real negative (an overdrawn account, an overspent category's "left", a debt) keeps its `−` and red; the `money` filter still writes a true minus sign. Bars of the current month carry a **dot showing how far through the month today is** (`clock.month_progress`, `.pace` inside `.glance-bar` on Home and `.bar` on the budget; `pace` is None for other months, which have no today): a fill ahead of the dot is spending faster than the month passes.
+
 ### Offline, failed saves and loading
 
 `base.html` carries one `#net-banner` (hidden) and a `.loadbar`; the last block of `app.js` drives them. Offline (`navigator.onLine`) shows "You're offline…" until the connection is back; a request that cannot reach the server (`htmx:sendError`), times out or answers 5xx shows a message that says **the entry is still on the page** (forms are never cleared on failure, and 4xx validation messages still swap in as before); a later successful request clears an error. The bar shows while an htmx request or a page load is under way, and a form being sent cannot be sent twice (`form.htmx-request` disables its buttons). There is **no offline queue**: nothing is saved until the connection is back (browser tests in `tests/browser/test_states.py`, run in Chromium and WebKit). Empty states are a short sentence and one next step, without a box.

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
 
+from ...clock import month_progress
 from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, month_start
@@ -132,6 +133,8 @@ def _context(budget: Budget, month: date) -> dict:
         "is_current": data.month == month_start(None),
         "active": "budget",
         "advanced": advanced,
+        # Only the current month has a "today": the tick on the bars shows how far through it we are.
+        "pace": month_progress() if data.month == month_start(None) else None,
     }
 
 

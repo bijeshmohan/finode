@@ -307,7 +307,7 @@ def test_the_transaction_list_shows_the_transactions_own_currency(client, pair, 
         },
     )
     listing = text_of(client.get("/transactions").text)
-    assert "−40.00 USD" in listing and "8,350.00" in listing
+    assert "40.00 USD" in listing and "−40.00 USD" not in listing and "8,350.00" in listing
     assert "8,350.00 INR" not in listing
 
 

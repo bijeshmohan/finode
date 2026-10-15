@@ -97,7 +97,7 @@ def test_transactions_are_grouped_by_friendly_day_and_link_to_edit(
     assert f'href="/transactions/{tx["tid"]}/edit"' in text
 
 
-def test_transaction_amounts_are_signed_by_kind(
+def test_transaction_amounts_use_colour_not_a_minus_sign(
     client: TestClient, account: dict, other_account: dict, expense_account: dict, income_account: dict
 ):
     _post(client, expense_account, account, "10.00", "2026-01-01", "shop")
@@ -105,7 +105,8 @@ def test_transaction_amounts_are_signed_by_kind(
     _post(client, other_account, account, "20.00", "2026-01-03", "move")
 
     text = client.get("/transactions").text
-    assert 'tx-amount expense">−10.00' in text
+    assert 'tx-amount expense">10.00' in text, "an ordinary expense has no sign (it is the default)"
+    assert "−" not in text.split("tx-list")[1].split("txn-sheet")[0]
     assert 'tx-amount income">+500.00' in text
     assert 'tx-amount transfer">20.00' in text
 
