@@ -731,3 +731,48 @@ document.body.addEventListener("change", (event) => {
     nothing.hidden = any;
   });
 })();
+
+// ---- Offline, failed requests and loading ----
+// One banner says what is wrong (the entry on the page is never cleared: a failed save leaves the form as it was).
+(() => {
+  const banner = document.getElementById("net-banner");
+  if (!banner) return;
+  let timer = null;
+  function show(text, kind) {
+    banner.textContent = text;
+    banner.dataset.kind = kind;
+    banner.hidden = false;
+    clearTimeout(timer);
+    if (kind !== "offline") timer = setTimeout(hide, 10000);
+  }
+  function hide() {
+    banner.hidden = true;
+  }
+  function sync() {
+    if (navigator.onLine === false) show("You\u2019re offline. You can look around, but nothing can be saved until you\u2019re back.", "offline");
+    else if (banner.dataset.kind === "offline") hide();
+  }
+  window.addEventListener("online", sync);
+  window.addEventListener("offline", sync);
+  sync();
+
+  document.body.addEventListener("htmx:sendError", () => {
+    if (navigator.onLine === false) return sync();
+    show("Couldn\u2019t save just now. Your entry is still here. Check your connection and try again.", "error");
+  });
+  document.body.addEventListener("htmx:timeout", () => show("That took too long. Your entry is still here. Try again.", "error"));
+  document.body.addEventListener("htmx:responseError", (event) => {
+    if (event.detail.xhr.status >= 500) show("Something went wrong on our side. Your entry is still here. Try again in a moment.", "error");
+  });
+  document.body.addEventListener("htmx:afterRequest", (event) => {
+    if (event.detail.successful && banner.dataset.kind === "error") hide();
+  });
+
+  // A thin bar at the top while a request or a page is loading.
+  let pending = 0;
+  const bar = (on) => document.body.classList.toggle("loading", on);
+  document.body.addEventListener("htmx:beforeRequest", () => bar(++pending > 0));
+  document.body.addEventListener("htmx:afterRequest", () => bar((pending = Math.max(0, pending - 1)) > 0));
+  window.addEventListener("beforeunload", () => bar(true));
+  window.addEventListener("pageshow", () => bar((pending = 0) > 0));
+})();
