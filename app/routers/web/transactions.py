@@ -28,6 +28,12 @@ from ...services.lock import locked_through
 router = APIRouter(prefix="/transactions")
 
 PAGE_SIZE = 25
+KIND_FILTERS = {"spending": "expense", "income": "income", "transfers": "transfer"}
+
+
+def _chip_url(base: dict, value: str) -> str:
+    params = {**base, **({"kind": value} if value else {})}
+    return "/transactions" + (f"?{urlencode(params)}" if params else "")
 
 
 @dataclass
@@ -104,6 +110,8 @@ def transactions_page(
     account: str = "",
     date_from: str = "",
     date_to: str = "",
+    q: str = "",
+    kind: str = "",
     page: int = 1,
 ):
     try:
@@ -124,6 +132,8 @@ def transactions_page(
             _parse_date(date_to),
             PAGE_SIZE + 1,
             (page - 1) * PAGE_SIZE,
+            q,
+            KIND_FILTERS.get(kind),
         )
     except ValueError as e:
         error = f"Invalid filter: {e}"
@@ -133,6 +143,9 @@ def transactions_page(
 
     filters = {"account": account, "date_from": date_from, "date_to": date_to}
     query = {k: v for k, v in filters.items() if v}
+    # What is typed in the search box and the chosen chip also travel with the page links.
+    base = {**query, **({"q": q.strip()} if q.strip() else {})}
+    shown = {**base, **({"kind": kind} if kind in KIND_FILTERS else {})}
     return templates.TemplateResponse(
         request,
         "transactions.html",
@@ -143,20 +156,57 @@ def transactions_page(
             "error": error,
             "filters": filters,
             "active_filters": len(query),
+            "q": q.strip(),
+            "kind": kind if kind in KIND_FILTERS else "",
+            "chips": [
+                {"label": label, "value": value, "href": _chip_url(base, value)}
+                for label, value in (("All", ""), ("Spending", "spending"), ("Income", "income"), ("Transfers", "transfers"))
+            ],
+            "searching": bool(q.strip() or kind in KIND_FILTERS or query),
             "roots": build_tree(all_accounts),
             "page": page,
-            "prev_url": f"/transactions?{urlencode({**query, 'page': page - 1})}" if page > 1 else None,
-            "next_url": f"/transactions?{urlencode({**query, 'page': page + 1})}" if has_next else None,
+            "prev_url": f"/transactions?{urlencode({**shown, 'page': page - 1})}" if page > 1 else None,
+            "next_url": f"/transactions?{urlencode({**shown, 'page': page + 1})}" if has_next else None,
+        },
+    )
+
+
+@router.get("/{tid}/sheet")
+def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transactions: Transactions):
+    """The details of one transaction, for the sheet that opens over a list (the edit page has the rest)."""
+    transaction = transactions.read(tid)
+    if transaction is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    row = to_row(transaction, AccountIndex.build(accounts.list()))
+    names = AccountIndex.build(accounts.list()).names
+    lock = locked_through(transactions.tr.db, transactions.tr.uid)
+    labels = {
+        "expense": ("Paid from", "Spent on"),
+        "income": ("From", "Received in"),
+        "transfer": ("From", "To"),
+    }[row.kind]
+    return templates.TemplateResponse(
+        request,
+        "partials/txn_sheet.html",
+        {
+            "row": row,
+            "t": transaction,
+            "currency": accounts.default_currency().code,
+            "from_label": labels[0],
+            "to_label": labels[1],
+            "from_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
+            "to_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.DEBIT],
+            "locked_by": lock if lock is not None and transaction.date <= lock else None,
         },
     )
 
 
 @router.post("/{tid}/delete")
-def delete_transaction(tid: UUID, transactions: Transactions, back: str = ""):
+def delete_transaction(tid: UUID, transactions: Transactions, back: str = "", sheet: Annotated[str, Form()] = ""):
     try:
         transactions.delete(tid)
     except ValueError as e:
-        return htmx_error(str(e), "#page-error")
+        return htmx_error(str(e), "#sheet-error" if sheet else "#page-error")
     return htmx_redirect(safe_back(back), flash="transaction-deleted")
 
 
@@ -348,9 +398,34 @@ def new_transaction_page(
     account: UUID | None = None,
     back: str = "",
     q: str = "",  # what was typed in the quick-add bar: "250 swiggy"
+    repeat: UUID | None = None,  # "add again": a copy of this transaction, dated today
     mode: str = "",  # old links; the form is one page now
 ):
     all_accounts = accounts.list()
+    if repeat is not None:
+        again = transactions.read(repeat)
+        if again is None:
+            raise HTTPException(status_code=404, detail="transaction not found")
+        roots = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
+        return templates.TemplateResponse(
+            request,
+            "transaction_form.html",
+            form_context(
+                accounts,
+                today=local_today().isoformat(),
+                transaction=None,
+                copy_of=again,
+                total=sum((p.value for p in again.postings if p.side == PostingSide.DEBIT), Decimal(0)),
+                new_payee=again.payee or "",
+                new_note=again.comment or "",
+                from_rows=form_rows(again.postings, PostingSide.CREDIT),
+                to_rows=form_rows(again.postings, PostingSide.DEBIT),
+                kind=infer_kind(again.postings, roots),
+                account=None,
+                back=safe_back(back, ""),
+                back_url=safe_back(back),
+            ),
+        )
     from_id = to_id = None
     roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
     amount_text, payee_text = split_quick_entry(q)

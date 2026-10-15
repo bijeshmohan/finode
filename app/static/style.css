@@ -1008,3 +1008,47 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .tx:hover { background: transparent; }
 .tx-title { font-weight: 500; }
 .tx-amount { font-weight: 500; }
+
+/* ---------- Transactions: a search pill, kind chips, and the details sheet ---------- */
+.tx-search { margin: 0 0 .75rem; }
+.search-pill {
+  flex-direction: row; align-items: center; gap: .6rem; height: 2.75rem; padding: 0 1rem;
+  border-radius: 999px; background: var(--surface-2); color: var(--faint); font-weight: 400;
+}
+.search-pill .icon { width: 1.1rem; height: 1.1rem; }
+.search-pill input { flex: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--text); }
+.search-pill input:focus { border: 0; box-shadow: none; }
+.search-pill:focus-within { outline: 2px solid var(--text); outline-offset: 2px; }
+.tx-kinds { margin-bottom: .5rem; min-height: 0; }
+a.chip {
+  display: inline-flex; align-items: center; min-height: 2rem; padding: 0 .875rem; border-radius: 999px;
+  font-size: .84rem; font-weight: 500; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+}
+a.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+details.filters { margin: 0 0 .5rem; padding: 0; }
+details.filters summary { display: inline-flex; align-items: center; gap: .4rem; min-height: 2rem; padding: 0; font-size: .84rem; font-weight: 500; color: var(--muted); cursor: pointer; }
+details.filters[open] summary { margin-bottom: .75rem; }
+
+dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
+.sheet-grab { display: none; }
+.sheet-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.sheet-title h2 { margin: 0; font-size: 1.375rem; font-weight: 600; letter-spacing: -.02em; }
+.sheet-title p { margin: .15rem 0 0; font-size: .875rem; }
+.sheet-amount { font-size: 1.625rem; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
+.sheet-amount.income { color: var(--positive); }
+.sheet-facts { margin: 1.25rem 0 0; border-top: 1px solid var(--border); }
+.sheet-facts > div { display: flex; justify-content: space-between; gap: 1rem; padding: .85rem 0; border-bottom: 1px solid var(--border); font-size: .9375rem; }
+.sheet-facts dt { color: var(--muted); flex: none; }
+.sheet-facts dd { margin: 0; text-align: right; font-weight: 500; display: flex; flex-direction: column; align-items: flex-end; gap: .15rem; }
+.sheet-actions { display: flex; gap: .625rem; margin-top: 1.1rem; }
+.sheet-actions .button { flex: 1; min-height: 3.125rem; }
+.sheet-actions .button[aria-disabled="true"] { opacity: .45; }
+.sheet-delete { display: block; width: 100%; margin-top: .4rem; min-height: 3rem; color: var(--danger); background: transparent; border: 0; font-weight: 500; }
+.sheet-delete:hover { background: transparent; text-decoration: underline; }
+@media (max-width: 40rem) {
+  dialog.sheet.sheet-bottom {
+    width: 100%; max-width: none; margin: auto 0 0; border-radius: 24px 24px 0 0; border-width: 1px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .sheet-grab { display: block; width: 2.5rem; height: 4px; margin: -.25rem auto 1rem; border-radius: 2px; background: var(--border); }
+}

@@ -336,6 +336,17 @@ function applyKind(form, kind) {
   recomputeTxn(form);
 }
 
+// The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
+document.body.addEventListener("htmx:afterSwap", (event) => {
+  if (!event.target || event.target.id !== "txn-sheet-body") return;
+  const dialog = document.getElementById("txn-sheet");
+  if (dialog && !dialog.open) dialog.showModal();
+});
+document.body.addEventListener("click", (event) => {
+  const dialog = document.getElementById("txn-sheet");
+  if (dialog && event.target === dialog) dialog.close();
+});
+
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
 function applySuggestion(form, chip, focus = true) {
   const payee = form.querySelector("#payee");

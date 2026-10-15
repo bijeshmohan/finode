@@ -1,0 +1,28 @@
+{#- The details of one transaction in the sheet over a list. Expects row (TransactionRow), t, from_label, to_label, from_postings, to_postings, locked_by. -#}
+{% from "partials/icons.html" import icon %}
+<div class="sheet-grab" aria-hidden="true"></div>
+<div class="sheet-title">
+  <div>
+    <h2>{{ t.payee or "No payee" }}</h2>
+    <p class="muted">{{ t.date|friendly_date }} · {{ t.date.strftime("%d %b %Y") }}</p>
+  </div>
+  <div class="sheet-amount {{ row.kind }}">{{ "−" if row.kind == "expense" else "+" if row.kind == "income" }}{{ row.amount|money|with_unit(t.currency, currency) }}</div>
+</div>
+
+<dl class="sheet-facts">
+  <div><dt>{{ from_label }}</dt><dd>{% for name, p in from_postings %}<span>{{ name }}{% if from_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
+  <div><dt>{{ to_label }}</dt><dd>{% for name, p in to_postings %}<span>{{ name }}{% if to_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
+  <div><dt>Note</dt><dd>{% if t.comment %}{{ t.comment }}{% else %}<span class="muted">None</span>{% endif %}</dd></div>
+  <div><dt>Added</dt><dd>{% if t.created_via %}By {{ t.created_via|origin_label }}{% else %}Recorded{% endif %}, {{ t.created.strftime("%d %b %Y") }}</dd></div>
+  {% if t.recurring_id or t.created_via == "recurring" %}<div><dt>Repeats</dt><dd><a href="/recurring">Part of a recurring transaction</a></dd></div>{% endif %}
+</dl>
+
+{% if locked_by %}<p class="notice" role="status">In a locked period (everything up to {{ locked_by.strftime("%d %b %Y") }} is closed): it can't be changed or deleted.</p>{% endif %}
+<p id="sheet-error" class="error" role="alert"></p>
+<div class="sheet-actions">
+  {% if locked_by %}<span class="button" aria-disabled="true">Edit</span>{% else %}<a class="button" href="/transactions/{{ t.tid }}/edit">Edit</a>{% endif %}
+  <a class="button secondary" href="/transactions/new?repeat={{ t.tid }}">Add again</a>
+</div>
+<button type="button" class="sheet-delete" {{ "disabled" if locked_by }}
+        hx-post="/transactions/{{ t.tid }}/delete" hx-vals='{"sheet": "1"}'
+        hx-confirm="Delete this transaction? Account balances will change.">Delete</button>
