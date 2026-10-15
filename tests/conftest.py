@@ -31,6 +31,14 @@ def deployment_settings_off(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture(autouse=True)
+def advanced_features_on(monkeypatch: pytest.MonkeyPatch):
+    """New profiles start with the advanced features hidden; most tests exercise them, so they start with them shown."""
+    from app.repositories import profile
+
+    monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", True)
+
+
+@pytest.fixture(autouse=True)
 def fresh_attempt_limits():
     """The sign-in and sign-up counters live in memory: every test starts with a clean slate."""
     from app.ratelimit import attempts

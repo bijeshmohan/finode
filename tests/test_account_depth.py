@@ -118,7 +118,7 @@ def test_import_respects_limits(client: TestClient):
 def test_settings_page_shows_depth_card_with_hints(client: TestClient, root_accounts):
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     _make(client, "Groceries", food["aid"])
-    text = client.get("/settings").text
+    text = client.get("/settings/advanced").text
     assert 'name="max_depth_expenses"' in text and "Deepest now: 2" in text
     assert "No sub-accounts yet" in text
     assert f'max="{settings.max_account_depth}"' in text
@@ -126,7 +126,7 @@ def test_settings_page_shows_depth_card_with_hints(client: TestClient, root_acco
 
 def test_saving_depth_limits_redirects_with_flash(client: TestClient):
     response = client.post("/settings/depth", data={"max_depth_expenses": "2", "max_depth_assets": "0"})
-    assert response.headers["HX-Redirect"] == "/settings?saved=depth#depth"
+    assert response.headers["HX-Redirect"] == "/settings/advanced?saved=depth#depth"
     assert "depth-updated" in response.headers["set-cookie"]
     assert client.get("/api/profile/").json()["max_depth_expenses"] == 2
 
@@ -161,7 +161,7 @@ def test_account_page_hides_add_sub_account_at_the_limit(client: TestClient, roo
     groceries = _make(client, "Groceries", food["aid"]).json()
     at_limit = client.get(f"/accounts/{groceries['aid']}").text
     assert f"/accounts/new?parent={groceries['aid']}" not in at_limit
-    assert "can be 2 levels deep" in at_limit and "/settings#depth" in at_limit
+    assert "can be 2 levels deep" in at_limit and "/settings/advanced#depth" in at_limit
     below = client.get(f"/accounts/{food['aid']}").text
     assert f"/accounts/new?parent={food['aid']}" in below
 

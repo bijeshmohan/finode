@@ -33,7 +33,7 @@
   {% if budget.overspent_last_month %}
   <p class="notice">{{ budget.overspent_last_month|money }} {{ budget.currency }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
   {% endif %}
-  {% if budget.underfunded %}
+  {% if advanced and budget.underfunded %}
   <form class="notice fund" hx-post="/budget/fund" hx-target="#budget" hx-swap="outerHTML">
     <span>Your targets still need {{ budget.underfunded|money }} {{ budget.currency }} this month.</span>
     <input type="hidden" name="month" value="{{ month_key }}">
@@ -86,7 +86,7 @@
       <div class="name">{{ line.name }}
         {% if line.note %}<small class="category-note">{{ line.note }}</small>{% endif %}
         {% if line.activity %}<small>{{ line.activity|money }} spent</small>{% endif %}
-        {% if not line.group or line.target %}
+        {% if advanced and (not line.group or line.target) %}
         <small class="target-note {{ 'short' if line.underfunded else ('met' if line.target) }}">
           <a href="/budget/target?month={{ month_key }}&category={{ line.aid }}">
           {%- if line.target -%}
@@ -96,9 +96,9 @@
           {%- else -%}Set a target{%- endif -%}
           </a>
         </small>
-        {% elif line.underfunded %}<small class="target-note short">needs {{ line.underfunded|money }} more</small>
+        {% elif advanced and line.underfunded %}<small class="target-note short">needs {{ line.underfunded|money }} more</small>
         {% endif %}
-        {% if line.weeks %}
+        {% if advanced and line.weeks %}
         <details class="weeks">
           <summary>By week</summary>
           <ul>

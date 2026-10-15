@@ -21,6 +21,8 @@ MESSAGES = {
     "account-order-reset": "Back in alphabetical order",
     "account-reopened": "Account reopened",
     "budget-note": "Note saved",
+    "advanced-on": "Advanced features are shown",
+    "advanced-off": "Advanced features are hidden",
     "lock-saved": "Locked: nothing up to that day can be changed",
     "lock-removed": "Lock removed",
     "budget-target": "Target saved",

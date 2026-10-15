@@ -136,11 +136,11 @@ def test_an_entry_in_the_period_opens_with_a_notice_and_no_buttons(client, books
 
 
 def test_the_settings_page_sets_and_removes_it(client):
-    page = client.get("/settings").text
+    page = client.get("/settings/advanced").text
     assert 'id="lock"' in page and "Period lock" in page and "off" in page
     saved = client.post("/settings/lock", data={"locked_through": LAST_MONTH_END.isoformat()})
     assert saved.status_code == 200 and "lock-saved" in saved.headers["set-cookie"]
-    assert LAST_MONTH_END.strftime("up to %d %b %Y") in client.get("/settings").text
+    assert LAST_MONTH_END.strftime("up to %d %b %Y") in client.get("/settings/advanced").text
     removed = client.post("/settings/lock", data={"locked_through": ""})
     assert "lock-removed" in removed.headers["set-cookie"] and client.get("/api/profile/").json()["locked_through"] is None
 
