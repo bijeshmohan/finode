@@ -38,6 +38,7 @@ def test_copying_last_months_amounts(page: Page, books, api: Api):
     api.put(f"/budget/categories/{books['food']['aid']}", month=LAST_MONTH.isoformat(), amount="300")
     api.put(f"/budget/categories/{books['rent']['aid']}", month=LAST_MONTH.isoformat(), amount="900")
     page.goto("/budget")
+    page.locator("details.attn > summary").click()
     button = page.get_by_role("button", name="Copy last month's amounts")
     expect(button).to_contain_text("1,200.00")
     button.click()
@@ -50,6 +51,7 @@ def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, 
     api.put(f"/budget/categories/{books['rent']['aid']}/target", kind="monthly", amount="800")
     page.goto("/budget")
     expect(page.locator("a.catrow .cap.short")).to_contain_text("needs 800.00 more")
+    page.locator("details.attn > summary").click()
     page.get_by_role("button", name="Assign what is needed").click()
     expect(page.locator("a.catrow .cap.short")).to_have_count(0)
     expect(page.locator(".ready .figure")).to_have_text("4,200.00 INR")
@@ -64,7 +66,7 @@ def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Pag
     expect(page.get_by_text("Cards to pay")).to_be_visible()
     expect(page.locator(".cards-list")).to_contain_text("Visa")
     expect(page.locator(".cards-list")).to_contain_text("120.00")
-    page.get_by_text("How this works").click()
+    page.locator("details.how > summary").click()
     expect(page.locator(".calc").first).to_contain_text("set aside for card bills 120.00")
     # Assigning money to a category changes ready to assign, and the explanation follows it.
     assign_in_sheet(page, "Rent", "500")
@@ -126,3 +128,25 @@ def test_a_weekly_target_opens_into_its_weeks(page: Page, books, api: Api):
     expect(weeks.locator("li").first).to_contain_text("130.00 of 100.00")
     expect(weeks.locator("li.over")).to_have_count(1)
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
+
+
+def test_a_group_folds_opens_remembers_and_takes_money_for_itself(page: Page, books, api: Api):
+    dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
+    api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
+    api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
+    page.goto("/budget")
+    group = page.locator("details.grp", has_text="Dining").first
+    expect(page.locator("a.catrow", has_text="Delivery")).to_be_hidden()
+    group.locator("summary").click()
+    expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
+    page.reload()
+    expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()  # remembered
+    # money for the group itself, not in a sub-category
+    page.locator("a.catrow", has_text="Everything else").first.click()
+    box = page.locator('#cat-sheet input[aria-label^="Assigned to"]')
+    expect(page.locator("#cat-sheet")).to_contain_text("Dining · everything else")
+    box.fill("700")
+    page.locator("#cat-sheet").get_by_role("button", name="Save").click()
+    expect(page.locator(".ready .figure")).to_have_text("4,300.00 INR")
+    expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()  # still open after the page block was replaced
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")

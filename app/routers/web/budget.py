@@ -1,5 +1,6 @@
 import calendar
 from datetime import date
+from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
@@ -8,7 +9,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, month_start
-from ...schemas.budget import TARGET_KINDS
+from ...schemas.budget import TARGET_KINDS, BudgetLine
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, parse_amount
 
@@ -32,17 +33,105 @@ def shift(month: date, by: int) -> date:
     return date(index // 12, index % 12 + 1, 1)
 
 
+class Node:
+    """A category in the budget tree: a group (with children, and its own 'everything else' line) or a plain category."""
+
+    def __init__(self, line: BudgetLine):
+        self.line = line
+        self.children: list[Node] = []
+        self.other: BudgetLine | None = None
+
+    @property
+    def is_group(self) -> bool:
+        return bool(self.children)
+
+    def lines(self):
+        """Every category line inside, the group's own 'everything else' line included."""
+        if not self.is_group:
+            return [self.line]
+        found = [self.other] if self.other is not None else []
+        for child in self.children:
+            found.extend(child.lines())
+        return found
+
+    @property
+    def over(self) -> int:
+        return sum(1 for l in self.lines() if l.available < 0)
+
+    @property
+    def used(self) -> bool:
+        return any(
+            l.assigned or l.activity or l.available or l.overspent_last_month or l.underfunded or l.target or l.note
+            for l in self.lines()
+        )
+
+    @property
+    def count(self) -> int:
+        """The categories directly inside (not counting the group's own line)."""
+        return len(self.children)
+
+
+def other_line(group: BudgetLine) -> BudgetLine:
+    """The part of a group that is in none of its sub-categories: money can be assigned to it and spent from it."""
+    zero = Decimal("0.00")
+    return BudgetLine(
+        aid=group.aid, name=f"{group.name} (other)", path=group.path, depth=group.depth + 1,
+        assigned=zero, activity=zero, available=zero, overspent_last_month=zero, needed=zero, underfunded=zero,
+    )
+
+
+def build_tree(lines: list[BudgetLine]) -> list[Node]:
+    """The flat display-order lines as a tree. Every group gets an 'everything else' line (made up when the
+    budget has none yet, so money can be assigned at group level as well as to the sub-categories)."""
+    roots: list[Node] = []
+    stack: list[Node] = []
+    for line in lines:
+        if stack and line.aid == stack[-1].line.aid and line.name.endswith("(other)") and not line.group:
+            stack[-1].other = line
+            continue
+        node = Node(line)
+        while stack and stack[-1].line.depth >= line.depth:
+            stack.pop()
+        (stack[-1].children if stack else roots).append(node)
+        if line.group:
+            stack.append(node)
+
+    def fill(node: Node) -> None:
+        if node.is_group:
+            if node.other is None:
+                node.other = other_line(node.line)
+            for child in node.children:
+                fill(child)
+
+    for root in roots:
+        fill(root)
+    return roots
+
+
 def _context(budget: Budget, month: date) -> dict:
     data = budget.view(month)
+    advanced = ProfileRepository(budget.br.db, budget.br.uid).advanced()
+    tree = build_tree(data.lines)
+    # Whole groups with nothing in them (nothing assigned, spent or planned) are tucked away once anything is in use;
+    # plain top-level categories always show, so there is always something to tap and assign to.
+    unused = [n for n in tree if n.is_group and not n.used] if any(n.used for n in tree) else []
     return {
         "budget": data,
+        "tree": tree,
+        "unused_ids": {n.line.aid for n in unused},
+        "unused_count": len(unused),
+        "attention": sum(
+            1 for flag in (
+                bool(data.left_out_accounts), bool(data.overspent_last_month), advanced and bool(data.underfunded), bool(data.copyable)
+            ) if flag
+        ),
         "month_key": data.month.strftime("%Y-%m"),
         "month_name": f"{calendar.month_name[data.month.month]} {data.month.year}",
         "previous": shift(data.month, -1).strftime("%Y-%m"),
         "next": shift(data.month, 1).strftime("%Y-%m"),
         "is_current": data.month == month_start(None),
         "active": "budget",
-        "advanced": ProfileRepository(budget.br.db, budget.br.uid).advanced(),
+        "advanced": advanced,
     }
 
 
@@ -56,7 +145,8 @@ def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "")
     """One category in the sheet over the budget: assign, what was spent, the target, the week by week."""
     when = parse_month(month)
     context = _context(budget, when)
-    line = next((l for l in context["budget"].lines if l.aid == aid and not l.group), None)
+    lines = [l for n in context["tree"] for l in n.lines()]
+    line = next((l for l in lines if l.aid == aid and not l.group), None)
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
     return templates.TemplateResponse(request, "partials/budget_sheet.html", {**context, "line": line})
