@@ -28,7 +28,8 @@ from ...services.lock import locked_through
 router = APIRouter(prefix="/transactions")
 
 PAGE_SIZE = 25
-KIND_FILTERS = {"spending": "expense", "income": "income", "transfers": "transfer"}
+# "spending" and "transfers" are the older spellings of the chips and keep working in saved links.
+KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer", "spending": "expense", "transfers": "transfer"}
 
 
 def _chip_url(base: dict, value: str) -> str:
@@ -121,6 +122,7 @@ def transactions_page(
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts)
     page = max(page, 1)
+    kind = KIND_FILTERS.get(kind, "")  # one spelling from here on
 
     error = None
     rows: list[TransactionRow] = []
@@ -145,7 +147,7 @@ def transactions_page(
     query = {k: v for k, v in filters.items() if v}
     # What is typed in the search box and the chosen chip also travel with the page links.
     base = {**query, **({"q": q.strip()} if q.strip() else {})}
-    shown = {**base, **({"kind": kind} if kind in KIND_FILTERS else {})}
+    shown = {**base, **({"kind": kind} if kind else {})}
     return templates.TemplateResponse(
         request,
         "transactions.html",
@@ -157,12 +159,12 @@ def transactions_page(
             "filters": filters,
             "active_filters": len(query),
             "q": q.strip(),
-            "kind": kind if kind in KIND_FILTERS else "",
+            "kind": kind,
             "chips": [
                 {"label": label, "value": value, "href": _chip_url(base, value)}
-                for label, value in (("All", ""), ("Spending", "spending"), ("Income", "income"), ("Transfers", "transfers"))
+                for label, value in (("All", ""), ("Expense", "expense"), ("Income", "income"), ("Transfer", "transfer"))
             ],
-            "searching": bool(q.strip() or kind in KIND_FILTERS or query),
+            "searching": bool(q.strip() or kind or query),
             "roots": build_tree(all_accounts),
             "page": page,
             "prev_url": f"/transactions?{urlencode({**shown, 'page': page - 1})}" if page > 1 else None,

@@ -80,24 +80,24 @@ def test_search_box_keeps_what_was_typed(client, books, ledger):
 
 
 def test_chips_filter_by_what_kind_of_entry_it_is(client, books, ledger):
-    assert set(titles(page(client, kind="spending"))) == {"Swiggy", "DMart"}
+    assert set(titles(page(client, kind="expense"))) == {"Swiggy", "DMart"}
     assert titles(page(client, kind="income")) == ["Employer"]
-    assert set(titles(page(client, kind="transfers"))) == {"Card payment", "Opening balance"}
+    assert set(titles(page(client, kind="transfer"))) == {"Card payment", "Opening balance"}
     assert len(titles(page(client))) == 5, "All shows everything"
     assert len(titles(page(client, kind="nonsense"))) == 5, "an unknown chip is ignored"
 
 
 def test_the_chosen_chip_is_marked_and_chips_keep_the_search(client, books, ledger):
-    html = page(client, kind="spending", q="swig")
+    html = page(client, kind="expense", q="swig")
     chips = {href.replace("&amp;", "&"): state for href, state in re.findall(r'<a class="chip" href="([^"]*)" aria-pressed="(\w+)">', html)}
-    assert [k for k, v in chips.items() if v == "true"] == ["/transactions?q=swig&kind=spending"]
+    assert [k for k, v in chips.items() if v == "true"] == ["/transactions?q=swig&kind=expense"]
     assert "/transactions?q=swig" in chips and "/transactions?q=swig&kind=income" in chips, "All keeps the search too"
     plain = re.findall(r'<a class="chip" href="([^"]*)"', page(client))
-    assert plain[0] == "/transactions" and plain[1] == "/transactions?kind=spending", "without a search, All is the bare list"
+    assert plain[0] == "/transactions" and plain[1] == "/transactions?kind=expense", "without a search, All is the bare list"
 
 
 def test_search_and_kind_combine_and_page(client, books, ledger):
-    assert titles(page(client, kind="spending", q="swig")) == ["Swiggy"]
+    assert titles(page(client, kind="expense", q="swig")) == ["Swiggy"]
     assert titles(page(client, kind="income", q="swig")) == []
 
 
@@ -194,3 +194,10 @@ def test_add_again_keeps_every_row_of_a_split(client, books):
 
 def test_add_again_of_a_missing_entry(client, books):
     assert client.get("/transactions/new", params={"repeat": "00000000-0000-4000-8000-0000000000aa"}).status_code == 404
+
+
+def test_the_older_chip_spellings_still_work_and_show_the_new_chip(client, books):
+    assert set(titles(page(client, kind="spending"))) == set(titles(page(client, kind="expense")))
+    assert set(titles(page(client, kind="transfers"))) == set(titles(page(client, kind="transfer")))
+    html = page(client, kind="spending")
+    assert ">Expense<" in html and ">Transfer<" in html and ">Spending<" not in html and ">Transfers<" not in html
