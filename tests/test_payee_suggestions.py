@@ -149,8 +149,3 @@ def test_opening_the_form_from_an_account_keeps_that_account(client, books):
     page = client.get("/transactions/new", params={"account": books["hdfc"]["aid"]}).text
     assert f'<option value="{books["hdfc"]["aid"]}" data-commodity="INR" selected' in page
     assert f'<option value="{books["card"]["aid"]}" data-commodity="INR" selected' not in page
-
-
-def test_home_bar_sends_what_was_typed(client):
-    page = client.get("/").text
-    assert re.search(r'<form class="composer" action="/transactions/new" method="get">\s*<input type="text" name="q"', page)

@@ -78,7 +78,6 @@ def dashboard(
         "dashboard.html",
         {
             "active": "dashboard",
-            "no_fab": True,  # the quick-add bar is on the page
             "summary": summary,
             "currency": summary.currency,
             "month_name": calendar.month_name[month.month.month],

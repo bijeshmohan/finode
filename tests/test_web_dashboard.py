@@ -9,7 +9,7 @@ def test_dashboard_empty_state(client: TestClient):
     assert "Net worth" not in response.text, "Home is one number now; net worth is in the reports"
     assert "Nothing recorded yet" in response.text
     assert date.today().strftime("%B") in response.text
-    assert 'class="composer"' in response.text and 'action="/transactions/new"' in response.text
+    assert 'href="/transactions/new"' in response.text
 
 
 def test_dashboard_shows_summary_and_recent_transactions(

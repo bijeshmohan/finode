@@ -10,11 +10,11 @@ def test_app_shell_has_desktop_sidebar_mobile_tabbar_and_new_button(client: Test
     assert 'href="/accounts" aria-current="page"' in page
 
 
-def test_home_has_the_quick_add_bar_instead_of_the_floating_button(client: TestClient):
+def test_home_has_the_normal_floating_button_and_no_chat_style_bar(client: TestClient):
     page = client.get("/").text
-    assert 'class="composer"' in page and 'class="fab"' not in page
+    assert 'class="fab" href="/transactions/new"' in page and "composer" not in page
     assert 'href="/" aria-current="page"' in page
-    assert 'class="button secondary sidebar-new"' in page, "wide screens keep the sidebar's button"
+    assert 'class="button secondary sidebar-new"' in page, "wide screens also have the sidebar's button"
     assert 'rel="icon" href="/static/favicon.svg?v=' in page
     assert "viewport-fit=cover" in page
 

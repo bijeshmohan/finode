@@ -185,17 +185,3 @@ def test_the_chips_narrow_as_you_type(page: Page, books, api: Api):
     page.fill("#payee", "dm")
     expect(page.locator("#payee-chips .chip")).to_have_count(1)
     expect(page.locator("#payee-chips .chip")).to_have_text("DMart")
-
-
-def test_the_quick_add_bar_on_home_opens_the_form_filled_in(page: Page, books, api: Api):
-    history(api, books)
-    page.goto("/")
-    page.fill(".composer input", "250 swiggy")
-    page.keyboard.press("Enter")
-    page.wait_for_url("**/transactions/new?q=*")
-    assert page.input_value("#total") == "250" and page.input_value("#payee") == "Swiggy"
-    assert page.input_value('[data-rows="credit"] select') == books["card"]["aid"]
-    assert page.input_value('[data-rows="debit"] select') == books["food"]["aid"]
-    page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_url("**/transactions")
-    assert api.get("/transactions/")[0]["payee"] == "Swiggy"

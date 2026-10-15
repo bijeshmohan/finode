@@ -978,7 +978,7 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .form-actions { flex-direction: column; }
 .form-actions button { width: 100%; min-height: 3.375rem; font-size: 1rem; }
 
-/* ---------- Home: one number, a quick-add bar, plain rows ---------- */
+/* ---------- Home: one number, plain rows ---------- */
 .glance { padding: .5rem 0 1.25rem; }
 .glance-label { margin: 0; font-size: .8125rem; color: var(--muted); }
 .glance-figure { margin: .25rem 0 0; font-size: 2.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
@@ -991,18 +991,6 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .home-headline { margin: .25rem 0 .5rem; font-size: 1.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
 .section-label { margin: 2rem 0 .25rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
 .small-print { font-size: .8125rem; line-height: 1.5; }
-
-.composer {
-  display: flex; align-items: center; gap: .5rem; height: 3.25rem; padding: 0 .5rem 0 1.25rem;
-  border: 1px solid var(--border); border-radius: 999px; background: var(--surface); box-shadow: var(--shadow);
-}
-.composer input { flex: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.composer input:focus { border: 0; box-shadow: none; }
-.composer-go { flex: none; width: 2.375rem; height: 2.375rem; min-height: 0; padding: 0; border-radius: 50%; }
-@media (max-width: 59.99rem) {
-  .composer { position: fixed; left: 1rem; right: 1rem; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + .625rem); z-index: 21; }
-}
-@media (min-width: 60rem) { .composer { margin: .5rem 0 1rem; } }
 
 /* Transaction rows: no boxes, a hairline between them */
 .tx-day ul.card.list { padding: 0; background: transparent; border: 0; border-radius: 0; }
