@@ -303,6 +303,7 @@ input, select, textarea, button {
 }
 
 input, select, textarea {
+  caret-color: var(--text); /* the browser default is blue */
   font: inherit;
   font-size: 1rem; /* 16px stops iOS from zooming into inputs */
   min-height: var(--tap);
@@ -937,6 +938,8 @@ form.copy-last button { margin: 0; }
   min-height: 4.5rem; padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 0;
 }
 .total-field .amount-field input::placeholder { color: var(--faint); opacity: .55; }
+/* The cursor sits alone in the middle while the field is empty, not on top of the grey 0.00. */
+.total-field .amount-field input:focus::placeholder { opacity: 0; }
 .total-field .currency-code { padding-bottom: 1.2rem; font-weight: 500; font-size: .95rem; }
 
 .payee-field { display: flex; flex-direction: column; gap: .75rem; }
