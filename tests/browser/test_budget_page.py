@@ -150,3 +150,13 @@ def test_a_group_folds_opens_remembers_and_takes_money_for_itself(page: Page, bo
     expect(page.locator(".ready .figure")).to_have_text("4,300.00 INR")
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()  # still open after the page block was replaced
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+
+def test_the_month_tick_on_a_budget_bar_is_a_vertical_line_not_a_clipped_dot(page: Page, books):
+    page.goto("/budget")
+    tick = page.locator("a.catrow .pace").first
+    expect(tick).to_be_visible()
+    box = tick.bounding_box()
+    assert box["height"] >= 10 and box["width"] <= 4, f"a tall thin line, not a dot: {box}"
+    bar = page.locator("a.catrow .bar").first
+    assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible", "the bar must not clip the tick"

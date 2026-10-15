@@ -1121,7 +1121,7 @@ form.htmx-request button[type="submit"], form.htmx-request button:not([type]) { 
 .budget-list .gh:first-child { margin-top: .6rem; }
 a.catrow { display: block; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
 a.catrow:active { background: var(--surface-2); margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }
-a.catrow .bar { display: block; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+a.catrow .bar { display: block; position: relative; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: visible; } /* visible: the month tick is taller than the bar */
 a.catrow .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
 a.catrow .bar.over i { background: var(--danger); }
 a.catrow .cap { display: block; }
@@ -1219,7 +1219,7 @@ form.attn-item.fund { display: flex; gap: .75rem; align-items: center; justify-c
 .show-budget-unused .unused-hidden { display: block; }
 details.how { margin: 1.25rem 0 0; }
 
-.gsum .bar { display: block; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.gsum .bar { display: block; position: relative; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: visible; }
 .gsum .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
 .gsum .bar.over i { background: var(--danger); }
 .gsum .cap { display: block; margin-top: .3rem; }
