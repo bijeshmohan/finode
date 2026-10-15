@@ -30,17 +30,21 @@ def test_saving_too_long_name_reports_error(client: TestClient):
 
 
 
-def test_top_bar_has_profile_link_and_no_sign_out(client: TestClient):
+def test_top_bar_leads_to_settings_and_has_no_sign_out(client: TestClient):
     text = client.get("/").text
-    assert text.count('href="/profile"') == 1
+    assert 'class="icon-button avatar-link" href="/settings"' in text
+    assert 'href="/profile"' not in text, "your profile is one tap further, from Settings"
     assert "/logout" not in text
+    assert 'href="/profile"' in client.get("/settings").text
 
 
-def test_tab_bar_has_five_tabs(client: TestClient):
+def test_tab_bar_has_four_tabs(client: TestClient):
     text = client.get("/").text
     tabbar = text[text.index('<nav class="tabbar"'):]
     tabbar = tabbar[: tabbar.index("</nav>")]
-    assert tabbar.count("<a ") == 5 and "Budget" in tabbar and "Settings" in tabbar and "/profile" not in tabbar
+    assert tabbar.count("<a ") == 4
+    assert all(name in tabbar for name in ("Home", "Transactions", "Budget", "Accounts"))
+    assert "Settings" not in tabbar and "/profile" not in tabbar
 
 
 def test_profile_page_has_sign_out(client: TestClient):
@@ -87,11 +91,11 @@ def test_settings_page_holds_application_settings_not_profile(client: TestClient
     assert "AI assistants" in profile and "Your data" in profile and "First name" in profile
 
 
-def test_gear_icon_only_in_the_tab_bar(client: TestClient):
+def test_settings_is_reached_from_the_avatar_and_the_sidebar(client: TestClient):
     text = client.get("/").text
-    assert text.count('href="/settings"') == 2, "desktop text link and phone tab"
+    assert text.count('href="/settings"') == 2, "the avatar on phones and the sidebar link on wide screens"
     top = text[: text.index("</header>")]
-    assert "<circle cx=\"12\" cy=\"12\" r=\"3\"/>" not in top, "no gear icon beside the profile icon"
+    assert "<circle cx=\"12\" cy=\"12\" r=\"3\"/>" not in top, "no gear icon in the top bar"
     assert 'aria-current="page"' in client.get("/settings").text.split('href="/settings"')[1][:80]
 
 
