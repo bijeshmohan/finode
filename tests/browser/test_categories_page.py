@@ -79,3 +79,17 @@ def test_there_is_room_between_the_chips_and_the_first_row(page: Page, books, ap
     first = page.locator("[data-cat-tree]").bounding_box()
     gap = first["y"] - (chips["y"] + chips["height"])
     assert gap >= 14, f"the list starts {gap}px under the chips"
+
+
+def test_a_parent_category_with_nothing_posted_to_it_still_opens_its_page(page: Page, books, api: Api):
+    food = tree(api, books)  # Food holds Delivery and has no entries of its own
+    api.post("/accounts/", name="Snacks", parent_id=food["aid"])
+    delivery = next(a for a in api.get("/accounts/") if a["name"] == "Delivery")
+    spend(api, books, delivery, "120")
+    page.goto("/categories")
+    group = page.locator("details.cgrp", has_text="Groceries").first
+    group.locator(".open-link").click()
+    page.wait_for_url(f"**/categories/{food['aid']}**")
+    expect(page.locator(".hero-balance")).to_have_text("₹120.00")  # what is in its sub-categories this month
+    expect(page.locator("a.tx").first).to_be_visible()
+    expect(page.get_by_role("link", name="Add transaction")).to_be_visible()

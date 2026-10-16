@@ -17,7 +17,7 @@
 {% set a = totals[n.account.aid] %}
 <details class="cgrp" data-key="{{ n.account.aid }}">
   <summary class="r gsum" style="--d: {{ depth }}">
-    <span class="l1"><span class="cat-name"><span class="gcaret">{{ icon("caret") }}</span>{{ n.account.name }}<em class="cnt">{{ n.children|length }}</em></span><span class="{{ 'income' if root_name == 'Income' and a > 0 }}">{{ a|money }}</span></span>
+    <span class="l1"><span class="cat-name"><span class="gcaret">{{ icon("caret") }}</span>{{ n.account.name }}<em class="cnt">{{ n.children|length }}</em></span><span class="{{ 'income' if root_name == 'Income' and a > 0 }}">{{ a|money }}</span><a class="open-link" href="/categories/{{ n.account.aid }}?month={{ month_key }}" title="Open {{ n.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ n.account.name }}</span></a></span>
     <span class="bar" aria-hidden="true"><i style="width: {{ ((a|abs / largest) * 100)|round|int if largest > 0 else 0 }}%"></i></span>
   </summary>
   <div class="gkids">
