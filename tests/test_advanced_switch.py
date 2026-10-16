@@ -75,11 +75,11 @@ def test_off_hides_pin_order_and_close_on_an_account(client, books):
     assert "Edit" in off and "New transaction" in off
 
 
-def test_a_closed_account_can_still_be_reopened_with_the_switch_off(client, books):
+def test_a_deleted_category_can_still_be_restored_with_the_switch_off(client, books):
     aid = books["food"]["aid"]
     assert client.post(f"/api/accounts/{aid}/close").status_code == 200
     switch(client, False)
-    assert "Reopen account" in client.get(f"/accounts/{aid}").text
+    assert "Restore category" in client.get(f"/accounts/{aid}").text
 
 
 def test_pinned_accounts_are_not_listed_while_off(client, books):

@@ -51,7 +51,15 @@
         {% if can_move_down %}<button type="button" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "down"}'>{{ icon("arrow-down") }}Move down</button>{% endif %}
         {% if ordered_by_hand %}<button type="button" hx-post="/accounts/{{ account.aid }}/reset-order">A–Z</button>{% endif %}
         {% endif %}
-        {% if node.kind == "user" and (advanced or account.closed_on) %}
+        {% if node.kind == "user" and category %}
+        {% if account.closed_on %}
+        <p class="menu-note">{{ account.name }} was deleted: it is out of your lists and pickers, and its history stays in the reports.</p>
+        <button type="button" hx-post="/accounts/{{ account.aid }}/reopen">Restore category</button>
+        {% else %}
+        <button type="button" class="danger-text" hx-post="/accounts/{{ account.aid }}/delete"
+                hx-confirm="Delete {{ account.name }}{% if node.children %} and the sub-categories in it{% endif %}? If there are entries, they stay in your history and reports, but {{ 'these categories leave' if node.children else 'it leaves' }} your lists and pickers.">{{ icon("trash") }}Delete category</button>
+        {% endif %}
+        {% elif node.kind == "user" and (advanced or account.closed_on) %}
         {% if account.closed_on %}
         <p class="menu-note">Reopen {{ account.name }}{% if node.children %} and everything inside it{% endif %} to use {{ "them" if node.children else "it" }} again.</p>
         <button type="button" hx-post="/accounts/{{ account.aid }}/reopen">Reopen account</button>

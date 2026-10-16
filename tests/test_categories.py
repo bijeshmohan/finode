@@ -113,3 +113,59 @@ def test_the_chips_are_expense_and_income_and_the_old_spelling_still_works(clien
     assert 'aria-pressed="true">Expense<' in page and ">Income<" in page and ">Spending<" not in page
     old = client.get("/categories?tab=spending").text
     assert 'aria-pressed="true">Expense<' in old and "700.00" in old
+
+
+# ---- deleting a category -----------------------------------------------------------------------------------------------
+
+
+def names(client):
+    return {a["name"]: a for a in client.get("/api/accounts/").json()}
+
+
+def test_an_unused_category_is_deleted_for_good(client, books):
+    response = client.post(f"/accounts/{books['dining']['aid']}/delete")
+    assert response.headers["HX-Redirect"] == "/categories" and "category-deleted" in response.headers["set-cookie"]
+    assert "Dining" not in names(client)
+
+
+def test_a_category_with_entries_leaves_the_lists_but_keeps_its_history(client, books):
+    entry(client, books["groceries"], books["bank"], "300", LAST_MONTH.replace(day=3))
+    response = client.post(f"/accounts/{books['groceries']['aid']}/delete")
+    assert response.headers["HX-Redirect"] == "/categories" and "category-deleted" in response.headers["set-cookie"]
+    assert names(client)["Groceries"]["closed_on"], "kept, so the old entry still has its category"
+    this = client.get("/categories").text
+    assert "Groceries" not in this, "not listed where it has nothing"
+    assert "Groceries" in client.get(f"/categories?month={LAST_MONTH:%Y-%m}").text, "still in the month it was used"
+    assert f'value="{books["groceries"]["aid"]}"' not in client.get("/transactions/new").text
+    restored = client.post(f"/accounts/{books['groceries']['aid']}/reopen")
+    assert "category-restored" in restored.headers["set-cookie"] and not names(client)["Groceries"]["closed_on"]
+
+
+def test_a_category_with_sub_categories_takes_them_along(client, books):
+    response = client.post(f"/accounts/{books['food']['aid']}/delete")
+    assert response.headers["HX-Redirect"] == "/categories"
+    after = names(client)
+    assert after["Food"]["closed_on"] and after["Groceries"]["closed_on"] and after["Dining"]["closed_on"]
+    assert "Food" not in client.get("/categories").text
+
+
+def test_a_closed_sub_category_is_not_listed_under_its_group(client, books):
+    client.post(f"/api/accounts/{books['dining']['aid']}/close")
+    page = client.get("/categories").text
+    assert "Groceries" in page and "Dining" not in page
+
+
+def test_a_category_that_was_spent_in_can_be_deleted_without_emptying_it_first(client, books):
+    entry(client, books["rent"], books["bank"], "900", THIS_MONTH)
+    assert client.post(f"/api/accounts/{books['rent']['aid']}/close").status_code == 200, "its balance is spending, not money"
+    assert client.post(f"/api/accounts/{books['bank']['aid']}/close").status_code == 400, "an account still holding money is not"
+
+
+def test_a_category_page_says_delete_where_an_account_says_close(client, books):
+    category = client.get(f"/categories/{books['rent']['aid']}").text
+    assert "Delete category" in category and "Close account" not in category
+    assert f"/accounts/{books['rent']['aid']}/delete" in category
+    account_page = client.get(f"/accounts/{books['bank']['aid']}").text
+    assert "Close account" in account_page and "Delete category" not in account_page
+    form = client.get(f"/accounts/{books['rent']['aid']}/edit").text
+    assert "removed for good" in form and "Delete category" in form
