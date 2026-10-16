@@ -1201,6 +1201,12 @@ details[open] > summary .gcaret, details[open].attn > summary .gcaret { transfor
 .cat-name { display: inline-flex; align-items: center; min-width: 0; }
 .cnt { margin-left: .4rem; font-style: normal; font-weight: 400; font-size: .8125rem; color: var(--faint); }
 .gsum .cat-name { font-weight: 600; }
+/* A group row opens in place; its small arrow opens the group's own page (its month, its entries, where to add a sub-category). */
+.cgrp > .gsum .open-link { flex: none; align-self: center; min-height: 0; width: 2rem; margin: -.5rem -.5rem -.5rem 0; padding: .5rem 0; color: var(--faint); }
+/* Rows without an arrow keep the same room, so every amount ends in the same column. */
+a.crow .l1::after { content: ""; flex: none; width: 2rem; margin: 0 -.5rem 0 0; }
+a.crow .l1, .cgrp > .gsum .l1 { justify-content: flex-start; }
+a.crow .cat-name, .cgrp > .gsum .cat-name { margin-right: auto; }
 .gkids .catrow .cat-name, .gkids .gsum .cat-name { font-weight: 500; }
 .attn { margin: .25rem 0 .5rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
 .attn > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; font-weight: 500; cursor: pointer; list-style: none; }

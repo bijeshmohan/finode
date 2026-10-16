@@ -777,6 +777,10 @@ document.body.addEventListener("change", (event) => {
     saved[group.dataset.key] = group.open;
     try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (error) { /* private mode */ }
   }, true);
+  // The arrow link inside a group row opens the group's page and must not also fold or unfold the group.
+  document.body.addEventListener("click", (event) => {
+    if (event.target.closest && event.target.closest(".cgrp > summary .open-link")) event.stopPropagation();
+  }, true);
   document.body.addEventListener("click", (event) => {
     const button = event.target.closest && event.target.closest("[data-toggle-cat-quiet]");
     if (!button) return;
