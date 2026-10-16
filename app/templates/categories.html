@@ -21,7 +21,7 @@
     <span class="bar" aria-hidden="true"><i style="width: {{ ((a|abs / largest) * 100)|round|int if largest > 0 else 0 }}%"></i></span>
   </summary>
   <div class="gkids">
-    {% for c in n.children %}{% if c.children %}{{ group(c, depth + 1) }}{% else %}{{ leaf(c, depth + 1) }}{% endif %}{% endfor %}
+    {% for c in n.children %}{{ leaf(c, depth + 1) }}{% endfor %}
     {% if own.get(n.account.aid) %}{{ leaf(n, depth + 1, "Everything else", own[n.account.aid]) }}{% endif %}
   </div>
 </details>

@@ -41,7 +41,6 @@ MESSAGES = {
     "account-deleted": "Account deleted",
     "profile-updated": "Profile saved",
     "import-done": "Import complete",
-    "depth-updated": "Account depth saved",
     "currency-updated": "Currency saved",
     "app-disconnected": "App disconnected. It can no longer reach your books.",
     "access-changed": "Access updated. It applies to the very next request.",

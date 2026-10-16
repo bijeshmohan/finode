@@ -83,7 +83,8 @@ def test_a_category_page_shows_its_month_and_its_transactions(client, books):
     page = client.get(f"/categories/{books['groceries']['aid']}").text
     assert "300.00" in page and "Add transaction" in page and "/budget" in page
     assert page.count('class="tx"') == 1, "only this month's"
-    assert "Add sub-category" in page
+    assert "Add sub-category" not in page, "a sub-category is as deep as it gets"
+    assert "Add sub-category" in client.get(f"/categories/{books['food']['aid']}").text
 
 
 def test_an_account_page_for_a_category_goes_to_the_category_page(client, books):

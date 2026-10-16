@@ -159,7 +159,7 @@ document.body.addEventListener("account-added", async (event) => {
 document.body.addEventListener("htmx:afterSwap", rememberAccountChoices);
 document.addEventListener("DOMContentLoaded", rememberAccountChoices);
 
-// Open the profile section named in the URL (#currency, #depth ...).
+// Open the profile section named in the URL (#currency, #lock ...).
 function openHashSection() {
   const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
   if (target && target.tagName === "DETAILS") target.open = true;

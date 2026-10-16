@@ -35,7 +35,8 @@ def shift(month: date, by: int) -> date:
 
 
 class Node:
-    """A category in the budget tree: a group (with children, and its own 'everything else' line) or a plain category."""
+    """A category in the budget: a group (with its sub-categories, and its own 'everything else' line) or a plain category.
+    Accounts go two levels deep, so a sub-category is never a group itself."""
 
     def __init__(self, line: BudgetLine):
         self.line = line
@@ -50,10 +51,7 @@ class Node:
         """Every category line inside, the group's own 'everything else' line included."""
         if not self.is_group:
             return [self.line]
-        found = [self.other] if self.other is not None else []
-        for child in self.children:
-            found.extend(child.lines())
-        return found
+        return ([self.other] if self.other is not None else []) + [child.line for child in self.children]
 
     @property
     def over(self) -> int:
@@ -97,15 +95,9 @@ def build_tree(lines: list[BudgetLine]) -> list[Node]:
         if line.group:
             stack.append(node)
 
-    def fill(node: Node) -> None:
-        if node.is_group:
-            if node.other is None:
-                node.other = other_line(node.line)
-            for child in node.children:
-                fill(child)
-
-    for root in roots:
-        fill(root)
+    for node in roots:
+        if node.is_group and node.other is None:
+            node.other = other_line(node.line)
     return roots
 
 

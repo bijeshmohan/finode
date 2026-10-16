@@ -70,7 +70,7 @@ REFERENCES = {
     ("POST", "/budget/target/delete"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
     ("POST", "/recurring"), ("POST", "/restore"), ("POST", "/restore/preview"), ("POST", "/settings/currency"),
-    ("POST", "/settings/advanced"), ("POST", "/settings/depth"), ("POST", "/settings/lock"), ("POST", "/transactions/split"),
+    ("POST", "/settings/advanced"), ("POST", "/settings/lock"), ("POST", "/transactions/split"),
 }
 
 

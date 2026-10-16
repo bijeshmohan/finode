@@ -40,7 +40,7 @@
     {{ caption(line, (over ~ " over") if over else "") }}
   </summary>
   <div class="gkids">
-    {% for c in n.children %}{% if c.is_group %}{{ group(c, depth + 1) }}{% else %}{{ leaf(c.line, depth + 1) }}{% endif %}{% endfor %}
+    {% for c in n.children %}{{ leaf(c.line, depth + 1) }}{% endfor %}
     {{ leaf(n.other, depth + 1, "Everything else") }}
   </div>
 </details>

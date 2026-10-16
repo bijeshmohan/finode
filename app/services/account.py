@@ -14,10 +14,11 @@ from ..config import settings
 from ..limits import ensure_room
 from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
-from .depth import depth_limit
 from ..clock import local_today
 
 
+# Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
+MAX_ACCOUNT_DEPTH = 2
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
 ROOT_ACCOUNT_NAMES = ("Assets", "Expenses", "Equity", "Income", "Liabilities")
 DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
@@ -109,34 +110,12 @@ class AccountService:
             depth += 1
         return depth
 
-    def account_depths(self) -> list[tuple[str, int, str]]:
-        """(top-level account name, depth, path) for every non-top-level account."""
-        all_accounts = self._ensure_roots()
-        by_id = {a.aid: a for a in all_accounts}
-        result = []
-        for account in all_accounts:
-            if account.parent_id is None:
-                continue
-            names, current, seen = [], account, set()
-            while current.aid not in seen:
-                seen.add(current.aid)
-                names.append(current.name)
-                if current.parent_id is None or current.parent_id not in by_id:
-                    break
-                current = by_id[current.parent_id]
-            result.append((current.name, len(names) - 1, " › ".join(reversed(names))))
-        return result
-
     def _check_depth(self, parent: Account, levels_below_parent: int, all_accounts: list[Account]) -> None:
-        """Refuse a new or moved subtree that would go deeper than the user's limit."""
-        by_id = {a.aid: a for a in all_accounts}
-        root = self._get_root_name(parent, by_id)
-        resulting = self._depth(parent, by_id) + levels_below_parent
-        limit = depth_limit(self.pr.read(), root)
-        if resulting > limit:
+        """Refuse a new or moved subtree that would go deeper than two levels below the top-level account."""
+        resulting = self._depth(parent, {a.aid: a for a in all_accounts}) + levels_below_parent
+        if resulting > MAX_ACCOUNT_DEPTH:
             raise AccountDepthError(
-                f"{root} accounts can be at most {limit} level{'' if limit == 1 else 's'} deep, "
-                f"and this would be {resulting}. You can raise the limit in your profile."
+                "accounts can be at most two levels deep (a category and a sub-category, like Expenses › Food › Groceries)!"
             )
 
     def ensure_roots(self) -> list[Account]:
@@ -660,12 +639,12 @@ class AccountService:
                 if not parent:
                     raise ValueError("parent account not found!")
 
+                if self._detect_cycle(aid, parent_id):
+                    raise ValueError("cyclic parent relationship detected!")
+
                 if parent_id != account.parent_id:
                     self._validate_parent(parent, all_accounts)
                     self._check_depth(parent, 1 + self._height(aid, all_accounts), all_accounts)
-
-                if self._detect_cycle(aid, parent_id):
-                    raise ValueError("cyclic parent relationship detected!")
 
                 accounts_by_id = {a.aid: a for a in all_accounts}
                 if self._get_root_name(parent, accounts_by_id) != self._get_root_name(
