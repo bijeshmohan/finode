@@ -103,4 +103,12 @@ def test_adding_and_deleting_a_category_stay_on_the_categories_side(client, book
 
 def test_the_empty_page_invites_the_first_category(client, root_accounts):
     page = client.get("/categories").text
-    assert "No spending categories yet" in page and 'href="/categories/new"' in page
+    assert "No expense categories yet" in page and 'href="/categories/new"' in page
+
+
+def test_the_chips_are_expense_and_income_and_the_old_spelling_still_works(client, books):
+    entry(client, books["rent"], books["bank"], "700", THIS_MONTH)
+    page = client.get("/categories").text
+    assert 'aria-pressed="true">Expense<' in page and ">Income<" in page and ">Spending<" not in page
+    old = client.get("/categories?tab=spending").text
+    assert 'aria-pressed="true">Expense<' in old and "700.00" in old
