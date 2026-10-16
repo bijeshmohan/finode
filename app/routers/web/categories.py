@@ -72,7 +72,6 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
         n.children = [c for c in n.children if shown(c)]
     top = [n for n in root.children if shown(n)]
     grand = sum((walk(n) for n in top), ZERO)
-    largest = max((abs(totals[n.account.aid]) for n in top), default=ZERO)
     # Top-level groups and categories with nothing in the month are tucked away once anything has something.
     quiet = [n for n in top if totals[n.account.aid] == 0] if any(totals[n.account.aid] for n in top) else []
     return templates.TemplateResponse(
@@ -86,7 +85,6 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
             "totals": totals,
             "own": own,
             "grand": grand,
-            "largest": largest,
             "quiet_ids": {n.account.aid for n in quiet},
             "quiet_count": len(quiet),
             "currency": accounts.currency().code,
