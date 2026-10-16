@@ -19,7 +19,8 @@ from .budget import parse_month, shift
 
 router = APIRouter(prefix="/categories")
 
-TABS = {"spending": "Expenses", "income": "Income"}
+TABS = {"expense": "Expenses", "income": "Income"}
+OLD_TABS = {"spending": "expense"}  # the earlier spelling of the tab keeps working in saved links
 ZERO = Decimal("0.00")
 
 
@@ -45,11 +46,12 @@ def _month_context(when, is_current: bool) -> dict:
 
 
 @router.get("")
-def categories_page(request: Request, accounts: Accounts, reports: Reports, month: str = "", tab: str = "spending"):
+def categories_page(request: Request, accounts: Accounts, reports: Reports, month: str = "", tab: str = "expense"):
     when, end, is_current = _period(month)
     if when is None:
         return RedirectResponse(f"/categories?tab={tab}", status_code=303)
-    tab = tab if tab in TABS else "spending"
+    tab = OLD_TABS.get(tab, tab)
+    tab = tab if tab in TABS else "expense"
     root_name = TABS[tab]
     own, unpriced = reports.account_totals(root_name, when, end)
     roots = build_tree(accounts.list())
@@ -114,7 +116,7 @@ def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Pro
             "category": True,
             "active": "categories",
             "total": sum((e.change for e in entries), ZERO),
-            "tab": "income" if root.account.name == "Income" else "spending",
+            "tab": "income" if root.account.name == "Income" else "expense",
             **_month_context(when, is_current),
         },
     )
