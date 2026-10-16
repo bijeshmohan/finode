@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from types import SimpleNamespace
 from typing import Annotated
 from uuid import UUID
 
@@ -15,7 +14,7 @@ from ...services.schedule import describe
 from ...templating import templates
 from .accounts import build_tree
 from .transactions import form_context, form_rows, infer_kind, split_postings
-from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
+from .utils import htmx_error, htmx_redirect, validation_message
 from ...clock import local_today
 
 
@@ -29,8 +28,7 @@ class RuleRow:
     rule: RecurringRead
     from_name: str
     to_name: str
-    amount: Decimal  # what leaves (a split: its total, in the rule's currency)
-    unit: str | None  # commodity of the 'from' account, shown when it is not the default currency
+    amount: Decimal  # what leaves (a split: its total)
     schedule: str
     status: str  # active | paused | ended | error
 
@@ -41,28 +39,25 @@ def _status(rule: RecurringRead) -> str:
     return "ended" if rule.end_date is not None and rule.next_date > rule.end_date else "paused"
 
 
-def _paths(accounts: Accounts) -> tuple[dict[UUID, str], dict[UUID, str | None]]:
-    all_accounts = accounts.list()
-    paths = {n.account.aid: n.path for root in build_tree(all_accounts) for n in root.walk()}
-    return paths, {a.aid: a.commodity for a in all_accounts}
+def _paths(accounts: Accounts) -> dict[UUID, str]:
+    return {n.account.aid: n.path for root in build_tree(accounts.list()) for n in root.walk()}
 
 
-def _row(rule: RecurringRead, paths: dict[UUID, str], commodities: dict[UUID, str | None]) -> RuleRow:
+def _row(rule: RecurringRead, paths: dict[UUID, str]) -> RuleRow:
     if rule.postings:
         names = lambda side: ", ".join(  # noqa: E731
             dict.fromkeys(paths.get(p.account, "?").split(" › ")[-1] for p in rule.postings if p.side == side)
         )
-        total = sum((p.value or p.amount for p in rule.postings if p.side == PostingSide.DEBIT), Decimal(0))
+        total = sum((p.amount for p in rule.postings if p.side == PostingSide.DEBIT), Decimal(0))
         return RuleRow(
             rule=rule, from_name=names(PostingSide.CREDIT), to_name=names(PostingSide.DEBIT), amount=total,
-            unit=rule.currency, schedule=describe(rule.frequency, rule.every), status=_status(rule),
+            schedule=describe(rule.frequency, rule.every), status=_status(rule),
         )
     return RuleRow(
         rule=rule,
         from_name=paths.get(rule.from_account, "?"),
         to_name=paths.get(rule.to_account, "?"),
         amount=rule.amount,
-        unit=commodities.get(rule.from_account),
         schedule=describe(rule.frequency, rule.every),
         status=_status(rule),
     )
@@ -71,8 +66,8 @@ def _row(rule: RecurringRead, paths: dict[UUID, str], commodities: dict[UUID, st
 @router.get("")
 def recurring_page(request: Request, accounts: Accounts, recurring: Recurring):
     recurring.process_due()
-    paths, commodities = _paths(accounts)
-    rows = [_row(r, paths, commodities) for r in recurring.list()]
+    paths = _paths(accounts)
+    rows = [_row(r, paths) for r in recurring.list()]
     return templates.TemplateResponse(
         request,
         "recurring.html",
@@ -82,7 +77,7 @@ def recurring_page(request: Request, accounts: Accounts, recurring: Recurring):
             "rows": rows,
             "live": [r for r in rows if r.status in ("active", "error")],
             "stopped": [r for r in rows if r.status in ("paused", "ended")],
-            "currency": accounts.default_currency().code,
+            "currency": accounts.currency().code,
         },
     )
 
@@ -94,8 +89,8 @@ def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | N
         kind = "expense"
     else:
         recorded = recurring.as_transaction(rule)
-        transaction = SimpleNamespace(currency=recorded.currency)
-        total = sum((p.value or p.amount for p in recorded.postings if p.side == PostingSide.DEBIT), Decimal(0))
+        transaction = None
+        total = sum((p.amount for p in recorded.postings if p.side == PostingSide.DEBIT), Decimal(0))
         kind = infer_kind(recorded.postings, {n.account.aid: r.account.name for r in build_tree(accounts.list()) for n in r.walk()})
         from_rows = form_rows(recorded.postings, PostingSide.CREDIT)
         to_rows = form_rows(recorded.postings, PostingSide.DEBIT)
@@ -130,7 +125,7 @@ def _parse_date(value: str, label: str) -> date | None:
 
 
 def _parse(
-    accounts: Accounts, account: list[str], side: list[str], amount: list[str], value: list[str], currency: str,
+    account: list[str], side: list[str], amount: list[str],
     payee: str, comment: str, frequency: str, every: str, start: str, end: str,
 ) -> dict:
     try:
@@ -140,7 +135,7 @@ def _parse(
     started = _parse_date(start, "the start date")
     if started is None:
         raise ValueError("choose a start date!")
-    rows = split_postings(account, side, amount, value)
+    rows = split_postings(account, side, amount)
     if len(rows) < 2:
         raise ValueError("choose where the money comes from and where it goes!")
     common = {
@@ -149,20 +144,13 @@ def _parse(
     }
     debit = [p for p in rows if p.side == PostingSide.DEBIT]
     credit = [p for p in rows if p.side == PostingSide.CREDIT]
-    if len(rows) == 2 and len(debit) == 1 and len(credit) == 1:
-        # One account on each side is a plain rule (finode works out the currency and what is worth what).
-        held = {a.aid: a.commodity for a in accounts.list()}
-        converts = held.get(debit[0].account) != held.get(credit[0].account)
-        if converts or debit[0].amount == credit[0].amount:
-            return {
-                "from_account": credit[0].account, "to_account": debit[0].account, "amount": credit[0].amount,
-                "received_amount": debit[0].amount if converts else None, **common,
-            }
+    if len(rows) == 2 and len(debit) == 1 and len(credit) == 1 and debit[0].amount == credit[0].amount:
+        # One account on each side is a plain rule.
+        return {
+            "from_account": credit[0].account, "to_account": debit[0].account, "amount": credit[0].amount, **common,
+        }
     return {
-        "postings": [
-            RecurringPostingData(account=p.account, side=p.side, amount=p.amount, value=p.value) for p in rows
-        ],
-        "currency": currency.strip() or None,
+        "postings": [RecurringPostingData(account=p.account, side=p.side, amount=p.amount) for p in rows],
         **common,
     }
 
@@ -174,8 +162,6 @@ def create_recurring(
     account: Annotated[list[str], Form()] = [],
     side: Annotated[list[str], Form()] = [],
     amount: Annotated[list[str], Form()] = [],
-    value: Annotated[list[str], Form()] = [],
-    currency: Annotated[str, Form()] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     frequency: Annotated[str, Form()] = "monthly",
@@ -185,7 +171,7 @@ def create_recurring(
 ):
     try:
         data = RecurringCreate(
-            **_parse(accounts, account, side, amount, value, currency, payee, comment, frequency, every, start, end)
+            **_parse(account, side, amount, payee, comment, frequency, every, start, end)
         )
         created = recurring.create(data)
         recurring.process_due()  # a start date in the past is recorded straight away
@@ -216,8 +202,6 @@ def update_recurring(
     account: Annotated[list[str], Form()] = [],
     side: Annotated[list[str], Form()] = [],
     amount: Annotated[list[str], Form()] = [],
-    value: Annotated[list[str], Form()] = [],
-    currency: Annotated[str, Form()] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     frequency: Annotated[str, Form()] = "monthly",
@@ -227,7 +211,7 @@ def update_recurring(
 ):
     try:
         data = RecurringUpdate(
-            **_parse(accounts, account, side, amount, value, currency, payee, comment, frequency, every, start, end)
+            **_parse(account, side, amount, payee, comment, frequency, every, start, end)
         )
         rule = recurring.update(rid, data)
         if rule is not None:

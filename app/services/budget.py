@@ -112,7 +112,7 @@ class BudgetService:
     - *ready to assign* is cash minus the sum of all categories' available money. Income arriving
       raises it; assigning, or spending beyond what was assigned, lowers it.
 
-    The figures are in the default currency and count entries up to the last day of the month.
+    The figures are in the user's currency and count entries up to the last day of the month.
     """
 
     def __init__(self, accounts: AccountService, tr: TransactionRepository, br: BudgetRepository):
@@ -144,7 +144,7 @@ class BudgetService:
     def _compute(self, month: date | None) -> tuple[BudgetRead, dict[UUID, tuple[Decimal, Decimal, Decimal]]]:
         month = month_start(month)
         through = month_end(month)
-        default = self.accounts.default_currency()
+        currency = self.accounts.currency()
         accounts = self.accounts.ar.list()
         by_id = {a.aid: a for a in accounts}
         parents = {a.parent_id for a in accounts if a.parent_id is not None}
@@ -157,7 +157,7 @@ class BudgetService:
         }
 
         in_budget: set[UUID] = set()
-        candidates: dict[UUID, Account] = {}  # could be in the budget but are not: assets/liabilities holding the currency
+        candidates: dict[UUID, Account] = {}  # could be in the budget but are not: assets/liabilities that could be
         budget_accounts: list[str] = []
         ignored: list[str] = []
         for a in accounts:
@@ -166,13 +166,12 @@ class BudgetService:
                     a.aid not in payments
                     and a.parent_id is not None
                     and a.aid not in parents
-                    and a.commodity_id == default.cid
                     and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
                 ):
                     candidates[a.aid] = a
                 continue
             label = ":".join(self._path_with_root(a, by_id))
-            if a.commodity_id == default.cid and a.aid not in parents:
+            if a.aid not in parents:
                 in_budget.add(a.aid)
                 budget_accounts.append(label)
             else:
@@ -187,7 +186,6 @@ class BudgetService:
             if p.account in in_budget:
                 touching.add(p.transaction)
 
-        book = self.accounts.prices.book()
         # Spending this month in transactions that touch no budget account: [value, accounts that paid].
         outside: dict[UUID, list] = {}
         for p in postings:
@@ -195,9 +193,7 @@ class BudgetService:
                 continue
             transaction = transactions[p.transaction]
             if p.account in categories and month_start(transaction.date) == month:
-                value = p.value if p.side == PostingSide.DEBIT else -p.value
-                if transaction.currency_id != default.cid:
-                    value = book.convert(value, transaction.currency_id, default.cid, transaction.date, default.decimals) or ZERO
+                value = p.amount if p.side == PostingSide.DEBIT else -p.amount
                 outside.setdefault(p.transaction, [ZERO, set()])[0] += value
         for p in postings:
             if p.transaction in outside and p.account in candidates:
@@ -234,7 +230,6 @@ class BudgetService:
         daily: dict[UUID, dict[date, Decimal]] = {}
         # What happened to each category in each month: [assigned, spent].
         by_category: dict[UUID, dict[date, list[Decimal]]] = {}
-        unpriced = False
         for p in postings:
             if p.account in in_budget:
                 cash += p.amount if p.side == PostingSide.DEBIT else -p.amount
@@ -249,12 +244,7 @@ class BudgetService:
                 transaction = transactions[p.transaction]
                 if month_start(transaction.date) < start:
                     continue
-                value = p.value if p.side == PostingSide.DEBIT else -p.value
-                if transaction.currency_id != default.cid:
-                    value = book.convert(value, transaction.currency_id, default.cid, transaction.date, default.decimals)
-                    if value is None:
-                        unpriced = True
-                        continue
+                value = p.amount if p.side == PostingSide.DEBIT else -p.amount
                 figures = by_category.setdefault(target, {}).setdefault(month_start(transaction.date), [ZERO, ZERO])
                 figures[1] += value
                 if target in weekly and month_start(transaction.date) == month:
@@ -305,7 +295,7 @@ class BudgetService:
         for aid, target in targets.items():
             if aid in own:
                 assigned, spent, available, _ = own[aid]
-                needs[aid] = funding(target, assigned, available - assigned + spent, month, default.decimals)
+                needs[aid] = funding(target, assigned, available - assigned + spent, month, currency.decimals)
         total_underfunded = sum((v[1] for v in needs.values()), ZERO)
 
         lines = self._lines(categories, by_id, parents, own, targets, needs)
@@ -327,7 +317,7 @@ class BudgetService:
                     ]
         read = BudgetRead(
             month=month,
-            currency=default.code,
+            currency=currency.code,
             ready_to_assign=cash - total_available - later,
             assigned_to_later_months=later,
             copyable=copyable,
@@ -342,7 +332,6 @@ class BudgetService:
             cards=cards,
             left_out=left_out_total,
             left_out_accounts=left_out_accounts,
-            unpriced=unpriced,
             budget_accounts=budget_accounts,
             ignored_accounts=ignored,
             lines=lines,
@@ -452,9 +441,9 @@ class BudgetService:
         return account
 
     def _check_amount(self, amount: Decimal) -> None:
-        default = self.accounts.default_currency()
-        if decimal_places(amount) > default.decimals:
-            raise BudgetError(f"{default.code} amounts can have at most {default.decimals} decimal places!")
+        currency = self.accounts.currency()
+        if decimal_places(amount) > currency.decimals:
+            raise BudgetError(f"{currency.code} amounts can have at most {currency.decimals} decimal places!")
 
     def include_account(self, aid: UUID) -> None:
         """Make an account part of the budget (its money and its spending count from now on)."""

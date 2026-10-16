@@ -2,7 +2,8 @@ from datetime import timedelta
 
 from ..clock import local_today
 from ..config import settings
-from ..repositories import CommodityRepository, ProfileRepository
+from ..currencies import find as find_currency
+from ..repositories import ProfileRepository
 from ..schemas.profile import ProfileRead, ProfileUpdate
 from .account import AccountService
 from .depth import ROOT_DEPTH_FIELDS, depth_limits
@@ -12,16 +13,15 @@ MAX_NAMED_ACCOUNTS = 3
 
 
 class ProfileService:
-    def __init__(self, pr: ProfileRepository, accounts: AccountService, cr: CommodityRepository | None = None):
+    def __init__(self, pr: ProfileRepository, accounts: AccountService):
         self.pr = pr
         self.accounts = accounts
-        self.cr = cr or CommodityRepository(pr.db, pr.uid)
 
     def _to_read(self, profile) -> ProfileRead:
         return ProfileRead(
             first_name=profile.first_name,
             last_name=profile.last_name,
-            default_currency=self.cr.default_currency().code,
+            default_currency=profile.currency,
             locked_through=profile.locked_through,
             advanced=profile.advanced,
             created=profile.created,
@@ -73,15 +73,14 @@ class ProfileService:
                     f"{max(depth for r, depth, _ in depths if r == root)}."
                 )
 
-    def _resolve_currency(self, data: ProfileUpdate):
+    @staticmethod
+    def _resolve_currency(data: ProfileUpdate) -> str | None:
         if "default_currency" not in data.model_fields_set:
             return None
-        commodity = self.cr.read_by_code(data.default_currency.strip().upper())
-        if commodity is None:
+        currency = find_currency(data.default_currency)
+        if currency is None:
             raise ValueError(f"unknown currency '{data.default_currency}'!")
-        if commodity.kind != "currency":
-            raise ValueError(f"{commodity.code} is not a currency, so totals cannot be reported in it!")
-        return commodity.cid
+        return currency.code
 
     @staticmethod
     def _validate_lock(data: ProfileUpdate) -> None:

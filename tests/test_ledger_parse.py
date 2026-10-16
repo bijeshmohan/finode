@@ -39,7 +39,7 @@ def test_account_directive_with_note():
 
 
 def test_ignored_directives_do_not_fail():
-    text = "commodity ₹\n    format 1,000.00 ₹\nP 2026-01-01 USD 83 ₹\nD ₹1,000.00\npayee DMart\n"
+    text = "commodity ₹\n    format 1,000.00 ₹\nD ₹1,000.00\npayee DMart\n"
     assert _errors(text) == []
 
 
@@ -55,11 +55,6 @@ def test_two_elided_amounts_rejected():
 
 def test_single_posting_rejected():
     assert _errors("2026-10-04 x\n    Expenses:A  10\n") == ["line 1: a transaction needs at least two postings"]
-
-
-def test_mixed_currencies_rejected():
-    errors = _errors("2026-10-04 x\n    A:B  10 USD\n    C:D  -10 EUR\n")
-    assert errors and "mixes currencies" in errors[0]
 
 
 def test_unsupported_features_are_reported():
@@ -92,7 +87,7 @@ def test_semicolon_inside_payee_is_not_a_comment():
     assert journal.transactions[0].payee == "AT;T"
 
 
-# ---- several commodities ------------------------------------------------------------------------------------------
+# ---- one currency, with or without a label on the amounts ----------------------------------------------------------
 
 
 def _txn(text: str):
@@ -101,49 +96,25 @@ def _txn(text: str):
     return journal.transactions[0]
 
 
-def test_amounts_keep_their_commodity_and_precision():
-    t = _txn("2026-01-05 x\n    Assets:Wise  100.50 USD\n    Assets:Coin  0.01234567 BTC\n    Equity:O  -100.50 USD\n    Equity:P  -0.01234567 BTC\n")
+def test_amounts_keep_their_label_and_precision():
+    t = _txn("2026-01-05 x\n    Assets:Wise  100.50 INR\n    Equity:O  -100.50 INR\n    Assets:Cash  0.12345678\n    Equity:P  -0.12345678\n")
     assert [(p.amount, p.commodity) for p in t.postings] == [
-        (Decimal("100.50"), "USD"),
-        (Decimal("0.01234567"), "BTC"),
-        (Decimal("-100.50"), "USD"),
-        (Decimal("-0.01234567"), "BTC"),
+        (Decimal("100.50"), "INR"),
+        (Decimal("-100.50"), "INR"),
+        (Decimal("0.12345678"), None),
+        (Decimal("-0.12345678"), None),
     ]
 
 
-def test_a_total_price_converts_a_posting():
-    t = _txn("2026-01-05 Buy USD\n    Assets:Wise   100 USD @@ 8350 INR\n    Assets:HDFC   -8350 INR\n")
-    wise, bank = t.postings
-    assert (wise.amount, wise.commodity, wise.cost, wise.cost_commodity) == (Decimal("100"), "USD", Decimal("8350"), "INR")
-    assert (bank.amount, bank.commodity, bank.cost) == (Decimal("-8350"), "INR", None)
+def test_a_symbol_before_the_number_is_the_label():
+    t = _txn("2026-01-05 x\n    Assets:Wise  ₹8,350\n    Assets:HDFC  -₹8,350\n")
+    assert [p.commodity for p in t.postings] == ["₹", "₹"] and t.postings[0].amount == Decimal("8350")
 
 
-def test_a_unit_price_is_multiplied_out():
-    t = _txn("2026-01-05 Buy\n    Assets:Zerodha:INFY  10 INFY @ 1500 INR\n    Assets:HDFC\n")
-    infy, bank = t.postings
-    assert infy.cost == Decimal("15000") and infy.cost_commodity == "INR"
-    assert (bank.amount, bank.commodity) == (Decimal("-15000"), "INR"), "the left-out amount is filled in"
-
-
-def test_selling_has_a_negative_amount_and_a_positive_price():
-    t = _txn("2026-01-05 Sell\n    Assets:Wise  -40 USD @@ 3400 INR\n    Assets:HDFC  3400 INR\n")
-    assert t.postings[0].amount == Decimal("-40") and t.postings[0].cost == Decimal("3400")
-
-
-def test_a_symbol_before_the_number_and_a_price_in_symbols():
-    t = _txn("2026-01-05 x\n    Assets:Wise  $100 @@ ₹8,350\n    Assets:HDFC  -₹8,350\n")
-    assert (t.postings[0].commodity, t.postings[0].cost_commodity) == ("$", "₹")
-
-
-def test_commodities_without_a_price_are_explained():
-    errors = _errors("2026-01-05 x\n    Assets:Wise  100 USD\n    Assets:HDFC  -8350 INR\n")
-    assert len(errors) == 1 and errors[0].startswith("line 1: mixes currencies ('USD' and 'INR') without a price")
-    assert "@@" in errors[0]
-
-
-def test_a_wrong_price_does_not_balance():
-    errors = _errors("2026-01-05 x\n    Assets:Wise  100 USD @@ 8300 INR\n    Assets:HDFC  -8350 INR\n")
-    assert errors == ["line 1: does not balance (off by 50.00)"]
+def test_conversions_are_refused_because_finode_keeps_one_currency():
+    for price in ("@@ 8350 INR", "@ 83.5 INR"):
+        errors = _errors(f"2026-01-05 Buy USD\n    Assets:Wise   100 USD {price}\n    Assets:HDFC   -8350 INR\n")
+        assert errors == ["line 2: conversions between currencies are not supported: finode keeps one currency"]
 
 
 def test_an_amount_without_a_commodity_joins_the_only_one_in_the_transaction():
@@ -151,54 +122,23 @@ def test_an_amount_without_a_commodity_joins_the_only_one_in_the_transaction():
     assert _errors("2026-01-05 x\n    A:B  10\n    C:D  -10 INR\n") == []
 
 
-def test_only_one_left_out_amount_in_a_multi_commodity_transaction_may_be_inferred():
-    assert _errors("2026-01-05 x\n    A:B  10 USD\n    C:D  5 EUR\n    E:F\n")[0].startswith("line 1: mixes currencies")
+def test_a_left_out_amount_takes_the_label_the_others_have():
+    t = _txn("2026-01-05 x\n    A:B  10 INR\n    C:D  4 INR\n    E:F\n")
+    assert (t.postings[2].amount, t.postings[2].commodity) == (Decimal("-14"), "INR")
+    t = _txn("2026-01-05 x\n    A:B  10 USD\n    C:D  5 EUR\n    E:F\n")
+    assert (t.postings[2].amount, t.postings[2].commodity) == (Decimal("-15"), None), "different labels: the importer will object"
 
 
-def test_prices_must_be_positive_and_need_an_amount():
-    assert "a price must be positive" in _errors("2026-01-05 x\n    A:B  10 USD @@ -5 INR\n    C:D  5 INR\n")[0]
-    assert "a price must be positive" in _errors("2026-01-05 x\n    A:B  10 USD @ 0 INR\n    C:D\n")[0]
-    assert "a price needs an amount" in _errors("2026-01-05 x\n    A:B  @@ 5 INR\n    C:D  5 INR\n")[0]
-
-
-def test_balance_assertions_are_per_commodity():
+def test_balance_assertions_are_per_label():
     ok = (
-        "2026-01-01 a\n    Assets:Wise  100 USD = 100 USD\n    Equity:O  -100 USD\n"
-        "2026-01-02 b\n    Assets:Wise  50 EUR = 50 EUR\n    Equity:O  -50 EUR\n"
+        "2026-01-01 a\n    Assets:Wise  100 INR = 100 INR\n    Equity:O  -100 INR\n"
+        "2026-01-02 b\n    Assets:Wise  50 INR = 150 INR\n    Equity:O  -50 INR\n"
     )
     assert _errors(ok) == []
-    bad = ok + "2026-01-03 c\n    Assets:Wise  10 USD = 111 USD\n    Equity:O  -10 USD\n"
-    assert "balance assertion failed: 'Assets:Wise' is 110.00, expected 111.00" in _errors(bad)[0]
+    bad = ok + "2026-01-03 c\n    Assets:Wise  10 INR = 111 INR\n    Equity:O  -10 INR\n"
+    assert "balance assertion failed: 'Assets:Wise' is 160.00, expected 111.00" in _errors(bad)[0]
 
 
-def test_commodity_directives_carry_decimals_and_finodes_tags():
-    journal = parse(
-        "commodity 1,000.00 INR\n"
-        "commodity INFY  ; name:Infosys, kind:stock\n"
-        "commodity 0.000 NIFTYBEES\n"
-        "commodity BTC\n    format 1,000.00000000 BTC\n"
-    )
-    assert journal.errors == []
-    got = {c.symbol: (c.decimals, c.name, c.kind) for c in journal.commodities}
-    assert got == {
-        "INR": (2, None, None),
-        "INFY": (None, "Infosys", "stock"),
-        "NIFTYBEES": (3, None, None),
-        "BTC": (8, None, None),
-    }
-
-
-def test_price_directives_are_read():
-    journal = parse("P 2026-01-05 USD 83.5 INR\nP 2026/01/06 00:00:00 \"HDFC.BO\" $1,650.25\n")
-    assert journal.errors == []
-    assert [(p.date, p.symbol, p.price, p.quote) for p in journal.prices] == [
-        (date(2026, 1, 5), "USD", Decimal("83.5"), "INR"),
-        (date(2026, 1, 6), "HDFC.BO", Decimal("1650.25"), "$"),
-    ]
-
-
-def test_bad_price_and_commodity_directives():
-    assert _errors("P nonsense\n") == ["line 1: cannot read the price line"]
-    assert _errors("P 2026-13-40 USD 5 INR\n") == ["line 1: not a valid date"]
-    assert _errors("P 2026-01-05 USD 0 INR\n") == ["line 1: a price must be positive"]
-    assert _errors("commodity 1,000.00\n")[0].startswith("line 1:")
+def test_commodity_directives_are_accepted_and_price_lines_are_not():
+    assert _errors("commodity 1,000.00 INR\ncommodity INR\n    format 1,000.00 INR\n") == []
+    assert _errors("P 2026-01-05 USD 83.5 INR\n") == ["line 1: prices are not supported: finode keeps one currency"]

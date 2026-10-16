@@ -1,8 +1,7 @@
-"""The built-in currencies (ISO 4217): the same for every user, changed only through migrations.
+"""Frozen copy of the built-in currencies the early migrations insert (ISO 4217).
 
-Everything else a user holds (stocks, funds, coins) is their own commodity.
+The application no longer has a commodities table; this list only serves migrations a1d3f5b7c902 and c4a6b8d0e135.
 """
-
 from uuid import NAMESPACE_DNS, UUID, uuid5
 
 

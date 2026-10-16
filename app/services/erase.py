@@ -37,7 +37,7 @@ class EraseService:
         return removed
 
     def erase_books(self) -> dict[str, int]:
-        """Accounts, transactions, budget, recurring rules, own assets and prices, and the audit trail."""
+        """Accounts, transactions, budget, recurring rules and the audit trail."""
         removed = self._erase(KEPT_WITH_THE_BOOKS)
         # A lock closes the books that were just erased: it goes with them (the rest of the profile stays).
         profile = self.db.get(Profile, self.uid)

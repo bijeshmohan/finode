@@ -16,9 +16,9 @@
   <h2 class="settings-label">Preferences</h2>
   <div class="tile">
   <details id="currency" class="setting">
-    <summary><span class="setting-title">Default currency</span><span class="setting-value">{{ profile.default_currency }}</span>{{ icon("chevron-right") }}</summary>
+    <summary><span class="setting-title">Currency</span><span class="setting-value">{{ profile.default_currency }}</span>{{ icon("chevron-right") }}</summary>
     <form class="stack" hx-post="/settings/currency">
-      <p class="muted">Net worth, the dashboard and your reports add everything up in this currency. Accounts keep what they hold; this only changes how totals are shown.</p>
+      <p class="muted">Every amount in finode is in this currency. Changing it only changes the label: nothing is converted, so the numbers stay as they are. A currency with fewer decimals (such as the yen) will refuse new amounts with decimals.</p>
       <label>Currency
         <select name="currency">
           {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == profile.default_currency }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}
@@ -27,7 +27,6 @@
       <p id="currency-error" class="error" role="alert"></p>
       <div class="actions">
         <button type="submit">Save currency</button>
-        <a class="button secondary" href="/commodities">Assets &amp; prices</a>
       </div>
     </form>
   </details>

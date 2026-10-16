@@ -86,10 +86,6 @@ def posting_groups(roots: list[Node], keep: set[UUID] = frozenset()) -> list[tup
     return groups
 
 
-def _optional_amount(text: str) -> Decimal | None:
-    return parse_amount(text) if text.strip() else None
-
-
 def _find(roots: list[Node], aid: UUID) -> Node | None:
     return next((n for root in roots for n in root.walk() if n.account.aid == aid), None)
 
@@ -153,7 +149,7 @@ def accounts_page(request: Request, accounts: Accounts, profiles: Profiles):
             "pinned": pinned if profiles.advanced() else [],
             "recent": recent,
             "roots": roots,
-            "currency": accounts.default_currency().code,
+            "currency": accounts.currency().code,
             "unused": unused,
             "closed": closed_count(roots),
         },
@@ -212,10 +208,7 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "node": None,
             "parent_id": parent,
             "parent_options": _parent_options(roots, profiles.depth_limits()),
-            "currency": accounts.default_currency().code,
-            "opening_currency": accounts.opening_currency().code,
-            "commodity_choices": accounts.commodity_choices(),
-            "can_change_commodity": True,
+            "currency": accounts.currency().code,
         },
     )
 
@@ -232,9 +225,7 @@ def quick_account_sheet(request: Request, accounts: Accounts, profiles: Profiles
             "parent_id": suggested,
             "parent_options": _parent_options(roots, profiles.depth_limits()),
             "roots_by_id": {n.account.aid: r.account.name for r in roots for n in r.walk()},
-            "currency": accounts.default_currency().code,
-            "opening_currency": accounts.opening_currency().code,
-            "commodity_choices": accounts.commodity_choices(),
+            "currency": accounts.currency().code,
         },
     )
 
@@ -255,8 +246,6 @@ def quick_create_account(
     name: Annotated[str, Form()] = "",
     parent_id: Annotated[str, Form()] = "",
     balance: Annotated[str, Form()] = "",
-    commodity: Annotated[str, Form()] = "",
-    balance_value: Annotated[str, Form()] = "",
 ):
     try:
         roots = build_tree(accounts.list())
@@ -272,9 +261,7 @@ def quick_create_account(
             AccountCreate(
                 name=name,
                 parent_id=parent.account.aid,
-                commodity=commodity.strip() or None,
                 balance=opening,
-                balance_value=_optional_amount(balance_value),
             )
         )
     except ValidationError as e:
@@ -291,8 +278,6 @@ def create_account(
     parent_id: Annotated[str, Form()] = "",
     details: Annotated[str, Form()] = "",
     balance: Annotated[str, Form()] = "",
-    commodity: Annotated[str, Form()] = "",
-    balance_value: Annotated[str, Form()] = "",
 ):
     try:
         if not parent_id:
@@ -301,9 +286,7 @@ def create_account(
             name=name.strip(),
             details=details.strip() or None,
             parent_id=UUID(parent_id),
-            commodity=commodity.strip() or None,
             balance=parse_amount(balance, Decimal("0.00")),
-            balance_value=_optional_amount(balance_value),
         )
         created = accounts.create(data)
     except ValidationError as e:
@@ -338,8 +321,7 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
         "node": node,
         "root": root,
         "entries": list(reversed(entries)),
-        "currency": accounts.default_currency().code,
-        "holding": accounts.holding(aid),
+        "currency": accounts.currency().code,
         "at_limit": at_limit,
         "depth_limit": limit,
         "can_add_child": can_add_child,
@@ -434,10 +416,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "hide_fab": True,
             "node": node,
             "parent_id": node.account.parent_id,
-            "currency": accounts.default_currency().code,
-            "opening_currency": accounts.opening_currency().code,
-            "commodity_choices": accounts.commodity_choices(),
-            "can_change_commodity": not accounts.has_postings(aid),
+            "currency": accounts.currency().code,
             "root_name": root.account.name,
             "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
             "on_budget": node.account.on_budget,
@@ -466,8 +445,6 @@ def update_account(
     parent_id: Annotated[str, Form()] = "",
     details: Annotated[str, Form()] = "",
     balance: Annotated[str | None, Form()] = None,
-    commodity: Annotated[str, Form()] = "",
-    balance_value: Annotated[str, Form()] = "",
     on_budget: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
     payment_category: Annotated[str, Form()] = "",
@@ -484,13 +461,10 @@ def update_account(
             changes["details"] = details.strip() or None
         if parent_id and UUID(parent_id) != current.parent_id:
             changes["parent_id"] = UUID(parent_id)
-        if commodity.strip() and commodity.strip().upper() != current.commodity:
-            changes["commodity"] = commodity.strip()
         if balance is not None and balance.strip():
             new_balance = parse_amount(balance)
             if new_balance != current.balance:
                 changes["balance"] = new_balance
-                changes["balance_value"] = _optional_amount(balance_value)
         if budget_choice is not None and (on_budget is not None) != current.on_budget:
             changes["on_budget"] = on_budget is not None
         if budget_choice is not None:

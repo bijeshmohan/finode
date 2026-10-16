@@ -49,7 +49,6 @@
   <a class="chip" href="/categories?month={{ month_key }}&tab=expense" aria-pressed="{{ 'true' if tab == 'expense' else 'false' }}">Expense</a>
   <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
 </div>
-{% if unpriced %}<p class="muted budget-fine">Some amounts are left out because no price converts them to {{ currency }}.</p>{% endif %}
 
 <div data-categories>
 {% if tree %}

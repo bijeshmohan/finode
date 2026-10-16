@@ -7,7 +7,8 @@ from pydantic import ValidationError
 from ...clock import local_today
 from ...config import settings
 from ...auth import CurrentUser, require_authenticated_user
-from ...dependencies import Accounts, Profiles
+from ...currencies import CURRENCIES
+from ...dependencies import Profiles
 from ...schemas.profile import ProfileUpdate
 from ...services.depth import ROOT_DEPTH_FIELDS
 from ...templating import templates
@@ -28,7 +29,6 @@ def _saved(row: str, page: str = "/settings") -> str:
 def settings_page(
     request: Request,
     profiles: Profiles,
-    accounts: Accounts,
     user: Annotated[CurrentUser, Depends(require_authenticated_user)],
 ):
     profile = profiles.read()
@@ -39,7 +39,7 @@ def settings_page(
         {
             "active": "settings",
             "profile": profile,
-            "currencies": [c for c in accounts.commodity_choices() if c.kind == "currency"],
+            "currencies": list(CURRENCIES.values()),
             "email": user.email,
             "display_name": " ".join(names),
             "initials": "".join(n[0] for n in names[:2]).upper() or (user.email or "?")[0].upper(),

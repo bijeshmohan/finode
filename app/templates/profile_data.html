@@ -16,7 +16,7 @@
 
 <section id="backup" class="card stack form-narrow">
   <h2>Full backup</h2>
-  <p class="muted">One file with everything: settings, your own assets and prices, accounts (including which are part of the budget, and closed ones), transactions, recurring transactions and your budget. Keep it somewhere safe. It does not include access tokens or connected apps, which you set up again.</p>
+  <p class="muted">One file with everything: settings, accounts (including which are part of the budget, and closed ones), transactions, recurring transactions and your budget. Keep it somewhere safe. It does not include access tokens or connected apps, which you set up again.</p>
   <div class="actions"><a class="button secondary" href="/backup" download>Download backup</a></div>
   {% if can_restore %}
   <h3>Restore a backup</h3>
@@ -52,7 +52,7 @@
   <details class="more">
     <summary>Erase my books</summary>
     <form class="stack" hx-post="/profile/data/erase" hx-confirm="Erase all your accounts, transactions and budget? This cannot be undone.">
-      <p class="muted">Deletes your accounts, transactions, budget, recurring transactions, own assets and prices, and the change history. You keep your login, your name and settings, and your assistants' access, so you can start again from an empty ledger.</p>
+      <p class="muted">Deletes your accounts, transactions, budget, recurring transactions and the change history. You keep your login, your name and settings, and your assistants' access, so you can start again from an empty ledger.</p>
       <label>Type <strong>{{ confirm_word }}</strong> to confirm
         <input type="text" name="confirm" autocomplete="off" autocapitalize="off" required>
       </label>

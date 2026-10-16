@@ -29,7 +29,6 @@
     {% if report.savings_rate is not none %}{% if report.net >= 0 %}You kept {{ report.savings_rate }}% of what came in.{% else %}You spent {{ (-report.savings_rate)|round(1) }}% more than came in.{% endif %}{% elif report.expenses %}Nothing came in this month.{% endif %}
     {% if report.previous_expenses or report.expenses %}Spending {% if is_current %}so far; last month: {{ report.previous_expenses|money }}{% else %}{{ change(report.expenses, report.previous_expenses) }}{% endif %}.{% endif %}
   </p>
-  {% if report.unpriced %}<p class="muted">Some amounts have no price in {{ report.currency }} yet and are left out. <a href="/commodities#rates">Add prices</a></p>{% endif %}
 </section>
 
 <section class="card stack summary-card">

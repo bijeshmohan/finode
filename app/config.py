@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     max_transactions: int = Field(default=100_000, ge=0)
     max_transactions_per_day: int = Field(default=1_000, ge=0)
     max_postings_per_transaction: int = Field(default=100, ge=0)
-    max_own_assets: int = Field(default=50, ge=0)
     max_restore_mb: int = Field(default=25, ge=1)
     # Failed sign-ins, and sign-up attempts, allowed per address in the window (0 = no limit).
     login_attempts: int = Field(default=10, ge=0)

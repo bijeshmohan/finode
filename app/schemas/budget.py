@@ -94,7 +94,7 @@ class BudgetLine(BaseModel):
 class BudgetRead(BaseModel):
     # First day of the month the figures are for; they count everything up to its last day.
     month: Date
-    # The user's default currency: the budget works in it.
+    # The user's currency.
     currency: str
     # Money in the budget's accounts that is not assigned to a category yet. Negative when more is assigned than there is.
     ready_to_assign: Decimal = Money
@@ -120,9 +120,7 @@ class BudgetRead(BaseModel):
     # budget (a credit card that was never switched on, for example), and those accounts.
     left_out: Decimal = Money
     left_out_accounts: list[BudgetLeftOut] = []
-    # True when some spending could not be converted to the currency because no price links them.
-    unpriced: bool = False
-    # The accounts whose money is budgeted, and the flagged ones left out (another currency, sub-accounts).
+    # The accounts whose money is budgeted, and the flagged ones left out (accounts with sub-accounts).
     budget_accounts: list[str]
     ignored_accounts: list[str]
     lines: list[BudgetLine]

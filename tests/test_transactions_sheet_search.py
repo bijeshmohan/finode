@@ -178,8 +178,8 @@ def test_add_again_copies_the_entry_for_today(client, books, ledger):
     html = client.get("/transactions/new", params={"repeat": ledger["dmart"]["tid"]}).text
     assert 'value="1286.00"' in html and 'value="DMart"' in html and 'value="weekly shop"' in html
     assert f'name="date" value="{date.today().isoformat()}"' in html
-    assert f'<option value="{books["hdfc"]["aid"]}" data-commodity="INR" selected' in html
-    assert f'<option value="{books["groceries"]["aid"]}" data-commodity="INR" selected' in html
+    assert f'<option value="{books["hdfc"]["aid"]}" selected' in html
+    assert f'<option value="{books["groceries"]["aid"]}" selected' in html
     assert 'name="kind" value="expense"' in html
 
 

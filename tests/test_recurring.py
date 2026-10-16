@@ -208,18 +208,6 @@ def test_another_users_rule_is_invisible(client, accounts, session):
     assert client.get("/api/recurring/").json() == []
 
 
-def test_a_conversion_rule_needs_the_received_amount(client, accounts, root_accounts):
-    usd = client.post("/api/accounts/", json={"name": "Dollars", "parent_id": root_accounts["Assets"], "commodity": "USD"}).json()["aid"]
-    missing = client.post("/api/recurring/", json={
-        "from_account": accounts["bank"], "to_account": usd, "amount": "8350", "start_date": "2999-01-01",
-    })
-    assert missing.status_code == 400 and "how much USD arrives" in missing.json()["detail"]
-    ok = client.post("/api/recurring/", json={
-        "from_account": accounts["bank"], "to_account": usd, "amount": "8350", "received_amount": "100", "start_date": "2999-01-01",
-    })
-    assert ok.status_code == 201
-
-
 # ---- the background run ------------------------------------------------------------------------------
 
 

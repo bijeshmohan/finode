@@ -34,7 +34,7 @@ B_USER = UUID("00000000-0000-4000-8000-0000000000b2")
 
 # What only A has: names and words that must never show up in anything B receives.
 A_WORDS = [
-    "Old Savings", "Coins", "Visa", "Home Loan", "Employer", "Milk",
+    "Old Savings", "Visa", "Home Loan", "Employer", "Milk",
     "Split rule", "Ada L", "Laptop", "A-Assistant",
 ]
 
@@ -51,11 +51,11 @@ PUBLIC = {
 # Routes without an id in the path: what they list is scoped to whoever asks.
 LISTS = {
     ("GET", "/"), ("GET", "/accounts"), ("GET", "/accounts/new"), ("GET", "/accounts/options"), ("GET", "/accounts/quick"),
-    ("GET", "/api/accounts/"), ("GET", "/api/backup"), ("GET", "/api/budget/"), ("GET", "/api/commodities/"),
-    ("GET", "/api/export"), ("GET", "/api/prices/"), ("GET", "/api/prices/rate"), ("GET", "/api/profile/"),
+    ("GET", "/api/accounts/"), ("GET", "/api/backup"), ("GET", "/api/budget/"),
+    ("GET", "/api/export"), ("GET", "/api/profile/"),
     ("GET", "/api/recurring/"), ("GET", "/api/reports/breakdown"), ("GET", "/api/reports/month"), ("GET", "/api/reports/summary"),
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"), ("GET", "/api/transactions/deleted"),
-    ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/move"), ("GET", "/commodities"), ("GET", "/export"),
+    ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/move"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
     ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/summary"), ("GET", "/transactions"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
 }
@@ -63,11 +63,11 @@ LISTS = {
 # Routes that take A's ids or names inside the request: refused (see `test_b_cannot_use_a_s_things_in_requests`).
 REFERENCES = {
     ("POST", "/accounts"), ("POST", "/accounts/quick"), ("POST", "/api/accounts/"), ("POST", "/api/budget/copy"),
-    ("POST", "/api/budget/fund"), ("POST", "/api/budget/move"), ("POST", "/api/commodities/"),
-    ("POST", "/api/import"), ("POST", "/api/prices/"), ("PATCH", "/api/profile/"), ("POST", "/api/recurring/"),
+    ("POST", "/api/budget/fund"), ("POST", "/api/budget/move"),
+    ("POST", "/api/import"), ("PATCH", "/api/profile/"), ("POST", "/api/recurring/"),
     ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/budget/assign"), ("POST", "/budget/copy"),
     ("POST", "/budget/fund"), ("POST", "/budget/move"), ("POST", "/budget/note"), ("GET", "/budget/target"), ("POST", "/budget/target"),
-    ("POST", "/budget/target/delete"), ("POST", "/commodities"), ("POST", "/commodities/prices"),
+    ("POST", "/budget/target/delete"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
     ("POST", "/recurring"), ("POST", "/restore"), ("POST", "/restore/preview"), ("POST", "/settings/currency"),
     ("POST", "/settings/advanced"), ("POST", "/settings/depth"), ("POST", "/settings/lock"), ("POST", "/transactions/split"),
@@ -134,7 +134,7 @@ class World:
 def world(client: TestClient, session, rich) -> World:  # noqa: F811
     w = World()
     client.patch("/api/profile/", json={"first_name": "Ada", "last_name": "L"})
-    # More of A: an assistant token, a connected app, a deleted entry, a price (BTC is A's own asset).
+    # More of A: an assistant token, a connected app, a deleted entry.
     w.token = ApiTokenService(ApiTokenRepository(session, TEST_USER_ID)).create(ApiTokenCreate(name="Laptop", scope="write"))
     w.grant = OAuthGrantService(OAuthGrantRepository(session, TEST_USER_ID)).allow("client-a", "A-Assistant", "write")
     spare = client.post("/api/transactions/", json={"payee": "Employer", "postings": [
@@ -146,11 +146,9 @@ def world(client: TestClient, session, rich) -> World:  # noqa: F811
     w.roots = [a["id"] for a in doc["accounts"] if a["parent_id"] is None]
     w.tids = [t["id"] for t in doc["transactions"]] + [spare["tid"]]
     w.rids = [r["id"] for r in doc["recurring"]]
-    w.pids = [p["pid"] for p in client.get("/api/prices/").json()]
-    w.cids = [c["cid"] for c in client.get("/api/commodities/").json() if c.get("code") == "BTC" and "cid" in c]
     w.tkid, w.gid = str(w.token.tkid), str(w.grant.gid)
     w.markers = A_WORDS + [str(i) for i in (
-        *w.accounts.values(), *w.tids, *w.rids, *w.pids, *w.cids, w.tkid, w.gid)]
+        *w.accounts.values(), *w.tids, *w.rids, w.tkid, w.gid)]
     # B has a small ledger of their own (and none of A's names).
     with signed_in_as(B_USER):
         roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
@@ -192,9 +190,6 @@ def candidates(world: World, name: str) -> list[str]:
         "aid": [*world.accounts.values(), *world.roots],
         "tid": world.tids,
         "rid": world.rids,
-        "pid": world.pids or [str(uuid4())],
-        "cid": world.cids or [str(uuid4())],
-        "code": ["BTC"],
         "tkid": [world.tkid],
         "gid": [world.gid],
     }[name]
@@ -217,7 +212,6 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("POST", "/recurring/{rid}/edit"): {"data": {**rows, "frequency": "monthly", "every": "1", "start": "2999-01-01"}},
         ("POST", "/oauth/apps/{gid}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{tkid}/access"): {"data": {"scope": "read"}},
-        ("POST", "/commodities/prices/{pid}/delete"): {"data": {}},
     }
     return bodies.get((method, path), {"json": {}} if api else {"data": {}})
 
@@ -253,8 +247,7 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, world: World):
     seen = 0
     with signed_in_as(B_USER):
         for method, path in sorted(LISTS):
-            query = {"/api/prices/rate": {"commodity": "BTC", "quote": "INR"}}.get(path, {})
-            response = client.get(path, params=query)
+            response = client.get(path)
             assert response.status_code in (200, 404, 400), (path, response.status_code)
             assert not leaked(world, response.text), (path, leaked(world, response.text)[:3])
             seen += 1
@@ -267,12 +260,11 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, world: World):
         assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"]} == {"Mine", "Bills", "Opening Balances"}
         assert sorted(t["payee"] for t in client.get("/api/transactions/").json() if t["payee"]) == ["Opening balance", "Power"]
         assert client.get("/api/transactions/deleted").json() == []
-        assert client.get("/api/recurring/").json() == [] and client.get("/api/prices/").json() == []
-        assert not [c for c in client.get("/api/commodities/").json() if c["code"] == "BTC"], "A's own asset is private"
+        assert client.get("/api/recurring/").json() == []
         assert client.get("/api/profile/").json()["first_name"] in (None, "")
         assert {l["name"] for l in client.get("/api/budget/").json()["lines"]} <= {"Bills"}
         backup = client.get("/api/backup").json()
-        assert backup["commodities"] == [] and backup["recurring"] == [] and backup["allocations"] == []
+        assert backup["recurring"] == [] and backup["allocations"] == []
         assert "Power" in json.dumps(backup) and not leaked(world, json.dumps(backup))
     assert seen == len(LISTS)
 
@@ -302,10 +294,8 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             {"account": a["Groceries"], "side": "debit", "amount": "5"}, {"account": mine, "side": "credit", "amount": "5"}]})
         refused("tx both A's", "POST", "/api/transactions/", json={"postings": [
             {"account": a["Groceries"], "side": "debit", "amount": "5"}, {"account": a["HDFC"], "side": "credit", "amount": "5"}]})
-        refused("tx in A's currency", "POST", "/api/transactions/", json={"currency": "BTC", "postings": [
-            {"account": bills, "side": "debit", "amount": "5"}, {"account": mine, "side": "credit", "amount": "5"}]})
         refused("account under A's group", "POST", "/api/accounts/", json={"name": "x", "parent_id": a["Banks"]})
-        refused("account in A's asset", "POST", "/api/accounts/", json={"name": "x", "parent_id": world.b_roots["Assets"], "commodity": "BTC"})
+        refused("account under A's group (again)", "POST", "/api/accounts/", json={"name": "x", "parent_id": a["Banks"]})
         refused("move into A's group", "PATCH", f"/api/accounts/{mine}", json={"parent_id": a["Banks"]})
         refused("A's payment category", "PATCH", f"/api/accounts/{mine}", json={"payment_category_id": a["Groceries"]})
         refused("recurring on A's accounts", "POST", "/api/recurring/", json={
@@ -314,8 +304,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             line({"aid": a["Groceries"]}, "debit", "5"), line({"aid": mine}, "credit", "5")]})
         refused("budget A's category", "PUT", f"/api/budget/categories/{a['Groceries']}", json={"amount": "5"})
         refused("budget move A's", "POST", "/api/budget/move", json={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
-        refused("price of A's asset", "POST", "/api/prices/", json={"commodity": "BTC", "quote": "INR", "price": "1"})
-        refused("A's asset as default currency", "PATCH", "/api/profile/", json={"default_currency": "BTC"})
         refused("restore into a used ledger", "POST", "/api/restore", files={"file": ("b.json", json.dumps(world.backup), "application/json")})
         # the web forms
         refused("form tx with A's account", "POST", "/transactions/split", data={
@@ -332,9 +320,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         refused("move page for A's category", "GET", "/budget/move", params={"source": a["Groceries"]})
         refused("quick account under A's group", "POST", "/accounts/quick", data={"name": "x", "parent_id": a["Banks"]})
         refused("account form under A's group", "POST", "/accounts", data={"name": "x", "parent_id": a["Banks"]})
-        refused("A's asset as default currency (form)", "POST", "/settings/currency", data={"currency": "BTC"})
-        refused("A's asset code in a price (form)", "POST", "/commodities/prices", data={"commodity": "BTC", "quote": "INR", "price": "2"})
-    assert len(refusals) >= 25
+    assert len(refusals) >= 20
     assert books_of(client, TEST_USER_ID) == before_a, "A's books were changed"
     assert books_of(client, B_USER) == before_b, "a refused request still changed B's books"
 
@@ -387,7 +373,7 @@ async def test_b_s_assistant_cannot_reach_a(client: TestClient, session, world: 
 
         listed = json.dumps(payload(await c.call_tool("list_accounts", {})))
         assert not leaked(world, listed) and "Mine" in listed
-        for tool in ("get_overview", "check_books", "get_budget", "list_recurring", "get_prices"):
+        for tool in ("get_overview", "check_books", "get_budget", "list_recurring"):
             assert not leaked(world, json.dumps(payload(await c.call_tool(tool, {})))), tool
         assert not leaked(world, json.dumps(payload(await c.call_tool("search_transactions", {})))) 
         await fails("get_account", account="HDFC")
@@ -401,7 +387,6 @@ async def test_b_s_assistant_cannot_reach_a(client: TestClient, session, world: 
         await fails("assign_to_category", category="Groceries", amount="5")
         await fails("set_budget_target", category=a["Groceries"], kind="monthly", amount="5")
         await fails("stop_recurring", recurring_id=world.rids[0])
-        await fails("set_price", commodity="BTC", price="1")
         await fails("create_account", name="x", parent=a["Banks"])
     assert books_of(client, TEST_USER_ID) == before_a, "A's books were changed through an assistant"
 
@@ -433,9 +418,8 @@ def test_nothing_answers_without_a_sign_in(session, world: World):
                 if (method, template) in PUBLIC or method == "HEAD":
                     continue
                 url = template
-                for name in ("aid", "tid", "rid", "pid", "cid", "tkid", "gid"):
+                for name in ("aid", "tid", "rid", "tkid", "gid"):
                     url = url.replace("{" + name + "}", str(world.tids[0]))
-                url = url.replace("{code}", "BTC")
                 response = anonymous.request(method, url, json={} if url.startswith("/api/") else None, data=None if url.startswith("/api/") else {})
                 checked += 1
                 ok = response.status_code in (401, 403) or (

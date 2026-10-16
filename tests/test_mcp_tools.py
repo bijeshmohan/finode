@@ -14,10 +14,8 @@ pytestmark = pytest.mark.anyio
 TODAY = date.today()
 
 
-def make(client, name, parent, commodity=None, **extra):
+def make(client, name, parent, **extra):
     body = {"name": name, "parent_id": parent, **extra}
-    if commodity:
-        body["commodity"] = commodity
     response = client.post("/api/accounts/", json=body)
     assert response.status_code == 201, response.text
     return response.json()
@@ -34,10 +32,9 @@ def books(client, root_accounts):
     travel = make(client, "Travel", root_accounts["Expenses"])
     travel_food = make(client, "Food", travel["aid"])
     salary = make(client, "Salary", root_accounts["Income"])
-    wise = make(client, "Wise", root_accounts["Assets"], "USD")
     return {
         "hdfc": hdfc, "card": card, "food": food, "groceries": groceries, "travel_food": travel_food,
-        "salary": salary, "wise": wise, "bank": bank_group,
+        "salary": salary, "bank": bank_group,
     }
 
 
@@ -62,7 +59,7 @@ async def test_overview_and_accounts(session, books, secret):
         assert paths["Assets:Bank:HDFC"]["balance"] == "10000.00"
         assert paths["Assets:Bank"]["can_post"] is False, "an asset group takes no postings"
         assert paths["Expenses:Food"]["can_post"] is True, "an expense group does"
-        assert paths["Assets:Wise"]["holds"] == "USD"
+        assert "holds" not in paths["Assets:Bank:HDFC"] and accounts["currency"] == "INR"
         only = await call(c, "list_accounts", type="Income")
         assert [a["path"] for a in only["accounts"]] == ["Income", "Income:Salary"]
 
@@ -114,8 +111,8 @@ async def test_ledger_rules_still_apply(session, books, secret):
             await call(c, "record_transaction", amount="10", from_account="Assets:Bank", to_account="Groceries")
         with pytest.raises(ToolFailed, match="top-level"):
             await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Expenses")
-        with pytest.raises(ToolFailed, match="say how much USD arrives"):
-            await call(c, "record_transaction", amount="8350", from_account="HDFC", to_account="Wise")
+        with pytest.raises(ToolFailed, match="must differ"):
+            await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="HDFC")
         with pytest.raises(ToolFailed, match="balance"):
             await call(
                 c,
@@ -129,52 +126,18 @@ async def test_ledger_rules_still_apply(session, books, secret):
             await call(c, "record_transaction", amount="-5", from_account="HDFC", to_account="Groceries")
 
 
-async def test_which_currency_a_move_is_in(session, books, client, root_accounts, secret):
-    euro = make(client, "Euro pot", root_accounts["Assets"], "EUR")
-    card_usd = make(client, "Card USD", root_accounts["Assets"], "USD")
+async def test_amounts_respect_the_currencys_decimals(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        await call(c, "record_transaction", amount="8350", from_account="HDFC", to_account="Wise", received_amount="100")
-
-        # selling USD for INR: the transaction is in INR, the USD side worth what the INR side is
-        sold = (await call(c, "record_transaction", amount="40", from_account="Wise", to_account="HDFC", received_amount="3400"))["recorded"]
-        assert sold["currency"] == "INR"
-        values = {p["account"]: (p["amount"], p.get("value", p["amount"])) for p in sold["postings"]}
-        assert values["Assets:Wise"] == ("40.00", "3400.00") and values["Assets:Bank:HDFC"] == ("3400.00", "3400.00")
-
-        # between two foreign currencies: in the sending one
-        crossed = (await call(c, "record_transaction", amount="50", from_account="Wise", to_account="Euro pot", received_amount="46"))["recorded"]
-        assert crossed["currency"] == "USD"
-        values = {p["account"]: (p["amount"], p.get("value", p["amount"])) for p in crossed["postings"]}
-        assert values["Assets:Wise"] == ("50.00", "50.00") and values["Assets:Euro pot"] == ("46.00", "50.00")
-
-        # within one foreign commodity: in that commodity
-        same = (await call(c, "record_transaction", amount="25", from_account="Wise", to_account="Card USD"))["recorded"]
-        assert same["currency"] == "USD"
-    assert client.get(f"/api/accounts/{card_usd['aid']}").json()["balance"] == "25.00"
-    assert client.get(f"/api/accounts/{euro['aid']}").json()["balance"] == "46.00"
+        with pytest.raises(ToolFailed, match="at most 2 decimal places"):
+            await call(c, "record_transaction", amount="10.005", from_account="HDFC", to_account="Groceries")
 
 
-async def test_a_received_amount_must_match_between_the_same_thing(session, books, client, root_accounts, secret):
-    other = make(client, "Other bank", root_accounts["Assets"])
+async def test_the_removed_tools_and_arguments_are_gone(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        with pytest.raises(ToolFailed, match="the amount that arrives is the amount that leaves"):
-            await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Other bank", received_amount="12")
-        await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Other bank", received_amount="10")
-    assert client.get(f"/api/accounts/{other['aid']}").json()["balance"] == "10.00"
-
-
-async def test_conversion_and_holding_value(session, books, secret):
-    async with running_app(session), mcp_client(secret) as c:
-        recorded = (
-            await call(c, "record_transaction", amount="8350", from_account="HDFC", to_account="Wise", received_amount="100")
-        )["recorded"]
-        assert recorded["currency"] == "INR"
-        wise = next(p for p in recorded["postings"] if p["account"] == "Assets:Wise")
-        assert (wise["amount"], wise["commodity"], wise["value"]) == ("100.00", "USD", "8350.00")
-        holding = (await call(c, "get_account", account="Wise"))["holding"]
-        assert holding["invested"] == "8350.00" and holding["rate"] == "83.50"
-        prices = await call(c, "get_prices")
-        assert prices["rates_today"] == [{"commodity": "USD", "rate": "83.50", "as_of": TODAY.isoformat()}]
+        names = {t.name for t in (await c.list_tools()).tools}
+        assert "get_prices" not in names and "set_price" not in names
+        recorded = (await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Groceries"))["recorded"]
+        assert "currency" not in recorded and all(set(p) == {"account", "side", "amount"} for p in recorded["postings"])
 
 
 async def test_split_update_and_delete(session, client, books, secret):
@@ -278,21 +241,14 @@ async def test_spending_breakdown(session, books, secret):
         assert last_year["total"] == "0.00" and last_year["by_account"] == []
 
 
-async def test_create_account_and_set_price(session, client, books, secret):
-    client.post("/api/commodities/", json={"code": "INFY", "name": "Infosys", "kind": "stock", "decimals": 0})
+async def test_create_account(session, client, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        created = (await call(c, "create_account", name="Infosys", parent="Assets", holds="INFY", opening_balance="10", opening_value="15000"))["created"]
-        assert created == {"path": "Assets:Infosys", "holds": "INFY", "balance": "10.00"}
-        with pytest.raises(ToolFailed, match="already has an account named 'Infosys'"):
-            await call(c, "create_account", name="infosys", parent="Assets")
+        created = (await call(c, "create_account", name="Savings", parent="Assets", opening_balance="10"))["created"]
+        assert created == {"path": "Assets:Savings", "balance": "10.00"}
+        with pytest.raises(ToolFailed, match="already has an account named 'Savings'"):
+            await call(c, "create_account", name="savings", parent="Assets")
         with pytest.raises(ToolFailed, match="only asset and liability"):
             await call(c, "create_account", name="Snacks", parent="Expenses", opening_balance="5")
-        saved = (await call(c, "set_price", commodity="INFY", price="1600"))["saved"]
-        assert saved == {"commodity": "INFY", "quote": "INR", "date": TODAY.isoformat(), "price": "1600.00"}
-        holding = (await call(c, "get_account", account="Infosys"))["holding"]
-        assert holding["value"] == "16000.00" and holding["gain"] == "1000.00"
-        with pytest.raises(ToolFailed, match="unknown commodity"):
-            await call(c, "set_price", commodity="NOPE", price="1")
 
 
 async def test_accounts_cannot_be_deleted_and_prompts_exist(session, secret):
@@ -351,7 +307,7 @@ async def test_assistants_can_check_the_books(session, root_accounts, client):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
         result = payload(await c.call_tool("check_books", {}))
         assert result["balanced"] and result["problems"] == []
-        assert result["totals"] == [{"currency": "INR", "debit": "250.00", "credit": "250.00"}]
+        assert (result["currency"], result["total_debit"], result["total_credit"]) == ("INR", "250.00", "250.00")
         assert {a["account"] for a in result["accounts"]} == {"Assets:Bank", "Equity:Opening Balances"}
         with pytest.raises(ToolFailed, match="YYYY-MM-DD"):
             payload(await c.call_tool("check_books", {"as_of": "yesterday"}))

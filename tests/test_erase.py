@@ -9,7 +9,6 @@ from sqlmodel import select
 from app.config import settings
 from app.models.account import Account
 from app.models.api_token import ApiToken
-from app.models.commodity import Commodity
 from app.models.oauth_grant import OAuthGrant
 from app.models.profile import Profile
 from app.models.transaction import Posting, Transaction
@@ -42,7 +41,6 @@ def both(client, session, rich):  # noqa: F811
         mine = client.post("/api/accounts/", json={"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}).json()
         client.patch("/api/profile/", json={"first_name": "Bea"})
         ApiTokenService(ApiTokenRepository(session, B_USER)).create(ApiTokenCreate(name="B-Phone"))
-        client.post("/api/commodities/", json={"code": "BEE", "name": "Bee coin", "kind": "crypto", "decimals": 2})
     return mine
 
 
@@ -53,13 +51,11 @@ def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, bo
             "transaction_history"} <= set(removed)
     for model in (Account, Transaction, Posting):
         assert rows(session, model) == [], model
-    assert [c.code for c in session.exec(select(Commodity).where(Commodity.user == TEST_USER_ID)).all()] == [], "own assets go"
     # What belongs to the person, not the books, stays.
     [profile] = rows(session, Profile)
     assert profile.first_name == "Ada"
     assert len(rows(session, ApiToken)) == 1 and len(rows(session, OAuthGrant)) == 1
     assert books_of(client, B_USER) == before_b, "nobody else's books were touched"
-    assert session.exec(select(Commodity).where(Commodity.code == "USD")).first() is not None, "built-in currencies stay"
 
 
 def test_deleting_everything_leaves_nothing_of_the_person(client, session, both):

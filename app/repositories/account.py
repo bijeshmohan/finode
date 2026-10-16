@@ -13,9 +13,9 @@ class AccountRepository:
         self.db = db
         self.uid = uid
 
-    def create(self, data: AccountCreate, commodity_id: UUID | None = None, on_budget: bool = False) -> Account:
-        values = data.model_dump(exclude={"balance", "balance_value", "commodity", "on_budget"})
-        account = Account(**values, commodity_id=commodity_id, on_budget=on_budget, user=self.uid)
+    def create(self, data: AccountCreate, on_budget: bool = False) -> Account:
+        values = data.model_dump(exclude={"balance", "on_budget"})
+        account = Account(**values, on_budget=on_budget, user=self.uid)
         self.db.add(account)
         self.db.flush()
         return account
@@ -53,14 +53,13 @@ class AccountRepository:
         self,
         aid: UUID,
         data: AccountUpdate,
-        commodity_id: UUID | None = None,
         on_budget: bool | None = None,
         payment_category: UUID | None | type(...) = ...,
     ) -> Account | None:
         account = self.read(aid)
         if not account:
             return None
-        values = data.model_dump(exclude_unset=True, exclude={"balance", "balance_value", "commodity", "on_budget", "payment_category_id"})
+        values = data.model_dump(exclude_unset=True, exclude={"balance", "on_budget", "payment_category_id"})
         if "parent_id" in values and values["parent_id"] != account.parent_id:
             account.position = None  # in a new group it starts alphabetically, after the ones placed by hand
         for key, value in values.items():
@@ -69,8 +68,6 @@ class AccountRepository:
             account.on_budget = on_budget
         if payment_category is not ...:
             account.payment_category_id = payment_category
-        if commodity_id is not None:
-            account.commodity_id = commodity_id
         self.db.add(account)
         self.db.flush()
         return account

@@ -8,8 +8,11 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
-from app.commodity_seed import seed_id
+from migrations.commodity_seed import seed_id
 from app.config import settings
+
+# The last revision before finode kept one currency (the later ones cannot be undone).
+BEFORE_SINGLE_CURRENCY = "e2a4c6e8f1b3"
 
 
 PARENT = "f1a3c5e7b892"
@@ -73,7 +76,7 @@ def test_existing_transactions_start_their_history(alembic):
     command.upgrade(config, PARENT)
     tid, bank = _ledger(engine)
 
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
 
     with engine.connect() as c:
         rows = c.execute(sa.text("SELECT action, via, snapshot FROM transaction_history")).all()
@@ -90,7 +93,7 @@ def test_existing_transactions_start_their_history(alembic):
 
 def test_the_database_refuses_postings_that_are_not_positive(alembic):
     config, engine = alembic
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
     tid, bank = _ledger(engine)
     with pytest.raises(sa.exc.IntegrityError), engine.begin() as c:
         c.execute(sa.text("UPDATE postings SET amount = 0"))
@@ -105,12 +108,12 @@ def test_migrating_stops_when_a_posting_is_already_wrong(alembic):
     command.upgrade(config, PARENT)
     _ledger(engine, amount="0")
     with pytest.raises(RuntimeError, match="not positive"):
-        command.upgrade(config, "head")
+        command.upgrade(config, BEFORE_SINGLE_CURRENCY)
 
 
 def test_it_can_be_undone(alembic):
     config, engine = alembic
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
     command.downgrade(config, PARENT)
     with engine.connect() as c:
         assert "transaction_history" not in sa.inspect(c).get_table_names()
