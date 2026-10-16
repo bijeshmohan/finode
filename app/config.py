@@ -11,8 +11,6 @@ class Settings(BaseSettings):
     supabase_audience: str = "authenticated"
     supabase_anon_key: str | None = None
     cookie_secure: bool = False
-    # Hard ceiling on account depth; users can set lower limits but never exceed this.
-    max_account_depth: int = Field(default=20, ge=1)
     # MCP calls allowed per token per minute (per app process).
     mcp_rate_limit: int = Field(default=120, ge=1)
     # How often (in minutes) due recurring transactions are recorded in the background; 0 turns it off.

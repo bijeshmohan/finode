@@ -38,7 +38,7 @@ from ..schemas.backup import (
     RestoreSummary,
 )
 from ..schemas.transaction import PostingCreate, TransactionCreate
-from .account import OPENING_BALANCES_ACCOUNT_NAME, AccountService
+from .account import MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
 
 ROOTS = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
 
@@ -77,11 +77,6 @@ class BackupService:
                 first_name=profile.first_name,
                 last_name=profile.last_name,
                 default_currency=profile.currency,
-                max_depth_assets=profile.max_depth_assets,
-                max_depth_liabilities=profile.max_depth_liabilities,
-                max_depth_equity=profile.max_depth_equity,
-                max_depth_income=profile.max_depth_income,
-                max_depth_expenses=profile.max_depth_expenses,
                 locked_through=profile.locked_through,
                 advanced=profile.advanced,
             ),
@@ -219,6 +214,13 @@ class BackupService:
         if any(self._depth(a, accounts) is None for a in file.accounts):
             errors.append("the accounts contain a cycle.")
             return
+        too_deep = [a.name for a in file.accounts if self._depth(a, accounts) > MAX_ACCOUNT_DEPTH]
+        if too_deep:
+            errors.append(
+                f"accounts can be at most {MAX_ACCOUNT_DEPTH} levels deep (a category and a sub-category), "
+                f"but {', '.join(too_deep[:3])}{' and more' if len(too_deep) > 3 else ''} go deeper: flatten them first."
+            )
+            return
         for a in file.accounts:
             for ref in (a.payment_category_id,):
                 if ref is not None and ref not in accounts:
@@ -278,8 +280,6 @@ class BackupService:
             profile.first_name, profile.last_name = fields.first_name, fields.last_name
             profile.locked_through = fields.locked_through
             profile.advanced = fields.advanced
-            for key in ("assets", "liabilities", "equity", "income", "expenses"):
-                setattr(profile, f"max_depth_{key}", getattr(fields, f"max_depth_{key}"))
             profile.currency = find_currency(fields.default_currency).code
             db.add(profile)
             self.accounts.reset_defaults()

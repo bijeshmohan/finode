@@ -19,11 +19,12 @@ class BackupProfile(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     default_currency: str
-    max_depth_assets: int = 0
-    max_depth_liabilities: int = 0
-    max_depth_equity: int = 0
-    max_depth_income: int = 0
-    max_depth_expenses: int = 0
+    # Files written before accounts were fixed at two levels carry depth limits; they are ignored.
+    max_depth_assets: int = Field(default=0, exclude=True)
+    max_depth_liabilities: int = Field(default=0, exclude=True)
+    max_depth_equity: int = Field(default=0, exclude=True)
+    max_depth_income: int = Field(default=0, exclude=True)
+    max_depth_expenses: int = Field(default=0, exclude=True)
     locked_through: Date | None = None
     advanced: bool = False
 

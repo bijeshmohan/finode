@@ -257,7 +257,7 @@ def spending_breakdown(
     kind: Annotated[Literal["expenses", "income"], Field(description="Expenses or income")] = "expenses",
     date_from: Annotated[date | None, Field(description="First day; the 1st of this month when left out")] = None,
     date_to: Annotated[date | None, Field(description="Last day; today when left out")] = None,
-    depth: Annotated[int, Field(ge=1, le=20, description="1 = Food, Rent...; 2 = Food:Groceries...")] = 1,
+    depth: Annotated[int, Field(ge=1, le=2, description="1 = Food, Rent...; 2 = Food:Groceries...")] = 1,
 ) -> dict[str, Any]:
     """Expenses (or income) for a period per account, largest first."""
     with services() as s:

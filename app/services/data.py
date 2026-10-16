@@ -18,8 +18,7 @@ from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from ..config import settings
 from ..limits import LimitReached, ensure_room
-from .account import GROUP_POSTING_ROOT_NAMES, OPENING_BALANCES_ACCOUNT_NAME, AccountService
-from .depth import depth_limits
+from .account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
 from ..clock import local_today
 
 
@@ -237,16 +236,15 @@ class DataService:
                 )
 
         new = sorted((key for key in known if key not in existing), key=lambda k: (len(k), k))
-        limits = depth_limits(self.pr.read())
         for key in new:
-            depth, limit = len(key) - 1, limits[key[0]]
-            if depth > limit:
+            depth = len(key) - 1
+            if depth > MAX_ACCOUNT_DEPTH:
                 line = declared.get(key, (None, used.get(key, 0)))[1] or next(
                     (n for k, n in used.items() if k[: len(key)] == key), 0
                 )
                 errors.append(
-                    f"line {line}: '{':'.join(key)}' is {depth} levels deep, but {key[0]} allows "
-                    f"{limit}. Raise the limit under Profile › Account depth, or flatten the account."
+                    f"line {line}: '{':'.join(key)}' is {depth} levels deep, but accounts can be at most "
+                    f"{MAX_ACCOUNT_DEPTH} levels deep (a category and a sub-category): flatten the account."
                 )
             note = declared.get(key, (None, 0))[0]
             try:

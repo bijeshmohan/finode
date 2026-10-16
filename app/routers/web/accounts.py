@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
-from ...services.account import GROUP_POSTING_ROOT_NAMES, AccountService
+from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountService
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 from ...clock import local_today
@@ -92,12 +92,11 @@ def _find(roots: list[Node], aid: UUID) -> Node | None:
 
 def _parent_options(
     roots: list[Node],
-    limits: dict[str, int],
     exclude: Node | None = None,
     keep: UUID | None = None,
 ) -> list[Node]:
     """Accounts that may become a parent: system accounts are leaves by design and a
-    parent must leave room for the new (or moved) subtree within the depth limit."""
+    parent must leave room for the new (or moved) subtree within two levels."""
     excluded = {n.account.aid for n in exclude.walk()} if exclude else set()
     below = (max(n.depth for n in exclude.walk()) - exclude.depth) if exclude else 0
     return [
@@ -106,7 +105,7 @@ def _parent_options(
         for n in root.walk()
         if n.kind != "system"
         and n.account.aid not in excluded
-        and (n.depth + 1 + below <= limits.get(root.account.name, 0) or n.account.aid == keep)
+        and (n.depth + 1 + below <= MAX_ACCOUNT_DEPTH or n.account.aid == keep)
     ]
 
 
@@ -207,7 +206,7 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "hide_fab": True,
             "node": None,
             "parent_id": parent,
-            "parent_options": _parent_options(roots, profiles.depth_limits()),
+            "parent_options": _parent_options(roots),
             "currency": accounts.currency().code,
         },
     )
@@ -223,7 +222,7 @@ def quick_account_sheet(request: Request, accounts: Accounts, profiles: Profiles
         "partials/quick_account.html",
         {
             "parent_id": suggested,
-            "parent_options": _parent_options(roots, profiles.depth_limits()),
+            "parent_options": _parent_options(roots),
             "roots_by_id": {n.account.aid: r.account.name for r in roots for n in r.walk()},
             "currency": accounts.currency().code,
         },
@@ -301,8 +300,7 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
     roots, node = _load(accounts, aid)
     entries = accounts.register(aid) or [] if entries is None else entries
     root = _root_of(roots, node)
-    limit = profiles.depth_limits()[root.account.name]
-    at_limit = node.kind != "system" and node.depth >= limit
+    at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
     # Asset and liability accounts with their own postings cannot gain sub-accounts.
     has_own_postings = node.is_leaf and bool(entries) and node.kind != "root"
     can_add_child = (
@@ -322,8 +320,6 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
         "root": root,
         "entries": list(reversed(entries)),
         "currency": accounts.currency().code,
-        "at_limit": at_limit,
-        "depth_limit": limit,
         "can_add_child": can_add_child,
         # Part of a group's balance that was posted to the group itself.
         "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
@@ -430,7 +426,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             ],
             "parent_options": [
                 n
-                for n in _parent_options(roots, profiles.depth_limits(), exclude=node, keep=node.account.parent_id)
+                for n in _parent_options(roots, exclude=node, keep=node.account.parent_id)
                 if any(n is m for m in root.walk())
             ],
         },
