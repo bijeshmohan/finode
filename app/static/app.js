@@ -757,30 +757,8 @@ document.body.addEventListener("change", (event) => {
   });
 })();
 
-// ---- Categories: groups fold (and are remembered), categories with nothing in the month can be shown ----
+// ---- Categories: categories with nothing in the month can be shown ----
 (() => {
-  const KEY = "finode.categories.open.v1";
-  const read = () => {
-    try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (error) { return {}; }
-  };
-  const restore = (root) => {
-    const saved = read();
-    root.querySelectorAll("details.cgrp[data-key]").forEach((group) => {
-      if (group.dataset.key in saved) group.open = !!saved[group.dataset.key];
-    });
-  };
-  restore(document);
-  document.body.addEventListener("toggle", (event) => {
-    const group = event.target;
-    if (!group.matches || !group.matches("details.cgrp[data-key]")) return;
-    const saved = read();
-    saved[group.dataset.key] = group.open;
-    try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (error) { /* private mode */ }
-  }, true);
-  // The arrow link inside a group row opens the group's page and must not also fold or unfold the group.
-  document.body.addEventListener("click", (event) => {
-    if (event.target.closest && event.target.closest(".cgrp > summary .open-link")) event.stopPropagation();
-  }, true);
   document.body.addEventListener("click", (event) => {
     const button = event.target.closest && event.target.closest("[data-toggle-cat-quiet]");
     if (!button) return;

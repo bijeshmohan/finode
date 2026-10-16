@@ -45,18 +45,11 @@ def _month_context(when, is_current: bool) -> dict:
     }
 
 
-@router.get("")
-def categories_page(request: Request, accounts: Accounts, reports: Reports, month: str = "", tab: str = "expense"):
-    when, end, is_current = _period(month)
-    if when is None:
-        return RedirectResponse(f"/categories?tab={tab}", status_code=303)
-    tab = OLD_TABS.get(tab, tab)
-    tab = tab if tab in TABS else "expense"
-    root_name = TABS[tab]
+def _figures(accounts, reports, root_name: str, when, end):
+    """The month's amounts for one type: (the type's tree with closed empty categories left out, what was posted to
+    each account itself, what each account and everything inside it came to)."""
     own = reports.account_totals(root_name, when, end)
-    roots = build_tree(accounts.list())
-    root = next(r for r in roots if r.account.name == root_name)
-
+    root = next(r for r in build_tree(accounts.list()) if r.account.name == root_name)
     totals: dict[UUID, Decimal] = {}
 
     def walk(node: Node) -> Decimal:
@@ -71,9 +64,41 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
     for n in root.children:
         n.children = [c for c in n.children if shown(c)]
     top = [n for n in root.children if shown(n)]
-    grand = sum((walk(n) for n in top), ZERO)
-    # Top-level groups and categories with nothing in the month are tucked away once anything has something.
-    quiet = [n for n in top if totals[n.account.aid] == 0] if any(totals[n.account.aid] for n in top) else []
+    for n in top:
+        walk(n)
+    return top, own, totals
+
+
+def _share(total: Decimal, grand: Decimal) -> str:
+    """What part of the month's total a category is: '34%', '<1%', or nothing when there is no total."""
+    if not grand or not total:
+        return ""
+    percent = abs(total) / abs(grand) * 100
+    return "<1%" if percent < 1 else f"{round(percent)}%"
+
+
+def _by_amount(nodes: list[Node], totals: dict[UUID, Decimal]) -> list[Node]:
+    return sorted(nodes, key=lambda n: (-abs(totals[n.account.aid]), n.account.name.lower()))
+
+
+@router.get("")
+def categories_page(request: Request, accounts: Accounts, reports: Reports, month: str = "", tab: str = "expense"):
+    when, end, is_current = _period(month)
+    if when is None:
+        return RedirectResponse(f"/categories?tab={tab}", status_code=303)
+    tab = OLD_TABS.get(tab, tab)
+    tab = tab if tab in TABS else "expense"
+    root_name = TABS[tab]
+    top, own, totals = _figures(accounts, reports, root_name, when, end)
+    grand = sum((totals[n.account.aid] for n in top), ZERO)
+    rows = []
+    for n in _by_amount(top, totals):
+        total = totals[n.account.aid]
+        inside = [c.account.name for c in _by_amount(n.children, totals) if totals[c.account.aid]]
+        hint = ", ".join(inside[:3]) + (f" +{len(inside) - 3}" if len(inside) > 3 else "")
+        rows.append({"node": n, "total": total, "share": _share(total, grand), "hint": hint})
+    # Categories with nothing in the month are tucked away once anything has something.
+    quiet = [r for r in rows if r["total"] == 0] if any(r["total"] for r in rows) else []
     return templates.TemplateResponse(
         request,
         "categories.html",
@@ -81,11 +106,9 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
             "active": "categories",
             "tab": tab,
             "root_name": root_name,
-            "tree": top,
-            "totals": totals,
-            "own": own,
+            "rows": rows,
             "grand": grand,
-            "quiet_ids": {n.account.aid for n in quiet},
+            "quiet_ids": {r["node"].account.aid for r in quiet},
             "quiet_count": len(quiet),
             "currency": accounts.currency().code,
             **_month_context(when, is_current),
@@ -100,7 +123,7 @@ def new_category_page(request: Request, accounts: Accounts, profiles: Profiles, 
 
 
 @router.get("/{aid}")
-def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles, month: str = ""):
+def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles, reports: Reports, month: str = ""):
     roots, node = _load(accounts, aid)
     root = _root_of(roots, node)
     if root.account.name not in CATEGORY_ROOTS or node.kind == "root":
@@ -110,6 +133,11 @@ def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Pro
         return RedirectResponse(f"/categories/{aid}", status_code=303)
     entries = [e for e in (accounts.register(aid) or []) if when <= e.date <= end]
     context = account_context(accounts, profiles, aid, entries)
+    # What its sub-categories came to in the month, biggest first, and what was posted to it itself.
+    top, own, totals = _figures(accounts, reports, root.account.name, when, end)
+    shown = next((n for t in top for n in t.walk() if n.account.aid == aid), None)
+    subs = [(c, totals[c.account.aid]) for c in _by_amount(shown.children, totals)] if shown is not None else []
+    own_here = own.get(aid, ZERO) if subs else ZERO
     return templates.TemplateResponse(
         request,
         "account.html",
@@ -118,6 +146,8 @@ def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Pro
             "category": True,
             "active": "categories",
             "total": sum((e.change for e in entries), ZERO),
+            "subs": subs,
+            "own_here": own_here,
             "tab": "income" if root.account.name == "Income" else "expense",
             **_month_context(when, is_current),
         },

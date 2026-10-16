@@ -75,6 +75,24 @@
   <p id="page-error" class="error" role="alert"></p>
 </header>
 
+{% if category and (subs or own_here) %}
+<h2>Sub-categories</h2>
+<div class="tile">
+  {% for c, amount in subs %}
+  <a class="r crow" href="/categories/{{ c.account.aid }}?month={{ month_key }}">
+    <span class="crow-main"><span class="crow-name">{{ c.account.name }}</span></span>
+    <span class="crow-amt"><span class="{{ 'income' if root.account.name == 'Income' and amount > 0 }}">{{ amount|money }}</span></span>
+  </a>
+  {% endfor %}
+  {% if own_here %}
+  <div class="r crow">
+    <span class="crow-main"><span class="crow-name">Everything else</span><span class="crow-sub">posted to {{ account.name }} itself</span></span>
+    <span class="crow-amt"><span class="{{ 'income' if root.account.name == 'Income' and own_here > 0 }}">{{ own_here|money }}</span></span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <h2>{{ "Transactions" if category else "Activity" }}</h2>
 {% if entries %}
 <div class="tx-list">

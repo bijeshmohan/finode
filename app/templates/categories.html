@@ -3,26 +3,12 @@
 {% from "partials/money.html" import figure %}
 {% block title %}Categories · finode{% endblock %}
 
-{#- A category that has no sub-categories: one row: its name and its month's amount. -#}
-{% macro leaf(n, depth, label=None, amount=None) %}
-{% set a = amount if amount is not none else totals[n.account.aid] %}
-<a class="r crow" href="/categories/{{ n.account.aid }}?month={{ month_key }}" style="--d: {{ depth }}">
-  <span class="l1"><span class="cat-name">{{ label or n.account.name }}</span><span class="{{ 'income' if root_name == 'Income' and a > 0 }}">{{ a|money }}</span></span>
+{#- One category: its name and the biggest things inside it, what it came to in the month and its share of the month. -#}
+{% macro row(n, total, hint="", share="") %}
+<a class="r crow" href="/categories/{{ n.account.aid }}?month={{ month_key }}">
+  <span class="crow-main"><span class="crow-name">{{ n.account.name }}</span>{% if hint %}<span class="crow-sub">{{ hint }}</span>{% endif %}</span>
+  <span class="crow-amt"><span class="{{ 'income' if root_name == 'Income' and total > 0 }}">{{ total|money }}</span>{% if share %}<span class="crow-share">{{ share }}</span>{% endif %}</span>
 </a>
-{% endmacro %}
-
-{#- A group folds: its row is everything inside it, then its categories, then what was posted to the group itself. -#}
-{% macro group(n, depth) %}
-{% set a = totals[n.account.aid] %}
-<details class="cgrp" data-key="{{ n.account.aid }}">
-  <summary class="r gsum" style="--d: {{ depth }}">
-    <span class="l1"><span class="cat-name"><span class="gcaret">{{ icon("caret") }}</span>{{ n.account.name }}<em class="cnt">{{ n.children|length }}</em></span><span class="{{ 'income' if root_name == 'Income' and a > 0 }}">{{ a|money }}</span><a class="open-link" href="/categories/{{ n.account.aid }}?month={{ month_key }}" title="Open {{ n.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ n.account.name }}</span></a></span>
-  </summary>
-  <div class="gkids">
-    {% for c in n.children %}{{ leaf(c, depth + 1) }}{% endfor %}
-    {% if own.get(n.account.aid) %}{{ leaf(n, depth + 1, "Everything else", own[n.account.aid]) }}{% endif %}
-  </div>
-</details>
 {% endmacro %}
 
 {% block content %}
@@ -49,12 +35,10 @@
 </div>
 
 <div data-categories>
-{% if tree %}
-<div class="tile budget-list" data-cat-tree>
-  {% for n in tree %}
-  <div class="top {{ 'unused-hidden' if n.account.aid in quiet_ids }}">
-    {% if n.children %}{{ group(n, 0) }}{% else %}{{ leaf(n, 0) }}{% endif %}
-  </div>
+{% if rows %}
+<div class="tile" data-cat-tree>
+  {% for r in rows %}
+  <div class="top {{ 'unused-hidden' if r.node.account.aid in quiet_ids }}">{{ row(r.node, r.total, r.hint, r.share) }}</div>
   {% endfor %}
 </div>
 {% if quiet_count %}
@@ -66,6 +50,6 @@
   <a class="button" href="/categories/new">Add a category</a>
 </div>
 {% endif %}
-<p class="muted budget-fine">Tap a group to see what is inside it, or a category to see its transactions.</p>
+<p class="muted budget-fine">Tap a category to see what is inside it and its transactions.</p>
 </div>
 {% endblock %}

@@ -36,21 +36,55 @@ def test_the_accounts_page_has_no_categories_and_the_categories_page_has_no_acco
     assert "Food" in categories and "Rent" in categories and "Bank" not in categories
 
 
-def test_a_group_adds_up_its_categories_and_the_page_adds_up_the_groups(client, books):
+def rows(page: str) -> list[tuple[str, str, str]]:
+    """(name, hint, amount) of every row on the Categories page, in the order shown."""
+    import re
+
+    found = re.findall(
+        r'<span class="crow-name">(.*?)</span>(?:<span class="crow-sub">(.*?)</span>)?</span>\s*<span class="crow-amt"><span class="[^"]*">(.*?)</span>(?:<span class="crow-share">(.*?)</span>)?',
+        page, flags=re.S)
+    return [(name, hint, f"{amount} {share}".strip()) for name, hint, amount, share in found]
+
+
+def test_categories_are_ranked_by_what_they_came_to_with_their_share_and_what_is_inside(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     entry(client, books["dining"], books["bank"], "200", THIS_MONTH)
     entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
     page = client.get("/categories").text
     assert "1,500.00" in page, "the month's spending"
-    assert '<details class="cgrp"' in page and "500.00" in page, "Food is 500 and folds"
-    assert page.count('class="r crow"') >= 3, "two categories inside Food, and Rent"
+    assert rows(page)[:2] == [("Rent", "", "1,000.00 67%"), ("Food", "Groceries, Dining", "500.00 33%")], "biggest first"
+    assert "cgrp" not in page and "<details" not in page.split('data-categories')[1], "nothing folds"
+
+
+def test_the_hint_names_the_three_biggest_and_counts_the_rest(client, books):
+    for name, amount in (("A1", "50"), ("A2", "40"), ("A3", "30"), ("A4", "20")):
+        made = client.post("/api/accounts/", json={"name": name, "parent_id": books["travel"]["aid"]}).json()
+        entry(client, made, books["bank"], amount, THIS_MONTH)
+    assert rows(client.get("/categories").text)[0] == ("Travel", "A1, A2, A3 +1", "140.00 100%")
+
+
+def test_a_small_share_says_less_than_one_percent(client, books):
+    entry(client, books["rent"], books["bank"], "10000", THIS_MONTH)
+    entry(client, books["travel"], books["bank"], "5", THIS_MONTH)
+    assert ("Travel", "", "5.00 &lt;1%") in rows(client.get("/categories").text)
 
 
 def test_money_posted_to_a_group_itself_is_its_everything_else_row(client, books):
     entry(client, books["food"], books["bank"], "40", THIS_MONTH)
     entry(client, books["groceries"], books["bank"], "60", THIS_MONTH)
-    page = client.get("/categories").text
-    assert "Everything else" in page and "100.00" in page
+    assert ("Food", "Groceries", "100.00 100%") in rows(client.get("/categories").text)
+    page = client.get(f"/categories/{books['food']['aid']}").text
+    assert "Sub-categories" in page and "Everything else" in page and "posted to Food itself" in page and "40.00" in page
+
+
+def test_a_category_page_lists_its_sub_categories_biggest_first(client, books):
+    entry(client, books["dining"], books["bank"], "200", THIS_MONTH)
+    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
+    page = client.get(f"/categories/{books['food']['aid']}").text
+    inside = page.split("Sub-categories")[1].split("Transactions")[0]
+    assert inside.index("Groceries") < inside.index("Dining") and "Everything else" not in inside
+    assert f"/categories/{books['groceries']['aid']}?month=" in inside
+    assert "Sub-categories" not in client.get(f"/categories/{books['groceries']['aid']}").text, "nothing inside it"
 
 
 def test_it_is_one_month_at_a_time_and_never_the_future(client, books):
@@ -150,9 +184,11 @@ def test_a_category_with_sub_categories_takes_them_along(client, books):
 
 
 def test_a_closed_sub_category_is_not_listed_under_its_group(client, books):
+    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     client.post(f"/api/accounts/{books['dining']['aid']}/close")
-    page = client.get("/categories").text
-    assert "Groceries" in page and "Dining" not in page
+    page = client.get(f"/categories/{books['food']['aid']}").text
+    assert "Groceries" in page and "Dining" not in page.split("Sub-categories")[1].split("Transactions")[0]
+    assert rows(client.get("/categories").text)[0] == ("Food", "Groceries", "300.00 100%")
 
 
 def test_a_category_that_was_spent_in_can_be_deleted_without_emptying_it_first(client, books):
