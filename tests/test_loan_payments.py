@@ -104,3 +104,34 @@ def test_the_edit_page_offers_and_saves_it(client, books):
     assert client.post(f"/accounts/{books['loan']['aid']}/edit", data={
         "name": "Home Loan", "budget_choice": "1", "payment_category": books["bank"]["aid"],
     }).status_code == 400
+
+
+# ---- the Categories page sees them too ---------------------------------------------------------------------------------
+
+
+def test_the_categories_page_and_the_category_page_count_payments_into_the_loan(client, books):
+    point(client, books["loan"], books["emi"])
+    move(client, books["bank"], books["loan"], "15000")
+    move(client, books["loan"], books["interest"], "900")  # interest charged by the lender: spending on Interest, not a payment
+    page = client.get("/categories").text
+    assert "15,000.00" in page and "15,900.00" in page, "EMI 15,000 and Interest 900 make 15,900"
+    emi = client.get(f"/categories/{books['emi']['aid']}").text
+    assert "15,000.00" in emi and emi.count('class="tx"') == 1, "the payment is listed under the category"
+    assert "Home Loan" in emi
+
+
+def test_a_payment_not_from_the_budget_is_not_spending(client, books, root_accounts):
+    point(client, books["loan"], books["emi"])
+    income = account(client, root_accounts, "Discount", "Income")
+    move(client, income, books["loan"], "20")  # money that never touched a budget account
+    assert "20.00" not in client.get("/categories").text
+    assert client.get(f"/categories/{books['emi']['aid']}").text.count('class="tx"') == 0
+
+
+def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root_accounts):
+    debts = account(client, root_accounts, "Debts", "Expenses")
+    sub = client.post("/api/accounts/", json={"name": "Car EMI", "parent_id": debts["aid"]}).json()
+    point(client, books["loan"], sub)
+    move(client, books["bank"], books["loan"], "7000")
+    assert "7,000.00" in client.get("/categories").text
+    assert client.get(f"/categories/{debts['aid']}").text.count('class="tx"') == 1

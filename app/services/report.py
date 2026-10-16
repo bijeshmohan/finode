@@ -152,6 +152,10 @@ class ReportService:
         for posting in self.tr.postings_for_accounts(self.accounts.subtree_ids(root.aid), period_start, period_end):
             value = posting.amount if posting.side == normal_side else -posting.amount
             totals[posting.account] = totals.get(posting.account, Decimal("0.00")) + value
+        if root_name == "Expenses":
+            # Paying into a loan budgeted under a category spends that category (as on the Budget).
+            for category, posting in self.accounts.payments_into_loans(list(accounts.values()), period_start, period_end):
+                totals[category] = totals.get(category, Decimal("0.00")) + posting.amount
         return totals
 
     def breakdown(
