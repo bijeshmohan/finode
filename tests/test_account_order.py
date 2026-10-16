@@ -25,6 +25,8 @@ def books(client, root_accounts):
         "hdfc": make("HDFC", banks["aid"], balance="100"),
         "sbi": make("SBI", banks["aid"], balance="100"),
         "wallet": make("Wallet", root_accounts["Assets"]),
+        "cash": make("Cash", root_accounts["Assets"]),
+        "gold": make("Gold", root_accounts["Assets"]),
         "rent": make("Rent", root_accounts["Expenses"]),
         "food": make("Food", root_accounts["Expenses"]),
         "travel": make("Travel", root_accounts["Expenses"]),
@@ -87,11 +89,11 @@ def test_the_accounts_page_lists_what_is_pinned(client, books):
     page = client.get("/accounts").text
     assert "Pinned" not in squash(page) and 'data-quick' not in page
     client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
-    client.post(f"/api/accounts/{books['rent']['aid']}/pin")
+    client.post(f"/api/accounts/{books['wallet']['aid']}/pin")
     page = client.get("/accounts").text
-    quick = page[page.index("data-quick"):page.index('data-account-search') if False else page.index('<details class="account-group"')]
-    assert "Pinned" in squash(quick) and "HDFC" in quick and "Rent" in quick and "Assets › Banks" in squash(quick)
-    assert quick.index("HDFC") < quick.index("Rent")  # in path order: Assets before Expenses
+    quick = page[page.index("data-quick"):page.index('<details class="account-group"')]
+    assert "Pinned" in squash(quick) and "HDFC" in quick and "Wallet" in quick and "Assets › Banks" in squash(quick)
+    assert quick.index("HDFC") < quick.index("Wallet")  # in path order
 
 
 # ---- ordering ------------------------------------------------------------------------------------------------------
@@ -169,25 +171,25 @@ def test_roots_and_the_system_account_cannot_be_placed(client, books):
 
 def test_recently_used_accounts(client, books):
     assert "Recently used" not in squash(client.get("/accounts").text)  # nothing recorded yet
-    spend(client, books["rent"], books["hdfc"])
-    spend(client, books["food"], books["wallet"])
-    spend(client, books["travel"], books["sbi"])
+    spend(client, books["cash"], books["hdfc"])
+    spend(client, books["gold"], books["wallet"])
+    spend(client, books["axis"], books["sbi"])
     text = client.get("/accounts").text
     quick = text[text.index('<details class="quick recent"'):]
     assert "Recently used" in squash(quick), "folded at the bottom of the page"
     names = re.findall(r'<span class="account-name">(\w+)', quick)
     # newest entry first (the two accounts of one entry are equally recent), each account once, five at most
     assert len(names) == 5 and len(set(names)) == 5
-    assert set(names[:2]) == {"Travel", "SBI"} and set(names[2:4]) == {"Food", "Wallet"}
+    assert set(names[:2]) == {"Axis", "SBI"} and set(names[2:4]) == {"Gold", "Wallet"}
 
 
 def test_recent_leaves_out_pinned_closed_and_the_systems_accounts(client, books):
-    spend(client, books["rent"], books["hdfc"])
-    spend(client, books["food"], books["wallet"], "5")
+    spend(client, books["cash"], books["hdfc"])
+    spend(client, books["gold"], books["wallet"], "5")
     client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
     text = client.get("/accounts").text
     recent = text[text.index('<details class="quick recent"'):]
-    assert "HDFC" not in recent and "Food" in recent and "Opening Balances" not in recent
+    assert "HDFC" not in recent and "Gold" in recent and "Opening Balances" not in recent
     pinned = text[text.index("data-quick"):text.index('<details class="account-group"')]
     assert "HDFC" in pinned
 
@@ -203,8 +205,8 @@ def test_recent_ignores_what_recurring_rules_and_imports_made(client, books):
 
 
 def test_recent_shows_at_most_five(client, books, root_accounts):
-    extra = [client.post("/api/accounts/", json={"name": f"Cat{i}", "parent_id": root_accounts["Expenses"]}).json() for i in range(4)]
-    for account in [books["rent"], books["food"], books["travel"], *extra]:
+    extra = [client.post("/api/accounts/", json={"name": f"Spare{i}", "parent_id": root_accounts["Assets"]}).json() for i in range(4)]
+    for account in [books["cash"], books["gold"], books["axis"], *extra]:
         spend(client, account, books["wallet"], "1")
     text = client.get("/accounts").text
     quick = text[text.index('<details class="quick recent"'):]

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from ...web_auth import web_login_required
-from . import accounts, auth, budget, commodities, dashboard, data, oauth, profile, recurring, settings, summary, transactions
+from . import accounts, auth, budget, categories, commodities, dashboard, data, oauth, profile, recurring, settings, summary, transactions
 
 
 router = APIRouter(include_in_schema=False)
@@ -11,6 +11,7 @@ protected = APIRouter(dependencies=[Depends(web_login_required)])
 protected.include_router(dashboard.router)
 protected.include_router(accounts.router)
 protected.include_router(budget.router)
+protected.include_router(categories.router)
 protected.include_router(summary.router)
 protected.include_router(recurring.router)
 protected.include_router(transactions.router)

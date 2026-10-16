@@ -166,6 +166,31 @@ class ReportService:
             trend=trend,
         )
 
+    def account_totals(self, root_name: str, period_start: date, period_end: date) -> tuple[dict, bool]:
+        """What each account under Income or Expenses took in a period, in the default currency (what was posted to the
+        account itself: a group's own postings, not its sub-accounts'), and whether something could not be valued."""
+        if root_name not in ("Income", "Expenses"):
+            raise ValueError("a breakdown is of Income or Expenses!")
+        accounts = {a.aid: a for a in self.accounts.list()}
+        root = next(a for a in accounts.values() if a.parent_id is None and a.name == root_name)
+        normal_side = PostingSide.CREDIT if root_name == "Income" else PostingSide.DEBIT
+        default = self.accounts.default_currency()
+        transactions = {t.tid: t for t in self.tr.list(date_from=period_start, date_to=period_end)}
+        totals: dict = {}
+        unpriced = False
+        for posting in self.tr.postings_for_accounts(self.accounts.subtree_ids(root.aid), period_start, period_end):
+            value = posting.value if posting.side == normal_side else -posting.value
+            transaction = transactions[posting.transaction]
+            if transaction.currency_id != default.cid:
+                value = self.accounts.prices.book().convert(
+                    value, transaction.currency_id, default.cid, transaction.date, default.decimals
+                )
+                if value is None:
+                    unpriced = True
+                    continue
+            totals[posting.account] = totals.get(posting.account, Decimal("0.00")) + value
+        return totals, unpriced
+
     def breakdown(
         self,
         root_name: str,
@@ -190,7 +215,7 @@ class ReportService:
 
         accounts = {a.aid: a for a in self.accounts.list()}
         root = next(a for a in accounts.values() if a.parent_id is None and a.name == root_name)
-        normal_side = PostingSide.CREDIT if root_name == "Income" else PostingSide.DEBIT
+        default = self.accounts.default_currency()
 
         def group_of(aid) -> str:
             chain = []
@@ -201,22 +226,10 @@ class ReportService:
             chain.reverse()
             return " › ".join(chain[:depth])
 
-        default = self.accounts.default_currency()
-        transactions = {t.tid: t for t in self.tr.list(date_from=period_start, date_to=period_end)}
+        own, unpriced = self.account_totals(root_name, period_start, period_end)
         totals: dict[str, Decimal] = {}
-        unpriced = False
-        subtree = self.accounts.subtree_ids(root.aid)
-        for posting in self.tr.postings_for_accounts(subtree, period_start, period_end):
-            value = posting.value if posting.side == normal_side else -posting.value
-            transaction = transactions[posting.transaction]
-            if transaction.currency_id != default.cid:
-                value = self.accounts.prices.book().convert(
-                    value, transaction.currency_id, default.cid, transaction.date, default.decimals
-                )
-                if value is None:
-                    unpriced = True
-                    continue
-            key = group_of(posting.account)
+        for aid, value in own.items():
+            key = group_of(aid)
             totals[key] = totals.get(key, Decimal("0.00")) + value
 
         lines = [BreakdownLine(account=k, amount=v) for k, v in totals.items() if v != 0]

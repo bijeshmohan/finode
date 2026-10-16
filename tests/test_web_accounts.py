@@ -26,7 +26,8 @@ def test_accounts_page_groups_accounts_under_roots_in_order(
     response = client.get("/accounts")
     assert response.status_code == 200
     text = response.text
-    assert text.index(">Assets<") < text.index(">Liabilities<") < text.index(">Expenses<")
+    assert text.index(">Assets<") < text.index(">Liabilities<") < text.index(">Equity<")
+    assert ">Expenses<" not in text and ">Income<" not in text, "those are on the Categories page"
     assert f'href="/accounts/{account["aid"]}"' in text
     assert "checking" in text
 
@@ -103,9 +104,17 @@ def test_old_register_url_redirects(client: TestClient, account: dict):
 
 
 def test_new_account_page_preselects_parent(client: TestClient, root_accounts: dict[str, str]):
-    text = client.get("/accounts/new", params={"parent": root_accounts["Income"]}).text
-    assert f'<option value="{root_accounts["Income"]}" selected>' in text
+    text = client.get("/accounts/new", params={"parent": root_accounts["Liabilities"]}).text
+    assert f'<option value="{root_accounts["Liabilities"]}" selected>' in text
     assert 'name="balance"' in text
+    assert f'value="{root_accounts["Income"]}"' not in text, "Income and Expenses are for categories"
+
+
+def test_new_category_page_offers_income_and_expenses_and_no_balance(client: TestClient, root_accounts: dict[str, str]):
+    text = client.get("/categories/new", params={"parent": root_accounts["Income"]}).text
+    assert f'<option value="{root_accounts["Income"]}" selected>' in text
+    assert f'value="{root_accounts["Assets"]}"' not in text
+    assert 'name="balance"' not in text and "Add category" in text
 
 
 def test_create_account_from_form(client: TestClient, root_accounts: dict[str, str]):
@@ -255,7 +264,7 @@ def test_expense_group_page_shows_direct_postings(
     )
     client.post("/api/accounts/", json={"name": "snacks", "parent_id": expense_account["aid"]})
 
-    text = client.get(f"/accounts/{expense_account['aid']}").text
+    text = client.get(f"/categories/{expense_account['aid']}").text
     assert "30.00 posted directly to groceries" in text
     assert f"/transactions/new?account={expense_account['aid']}" in text
-    assert f"/accounts/new?parent={expense_account['aid']}" in text
+    assert f"/categories/new?parent={expense_account['aid']}" in text

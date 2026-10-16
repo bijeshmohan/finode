@@ -1241,3 +1241,19 @@ dd.auto, dd.auto a { color: var(--auto); }
 
 .total-field .amount-field { flex: 0 1 auto; max-width: 100%; }
 .total-field .amount-field input { width: calc(var(--n, 4) * 1ch + .12em); max-width: 100%; }
+
+/* Categories */
+.cat-hero { padding-bottom: .9rem; }
+.month-title { margin: 0; flex: 1; text-align: center; font-size: 1rem; font-weight: 600; }
+.month-nav.small { margin: .25rem 0 0; }
+.show-quiet .unused-hidden { display: block; }
+.crow .l1 .income { color: var(--positive); }
+.crow { display: block; color: inherit; text-decoration: none; }
+.crow .bar, .gsum .bar { display: block; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.crow .bar i, .gsum .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
+details.cgrp > summary { list-style: none; cursor: pointer; display: block; }
+details.cgrp > summary::-webkit-details-marker { display: none; }
+details[open].cgrp > summary .gcaret { transform: none; }
+.topbar .search-link { margin-left: auto; margin-right: .25rem; width: 34px; height: 34px; min-height: 0; color: var(--muted); }
+.topbar .search-link .icon { width: 1.15rem; height: 1.15rem; }
+.accounts-note { margin: 1.25rem .25rem 0; }

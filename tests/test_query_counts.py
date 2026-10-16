@@ -8,7 +8,7 @@ from sqlalchemy import event
 
 import pytest
 
-PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/summary"]
+PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/summary", "/categories", "/categories?tab=income"]
 
 
 @pytest.fixture

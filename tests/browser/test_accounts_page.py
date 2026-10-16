@@ -21,8 +21,8 @@ def nested(api: Api, books):
     banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
     api.post("/accounts/", name="HDFC", parent_id=banks["aid"], balance="100")
     api.post("/accounts/", name="SBI", parent_id=banks["aid"], balance="50")
-    food = api.post("/accounts/", name="Food", parent_id=books["roots"]["Expenses"])
-    api.post("/accounts/", name="Dining", parent_id=food["aid"])
+    food = api.post("/accounts/", name="Savings", parent_id=books["roots"]["Assets"])
+    api.post("/accounts/", name="Rainy", parent_id=food["aid"])
     return banks, food
 
 
@@ -31,11 +31,12 @@ def test_assets_and_liabilities_start_open_and_the_other_types_folded(page: Page
     page.goto("/accounts")
     shown = visible(page)
     assert "assets › checking" in shown and "assets › banks" in shown
-    assert "expenses › rent" not in shown, "Income, Equity and Expenses start folded to one line"
+    assert "equity › opening balances" not in shown, "Equity starts folded to one line"
     assert "assets › banks › hdfc" not in shown, "groups start closed"
     assert page.locator("details.account-group[open]").count() == 2
-    page.locator("details.account-group > summary", has_text="Expenses").click()
-    assert "expenses › rent" in visible(page) and "expenses › food › dining" not in visible(page)
+    assert page.locator("details.account-group").count() == 3, "no Expenses or Income: those are on the Categories page"
+    page.locator("details.account-group > summary", has_text="Equity").click()
+    assert "equity › opening balances" in visible(page)
 
 
 def test_opening_a_group_is_remembered_after_a_reload(page: Page, api, books):
@@ -61,8 +62,8 @@ def test_the_open_link_of_a_group_goes_to_its_page(page: Page, api, books):
 def test_searching_finds_accounts_inside_closed_groups(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
-    page.fill("[data-account-search]", "dini")
-    assert visible(page) == ["expenses › food", "expenses › food › dining"]
+    page.fill("[data-account-search]", "rain")
+    assert visible(page) == ["assets › savings", "assets › savings › rainy"]
     page.fill("[data-account-search]", "zzz")
     expect(page.locator("[data-no-match]")).to_be_visible()
     page.fill("[data-account-search]", "")
@@ -134,7 +135,7 @@ def test_moving_an_account_changes_the_order_on_the_page(page: Page, api, books)
 def test_names_and_amounts_line_up_in_every_row(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
-    page.locator("details.account-group > summary", has_text="Expenses").click()
+    page.locator("details.account-group > summary", has_text="Equity").click()
     rights = page.eval_on_selector_all(
         ".account-row .account-balance, .group-total",
         "els => els.filter(e => e.checkVisibility()).map(e => Math.round(e.getBoundingClientRect().right))",
@@ -143,5 +144,5 @@ def test_names_and_amounts_line_up_in_every_row(page: Page, api, books):
         ".account-row[style*='--depth: 0'] .account-name",
         "els => els.filter(e => e.checkVisibility()).map(e => Math.round(e.getBoundingClientRect().left))",
     )
-    assert len(rights) >= 8 and len(set(rights)) == 1, f"amounts end at the same edge: {rights}"
+    assert len(rights) >= 7 and len(set(rights)) == 1, f"amounts end at the same edge: {rights}"
     assert len(lefts) >= 4 and len(set(lefts)) == 1, f"names start at the same edge, groups and plain accounts alike: {lefts}"

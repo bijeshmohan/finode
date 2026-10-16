@@ -87,6 +87,8 @@
   </details>
   {% endif %}
 
+  <p class="muted budget-fine accounts-note">Where your money is. What it was spent on, and what came in, is under <a href="/categories">Categories</a>.</p>
+
   {% if unused or closed %}
   <p class="unused-toggle">
     {% if unused %}<button type="button" class="link-button" data-toggle-unused data-count="{{ unused }}">{{ unused }} unused account{{ "" if unused == 1 else "s" }} hidden · Show</button>{% endif %}

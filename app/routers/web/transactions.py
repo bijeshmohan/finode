@@ -114,6 +114,7 @@ def transactions_page(
     q: str = "",
     kind: str = "",
     page: int = 1,
+    focus: str = "",
 ):
     try:
         recurring.process_due()  # record what has fallen due; never stop the page from opening
@@ -153,6 +154,7 @@ def transactions_page(
         "transactions.html",
         {
             "active": "transactions",
+            "focus_search": focus == "search",  # opened from the search icon in the top bar
             "currency": accounts.default_currency().code,
             "rows": rows,
             "error": error,

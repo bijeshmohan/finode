@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/money.html" import figure %}
+{% block title %}Categories · finode{% endblock %}
+
+{#- A category that has no sub-categories: one row, a bar for its share and its month's amount. -#}
+{% macro leaf(n, depth, label=None, amount=None) %}
+{% set a = amount if amount is not none else totals[n.account.aid] %}
+<a class="r crow" href="/categories/{{ n.account.aid }}?month={{ month_key }}" style="--d: {{ depth }}">
+  <span class="l1"><span class="cat-name">{{ label or n.account.name }}</span><span class="{{ 'income' if root_name == 'Income' and a > 0 }}">{{ a|money }}</span></span>
+  <span class="bar" aria-hidden="true"><i style="width: {{ ((a|abs / largest) * 100)|round|int if largest > 0 else 0 }}%"></i></span>
+</a>
+{% endmacro %}
+
+{#- A group folds: its row is everything inside it, then its categories, then what was posted to the group itself. -#}
+{% macro group(n, depth) %}
+{% set a = totals[n.account.aid] %}
+<details class="cgrp" data-key="{{ n.account.aid }}">
+  <summary class="r gsum" style="--d: {{ depth }}">
+    <span class="l1"><span class="cat-name"><span class="gcaret">{{ icon("caret") }}</span>{{ n.account.name }}<em class="cnt">{{ n.children|length }}</em></span><span class="{{ 'income' if root_name == 'Income' and a > 0 }}">{{ a|money }}</span></span>
+    <span class="bar" aria-hidden="true"><i style="width: {{ ((a|abs / largest) * 100)|round|int if largest > 0 else 0 }}%"></i></span>
+  </summary>
+  <div class="gkids">
+    {% for c in n.children %}{% if c.children %}{{ group(c, depth + 1) }}{% else %}{{ leaf(c, depth + 1) }}{% endif %}{% endfor %}
+    {% if own.get(n.account.aid) %}{{ leaf(n, depth + 1, "Everything else", own[n.account.aid]) }}{% endif %}
+  </div>
+</details>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Categories</h1>
+  <a class="circ-button" href="/categories/new" title="Add category">{{ icon("plus") }}<span class="sr-only">Add category</span></a>
+</div>
+
+<div class="month-nav">
+  <a class="icon-button" href="/categories?month={{ previous }}&tab={{ tab }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
+  <h2 class="month-title">{{ month_name }}</h2>
+  {% if is_current %}<span class="icon-button" aria-hidden="true" style="visibility: hidden"></span>{% else %}
+  <a class="icon-button" href="/categories?month={{ next }}&tab={{ tab }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>{% endif %}
+</div>
+
+<div class="ready zero cat-hero">
+  <span class="muted">{{ "Spent in" if tab == "spending" else "Earned in" }} {{ month_name.split(" ")[0] }}{% if is_current %} so far{% endif %}</span>
+  <span class="figure">{{ figure(grand, currency) }}</span>
+</div>
+
+<div class="chips" role="group" aria-label="What to show">
+  <a class="chip" href="/categories?month={{ month_key }}&tab=spending" aria-pressed="{{ 'true' if tab == 'spending' else 'false' }}">Spending</a>
+  <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
+</div>
+{% if unpriced %}<p class="muted budget-fine">Some amounts are left out because no price converts them to {{ currency }}.</p>{% endif %}
+
+<div data-categories>
+{% if tree %}
+<div class="tile budget-list" data-cat-tree>
+  {% for n in tree %}
+  <div class="top {{ 'unused-hidden' if n.account.aid in quiet_ids }}">
+    {% if n.children %}{{ group(n, 0) }}{% else %}{{ leaf(n, 0) }}{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% if quiet_count %}
+<p class="unused-toggle"><button type="button" class="link-button" data-toggle-cat-quiet data-count="{{ quiet_count }}">{{ quiet_count }} with nothing in {{ month_name.split(" ")[0] }} · Show</button></p>
+{% endif %}
+{% else %}
+<div class="empty-state card">
+  <p>No {{ "spending" if tab == "spending" else "income" }} categories yet.</p>
+  <a class="button" href="/categories/new">Add a category</a>
+</div>
+{% endif %}
+<p class="muted budget-fine">Tap a group to see what is inside it, or a category to see its transactions.</p>
+</div>
+{% endblock %}
