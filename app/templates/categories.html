@@ -3,12 +3,11 @@
 {% from "partials/money.html" import figure %}
 {% block title %}Categories · finode{% endblock %}
 
-{#- A category that has no sub-categories: one row, a bar for its share and its month's amount. -#}
+{#- A category that has no sub-categories: one row: its name and its month's amount. -#}
 {% macro leaf(n, depth, label=None, amount=None) %}
 {% set a = amount if amount is not none else totals[n.account.aid] %}
 <a class="r crow" href="/categories/{{ n.account.aid }}?month={{ month_key }}" style="--d: {{ depth }}">
   <span class="l1"><span class="cat-name">{{ label or n.account.name }}</span><span class="{{ 'income' if root_name == 'Income' and a > 0 }}">{{ a|money }}</span></span>
-  <span class="bar" aria-hidden="true"><i style="width: {{ ((a|abs / largest) * 100)|round|int if largest > 0 else 0 }}%"></i></span>
 </a>
 {% endmacro %}
 
@@ -18,7 +17,6 @@
 <details class="cgrp" data-key="{{ n.account.aid }}">
   <summary class="r gsum" style="--d: {{ depth }}">
     <span class="l1"><span class="cat-name"><span class="gcaret">{{ icon("caret") }}</span>{{ n.account.name }}<em class="cnt">{{ n.children|length }}</em></span><span class="{{ 'income' if root_name == 'Income' and a > 0 }}">{{ a|money }}</span><a class="open-link" href="/categories/{{ n.account.aid }}?month={{ month_key }}" title="Open {{ n.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ n.account.name }}</span></a></span>
-    <span class="bar" aria-hidden="true"><i style="width: {{ ((a|abs / largest) * 100)|round|int if largest > 0 else 0 }}%"></i></span>
   </summary>
   <div class="gkids">
     {% for c in n.children %}{{ leaf(c, depth + 1) }}{% endfor %}
