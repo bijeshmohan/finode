@@ -5,7 +5,7 @@
 {% block content %}
 <a class="back" href="/accounts">{{ icon("back") }}Accounts</a>
 
-<header class="account-hero card">
+<header class="account-hero">
   <p class="muted crumbs">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}</p>
   <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
   {% if account.closed_on %}<p class="muted">Closed on {{ account.closed_on.strftime("%d %b %Y") }}. Its history stays; nothing can be added to it until you reopen it.</p>{% endif %}
@@ -27,47 +27,46 @@
   {% endif %}
   {% if at_limit %}<p class="muted">{{ root.account.name }} accounts can be {{ depth_limit }} level{{ "" if depth_limit == 1 else "s" }} deep, so this one can't have sub-accounts. {% if advanced %}<a href="/settings/advanced#depth">Change the limit</a>{% endif %}</p>{% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
-  <div class="actions">
+  <div class="actions account-actions">
     {% if node.postable and not account.closed_on %}
-    <a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">{{ icon("plus") }}New transaction</a>
+    <a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">{{ icon("plus") }}Add transaction</a>
     {% endif %}
-    {% if node.kind == "user" %}
-    <a class="button secondary" href="/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
-    {% if advanced and not account.closed_on %}
-    <button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/pin" hx-vals='{"pinned": "{{ 0 if account.pinned else 1 }}"}'
-      aria-pressed="{{ 'true' if account.pinned else 'false' }}">{{ icon("pin") }}{{ "Unpin" if account.pinned else "Pin" }}</button>
-    {% endif %}
-    {% endif %}
-    {% if can_add_child and not account.closed_on %}
-    <a class="button secondary" href="/accounts/new?parent={{ account.aid }}">{{ icon("plus") }}Add sub-account</a>
+    {% set has_menu = node.kind == "user" or (can_add_child and not account.closed_on) %}
+    {% if has_menu %}
+    <details class="menu">
+      <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
+      <div class="menu-panel">
+        {% if node.kind == "user" %}
+        <a href="/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
+        {% if advanced and not account.closed_on %}
+        <button type="button" hx-post="/accounts/{{ account.aid }}/pin" hx-vals='{"pinned": "{{ 0 if account.pinned else 1 }}"}'
+          aria-pressed="{{ 'true' if account.pinned else 'false' }}">{{ icon("pin") }}{{ "Unpin" if account.pinned else "Pin" }}</button>
+        {% endif %}
+        {% endif %}
+        {% if can_add_child and not account.closed_on %}
+        <a href="/accounts/new?parent={{ account.aid }}">{{ icon("plus") }}Add sub-account</a>
+        {% endif %}
+        {% if advanced and node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand) %}
+        <p class="menu-note">Listed {{ "in the order you chose" if ordered_by_hand else "alphabetically" }}{% if root.account.name == "Expenses" %}; the budget lists categories the same way{% endif %}.</p>
+        {% if can_move_up %}<button type="button" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "up"}'>{{ icon("arrow-up") }}Move up</button>{% endif %}
+        {% if can_move_down %}<button type="button" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "down"}'>{{ icon("arrow-down") }}Move down</button>{% endif %}
+        {% if ordered_by_hand %}<button type="button" hx-post="/accounts/{{ account.aid }}/reset-order">A–Z</button>{% endif %}
+        {% endif %}
+        {% if node.kind == "user" and (advanced or account.closed_on) %}
+        {% if account.closed_on %}
+        <p class="menu-note">Reopen {{ account.name }}{% if node.children %} and everything inside it{% endif %} to use {{ "them" if node.children else "it" }} again.</p>
+        <button type="button" hx-post="/accounts/{{ account.aid }}/reopen">Reopen account</button>
+        {% else %}
+        <p class="menu-note">Done with {{ account.name }}? Closing {{ "it and everything inside it" if node.children else "it" }} removes {{ "them" if node.children else "it" }} from your lists and pickers. The history stays, and you can reopen {{ "them" if node.children else "it" }} any time.{% if account.balance != 0 %} It has to be empty first: it still holds {{ account.balance|money }}.{% endif %}</p>
+        <button type="button" class="danger-text" hx-post="/accounts/{{ account.aid }}/close" hx-confirm="Close {{ account.name }}? You can reopen it later.">Close account</button>
+        {% endif %}
+        {% endif %}
+      </div>
+    </details>
     {% endif %}
   </div>
-</header>
-
-{% if advanced and node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand) %}
-<section class="card stack form-narrow order-card">
-  <p class="muted">Accounts in {{ "this group" if node.account.parent_id else "this type" }} are listed {{ "in the order you chose" if ordered_by_hand else "alphabetically" }}{% if node.account.aid and root.account.name == "Expenses" %}; the budget lists categories the same way{% endif %}.</p>
-  <div class="actions">
-    {% if can_move_up %}<button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "up"}'>{{ icon("arrow-up") }}Move up</button>{% endif %}
-    {% if can_move_down %}<button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "down"}'>{{ icon("arrow-down") }}Move down</button>{% endif %}
-    {% if ordered_by_hand %}<button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/reset-order">A–Z</button>{% endif %}
-  </div>
-</section>
-{% endif %}
-
-{% if node.kind == "user" and (advanced or account.closed_on) %}
-<section class="card stack form-narrow close-card">
   <p id="page-error" class="error" role="alert"></p>
-  {% if account.closed_on %}
-  <p class="muted">Reopen {{ account.name }}{% if node.children %} and everything inside it{% endif %} to use {{ "them" if node.children else "it" }} again.</p>
-  <div class="actions"><button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/reopen">Reopen account</button></div>
-  {% else %}
-  <p class="muted">Done with {{ account.name }}? Closing {{ "it and everything inside it" if node.children else "it" }} removes {{ "them" if node.children else "it" }} from your lists and pickers. The history stays, and you can reopen {{ "them" if node.children else "it" }} any time.{% if account.balance != 0 %} It has to be empty first: it still holds {{ account.balance|money }}.{% endif %}</p>
-  <div class="actions"><button type="button" class="secondary" hx-post="/accounts/{{ account.aid }}/close"
-    hx-confirm="Close {{ account.name }}? You can reopen it later.">Close account</button></div>
-  {% endif %}
-</section>
-{% endif %}
+</header>
 
 <h2>Activity</h2>
 {% if entries %}
@@ -83,7 +82,7 @@
             <span class="tx-title">{{ e.payee or "No payee" }}</span>
             <span class="tx-sub">{{ e.counter_accounts|join(", ") }}{% if e.comment %} · {{ e.comment }}{% endif %}</span>
           </span>
-          <span class="tx-amount {{ 'income' if e.change > 0 }}">{{ "+" if e.change > 0 else "−" }}{{ (e.change|abs)|money|with_unit(account.commodity, currency) }}<small>{{ e.balance|money }}</small></span>
+          <span class="tx-amount {{ 'income' if e.change > 0 }}">{{ "+" if e.change > 0 }}{{ (e.change|abs)|money|with_unit(account.commodity, currency) }}<small>{{ e.balance|money }}</small></span>
         </a>
       </li>
       {% endfor %}

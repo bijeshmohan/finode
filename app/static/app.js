@@ -338,13 +338,15 @@ function applyKind(form, kind) {
 
 // The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
-  if (!event.target || event.target.id !== "txn-sheet-body") return;
-  const dialog = document.getElementById("txn-sheet");
+  const id = event.target && event.target.id;
+  if (id !== "txn-sheet-body" && id !== "cat-sheet-body") return;
+  const dialog = document.getElementById(id.replace("-body", ""));
   if (dialog && !dialog.open) dialog.showModal();
+  const first = dialog && dialog.querySelector("[data-autofocus]");
+  if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
 });
 document.body.addEventListener("click", (event) => {
-  const dialog = document.getElementById("txn-sheet");
-  if (dialog && event.target === dialog) dialog.close();
+  if (event.target instanceof HTMLDialogElement && event.target.classList.contains("sheet-bottom")) event.target.close();
 });
 
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
@@ -427,7 +429,9 @@ function setSuggestion(row, currency, text) {
 }
 
 function recomputeTxn(form) {
-  const total = parseDec(form.querySelector("#total").value) || 0n;
+  const field = form.querySelector("#total");
+  field.style.setProperty("--n", Math.max(field.value.length, 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
+  const total = parseDec(field.value) || 0n;
   const select = form.querySelector('select[name="currency"]');
   if (select && !txnState.currencyChosen) {
     // Follow the accounts: the default currency when it is involved, else what they all hold.
@@ -615,7 +619,7 @@ document.body.addEventListener("change", (event) => {
 (function accountsPage() {
   const page = document.querySelector("[data-accounts]");
   if (!page) return;
-  const KEY = "finode.accounts.open.v2"; // v2: the defaults changed, so earlier choices are dropped
+  const KEY = "finode.accounts.open.v3"; // v3: the defaults changed again (only Assets and Liabilities start open)
   let saved = {};
   try {
     saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
@@ -636,11 +640,6 @@ document.body.addEventListener("change", (event) => {
   groups.forEach((group) => {
     if (group.dataset.key in saved) group.open = !!saved[group.dataset.key];
   });
-  const toggleAll = page.querySelector("[data-toggle-all]");
-  function syncToggleAll() {
-    toggleAll.textContent = groups.every((group) => group.open) ? "Collapse all" : "Expand all";
-  }
-  syncToggleAll();
   page.addEventListener(
     "toggle",
     (event) => {
@@ -648,7 +647,6 @@ document.body.addEventListener("change", (event) => {
       if (searching || !group.dataset || !group.dataset.key) return;
       saved[group.dataset.key] = group.open;
       remember();
-      syncToggleAll();
     },
     true
   );
@@ -657,15 +655,6 @@ document.body.addEventListener("change", (event) => {
   page.addEventListener("click", (event) => {
     if (event.target.closest(".open-link")) event.stopPropagation();
   }, true);
-
-  function setAll(open) {
-    groups.forEach((group) => {
-      group.open = open;
-      saved[group.dataset.key] = open;
-    });
-    remember();
-  }
-  toggleAll.addEventListener("click", () => setAll(!groups.every((group) => group.open)));
 
   const unusedButton = page.querySelector("[data-toggle-unused]");
   if (unusedButton) {
@@ -775,4 +764,47 @@ document.body.addEventListener("change", (event) => {
   document.body.addEventListener("htmx:afterRequest", () => bar((pending = Math.max(0, pending - 1)) > 0));
   window.addEventListener("beforeunload", () => bar(true));
   window.addEventListener("pageshow", () => bar((pending = 0) > 0));
+})();
+
+// A new entry opens with the amount ready to type on a computer. On a phone nothing is focused: the grey 0.00 stays
+// visible, and tapping the amount hides it, shows the cursor and opens the keyboard (a script cannot open the keyboard).
+(() => {
+  const first = document.querySelector("[data-autofocus]");
+  if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
+})();
+
+// ---- Budget: groups fold (and are remembered), unused groups can be shown ----
+(() => {
+  const KEY = "finode.budget.open.v1";
+  const read = () => {
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (error) { return {}; }
+  };
+  const write = (saved) => {
+    try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (error) { /* private mode: it just forgets */ }
+  };
+  function restore(root) {
+    const saved = read();
+    root.querySelectorAll("details.grp[data-key]").forEach((group) => {
+      if (group.dataset.key in saved) group.open = !!saved[group.dataset.key];
+    });
+  }
+  restore(document);
+  document.body.addEventListener("htmx:afterSwap", (event) => {
+    if (event.target && event.target.id === "budget") restore(event.target);
+  });
+  document.body.addEventListener("toggle", (event) => {
+    const group = event.target;
+    if (!group.matches || !group.matches("details.grp[data-key]")) return;
+    const saved = read();
+    saved[group.dataset.key] = group.open;
+    write(saved);
+  }, true);
+  document.body.addEventListener("click", (event) => {
+    const button = event.target.closest && event.target.closest("[data-toggle-budget-unused]");
+    if (!button) return;
+    const tree = document.getElementById("budget");
+    const shown = tree.classList.toggle("show-budget-unused");
+    const n = button.dataset.count;
+    button.textContent = shown ? `Hide the ${n} unused` : `${n} unused group${n === "1" ? "" : "s"} hidden · Show`;
+  });
 })();

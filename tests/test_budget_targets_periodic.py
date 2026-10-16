@@ -124,14 +124,14 @@ def test_the_form_and_the_page(client, setup):
     assert 'value="weekly"' in form and 'value="yearly"' in form and "data-target-weekday" in form
     saved = client.post("/budget/target", data={"category": rent, "kind": "weekly", "amount": "100", "weekday": "4"})
     assert saved.status_code == 200 and "budget-target" in saved.headers["set-cookie"]
-    page = client.get("/budget").text
+    page = client.get(f"/budget/category/{rent}/sheet").text
     assert "Weekly 100.00 on Fris" in page.replace("\n", " ").replace("  ", " ")
     assert 'value="4" selected' in client.get(f"/budget/target?category={rent}").text
 
     due = add_months(THIS_MONTH, 2)
     saved = client.post("/budget/target", data={"category": rent, "kind": "yearly", "amount": "600", "target_date": due.strftime("%Y-%m")})
     assert saved.status_code == 200
-    assert f"Yearly 600.00 in {due:%b}" in client.get("/budget").text.replace("\n", " ").replace("  ", " ")
+    assert f"Yearly 600.00 in {due:%b}" in client.get(f"/budget/category/{rent}/sheet").text.replace("\n", " ").replace("  ", " ")
 
 
 def test_form_errors(client, setup):

@@ -1,0 +1,50 @@
+{#- One category in the sheet over the budget. Expects line (BudgetLine), budget, month_key, month_name, advanced. -#}
+<div class="sheet-grab" aria-hidden="true"></div>
+<div class="sheet-title">
+  <div>
+    <h2>{% if line.name.endswith("(other)") %}{{ line.name[:-8] }} · everything else{% else %}{{ line.name }}{% endif %}</h2>
+    <p class="muted">{{ month_name }}{% if line.name.endswith("(other)") %} · money for the group that is not in one of its categories{% elif line.path and ":" in line.path %} · {{ line.path.rsplit(":", 1)[0].split(":")[-1] }}{% endif %}</p>
+  </div>
+  <div class="sheet-amount {{ 'over' if line.available < 0 }}">{{ line.available|money }}<small class="muted">left</small></div>
+</div>
+
+<form class="stack" hx-post="/budget/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
+  <input type="hidden" name="category" value="{{ line.aid }}">
+  <input type="hidden" name="month" value="{{ month_key }}">
+  <input type="hidden" name="sheet" value="1">
+  <label>Assigned this month
+    <input class="assign" type="text" name="amount" inputmode="decimal" autocomplete="off" enterkeyhint="done" data-autofocus
+           value="{{ line.assigned|money if line.assigned else '' }}" placeholder="0.00" aria-label="Assigned to {{ line.name }}">
+  </label>
+  <p id="cat-sheet-error" class="error" role="alert"></p>
+  <dl class="sheet-facts">
+    <div><dt>Spent</dt><dd>{{ line.activity|money }}</dd></div>
+    {% if advanced and line.target %}
+    <div><dt>Target</dt><dd>
+      {{ {"monthly": "Monthly", "weekly": "Weekly", "refill": "Keep", "by_date": "Save", "yearly": "Yearly"}[line.target.kind] }} {{ line.target.amount|money }}
+      {%- if line.target.kind == "weekly" %} on {{ ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][line.target.weekday or 0] }}s{% elif line.target.kind == "yearly" %} in {{ line.target.target_date.strftime("%b") }}{% elif line.target.target_date %} by {{ line.target.target_date.strftime("%b %Y") }}{% endif %}
+      <span class="muted">{% if line.overdue %}overdue, {% endif %}{% if line.underfunded %}needs {{ line.underfunded|money }} more{% else %}funded{% endif %}</span>
+    </dd></div>
+    {% endif %}
+    {% if line.overspent_last_month %}<div><dt>Overspent last month</dt><dd>{{ line.overspent_last_month|money }}</dd></div>{% endif %}
+    {% if line.note %}<div><dt>Note</dt><dd>{{ line.note }}</dd></div>{% endif %}
+  </dl>
+  {% if advanced and line.weeks %}
+  <details class="weeks" open>
+    <summary>By week</summary>
+    <ul>
+      {% for w in line.weeks %}
+      <li class="{{ 'current' if w.current }}{{ ' over' if w.allowance is not none and w.spent > w.allowance }}">
+        <span class="range">{% if w.start == w.end %}{{ w.start.day }} {{ w.start.strftime("%b") }}{% else %}{{ w.start.day }}{% if w.start.month != w.end.month %} {{ w.start.strftime("%b") }}{% endif %} – {{ w.end.day }} {{ w.end.strftime("%b") }}{% endif %}</span>
+        <span class="figures">{{ w.spent|money }}{% if w.allowance is not none %} of {{ w.allowance|money }}{% else %} <em>(funded last month)</em>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  <div class="sheet-actions">
+    <button type="submit">Save</button>
+    <a class="button secondary" href="/budget/move?month={{ month_key }}&source={{ line.aid }}">Move money</a>
+  </div>
+  <p class="sheet-more"><a href="/budget/target?month={{ month_key }}&category={{ line.aid }}">{{ "Target and note" if advanced else "Note" }}</a></p>
+</form>

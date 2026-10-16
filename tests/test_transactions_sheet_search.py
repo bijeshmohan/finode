@@ -116,7 +116,7 @@ def flat(html):
 
 def test_the_sheet_shows_the_entry(client, books, ledger):
     text = flat(sheet(client, ledger["swiggy"]))
-    assert "Swiggy" in text and "−597.00" in text
+    assert "Swiggy" in text and "597.00" in text and "−597.00" not in text, "an ordinary expense has no minus"
     assert "Paid from Regalia Gold" in text and "Spent on Delivery" in text
     assert "Note None" in text and "Added By the API" in text
 
@@ -140,7 +140,7 @@ def test_a_split_lists_every_account_with_its_amount(client, books):
         {"account": books["delivery"]["aid"], "side": "debit", "amount": "300"},
         {"account": books["hdfc"]["aid"], "side": "credit", "amount": "900"}]}).json()
     text = flat(sheet(client, tx))
-    assert "Groceries 600.00" in text and "Delivery 300.00" in text and "−900.00" in text
+    assert "Groceries 600.00" in text and "Delivery 300.00" in text and "900.00" in text and "−900.00" not in text
 
 
 def test_the_sheet_offers_edit_add_again_and_delete(client, books, ledger):

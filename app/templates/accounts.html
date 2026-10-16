@@ -6,7 +6,7 @@
   {%- if account.unpriced %}<span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span> {% endif -%}
 {%- endmacro %}
 
-{#- One account in the list: a group is a row that opens (with a link to its own page), a plain account links straight there. -#}
+{#- One account in the list: a group is a row that opens (with a small link to its own page), a plain account links straight there. -#}
 {% macro entry(node) %}
 <li data-path="{{ node.path|lower }}" class="{{ 'unused-hidden' if node.unused }}{{ ' closed-hidden' if node.closed }}">
   {% if node.children %}
@@ -23,59 +23,53 @@
   </details>
   {% else %}
   <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}" style="--depth: {{ node.depth - 1 }}">
-    <span class="caret spacer"></span>
+    <span class="caret spacer" aria-hidden="true"></span>
     <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}</span>
     <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
-    {{ icon("chevron-right") }}
+    <span class="trail" aria-hidden="true"></span>
   </a>
   {% endif %}
 </li>
 {% endmacro %}
 
-{#- A short flat list above the tree: pinned accounts, and the ones used last. -#}
-{% macro quick(title, nodes, kind) %}
-<section class="quick" data-quick>
-  <h2>{{ title }}</h2>
-  <ul class="card list">
+{#- A short flat list above the tree (pinned accounts) or folded below it (the ones used last). -#}
+{% macro quick_rows(nodes) %}
+  <ul class="tile list">
     {% for node in nodes %}
     <li>
       <a class="account-row" href="/accounts/{{ node.account.aid }}" style="--depth: 0">
-        <span class="caret spacer"></span>
         <span class="account-name">{{ node.account.name }}<small class="muted path">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "" }}</small></span>
         <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
-        {{ icon("chevron-right") }}
+        <span class="trail" aria-hidden="true"></span>
       </a>
     </li>
     {% endfor %}
   </ul>
-</section>
 {% endmacro %}
 
 {% block content %}
 <div class="page-head">
   <h1>Accounts</h1>
-  <a class="button secondary" href="/accounts/new">{{ icon("plus") }}Add account</a>
+  <a class="circ-button" href="/accounts/new" title="Add account">{{ icon("plus") }}<span class="sr-only">Add account</span></a>
 </div>
 
 <div data-accounts>
   <div class="accounts-tools">
     <input type="search" data-account-search placeholder="Search accounts" aria-label="Search accounts" autocomplete="off">
-    <button type="button" class="secondary" data-toggle-all>Expand all</button>
   </div>
   <p class="muted" data-no-match hidden>No account matches.</p>
 
-  {% if pinned %}{{ quick("Pinned", pinned) }}{% endif %}
-  {% if recent %}{{ quick("Recently used", recent) }}{% endif %}
+  {% if pinned %}<section class="quick" data-quick><div class="gh"><span>Pinned</span></div>{{ quick_rows(pinned) }}</section>{% endif %}
 
   {% for root in roots %}
-  <details class="account-group" data-key="{{ root.account.aid }}" open>
+  <details class="account-group" data-key="{{ root.account.aid }}" {{ "open" if root.account.name in ("Assets", "Liabilities") }}>
     <summary class="group-head">
       <h2><span class="caret">{{ icon("caret") }}</span>{{ root.account.name }}</h2>
       <span class="group-total">{{ badge(root.account) }}{{ root.account.balance|money }}</span>
       <a class="open-link" href="/accounts/{{ root.account.aid }}" title="Open {{ root.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ root.account.name }}</span></a>
     </summary>
     {% if root.children %}
-    <ul class="card list">
+    <ul class="tile list">
       {% for child in root.children %}{{ entry(child) }}{% endfor %}
     </ul>
     {% else %}
@@ -85,6 +79,13 @@
     {% endif %}
   </details>
   {% endfor %}
+
+  {% if recent %}
+  <details class="quick recent" data-quick>
+    <summary>Recently used · {{ recent|length }}</summary>
+    {{ quick_rows(recent) }}
+  </details>
+  {% endif %}
 
   {% if unused or closed %}
   <p class="unused-toggle">

@@ -2,7 +2,7 @@
   <div class="total-field">
     <label class="amount-field">Amount
       <input type="text" name="total" id="total" inputmode="decimal" placeholder="0.00" required autocomplete="off"
-             value="{{ total }}" {{ "autofocus" if not editing }}>
+             value="{{ total }}" {{ "data-autofocus" if not editing }}>
     </label>
     {% if multi %}
     <label class="currency-field"><span class="sr-only">Currency</span>
@@ -11,7 +11,7 @@
       </select>
     </label>
     {% else %}
-    <span class="currency-code muted">{{ currency }}</span>
+    <span class="currency-code muted {{ 'sym' if currency == 'INR' }}">{{ currency|symbol }}</span>
     {% endif %}
   </div>
 

@@ -21,7 +21,7 @@ def setup(client, root_accounts):
 def test_the_page_shows_what_is_left_to_assign(client, setup):
     page = client.get("/budget").text
     assert "Ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00")
-    assert "Food" in page and "Rent" in page and "this month" in page
+    assert "Food" in page and "Rent" in page and "this month" in page, "the title says this month"
     assert 'href="/budget?month=' in page
 
 
@@ -35,7 +35,8 @@ def test_assigning_inline_returns_the_updated_block(client, setup):
         "/budget/assign", data={"category": setup["food"]["aid"], "month": THIS_MONTH.strftime("%Y-%m"), "amount": "300"}
     )
     assert response.status_code == 200 and 'id="budget"' in response.text
-    assert "700.00" in response.text and 'value="300.00"' in response.text
+    assert "700.00" in response.text
+    assert f'value="300.00"' in client.get(f"/budget/category/{setup['food']['aid']}/sheet").text, "the sheet shows what is assigned"
     assert line(api_budget(client), "Food")["assigned"] == "300.00"
 
 
@@ -118,28 +119,58 @@ def test_the_budget_tab_is_in_the_navigation(client, setup):
 def test_the_inline_amount_also_saves_on_the_return_key(client, setup):
     # iOS shows no decimal-pad return key, but a keyboard's Enter must not reload the page with a GET.
     page = client.get("/budget").text
-    assert 'hx-trigger="change, submit"' in page and 'enterkeyhint="done"' in page
+    assert f'/budget/category/{setup["food"]["aid"]}/sheet' in page, "a row opens its sheet"
+    sheet = client.get(f"/budget/category/{setup['food']['aid']}/sheet").text
+    assert 'hx-post="/budget/assign"' in sheet and 'enterkeyhint="done"' in sheet and 'type="submit"' in sheet
 
 
-def test_every_row_has_the_same_three_cells_so_the_columns_line_up(client, root_accounts, setup):
+def test_a_group_is_a_row_that_folds_and_its_categories_follow_with_everything_else(client, root_accounts, setup):
     client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]})
     page = client.get("/budget").text
-    rows = page.split('<div class="budget-row')[1:]
-    assert len(rows) == 3, "a group, its sub-category and a plain category"
-    for row in rows:
-        assert row.count('<div class="cell">') == 2, row[:200]
-        assert row.count('class="cap">Assigned') == 1 and row.count('class="cap">Available') == 1
+    assert page.count('<details class="grp"') == 1 and 'class="r gsum"' in page, "Food is one folding row"
+    assert "<em class=\"cnt\">1</em>" in page, "it says how many categories are inside"
+    assert page.count('class="r catrow"') == 3, "Groceries, Food's own 'Everything else' and the plain Rent"
+    assert "Everything else" in page
+    assert 'name="amount"' not in page, "no input boxes on the page: assigning happens in the sheet"
+    assert page.count('class="bar') == 4 and 'aria-label="Category"' in page
 
 
-def test_the_stylesheet_gives_all_rows_and_the_header_the_same_fixed_columns():
-    from pathlib import Path
+def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client, root_accounts, setup):
+    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    sheet = client.get(f"/budget/category/{setup['food']['aid']}/sheet")
+    assert sheet.status_code == 200 and "Food · everything else" in sheet.text, "a group has a sheet of its own"
+    assign(client, groceries, "100")
+    client.post("/budget/assign", data={"category": setup["food"]["aid"], "month": THIS_MONTH.strftime("%Y-%m"), "amount": "40"})
+    food = line(api_budget(client), "Food")
+    assert food["assigned"] == "140.00", "the group's total adds up its own and its categories' money"
+    assert 'value="40.00"' in client.get(f"/budget/category/{setup['food']['aid']}/sheet").text
 
-    css = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
-    shared = css[css.index(".budget-columns, .budget-row {"):]
-    shared = shared[: shared.index("}")]
-    assert "grid-template-columns: minmax(0, 1fr) 9rem 9rem" in shared
-    assert "auto" not in shared.split("grid-template-columns")[1].split(";")[0], "auto columns size per row and drift"
-    assert "max-width: 39.99rem" in css
+
+def test_unused_groups_are_tucked_away_once_something_is_in_use_but_plain_categories_stay(client, root_accounts, setup):
+    travel = account(client, root_accounts, "Travel", "Expenses")
+    client.post("/api/accounts/", json={"name": "Stay", "parent_id": travel["aid"]})
+    assert "unused-hidden" not in client.get("/budget").text, "nothing in use yet: everything shows"
+    assign(client, setup["food"], "100")
+    page = client.get("/budget").text
+    assert page.count('class="top unused-hidden"') == 1 and "1 unused group hidden" in page, "the empty Travel group"
+    assert 'class="top "' in page and "Rent" in page.split("data-toggle-budget-unused")[0], "Rent is a plain category: it stays"
+
+
+def test_what_needs_you_is_one_row_that_opens(client, setup):
+    last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
+    assign(client, setup["food"], "300", last)
+    page = client.get("/budget").text
+    assert "1 thing needs you" in page and "Copy last month's amounts" in page
+
+
+def test_the_sheet_of_a_plain_account_is_not_offered(client, root_accounts, setup):
+    assert client.get(f"/budget/category/{setup['bank']['aid']}/sheet").status_code == 404
+    assert client.get("/budget/category/00000000-0000-4000-8000-0000000000ff/sheet").status_code == 404
+
+
+def test_an_error_in_the_sheet_shows_in_the_sheet(client, setup):
+    response = client.post("/budget/assign", data={"category": setup["food"]["aid"], "amount": "lots", "sheet": "1"})
+    assert response.status_code == 400 and response.headers["HX-Retarget"] == "#cat-sheet-error"
 
 
 def test_the_page_explains_last_months_overspending(client, root_accounts):
@@ -159,21 +190,25 @@ def test_the_page_explains_last_months_overspending(client, root_accounts):
 
 def test_rows_offer_a_target_and_show_what_is_missing(client, setup):
     page = client.get("/budget").text
-    assert page.count("Set a target") == 2 and "Assign what is needed" not in page
+    assert "Assign what is needed" not in page
+    sheet = client.get(f"/budget/category/{setup['rent']['aid']}/sheet").text
+    assert f'href="/budget/target?month={THIS_MONTH:%Y-%m}&category={setup["rent"]["aid"]}"' in sheet and "Target and note" in sheet
     form = client.get(f"/budget/target?category={setup['rent']['aid']}")
     assert form.status_code == 200 and "Target for Rent" in form.text and 'name="kind"' in form.text
     saved = client.post("/budget/target", data={"category": setup["rent"]["aid"], "kind": "monthly", "amount": "400"})
     assert saved.headers["HX-Redirect"].startswith("/budget?month=") and "budget-target" in saved.headers["set-cookie"]
     page = client.get("/budget").text
-    assert "Monthly 400.00" in page and "needs 400.00 more" in page
-    assert "Your targets still need 400.00" in page and "Assign what is needed" in page
+    assert "needs 400.00 more" in page, "the row says what is missing"
+    assert "Monthly 400.00" in client.get(f"/budget/category/{setup['rent']['aid']}/sheet").text
+    assert "Your targets still need \u20b9400.00" in page and "Assign what is needed" in page
 
 
 def test_fund_button_assigns_and_the_row_turns_funded(client, setup):
     client.post("/budget/target", data={"category": setup["rent"]["aid"], "kind": "monthly", "amount": "400"})
     response = client.post("/budget/fund", data={"month": THIS_MONTH.strftime("%Y-%m")})
     assert response.status_code == 200 and 'id="budget"' in response.text
-    assert "funded" in response.text and "Assign what is needed" not in response.text
+    assert "needs 400.00 more" not in response.text and "Assign what is needed" not in response.text
+    assert "funded" in client.get(f"/budget/category/{setup['rent']['aid']}/sheet").text
     assert line(api_budget(client), "Rent")["assigned"] == "400.00"
     nothing = client.post("/budget/fund", data={})
     assert nothing.status_code == 400 and nothing.headers["HX-Retarget"] == "#budget-error"
@@ -213,7 +248,8 @@ def test_the_page_offers_to_copy_last_month_and_does_it(client, setup):
     assert "Copy last month's amounts · 300.00" in page
     response = client.post("/budget/copy", data={"month": THIS_MONTH.strftime("%Y-%m")})
     assert response.status_code == 200 and 'id="budget"' in response.text
-    assert "Copy last month's amounts" not in response.text and 'value="300.00"' in response.text
+    assert "Copy last month's amounts" not in response.text
+    assert 'value="300.00"' in client.get(f"/budget/category/{setup['food']['aid']}/sheet").text
     again = client.post("/budget/copy", data={})
     assert again.status_code == 400 and again.headers["HX-Retarget"] == "#budget-error"
 
@@ -221,15 +257,15 @@ def test_the_page_offers_to_copy_last_month_and_does_it(client, setup):
 def test_the_page_says_when_money_is_assigned_to_later_months(client, setup):
     nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
     assign(client, setup["food"], "120", nxt)
-    assert "120.00 INR is already assigned to later months" in client.get("/budget").text
+    assert "\u20b9120.00 is already assigned to later months" in client.get("/budget").text
 def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts):
     account(client, root_accounts, "Bank", "Assets", balance="1000")
     food = account(client, root_accounts, "Food", "Expenses")
-    assert "Credit card payments" not in client.get("/budget").text, "no card in the budget, no section"
+    assert "Cards to pay" not in client.get("/budget").text, "no card in the budget, no section"
     card = account(client, root_accounts, "Visa", "Liabilities", on_budget=True)
     move(client, card, food, "100")
     page = client.get("/budget").text
-    assert "Credit card payments" in page and "Visa" in page
+    assert "Cards to pay" in page and "Visa" in page
     assert "Charged 100.00 · paid 0.00 this month" in page
     assert "Money in your accounts 1,000.00 − set aside for card bills 100.00" in page
     assert "= ready to assign" in page and "assigned to later months" not in page

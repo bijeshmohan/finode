@@ -185,3 +185,31 @@ def test_the_chips_narrow_as_you_type(page: Page, books, api: Api):
     page.fill("#payee", "dm")
     expect(page.locator("#payee-chips .chip")).to_have_count(1)
     expect(page.locator("#payee-chips .chip")).to_have_text("DMart")
+
+
+def test_the_cursor_is_ink_coloured_and_alone_in_an_empty_amount(page: Page, books):
+    page.goto("/transactions/new")
+    page.focus("#total")
+    colours = page.eval_on_selector("#total", "e => [getComputedStyle(e).caretColor, getComputedStyle(e).color]")
+    assert colours[0] == colours[1], "the cursor follows the text colour, not the browser's blue"
+    if page.context.browser.browser_type.name == "webkit":
+        return  # WebKit does not report the style of a ::placeholder; the screenshot check covers it
+    placeholder = page.eval_on_selector("#total", "e => getComputedStyle(e, '::placeholder').opacity")
+    assert placeholder == "0", "the grey 0.00 steps aside while typing"
+    page.evaluate("document.activeElement.blur()")
+    assert page.eval_on_selector("#total", "e => getComputedStyle(e, '::placeholder').opacity") != "0"
+
+
+def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(page: Page, books):
+    page.goto("/transactions/new")
+    expect(page.locator("#total")).to_be_focused()
+    phone = page.context.browser.new_context(base_url=page.url.split("/transactions")[0], has_touch=True, is_mobile=True, viewport={"width": 390, "height": 844})
+    try:
+        mobile = phone.new_page()
+        mobile.goto("/transactions/new")
+        expect(mobile.locator("#total")).not_to_be_focused()
+        assert mobile.eval_on_selector("#total", "e => getComputedStyle(e, '::placeholder').opacity") != "0" or mobile.context.browser.browser_type.name == "webkit"
+        mobile.tap("#total")
+        expect(mobile.locator("#total")).to_be_focused()
+    finally:
+        phone.close()
