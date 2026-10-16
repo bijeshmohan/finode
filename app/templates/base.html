@@ -25,6 +25,7 @@
   {% block header %}
   <header class="topbar">
     <a class="brand" href="/"><span>finode</span></a>
+    <a class="icon-button search-link" href="/transactions?focus=search" title="Search transactions">{{ icon("search") }}<span class="sr-only">Search transactions</span></a>
     <a class="icon-button avatar-link" href="/settings" title="Settings" {% if active in ('settings', 'profile') %}aria-current="page"{% endif %}>{{ icon("user") }}<span class="sr-only">Settings</span></a>
   </header>
   <aside class="sidebar" aria-label="Main">
@@ -37,6 +38,7 @@
       <a href="/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
       <a href="/budget" {% if active == 'budget' %}aria-current="page"{% endif %}>{{ icon("budget") }}<span>Budget</span></a>
       <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
+      <a href="/categories" {% if active == 'categories' %}aria-current="page"{% endif %}>{{ icon("tag") }}<span>Categories</span></a>
     </nav>
     <div class="sidebar-foot">
       <a href="/settings" {% if active in ('settings', 'profile') %}aria-current="page"{% endif %}>{{ icon("gear") }}<span>Settings</span></a>
@@ -57,9 +59,9 @@
   {% block tabbar %}
   <nav class="tabbar" aria-label="Main">
     <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>
-    <a href="/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
     <a href="/budget" {% if active == 'budget' %}aria-current="page"{% endif %}>{{ icon("budget") }}<span>Budget</span></a>
     <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
+    <a href="/categories" {% if active == 'categories' %}aria-current="page"{% endif %}>{{ icon("tag") }}<span>Categories</span></a>
   </nav>
   {% if not hide_fab and not no_fab %}
   <a class="fab" href="/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>

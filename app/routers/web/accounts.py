@@ -130,16 +130,21 @@ def _root_of(roots: list[Node], node: Node) -> Node:
     return next(r for r in roots if any(n is node for n in r.walk()))
 
 
+# Where the money is (the Accounts page) and where it goes and comes from (the Categories page).
+ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
+CATEGORY_ROOTS = ("Expenses", "Income")
+
+
 @router.get("")
 def accounts_page(request: Request, accounts: Accounts, profiles: Profiles):
-    roots = build_tree(accounts.list())
+    roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
     unused = annotate_for_page(roots, accounts.used_account_ids(), local_today())
     nodes = {n.account.aid: n for root in roots for n in root.walk()}
     pinned = sorted(
         (n for n in nodes.values() if n.account.pinned and n.kind == "user" and n.account.closed_on is None),
         key=lambda n: n.path.lower(),
     )
-    recent = [nodes[aid] for aid in accounts.recent(RECENT_ACCOUNTS) if aid in nodes]
+    recent = [nodes[aid] for aid in accounts.recent(RECENT_ACCOUNTS) if aid in nodes]  # categories are not accounts here
     return templates.TemplateResponse(
         request,
         "accounts.html",
@@ -191,13 +196,18 @@ def closed_count(roots: list[Node]) -> int:
 
 
 @router.get("/new")
-def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None):
-    roots = build_tree(accounts.list())
+def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None, kind: str = "account"):
+    """The form for a new account (under Assets or Liabilities), or with kind=category for a new category
+    (under Expenses or Income, reached from the Categories page)."""
+    kind = "category" if kind == "category" else "account"
+    allowed = CATEGORY_ROOTS if kind == "category" else ACCOUNT_ROOTS
+    roots = [r for r in build_tree(accounts.list()) if r.account.name in allowed]
     return templates.TemplateResponse(
         request,
         "account_form.html",
         {
-            "active": "accounts",
+            "active": "categories" if kind == "category" else "accounts",
+            "kind": kind,
             "hide_fab": True,
             "node": None,
             "parent_id": parent,
@@ -303,10 +313,10 @@ def create_account(
     return htmx_redirect(f"/accounts/{created.aid}", flash="account-created")
 
 
-@router.get("/{aid}")
-def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles):
+def account_context(accounts: AccountService, profiles, aid: UUID, entries=None) -> dict:
+    """What the account page needs; the category page (categories.py) reuses it with its month's entries."""
     roots, node = _load(accounts, aid)
-    entries = accounts.register(aid) or []
+    entries = accounts.register(aid) or [] if entries is None else entries
     root = _root_of(roots, node)
     limit = profiles.depth_limits()[root.account.name]
     at_limit = node.kind != "system" and node.depth >= limit
@@ -319,38 +329,51 @@ def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Prof
     )
     siblings = next((p.children for r in roots for p in r.walk() if node in p.children), [])
     place = next((i for i, s in enumerate(siblings) if s is node), 0)
-    return templates.TemplateResponse(
-        request,
-        "account.html",
-        {
-            "active": "accounts",
-            "advanced": profiles.advanced(),
-            "can_move_up": node.kind == "user" and place > 0,
-            "can_move_down": node.kind == "user" and place < len(siblings) - 1,
-            "ordered_by_hand": any(s.account.position is not None for s in siblings),
-            "node": node,
-            "root": root,
-            "entries": list(reversed(entries)),
-            "currency": accounts.default_currency().code,
-            "holding": accounts.holding(aid),
-            "at_limit": at_limit,
-            "depth_limit": limit,
-            "can_add_child": can_add_child,
-            # Part of a group's balance that was posted to the group itself.
-            "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
-            if node.postable and node.children
-            else None,
-        },
-    )
+    return {
+        "active": "accounts",
+        "advanced": profiles.advanced(),
+        "can_move_up": node.kind == "user" and place > 0,
+        "can_move_down": node.kind == "user" and place < len(siblings) - 1,
+        "ordered_by_hand": any(s.account.position is not None for s in siblings),
+        "node": node,
+        "root": root,
+        "entries": list(reversed(entries)),
+        "currency": accounts.default_currency().code,
+        "holding": accounts.holding(aid),
+        "at_limit": at_limit,
+        "depth_limit": limit,
+        "can_add_child": can_add_child,
+        # Part of a group's balance that was posted to the group itself.
+        "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
+        if node.postable and node.children
+        else None,
+    }
+
+
+@router.get("/{aid}")
+def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles):
+    roots, node = _load(accounts, aid)
+    root = _root_of(roots, node)
+    if root.account.name in CATEGORY_ROOTS and node.kind != "root":
+        return RedirectResponse(f"/categories/{aid}", status_code=303)
+    return templates.TemplateResponse(request, "account.html", account_context(accounts, profiles, aid))
+
+
+def area_of(accounts: AccountService, aid: UUID) -> str:
+    """Where an account's pages live: categories (Expenses, Income) have their own tab."""
+    roots = build_tree(accounts.list())
+    node = _find(roots, aid)
+    return "/categories" if node is not None and _root_of(roots, node).account.name in CATEGORY_ROOTS else "/accounts"
 
 
 @router.post("/{aid}/close")
 def close_account(aid: UUID, accounts: Accounts):
+    area = area_of(accounts, aid)
     try:
         accounts.close(aid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect("/accounts", flash="account-closed")
+    return htmx_redirect(area, flash="account-closed")
 
 
 @router.post("/{aid}/reopen")
@@ -401,11 +424,13 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
     if node.kind != "user":
         raise HTTPException(status_code=404, detail="account not found")
     root = _root_of(roots, node)
+    kind = "category" if root.account.name in CATEGORY_ROOTS else "account"
     return templates.TemplateResponse(
         request,
         "account_form.html",
         {
-            "active": "accounts",
+            "active": "categories" if kind == "category" else "accounts",
+            "kind": kind,
             "hide_fab": True,
             "node": node,
             "parent_id": node.account.parent_id,
@@ -483,8 +508,9 @@ def update_account(
 
 @router.post("/{aid}/delete")
 def delete_account(aid: UUID, accounts: Accounts):
+    area = area_of(accounts, aid)
     try:
         accounts.delete(aid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect("/accounts", flash="account-deleted")
+    return htmx_redirect(area, flash="account-deleted")

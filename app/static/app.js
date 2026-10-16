@@ -808,3 +808,33 @@ document.body.addEventListener("change", (event) => {
     button.textContent = shown ? `Hide the ${n} unused` : `${n} unused group${n === "1" ? "" : "s"} hidden · Show`;
   });
 })();
+
+// ---- Categories: groups fold (and are remembered), categories with nothing in the month can be shown ----
+(() => {
+  const KEY = "finode.categories.open.v1";
+  const read = () => {
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (error) { return {}; }
+  };
+  const restore = (root) => {
+    const saved = read();
+    root.querySelectorAll("details.cgrp[data-key]").forEach((group) => {
+      if (group.dataset.key in saved) group.open = !!saved[group.dataset.key];
+    });
+  };
+  restore(document);
+  document.body.addEventListener("toggle", (event) => {
+    const group = event.target;
+    if (!group.matches || !group.matches("details.cgrp[data-key]")) return;
+    const saved = read();
+    saved[group.dataset.key] = group.open;
+    try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (error) { /* private mode */ }
+  }, true);
+  document.body.addEventListener("click", (event) => {
+    const button = event.target.closest && event.target.closest("[data-toggle-cat-quiet]");
+    if (!button) return;
+    const page = document.querySelector("[data-categories]");
+    const shown = page.classList.toggle("show-quiet");
+    if (!button.dataset.label) button.dataset.label = button.textContent;
+    button.textContent = shown ? `Hide the ${button.dataset.count} with nothing` : button.dataset.label;
+  });
+})();

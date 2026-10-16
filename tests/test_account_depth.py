@@ -149,7 +149,7 @@ def test_parent_pickers_leave_out_accounts_at_the_limit(client: TestClient, root
     _limit(client, expenses=2)
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     groceries = _make(client, "Groceries", food["aid"]).json()
-    for url in ("/accounts/new", "/accounts/quick"):
+    for url in ("/categories/new", "/accounts/quick"):
         text = client.get(url).text
         assert f'value="{food["aid"]}"' in text
         assert f'value="{groceries["aid"]}"' not in text
@@ -159,11 +159,11 @@ def test_account_page_hides_add_sub_account_at_the_limit(client: TestClient, roo
     _limit(client, expenses=2)
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     groceries = _make(client, "Groceries", food["aid"]).json()
-    at_limit = client.get(f"/accounts/{groceries['aid']}").text
-    assert f"/accounts/new?parent={groceries['aid']}" not in at_limit
+    at_limit = client.get(f"/categories/{groceries['aid']}").text
+    assert f"/categories/new?parent={groceries['aid']}" not in at_limit
     assert "can be 2 levels deep" in at_limit and "/settings/advanced#depth" in at_limit
-    below = client.get(f"/accounts/{food['aid']}").text
-    assert f"/accounts/new?parent={food['aid']}" in below
+    below = client.get(f"/categories/{food['aid']}").text
+    assert f"/categories/new?parent={food['aid']}" in below
 
 
 def test_edit_form_offers_only_parents_that_fit_the_moved_subtree(client: TestClient, root_accounts):

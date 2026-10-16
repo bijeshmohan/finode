@@ -1,15 +1,18 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
 {% set editing = node is not none %}
-{% block title %}{{ "Edit " ~ node.account.name if editing else "Add account" }} · finode{% endblock %}
+{% set cat = kind == "category" %}
+{% set area = "/categories" if cat else "/accounts" %}
+{% set noun = "category" if cat else "account" %}
+{% block title %}{{ "Edit " ~ node.account.name if editing else "Add " ~ noun }} · finode{% endblock %}
 {% block content %}
-<a class="back" href="{{ '/accounts/' ~ node.account.aid if editing else '/accounts' }}">{{ icon("back") }}{{ node.account.name if editing else "Accounts" }}</a>
-<h1>{{ "Edit account" if editing else "Add account" }}</h1>
+<a class="back" href="{{ (area ~ '/' ~ node.account.aid) if editing else area }}">{{ icon("back") }}{{ node.account.name if editing else ("Categories" if cat else "Accounts") }}</a>
+<h1>{{ ("Edit " if editing else "Add ") ~ noun }}</h1>
 
 <form class="card stack form-narrow" hx-post="{{ '/accounts/' ~ node.account.aid ~ '/edit' if editing else '/accounts' }}">
   <label>Name
     <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
-           placeholder="e.g. HDFC Savings" {{ "autofocus" if not editing }}>
+           placeholder="{{ 'e.g. Groceries' if cat else 'e.g. HDFC Savings' }}" {{ "autofocus" if not editing }}>
   </label>
   <label>Belongs under
     <select name="parent_id" required>
@@ -18,16 +21,16 @@
       <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}>{{ "   " * n.depth }}{{ n.account.name }}</option>
       {% endfor %}
     </select>
-    <span class="hint">Assets: bank, cash, wallets · Liabilities: cards, loans · Income / Expenses: categories</span>
+    <span class="hint">{% if cat %}Expenses: what you spend on · Income: where money comes from{% else %}Assets: bank, cash, wallets · Liabilities: cards, loans{% endif %}</span>
   </label>
-  {% if not editing or node.is_leaf %}
+  {% if not cat and (not editing or node.is_leaf) %}
   <label>{{ "Balance" if editing else "Current balance" }}
     <input type="text" name="balance" inputmode="decimal" placeholder="0.00"
            value="{{ node.account.balance if editing else '' }}">
     <span class="hint">{{ "Changing this records an adjustment against Opening Balances." if editing else "Optional. Recorded as an opening balance." }}</span>
   </label>
   {% endif %}
-  {% include "partials/commodity_fields.html" %}
+  {% if not cat %}{% include "partials/commodity_fields.html" %}{% endif %}
   {% if editing and can_budget %}
   <input type="hidden" name="budget_choice" value="1">
   <label class="check">
@@ -47,8 +50,8 @@
   </label>
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions">
-    <button type="submit">{{ "Save changes" if editing else "Add account" }}</button>
-    <a class="button secondary" href="{{ '/accounts/' ~ node.account.aid if editing else '/accounts' }}">Cancel</a>
+    <button type="submit">{{ "Save changes" if editing else "Add " ~ noun }}</button>
+    <a class="button secondary" href="{{ (area ~ '/' ~ node.account.aid) if editing else area }}">Cancel</a>
   </div>
 </form>
 
@@ -57,7 +60,7 @@
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
           hx-post="/accounts/{{ node.account.aid }}/delete"
-          hx-confirm="Delete account '{{ node.account.name }}'?">{{ icon("trash") }}Delete account</button>
+          hx-confirm="Delete {{ noun }} '{{ node.account.name }}'?">{{ icon("trash") }}Delete {{ noun }}</button>
   <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
 </section>
 {% endif %}
