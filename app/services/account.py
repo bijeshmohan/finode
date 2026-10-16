@@ -360,7 +360,12 @@ class AccountService:
         if self.is_opening_balances(account, all_accounts):
             raise SystemAccountError(f"cannot close system account '{account.name}'!")
         subtree = self._subtree(aid, all_accounts)
-        for member in subtree:
+        by_id = {a.aid: a for a in all_accounts}
+        if self._get_root_name(account, by_id) in GROUP_POSTING_ROOT_NAMES:
+            subtree_money = []  # a category's "balance" is what was spent or earned in it, not money to move out first
+        else:
+            subtree_money = subtree
+        for member in subtree_money:
             for when in (today, date(2999, 12, 31)):
                 balance = self._to_read(member, all_accounts, when).balance
                 if balance != 0:

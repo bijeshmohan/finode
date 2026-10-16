@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
-from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountService
+from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 from ...clock import local_today
@@ -356,11 +356,12 @@ def close_account(aid: UUID, accounts: Accounts):
 
 @router.post("/{aid}/reopen")
 def reopen_account(aid: UUID, accounts: Accounts):
+    category = area_of(accounts, aid) == "/categories"
     try:
         accounts.reopen(aid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect(f"/accounts/{aid}", flash="account-reopened")
+    return htmx_redirect(f"/accounts/{aid}", flash="category-restored" if category else "account-reopened")
 
 
 @router.post("/{aid}/pin")
@@ -482,5 +483,12 @@ def delete_account(aid: UUID, accounts: Accounts):
     try:
         accounts.delete(aid)
     except ValueError as e:
-        return htmx_error(str(e), "#page-error")
-    return htmx_redirect(area, flash="account-deleted")
+        if area != "/categories" or not isinstance(e, AccountInUseError):
+            return htmx_error(str(e), "#page-error")
+        # A category with entries (or sub-categories) cannot vanish from the history: it leaves every list and
+        # picker instead, and its past stays in the reports.
+        try:
+            accounts.close(aid)
+        except ValueError as closing:
+            return htmx_error(str(closing), "#page-error")
+    return htmx_redirect(area, flash="category-deleted" if area == "/categories" else "account-deleted")

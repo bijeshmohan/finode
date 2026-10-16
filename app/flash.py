@@ -39,6 +39,8 @@ MESSAGES = {
     "account-created": "Account added",
     "account-updated": "Account updated",
     "account-deleted": "Account deleted",
+    "category-deleted": "Category deleted",
+    "category-restored": "Category restored",
     "profile-updated": "Profile saved",
     "import-done": "Import complete",
     "currency-updated": "Currency saved",

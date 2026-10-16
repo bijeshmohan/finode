@@ -60,7 +60,7 @@
   <button type="button" class="danger"
           hx-post="/accounts/{{ node.account.aid }}/delete"
           hx-confirm="Delete {{ noun }} '{{ node.account.name }}'?">{{ icon("trash") }}Delete {{ noun }}</button>
-  <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
+  <p class="hint muted">{% if kind == "category" %}A category that was never used is removed for good. One with entries stays in your history and reports, but leaves your lists and pickers.{% else %}Only accounts without transactions or sub-accounts can be deleted.{% endif %}</p>
 </section>
 {% endif %}
 {% endblock %}
