@@ -159,7 +159,7 @@ document.body.addEventListener("account-added", async (event) => {
 document.body.addEventListener("htmx:afterSwap", rememberAccountChoices);
 document.addEventListener("DOMContentLoaded", rememberAccountChoices);
 
-// Open the profile section named in the URL (#currency, #depth ...).
+// Open the profile section named in the URL (#currency, #lock ...).
 function openHashSection() {
   const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
   if (target && target.tagName === "DETAILS") target.open = true;
@@ -273,8 +273,6 @@ function money(value) {
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction}`;
 }
 
-const txnState = { currencyChosen: false };
-
 // What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
 const KINDS = {
   expense: {
@@ -384,32 +382,6 @@ function rowAccount(row) {
   return row.querySelector('select[name="account"]');
 }
 
-function rowCommodity(row) {
-  const option = rowAccount(row).selectedOptions[0];
-  return option ? option.dataset.commodity || "" : "";
-}
-
-function txnCurrency(form) {
-  const select = form.querySelector('select[name="currency"]');
-  return select ? select.value : form.dataset.currency;
-}
-
-// A row holding something other than the transaction's currency says what it is worth in it.
-function isForeign(row, currency) {
-  const worth = row.querySelector('[name="value"]');
-  const held = rowCommodity(row);
-  return !!worth && held !== "" && held !== currency;
-}
-
-// The field that carries a row's share of the total: the amount, or the worth for a foreign row.
-function carrier(row, currency) {
-  return isForeign(row, currency) ? row.querySelector('[name="value"]') : row.querySelector('[name="amount"]');
-}
-
-function rowShare(row, currency) {
-  return parseDec(carrier(row, currency).value) || 0n;
-}
-
 function newRow(form, side) {
   const template = form.querySelector("#txn-row-template");
   const row = template.content.firstElementChild.cloneNode(true);
@@ -421,8 +393,12 @@ function newRow(form, side) {
   return row;
 }
 
-function setSuggestion(row, currency, text) {
-  const field = carrier(row, currency);
+function rowShare(row) {
+  return parseDec(row.querySelector('[name="amount"]').value) || 0n;
+}
+
+function setSuggestion(row, text) {
+  const field = row.querySelector('[name="amount"]');
   if (document.activeElement === field) return; // never overwrite what is being typed
   field.value = text;
   field.classList.toggle("suggested", text !== "");
@@ -432,38 +408,13 @@ function recomputeTxn(form) {
   const field = form.querySelector("#total");
   field.style.setProperty("--n", Math.max(field.value.length, 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
   const total = parseDec(field.value) || 0n;
-  const select = form.querySelector('select[name="currency"]');
-  if (select && !txnState.currencyChosen) {
-    // Follow the accounts: the default currency when it is involved, else what they all hold.
-    const held = [...form.querySelectorAll("[data-row]")].map(rowCommodity).filter(Boolean);
-    const options = [...select.options].map((o) => o.value);
-    const wanted = held.includes(form.dataset.currency) ? form.dataset.currency
-      : held.length && held.every((h) => h === held[0]) && options.includes(held[0]) ? held[0] : null;
-    if (wanted) select.value = wanted;
-  }
-  const currency = txnCurrency(form);
-  form.querySelectorAll("[data-row]").forEach((row) => {
-    const foreign = isForeign(row, currency);
-    const worth = row.querySelector('[name="value"]');
-    if (worth) {
-      worth.hidden = !foreign;
-      worth.placeholder = `Worth in ${currency}`;
-      if (!foreign) { worth.value = ""; worth.classList.remove("suggested"); }
-    }
-    row.querySelector('[name="amount"]').placeholder = foreign && rowCommodity(row) ? rowCommodity(row) : "0.00";
-    // A row whose account changed hands the share to the other field: a leftover suggestion there goes.
-    const idle = foreign ? row.querySelector('[name="amount"]') : worth;
-    if (idle && idle.classList.contains("suggested")) {
-      idle.value = "";
-      idle.classList.remove("suggested");
-    }
-  });
+  const currency = form.dataset.currency;
 
   ["credit", "debit"].forEach((side) => {
     const list = form.querySelector(`[data-rows="${side}"]`);
     let rows = [...list.querySelectorAll("[data-row]")];
     let touched = rows.filter((r) => r.hasAttribute("data-touched"));
-    let sum = touched.reduce((acc, r) => acc + rowShare(r, currency), 0n);
+    let sum = touched.reduce((acc, r) => acc + rowShare(r), 0n);
     const remaining = total - sum;
 
     // At most one untouched row, and only while something is left to allocate (or as the one row).
@@ -485,17 +436,17 @@ function recomputeTxn(form) {
       rows = [...list.querySelectorAll("[data-row]")];
       open = rows.filter((r) => !r.hasAttribute("data-touched"));
     }
-    open.forEach((row, index) => setSuggestion(row, currency, index === 0 && remaining > 0n ? formatDec(remaining) : ""));
+    open.forEach((row, index) => setSuggestion(row, index === 0 && remaining > 0n ? formatDec(remaining) : ""));
     rows.forEach((row) => {
       const only = rows.length === 1;
       row.querySelector("[data-remove-row]").hidden = only && !rowAccount(row).value && !row.hasAttribute("data-touched");
     });
 
     const status = form.querySelector(`[data-status="${side}"]`);
-    const allocated = rows.reduce((acc, r) => acc + rowShare(r, currency), 0n);
+    const allocated = rows.reduce((acc, r) => acc + rowShare(r), 0n);
     const left = total - allocated;
     status.classList.toggle("ok", total > 0n && left === 0n);
-    status.classList.toggle("off", left !== 0n && total > 0n && rows.some((r) => rowShare(r, currency) > 0n));
+    status.classList.toggle("off", left !== 0n && total > 0n && rows.some((r) => rowShare(r) > 0n));
     status.textContent =
       total === 0n ? ""
       : left === 0n ? `${money(total)} ${currency} allocated`
@@ -507,7 +458,6 @@ function recomputeTxn(form) {
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.querySelector("form[data-txn-form]");
   if (!form) return;
-  txnState.currencyChosen = form.hasAttribute("data-editing"); // an existing transaction keeps its currency
   const first = form.querySelector("select[data-account-select]");
   form._all = first ? withoutSelection(first.innerHTML) : "";
   applyKind(form, form.querySelector("[data-kind-input]").value);
@@ -518,8 +468,7 @@ document.body.addEventListener("input", (event) => {
   if (!form) return;
   const row = event.target.closest("[data-row]");
   if (row) {
-    const currency = txnCurrency(form);
-    if (event.target === carrier(row, currency)) {
+    if (event.target === row.querySelector('[name="amount"]')) {
       event.target.classList.remove("suggested");
       if (event.target.value.trim() === "") row.removeAttribute("data-touched");
       else row.setAttribute("data-touched", "");
@@ -531,7 +480,6 @@ document.body.addEventListener("input", (event) => {
 document.body.addEventListener("change", (event) => {
   const form = event.target.closest && event.target.closest("form[data-txn-form]");
   if (!form) return;
-  if (event.target.matches('select[name="currency"]')) txnState.currencyChosen = true;
   recomputeTxn(form);
 });
 
@@ -577,7 +525,7 @@ document.body.addEventListener("click", (event) => {
     if (list.querySelectorAll("[data-row]").length > 1) row.remove();
     else {
       rowAccount(row).value = "";
-      row.querySelectorAll('[name="amount"], [name="value"]').forEach((f) => { f.value = ""; });
+      row.querySelectorAll('[name="amount"]').forEach((f) => { f.value = ""; });
       row.removeAttribute("data-touched");
     }
     recomputeTxn(form);
@@ -806,5 +754,17 @@ document.body.addEventListener("change", (event) => {
     const shown = tree.classList.toggle("show-budget-unused");
     const n = button.dataset.count;
     button.textContent = shown ? `Hide the ${n} unused` : `${n} unused group${n === "1" ? "" : "s"} hidden · Show`;
+  });
+})();
+
+// ---- Categories: categories with nothing in the month can be shown ----
+(() => {
+  document.body.addEventListener("click", (event) => {
+    const button = event.target.closest && event.target.closest("[data-toggle-cat-quiet]");
+    if (!button) return;
+    const page = document.querySelector("[data-categories]");
+    const shown = page.classList.toggle("show-quiet");
+    if (!button.dataset.label) button.dataset.label = button.textContent;
+    button.textContent = shown ? `Hide the ${button.dataset.count} with nothing` : button.dataset.label;
   });
 })();

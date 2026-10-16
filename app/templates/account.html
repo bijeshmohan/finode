@@ -1,35 +1,33 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/money.html" import figure %}
 {% set account = node.account %}
+{% set category = category|default(false) %}
+{% set area = "/categories" if category else "/accounts" %}
 {% block title %}{{ account.name }} · finode{% endblock %}
 {% block content %}
-<a class="back" href="/accounts">{{ icon("back") }}Accounts</a>
+<a class="back" href="{{ ("/categories?month=" ~ month_key ~ "&tab=" ~ tab) if category else "/accounts" }}">{{ icon("back") }}{{ "Categories" if category else "Accounts" }}</a>
 
 <header class="account-hero">
   <p class="muted crumbs">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}</p>
   <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
   {% if account.closed_on %}<p class="muted">Closed on {{ account.closed_on.strftime("%d %b %Y") }}. Its history stays; nothing can be added to it until you reopen it.</p>{% endif %}
   {% if account.details %}<p class="muted">{{ account.details }}</p>{% endif %}
-  <p class="hero-balance">{{ account.balance|money|with_unit(account.commodity, currency) }}{% if account.unpriced %} <span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span>{% endif %}</p>
-  {% if holding %}
-  {% if holding.value is not none %}
-  <p class="muted">Worth {{ holding.value|money }} {{ holding.currency }} at {{ holding.rate|money }} per {{ holding.commodity }} · {{ holding.rate_as_of|friendly_date }}</p>
+  {% if category %}
+  <div class="month-nav small">
+    <a class="icon-button" href="/categories/{{ account.aid }}?month={{ previous }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
+    <span class="month-title">{{ month_name }}</span>
+    {% if is_current %}<span class="icon-button" aria-hidden="true" style="visibility: hidden"></span>{% else %}
+    <a class="icon-button" href="/categories/{{ account.aid }}?month={{ next }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>{% endif %}
+  </div>
+  <p class="hero-balance">{{ figure(total, currency) }}</p>
   {% else %}
-  <p class="muted">There is no {{ holding.commodity }} price in {{ holding.currency }} yet. <a href="/commodities#prices">Add one</a> to see what it is worth.</p>
+  <p class="hero-balance">{{ account.balance|money }}</p>
   {% endif %}
-  {% if holding.invested is not none %}
-  <dl class="split three">
-    <div><dt>Invested</dt><dd>{{ holding.invested|money }}</dd></div>
-    <div><dt>Value</dt><dd>{{ holding.value|money if holding.value is not none else "—" }}</dd></div>
-    <div><dt>Gain</dt><dd class="{{ 'pos' if holding.gain is not none and holding.gain >= 0 else 'neg' if holding.gain is not none }}">{{ holding.gain|money if holding.gain is not none else "—" }}</dd></div>
-  </dl>
-  {% endif %}
-  {% endif %}
-  {% if at_limit %}<p class="muted">{{ root.account.name }} accounts can be {{ depth_limit }} level{{ "" if depth_limit == 1 else "s" }} deep, so this one can't have sub-accounts. {% if advanced %}<a href="/settings/advanced#depth">Change the limit</a>{% endif %}</p>{% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
   <div class="actions account-actions">
     {% if node.postable and not account.closed_on %}
-    <a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">{{ icon("plus") }}Add transaction</a>
+    <a class="button" href="/transactions/new?account={{ account.aid }}&back={{ area }}/{{ account.aid }}">{{ icon("plus") }}Add transaction</a>
     {% endif %}
     {% set has_menu = node.kind == "user" or (can_add_child and not account.closed_on) %}
     {% if has_menu %}
@@ -38,13 +36,14 @@
       <div class="menu-panel">
         {% if node.kind == "user" %}
         <a href="/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
-        {% if advanced and not account.closed_on %}
+        {% if advanced and not category and not account.closed_on %}
         <button type="button" hx-post="/accounts/{{ account.aid }}/pin" hx-vals='{"pinned": "{{ 0 if account.pinned else 1 }}"}'
           aria-pressed="{{ 'true' if account.pinned else 'false' }}">{{ icon("pin") }}{{ "Unpin" if account.pinned else "Pin" }}</button>
         {% endif %}
         {% endif %}
+        {% if category and root.account.name == "Expenses" %}<a href="/budget">{{ icon("budget") }}See in the Budget</a>{% endif %}
         {% if can_add_child and not account.closed_on %}
-        <a href="/accounts/new?parent={{ account.aid }}">{{ icon("plus") }}Add sub-account</a>
+        <a href="{{ '/categories/new' if category else '/accounts/new' }}?parent={{ account.aid }}">{{ icon("plus") }}Add sub-{{ "category" if category else "account" }}</a>
         {% endif %}
         {% if advanced and node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand) %}
         <p class="menu-note">Listed {{ "in the order you chose" if ordered_by_hand else "alphabetically" }}{% if root.account.name == "Expenses" %}; the budget lists categories the same way{% endif %}.</p>
@@ -52,7 +51,15 @@
         {% if can_move_down %}<button type="button" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "down"}'>{{ icon("arrow-down") }}Move down</button>{% endif %}
         {% if ordered_by_hand %}<button type="button" hx-post="/accounts/{{ account.aid }}/reset-order">A–Z</button>{% endif %}
         {% endif %}
-        {% if node.kind == "user" and (advanced or account.closed_on) %}
+        {% if node.kind == "user" and category %}
+        {% if account.closed_on %}
+        <p class="menu-note">{{ account.name }} was deleted: it is out of your lists and pickers, and its history stays in the reports.</p>
+        <button type="button" hx-post="/accounts/{{ account.aid }}/reopen">Restore category</button>
+        {% else %}
+        <button type="button" class="danger-text" hx-post="/accounts/{{ account.aid }}/delete"
+                hx-confirm="Delete {{ account.name }}{% if node.children %} and the sub-categories in it{% endif %}? If there are entries, they stay in your history and reports, but {{ 'these categories leave' if node.children else 'it leaves' }} your lists and pickers.">{{ icon("trash") }}Delete category</button>
+        {% endif %}
+        {% elif node.kind == "user" and (advanced or account.closed_on) %}
         {% if account.closed_on %}
         <p class="menu-note">Reopen {{ account.name }}{% if node.children %} and everything inside it{% endif %} to use {{ "them" if node.children else "it" }} again.</p>
         <button type="button" hx-post="/accounts/{{ account.aid }}/reopen">Reopen account</button>
@@ -68,7 +75,25 @@
   <p id="page-error" class="error" role="alert"></p>
 </header>
 
-<h2>Activity</h2>
+{% if category and (subs or own_here) %}
+<h2>Sub-categories</h2>
+<div class="tile">
+  {% for c, amount in subs %}
+  <a class="r crow" href="/categories/{{ c.account.aid }}?month={{ month_key }}">
+    <span class="crow-main"><span class="crow-name">{{ c.account.name }}</span></span>
+    <span class="crow-amt"><span class="{{ 'income' if root.account.name == 'Income' and amount > 0 }}">{{ amount|money }}</span></span>
+  </a>
+  {% endfor %}
+  {% if own_here %}
+  <div class="r crow">
+    <span class="crow-main"><span class="crow-name">Everything else</span><span class="crow-sub">posted to {{ account.name }} itself</span></span>
+    <span class="crow-amt"><span class="{{ 'income' if root.account.name == 'Income' and own_here > 0 }}">{{ own_here|money }}</span></span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<h2>{{ "Transactions" if category else "Activity" }}</h2>
 {% if entries %}
 <div class="tx-list">
   {% for day, items in entries|groupby("date")|reverse %}
@@ -77,12 +102,16 @@
     <ul class="card list">
       {% for e in items %}
       <li>
-        <a class="tx" href="/transactions/{{ e.tid }}/edit?back=/accounts/{{ account.aid }}">
+        <a class="tx" href="/transactions/{{ e.tid }}/edit?back={{ area }}/{{ account.aid }}">
           <span class="tx-main">
             <span class="tx-title">{{ e.payee or "No payee" }}</span>
             <span class="tx-sub">{{ e.counter_accounts|join(", ") }}{% if e.comment %} · {{ e.comment }}{% endif %}</span>
           </span>
-          <span class="tx-amount {{ 'income' if e.change > 0 }}">{{ "+" if e.change > 0 }}{{ (e.change|abs)|money|with_unit(account.commodity, currency) }}<small>{{ e.balance|money }}</small></span>
+          {% if category %}
+          <span class="tx-amount {{ 'income' if root.account.name == 'Income' and e.change > 0 }}">{{ "+" if root.account.name == "Income" and e.change > 0 }}{{ "−" if e.change < 0 }}{{ (e.change|abs)|money }}</span>
+          {% else %}
+          <span class="tx-amount {{ 'income' if e.change > 0 }}">{{ "+" if e.change > 0 }}{{ (e.change|abs)|money }}<small>{{ e.balance|money }}</small></span>
+          {% endif %}
         </a>
       </li>
       {% endfor %}
@@ -92,7 +121,7 @@
 </div>
 {% else %}
 <div class="card empty-state">
-  <p>No activity yet.</p>
+  <p>{{ "Nothing in " ~ month_name.split(" ")[0] ~ "." if category else "No activity yet." }}</p>
   {% if node.postable and not account.closed_on %}<a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">Record a transaction</a>{% endif %}
 </div>
 {% endif %}

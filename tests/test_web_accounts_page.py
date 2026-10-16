@@ -20,11 +20,11 @@ def tree(client, root_accounts, session):
     }
     cards = make("Credit Cards", root_accounts["Liabilities"])
     ids["amex"] = make("Amex", cards, balance="300")
-    food = make("Food", root_accounts["Expenses"])
+    food = make("Food", root_accounts["Assets"])  # a second group, so the tests need no Expenses account (those are Categories)
     ids["food"] = food
     ids["groceries"] = make("Groceries", food)
     ids["snacks"] = make("Snacks", food)
-    ids["rent"] = make("Rent", root_accounts["Expenses"])
+    ids["rent"] = make("Rent", root_accounts["Assets"])
     return ids
 
 
@@ -44,7 +44,7 @@ def item(page: str, aid: str) -> str:
 def test_groups_are_rows_that_open_with_their_own_link(client, tree):
     page = client.get("/accounts").text
     assert f'data-key="{tree["banks"]}" open' not in page, "a group starts closed, under every type"
-    assert f'data-key="{tree["food"]}" open' not in page, "under Expenses only the top level shows"
+    assert f'data-key="{tree["food"]}" open' not in page, "a group under Assets starts closed too"
     assert f'href="/accounts/{tree["food"]}" title="Open Food"' in page
     assert f'href="/accounts/{tree["hdfc"]}"' in page and "data-account-search" in page and "data-toggle-all" not in page, "no Collapse all button"
 
@@ -52,7 +52,7 @@ def test_groups_are_rows_that_open_with_their_own_link(client, tree):
 def test_assets_and_liabilities_start_open_the_other_types_folded_and_there_is_no_net_worth_card(client, tree):
     page = client.get("/accounts").text
     heads = page.split('<details class="account-group"')[1:]
-    assert len(heads) == 5
+    assert len(heads) == 3, "Assets, Liabilities and Equity: the Expenses and Income accounts are on the Categories page"
     opened = [h.split("<h2>")[1].split("</span>")[1].split("<")[0] for h in heads if " open>" in h.split(">", 1)[0] + ">"]
     assert opened == ["Assets", "Liabilities"], "only these two start open"
     assert "Net worth" not in page and "net-worth" not in page

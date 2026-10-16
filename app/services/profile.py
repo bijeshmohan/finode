@@ -2,31 +2,26 @@ from datetime import timedelta
 
 from ..clock import local_today
 from ..config import settings
-from ..repositories import CommodityRepository, ProfileRepository
+from ..currencies import find as find_currency
+from ..repositories import ProfileRepository
 from ..schemas.profile import ProfileRead, ProfileUpdate
 from .account import AccountService
-from .depth import ROOT_DEPTH_FIELDS, depth_limits
-
-
-MAX_NAMED_ACCOUNTS = 3
 
 
 class ProfileService:
-    def __init__(self, pr: ProfileRepository, accounts: AccountService, cr: CommodityRepository | None = None):
+    def __init__(self, pr: ProfileRepository, accounts: AccountService):
         self.pr = pr
         self.accounts = accounts
-        self.cr = cr or CommodityRepository(pr.db, pr.uid)
 
     def _to_read(self, profile) -> ProfileRead:
         return ProfileRead(
             first_name=profile.first_name,
             last_name=profile.last_name,
-            default_currency=self.cr.default_currency().code,
+            default_currency=profile.currency,
             locked_through=profile.locked_through,
             advanced=profile.advanced,
             created=profile.created,
             updated=profile.updated,
-            **{field: getattr(profile, field) for field in ROOT_DEPTH_FIELDS.values()},
         )
 
     def read(self) -> ProfileRead:
@@ -36,52 +31,14 @@ class ProfileService:
         """Whether the rarely used features are shown (one cheap query; a person with no profile row yet gets the default)."""
         return self.pr.advanced()
 
-    def depth_limits(self) -> dict[str, int]:
-        """Effective depth limit per top-level account (does not create the profile)."""
-        return depth_limits(self.pr.read())
-
-    def deepest(self) -> dict[str, int]:
-        """How deep the existing accounts go under each top-level account; the lowest limit that fits."""
-        deepest = {root: 0 for root in ROOT_DEPTH_FIELDS}
-        for root, depth, _ in self.accounts.account_depths():
-            deepest[root] = max(deepest[root], depth)
-        return deepest
-
-    def _validate_depths(self, data: ProfileUpdate) -> None:
-        depths = None
-        for root, field in ROOT_DEPTH_FIELDS.items():
-            value = getattr(data, field)
-            if field not in data.model_fields_set or value is None:
-                continue
-            if value > settings.max_account_depth:
-                raise ValueError(
-                    f"{root} can be at most {settings.max_account_depth} levels deep (the application maximum)!"
-                )
-            if value == 0:
-                continue
-            if depths is None:
-                depths = self.accounts.account_depths()
-            too_deep = sorted(path for r, depth, path in depths if r == root and depth > value)
-            if too_deep:
-                shown = ", ".join(too_deep[:MAX_NAMED_ACCOUNTS])
-                more = len(too_deep) - MAX_NAMED_ACCOUNTS
-                raise ValueError(
-                    f"cannot limit {root} to {value} level{'' if value == 1 else 's'}: "
-                    f"{shown}{f' and {more} more' if more > 0 else ''} "
-                    f"{'is' if len(too_deep) == 1 else 'are'} deeper. Move or delete "
-                    f"{'it' if len(too_deep) == 1 else 'them'} first, or choose at least "
-                    f"{max(depth for r, depth, _ in depths if r == root)}."
-                )
-
-    def _resolve_currency(self, data: ProfileUpdate):
+    @staticmethod
+    def _resolve_currency(data: ProfileUpdate) -> str | None:
         if "default_currency" not in data.model_fields_set:
             return None
-        commodity = self.cr.read_by_code(data.default_currency.strip().upper())
-        if commodity is None:
+        currency = find_currency(data.default_currency)
+        if currency is None:
             raise ValueError(f"unknown currency '{data.default_currency}'!")
-        if commodity.kind != "currency":
-            raise ValueError(f"{commodity.code} is not a currency, so totals cannot be reported in it!")
-        return commodity.cid
+        return currency.code
 
     @staticmethod
     def _validate_lock(data: ProfileUpdate) -> None:
@@ -92,7 +49,6 @@ class ProfileService:
 
     def update(self, data: ProfileUpdate) -> ProfileRead:
         self._validate_lock(data)
-        self._validate_depths(data)
         currency = self._resolve_currency(data)
         profile = self.pr.update(data, currency)
         self.accounts.reset_defaults()

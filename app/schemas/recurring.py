@@ -13,25 +13,20 @@ FrequencyName = Literal["daily", "weekly", "monthly", "yearly"]
 
 
 class RecurringPostingData(BaseModel):
-    """One row of a split rule, like a transaction's posting: `value` is what it is worth in the rule's
-    currency (only needed when the account holds something else)."""
+    """One row of a split rule, like a transaction's posting."""
 
     account: UUID
     side: PostingSide
     amount: Decimal = Field(gt=0, decimal_places=8, max_digits=24)
-    value: Decimal | None = Field(default=None, gt=0, decimal_places=8, max_digits=24)
 
 
 class RecurringBase(BaseModel):
-    # A simple rule: `amount` leaves `from_account` and `received_amount` arrives in `to_account`
-    # (only when the two accounts hold different things) ...
+    # A simple rule: `amount` leaves `from_account` and arrives in `to_account` ...
     from_account: UUID | None = None
     to_account: UUID | None = None
     amount: Decimal | None = Field(default=None, decimal_places=8, max_digits=24)
-    received_amount: Decimal | None = Field(default=None, decimal_places=8, max_digits=24)
-    # ... or a split across several accounts instead, balancing in `currency` (the default currency when left out).
+    # ... or a split across several accounts instead.
     postings: list[RecurringPostingData] = []
-    currency: str | None = Field(default=None, max_length=12)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
     frequency: FrequencyName = "monthly"
@@ -39,7 +34,7 @@ class RecurringBase(BaseModel):
     start_date: Date = Field(default_factory=local_today)
     end_date: Date | None = None
 
-    @field_validator("amount", "received_amount")
+    @field_validator("amount")
     @classmethod
     def must_be_positive(cls, v: Decimal | None) -> Decimal | None:
         if v is not None and v <= 0:
@@ -63,7 +58,7 @@ class RecurringInput(RecurringBase):
 
     @model_validator(mode="after")
     def simple_or_split(self):
-        simple = (self.from_account, self.to_account, self.amount, self.received_amount)
+        simple = (self.from_account, self.to_account, self.amount)
         if self.postings:
             if len(self.postings) < 2:
                 raise ValueError("a split needs at least two postings!")
@@ -71,8 +66,6 @@ class RecurringInput(RecurringBase):
                 raise ValueError("give either from, to and amount, or postings, not both!")
         elif None in (self.from_account, self.to_account, self.amount):
             raise ValueError("a recurring transaction needs from, to and an amount, or postings!")
-        else:
-            self.currency = None  # a simple rule works out its currency itself
         return self
 
 

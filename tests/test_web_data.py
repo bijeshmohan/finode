@@ -70,41 +70,28 @@ def test_dashboard_links_to_import(client: TestClient):
     assert "/profile/data" in client.get("/").text
 
 
-# ---- several commodities ------------------------------------------------------------------------------------------
+# ---- one currency ------------------------------------------------------------------------------------------------
 
 FOREIGN = """\
-P 2026-01-01 USD 83.5 INR
 2026-01-02 Opening
-    Assets:HDFC           100000.00 INR
+    Assets:HDFC           100000.00 USD
     Equity:Opening Balances
-2026-01-05 Buy USD
-    Assets:Wise           100.00 USD @@ 8350.00 INR
-    Assets:HDFC
-2026-01-06 Buy shares
-    Assets:Zerodha:INFY   10 INFY @ 1500 INR
-    Assets:HDFC
 """
 
 
-def test_the_preview_lists_new_commodities_and_other_holdings(client: TestClient):
+def test_a_file_in_another_currency_is_refused_in_the_preview_and_explained(client: TestClient):
     response = client.post("/import/preview", files={"file": ("a.ledger", FOREIGN.encode())})
     assert response.status_code == 200
-    text = response.text
-    assert "New commodities: INFY" in text
-    assert "Also holds INFY, USD" in text and "1 price)" in text
-    assert "(accounts in your default currency)" in text
-    assert "Assets 76,650.00" in text
-    assert "Nothing was imported" not in text
+    assert "Nothing was imported" in response.text and "your currency is INR" in response.text
 
 
-def test_confirming_imports_the_conversions(client: TestClient):
-    response = client.post("/import", files={"file": ("a.ledger", FOREIGN.encode())})
-    assert response.status_code == 200 and response.headers["HX-Redirect"] == "/"
-    accounts = {a["name"]: a["commodity"] for a in client.get("/api/accounts/").json()}
-    assert accounts["Wise"] == "USD" and accounts["INFY"] == "INFY"
-
-
-def test_the_preview_explains_a_missing_price(client: TestClient):
-    text = "2026-01-01 a\n    Assets:Wise  100 USD\n    Assets:HDFC  -8350 INR\n"
+def test_the_rupee_sign_and_code_are_accepted_as_labels(client: TestClient):
+    text = "2026-01-02 Opening\n    Assets:HDFC  \u20b9500.00\n    Equity:Opening Balances  -500.00 INR\n"
     response = client.post("/import/preview", files={"file": ("a.ledger", text.encode())})
-    assert "Nothing was imported" in response.text and "without a price" in response.text
+    assert "Nothing was imported" not in response.text and "Assets 500.00" in response.text
+
+
+def test_a_conversion_is_not_supported(client: TestClient):
+    text = "2026-01-05 Buy\n    Assets:Wise  100.00 @@ 8350.00\n    Assets:HDFC\n"
+    response = client.post("/import/preview", files={"file": ("a.ledger", text.encode())})
+    assert "Nothing was imported" in response.text and "one currency" in response.text

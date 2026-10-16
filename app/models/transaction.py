@@ -26,8 +26,6 @@ class Transaction(TimestampMixin, table=True):
     date: Date = Field(default_factory=local_today)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
-    # The currency the transaction balances in: the postings' `value` is expressed in it.
-    currency_id: UUID = Field(foreign_key="commodities.cid")
     # Where the transaction was entered and last changed: "web", "api", "import", or
     # "mcp:<token name>" for an AI assistant. None for entries made before this was recorded.
     created_via: str | None = Field(default=None, max_length=60)
@@ -42,7 +40,6 @@ class Posting(TimestampMixin, table=True):
     # The ledger's own rules, enforced by the database as well as the service.
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_postings_amount_positive"),
-        CheckConstraint("value > 0", name="ck_postings_value_positive"),
         CheckConstraint("side IN ('DEBIT', 'CREDIT')", name="ck_postings_side"),
     )
 
@@ -51,10 +48,7 @@ class Posting(TimestampMixin, table=True):
     transaction: UUID = Field(index=True, foreign_key="transactions.tid")
     account: UUID = Field(index=True, foreign_key="accounts.aid")
     side: PostingSide
-    # Quantity of the account's commodity.
     amount: Decimal = Field(sa_type=Amount())
-    # The same posting measured in the transaction's currency; debits and credits balance on this.
-    value: Decimal = Field(sa_type=Amount())
 
     @field_validator("amount")
     @classmethod

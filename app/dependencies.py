@@ -12,8 +12,6 @@ from .services.oauth_grant import OAuthGrantService
 from .repositories import (
     AccountRepository,
     BudgetRepository,
-    CommodityRepository,
-    PriceRepository,
     ProfileRepository,
     RecurringRepository,
     TransactionRepository,
@@ -23,9 +21,7 @@ from .services.erase import EraseService
 from .services import (
     AccountService,
     BudgetService,
-    CommodityService,
     DataService,
-    PriceService,
     ProfileService,
     RecurringService,
     ReportService,
@@ -62,50 +58,19 @@ def get_profile_repository(
     return ProfileRepository(db, user.id)
 
 
-def get_commodity_repository(
-    db: Session = Depends(get_db_session),
-    user: CurrentUser = Depends(require_authenticated_user),
-) -> CommodityRepository:
-    return CommodityRepository(db, user.id)
-
-
-def get_price_repository(
-    db: Session = Depends(get_db_session),
-    user: CurrentUser = Depends(require_authenticated_user),
-) -> PriceRepository:
-    return PriceRepository(db, user.id)
-
-
-def get_price_service(
-    pr: PriceRepository = Depends(get_price_repository),
-    tr: TransactionRepository = Depends(get_transaction_repository),
-    cr: CommodityRepository = Depends(get_commodity_repository),
-) -> PriceService:
-    return PriceService(pr, tr, cr)
-
-
-def get_commodity_service(
-    cr: CommodityRepository = Depends(get_commodity_repository),
-) -> CommodityService:
-    return CommodityService(cr)
-
-
 def get_account_service(
     ar: AccountRepository = Depends(get_account_repository),
     tr: TransactionRepository = Depends(get_transaction_repository),
     pr: ProfileRepository = Depends(get_profile_repository),
-    cr: CommodityRepository = Depends(get_commodity_repository),
-    prices: PriceService = Depends(get_price_service),
 ) -> AccountService:
-    return AccountService(ar, tr, pr, cr, prices)
+    return AccountService(ar, tr, pr)
 
 
 def get_profile_service(
     pr: ProfileRepository = Depends(get_profile_repository),
     accounts: AccountService = Depends(get_account_service),
-    cr: CommodityRepository = Depends(get_commodity_repository),
 ) -> ProfileService:
-    return ProfileService(pr, accounts, cr)
+    return ProfileService(pr, accounts)
 
 
 def get_data_service(
@@ -139,10 +104,10 @@ def get_transaction_service(
     request: Request,
     tr: TransactionRepository = Depends(get_transaction_repository),
     ar: AccountRepository = Depends(get_account_repository),
-    cr: CommodityRepository = Depends(get_commodity_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
 ) -> TransactionService:
     origin = "api" if request.url.path.startswith("/api/") else "web"
-    return TransactionService(tr, ar, cr, origin=origin)
+    return TransactionService(tr, ar, pr, origin=origin)
 
 
 def get_recurring_service(
@@ -151,10 +116,10 @@ def get_recurring_service(
     accounts: AccountService = Depends(get_account_service),
     tr: TransactionRepository = Depends(get_transaction_repository),
     ar: AccountRepository = Depends(get_account_repository),
-    cr: CommodityRepository = Depends(get_commodity_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
 ) -> RecurringService:
     # What a rule records is marked as made by the rule, not by whoever happened to open the page.
-    return RecurringService(RecurringRepository(db, user.id), accounts, TransactionService(tr, ar, cr, origin="recurring"))
+    return RecurringService(RecurringRepository(db, user.id), accounts, TransactionService(tr, ar, pr, origin="recurring"))
 
 
 def get_report_service(
@@ -190,8 +155,6 @@ def get_oauth_grant_service(
 DB = Annotated[Session, Depends(get_db_session)]
 AR = Annotated[AccountRepository, Depends(get_account_repository)]
 TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
-Prices = Annotated[PriceService, Depends(get_price_service)]
-Commodities = Annotated[CommodityService, Depends(get_commodity_service)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]

@@ -156,12 +156,6 @@ def test_a_transaction_cannot_have_endless_rows(client, two_accounts, monkeypatc
     assert refused.status_code == 400 and "at most 3 postings" in refused.json()["detail"]
 
 
-def test_own_assets_are_limited(client, monkeypatch):
-    monkeypatch.setattr(settings, "max_own_assets", 1)  # the test user already has BTC
-    refused = client.post("/api/commodities/", json={"code": "ABC", "name": "Abc", "kind": "stock", "decimals": 2})
-    assert refused.status_code == 400 and "assets of your own" in refused.json()["detail"]
-
-
 def test_an_import_that_would_pass_the_limits_is_refused_with_a_reason(client, root_accounts, monkeypatch):
     journal = "2026-01-01 Shop\n    Expenses:Food    5\n    Assets:Bank\n"
     monkeypatch.setattr(settings, "max_accounts", 6)

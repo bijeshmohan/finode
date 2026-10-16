@@ -5,10 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class SummaryRead(BaseModel):
-    # The default currency every amount below is in.
+    # The currency every amount below is in.
     currency: str
-    # True when something could not be valued because no price links it to the currency.
-    unpriced: bool = False
     period_start: Date
     period_end: Date
     assets: Decimal = Field(decimal_places=8, max_digits=24)
@@ -29,7 +27,6 @@ class BreakdownRead(BaseModel):
     # "Income" or "Expenses".
     root: str
     currency: str
-    unpriced: bool = False
     period_start: Date
     period_end: Date
     total: Decimal = Field(decimal_places=8, max_digits=24)
@@ -38,26 +35,20 @@ class BreakdownRead(BaseModel):
 
 
 class TrialBalanceLine(BaseModel):
-    # Account path, e.g. "Assets:Bank:HDFC", and the commodity its amounts are in.
+    # Account path, e.g. "Assets:Bank:HDFC".
     account: str
-    commodity: str
-    debit: Decimal = Field(decimal_places=8, max_digits=24)
-    credit: Decimal = Field(decimal_places=8, max_digits=24)
-
-
-class TrialBalanceTotal(BaseModel):
-    # Every posting is worth something in its transaction's currency; debits and credits must match there.
-    currency: str
     debit: Decimal = Field(decimal_places=8, max_digits=24)
     credit: Decimal = Field(decimal_places=8, max_digits=24)
 
 
 class TrialBalanceRead(BaseModel):
     as_of: Date
-    # True when the totals agree in every currency and no problem was found.
+    # True when the totals agree and no problem was found.
     balanced: bool
+    currency: str
     lines: list[TrialBalanceLine]
-    totals: list[TrialBalanceTotal]
+    debit: Decimal = Field(decimal_places=8, max_digits=24)
+    credit: Decimal = Field(decimal_places=8, max_digits=24)
     # Plain-language findings, e.g. a transaction whose debits and credits differ. Empty when the books are sound.
     problems: list[str]
 
@@ -86,7 +77,6 @@ class MonthReportRead(BaseModel):
     month: Date
     period_end: Date
     currency: str
-    unpriced: bool = False
     income: Decimal = Field(decimal_places=8, max_digits=24)
     expenses: Decimal = Field(decimal_places=8, max_digits=24)
     net: Decimal = Field(decimal_places=8, max_digits=24)

@@ -2,10 +2,6 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Accounts · finode{% endblock %}
 
-{% macro badge(account) -%}
-  {%- if account.unpriced %}<span class="badge" title="Some holdings have no price yet, so this total is partial">partial</span> {% endif -%}
-{%- endmacro %}
-
 {#- One account in the list: a group is a row that opens (with a small link to its own page), a plain account links straight there. -#}
 {% macro entry(node) %}
 <li data-path="{{ node.path|lower }}" class="{{ 'unused-hidden' if node.unused }}{{ ' closed-hidden' if node.closed }}">
@@ -14,7 +10,7 @@
     <summary class="account-row group" style="--depth: {{ node.depth - 1 }}">
       <span class="caret">{{ icon("caret") }}</span>
       <span class="account-name">{{ node.account.name }}{% if node.closed %} <span class="badge">closed</span>{% endif %} <small class="muted">{{ node.size }}</small></span>
-      <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
+      <span class="account-balance">{{ node.account.balance|money }}</span>
       <a class="open-link" href="/accounts/{{ node.account.aid }}" title="Open {{ node.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ node.account.name }}</span></a>
     </summary>
     <ul class="list nested">
@@ -25,7 +21,7 @@
   <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}" style="--depth: {{ node.depth - 1 }}">
     <span class="caret spacer" aria-hidden="true"></span>
     <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}</span>
-    <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
+    <span class="account-balance">{{ node.account.balance|money }}</span>
     <span class="trail" aria-hidden="true"></span>
   </a>
   {% endif %}
@@ -39,7 +35,7 @@
     <li>
       <a class="account-row" href="/accounts/{{ node.account.aid }}" style="--depth: 0">
         <span class="account-name">{{ node.account.name }}<small class="muted path">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "" }}</small></span>
-        <span class="account-balance">{{ badge(node.account) }}{{ node.account.balance|money|with_unit(node.account.commodity, currency) }}</span>
+        <span class="account-balance">{{ node.account.balance|money }}</span>
         <span class="trail" aria-hidden="true"></span>
       </a>
     </li>
@@ -65,7 +61,7 @@
   <details class="account-group" data-key="{{ root.account.aid }}" {{ "open" if root.account.name in ("Assets", "Liabilities") }}>
     <summary class="group-head">
       <h2><span class="caret">{{ icon("caret") }}</span>{{ root.account.name }}</h2>
-      <span class="group-total">{{ badge(root.account) }}{{ root.account.balance|money }}</span>
+      <span class="group-total">{{ root.account.balance|money }}</span>
       <a class="open-link" href="/accounts/{{ root.account.aid }}" title="Open {{ root.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ root.account.name }}</span></a>
     </summary>
     {% if root.children %}
@@ -86,6 +82,8 @@
     {{ quick_rows(recent) }}
   </details>
   {% endif %}
+
+  <p class="muted budget-fine accounts-note">Where your money is. What it was spent on, and what came in, is under <a href="/categories">Categories</a>.</p>
 
   {% if unused or closed %}
   <p class="unused-toggle">

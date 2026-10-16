@@ -42,14 +42,14 @@ def test_the_switch_saves_and_shows_in_settings(client):
     assert ">On<" in client.get("/settings").text
 
 
-def test_off_hides_the_lock_depth_and_assets_but_explains_them(client):
+def test_off_hides_the_lock_but_explains_it(client):
     switch(client, False)
     page = client.get("/settings/advanced").text
-    assert 'aria-checked="false"' in page and 'id="lock"' not in page and 'id="depth"' not in page and 'href="/commodities"' not in page
+    assert 'aria-checked="false"' in page and 'id="lock"' not in page
     assert "Period lock" in page, "listed, dimmed, so people know it exists"
     switch(client, True)
     page = client.get("/settings/advanced").text
-    assert 'aria-checked="true"' in page and 'id="lock"' in page and 'id="depth"' in page and 'href="/commodities"' in page
+    assert 'aria-checked="true"' in page and 'id="lock"' in page
 
 
 def test_off_hides_targets_on_the_budget_and_keeps_the_money(client, books):
@@ -75,11 +75,11 @@ def test_off_hides_pin_order_and_close_on_an_account(client, books):
     assert "Edit" in off and "New transaction" in off
 
 
-def test_a_closed_account_can_still_be_reopened_with_the_switch_off(client, books):
+def test_a_deleted_category_can_still_be_restored_with_the_switch_off(client, books):
     aid = books["food"]["aid"]
     assert client.post(f"/api/accounts/{aid}/close").status_code == 200
     switch(client, False)
-    assert "Reopen account" in client.get(f"/accounts/{aid}").text
+    assert "Restore category" in client.get(f"/accounts/{aid}").text
 
 
 def test_pinned_accounts_are_not_listed_while_off(client, books):

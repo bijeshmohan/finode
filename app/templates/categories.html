@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/money.html" import figure %}
+{% block title %}Categories · finode{% endblock %}
+
+{#- One category: its name and the biggest things inside it, what it came to in the month and its share of the month. -#}
+{% macro row(n, total, hint="", share="") %}
+<a class="r crow" href="/categories/{{ n.account.aid }}?month={{ month_key }}">
+  <span class="crow-main"><span class="crow-name">{{ n.account.name }}</span>{% if hint %}<span class="crow-sub">{{ hint }}</span>{% endif %}</span>
+  <span class="crow-amt"><span class="{{ 'income' if root_name == 'Income' and total > 0 }}">{{ total|money }}</span>{% if share %}<span class="crow-share">{{ share }}</span>{% endif %}</span>
+</a>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Categories</h1>
+  <a class="circ-button" href="/categories/new" title="Add category">{{ icon("plus") }}<span class="sr-only">Add category</span></a>
+</div>
+
+<div class="month-nav">
+  <a class="icon-button" href="/categories?month={{ previous }}&tab={{ tab }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
+  <h2 class="month-title">{{ month_name }}</h2>
+  {% if is_current %}<span class="icon-button" aria-hidden="true" style="visibility: hidden"></span>{% else %}
+  <a class="icon-button" href="/categories?month={{ next }}&tab={{ tab }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>{% endif %}
+</div>
+
+<div class="ready zero cat-hero">
+  <span class="muted">{{ "Spent in" if tab == "expense" else "Earned in" }} {{ month_name.split(" ")[0] }}{% if is_current %} so far{% endif %}</span>
+  <span class="figure">{{ figure(grand, currency) }}</span>
+</div>
+
+<div class="chips cat-chips" role="group" aria-label="What to show">
+  <a class="chip" href="/categories?month={{ month_key }}&tab=expense" aria-pressed="{{ 'true' if tab == 'expense' else 'false' }}">Expense</a>
+  <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
+</div>
+
+<div data-categories>
+{% if rows %}
+<div class="tile" data-cat-tree>
+  {% for r in rows %}
+  <div class="top {{ 'unused-hidden' if r.node.account.aid in quiet_ids }}">{{ row(r.node, r.total, r.hint, r.share) }}</div>
+  {% endfor %}
+</div>
+{% if quiet_count %}
+<p class="unused-toggle"><button type="button" class="link-button" data-toggle-cat-quiet data-count="{{ quiet_count }}">{{ quiet_count }} with nothing in {{ month_name.split(" ")[0] }} · Show</button></p>
+{% endif %}
+{% else %}
+<div class="empty-state card">
+  <p>No {{ "expense" if tab == "expense" else "income" }} categories yet.</p>
+  <a class="button" href="/categories/new">Add a category</a>
+</div>
+{% endif %}
+<p class="muted budget-fine">Tap a category to see what is inside it and its transactions.</p>
+</div>
+{% endblock %}

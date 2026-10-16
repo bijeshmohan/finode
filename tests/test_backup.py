@@ -36,7 +36,6 @@ def rich(client, root_accounts):
     banks = acct(client, "Banks", root_accounts["Assets"])
     bank = acct(client, "HDFC", banks["aid"], balance="50000", details="main account")
     old = acct(client, "Old Savings", banks["aid"])
-    crypto = acct(client, "Coins", root_accounts["Assets"], commodity="BTC")
     card = acct(client, "Visa", root_accounts["Liabilities"], on_budget=True)
     loan = acct(client, "Home Loan", root_accounts["Liabilities"], on_budget=False)
     food = acct(client, "Food", root_accounts["Expenses"])
@@ -53,8 +52,6 @@ def rich(client, root_accounts):
     tx(client, [line(loan, "debit", "15000"), line(bank, "credit", "15000")], date="2026-09-05", payee="EMI")
     tx(client, [line(groceries, "debit", "100"), line(food, "debit", "50"), line(bank, "credit", "150")],
        date="2026-09-06", comment="split")
-    tx(client, [line(crypto, "debit", "0.01", value="5000"), line(bank, "credit", "5000")], date="2026-09-07", payee="Exchange")
-    assert client.post("/api/prices/", json={"commodity": "BTC", "quote": "INR", "date": "2026-09-08", "price": "510000.5"}).status_code == 201
 
     client.post("/api/recurring/", json={
         "from_account": bank["aid"], "to_account": groceries["aid"], "amount": "500", "frequency": "monthly",
@@ -94,21 +91,19 @@ def canonical(doc: dict) -> dict:
     rules = {r["id"]: (r["payee"], r["frequency"]) for r in doc["recurring"]}
     return {
         "profile": doc["profile"],
-        "commodities": sorted(doc["commodities"], key=lambda c: c["code"]),
-        "prices": doc["prices"],
         "accounts": sorted(
-            (paths[a["id"]], a["details"], a["commodity"], a["on_budget"], a["closed_on"] is not None,
+            (paths[a["id"]], a["details"], a["on_budget"], a["closed_on"] is not None,
              paths.get(a["payment_category_id"]), a["pinned"], a["position"])
             for a in doc["accounts"]
         ),
         "transactions": [
-            (t["date"], t["payee"], t["comment"], t["currency"], t["created_via"], rules.get(t["recurring_id"]), t["recurring_date"],
-             sorted((paths[p["account"]], p["side"], p["amount"], p["value"]) for p in t["postings"]))
+            (t["date"], t["payee"], t["comment"], t["created_via"], rules.get(t["recurring_id"]), t["recurring_date"],
+             sorted((paths[p["account"]], p["side"], p["amount"]) for p in t["postings"]))
             for t in doc["transactions"]
         ],
         "recurring": sorted(
-            (r["payee"], paths.get(r["from_account"]), paths.get(r["to_account"]), r["amount"], r["currency"],
-             sorted((paths[p["account"]], p["side"], p["amount"], p["value"]) for p in r["postings"]),
+            (r["payee"], paths.get(r["from_account"]), paths.get(r["to_account"]), r["amount"],
+             sorted((paths[p["account"]], p["side"], p["amount"]) for p in r["postings"]),
              r["frequency"], r["start_date"], r["next_date"], r["last_date"], r["skipped_date"], r["active"])
             for r in doc["recurring"]
         ),
@@ -121,18 +116,17 @@ def test_the_backup_has_everything(client, rich):
     response = client.get("/api/backup")
     assert response.status_code == 200 and 'attachment; filename="finode-backup-' in response.headers["content-disposition"]
     doc = response.json()
-    assert doc["format"] == "finode-backup" and doc["version"] == 1
+    assert doc["format"] == "finode-backup" and doc["version"] == 2
     assert doc["profile"]["first_name"] == "Ada" and doc["profile"]["default_currency"] == "INR"
-    assert [c["code"] for c in doc["commodities"]] == ["BTC"]
     names = {a["name"] for a in doc["accounts"]}
-    assert {"Banks", "HDFC", "Old Savings", "Coins", "Visa", "Home Loan", "Groceries", "EMI", "Opening Balances", "Assets"} <= names
+    assert {"Banks", "HDFC", "Old Savings", "Visa", "Home Loan", "Groceries", "EMI", "Opening Balances", "Assets"} <= names
     assert any(a["closed_on"] for a in doc["accounts"]) and any(a["payment_category_id"] for a in doc["accounts"])
     assert any(a["on_budget"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
     assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 3
-    assert len(doc["prices"]) == 1 and doc["prices"][0]["commodity"] == "BTC" and doc["prices"][0]["quote"] == "INR"
-    assert set(doc) == {"format", "version", "exported_at", "profile", "commodities", "prices", "accounts", "transactions", "recurring", "allocations", "targets"}, "no tokens or connected apps"
+    assert set(doc) == {"format", "version", "exported_at", "profile", "accounts", "transactions", "recurring", "allocations", "targets"}, "no tokens or connected apps"
+    assert not any("commodity" in a for a in doc["accounts"]) and not any("value" in p for t in doc["transactions"] for p in t["postings"])
 
 
 def test_restoring_rebuilds_the_same_books_for_someone_else(client, rich):
@@ -174,7 +168,7 @@ def test_a_broken_file_is_refused_and_saves_nothing(client, rich):
         wrong_version = {**doc, "version": 99}
         assert "version 99" in str(post(wrong_version).json())
         unbalanced = json.loads(json.dumps(doc))
-        unbalanced["transactions"][0]["postings"][0]["value"] = "1"
+        unbalanced["transactions"][0]["postings"][0]["amount"] = "1"
         refused = post(unbalanced)
         assert refused.status_code == 400 and "does not balance" in str(refused.json())
         missing = json.loads(json.dumps(doc))
@@ -216,3 +210,56 @@ def test_the_restore_pages(client, rich):
         assert "Nothing was restored" in again.text and "empty ledger" in again.text
     finally:
         as_user(TEST_USER_ID)
+
+
+# ---- backups made before finode kept one currency (version 1) ---------------------------------------------------------
+
+
+def as_version_1(doc: dict) -> dict:
+    """What an older finode wrote: a currency per transaction, a worth per posting, a commodity per account."""
+    old = json.loads(json.dumps(doc))
+    old["version"] = 1
+    old["commodities"], old["prices"] = [], []
+    for a in old["accounts"]:
+        a["commodity"] = "INR" if a["parent_id"] else None
+    for t in old["transactions"]:
+        t["currency"] = "INR"
+        for p in t["postings"]:
+            p["value"] = p["amount"]
+    for r in old["recurring"]:
+        r["currency"] = None
+        for p in r["postings"]:
+            p["value"] = None
+    return old
+
+
+def restore_as_other(client, doc):
+    try:
+        as_user(OTHER)
+        return client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_an_old_single_currency_backup_still_restores(client, rich):
+    doc = client.get("/api/backup").json()
+    response = restore_as_other(client, as_version_1(doc))
+    assert response.status_code == 200, response.text
+    assert response.json()["transactions"] == len(doc["transactions"])
+
+
+def test_an_old_backup_with_own_assets_or_prices_is_refused_and_explained(client, rich):
+    old = as_version_1(client.get("/api/backup").json())
+    old["commodities"] = [{"code": "BTC", "name": "Bitcoin", "kind": "crypto", "decimals": 8}]
+    refused = restore_as_other(client, old)
+    assert refused.status_code == 400 and "one currency" in str(refused.json())
+
+
+def test_an_old_backup_in_another_currency_is_refused_and_explained(client, rich):
+    old = as_version_1(client.get("/api/backup").json())
+    old["transactions"][0]["currency"] = "USD"
+    refused = restore_as_other(client, old)
+    assert refused.status_code == 400 and "USD" in str(refused.json()) and "one currency" in str(refused.json())
+    converting = as_version_1(client.get("/api/backup").json())
+    converting["transactions"][0]["postings"][0]["value"] = "1"
+    assert restore_as_other(client, converting).status_code == 400

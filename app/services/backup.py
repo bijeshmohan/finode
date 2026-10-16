@@ -1,7 +1,7 @@
 """A complete backup of what a user has recorded, and restoring it into an empty ledger.
 
-The ledger and CSV exports carry accounts, transactions and prices; this one also carries everything
-around them (settings, own assets, budget plan and targets, recurring rules, account flags such as
+The ledger and CSV exports carry accounts and transactions; this one also carries everything
+around them (settings, budget plan and targets, recurring rules, account flags such as
 "part of the budget" and "closed"), so it can rebuild the whole book. Left out on purpose: access tokens and
 connected apps (secrets and sign-ins to set up again) and the audit history (it describes the old rows).
 Restoring creates everything with new ids, all or nothing in one database transaction.
@@ -15,7 +15,7 @@ from pydantic import ValidationError
 
 from ..config import settings
 from ..limits import LimitReached, ensure_room
-from ..models.commodity import CommodityKind
+from ..currencies import find as find_currency
 from ..models.recurring import RecurringTransaction
 from ..models.transaction import PostingSide
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
@@ -24,13 +24,12 @@ from ..repositories.recurring import RecurringRepository
 from ..schemas.account import AccountCreate
 from ..schemas.backup import (
     FORMAT,
+    READS,
     VERSION,
     BackupAccount,
     BackupAllocation,
-    BackupCommodity,
     BackupFile,
     BackupPosting,
-    BackupPrice,
     BackupProfile,
     BackupRecurring,
     BackupRecurringPosting,
@@ -39,7 +38,7 @@ from ..schemas.backup import (
     RestoreSummary,
 )
 from ..schemas.transaction import PostingCreate, TransactionCreate
-from .account import OPENING_BALANCES_ACCOUNT_NAME, AccountService
+from .account import MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
 
 ROOTS = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
 
@@ -60,13 +59,10 @@ class BackupService:
         self.pr = pr
         self.rr = rr
         self.br = br
-        self.cr = accounts.cr
 
     # ---- backing up ------------------------------------------------------------------------------
 
     def export(self) -> dict:
-        catalog = self.accounts.catalog()
-        code = lambda cid: catalog[cid].code if cid else None  # noqa: E731
         profile = self.pr.get_or_create()
         accounts = self.accounts.ensure_roots()
         postings: dict[UUID, list] = {}
@@ -80,27 +76,13 @@ class BackupService:
             profile=BackupProfile(
                 first_name=profile.first_name,
                 last_name=profile.last_name,
-                default_currency=self.accounts.default_currency().code,
-                max_depth_assets=profile.max_depth_assets,
-                max_depth_liabilities=profile.max_depth_liabilities,
-                max_depth_equity=profile.max_depth_equity,
-                max_depth_income=profile.max_depth_income,
-                max_depth_expenses=profile.max_depth_expenses,
+                default_currency=profile.currency,
                 locked_through=profile.locked_through,
                 advanced=profile.advanced,
             ),
-            commodities=[
-                BackupCommodity(code=c.code, name=c.name, kind=c.kind, decimals=c.decimals, symbol=c.symbol)
-                for c in self.cr.list()
-                if c.user is not None
-            ],
-            prices=[
-                BackupPrice(commodity=code(p.commodity_id), quote=code(p.quote_id), date=p.date, price=p.price)
-                for p in self.accounts.prices.pr.list()
-            ],
             accounts=[
                 BackupAccount(
-                    id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details, commodity=code(a.commodity_id),
+                    id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details,
                     on_budget=a.on_budget, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
                     pinned=a.pinned, position=a.position,
                 )
@@ -108,11 +90,11 @@ class BackupService:
             ],
             transactions=[
                 BackupTransaction(
-                    id=t.tid, date=t.date, payee=t.payee, comment=t.comment, currency=code(t.currency_id),
+                    id=t.tid, date=t.date, payee=t.payee, comment=t.comment,
                     created_via=t.created_via, updated_via=t.updated_via,
                     recurring_id=t.recurring_id, recurring_date=t.recurring_date,
                     postings=[
-                        BackupPosting(account=p.account, side=p.side, amount=p.amount, value=p.value)
+                        BackupPosting(account=p.account, side=p.side, amount=p.amount)
                         for p in postings.get(t.tid, [])
                     ],
                 )
@@ -121,9 +103,8 @@ class BackupService:
             recurring=[
                 BackupRecurring(
                     id=r.rid, from_account=r.from_account, to_account=r.to_account, amount=r.amount,
-                    received_amount=r.received_amount, currency=r.currency,
                     postings=[
-                        BackupRecurringPosting(account=p.account, side=PostingSide(p.side), amount=p.amount, value=p.value)
+                        BackupRecurringPosting(account=p.account, side=PostingSide(p.side), amount=p.amount)
                         for p in recurring_rows.get(r.rid, [])
                     ],
                     payee=r.payee, comment=r.comment, frequency=r.frequency, every=r.every,
@@ -168,8 +149,8 @@ class BackupService:
         if file.format != FORMAT:
             summary.errors = ["this is not a finode backup file."]
             return summary
-        if file.version != VERSION:
-            summary.errors = [f"this backup is version {file.version}; this finode reads version {VERSION}."]
+        if file.version not in READS:
+            summary.errors = [f"this backup is version {file.version}; this finode reads versions {', '.join(map(str, READS))}."]
             return summary
         if not self.can_restore():
             summary.errors = [
@@ -181,7 +162,6 @@ class BackupService:
         for room in (
             lambda: ensure_room(len(file.accounts), settings.max_accounts, "accounts"),
             lambda: ensure_room(len(file.transactions), settings.max_transactions, "transactions"),
-            lambda: ensure_room(len(file.commodities), settings.max_own_assets, "assets of your own"),
         ):
             try:
                 room()
@@ -192,9 +172,6 @@ class BackupService:
         summary.recurring = len(file.recurring)
         summary.allocations = len(file.allocations)
         summary.targets = len(file.targets)
-        summary.prices = len(file.prices)
-        own = {c.code for c in self.cr.list() if c.user is not None}
-        summary.commodities = [c.code for c in file.commodities if c.code not in own]
         if file.transactions:
             summary.date_from = min(t.date for t in file.transactions)
             summary.date_to = max(t.date for t in file.transactions)
@@ -205,18 +182,15 @@ class BackupService:
 
     def _check(self, file: BackupFile, summary: RestoreSummary) -> None:
         errors = summary.errors
-        builtin = {c.code for c in self.cr.list() if c.user is None}
-        own = {c.code: c for c in self.cr.list() if c.user is not None}
-        for c in file.commodities:
-            if c.code in builtin:
-                errors.append(f"commodity {c.code} is a built-in currency.")
-            if c.kind not in CommodityKind.ALL or c.kind == CommodityKind.CURRENCY:
-                errors.append(f"commodity {c.code} has an unsupported kind '{c.kind}'.")
-            if c.code in own and own[c.code].kind != c.kind:
-                errors.append(f"commodity {c.code} already exists as a {own[c.code].kind}.")
-        known = builtin | set(own) | {c.code for c in file.commodities}
-        if file.profile.default_currency not in builtin:
-            errors.append(f"the default currency {file.profile.default_currency} is not a built-in currency.")
+        currency = find_currency(file.profile.default_currency)
+        if currency is None:
+            errors.append(f"the currency {file.profile.default_currency} is not one finode knows.")
+            return
+        if file.commodities or file.prices:
+            errors.append(
+                "this backup has assets or prices of its own, which finode no longer keeps: it keeps everything in one currency."
+            )
+        other = lambda code: code is not None and code.upper() != currency.code  # noqa: E731
 
         accounts = {a.id: a for a in file.accounts}
         if len(accounts) != len(file.accounts):
@@ -226,8 +200,8 @@ class BackupService:
                 errors.append(f"top-level account '{a.name}' is not one of {', '.join(ROOTS)}.")
             if a.parent_id is not None and a.parent_id not in accounts:
                 errors.append(f"account '{a.name}' has a parent that is not in the file.")
-            if a.parent_id is not None and a.commodity not in known:
-                errors.append(f"account '{a.name}' holds an unknown commodity {a.commodity}.")
+            if other(a.commodity):
+                errors.append(f"account '{a.name}' holds {a.commodity}, but finode keeps one currency ({currency.code}).")
             if ":" in a.name:
                 errors.append(f"account name '{a.name}' contains ':'.")
         if errors:
@@ -240,6 +214,13 @@ class BackupService:
         if any(self._depth(a, accounts) is None for a in file.accounts):
             errors.append("the accounts contain a cycle.")
             return
+        too_deep = [a.name for a in file.accounts if self._depth(a, accounts) > MAX_ACCOUNT_DEPTH]
+        if too_deep:
+            errors.append(
+                f"accounts can be at most {MAX_ACCOUNT_DEPTH} levels deep (a category and a sub-category), "
+                f"but {', '.join(too_deep[:3])}{' and more' if len(too_deep) > 3 else ''} go deeper: flatten them first."
+            )
+            return
         for a in file.accounts:
             for ref in (a.payment_category_id,):
                 if ref is not None and ref not in accounts:
@@ -248,16 +229,18 @@ class BackupService:
         rules = {r.id for r in file.recurring}
         for t in file.transactions:
             label = f"the transaction of {t.date} ({t.payee or 'no payee'})"
-            if t.currency not in known:
-                errors.append(f"{label} is in an unknown currency {t.currency}.")
+            if other(t.currency):
+                errors.append(f"{label} is in {t.currency}, but finode keeps one currency ({currency.code}).")
             if len(t.postings) < 2:
                 errors.append(f"{label} has fewer than two postings.")
             if any(p.account not in postable for p in t.postings):
                 errors.append(f"{label} uses an account that is not in the file.")
-            if any(p.amount <= 0 or p.value <= 0 for p in t.postings):
+            if any(p.amount <= 0 for p in t.postings):
                 errors.append(f"{label} has a posting that is not positive.")
-            debit = sum((p.value for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
-            credit = sum((p.value for p in t.postings if p.side == PostingSide.CREDIT), Decimal(0))
+            if any(p.value is not None and p.value != p.amount for p in t.postings):
+                errors.append(f"{label} converts between currencies, but finode keeps one currency ({currency.code}).")
+            debit = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
+            credit = sum((p.amount for p in t.postings if p.side == PostingSide.CREDIT), Decimal(0))
             if debit != credit:
                 errors.append(f"{label} does not balance (debits {debit:f}, credits {credit:f}).")
             if t.recurring_id is not None and t.recurring_id not in rules:
@@ -268,17 +251,16 @@ class BackupService:
             used = [r.from_account, r.to_account, *(p.account for p in r.postings)]
             if any(a is not None and a not in postable for a in used):
                 errors.append(f"a recurring transaction ({r.payee or r.id}) uses an account that is not in the file.")
+            if r.received_amount is not None or other(r.currency) or any(
+                p.value is not None and p.value != p.amount for p in r.postings
+            ):
+                errors.append(f"a recurring transaction ({r.payee or r.id}) converts between currencies.")
             if not r.postings and None in (r.from_account, r.to_account, r.amount):
                 errors.append(f"a recurring transaction ({r.payee or r.id}) has neither from, to and amount nor postings.")
         for row in [*file.allocations, *file.targets]:
             if row.account_id not in postable:
                 errors.append("a budget entry refers to an account that is not in the file.")
                 break
-        for p in file.prices:
-            if p.commodity not in known or p.quote not in known:
-                errors.append(f"a price uses an unknown commodity ({p.commodity}/{p.quote}).")
-                break
-
     @staticmethod
     def _depth(account: BackupAccount, accounts: dict[UUID, BackupAccount]) -> int | None:
         depth, current, seen = 0, account, set()
@@ -298,16 +280,7 @@ class BackupService:
             profile.first_name, profile.last_name = fields.first_name, fields.last_name
             profile.locked_through = fields.locked_through
             profile.advanced = fields.advanced
-            for key in ("assets", "liabilities", "equity", "income", "expenses"):
-                setattr(profile, f"max_depth_{key}", getattr(fields, f"max_depth_{key}"))
-            existing = {c.code: c for c in self.cr.list() if c.user is not None}
-            for c in file.commodities:
-                if c.code not in existing:
-                    self.cr.create(code=c.code, name=c.name, kind=c.kind, decimals=c.decimals, symbol=c.symbol)
-            db.flush()
-            self.accounts.reset_defaults()
-            by_code = {c.code: c.cid for c in self.cr.list()}
-            profile.default_commodity_id = by_code[fields.default_currency]
+            profile.currency = find_currency(fields.default_currency).code
             db.add(profile)
             self.accounts.reset_defaults()
 
@@ -327,7 +300,6 @@ class BackupService:
                     continue
                 created = self.ar.create(
                     AccountCreate(name=a.name, details=a.details, parent_id=ids[a.parent_id]),
-                    commodity_id=by_code[a.commodity],
                     on_budget=a.on_budget,
                 )
                 ids[a.id] = created.aid
@@ -348,7 +320,7 @@ class BackupService:
                     user=self.rr.uid,
                     from_account=ids.get(r.from_account) if r.from_account else None,
                     to_account=ids.get(r.to_account) if r.to_account else None,
-                    amount=r.amount, received_amount=r.received_amount, currency=r.currency,
+                    amount=r.amount,
                     payee=r.payee, comment=r.comment, frequency=r.frequency, every=r.every,
                     start_date=r.start_date, end_date=r.end_date, next_date=r.next_date, last_date=r.last_date,
                     skipped_date=r.skipped_date, active=r.active, last_error=r.last_error,
@@ -356,27 +328,22 @@ class BackupService:
                 self.rr.add(rule)
                 self.rr.set_postings(
                     rule.rid,
-                    [{"account": ids[p.account], "side": p.side.value, "amount": p.amount, "value": p.value} for p in r.postings],
+                    [{"account": ids[p.account], "side": p.side.value, "amount": p.amount} for p in r.postings],
                 )
                 rules[r.id] = rule.rid
 
             for t in file.transactions:
                 postings = [
-                    PostingCreate(account=ids[p.account], side=p.side, amount=p.amount, value=p.value)
-                    for p in t.postings
+                    PostingCreate(account=ids[p.account], side=p.side, amount=p.amount) for p in t.postings
                 ]
                 created = self.tr.create(
                     TransactionCreate(date=t.date, payee=t.payee, comment=t.comment, postings=postings),
-                    by_code[t.currency],
-                    [p.value for p in t.postings],
                     origin=t.created_via,
                     recurring=(rules[t.recurring_id], t.recurring_date) if t.recurring_id and t.recurring_date else None,
                 )
                 if t.updated_via != t.created_via:
                     created.updated_via = t.updated_via
                     db.add(created)
-            for p in file.prices:
-                self.accounts.prices.pr.upsert(by_code[p.commodity], by_code[p.quote], p.date, p.price)
             for row in file.allocations:
                 self.br.set(row.month, ids[row.account_id], row.amount)
             for target in file.targets:
@@ -387,4 +354,3 @@ class BackupService:
             raise
         finally:
             self.accounts.reset_defaults()
-            self.accounts.prices.invalidate()

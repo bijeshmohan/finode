@@ -258,10 +258,7 @@ def test_parent_balance_aggregation(client: TestClient, root_accounts: dict[str,
         json={"name": "sibling", "parent_id": parent["aid"], "balance": "50.00"},
     ).json()
 
-    grandchild = client.post(
-        "/api/accounts/",
-        json={"name": "grandchild", "parent_id": child["aid"], "balance": "20.00"},
-    ).json()
+    client.patch(f"/api/accounts/{child['aid']}", json={"balance": "20.00"})
 
     p_get = client.get(f"/api/accounts/{parent['aid']}").json()
     assert p_get["balance"] == "70.00"
@@ -272,8 +269,6 @@ def test_parent_balance_aggregation(client: TestClient, root_accounts: dict[str,
     s_get = client.get(f"/api/accounts/{sibling['aid']}").json()
     assert s_get["balance"] == "50.00"
 
-    gc_get = client.get(f"/api/accounts/{grandchild['aid']}").json()
-    assert gc_get["balance"] == "20.00"
 
 
 def test_delete_parent_account_fails(client: TestClient, root_accounts: dict[str, str]):

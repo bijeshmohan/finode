@@ -11,7 +11,7 @@
 <form class="tx-search" method="get" action="/transactions" role="search">
   <label class="search-pill">
     <span class="sr-only">Search transactions</span>{{ icon("search") }}
-    <input type="search" name="q" value="{{ q }}" placeholder="Search" autocomplete="off" enterkeyhint="search">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search" autocomplete="off" enterkeyhint="search" {{ "data-autofocus" if focus_search }}>
   </label>
   {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
   {% for key in ("account", "date_from", "date_to") %}{% if filters[key] %}<input type="hidden" name="{{ key }}" value="{{ filters[key] }}">{% endif %}{% endfor %}

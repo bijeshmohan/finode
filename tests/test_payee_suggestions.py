@@ -125,8 +125,8 @@ def test_the_quick_bar_opens_the_form_filled_in(client, books):
     pay(client, "Swiggy", books["card"], books["delivery"])
     page = client.get("/transactions/new", params={"q": "250 swiggy"}).text
     assert field(page, "total") == "250" and field(page, "payee") == "Swiggy"  # spelled as before
-    assert f'<option value="{books["card"]["aid"]}" data-commodity="INR" selected' in page, "paid from the same card"
-    assert f'<option value="{books["delivery"]["aid"]}" data-commodity="INR" selected' in page
+    assert f'<option value="{books["card"]["aid"]}" selected' in page, "paid from the same card"
+    assert f'<option value="{books["delivery"]["aid"]}" selected' in page
     assert 'name="kind" value="expense"' in page
 
 
@@ -140,12 +140,12 @@ def test_the_form_starts_with_the_account_you_pay_from_most_lately(client, books
         pay(client, "A", books["card"], books["delivery"])
     pay(client, "B", books["hdfc"], books["groceries"])
     page = client.get("/transactions/new").text
-    assert f'<option value="{books["card"]["aid"]}" data-commodity="INR" selected' in page
-    assert f'<option value="{books["delivery"]["aid"]}" data-commodity="INR" selected' not in page
+    assert f'<option value="{books["card"]["aid"]}" selected' in page
+    assert f'<option value="{books["delivery"]["aid"]}" selected' not in page
 
 
 def test_opening_the_form_from_an_account_keeps_that_account(client, books):
     pay(client, "A", books["card"], books["delivery"])
     page = client.get("/transactions/new", params={"account": books["hdfc"]["aid"]}).text
-    assert f'<option value="{books["hdfc"]["aid"]}" data-commodity="INR" selected' in page
-    assert f'<option value="{books["card"]["aid"]}" data-commodity="INR" selected' not in page
+    assert f'<option value="{books["hdfc"]["aid"]}" selected' in page
+    assert f'<option value="{books["card"]["aid"]}" selected' not in page

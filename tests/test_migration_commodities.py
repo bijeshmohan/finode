@@ -9,8 +9,11 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
-from app.commodity_seed import seed_id
+from migrations.commodity_seed import seed_id
 from app.config import settings
+
+# The last revision before finode kept one currency (the later ones cannot be undone).
+BEFORE_SINGLE_CURRENCY = "e2a4c6e8f1b3"
 
 
 PARENT = "9c2d4e6f1a51"
@@ -82,7 +85,7 @@ def test_existing_data_is_backfilled_in_the_default_currency(alembic):
     command.upgrade(config, PARENT)
     root, bank, tid = _insert_ledger(engine)
 
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
 
     inr = seed_id("INR")
     with engine.connect() as c:
@@ -105,13 +108,13 @@ def test_existing_data_is_backfilled_in_the_default_currency(alembic):
 
 def test_upgrade_downgrade_upgrade_is_clean(alembic):
     config, engine = alembic
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
     command.downgrade(config, PARENT)
     with engine.connect() as c:
         tables = set(sa.inspect(c).get_table_names())
         assert "commodities" not in tables and "prices" not in tables
         assert "value" not in {col["name"] for col in sa.inspect(c).get_columns("postings")}
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
     with engine.connect() as c:
         assert c.execute(sa.text("SELECT count(*) FROM commodities")).scalar() > 0
 
@@ -120,28 +123,11 @@ def test_downgrade_keeps_the_amounts(alembic):
     config, engine = alembic
     command.upgrade(config, PARENT)
     _insert_ledger(engine)
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
     command.downgrade(config, PARENT)
     with engine.connect() as c:
         amounts = [Decimal(str(a)) for (a,) in c.execute(sa.text("SELECT amount FROM postings"))]
     assert amounts == [Decimal("1234.56")] * 2
-
-
-def test_migrated_schema_has_the_columns_the_models_declare(alembic):
-    from sqlmodel import SQLModel
-
-    config, engine = alembic
-    command.upgrade(config, "head")
-    inspector = sa.inspect(engine)
-    for table in ("commodities", "prices", "accounts", "transactions", "postings", "profiles", "api_tokens", "oauth_grants", "recurring_transactions"):
-        declared = {c.name for c in SQLModel.metadata.tables[table].columns}
-        migrated = {c["name"] for c in inspector.get_columns(table)}
-        assert declared == migrated, table
-    indexes = {i["name"] for i in inspector.get_indexes("commodities")}
-    assert {"uq_commodities_global_code", "uq_commodities_user_code"} <= indexes
-    price_indexes = {i["name"] for i in inspector.get_indexes("prices")}
-    assert "uq_prices_user" in price_indexes and "uq_prices_global" not in price_indexes
-    assert not {c["name"]: c for c in inspector.get_columns("prices")}["user"]["nullable"]
 
 
 # ---- the "own assets only" revision --------------------------------------------------------------------------------
@@ -210,7 +196,7 @@ def test_shared_coins_in_use_become_the_users_own(alembic):
         p=uuid4(), e=ids["ETH"], i=ids["INR"],
     )
 
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
 
     with engine.connect() as c:
         shared = {code for (code,) in c.execute(sa.text('SELECT code FROM commodities WHERE "user" IS NULL AND kind <> \'currency\''))}
@@ -228,7 +214,7 @@ def test_the_full_iso_list_is_present_and_old_ids_are_kept(alembic):
     command.upgrade(config, PRIOR)
     _as_before(engine)
     before = _ids(engine)
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
     after = _ids(engine)
     assert len(after) > 150 and {"TRY", "KWD", "VND"} <= set(after)
     assert all(after[code] == cid for code, cid in before.items() if code in after), "existing currency ids are unchanged"
@@ -245,12 +231,12 @@ def test_a_clashing_private_code_stops_the_upgrade_with_a_clear_message(alembic)
         c=uuid4(), u=USER,
     )
     with pytest.raises(RuntimeError, match="TRY"):
-        command.upgrade(config, "head")
+        command.upgrade(config, BEFORE_SINGLE_CURRENCY)
 
 
 def test_downgrade_restores_the_feed_shape(alembic):
     config, engine = alembic
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
     command.downgrade(config, PRIOR)
     inspector = sa.inspect(engine)
     assert {i["name"] for i in inspector.get_indexes("prices")} >= {"uq_prices_global", "uq_prices_user"}

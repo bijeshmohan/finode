@@ -40,11 +40,6 @@ def amount(text: str, code: str | None) -> str:
     return f"\u2212{sign}{text[1:]}" if text.startswith("\u2212") else f"{sign}{text}"
 
 
-def with_unit(text: str, code: str | None, default: str | None) -> str:
-    """Add what the amount is in, unless it is in the currency everything is reported in."""
-    return amount(text, code) if code and code != default else text
-
-
 @lru_cache
 def asset_url(path: str) -> str:
     """URL of a static file stamped with its content hash.
@@ -79,7 +74,6 @@ def origin_label(origin: str | None) -> str | None:
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["money"] = money
-templates.env.filters["with_unit"] = with_unit
 templates.env.filters["symbol"] = symbol
 templates.env.filters["amount"] = amount
 templates.env.filters["friendly_date"] = friendly_date

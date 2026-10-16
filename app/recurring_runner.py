@@ -13,15 +13,8 @@ import anyio.to_thread
 
 from .config import settings
 from .mcp_server import context
-from .repositories import (
-    AccountRepository,
-    CommodityRepository,
-    PriceRepository,
-    ProfileRepository,
-    RecurringRepository,
-    TransactionRepository,
-)
-from .services import AccountService, PriceService, RecurringService, TransactionService
+from .repositories import AccountRepository, ProfileRepository, RecurringRepository, TransactionRepository
+from .services import AccountService, RecurringService, TransactionService
 from .services.recurring import ORIGIN
 from .clock import local_today
 
@@ -38,11 +31,9 @@ def run_once(today: date | None = None) -> int:
     for uid in users:
         try:
             with context.session_factory() as db:
-                ar, tr = AccountRepository(db, uid), TransactionRepository(db, uid)
-                cr, pr = CommodityRepository(db, uid), PriceRepository(db, uid)
-                accounts = AccountService(ar, tr, ProfileRepository(db, uid), cr, PriceService(pr, tr, cr))
+                ar, tr, pr = AccountRepository(db, uid), TransactionRepository(db, uid), ProfileRepository(db, uid)
                 service = RecurringService(
-                    RecurringRepository(db, uid), accounts, TransactionService(tr, ar, cr, origin=ORIGIN)
+                    RecurringRepository(db, uid), AccountService(ar, tr, pr), TransactionService(tr, ar, pr, origin=ORIGIN)
                 )
                 recorded += service.process_due(today)
         except Exception:  # one user's trouble must not stop the others

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
-from ...services.account import GROUP_POSTING_ROOT_NAMES, AccountService
+from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 from ...clock import local_today
@@ -86,22 +86,17 @@ def posting_groups(roots: list[Node], keep: set[UUID] = frozenset()) -> list[tup
     return groups
 
 
-def _optional_amount(text: str) -> Decimal | None:
-    return parse_amount(text) if text.strip() else None
-
-
 def _find(roots: list[Node], aid: UUID) -> Node | None:
     return next((n for root in roots for n in root.walk() if n.account.aid == aid), None)
 
 
 def _parent_options(
     roots: list[Node],
-    limits: dict[str, int],
     exclude: Node | None = None,
     keep: UUID | None = None,
 ) -> list[Node]:
     """Accounts that may become a parent: system accounts are leaves by design and a
-    parent must leave room for the new (or moved) subtree within the depth limit."""
+    parent must leave room for the new (or moved) subtree within two levels."""
     excluded = {n.account.aid for n in exclude.walk()} if exclude else set()
     below = (max(n.depth for n in exclude.walk()) - exclude.depth) if exclude else 0
     return [
@@ -110,7 +105,7 @@ def _parent_options(
         for n in root.walk()
         if n.kind != "system"
         and n.account.aid not in excluded
-        and (n.depth + 1 + below <= limits.get(root.account.name, 0) or n.account.aid == keep)
+        and (n.depth + 1 + below <= MAX_ACCOUNT_DEPTH or n.account.aid == keep)
     ]
 
 
@@ -130,16 +125,21 @@ def _root_of(roots: list[Node], node: Node) -> Node:
     return next(r for r in roots if any(n is node for n in r.walk()))
 
 
+# Where the money is (the Accounts page) and where it goes and comes from (the Categories page).
+ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
+CATEGORY_ROOTS = ("Expenses", "Income")
+
+
 @router.get("")
 def accounts_page(request: Request, accounts: Accounts, profiles: Profiles):
-    roots = build_tree(accounts.list())
+    roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
     unused = annotate_for_page(roots, accounts.used_account_ids(), local_today())
     nodes = {n.account.aid: n for root in roots for n in root.walk()}
     pinned = sorted(
         (n for n in nodes.values() if n.account.pinned and n.kind == "user" and n.account.closed_on is None),
         key=lambda n: n.path.lower(),
     )
-    recent = [nodes[aid] for aid in accounts.recent(RECENT_ACCOUNTS) if aid in nodes]
+    recent = [nodes[aid] for aid in accounts.recent(RECENT_ACCOUNTS) if aid in nodes]  # categories are not accounts here
     return templates.TemplateResponse(
         request,
         "accounts.html",
@@ -148,7 +148,7 @@ def accounts_page(request: Request, accounts: Accounts, profiles: Profiles):
             "pinned": pinned if profiles.advanced() else [],
             "recent": recent,
             "roots": roots,
-            "currency": accounts.default_currency().code,
+            "currency": accounts.currency().code,
             "unused": unused,
             "closed": closed_count(roots),
         },
@@ -191,21 +191,23 @@ def closed_count(roots: list[Node]) -> int:
 
 
 @router.get("/new")
-def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None):
-    roots = build_tree(accounts.list())
+def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None, kind: str = "account"):
+    """The form for a new account (under Assets or Liabilities), or with kind=category for a new category
+    (under Expenses or Income, reached from the Categories page)."""
+    kind = "category" if kind == "category" else "account"
+    allowed = CATEGORY_ROOTS if kind == "category" else ACCOUNT_ROOTS
+    roots = [r for r in build_tree(accounts.list()) if r.account.name in allowed]
     return templates.TemplateResponse(
         request,
         "account_form.html",
         {
-            "active": "accounts",
+            "active": "categories" if kind == "category" else "accounts",
+            "kind": kind,
             "hide_fab": True,
             "node": None,
             "parent_id": parent,
-            "parent_options": _parent_options(roots, profiles.depth_limits()),
-            "currency": accounts.default_currency().code,
-            "opening_currency": accounts.opening_currency().code,
-            "commodity_choices": accounts.commodity_choices(),
-            "can_change_commodity": True,
+            "parent_options": _parent_options(roots),
+            "currency": accounts.currency().code,
         },
     )
 
@@ -220,11 +222,9 @@ def quick_account_sheet(request: Request, accounts: Accounts, profiles: Profiles
         "partials/quick_account.html",
         {
             "parent_id": suggested,
-            "parent_options": _parent_options(roots, profiles.depth_limits()),
+            "parent_options": _parent_options(roots),
             "roots_by_id": {n.account.aid: r.account.name for r in roots for n in r.walk()},
-            "currency": accounts.default_currency().code,
-            "opening_currency": accounts.opening_currency().code,
-            "commodity_choices": accounts.commodity_choices(),
+            "currency": accounts.currency().code,
         },
     )
 
@@ -245,8 +245,6 @@ def quick_create_account(
     name: Annotated[str, Form()] = "",
     parent_id: Annotated[str, Form()] = "",
     balance: Annotated[str, Form()] = "",
-    commodity: Annotated[str, Form()] = "",
-    balance_value: Annotated[str, Form()] = "",
 ):
     try:
         roots = build_tree(accounts.list())
@@ -262,9 +260,7 @@ def quick_create_account(
             AccountCreate(
                 name=name,
                 parent_id=parent.account.aid,
-                commodity=commodity.strip() or None,
                 balance=opening,
-                balance_value=_optional_amount(balance_value),
             )
         )
     except ValidationError as e:
@@ -281,8 +277,6 @@ def create_account(
     parent_id: Annotated[str, Form()] = "",
     details: Annotated[str, Form()] = "",
     balance: Annotated[str, Form()] = "",
-    commodity: Annotated[str, Form()] = "",
-    balance_value: Annotated[str, Form()] = "",
 ):
     try:
         if not parent_id:
@@ -291,9 +285,7 @@ def create_account(
             name=name.strip(),
             details=details.strip() or None,
             parent_id=UUID(parent_id),
-            commodity=commodity.strip() or None,
             balance=parse_amount(balance, Decimal("0.00")),
-            balance_value=_optional_amount(balance_value),
         )
         created = accounts.create(data)
     except ValidationError as e:
@@ -303,13 +295,12 @@ def create_account(
     return htmx_redirect(f"/accounts/{created.aid}", flash="account-created")
 
 
-@router.get("/{aid}")
-def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles):
+def account_context(accounts: AccountService, profiles, aid: UUID, entries=None) -> dict:
+    """What the account page needs; the category page (categories.py) reuses it with its month's entries."""
     roots, node = _load(accounts, aid)
-    entries = accounts.register(aid) or []
+    entries = accounts.register(aid) or [] if entries is None else entries
     root = _root_of(roots, node)
-    limit = profiles.depth_limits()[root.account.name]
-    at_limit = node.kind != "system" and node.depth >= limit
+    at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
     # Asset and liability accounts with their own postings cannot gain sub-accounts.
     has_own_postings = node.is_leaf and bool(entries) and node.kind != "root"
     can_add_child = (
@@ -319,47 +310,58 @@ def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Prof
     )
     siblings = next((p.children for r in roots for p in r.walk() if node in p.children), [])
     place = next((i for i, s in enumerate(siblings) if s is node), 0)
-    return templates.TemplateResponse(
-        request,
-        "account.html",
-        {
-            "active": "accounts",
-            "advanced": profiles.advanced(),
-            "can_move_up": node.kind == "user" and place > 0,
-            "can_move_down": node.kind == "user" and place < len(siblings) - 1,
-            "ordered_by_hand": any(s.account.position is not None for s in siblings),
-            "node": node,
-            "root": root,
-            "entries": list(reversed(entries)),
-            "currency": accounts.default_currency().code,
-            "holding": accounts.holding(aid),
-            "at_limit": at_limit,
-            "depth_limit": limit,
-            "can_add_child": can_add_child,
-            # Part of a group's balance that was posted to the group itself.
-            "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
-            if node.postable and node.children
-            else None,
-        },
-    )
+    return {
+        "active": "accounts",
+        "advanced": profiles.advanced(),
+        "can_move_up": node.kind == "user" and place > 0,
+        "can_move_down": node.kind == "user" and place < len(siblings) - 1,
+        "ordered_by_hand": any(s.account.position is not None for s in siblings),
+        "node": node,
+        "root": root,
+        "entries": list(reversed(entries)),
+        "currency": accounts.currency().code,
+        "can_add_child": can_add_child,
+        # Part of a group's balance that was posted to the group itself.
+        "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
+        if node.postable and node.children
+        else None,
+    }
+
+
+@router.get("/{aid}")
+def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles):
+    roots, node = _load(accounts, aid)
+    root = _root_of(roots, node)
+    if root.account.name in CATEGORY_ROOTS and node.kind != "root":
+        return RedirectResponse(f"/categories/{aid}", status_code=303)
+    return templates.TemplateResponse(request, "account.html", account_context(accounts, profiles, aid))
+
+
+def area_of(accounts: AccountService, aid: UUID) -> str:
+    """Where an account's pages live: categories (Expenses, Income) have their own tab."""
+    roots = build_tree(accounts.list())
+    node = _find(roots, aid)
+    return "/categories" if node is not None and _root_of(roots, node).account.name in CATEGORY_ROOTS else "/accounts"
 
 
 @router.post("/{aid}/close")
 def close_account(aid: UUID, accounts: Accounts):
+    area = area_of(accounts, aid)
     try:
         accounts.close(aid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect("/accounts", flash="account-closed")
+    return htmx_redirect(area, flash="account-closed")
 
 
 @router.post("/{aid}/reopen")
 def reopen_account(aid: UUID, accounts: Accounts):
+    category = area_of(accounts, aid) == "/categories"
     try:
         accounts.reopen(aid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect(f"/accounts/{aid}", flash="account-reopened")
+    return htmx_redirect(f"/accounts/{aid}", flash="category-restored" if category else "account-reopened")
 
 
 @router.post("/{aid}/pin")
@@ -401,18 +403,17 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
     if node.kind != "user":
         raise HTTPException(status_code=404, detail="account not found")
     root = _root_of(roots, node)
+    kind = "category" if root.account.name in CATEGORY_ROOTS else "account"
     return templates.TemplateResponse(
         request,
         "account_form.html",
         {
-            "active": "accounts",
+            "active": "categories" if kind == "category" else "accounts",
+            "kind": kind,
             "hide_fab": True,
             "node": node,
             "parent_id": node.account.parent_id,
-            "currency": accounts.default_currency().code,
-            "opening_currency": accounts.opening_currency().code,
-            "commodity_choices": accounts.commodity_choices(),
-            "can_change_commodity": not accounts.has_postings(aid),
+            "currency": accounts.currency().code,
             "root_name": root.account.name,
             "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
             "on_budget": node.account.on_budget,
@@ -426,7 +427,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             ],
             "parent_options": [
                 n
-                for n in _parent_options(roots, profiles.depth_limits(), exclude=node, keep=node.account.parent_id)
+                for n in _parent_options(roots, exclude=node, keep=node.account.parent_id)
                 if any(n is m for m in root.walk())
             ],
         },
@@ -441,8 +442,6 @@ def update_account(
     parent_id: Annotated[str, Form()] = "",
     details: Annotated[str, Form()] = "",
     balance: Annotated[str | None, Form()] = None,
-    commodity: Annotated[str, Form()] = "",
-    balance_value: Annotated[str, Form()] = "",
     on_budget: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
     payment_category: Annotated[str, Form()] = "",
@@ -459,13 +458,10 @@ def update_account(
             changes["details"] = details.strip() or None
         if parent_id and UUID(parent_id) != current.parent_id:
             changes["parent_id"] = UUID(parent_id)
-        if commodity.strip() and commodity.strip().upper() != current.commodity:
-            changes["commodity"] = commodity.strip()
         if balance is not None and balance.strip():
             new_balance = parse_amount(balance)
             if new_balance != current.balance:
                 changes["balance"] = new_balance
-                changes["balance_value"] = _optional_amount(balance_value)
         if budget_choice is not None and (on_budget is not None) != current.on_budget:
             changes["on_budget"] = on_budget is not None
         if budget_choice is not None:
@@ -483,8 +479,16 @@ def update_account(
 
 @router.post("/{aid}/delete")
 def delete_account(aid: UUID, accounts: Accounts):
+    area = area_of(accounts, aid)
     try:
         accounts.delete(aid)
     except ValueError as e:
-        return htmx_error(str(e), "#page-error")
-    return htmx_redirect("/accounts", flash="account-deleted")
+        if area != "/categories" or not isinstance(e, AccountInUseError):
+            return htmx_error(str(e), "#page-error")
+        # A category with entries (or sub-categories) cannot vanish from the history: it leaves every list and
+        # picker instead, and its past stays in the reports.
+        try:
+            accounts.close(aid)
+        except ValueError as closing:
+            return htmx_error(str(closing), "#page-error")
+    return htmx_redirect(area, flash="category-deleted" if area == "/categories" else "account-deleted")

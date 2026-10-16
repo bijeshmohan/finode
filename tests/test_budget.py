@@ -61,12 +61,10 @@ def setup(client, root_accounts):
 # ---- which accounts count ----------------------------------------------------------------------
 
 
-def test_new_asset_accounts_holding_a_currency_are_part_of_the_budget(client, root_accounts):
+def test_new_asset_accounts_are_part_of_the_budget_and_cards_are_opted_in(client, root_accounts):
     bank = account(client, root_accounts, "Bank", "Assets")
-    coins = account(client, root_accounts, "Coins", "Assets", commodity="BTC")
     card = account(client, root_accounts, "Card", "Liabilities")
     assert bank["on_budget"] is True
-    assert coins["on_budget"] is False, "only a currency"
     assert card["on_budget"] is False, "cards are opted in"
     assert account(client, root_accounts, "Other", "Assets", on_budget=False)["on_budget"] is False
 
@@ -76,21 +74,12 @@ def test_the_flag_can_be_changed_but_only_where_it_makes_sense(client, root_acco
     ok = client.patch(f"/api/accounts/{card['aid']}", json={"on_budget": True})
     assert ok.status_code == 200 and ok.json()["on_budget"] is True
     assert client.patch(f"/api/accounts/{card['aid']}", json={"on_budget": False}).json()["on_budget"] is False
-    coins = account(client, root_accounts, "Coins", "Assets", commodity="BTC")
-    bad = client.patch(f"/api/accounts/{coins['aid']}", json={"on_budget": True})
-    assert bad.status_code == 400 and "currency" in bad.json()["detail"]
     food = account(client, root_accounts, "Food", "Expenses")
     assert client.patch(f"/api/accounts/{food['aid']}", json={"on_budget": True}).status_code == 400
     group = account(client, root_accounts, "Banks", "Assets", on_budget=False)
     account_child = client.post("/api/accounts/", json={"name": "Child", "parent_id": group["aid"]}).json()
     assert client.patch(f"/api/accounts/{group['aid']}", json={"on_budget": True}).status_code == 400
     assert account_child["on_budget"] is True
-
-
-def test_changing_what_an_account_holds_takes_it_out_of_the_budget(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets")
-    changed = client.patch(f"/api/accounts/{bank['aid']}", json={"commodity": "BTC"})
-    assert changed.status_code == 200 and changed.json()["on_budget"] is False
 
 
 # ---- ready to assign -----------------------------------------------------------------------------
@@ -308,41 +297,6 @@ def test_the_budget_does_not_touch_the_ledger(client, setup):
     before = client.get("/api/reports/trial-balance").json()
     assign(client, setup["food"], "300")
     assert client.get("/api/reports/trial-balance").json() == before
-
-
-def test_an_account_in_another_currency_is_left_out_and_said_so(client, root_accounts, setup):
-    usd = account(client, root_accounts, "Dollars", "Assets", commodity="USD")
-    assert usd["on_budget"] is True
-    data = budget(client)
-    assert data["budget_accounts"] == ["Assets:Bank"] and data["ignored_accounts"] == ["Assets:Dollars"]
-
-
-def usd_purchase(client, setup):
-    """Bought food for 2 USD with INR from the bank: the transaction is in USD, the accounts in INR."""
-    response = client.post(
-        "/api/transactions/",
-        json={
-            "currency": "USD",
-            "postings": [
-                {"account": setup["food"]["aid"], "side": "debit", "amount": "160", "value": "2"},
-                {"account": setup["bank"]["aid"], "side": "credit", "amount": "160", "value": "2"},
-            ],
-        },
-    )
-    assert response.status_code == 201, response.text
-
-
-def test_spending_recorded_in_another_currency_is_converted(client, setup):
-    client.post("/api/prices/", json={"commodity": "USD", "quote": "INR", "price": "80", "date": date.today().isoformat()})
-    usd_purchase(client, setup)
-    data = budget(client)
-    assert line(data, "Food")["activity"] == "160.00" and not data["unpriced"]
-
-
-def test_the_rate_of_the_transaction_itself_converts_its_spending(client, setup):
-    usd_purchase(client, setup)  # 160 INR worth 2 USD implies the rate
-    data = budget(client)
-    assert line(data, "Food")["activity"] == "160.00" and not data["unpriced"]
 
 
 def test_the_empty_budget(client, root_accounts):

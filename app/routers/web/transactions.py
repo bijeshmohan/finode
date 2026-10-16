@@ -42,7 +42,7 @@ class TransactionRow:
     transaction: TransactionRead
     debits: list[str]
     credits: list[str]
-    amount: Decimal  # in the transaction's own currency
+    amount: Decimal
     kind: str  # expense | income | transfer
 
 
@@ -50,7 +50,6 @@ class TransactionRow:
 class AccountIndex:
     names: dict[UUID, str]
     roots: dict[UUID, str]
-    commodities: dict[UUID, str | None]
 
     @classmethod
     def build(cls, accounts: list[AccountRead]) -> "AccountIndex":
@@ -60,7 +59,7 @@ class AccountIndex:
             for root in build_tree(accounts)
             for node in root.walk()
         }
-        return cls(names, roots, {a.aid: a.commodity for a in accounts})
+        return cls(names, roots)
 
 
 def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
@@ -85,7 +84,7 @@ def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
         kind = "transfer"
 
     amount = sum(
-        (p.value for p in transaction.postings if p.side == PostingSide.DEBIT),
+        (p.amount for p in transaction.postings if p.side == PostingSide.DEBIT),
         Decimal("0.00"),
     )
     return TransactionRow(
@@ -114,6 +113,7 @@ def transactions_page(
     q: str = "",
     kind: str = "",
     page: int = 1,
+    focus: str = "",
 ):
     try:
         recurring.process_due()  # record what has fallen due; never stop the page from opening
@@ -153,7 +153,8 @@ def transactions_page(
         "transactions.html",
         {
             "active": "transactions",
-            "currency": accounts.default_currency().code,
+            "focus_search": focus == "search",  # opened from the search icon in the top bar
+            "currency": accounts.currency().code,
             "rows": rows,
             "error": error,
             "filters": filters,
@@ -193,7 +194,7 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
         {
             "row": row,
             "t": transaction,
-            "currency": accounts.default_currency().code,
+            "currency": accounts.currency().code,
             "from_label": labels[0],
             "to_label": labels[1],
             "from_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
@@ -243,8 +244,6 @@ def infer_kind(postings, roots: dict[UUID, str]) -> str:
 
 def form_context(accounts: Accounts, **extra) -> dict:
     all_accounts = accounts.list()
-    default = accounts.default_currency().code
-    wanted = extra.get("transaction").currency if extra.get("transaction") else None
     # Accounts an entry being edited already uses stay offered even if they were closed since.
     keep = set(extra.pop("keep", ())) | {p.account for p in getattr(extra.get("transaction"), "postings", ())}
     roots = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
@@ -255,24 +254,16 @@ def form_context(accounts: Accounts, **extra) -> dict:
         "active": "transactions",
         "hide_fab": True,
         "groups": posting_groups(build_tree(all_accounts), keep),
-        "currency": default,
-        # The extra currency and worth fields only appear once something other than the default currency is in play.
-        "multi": any(a.parent_id is not None and a.commodity != default for a in all_accounts)
-        or (wanted is not None and wanted != default),
-        "currencies": [c for c in accounts.commodity_choices() if c.kind == "currency" or c.code == wanted],
-        "account_commodity": {a.aid: a.commodity for a in all_accounts},
+        "currency": accounts.currency().code,
         **extra,
     }
 
 
-def split_postings(
-    account: list[str], side: list[str], amount: list[str], value: list[str] | None = None
-) -> list[PostingCreate]:
-    value = value or [""] * len(account)
-    if not (len(account) == len(side) == len(amount) == len(value)):
+def split_postings(account: list[str], side: list[str], amount: list[str]) -> list[PostingCreate]:
+    if not (len(account) == len(side) == len(amount)):
         raise ValueError("every posting needs an account, a side and an amount!")
     postings = []
-    for account_id, posting_side, posting_amount, posting_value in zip(account, side, amount, value):
+    for account_id, posting_side, posting_amount in zip(account, side, amount):
         if not account_id and not posting_amount.strip():
             continue  # untouched blank row
         if not account_id:
@@ -282,7 +273,6 @@ def split_postings(
                 account=UUID(account_id),
                 side=PostingSide(posting_side),
                 amount=parse_amount(posting_amount),
-                value=parse_amount(posting_value) if posting_value.strip() else None,
             )
         )
     return postings
@@ -417,7 +407,7 @@ def new_transaction_page(
                 today=local_today().isoformat(),
                 transaction=None,
                 copy_of=again,
-                total=sum((p.value for p in again.postings if p.side == PostingSide.DEBIT), Decimal(0)),
+                total=sum((p.amount for p in again.postings if p.side == PostingSide.DEBIT), Decimal(0)),
                 new_payee=again.payee or "",
                 new_note=again.comment or "",
                 from_rows=form_rows(again.postings, PostingSide.CREDIT),
@@ -471,8 +461,6 @@ def create_split_transaction(
     account: Annotated[list[str], Form()] = [],
     side: Annotated[list[str], Form()] = [],
     amount: Annotated[list[str], Form()] = [],
-    value: Annotated[list[str], Form()] = [],
-    currency: Annotated[str, Form()] = "",
     date_: Annotated[str, Form(alias="date")] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
@@ -485,8 +473,7 @@ def create_split_transaction(
                 date=date_ or local_today(),
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
-                currency=currency.strip() or None,
-                postings=split_postings(account, side, amount, value),
+                postings=split_postings(account, side, amount),
             )
         )
     except ValidationError as e:
@@ -511,7 +498,7 @@ def edit_transaction_page(
     transaction = transactions.read(tid)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
-    total = sum((p.value for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
+    total = sum((p.amount for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
     lock = locked_through(transactions.tr.db, transactions.tr.uid)
     return templates.TemplateResponse(
         request,
@@ -534,15 +521,13 @@ def edit_transaction_page(
 
 def _update(transactions: Transactions, tid: UUID, date_: str, payee: str, comment: str, postings_fn, back: str):
     try:
-        currency, postings = postings_fn()
         transactions.update(
             tid,
             TransactionUpdate(
                 date=date_ or None,
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
-                currency=currency,
-                postings=postings,
+                postings=postings_fn(),
             ),
         )
     except ValidationError as e:
@@ -562,8 +547,6 @@ def update_transaction(
     account: Annotated[list[str], Form()] = [],
     side: Annotated[list[str], Form()] = [],
     amount: Annotated[list[str], Form()] = [],
-    value: Annotated[list[str], Form()] = [],
-    currency: Annotated[str, Form()] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     back: Annotated[str, Form()] = "",
@@ -574,6 +557,6 @@ def update_transaction(
         date_,
         payee,
         comment,
-        lambda: (currency.strip() or None, split_postings(account, side, amount, value)),
+        lambda: split_postings(account, side, amount),
         back,
     )

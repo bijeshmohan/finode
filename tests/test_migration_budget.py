@@ -8,8 +8,11 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
-from app.commodity_seed import seed_id
+from migrations.commodity_seed import seed_id
 from app.config import settings
+
+# The last revision before finode kept one currency (the later ones cannot be undone).
+BEFORE_SINGLE_CURRENCY = "e2a4c6e8f1b3"
 
 
 PARENT = "a3c5e7f9b124"
@@ -53,7 +56,7 @@ def test_asset_leaves_holding_a_currency_are_budgeted(alembic):
                 )
             )
 
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
 
     with engine.connect() as c:
         flags = dict(c.execute(sa.text("SELECT name, on_budget FROM accounts")).all())
@@ -62,7 +65,7 @@ def test_asset_leaves_holding_a_currency_are_budgeted(alembic):
 
 def test_it_can_be_undone(alembic):
     config, engine = alembic
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_SINGLE_CURRENCY)
     command.downgrade(config, PARENT)
     with engine.connect() as c:
         inspector = sa.inspect(c)

@@ -160,3 +160,36 @@ def test_the_month_tick_on_a_budget_bar_is_a_vertical_line_not_a_clipped_dot(pag
     assert box["height"] >= 10 and box["width"] <= 4, f"a tall thin line, not a dot: {box}"
     bar = page.locator("a.catrow .bar").first
     assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible", "the bar must not clip the tick"
+
+
+def test_the_month_tick_also_shows_in_full_on_a_group_row(page: Page, books, api: Api):
+    dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
+    api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
+    api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
+    page.goto("/budget")
+    tick = page.locator("details.grp > summary .pace").first
+    expect(tick).to_be_visible()
+    box = tick.bounding_box()
+    assert box["height"] >= 10 and box["width"] <= 4, f"a tall thin line on a group's bar too: {box}"
+    bar = page.locator("details.grp > summary .bar").first
+    assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible"
+
+
+NAME_LEFTS = """() => [...document.querySelectorAll('.cat-name')].filter(e => e.offsetParent).map(e => {
+  const text = [...e.childNodes].reverse().find(n => n.nodeType === 3 && n.textContent.trim());
+  const r = document.createRange(); r.selectNodeContents(text);
+  return [text.textContent.trim(), Math.round(r.getBoundingClientRect().left), !!e.closest('.gkids')];
+})"""
+
+
+def test_budget_names_line_up_in_one_column(page: Page, books, api: Api):
+    delivery = api.post("/accounts/", name="Delivery", parent_id=books["food"]["aid"])
+    api.put(f"/budget/categories/{books['rent']['aid']}", amount="900")
+    api.put(f"/budget/categories/{delivery['aid']}", amount="100")  # a group with nothing in it is tucked away
+    page.goto("/budget")
+    page.locator("details.grp", has_text="Groceries").locator("summary").first.click()
+    names = page.evaluate(NAME_LEFTS)
+    top = {left for _, left, inside in names if not inside}
+    inner = {left for _, left, inside in names if inside}
+    assert len(top) == 1, names
+    assert len(inner) == 1 and min(inner) > min(top), names

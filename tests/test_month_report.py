@@ -69,7 +69,7 @@ def test_the_current_month(client, books):
     assert (data["income"], data["expenses"], data["net"]) == ("5000.00", "2000.00", "3000.00")
     assert data["savings_rate"] == "60.0"
     assert (data["previous_income"], data["previous_expenses"]) == ("6000.00", "1800.00")
-    assert data["unpriced"] is False
+    assert "unpriced" not in data
 
 
 def test_spending_is_per_top_level_account_against_last_month(client, books):

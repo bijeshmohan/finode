@@ -155,8 +155,8 @@ main {
   border: 0;
   border-radius: 999px;
 }
-.icon-button:hover { color: var(--text); background: var(--surface-2); }
-.topbar .avatar-link { width: 34px; height: 34px; min-height: 0; background: var(--surface-2); color: var(--muted); }
+@media (hover: hover) { .icon-button:hover { color: var(--text); background: var(--surface-2); } }
+.topbar .avatar-link { margin-left: auto; width: 34px; height: 34px; min-height: 0; background: var(--surface-2); color: var(--muted); }
 .topbar .avatar-link .icon { width: 1.1rem; height: 1.1rem; }
 .topbar .avatar-link[aria-current="page"] { color: var(--text); }
 
@@ -368,11 +368,11 @@ button, a.button {
   border-radius: 999px;
   padding: .5rem 1.25rem;
 }
-button:hover, a.button:hover { background: var(--accent-hover); }
+@media (hover: hover) { button:hover, a.button:hover { background: var(--accent-hover); } }
 button.secondary, a.button.secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
-button.secondary:hover, a.button.secondary:hover { background: var(--surface-2); }
+@media (hover: hover) { button.secondary:hover, a.button.secondary:hover { background: var(--surface-2); } }
 button.danger, a.button.danger { background: var(--surface); color: var(--danger); border-color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
-button.danger:hover { background: var(--danger-soft); }
+@media (hover: hover) { button.danger:hover { background: var(--danger-soft); } }
 button.link { background: none; color: var(--muted); padding: 0; min-height: 0; font-weight: 500; }
 button.link:hover { color: var(--text); text-decoration: underline; }
 button.small, a.button.small { min-height: 34px; padding: .25rem .7rem; font-size: .85rem; }
@@ -459,7 +459,7 @@ ul.list > li + li { border-top: 1px solid var(--border); }
   color: inherit;
   text-decoration: none;
 }
-.tx:hover { background: var(--surface-2); }
+@media (hover: hover) { .tx:hover { background: var(--surface-2); } }
 .tx-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .tx-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tx-sub { font-size: .85rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -515,7 +515,7 @@ details.filters .count {
   color: inherit;
   text-decoration: none;
 }
-.account-row:hover { background: var(--surface-2); }
+@media (hover: hover) { .account-row:hover { background: var(--surface-2); } }
 .account-row .icon { color: var(--muted); width: 1.1em; height: 1.1em; }
 .account-name { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-row.system .account-name { color: var(--muted); font-weight: 400; }
@@ -640,13 +640,10 @@ select.needs-attention { border-color: var(--danger); box-shadow: 0 0 0 3px var(
 .plain-list li + li { margin-top: .2rem; }
 input[type="file"] { padding: .5rem; }
 
-/* Currencies & prices */
+/* Lists */
 .plain-list.flat { list-style: none; padding-left: 0; }
 .plain-list.flat li { padding: .35rem 0; }
 .plain-list.flat li + li { border-top: 1px solid var(--border); margin-top: 0; }
-.row-between { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
-.row-between > span { min-width: 0; overflow-wrap: anywhere; }
-.row-between > button { flex: none; padding: .2rem .65rem; }
 
 /* Optional fields tucked away until needed */
 details.more { border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 0 .75rem; }
@@ -654,7 +651,6 @@ details.more[open] { padding-bottom: .75rem; }
 details.more > summary { cursor: pointer; color: var(--muted); min-height: var(--tap); display: flex; align-items: center; list-style: none; }
 details.more > summary::-webkit-details-marker { display: none; }
 details.more[open] > summary { margin-bottom: .25rem; }
-.posting-value { grid-column: 1 / -1; font-size: .9rem; }
 
 /* ---------- Profile ---------- */
 .profile-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
@@ -674,7 +670,6 @@ details.more[open] > summary { margin-bottom: .25rem; }
   cursor: pointer; list-style: none; color: var(--text); text-decoration: none;
 }
 .setting > summary::-webkit-details-marker { display: none; }
-.setting > summary:hover, a.setting-link:hover { background: var(--surface-2); }
 .setting-title { font-weight: 500; }
 .setting-value { margin-left: auto; color: var(--muted); font-size: .9rem; text-align: right; overflow-wrap: anywhere; }
 .setting .icon { color: var(--muted); transition: transform .15s; }
@@ -790,14 +785,12 @@ form.notice.fund button { margin: 0; }
 .total-field { display: flex; gap: .75rem; align-items: end; }
 .total-field .amount-field { flex: 1; }
 .total-field .currency-code { padding-bottom: .9rem; font-weight: 600; }
-.total-field .currency-field select { min-width: 5.5rem; }
 .txn-side { display: flex; flex-direction: column; gap: .5rem; }
 .txn-side-head { display: flex; align-items: center; justify-content: space-between; }
 .txn-side-head h2 { margin: 0; font-size: 1rem; }
 .txn-side-head .hint { font-weight: 400; margin-left: .35rem; }
 .txn-rows { display: flex; flex-direction: column; gap: .5rem; }
 .txn-row { display: grid; grid-template-columns: minmax(0, 1fr) 8rem var(--tap); gap: .5rem; align-items: center; }
-.txn-row .row-worth { grid-column: 2; }
 .txn-row [hidden] { display: none !important; }
 .txn-row input.suggested { color: var(--muted); }
 .side-status { margin: 0; font-size: .85rem; font-variant-numeric: tabular-nums; color: var(--muted); min-height: 1.1em; }
@@ -806,7 +799,6 @@ form.notice.fund button { margin: 0; }
 @media (max-width: 40rem) {
   .txn-row { grid-template-columns: minmax(0, 1fr) var(--tap); background: var(--surface-2); padding: .6rem; border-radius: var(--radius-sm); }
   .txn-row select { grid-column: 1 / -1; }
-  .txn-row .row-worth { grid-column: 1; }
 }
 [data-payment-category][hidden] { display: none; }
 
@@ -912,7 +904,7 @@ button.chip {
   min-height: 2.25rem; padding: 0 .875rem; border-radius: 999px; font-size: .875rem; font-weight: 500;
   color: var(--text); background: var(--surface); border: 1px solid var(--border);
 }
-button.chip:hover { background: var(--surface-2); }
+@media (hover: hover) { button.chip:hover { background: var(--surface-2); } }
 button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
 
 .segmented.kinds { gap: 4px; padding: 3px; background: var(--surface-2); border-radius: var(--radius-sm); }
@@ -937,7 +929,6 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 @media (max-width: 40rem) {
   .txn-row { grid-template-columns: minmax(0, 1fr) 7rem var(--tap); background: transparent; padding: 0; border-radius: 0; }
   .txn-row select { grid-column: auto; }
-  .txn-row .row-worth { grid-column: 1 / 3; }
 }
 .form-actions { flex-direction: column; }
 .form-actions button { width: 100%; min-height: 3.375rem; font-size: 1rem; }
@@ -1058,7 +1049,7 @@ a.profile-head .icon { color: var(--faint); }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 1.1rem; margin-bottom: .5rem; border-bottom: 1px solid var(--surface-2); }
 .switch-row p { margin: 0; }
 .switch-title { font-weight: 600; }
-button.switch { flex: none; width: 52px; height: 32px; min-height: 0; padding: 3px; border: 0; border-radius: 16px; background: var(--border); display: flex; align-items: center; }
+button.switch { flex: none; width: 52px; height: 32px; min-height: 0; margin: 0; padding: 3px; border: 0; border-radius: 16px; background: var(--border); display: flex; align-items: center; justify-content: flex-start; }
 button.switch:hover { background: var(--border); }
 button.switch span { width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 25%); transition: transform .15s; }
 button.switch[aria-checked="true"] { background: var(--text); }
@@ -1146,7 +1137,7 @@ dialog.sheet .weeks summary { font-size: .8125rem; color: var(--muted); cursor: 
 
 /* Accounts: plain headings with a total, rows with a name and an amount */
 .circ-button { display: inline-flex; align-items: center; justify-content: center; width: 2.375rem; height: 2.375rem; min-height: 0; padding: 0; border-radius: 50%; border: 1px solid var(--field-border); background: var(--surface); color: var(--text); text-decoration: none; }
-.circ-button:hover { background: var(--surface-2); }
+@media (hover: hover) { .circ-button:hover { background: var(--surface-2); } }
 .circ-button .icon { width: 1.125rem; height: 1.125rem; }
 .accounts-tools { margin-bottom: .25rem; }
 ul.tile.list { padding: 0 1rem; }
@@ -1211,6 +1202,8 @@ details[open] > summary .gcaret, details[open].attn > summary .gcaret { transfor
 .cnt { margin-left: .4rem; font-style: normal; font-weight: 400; font-size: .8125rem; color: var(--faint); }
 .gsum .cat-name { font-weight: 600; }
 .gkids .catrow .cat-name, .gkids .gsum .cat-name { font-weight: 500; }
+/* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and sub-categories indent from there. */
+a.catrow .cat-name::before { content: ""; flex: none; width: 1.35rem; }
 .attn { margin: .25rem 0 .5rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
 .attn > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; font-weight: 500; cursor: pointer; list-style: none; }
 .attn > summary::-webkit-details-marker { display: none; }
@@ -1241,3 +1234,23 @@ dd.auto, dd.auto a { color: var(--auto); }
 
 .total-field .amount-field { flex: 0 1 auto; max-width: 100%; }
 .total-field .amount-field input { width: calc(var(--n, 4) * 1ch + .12em); max-width: 100%; }
+
+/* Categories */
+.cat-hero { padding-bottom: .9rem; }
+.month-title { margin: 0; flex: 1; text-align: center; font-size: 1rem; font-weight: 600; }
+.month-nav.small { margin: .25rem 0 0; }
+.show-quiet .unused-hidden { display: block; }
+/* Categories: one row per category, biggest first; a second line says what is inside; the amount has its share under it. */
+.crow { display: flex; justify-content: space-between; align-items: center; gap: 1rem; color: inherit; text-decoration: none; }
+.crow-main { display: flex; flex-direction: column; min-width: 0; }
+.crow-name { font-weight: 500; }
+.crow-sub { color: var(--muted); font-size: .8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crow-amt { display: flex; flex-direction: column; align-items: flex-end; flex: none; font-weight: 500; font-variant-numeric: tabular-nums; }
+.crow-amt .income { color: var(--positive); }
+.crow-share { color: var(--muted); font-size: .8125rem; font-weight: 400; }
+.tile > .top + .top { border-top: 1px solid var(--surface-2); }
+.tile > .top > .r { border-top: 0; }
+.accounts-note { margin: 1.25rem .25rem 0; }
+
+/* Room between the Expense / Income chips and the first row of the list */
+.cat-chips { margin-bottom: 1.4rem; }
