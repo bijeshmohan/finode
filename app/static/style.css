@@ -1249,8 +1249,9 @@ dd.auto, dd.auto a { color: var(--auto); }
 .show-quiet .unused-hidden { display: block; }
 .crow .l1 .income { color: var(--positive); }
 .crow { display: block; color: inherit; text-decoration: none; }
-.crow .bar, .gsum .bar { display: block; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
-.crow .bar i, .gsum .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
+/* Only the Categories page: the Budget shares .gsum, and its bars must not clip the month tick. */
+.crow .bar, .cgrp > .gsum .bar { display: block; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.crow .bar i, .cgrp > .gsum .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
 details.cgrp > summary { list-style: none; cursor: pointer; display: block; }
 details.cgrp > summary::-webkit-details-marker { display: none; }
 details[open].cgrp > summary .gcaret { transform: none; }
