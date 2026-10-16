@@ -11,7 +11,7 @@
       </select>
     </label>
     {% else %}
-    <span class="currency-code muted">{{ currency }}</span>
+    <span class="currency-code muted {{ 'sym' if currency == 'INR' }}">{{ currency|symbol }}</span>
     {% endif %}
   </div>
 

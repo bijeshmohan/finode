@@ -429,7 +429,9 @@ function setSuggestion(row, currency, text) {
 }
 
 function recomputeTxn(form) {
-  const total = parseDec(form.querySelector("#total").value) || 0n;
+  const field = form.querySelector("#total");
+  field.style.setProperty("--n", Math.max(field.value.length, 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
+  const total = parseDec(field.value) || 0n;
   const select = form.querySelector('select[name="currency"]');
   if (select && !txnState.currencyChosen) {
     // Follow the accounts: the default currency when it is involved, else what they all hold.

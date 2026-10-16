@@ -200,7 +200,7 @@ def test_rows_offer_a_target_and_show_what_is_missing(client, setup):
     page = client.get("/budget").text
     assert "needs 400.00 more" in page, "the row says what is missing"
     assert "Monthly 400.00" in client.get(f"/budget/category/{setup['rent']['aid']}/sheet").text
-    assert "Your targets still need 400.00" in page and "Assign what is needed" in page
+    assert "Your targets still need \u20b9400.00" in page and "Assign what is needed" in page
 
 
 def test_fund_button_assigns_and_the_row_turns_funded(client, setup):
@@ -257,7 +257,7 @@ def test_the_page_offers_to_copy_last_month_and_does_it(client, setup):
 def test_the_page_says_when_money_is_assigned_to_later_months(client, setup):
     nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
     assign(client, setup["food"], "120", nxt)
-    assert "120.00 INR is already assigned to later months" in client.get("/budget").text
+    assert "\u20b9120.00 is already assigned to later months" in client.get("/budget").text
 def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts):
     account(client, root_accounts, "Bank", "Assets", balance="1000")
     food = account(client, root_accounts, "Food", "Expenses")

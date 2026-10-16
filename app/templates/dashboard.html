@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/money.html" import figure %}
 {% block title %}Home · finode{% endblock %}
 {% block content %}
 <h1 class="sr-only">Home</h1>
@@ -28,14 +29,14 @@
 {% elif glance.has_budget %}
 <section class="glance">
   <p class="glance-label">{{ "Over budget in" if glance.left < 0 else "Left to spend in" }} {{ month_name }}</p>
-  <p class="glance-figure {{ 'over' if glance.left < 0 }}">{{ glance.left|money }}<small>{{ currency }}</small></p>
+  <p class="glance-figure {{ 'over' if glance.left < 0 }}">{{ figure(glance.left, currency) }}</p>
   <div class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent, and {{ glance.pace }}% of the month has passed"><i style="width: {{ glance.percent }}%"></i><b class="pace" style="left: {{ glance.pace }}%"></b></div>
   <p class="glance-note">Spent {{ glance.spent|money }} of {{ glance.of|money }} · <a href="/summary">Details</a></p>
 </section>
 {% else %}
 <section class="glance">
   <p class="glance-label">Spent in {{ month_name }}</p>
-  <p class="glance-figure">{{ summary.expenses|money }}<small>{{ currency }}</small></p>
+  <p class="glance-figure">{{ figure(summary.expenses, currency) }}</p>
   <p class="glance-note">{% if summary.income %}Income {{ summary.income|money }} · {% endif %}<a href="/budget">Set up your budget</a> to see what is left to spend · <a href="/summary">Details</a></p>
 </section>
 {% endif %}

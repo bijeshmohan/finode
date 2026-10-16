@@ -18,7 +18,7 @@
       <option value="yearly" {{ "selected" if t and t.kind == "yearly" }}>Save for something that falls due every year</option>
     </select>
   </label>
-  <label>Amount ({{ budget.currency }})
+  <label>Amount ({{ budget.currency|symbol }})
     <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" value="{{ t.amount|money if t else '' }}">
   </label>
   <label data-target-weekday>Each week on

@@ -13,8 +13,8 @@
   <div><dt>{{ from_label }}</dt><dd>{% for name, p in from_postings %}<span>{{ name }}{% if from_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
   <div><dt>{{ to_label }}</dt><dd>{% for name, p in to_postings %}<span>{{ name }}{% if to_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
   <div><dt>Note</dt><dd>{% if t.comment %}{{ t.comment }}{% else %}<span class="muted">None</span>{% endif %}</dd></div>
-  <div><dt>Added</dt><dd>{% if t.created_via %}By {{ t.created_via|origin_label }}{% else %}Recorded{% endif %}, {{ t.created.strftime("%d %b %Y") }}</dd></div>
-  {% if t.recurring_id or t.created_via == "recurring" %}<div><dt>Repeats</dt><dd><a href="/recurring">Part of a recurring transaction</a></dd></div>{% endif %}
+  <div><dt>Added</dt><dd class="{{ 'auto' if t.created_via and t.created_via not in ('web', 'api', 'import') }}">{% if t.created_via %}By {{ t.created_via|origin_label }}{% else %}Recorded{% endif %}, {{ t.created.strftime("%d %b %Y") }}</dd></div>
+  {% if t.recurring_id or t.created_via == "recurring" %}<div><dt>Repeats</dt><dd class="auto"><a href="/recurring">Part of a recurring transaction</a></dd></div>{% endif %}
 </dl>
 
 {% if locked_by %}<p class="notice" role="status">In a locked period (everything up to {{ locked_by.strftime("%d %b %Y") }} is closed): it can't be changed or deleted.</p>{% endif %}

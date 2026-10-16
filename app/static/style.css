@@ -10,6 +10,7 @@
   --border: #e4e3de;
   --field-border: #e4e3de;
   --tile-border: #e4e3de;
+  --auto: #2563eb; /* text for what was added automatically (an assistant or a recurring rule) */
   --accent: #1b1b19;
   --accent-hover: #3a3a36;
   --accent-soft: #f1f0ec;
@@ -40,6 +41,7 @@
     --border: #302f2c;
     --field-border: #45443f;
     --tile-border: #262624;
+    --auto: #6ea1ff;
     --accent: #f3f2ee;
     --accent-hover: #ffffff;
     --accent-soft: #262624;
@@ -63,6 +65,7 @@
   --border: #302f2c;
   --field-border: #45443f;
   --tile-border: #262624;
+  --auto: #6ea1ff;
   --accent: #f3f2ee;
   --accent-hover: #ffffff;
   --accent-soft: #262624;
@@ -683,7 +686,7 @@ details.setting > form, details.setting > .stack { padding: 1rem; }
 .signout { margin-top: 1.25rem; }
 
 /* ---------- AI assistants ---------- */
-.tx-via { display: inline-flex; align-items: center; gap: .25rem; font-size: .75rem; color: var(--accent); }
+.tx-via { display: inline-flex; align-items: center; gap: .25rem; font-size: .75rem; color: var(--auto); }
 .tx-via .icon { width: 1em; height: 1em; }
 .origin { margin-top: -.5rem; font-size: .875rem; }
 .token-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .75rem; }
@@ -1229,3 +1232,12 @@ details.how { margin: 1.25rem 0 0; }
 .glance-bar i, .bar i { max-width: 100%; }
 .pace { position: absolute; top: 50%; left: 0; width: 3px; height: 13px; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 1.5px var(--surface); transform: translate(-50%, -50%); pointer-events: none; }
 .glance-bar .pace { box-shadow: 0 0 0 1.5px var(--bg); }
+
+dd.auto, dd.auto a { color: var(--auto); }
+/* The rupee sign: in front of a large figure, smaller and lighter than the digits; in front of the amount on the Add screen. */
+.cur { margin-right: .08em; font-size: .62em; font-weight: 500; letter-spacing: 0; color: var(--muted); vertical-align: .22em; }
+.ready .figure .cur { font-size: .6em; }
+.total-field .currency-code.sym { order: -1; padding-bottom: 1rem; font-size: 2rem; font-weight: 500; }
+
+.total-field .amount-field { flex: 0 1 auto; max-width: 100%; }
+.total-field .amount-field input { width: calc(var(--n, 4) * 1ch + .12em); max-width: 100%; }
