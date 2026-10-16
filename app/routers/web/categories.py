@@ -95,7 +95,7 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
     for n in _by_amount(top, totals):
         total = totals[n.account.aid]
         inside = [c.account.name for c in _by_amount(n.children, totals) if totals[c.account.aid]]
-        hint = ", ".join(inside[:3]) + (f" +{len(inside) - 3}" if len(inside) > 3 else "")
+        hint = " · ".join(inside[:3] + ([f"+{len(inside) - 3}"] if len(inside) > 3 else []))
         rows.append({"node": n, "total": total, "share": _share(total, grand), "hint": hint})
     # Categories with nothing in the month are tucked away once anything has something.
     quiet = [r for r in rows if r["total"] == 0] if any(r["total"] for r in rows) else []
