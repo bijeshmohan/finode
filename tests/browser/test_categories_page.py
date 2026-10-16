@@ -93,3 +93,24 @@ def test_a_parent_category_with_nothing_posted_to_it_still_opens_its_page(page: 
     expect(page.locator(".hero-balance")).to_have_text("₹120.00")  # what is in its sub-categories this month
     expect(page.locator("a.tx").first).to_be_visible()
     expect(page.get_by_role("link", name="Add transaction")).to_be_visible()
+
+
+NAME_LEFTS = """() => [...document.querySelectorAll('.cat-name')].filter(e => e.offsetParent).map(e => {
+  const text = [...e.childNodes].reverse().find(n => n.nodeType === 3 && n.textContent.trim());
+  const r = document.createRange(); r.selectNodeContents(text);
+  return [text.textContent.trim(), Math.round(r.getBoundingClientRect().left), !!e.closest('.gkids')];
+})"""
+
+
+def test_names_line_up_in_one_column(page: Page, books, api: Api):
+    tree(api, books)  # Groceries becomes a group with Delivery inside
+    delivery = next(a for a in api.get("/accounts/") if a["name"] == "Delivery")
+    spend(api, books, delivery, "120")
+    spend(api, books, books["rent"], "900")
+    page.goto("/categories")
+    page.locator("details.cgrp summary").first.click()
+    names = page.evaluate(NAME_LEFTS)
+    top = {left for _, left, inside in names if not inside}
+    inner = {left for _, left, inside in names if inside}
+    assert len(top) == 1, names  # a group and a plain category start at the same place
+    assert len(inner) == 1 and min(inner) > min(top), names  # sub-categories share a column, indented

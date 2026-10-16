@@ -1208,6 +1208,8 @@ a.crow .l1::after { content: ""; flex: none; width: 2rem; margin: 0 -.5rem 0 0; 
 a.crow .l1, .cgrp > .gsum .l1 { justify-content: flex-start; }
 a.crow .cat-name, .cgrp > .gsum .cat-name { margin-right: auto; }
 .gkids .catrow .cat-name, .gkids .gsum .cat-name { font-weight: 500; }
+/* Names line up in one column: a row without a fold arrow keeps the arrow's room, and sub-categories indent from there. */
+a.catrow .cat-name::before, a.crow .cat-name::before { content: ""; flex: none; width: 1.35rem; }
 .attn { margin: .25rem 0 .5rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
 .attn > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; font-weight: 500; cursor: pointer; list-style: none; }
 .attn > summary::-webkit-details-marker { display: none; }
