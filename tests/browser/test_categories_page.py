@@ -19,15 +19,12 @@ def spend(api: Api, books, category, amount="300"):
         {"account": books["checking"]["aid"], "side": "credit", "amount": amount}])
 
 
-def test_the_tab_bar_has_categories_and_no_transactions_and_search_leads_to_the_list(page: Page, books):
+def test_the_tab_bar_has_categories_and_no_transactions_(page: Page, books):
     page.goto("/")
     bar = page.locator("nav.tabbar")
     expect(bar.get_by_role("link", name="Categories")).to_be_visible()
     expect(bar.get_by_role("link", name="Transactions")).to_have_count(0)
-    page.set_viewport_size({"width": 390, "height": 844})
-    page.get_by_role("link", name="Search transactions").click()
-    page.wait_for_url("**/transactions?focus=search")
-    expect(page.locator('.search-pill input[name="q"]')).to_be_focused()  # on a computer; a phone shows the pill, ready to tap
+    expect(page.get_by_role("link", name="Search transactions")).to_have_count(0)
 
 
 def test_a_group_folds_and_is_remembered(page: Page, books, api: Api):
