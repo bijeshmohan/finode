@@ -27,18 +27,24 @@ def test_the_tab_bar_has_categories_and_no_transactions_(page: Page, books):
     expect(page.get_by_role("link", name="Search transactions")).to_have_count(0)
 
 
-def test_a_group_folds_and_is_remembered(page: Page, books, api: Api):
+def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside(page: Page, books, api: Api):
     food = tree(api, books)
-    spend(api, books, books["food"], "500")
+    delivery = next(a for a in api.get("/accounts/") if a["name"] == "Delivery")
+    spend(api, books, delivery, "120")
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
-    group = page.locator("details.cgrp", has_text="Groceries").first
-    expect(page.locator("a.crow", has_text="Delivery")).to_be_hidden()
-    group.locator("summary").click()
+    names = page.locator("a.crow .crow-name").all_inner_texts()
+    assert names[:2] == ["Rent", "Groceries"], names  # biggest first
+    expect(page.locator("a.crow", has_text="Groceries").locator(".crow-sub")).to_have_text("Delivery")
+    expect(page.locator("a.crow", has_text="Groceries").locator(".crow-share")).to_have_text("12%")
+    assert page.evaluate("document.querySelector('.crow-amt').getBoundingClientRect().right") > 340, "amounts at the right edge"
+    page.locator("a.crow", has_text="Groceries").click()
+    page.wait_for_url(f"**/categories/{food['aid']}**")
+    expect(page.locator(".hero-balance")).to_have_text("₹120.00")
     expect(page.locator("a.crow", has_text="Delivery")).to_be_visible()
-    page.reload()
-    expect(page.locator("a.crow", has_text="Delivery")).to_be_visible()  # remembered
-    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    page.locator("a.crow", has_text="Delivery").click()
+    page.wait_for_url("**/categories/*")
+    expect(page.locator("a.tx").first).to_be_visible()
 
 
 def test_the_month_total_and_the_income_tab(page: Page, books, api: Api):
@@ -79,38 +85,3 @@ def test_there_is_room_between_the_chips_and_the_first_row(page: Page, books, ap
     first = page.locator("[data-cat-tree]").bounding_box()
     gap = first["y"] - (chips["y"] + chips["height"])
     assert gap >= 14, f"the list starts {gap}px under the chips"
-
-
-def test_a_parent_category_with_nothing_posted_to_it_still_opens_its_page(page: Page, books, api: Api):
-    food = tree(api, books)  # Food holds Delivery and has no entries of its own
-    api.post("/accounts/", name="Snacks", parent_id=food["aid"])
-    delivery = next(a for a in api.get("/accounts/") if a["name"] == "Delivery")
-    spend(api, books, delivery, "120")
-    page.goto("/categories")
-    group = page.locator("details.cgrp", has_text="Groceries").first
-    group.locator(".open-link").click()
-    page.wait_for_url(f"**/categories/{food['aid']}**")
-    expect(page.locator(".hero-balance")).to_have_text("₹120.00")  # what is in its sub-categories this month
-    expect(page.locator("a.tx").first).to_be_visible()
-    expect(page.get_by_role("link", name="Add transaction")).to_be_visible()
-
-
-NAME_LEFTS = """() => [...document.querySelectorAll('.cat-name')].filter(e => e.offsetParent).map(e => {
-  const text = [...e.childNodes].reverse().find(n => n.nodeType === 3 && n.textContent.trim());
-  const r = document.createRange(); r.selectNodeContents(text);
-  return [text.textContent.trim(), Math.round(r.getBoundingClientRect().left), !!e.closest('.gkids')];
-})"""
-
-
-def test_names_line_up_in_one_column(page: Page, books, api: Api):
-    tree(api, books)  # Groceries becomes a group with Delivery inside
-    delivery = next(a for a in api.get("/accounts/") if a["name"] == "Delivery")
-    spend(api, books, delivery, "120")
-    spend(api, books, books["rent"], "900")
-    page.goto("/categories")
-    page.locator("details.cgrp summary").first.click()
-    names = page.evaluate(NAME_LEFTS)
-    top = {left for _, left, inside in names if not inside}
-    inner = {left for _, left, inside in names if inside}
-    assert len(top) == 1, names  # a group and a plain category start at the same place
-    assert len(inner) == 1 and min(inner) > min(top), names  # sub-categories share a column, indented
