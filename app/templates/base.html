@@ -25,7 +25,6 @@
   {% block header %}
   <header class="topbar">
     <a class="brand" href="/"><span>finode</span></a>
-    <a class="icon-button search-link" href="/transactions?focus=search" title="Search transactions">{{ icon("search") }}<span class="sr-only">Search transactions</span></a>
     <a class="icon-button avatar-link" href="/settings" title="Settings" {% if active in ('settings', 'profile') %}aria-current="page"{% endif %}>{{ icon("user") }}<span class="sr-only">Settings</span></a>
   </header>
   <aside class="sidebar" aria-label="Main">

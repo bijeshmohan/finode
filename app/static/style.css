@@ -156,7 +156,7 @@ main {
   border-radius: 999px;
 }
 .icon-button:hover { color: var(--text); background: var(--surface-2); }
-.topbar .avatar-link { width: 34px; height: 34px; min-height: 0; background: var(--surface-2); color: var(--muted); }
+.topbar .avatar-link { margin-left: auto; width: 34px; height: 34px; min-height: 0; background: var(--surface-2); color: var(--muted); }
 .topbar .avatar-link .icon { width: 1.1rem; height: 1.1rem; }
 .topbar .avatar-link[aria-current="page"] { color: var(--text); }
 
@@ -1255,8 +1255,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 details.cgrp > summary { list-style: none; cursor: pointer; display: block; }
 details.cgrp > summary::-webkit-details-marker { display: none; }
 details[open].cgrp > summary .gcaret { transform: none; }
-.topbar .search-link { margin-left: auto; margin-right: .25rem; width: 34px; height: 34px; min-height: 0; color: var(--muted); }
-.topbar .search-link .icon { width: 1.15rem; height: 1.15rem; }
 .accounts-note { margin: 1.25rem .25rem 0; }
 
 /* Room between the Expense / Income chips and the first row of the list */
