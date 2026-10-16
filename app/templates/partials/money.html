@@ -1,0 +1,4 @@
+{#- A large amount with its currency: the rupee sign in front for INR, the code after it for anything else. -#}
+{% macro figure(value, code) -%}
+{%- if code == "INR" -%}<span class="cur">&#8377;</span>{{ value|money }}{%- else -%}{{ value|money }}<small>{{ code }}</small>{%- endif -%}
+{%- endmacro %}

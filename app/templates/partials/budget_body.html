@@ -1,5 +1,6 @@
 {#- The budget for one month; htmx swaps this whole block after every change. -#}
 {% from "partials/icons.html" import icon %}
+{% from "partials/money.html" import figure %}
 
 {#- A category's caption: what was spent of what there was, what a target still needs, the note... -#}
 {% macro caption(line, extra="") %}
@@ -49,11 +50,11 @@
   {% set rta = budget.ready_to_assign %}
   <div class="ready {{ 'over' if rta < 0 else ('zero all-set' if rta == 0 and budget.lines else ('zero' if rta == 0 else '')) }}">
     <span class="muted">Ready to assign</span>
-    <span class="figure">{{ rta|money }} {{ budget.currency }}</span>
+    <span class="figure">{{ figure(rta, budget.currency) }}</span>
     {% if rta < 0 %}
     <span>You have assigned {{ (-rta)|money }} more than you have. Lower a category, or add income.</span>
     {% elif rta == 0 and budget.lines %}
-    <span>Every {{ budget.currency }} has a job.</span>
+    <span>Every {{ budget.currency|symbol }} has a job.</span>
     {% elif rta > 0 %}
     <span>Give it a job: tap a category below.</span>
     {% endif %}
@@ -64,7 +65,7 @@
     <summary><span>{{ attention }} thing{{ "" if attention == 1 else "s" }} need{{ "s" if attention == 1 }} you</span><span class="gcaret">{{ icon("caret") }}</span></summary>
     {% if budget.left_out_accounts %}
     <div class="attn-item left-out">
-      <p><strong>{{ budget.left_out|money }} {{ budget.currency }}</strong> spent this month is not in the categories below, because it was paid from
+      <p><strong>{{ budget.left_out|money|amount(budget.currency) }}</strong> spent this month is not in the categories below, because it was paid from
         accounts that are not part of the budget. Add them to count their spending and money:</p>
       <ul class="plain-list flat">
         {% for a in budget.left_out_accounts %}
@@ -77,11 +78,11 @@
     </div>
     {% endif %}
     {% if budget.overspent_last_month %}
-    <p class="attn-item">{{ budget.overspent_last_month|money }} {{ budget.currency }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
+    <p class="attn-item">{{ budget.overspent_last_month|money|amount(budget.currency) }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
     {% endif %}
     {% if advanced and budget.underfunded %}
     <form class="attn-item fund" hx-post="/budget/fund" hx-target="#budget" hx-swap="outerHTML">
-      <span>Your targets still need {{ budget.underfunded|money }} {{ budget.currency }} this month.</span>
+      <span>Your targets still need {{ budget.underfunded|money|amount(budget.currency) }} this month.</span>
       <input type="hidden" name="month" value="{{ month_key }}">
       <button type="submit" class="secondary" {{ "disabled" if rta <= 0 }}>Assign what is needed</button>
     </form>
@@ -144,7 +145,7 @@
     <p class="muted calc">What you owe on a card is set aside automatically. Buying on a card spends the category; paying the bill from your bank changes nothing else.</p>
     {% endif %}
     {% if budget.assigned_to_later_months %}
-    <p class="muted calc">{{ budget.assigned_to_later_months|money }} {{ budget.currency }} is already assigned to later months, so it is not counted in Ready to assign.</p>
+    <p class="muted calc">{{ budget.assigned_to_later_months|money|amount(budget.currency) }} is already assigned to later months, so it is not counted in Ready to assign.</p>
     {% endif %}
     <p class="muted calc">Tap a category to assign money to it, move money to another category{% if advanced %} or set a target{% endif %}. A group's total adds up everything inside it; "Everything else" is money for the group that is not in one of its categories. Assigned {{ budget.assigned|money }} · spent {{ budget.activity|money }} · available {{ budget.available|money }}.</p>
   </details>

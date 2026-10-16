@@ -26,9 +26,9 @@ def assign_in_sheet(page: Page, name: str, amount: str) -> None:
 
 def test_assigning_changes_ready_to_assign_without_a_reload(page: Page, books):
     page.goto("/budget")
-    assert ready(page).startswith("5,000.00")
+    assert ready(page) == "\u20b95,000.00"
     assign_in_sheet(page, "Groceries", "1200")
-    expect(page.locator(".ready .figure")).to_have_text("3,800.00 INR")
+    expect(page.locator(".ready .figure")).to_have_text("\u20b93,800.00")
     page.locator("a.catrow", has_text="Groceries").first.click()
     assert page.locator('#cat-sheet input[aria-label="Assigned to Groceries"]').input_value() == "1,200.00"
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
@@ -54,7 +54,7 @@ def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, 
     page.locator("details.attn > summary").click()
     page.get_by_role("button", name="Assign what is needed").click()
     expect(page.locator("a.catrow .cap.short")).to_have_count(0)
-    expect(page.locator(".ready .figure")).to_have_text("4,200.00 INR")
+    expect(page.locator(".ready .figure")).to_have_text("\u20b94,200.00")
 
 
 def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Page, books, api: Api):
@@ -70,7 +70,7 @@ def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Pag
     expect(page.locator(".calc").first).to_contain_text("set aside for card bills 120.00")
     # Assigning money to a category changes ready to assign, and the explanation follows it.
     assign_in_sheet(page, "Rent", "500")
-    expect(page.locator(".ready .figure")).to_have_text("4,500.00 INR")
+    expect(page.locator(".ready .figure")).to_have_text("\u20b94,500.00")
     expect(page.locator(".calc").first).to_contain_text("in categories 380.00")
 
 
@@ -147,7 +147,7 @@ def test_a_group_folds_opens_remembers_and_takes_money_for_itself(page: Page, bo
     expect(page.locator("#cat-sheet")).to_contain_text("Dining · everything else")
     box.fill("700")
     page.locator("#cat-sheet").get_by_role("button", name="Save").click()
-    expect(page.locator(".ready .figure")).to_have_text("4,300.00 INR")
+    expect(page.locator(".ready .figure")).to_have_text("\u20b94,300.00")
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()  # still open after the page block was replaced
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
