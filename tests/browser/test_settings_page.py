@@ -29,3 +29,16 @@ def test_a_touched_row_is_not_painted_grey(page: Page, books):
     # and the hover colours that remain are only for devices that really hover
     css = page.request.get(page.evaluate("document.querySelector('link[rel=stylesheet]').href")).text()
     assert "@media (hover: hover) { .account-row:hover" in css and ".setting > summary:hover" not in css
+
+
+def test_the_switch_knob_sits_inside_the_track_in_both_positions(page: Page, books):
+    """A button centres its content: the knob has to be pinned to the start or it floats, and overflows when on."""
+    page.goto("/settings/advanced")
+    for expected in ("true", "false"):
+        switch = page.locator("button.switch")
+        expect(switch).to_have_attribute("aria-checked", expected)
+        page.wait_for_timeout(250)  # the knob slides
+        track, knob = switch.bounding_box(), page.locator("button.switch span").bounding_box()
+        left, right = knob["x"] - track["x"], track["x"] + track["width"] - (knob["x"] + knob["width"])
+        assert (round(left), round(right)) == ((3, 23) if expected == "false" else (23, 3)), (expected, left, right)
+        switch.click()

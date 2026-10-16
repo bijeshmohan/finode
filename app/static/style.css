@@ -1049,7 +1049,7 @@ a.profile-head .icon { color: var(--faint); }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 1.1rem; margin-bottom: .5rem; border-bottom: 1px solid var(--surface-2); }
 .switch-row p { margin: 0; }
 .switch-title { font-weight: 600; }
-button.switch { flex: none; width: 52px; height: 32px; min-height: 0; margin: 0; padding: 3px; border: 0; border-radius: 16px; background: var(--border); display: flex; align-items: center; }
+button.switch { flex: none; width: 52px; height: 32px; min-height: 0; margin: 0; padding: 3px; border: 0; border-radius: 16px; background: var(--border); display: flex; align-items: center; justify-content: flex-start; }
 button.switch:hover { background: var(--border); }
 button.switch span { width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 25%); transition: transform .15s; }
 button.switch[aria-checked="true"] { background: var(--text); }
