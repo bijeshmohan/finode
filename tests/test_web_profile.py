@@ -71,7 +71,7 @@ def test_sections_are_collapsible_and_summarise_values(client: TestClient):
     text = client.get("/settings").text
     for section in ("currency", "appearance"):
         assert f'<details id="{section}" class="setting">' in text
-    assert "Default currency</span><span class=\"setting-value\">INR" in text
+    assert "Currency</span><span class=\"setting-value\">INR" in text
     advanced = client.get("/settings/advanced").text
     for section in ("lock", "depth"):
         assert f'<details id="{section}" class="setting">' in advanced
@@ -87,7 +87,7 @@ def test_theme_cookie_sets_data_theme(client: TestClient):
 
 def test_settings_page_holds_application_settings_not_profile(client: TestClient):
     settings = client.get("/settings").text
-    for title in ("Default currency", "Appearance", "Recurring transactions", "AI assistants", "Advanced"):
+    for title in ("Currency", "Appearance", "Recurring transactions", "AI assistants", "Advanced"):
         assert title in settings, title
     for title in ("Account depth", "Period lock"):
         assert title not in settings, title

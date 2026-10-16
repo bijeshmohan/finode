@@ -11,7 +11,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-from app.commodity_seed import DEFAULT_CURRENCY_CODE, seed_id, seed_rows
+from migrations.commodity_seed import DEFAULT_CURRENCY_CODE, seed_id, seed_rows
 
 
 # revision identifiers, used by Alembic.

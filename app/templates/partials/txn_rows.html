@@ -4,15 +4,7 @@
       <input type="text" name="total" id="total" inputmode="decimal" placeholder="0.00" required autocomplete="off"
              value="{{ total }}" {{ "data-autofocus" if not editing }}>
     </label>
-    {% if multi %}
-    <label class="currency-field"><span class="sr-only">Currency</span>
-      <select name="currency" aria-label="Currency of the amount">
-        {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == (transaction.currency if editing else currency) }}>{{ c.code }}</option>{% endfor %}
-      </select>
-    </label>
-    {% else %}
     <span class="currency-code muted {{ 'sym' if currency == 'INR' }}">{{ currency|symbol }}</span>
-    {% endif %}
   </div>
 
   {% if with_payee %}{% include "partials/txn_payee.html" %}{% endif %}

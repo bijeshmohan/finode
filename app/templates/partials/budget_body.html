@@ -101,10 +101,7 @@
   <p class="card muted">No account is part of the budget yet. Open an asset account (or a credit card) and switch on <strong>Part of the budget</strong> in its edit page.</p>
   {% endif %}
   {% if budget.ignored_accounts %}
-  <p class="muted budget-fine">Left out because they hold another currency or have sub-accounts: {{ budget.ignored_accounts|join(", ") }}.</p>
-  {% endif %}
-  {% if budget.unpriced %}
-  <p class="muted budget-fine">Some spending is left out because no price converts it to {{ budget.currency }}.</p>
+  <p class="muted budget-fine">Left out because they have sub-accounts: {{ budget.ignored_accounts|join(", ") }}.</p>
   {% endif %}
 
   {% if tree %}

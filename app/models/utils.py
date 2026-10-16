@@ -38,7 +38,7 @@ def normalize_amount(value: Decimal | int | str) -> Decimal:
 
 
 class Amount(TypeDecorator):
-    """Exact quantity of a commodity: up to eight decimals, read back without padding zeros."""
+    """Exact amount of money: up to eight decimals, read back without padding zeros."""
 
     impl = Numeric
     cache_ok = True

@@ -10,7 +10,9 @@ from ..models.transaction import PostingSide
 
 
 FORMAT = "finode-backup"
-VERSION = 1
+VERSION = 2
+# Files of version 1 (before finode kept one currency) are still read; what they carry beyond that is below.
+READS = (1, 2)
 
 
 class BackupProfile(BaseModel):
@@ -26,29 +28,13 @@ class BackupProfile(BaseModel):
     advanced: bool = False
 
 
-class BackupCommodity(BaseModel):
-    """One of the user's own assets (built-in currencies are not part of a backup)."""
-
-    code: str
-    name: str
-    kind: str
-    decimals: int = 2
-    symbol: str | None = None
-
-
-class BackupPrice(BaseModel):
-    commodity: str
-    quote: str
-    date: Date
-    price: Decimal
-
-
 class BackupAccount(BaseModel):
     id: UUID
     parent_id: UUID | None = None
     name: str
     details: str | None = None
-    commodity: str | None = None
+    # Version 1 only: what the account held. Read to check it is the profile's currency, never written.
+    commodity: str | None = Field(default=None, exclude=True)
     on_budget: bool = False
     closed_on: Date | None = None
     payment_category_id: UUID | None = None
@@ -60,7 +46,8 @@ class BackupPosting(BaseModel):
     account: UUID
     side: PostingSide
     amount: Decimal
-    value: Decimal
+    # Version 1 only: the worth in the transaction's currency; must equal the amount.
+    value: Decimal | None = Field(default=None, exclude=True)
 
 
 class BackupTransaction(BaseModel):
@@ -68,7 +55,8 @@ class BackupTransaction(BaseModel):
     date: Date
     payee: str | None = None
     comment: str | None = None
-    currency: str
+    # Version 1 only: the transaction's currency; must be the profile's.
+    currency: str | None = Field(default=None, exclude=True)
     created_via: str | None = None
     updated_via: str | None = None
     recurring_id: UUID | None = None
@@ -80,7 +68,7 @@ class BackupRecurringPosting(BaseModel):
     account: UUID
     side: PostingSide
     amount: Decimal
-    value: Decimal | None = None
+    value: Decimal | None = Field(default=None, exclude=True)
 
 
 class BackupRecurring(BaseModel):
@@ -88,8 +76,8 @@ class BackupRecurring(BaseModel):
     from_account: UUID | None = None
     to_account: UUID | None = None
     amount: Decimal | None = None
-    received_amount: Decimal | None = None
-    currency: str | None = None
+    received_amount: Decimal | None = Field(default=None, exclude=True)
+    currency: str | None = Field(default=None, exclude=True)
     postings: list[BackupRecurringPosting] = []
     payee: str | None = None
     comment: str | None = None
@@ -123,8 +111,9 @@ class BackupFile(BaseModel):
     version: int
     exported_at: datetime | None = None
     profile: BackupProfile
-    commodities: list[BackupCommodity] = []
-    prices: list[BackupPrice] = []
+    # Version 1 only: own assets and prices, which finode no longer keeps (a file that has any is refused).
+    commodities: list[dict] = Field(default=[], exclude=True)
+    prices: list[dict] = Field(default=[], exclude=True)
     accounts: list[BackupAccount]
     transactions: list[BackupTransaction] = []
     recurring: list[BackupRecurring] = []
@@ -141,7 +130,5 @@ class RestoreSummary(BaseModel):
     recurring: int = 0
     allocations: int = 0
     targets: int = 0
-    prices: int = 0
-    commodities: list[str] = Field(default_factory=list)
     date_from: Date | None = None
     date_to: Date | None = None

@@ -86,7 +86,7 @@ def read_backup(file: UploadFile | None) -> dict:
 
 @router.get("/backup")
 def backup(backup: Backup):
-    """A complete backup: settings, own assets, prices, accounts, transactions, recurring rules and the budget."""
+    """A complete backup: settings, accounts, transactions, recurring rules and the budget."""
     return backup_response(backup)
 
 

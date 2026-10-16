@@ -21,7 +21,7 @@ def _clean(value: str | None) -> str | None:
 class ProfileUpdate(BaseModel):
     first_name: str | None = Field(default=None, max_length=40)
     last_name: str | None = Field(default=None, max_length=40)
-    # Code of the currency totals are reported in; must be a currency, not a stock or a coin.
+    # Code of the currency the whole ledger is kept in (ISO 4217, e.g. "INR"). Changing it relabels every amount; nothing is converted.
     default_currency: str | None = Field(default=None, max_length=20)
     # 0 = no limit of your own; the application maximum and your existing accounts are checked by the service.
     max_depth_assets: int | None = Field(default=None, ge=0)

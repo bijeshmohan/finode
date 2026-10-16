@@ -1,16 +1,17 @@
 """Parser for the common subset of the ledger / hledger journal format.
 
-Several commodities are read, including conversions written with `@` / `@@` prices and
-`P` price lines. Anything finode cannot represent faithfully (lots, virtual postings,
-automated or periodic transactions, includes, balance assignments) is reported as an
-error with its line number instead of being silently dropped.
+finode keeps one currency, so conversions (`@` / `@@` prices) and `P` price lines are errors, and an
+amount may carry a label ("INR", "$") that the importer checks against the person's currency. Anything
+finode cannot represent faithfully (lots, virtual postings, automated or periodic transactions,
+includes, balance assignments, prices) is reported as an error with its line number instead of being
+silently dropped.
 """
 import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from .model import AccountDecl, CommodityDecl, Journal, LedgerPosting, LedgerTransaction, PriceDecl
+from .model import AccountDecl, Journal, LedgerPosting, LedgerTransaction
 
 
 COMMENT_STARTS = ";#%|*"
@@ -25,10 +26,6 @@ SYMBOL = r"\"[^\"]+\"|[^\d\s+\-\"=@{(;]+"
 AMOUNT = re.compile(
     rf"^(?P<s1>[-+])?\s*(?P<pre>{SYMBOL})?\s*(?P<s2>[-+])?\s*(?P<num>{NUMBER})\s*(?P<post>{SYMBOL})?$"
 )
-PRICE_LINE = re.compile(
-    rf"^{DATE}(?:\s+\d{{1,2}}:\d{{2}}(?::\d{{2}})?)?\s+(?P<symbol>\"[^\"]+\"|\S+)\s+(?P<price>.+)$"
-)
-TAG = re.compile(r"(\w+):\s*([^,]+)")
 MAX_PLACES = 8
 
 
@@ -45,8 +42,6 @@ class _Entry:
     account: str
     amount: Decimal | None
     commodity: str | None
-    cost: Decimal | None = None
-    cost_commodity: str | None = None
     assertion: Decimal | None = None
     assertion_commodity: str | None = None
 
@@ -85,14 +80,6 @@ def _split_comment(text: str) -> tuple[str, str | None]:
     return parts[0], parts[1].strip() or None
 
 
-def _split_cost(text: str) -> tuple[str, str | None, bool]:
-    """('100 USD', '8350 INR', total) for '100 USD @@ 8350 INR'; '@' is a price per unit."""
-    found = re.search(r"@@|@", text)
-    if not found:
-        return text, None, False
-    return text[: found.start()], text[found.end():], found.group() == "@@"
-
-
 def _parse_entry(number: int, raw: str, state: _State) -> _Entry | None:
     body, _ = _split_comment(raw.strip())
     body = re.sub(r"^[*!]\s+", "", body.strip())
@@ -106,7 +93,9 @@ def _parse_entry(number: int, raw: str, state: _State) -> _Entry | None:
         state.error(number, "lots are not supported")
         return None
     amount_text, equals, assertion_text = amount_text.partition("=")
-    amount_text, cost_text, per_total = _split_cost(amount_text)
+    if "@" in amount_text:
+        state.error(number, "conversions between currencies are not supported: finode keeps one currency")
+        return None
 
     entry = _Entry(number, account, None, None)
     if amount_text.strip():
@@ -117,44 +106,12 @@ def _parse_entry(number: int, raw: str, state: _State) -> _Entry | None:
     elif equals:
         state.error(number, "balance assignments are not supported")
         return None
-    if cost_text is not None:
-        if entry.amount is None:
-            state.error(number, "a price needs an amount")
-            return None
-        priced = _parse_amount(cost_text, state, number)
-        if priced is None:
-            return None
-        price, entry.cost_commodity = priced
-        if price <= 0:
-            state.error(number, "a price must be positive")
-            return None
-        entry.cost = price if per_total else abs(entry.amount) * price
     if equals:
         asserted = _parse_amount(assertion_text.lstrip("=* "), state, number)
         if asserted is None:
             return None
         entry.assertion, entry.assertion_commodity = asserted
     return entry
-
-
-def _balance_key(entry: _Entry) -> tuple[str | None, Decimal]:
-    """What the posting contributes to balancing: its cost when it was converted, else its amount."""
-    if entry.cost is not None:
-        return entry.cost_commodity, entry.cost if entry.amount >= 0 else -entry.cost
-    return entry.commodity, entry.amount
-
-
-def _balance_groups(entries: list[_Entry]) -> dict[str | None, Decimal]:
-    groups: dict[str | None, Decimal] = {}
-    for entry in entries:
-        if entry.amount is not None:
-            commodity, amount = _balance_key(entry)
-            groups[commodity] = groups.get(commodity, Decimal(0)) + amount
-    # An amount written without a commodity belongs to the only commodity the transaction has.
-    named = [c for c in groups if c is not None]
-    if None in groups and len(named) == 1:
-        groups[named[0]] += groups.pop(None)
-    return groups
 
 
 def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int, state: _State) -> None:
@@ -193,19 +150,13 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
         state.error(elided[1].number, "only one posting may leave out its amount")
         return
 
-    groups = _balance_groups(entries)
-    off = {commodity: total for commodity, total in groups.items() if total != 0}
+    # Labels ("INR", "$") are not told apart here: the importer checks that they are the person's currency.
+    total = sum((e.amount for e in entries if e.amount is not None), Decimal(0))
     if elided:
-        if len(off) > 1:
-            state.error(line, _mixed(off))
-            return
-        commodity, total = next(iter(off.items()), (None, Decimal(0)))
-        elided[0].amount, elided[0].commodity = -total, commodity
-    elif off:
-        if len([c for c in groups if c is not None]) > 1:
-            state.error(line, _mixed(off))
-        else:
-            state.error(line, f"does not balance (off by {_plain(sum(abs(t) for t in off.values()))})")
+        labels = {e.commodity for e in entries if e.amount is not None and e.commodity is not None}
+        elided[0].amount, elided[0].commodity = -total, (next(iter(labels)) if len(labels) == 1 else None)
+    elif total != 0:
+        state.error(line, f"does not balance (off by {_plain(abs(total))})")
         return
 
     postings = []
@@ -225,73 +176,10 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
                 amount=entry.amount,
                 line=entry.number,
                 commodity=entry.commodity,
-                cost=entry.cost,
-                cost_commodity=entry.cost_commodity,
             )
         )
     state.balances = running
     state.journal.transactions.append(LedgerTransaction(when, rest, notes, postings, line))
-
-
-def _mixed(off: dict[str | None, Decimal]) -> str:
-    names = " and ".join(f"'{c or 'no commodity'}'" for c in off)
-    return (
-        f"mixes currencies ({names}) without a price: write the conversion on the posting "
-        "that was bought or sold, like '100 USD @@ 8350 INR'"
-    )
-
-
-def _tags(comment: str | None) -> dict[str, str]:
-    return {key.lower(): value.strip() for key, value in TAG.findall(comment or "")}
-
-
-def _parse_commodity(rest: str, block: list[tuple[int, str]], line: int, state: _State) -> None:
-    body, comment = _split_comment(rest)
-    body = body.strip()
-    symbol, decimals = body.strip('"'), None
-    if re.search(r"\d", body):
-        parsed = AMOUNT.match(body)
-        if not parsed:
-            state.error(line, f"cannot read the commodity '{body}'")
-            return
-        symbol = (parsed["pre"] or parsed["post"] or "").strip('"')
-        decimals = len(parsed["num"].partition(".")[2])
-    tags = _tags(comment)
-    for _, sub in block:
-        keyword, _, value = sub.strip().partition(" ")
-        if keyword == "format":
-            formatted = AMOUNT.match(value.strip())
-            if formatted:
-                symbol = symbol or (formatted["pre"] or formatted["post"] or "").strip('"')
-                decimals = len(formatted["num"].partition(".")[2])
-        elif keyword == "note":
-            tags.update(_tags(value))
-    if not symbol:
-        state.error(line, "a commodity directive needs a commodity")
-        return
-    state.journal.commodities.append(
-        CommodityDecl(symbol, decimals, tags.get("name"), (tags.get("kind") or "").lower() or None, line)
-    )
-
-
-def _parse_price(rest: str, line: int, state: _State) -> None:
-    found = PRICE_LINE.match(rest.strip())
-    if not found:
-        state.error(line, "cannot read the price line")
-        return
-    try:
-        when = date(int(found[1]), int(found[2]), int(found[3]))
-    except ValueError:
-        state.error(line, "not a valid date")
-        return
-    priced = _parse_amount(found["price"], state, line)
-    if priced is None:
-        return
-    price, quote = priced
-    if price <= 0:
-        state.error(line, "a price must be positive")
-        return
-    state.journal.prices.append(PriceDecl(when, found["symbol"].strip('"'), price, quote, line))
 
 
 def _parse_directive(raw: str, block: list[tuple[int, str]], line: int, state: _State) -> None:
@@ -305,9 +193,9 @@ def _parse_directive(raw: str, block: list[tuple[int, str]], line: int, state: _
                 note = value.strip()
         state.journal.accounts.append(AccountDecl(name.strip(), note, line))
     elif word == "commodity":
-        _parse_commodity(rest, block, line, state)
+        return  # how a currency is written: nothing finode needs
     elif word == "P":
-        _parse_price(rest, line, state)
+        state.error(line, "prices are not supported: finode keeps one currency")
     elif word == "decimal-mark":
         if rest != ".":
             state.error(line, "only '.' as the decimal mark is supported")

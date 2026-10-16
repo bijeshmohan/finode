@@ -6,12 +6,9 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.commodity_seed import seed_rows
 from app.auth import CurrentUser, require_authenticated_user
 from app.dependencies import get_db_session
 from app.main import app
-from app.models.commodity import Commodity
-from app.models.utils import utc_now
 from app.web_auth import web_login_required
 
 
@@ -62,10 +59,6 @@ def session() -> Generator[Session, None, None]:
         connection.commit()
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
-        session.add_all(Commodity(**row) for row in seed_rows(utc_now()))
-        # Built-in currencies only; most tests also want an asset of the user's own to hold.
-        session.add(Commodity(code="BTC", name="Bitcoin", kind="crypto", decimals=8, symbol="₿", user=TEST_USER_ID))
-        session.commit()
         yield session
 
 

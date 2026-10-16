@@ -16,7 +16,6 @@ from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate
-from ..schemas.price import PriceCreate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead, TransactionUpdate
 from ..services.simple import simple_postings
@@ -36,13 +35,9 @@ finode is the user's personal double-entry ledger.
 - Money moves from one account to another. Spending is from an asset or liability (a bank, a
   card) to an expense; a salary is from Income to an asset. Use record_transaction for these, and
   record_split only when more than two accounts are involved.
-- Every account holds one commodity: a currency (INR, USD) or one of the user's own assets
-  (shares, funds, coins). Totals are reported in the user's default currency. When the two
-  accounts of a transaction hold different things (buying USD or shares with INR), give
-  received_amount: how much arrives in the 'to' account.
+- finode keeps everything in one currency, the user's own (shown by get_overview and list_accounts);
+  there are no other currencies, shares or coins, and amounts are plain numbers in that currency.
 - Amounts are always positive; the from/to accounts (or debit/credit sides) give the direction.
-- finode never computes capital gains: selling at a profit is recorded by the user, for example
-  with a split to Income:Capital Gain.
 - Things that repeat (rent, salary, subscriptions) are recurring transactions: list_recurring shows
   them, create_recurring sets one up (finode then records each occurrence by itself, so do not also
   record the same payment by hand; give postings instead of from/to/amount for a split), stop_recurring
@@ -98,22 +93,18 @@ def _tool_errors(fn: Callable) -> Callable:
 
 
 def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[str, Any]:
-    commodity_of = {aid: e.account.commodity for aid, e in index.entries.items()}
-    total = sum((p.value for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
+    total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
     return {
         "id": str(t.tid),
         "date": t.date.isoformat(),
         "payee": t.payee,
         "note": t.comment,
-        "currency": t.currency,
         "total": text(total),
         "postings": [
             {
                 "account": index.path(p.account),
                 "side": p.side.value,
                 "amount": text(p.amount),
-                "commodity": commodity_of.get(p.account),
-                **({"value": text(p.value)} if commodity_of.get(p.account) != t.currency else {}),
             }
             for p in t.postings
         ],
@@ -145,7 +136,7 @@ def _transaction_id(value: str) -> UUID:
 @_tool_errors
 def get_overview() -> dict[str, Any]:
     """Net worth, assets and liabilities now, and this month's income and expenses so far,
-    all in the user's default currency."""
+    all in the user's currency."""
     with services() as s:
         summary = s.reports.summary()
         return {
@@ -160,12 +151,6 @@ def get_overview() -> dict[str, Any]:
                 "expenses": text(summary.expenses),
                 "net": text(summary.net_income),
             },
-            "unpriced": summary.unpriced,
-            **(
-                {"note": "Some holdings have no price yet, so they are left out of these totals. See get_prices."}
-                if summary.unpriced
-                else {}
-            ),
         }
 
 
@@ -174,20 +159,17 @@ def list_accounts(
     type: Annotated[AccountType | None, Field(description="Only accounts under this top-level account")] = None,
     include_closed: Annotated[bool, Field(description="Also list accounts the user has closed (they cannot be posted to)")] = False,
 ) -> dict[str, Any]:
-    """Every account with its path, what it holds and its balance. Top-level accounts show their
-    total in the default currency; others show their balance in what they hold."""
+    """Every account with its path and balance. Top-level accounts show the total of everything inside."""
     with services() as s:
         index = _index(s)
         return {
-            "default_currency": s.accounts.default_currency().code,
+            "currency": s.accounts.currency().code,
             "accounts": [
                 {
                     "path": e.path,
-                    "holds": e.account.commodity,
                     "balance": text(e.account.balance),
                     "can_post": e.postable and e.account.closed_on is None,
                     **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
-                    **({"unpriced": True} if e.account.unpriced else {}),
                     **({"details": e.account.details} if e.account.details and not e.is_root else {}),
                 }
                 for e in index.sorted()
@@ -201,17 +183,14 @@ def get_account(
     account: AccountRef,
     recent: Annotated[int, Field(ge=0, le=100, description="How many recent entries to include")] = 10,
 ) -> dict[str, Any]:
-    """One account: its balance, what a holding is worth (invested, value, gain) and its recent
-    entries with a running balance. Entries of sub-accounts count towards a group."""
+    """One account: its balance and its recent entries with a running balance. Entries of sub-accounts count towards a group."""
     with services() as s:
         index = _index(s)
         entry = index.find(account, allow_root=True)
         aid = entry.account.aid
         register = s.accounts.register(aid) or []
-        holding = s.accounts.holding(aid)
         result: dict[str, Any] = {
             "path": entry.path,
-            "holds": entry.account.commodity,
             "balance": text(entry.account.balance),
             "can_post": entry.postable,
             "sub_accounts": [e.path for e in index.sorted() if e.account.parent_id == aid],
@@ -228,19 +207,6 @@ def get_account(
                 for r in reversed(register[-recent:] if recent else [])
             ],
         }
-        if entry.account.unpriced:
-            result["unpriced"] = True
-        if holding:
-            result["holding"] = {
-                "quantity": text(holding.quantity),
-                "commodity": holding.commodity,
-                "currency": holding.currency,
-                "value": text(holding.value),
-                "invested": text(holding.invested),
-                "gain": text(holding.gain),
-                "rate": text(holding.rate),
-                "rate_as_of": holding.rate_as_of.isoformat() if holding.rate_as_of else None,
-            }
         return result
 
 
@@ -254,7 +220,7 @@ def search_transactions(
     max_amount: Annotated[Decimal | None, Field(ge=0, description="Largest transaction total")] = None,
     limit: Annotated[int, Field(ge=1, le=200)] = 25,
 ) -> dict[str, Any]:
-    """Transactions, newest first. The total is in the transaction's own currency."""
+    """Transactions, newest first."""
     with services() as s:
         index = _index(s)
         aid = index.find(account, allow_root=True).account.aid if account else None
@@ -262,7 +228,7 @@ def search_transactions(
         found = []
         truncated = False
         for t in s.transactions.list(account=aid, date_from=date_from, date_to=date_to):
-            total = sum((p.value for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
+            total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
             if needle and needle not in f"{t.payee or ''} {t.comment or ''}".casefold():
                 continue
             if min_amount is not None and total < min_amount:
@@ -293,7 +259,7 @@ def spending_breakdown(
     date_to: Annotated[date | None, Field(description="Last day; today when left out")] = None,
     depth: Annotated[int, Field(ge=1, le=20, description="1 = Food, Rent...; 2 = Food:Groceries...")] = 1,
 ) -> dict[str, Any]:
-    """Expenses (or income) for a period per account, largest first, in the default currency."""
+    """Expenses (or income) for a period per account, largest first."""
     with services() as s:
         report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
         return {
@@ -303,45 +269,6 @@ def spending_breakdown(
             "to": report.period_end.isoformat(),
             "total": text(report.total),
             "by_account": [{"account": line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines],
-            **({"unpriced": True} if report.unpriced else {}),
-        }
-
-
-@_tool_errors
-def get_prices(
-    commodity: Annotated[str | None, Field(description="Only prices of this code, e.g. USD or INFY")] = None,
-) -> dict[str, Any]:
-    """The user's own assets, the prices they entered, and today's rate of everything their
-    accounts hold in the default currency (from those prices or their own conversions)."""
-    with services() as s:
-        default = s.accounts.default_currency()
-        held = sorted(
-            {a.commodity for a in s.accounts.list() if a.parent_id is not None and a.commodity and a.commodity != default.code}
-        )
-        today = local_today()
-        rates = []
-        for code in held:
-            rate = s.prices.rate(code, default.code, today)
-            rates.append(
-                {
-                    "commodity": code,
-                    "rate": text(rate.rate),
-                    "as_of": rate.as_of.isoformat() if rate.as_of else None,
-                    **({"note": "no price yet: set one with set_price"} if rate.rate is None else {}),
-                }
-            )
-        return {
-            "default_currency": default.code,
-            "assets": [
-                {"code": c.code, "name": c.name, "kind": c.kind, "decimals": c.decimals}
-                for c in s.commodities.list()
-                if c.kind != "currency"
-            ],
-            "rates_today": rates,
-            "prices": [
-                {"commodity": p.commodity, "quote": p.quote, "date": p.date.isoformat(), "price": text(p.price)}
-                for p in s.prices.list(commodity)
-            ],
         }
 
 
@@ -358,14 +285,8 @@ def list_recurring() -> dict[str, Any]:
                     "id": str(r.rid),
                     **(
                         {
-                            "currency": r.currency,
                             "postings": [
-                                {
-                                    "account": index.path(p.account),
-                                    "side": p.side.value,
-                                    "amount": text(p.amount),
-                                    **({"worth": text(p.value)} if p.value is not None else {}),
-                                }
+                                {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)}
                                 for p in r.postings
                             ],
                         }
@@ -374,7 +295,6 @@ def list_recurring() -> dict[str, Any]:
                             "from": index.path(r.from_account),
                             "to": index.path(r.to_account),
                             "amount": text(r.amount),
-                            **({"received_amount": text(r.received_amount)} if r.received_amount else {}),
                         }
                     ),
                     "payee": r.payee,
@@ -402,26 +322,18 @@ def record_transaction(
     date: OptionalDate = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
-    received_amount: Annotated[
-        Decimal | None,
-        Field(gt=0, description="Only when the accounts hold different things: how much arrives in 'to_account'"),
-    ] = None,
 ) -> dict[str, Any]:
-    """Record money moving from one account to another: spending, income, a transfer, or a
-    conversion (buying USD, shares or coins)."""
+    """Record money moving from one account to another: spending, income or a transfer."""
     with services() as s:
         index = _index(s)
         source = index.find(from_account, postable=True)
         target = index.find(to_account, postable=True)
-        currency, postings = simple_postings(
-            s.accounts, amount, received_amount, source.account.aid, target.account.aid
-        )
+        postings = simple_postings(amount, source.account.aid, target.account.aid)
         saved = s.transactions.create(
             TransactionCreate(
                 date=date or _today(),
                 payee=(payee or "").strip() or None,
                 comment=(note or "").strip() or None,
-                currency=currency,
                 postings=postings,
             )
         )
@@ -434,11 +346,6 @@ class PostingIn(BaseModel):
         description="debit: money into an asset or expense (or paying down a liability); credit: the other way"
     )
     amount: Amount
-    value: Decimal | None = Field(
-        default=None,
-        gt=0,
-        description="What this row is worth in the transaction's currency; only when its account holds something else",
-    )
 
 
 def _postings(index: AccountIndex, rows: list[PostingIn]) -> list[PostingCreate]:
@@ -447,7 +354,6 @@ def _postings(index: AccountIndex, rows: list[PostingIn]) -> list[PostingCreate]
             account=index.find(row.account, postable=True).account.aid,
             side=PostingSide(row.side),
             amount=row.amount,
-            value=row.value,
         )
         for row in rows
     ]
@@ -459,7 +365,6 @@ def record_split(
     date: OptionalDate = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
-    currency: Annotated[str | None, Field(description="What the transaction balances in; the default currency when left out")] = None,
 ) -> dict[str, Any]:
     """Record a transaction with several rows, e.g. a bill split across categories or a salary
     with deductions. Debits must equal credits."""
@@ -470,7 +375,6 @@ def record_split(
                 date=date or _today(),
                 payee=(payee or "").strip() or None,
                 comment=(note or "").strip() or None,
-                currency=currency,
                 postings=_postings(index, postings),
             )
         )
@@ -486,7 +390,6 @@ def update_transaction(
     postings: Annotated[
         list[PostingIn] | None, Field(description="All the rows again, replacing the old ones; leave out to keep them")
     ] = None,
-    currency: Annotated[str | None, Field(description="New currency; only together with postings")] = None,
 ) -> dict[str, Any]:
     """Change a transaction. Only what you pass changes."""
     tid = _transaction_id(transaction_id)
@@ -503,8 +406,6 @@ def update_transaction(
             changes["comment"] = note.strip() or None
         if postings is not None:
             changes["postings"] = _postings(index, postings)
-        if currency is not None:
-            changes["currency"] = currency
         if not changes:
             raise ToolError("nothing to change: pass a date, payee, note or postings!")
         saved = s.transactions.update(tid, TransactionUpdate(**changes))
@@ -528,13 +429,8 @@ def delete_transaction(transaction_id: Annotated[str, Field(description="Id from
 def create_account(
     name: Annotated[str, Field(max_length=40, description="The new account's own name, without ':'")],
     parent: Annotated[str, Field(description="Where it goes, e.g. Expenses or Assets:Bank")],
-    holds: Annotated[str | None, Field(description="Currency or asset code; the parent's when left out")] = None,
     opening_balance: Annotated[
         Decimal | None, Field(ge=0, description="Assets and liabilities only: what it holds (or owes) today")
-    ] = None,
-    opening_value: Annotated[
-        Decimal | None,
-        Field(gt=0, description="What the opening balance is worth in the default currency, when it holds something else and has no price"),
     ] = None,
     details: Annotated[str | None, Field(max_length=200)] = None,
 ) -> dict[str, Any]:
@@ -554,39 +450,14 @@ def create_account(
                 name=name,
                 details=(details or "").strip() or None,
                 parent_id=parent_entry.account.aid,
-                commodity=holds,
                 balance=opening_balance or Decimal("0.00"),
-                balance_value=opening_value,
             )
         )
         return {
             "created": {
                 "path": f"{parent_entry.path}:{created.name}",
-                "holds": created.commodity,
                 "balance": text(created.balance),
             }
-        }
-
-
-@_tool_errors
-def set_price(
-    commodity: Annotated[str, Field(description="What is priced, e.g. INFY or USD")],
-    price: Annotated[Amount, Field(description="What one unit is worth")],
-    quote: Annotated[str | None, Field(description="What the price is in; the default currency when left out")] = None,
-    date: OptionalDate = None,
-) -> dict[str, Any]:
-    """Set the price of an asset or an exchange rate for a day (replacing one already set for that day)."""
-    with services() as s:
-        saved = s.prices.set(
-            PriceCreate(
-                commodity=commodity,
-                quote=quote or s.accounts.default_currency().code,
-                date=date or _today(),
-                price=price,
-            )
-        )
-        return {
-            "saved": {"commodity": saved.commodity, "quote": saved.quote, "date": saved.date.isoformat(), "price": text(saved.price)}
         }
 
 
@@ -601,12 +472,10 @@ def create_recurring(
     end_date: Annotated[date | None, Field(description="Last possible occurrence; none when left out")] = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
-    received_amount: Annotated[Decimal | None, Field(gt=0, description="Only when the accounts hold different things")] = None,
     postings: Annotated[
         list[PostingIn] | None,
         Field(min_length=2, description="Instead of from, to and amount: a split over several accounts, like record_split (debits must equal credits)"),
     ] = None,
-    currency: Annotated[str | None, Field(description="With postings: what they balance in; the default currency when left out")] = None,
 ) -> dict[str, Any]:
     """Set up a transaction that finode records by itself on a schedule (rent, salary, a subscription).
     Give from_account, to_account and amount for a simple one, or postings for a split (a salary with
@@ -614,18 +483,16 @@ def create_recurring(
     with services() as s:
         index = _index(s)
         if postings:
-            if any(v is not None for v in (amount, from_account, to_account, received_amount)):
+            if any(v is not None for v in (amount, from_account, to_account)):
                 raise ToolError("give either from_account, to_account and amount, or postings, not both!")
             source = target = None
-            shape = {"postings": [p.model_dump() | {"account": index.find(p.account, postable=True).account.aid} for p in postings],
-                     "currency": currency}
+            shape = {"postings": [p.model_dump() | {"account": index.find(p.account, postable=True).account.aid} for p in postings]}
         else:
             if None in (amount, from_account, to_account):
                 raise ToolError("give from_account, to_account and amount, or postings!")
             source = index.find(from_account, postable=True)
             target = index.find(to_account, postable=True)
-            shape = {"from_account": source.account.aid, "to_account": target.account.aid, "amount": amount,
-                     "received_amount": received_amount}
+            shape = {"from_account": source.account.aid, "to_account": target.account.aid, "amount": amount}
         created = s.recurring.create(
             RecurringCreate(
                 **shape,
@@ -707,8 +574,7 @@ def monthly_review(month: Annotated[str | None, Field(description="YYYY-MM; this
     return (
         f"Give me a short review of {period} in finode. Use get_overview for net worth, "
         "spending_breakdown for expenses and income by account (compare with the month before), "
-        "and search_transactions for the largest expenses. Point out anything unusual and anything "
-        "unpriced. Keep it brief and use my default currency."
+        "and search_transactions for the largest expenses. Point out anything unusual. Keep it brief."
     )
 
 
@@ -797,7 +663,6 @@ def _budget(data) -> dict[str, Any]:
             if data.left_out_accounts
             else {}
         ),
-        **({"note": "Some spending could not be converted to the currency (no price), so it is left out."} if data.unpriced else {}),
         **(
             {"note_accounts": "No account is part of the budget yet: the user switches 'Part of the budget' on for an account."}
             if not data.budget_accounts
@@ -810,7 +675,7 @@ def _budget(data) -> dict[str, Any]:
 def get_budget(month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None) -> dict[str, Any]:
     """The envelope budget for a month: what is still ready to assign, and for each expense category what
     was assigned this month, what was spent and what is available (leftovers carry over; a category overspent last month starts at zero and that amount was already taken out of ready to assign).
-    Groups sum their sub-categories. Everything is in the default currency."""
+    Groups sum their sub-categories."""
     with services() as s:
         return _budget(s.budget.view(_month(month)))
 
@@ -900,16 +765,17 @@ def check_books(as_of: str | None = None) -> dict[str, Any]:
             "as_of": trial.as_of.isoformat(),
             "balanced": trial.balanced,
             "problems": trial.problems,
-            "totals": [{"currency": t.currency, "debit": text(t.debit), "credit": text(t.credit)} for t in trial.totals],
+            "currency": trial.currency,
+            "total_debit": text(trial.debit),
+            "total_credit": text(trial.credit),
             "accounts": [
-                {"account": line.account, "commodity": line.commodity, "debit": text(line.debit), "credit": text(line.credit)}
-                for line in trial.lines
+                {"account": line.account, "debit": text(line.debit), "credit": text(line.credit)} for line in trial.lines
             ],
         }
 
 
 READ_TOOLS = [
-    get_overview, list_accounts, get_account, search_transactions, get_transaction, spending_breakdown, get_prices,
+    get_overview, list_accounts, get_account, search_transactions, get_transaction, spending_breakdown,
     list_recurring, check_books, get_budget,
 ]
 WRITE_TOOLS = [
@@ -918,7 +784,6 @@ WRITE_TOOLS = [
     (update_transaction, IDEMPOTENT_WRITE),
     (delete_transaction, DESTRUCTIVE),
     (create_account, WRITE),
-    (set_price, IDEMPOTENT_WRITE),
     (create_recurring, WRITE),
     (stop_recurring, IDEMPOTENT_WRITE),
     (skip_recurring_occurrence, WRITE),

@@ -65,7 +65,7 @@ page shows no link. To let invited people create accounts:
 
 With the service key set, people can also delete their own account (Profile › Your data › Delete my account): their data is erased and their Supabase login removed. Without it only "Erase my books" is offered.
 
-Sign-in and sign-up attempts are rate limited per address (see `.env.example`), and each person has limits on accounts, transactions and own assets so nobody can fill the database.
+Sign-in and sign-up attempts are rate limited per address (see `.env.example`), and each person has limits on accounts and transactions so nobody can fill the database.
 
 To close sign-up again, remove `FINODE_SIGNUP_CODE` and restart. There is no
 per-IP limit on code guesses, which is why the code must be long and random.
@@ -211,6 +211,7 @@ uv run alembic upgrade head
   accepts `?type=<root name>` to filter by root.
 - Account balances are derived from postings. They are not stored as an
   authoritative mutable column.
+- Everything is kept in one currency per person (INR until changed in Settings; changing it relabels, it converts nothing). There are no assets of one's own, prices or conversions.
 - Accounts that already have postings cannot gain sub-accounts.
 - Transactions live at `/transactions/` and must contain at least two
   postings with total debits equal to total credits. The list is ordered

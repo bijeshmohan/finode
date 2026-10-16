@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from app.templating import amount, symbol, with_unit
+from app.templating import amount, symbol
 from .test_budget import account, assign
 
 
@@ -11,8 +11,6 @@ def test_the_rupee_sign_goes_in_front_and_other_currencies_keep_their_code():
     assert amount("1,200.00", "INR") == "\u20b91,200.00"
     assert amount("\u22125.00", "INR") == "\u2212\u20b95.00", "a negative keeps its minus in front of the sign"
     assert amount("40.00", "USD") == "40.00 USD"
-    assert with_unit("40.00", "INR", "USD") == "\u20b940.00", "an amount in rupees when the default is another currency"
-    assert with_unit("40.00", "INR", "INR") == "40.00", "no label for the default currency"
 
 
 def test_the_big_figures_use_the_sign_and_the_font_carries_it(client, root_accounts):

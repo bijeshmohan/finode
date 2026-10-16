@@ -6,7 +6,7 @@
     <h2>{{ t.payee or "No payee" }}</h2>
     <p class="muted">{{ t.date|friendly_date }} · {{ t.date.strftime("%d %b %Y") }}</p>
   </div>
-  <div class="sheet-amount {{ row.kind }}">{{ "+" if row.kind == "income" }}{{ row.amount|money|with_unit(t.currency, currency) }}</div>
+  <div class="sheet-amount {{ row.kind }}">{{ "+" if row.kind == "income" }}{{ row.amount|money }}</div>
 </div>
 
 <dl class="sheet-facts">

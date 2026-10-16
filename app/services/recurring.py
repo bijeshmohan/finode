@@ -34,7 +34,7 @@ class RecurringService:
         rows = self.repo.postings() if rows is None else rows
         read = RecurringRead.model_validate(rule, from_attributes=True)
         read.postings = [
-            RecurringPostingData(account=p.account, side=PostingSide(p.side), amount=p.amount, value=p.value)
+            RecurringPostingData(account=p.account, side=PostingSide(p.side), amount=p.amount)
             for p in rows.get(rule.rid, [])
         ]
         return read
@@ -50,28 +50,21 @@ class RecurringService:
     def _transaction(self, rule_like, day: date) -> TransactionCreate:
         if rule_like.postings:
             return TransactionCreate(
-                date=day, payee=rule_like.payee, comment=rule_like.comment, currency=rule_like.currency,
-                postings=[
-                    PostingCreate(account=p.account, side=p.side, amount=p.amount, value=p.value)
-                    for p in rule_like.postings
-                ],
+                date=day, payee=rule_like.payee, comment=rule_like.comment,
+                postings=[PostingCreate(account=p.account, side=p.side, amount=p.amount) for p in rule_like.postings],
             )
-        currency, postings = simple_postings(
-            self.accounts, rule_like.amount, rule_like.received_amount, rule_like.from_account, rule_like.to_account
-        )
-        return TransactionCreate(
-            date=day, payee=rule_like.payee, comment=rule_like.comment, currency=currency, postings=postings
-        )
+        postings = simple_postings(rule_like.amount, rule_like.from_account, rule_like.to_account)
+        return TransactionCreate(date=day, payee=rule_like.payee, comment=rule_like.comment, postings=postings)
 
     @staticmethod
     def _rows(data) -> list[dict]:
         return [
-            {"account": p.account, "side": p.side.value, "amount": p.amount, "value": p.value}
+            {"account": p.account, "side": p.side.value, "amount": p.amount}
             for p in data.postings
         ]
 
     def as_transaction(self, rule: RecurringRead) -> TransactionCreate:
-        """The transaction a rule records (on its start date): its currency and postings, for showing it."""
+        """The transaction a rule records (on its start date), for showing it."""
         return self._transaction(rule, rule.start_date)
 
     def _check(self, data: RecurringCreate | RecurringUpdate) -> None:

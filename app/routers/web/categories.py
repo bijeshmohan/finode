@@ -53,7 +53,7 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
     tab = OLD_TABS.get(tab, tab)
     tab = tab if tab in TABS else "expense"
     root_name = TABS[tab]
-    own, unpriced = reports.account_totals(root_name, when, end)
+    own = reports.account_totals(root_name, when, end)
     roots = build_tree(accounts.list())
     root = next(r for r in roots if r.account.name == root_name)
 
@@ -84,8 +84,7 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
             "largest": largest,
             "quiet_ids": {n.account.aid for n in quiet},
             "quiet_count": len(quiet),
-            "currency": accounts.default_currency().code,
-            "unpriced": unpriced,
+            "currency": accounts.currency().code,
             **_month_context(when, is_current),
         },
     )

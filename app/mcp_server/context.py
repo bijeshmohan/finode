@@ -8,13 +8,11 @@ from sqlmodel import Session
 from ..repositories import (
     AccountRepository,
     BudgetRepository,
-    CommodityRepository,
-    PriceRepository,
     ProfileRepository,
     RecurringRepository,
     TransactionRepository,
 )
-from ..services import AccountService, BudgetService, CommodityService, PriceService, RecurringService, ReportService, TransactionService
+from ..services import AccountService, BudgetService, RecurringService, ReportService, TransactionService
 from ..services.api_token import TokenOwner
 
 
@@ -38,8 +36,6 @@ class Services:
     accounts: AccountService
     transactions: TransactionService
     reports: ReportService
-    prices: PriceService
-    commodities: CommodityService
     recurring: RecurringService
     budget: BudgetService
 
@@ -52,19 +48,15 @@ def services() -> Iterator[Services]:
         raise PermissionError("not authenticated")
     with session_factory() as db:
         uid = owner.user
-        ar, tr = AccountRepository(db, uid), TransactionRepository(db, uid)
-        cr, pr = CommodityRepository(db, uid), PriceRepository(db, uid)
-        prices = PriceService(pr, tr, cr)
-        accounts = AccountService(ar, tr, ProfileRepository(db, uid), cr, prices)
+        ar, tr, pr = AccountRepository(db, uid), TransactionRepository(db, uid), ProfileRepository(db, uid)
+        accounts = AccountService(ar, tr, pr)
         yield Services(
             owner=owner,
             accounts=accounts,
-            transactions=TransactionService(tr, ar, cr, origin=f"mcp:{owner.name}"),
+            transactions=TransactionService(tr, ar, pr, origin=f"mcp:{owner.name}"),
             reports=ReportService(accounts, tr),
-            prices=prices,
-            commodities=CommodityService(cr),
             budget=BudgetService(accounts, tr, BudgetRepository(db, uid)),
             recurring=RecurringService(
-                RecurringRepository(db, uid), accounts, TransactionService(tr, ar, cr, origin="recurring")
+                RecurringRepository(db, uid), accounts, TransactionService(tr, ar, pr, origin="recurring")
             ),
         )

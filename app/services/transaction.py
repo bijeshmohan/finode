@@ -6,9 +6,9 @@ from ..config import settings
 from ..clock import local_midnight_utc
 from .lock import LockedPeriodError as _LockedPeriodError, refuse_locked
 from ..limits import ensure_room
-from ..models.commodity import Commodity
+from ..currencies import Currency, find as find_currency
 from ..models.transaction import Transaction, Posting, PostingSide
-from ..repositories import AccountRepository, CommodityRepository, TransactionRepository
+from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 from ..schemas.transaction import (
     TransactionCreate,
@@ -42,59 +42,35 @@ class TransactionService:
         self,
         tr: TransactionRepository,
         ar: AccountRepository,
-        cr: CommodityRepository | None = None,
+        pr: ProfileRepository | None = None,
         origin: str | None = None,
     ):
         # Recorded on what this service creates or changes: "web", "api" or "mcp:<token name>".
         self.origin = origin
         self.tr = tr
         self.ar = ar
-        self.cr = cr or CommodityRepository(tr.db, tr.uid)
-        self._commodities: dict[UUID, Commodity] | None = None
+        self.pr = pr or ProfileRepository(tr.db, tr.uid)
+        self._currency: Currency | None = None
 
-    def _catalog(self) -> dict[UUID, Commodity]:
-        if self._commodities is None:
-            self._commodities = {c.cid: c for c in self.cr.list()}
-        return self._commodities
+    def currency(self) -> Currency:
+        if self._currency is None:
+            self._currency = find_currency(self.pr.currency())
+            if self._currency is None:
+                raise RuntimeError("the profile names a currency finode does not know")
+        return self._currency
 
-    def _commodity_code(self, commodity_id: UUID) -> str:
-        return self._catalog()[commodity_id].code
-
-    def _currency(self, code: str | None, current: UUID | None) -> Commodity:
-        """The currency a transaction balances in: the one named, else the one it has, else the default."""
-        if code:
-            commodity = self.cr.read_by_code(code.upper())
-            if commodity is None:
-                raise InvalidPostingError(f"unknown currency '{code}'!")
-            return commodity
-        if current is not None:
-            return self._catalog()[current]
-        return self.cr.default_currency()
-
-    def _resolve(
-        self,
-        data: TransactionCreate | TransactionUpdate,
-        current_currency: UUID | None = None,
-        keep_closed: set[UUID] = frozenset(),
-    ) -> tuple[UUID | None, list[Decimal] | None]:
-        """Check the postings and work out what each is worth in the transaction's currency.
-
-        Returns the currency and one value per posting, or (None, None) when an update leaves the
-        postings alone.
-        """
+    def _resolve(self, data: TransactionCreate | TransactionUpdate, keep_closed: set[UUID] = frozenset()) -> None:
+        """Check the postings: the accounts can be posted to, the amounts fit the currency and the entry balances."""
         postings = data.postings
         if postings is None:
-            if data.currency and self._currency(data.currency, None).cid != current_currency:
-                raise InvalidPostingError("changing a transaction's currency means entering its postings again!")
-            return None, None
+            return
 
         if settings.max_postings_per_transaction and len(postings) > settings.max_postings_per_transaction:
             raise InvalidPostingError(
                 f"a transaction can have at most {settings.max_postings_per_transaction} postings: split it into several!"
             )
-        currency = self._currency(data.currency, current_currency)
+        currency = self.currency()
         accounts_by_id = None
-        values: list[Decimal] = []
         for posting in postings:
             account = self.ar.read(posting.account)
             if not account:
@@ -110,41 +86,16 @@ class TransactionService:
                     raise InvalidPostingAccountError(
                         f"cannot post to account '{account.name}' because it has sub-accounts!"
                     )
-            values.append(self._value_of(posting, account, currency))
-
-        debits = sum((v for p, v in zip(postings, values) if p.side == PostingSide.DEBIT), Decimal(0))
-        credits = sum((v for p, v in zip(postings, values) if p.side == PostingSide.CREDIT), Decimal(0))
-        if debits != credits:
-            raise InvalidPostingError(
-                f"debits and credits must balance in {currency.code} "
-                f"(debits {debits:f}, credits {credits:f})!"
-            )
-        return currency.cid, values
-
-    def _value_of(self, posting, account, currency: Commodity) -> Decimal:
-        held = self._catalog()[account.commodity_id] if account.commodity_id else self.cr.default_currency()
-        if decimal_places(posting.amount) > held.decimals:
-            raise InvalidPostingError(
-                f"{held.code} amounts can have at most {held.decimals} decimal place{'' if held.decimals == 1 else 's'}!"
-            )
-        if held.cid == currency.cid:
-            if posting.value is not None and posting.value != posting.amount:
+            if decimal_places(posting.amount) > currency.decimals:
                 raise InvalidPostingError(
-                    f"'{account.name}' is in {currency.code} like the rest of the transaction, "
-                    "so its value is its amount: leave the value out!"
+                    f"{currency.code} amounts can have at most {currency.decimals} "
+                    f"decimal place{'' if currency.decimals == 1 else 's'}!"
                 )
-            return posting.amount
-        if posting.value is None:
-            raise InvalidPostingError(
-                f"'{account.name}' holds {held.code} but the transaction is in {currency.code}: "
-                f"say what {posting.amount:f} {held.code} is worth in {currency.code} (value)!"
-            )
-        if decimal_places(posting.value) > currency.decimals:
-            raise InvalidPostingError(
-                f"{currency.code} amounts can have at most {currency.decimals} decimal place"
-                f"{'' if currency.decimals == 1 else 's'}!"
-            )
-        return posting.value
+
+        debits = sum((p.amount for p in postings if p.side == PostingSide.DEBIT), Decimal(0))
+        credits = sum((p.amount for p in postings if p.side == PostingSide.CREDIT), Decimal(0))
+        if debits != credits:
+            raise InvalidPostingError(f"debits and credits must balance (debits {debits:f}, credits {credits:f})!")
 
     def _posting_to_read(self, posting: Posting) -> PostingRead:
         return PostingRead(
@@ -153,7 +104,6 @@ class TransactionService:
             account=posting.account,
             side=posting.side,
             amount=posting.amount,
-            value=posting.value,
             created=posting.created,
             updated=posting.updated,
         )
@@ -161,7 +111,6 @@ class TransactionService:
     def _to_read(self, transaction: Transaction, postings: list[Posting] | None = None) -> TransactionRead:
         return TransactionRead(
             tid=transaction.tid,
-            currency=self._commodity_code(transaction.currency_id),
             date=transaction.date,
             payee=transaction.payee,
             comment=transaction.comment,
@@ -178,7 +127,6 @@ class TransactionService:
 
     def _history_read(self, row, paths: dict[UUID, str]) -> HistoryRead:
         snap = row.snapshot
-        currency = self._catalog().get(UUID(snap["currency_id"]))
         return HistoryRead(
             hid=row.hid,
             transaction=row.transaction_id,
@@ -188,13 +136,11 @@ class TransactionService:
             date=date.fromisoformat(snap["date"]),
             payee=snap.get("payee"),
             comment=snap.get("comment"),
-            currency=currency.code if currency else snap["currency_id"],
             postings=[
                 HistoryPosting(
                     account=paths.get(UUID(p["account"]), p["account"]),
                     side=p["side"],
                     amount=Decimal(p["amount"]),
-                    value=Decimal(p["value"]),
                 )
                 for p in snap["postings"]
             ],
@@ -242,8 +188,8 @@ class TransactionService:
     def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
         self._refuse_locked(data.date)
         self._check_limits()
-        currency_id, values = self._resolve(data)
-        transaction = self.tr.create(data, currency_id, values, self.origin, recurring)
+        self._resolve(data)
+        transaction = self.tr.create(data, self.origin, recurring)
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
         return self._to_read(transaction)
@@ -304,8 +250,8 @@ class TransactionService:
         self._refuse_locked(existing.date, getattr(data, "date", None) if "date" in data.model_fields_set else None)
         # Postings an entry already has on an account that was closed since stay allowed, so it can still be edited.
         kept = {p.account for p in self.tr.postings(tid)}
-        currency_id, values = self._resolve(data, existing.currency_id, kept)
-        transaction = self.tr.update(tid, data, currency_id, values, self.origin)
+        self._resolve(data, kept)
+        transaction = self.tr.update(tid, data, self.origin)
         if not transaction:
             raise RuntimeError(f"failed to update transaction with tid '{tid}'!")
         self.tr.db.commit()

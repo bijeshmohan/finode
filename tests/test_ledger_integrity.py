@@ -40,7 +40,7 @@ def trial(client, **params):
 
 def test_an_empty_ledger_is_balanced(client, root_accounts):
     result = trial(client)
-    assert result["balanced"] and result["problems"] == [] and result["lines"] == [] and result["totals"] == []
+    assert result["balanced"] and result["problems"] == [] and result["lines"] == [] and result["debit"] == result["credit"] == "0.00"
 
 
 def test_the_books_balance_through_every_kind_of_change(client, root_accounts, account, other_account, expense_account, income_account):
@@ -62,38 +62,17 @@ def test_the_books_balance_through_every_kind_of_change(client, root_accounts, a
 
     result = trial(client)
     assert result["balanced"], result["problems"]
-    assert len(result["totals"]) == 1
-    total = result["totals"][0]
-    assert total["currency"] == "INR" and total["debit"] == total["credit"] == "1555.00"
+    assert result["currency"] == "INR" and result["debit"] == result["credit"] == "1555.00"
     by_account = {line["account"]: line for line in result["lines"]}
     assert by_account["Assets:checking"]["debit"] == "1400.00" and by_account["Assets:checking"]["credit"] == "155.00"
     assert by_account["Equity:Opening Balances"]["credit"] == "500.00"
-
-
-def test_a_conversion_balances_in_the_transactions_currency(client, root_accounts, account):
-    btc = client.post(
-        "/api/accounts/", json={"name": "coins", "parent_id": root_accounts["Assets"], "commodity": "BTC"}
-    ).json()
-    response = client.post(
-        "/api/transactions/",
-        json={
-            "postings": [
-                {"account": btc["aid"], "side": "debit", "amount": "0.5", "value": "3000"},
-                {"account": account["aid"], "side": "credit", "amount": "3000"},
-            ]
-        },
-    )
-    assert response.status_code == 201
-    result = trial(client)
-    assert result["balanced"] and result["totals"] == [{"currency": "INR", "debit": "3000.00", "credit": "3000.00"}]
-    assert {line["commodity"] for line in result["lines"]} == {"BTC", "INR"}
 
 
 def test_the_trial_balance_names_a_transaction_that_does_not_balance(client, session, account, expense_account):
     made = post(client, account, expense_account, "10")
     # Bypass the service, the way a bug or manual SQL could.
     posting = session.query(Posting).filter(Posting.transaction == UUID(made["tid"]), Posting.side == PostingSide.DEBIT).one()
-    posting.amount = posting.value = 11
+    posting.amount = 11
     session.add(posting)
     session.commit()
     result = trial(client)
@@ -112,8 +91,8 @@ def test_a_transaction_with_one_posting_is_reported(client, session, account, ex
 def test_the_trial_balance_stops_at_the_day_asked(client, account, expense_account):
     post(client, account, expense_account, "10", on="2026-01-05")
     post(client, account, expense_account, "20", on="2026-03-05")
-    assert trial(client, as_of="2026-02-01")["totals"][0]["debit"] == "10.00"
-    assert trial(client)["totals"][0]["debit"] == "30.00"
+    assert trial(client, as_of="2026-02-01")["debit"] == "10.00"
+    assert trial(client)["debit"] == "30.00"
 
 
 # ---- balances by date ----------------------------------------------------------------------------
@@ -247,7 +226,6 @@ def test_history_follows_a_transaction_from_creation_to_deletion(client, account
     assert history[0]["postings"][0]["account"] in ("Expenses:groceries", "Assets:checking")
     assert {p["amount"] for p in history[0]["postings"]} == {"10.00"}
     assert {p["amount"] for p in history[3]["postings"]} == {"12.00"}
-    assert history[3]["currency"] == "INR"
 
     deleted = client.get("/api/transactions/deleted").json()
     assert [d["transaction"] for d in deleted] == [made["tid"]]
@@ -267,7 +245,7 @@ def test_history_belongs_to_one_user(client, session, account, expense_account):
     from app.models.transaction_history import TransactionHistory
 
     theirs = TransactionHistory(
-        user=UUID(int=99), transaction_id=UUID(int=5), action="created", snapshot={"date": "2026-01-01", "currency_id": str(UUID(int=1)), "postings": []}
+        user=UUID(int=99), transaction_id=UUID(int=5), action="created", snapshot={"date": "2026-01-01", "postings": []}
     )
     session.add(theirs)
     session.commit()
@@ -286,7 +264,7 @@ def test_balance_adjustments_are_in_the_history_too(client, session, account):
 # ---- database checks -----------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("column,value", [("amount", 0), ("value", -1)])
+@pytest.mark.parametrize("column,value", [("amount", 0), ("amount", -1)])
 def test_the_database_refuses_a_posting_that_is_not_positive(client, session, account, expense_account, column, value):
     made = post(client, account, expense_account, "10")
     posting = session.query(Posting).filter(Posting.transaction == UUID(made["tid"])).first()
@@ -316,7 +294,7 @@ def test_an_import_balances(client, root_accounts):
     assert response.status_code == 200, response.text
     result = trial(client)
     assert result["balanced"], result["problems"]
-    assert result["totals"][0]["debit"] == result["totals"][0]["credit"] == "1040.00"
+    assert result["debit"] == result["credit"] == "1040.00"
 
 
 def test_recurring_occurrences_balance(client, root_accounts, account, expense_account):
@@ -328,7 +306,7 @@ def test_recurring_occurrences_balance(client, root_accounts, account, expense_a
     assert response.status_code == 201, response.text
     client.get("/api/recurring/")
     result = trial(client)
-    assert result["balanced"] and result["totals"][0]["debit"] != "0.00", result
+    assert result["balanced"] and result["debit"] != "0.00", result
 
 
 def test_the_edit_page_shows_the_history(client, account, expense_account):
