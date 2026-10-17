@@ -4,6 +4,7 @@
 {% block content %}
 <a class="back" href="/transactions">{{ icon("back") }}Transactions</a>
 <h1>Recently deleted</h1>
+{% set current = "transactions" %}{% include "partials/deleted_tabs.html" %}
 <p class="muted form-narrow">Restoring puts an entry back exactly as it was, on its own date. It stays here until you restore it.</p>
 <p id="restore-error" class="error" role="alert"></p>
 

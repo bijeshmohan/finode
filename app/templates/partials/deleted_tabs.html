@@ -1,0 +1,6 @@
+{#- The three places something can be brought back from; `current` is "transactions", "accounts" or "categories". -#}
+<div class="chips" role="group" aria-label="Recently deleted">
+  {% for key, label in (("transactions", "Transactions"), ("accounts", "Accounts"), ("categories", "Categories")) %}
+  <a class="chip" href="/{{ key }}/deleted" aria-pressed="{{ 'true' if current == key else 'false' }}">{{ label }}</a>
+  {% endfor %}
+</div>

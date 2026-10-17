@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Recently deleted · finode{% endblock %}
+{% block content %}
+<a class="back" href="/{{ area }}">{{ icon("back") }}{{ "Categories" if area == "categories" else "Accounts" }}</a>
+<h1>Recently deleted</h1>
+{% set current = area %}{% include "partials/deleted_tabs.html" %}
+<p class="muted form-narrow">
+  {% if area == "categories" %}A category with entries is closed when you delete it, and one without any is removed.{% else %}An account with entries is closed, and one without any can be removed.{% endif %}
+  Restoring brings it back, with its note and budget.
+</p>
+<p id="restore-error" class="error" role="alert"></p>
+<p id="page-error" class="error" role="alert"></p>
+
+{% if entries %}
+<ul class="tile list del-list">
+  {% for e in entries %}
+  <li class="del-row">
+    <span class="del-main">
+      <span class="del-title">{{ e.name }}</span>
+      <span class="del-sub">{{ e.path.rsplit(":", 1)[0].replace(":", " › ") if ":" in e.path else e.path }}</span>
+      <span class="del-sub">{{ "closed" if e.kind == "closed" else "deleted" }} {{ e.when|friendly_date|lower }}</span>
+    </span>
+    <span class="del-side">
+      {% if e.kind == "closed" %}
+      <button type="button" class="secondary" hx-post="/accounts/{{ e.aid }}/reopen" hx-target="#page-error" hx-swap="innerHTML">Restore</button>
+      {% else %}
+      <button type="button" class="secondary" hx-post="/accounts/deleted/{{ e.did }}/restore" hx-target="#restore-error" hx-swap="innerHTML">Restore</button>
+      {% endif %}
+    </span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card empty-state"><p>Nothing deleted.</p><a class="button secondary" href="/{{ area }}">Back</a></div>
+{% endif %}
+{% endblock %}

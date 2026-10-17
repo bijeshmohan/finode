@@ -749,6 +749,110 @@ class AccountService:
         self.ar.db.refresh(updated)
         return self._to_read(updated, all_accounts)
 
+    def _path(self, account: Account, by_id: dict[UUID, Account]) -> str:
+        names, seen = [], set()
+        while account is not None and account.aid not in seen:
+            seen.add(account.aid)
+            names.append(account.name)
+            account = by_id.get(account.parent_id) if account.parent_id else None
+        return ":".join(reversed(names))
+
+    def _deletion_snapshot(self, account: Account, all_accounts: list[Account], budget: BudgetRepository) -> dict:
+        """What is needed to bring an unused account back (see models/account_deletion.py)."""
+        by_id = {a.aid: a for a in all_accounts}
+        target = budget.targets().get(account.aid)
+        return {
+            "name": account.name,
+            "details": account.details,
+            "parent_id": str(account.parent_id) if account.parent_id else None,
+            "path": self._path(account, by_id),
+            "root": self._get_root_name(account, by_id),
+            "on_budget": account.on_budget,
+            "payment_category_id": str(account.payment_category_id) if account.payment_category_id else None,
+            "position": account.position,
+            "plan": [
+                {"month": row.month.isoformat(), "amount": str(row.amount)}
+                for row in budget.list() if row.account_id == account.aid
+            ],
+            "target": None if target is None else {
+                "kind": target.kind, "amount": str(target.amount),
+                "target_date": target.target_date.isoformat() if target.target_date else None, "weekday": target.weekday,
+            },
+            "linked": [str(a.aid) for a in all_accounts if a.payment_category_id == account.aid],
+        }
+
+    def restorable(self, limit: int = 50) -> list[dict]:
+        """Accounts and categories deleted for good and not back, newest first (one per account, the latest deletion)."""
+        by_id = {a.aid: a for a in self._ensure_roots()}
+        latest: dict[UUID, object] = {}
+        for row in self.ar.deletions():
+            latest.setdefault(row.account_id, row)
+        return [
+            {"did": row.did, "account_id": row.account_id, "at": row.at, **{k: row.snapshot.get(k) for k in ("name", "path", "root")}}
+            for aid, row in latest.items() if aid not in by_id
+        ][:limit]
+
+    def closed(self) -> list[dict]:
+        """The accounts that were closed (a category that was deleted but had a history is closed): the outermost of
+        each closed branch, newest first."""
+        all_accounts = self._ensure_roots()
+        by_id = {a.aid: a for a in all_accounts}
+        top = [
+            a for a in all_accounts
+            if a.closed_on is not None and not self._is_root(a)
+            and not (a.parent_id in by_id and by_id[a.parent_id].closed_on is not None)
+        ]
+        top.sort(key=lambda a: (a.closed_on, a.name), reverse=True)
+        return [
+            {"aid": a.aid, "name": a.name, "path": self._path(a, by_id), "root": self._get_root_name(a, by_id), "closed_on": a.closed_on}
+            for a in top
+        ]
+
+    def restore_deleted(self, did: UUID) -> AccountRead:
+        """Bring back an account or category that was deleted for good: with its old id, note, budget flag, place,
+        planned amounts and target, and the payment links that pointed at it."""
+        row = self.ar.deletion(did)
+        if row is None:
+            raise LookupError("deleted account not found!")
+        all_accounts = self._ensure_roots()
+        by_id = {a.aid: a for a in all_accounts}
+        if row.account_id in by_id:
+            raise ValueError("this account is already back!")
+        if next(r for r in self.ar.deletions() if r.account_id == row.account_id).did != row.did:
+            raise ValueError("this account was deleted again later; restore the latest deletion!")
+        snap = row.snapshot
+        parent = by_id.get(UUID(snap["parent_id"])) if snap.get("parent_id") else None
+        if parent is None:
+            raise ValueError("the account it was in no longer exists, so it cannot be restored!")
+        if parent.closed_on is not None:
+            raise ValueError(f"'{parent.name}' is closed: reopen it first!")
+        self._validate_parent(parent, all_accounts)
+        ensure_room(len(all_accounts), settings.max_accounts, "accounts")
+        self._check_depth(parent, 1, all_accounts)
+        if any(a.parent_id == parent.aid and a.name == snap["name"] for a in all_accounts):
+            raise ValueError(f"'{parent.name}' already has an account called '{snap['name']}'!")
+        payment = UUID(snap["payment_category_id"]) if snap.get("payment_category_id") else None
+        restored = self.ar.restore(row.account_id, {
+            "name": snap["name"], "details": snap.get("details"), "parent_id": parent.aid,
+            "on_budget": bool(snap.get("on_budget")), "position": snap.get("position"),
+            "payment_category_id": payment if payment in by_id else None,
+        })
+        budget = BudgetRepository(self.ar.db, self.ar.uid)
+        for item in snap.get("plan", []):
+            budget.set(date.fromisoformat(item["month"]), restored.aid, Decimal(item["amount"]))
+        if snap.get("target"):
+            t = snap["target"]
+            budget.set_target(restored.aid, t["kind"], Decimal(t["amount"]),
+                              date.fromisoformat(t["target_date"]) if t["target_date"] else None, t["weekday"])
+        for linked in snap.get("linked", []):
+            other = by_id.get(UUID(linked))
+            if other is not None and other.payment_category_id is None:
+                other.payment_category_id = restored.aid
+                self.ar.db.add(other)
+        self.ar.db.commit()
+        self.ar.db.refresh(restored)
+        return self._to_read(restored, self._ensure_roots())
+
     def delete(self, aid: UUID) -> AccountRead | None:
         all_accounts = self._ensure_roots()
         account = next((a for a in all_accounts if a.aid == aid), None)
@@ -770,7 +874,9 @@ class AccountService:
             raise AccountInUseError("account is used by a recurring transaction")
 
         account_read = self._to_read(account, all_accounts)
-        BudgetRepository(self.ar.db, self.ar.uid).delete_for_account(aid)  # only a plan: it goes with the category
+        budget = BudgetRepository(self.ar.db, self.ar.uid)
+        self.ar.record_deletion(aid, self._deletion_snapshot(account, all_accounts, budget))
+        budget.delete_for_account(aid)  # only a plan: it goes with the category
         self.ar.clear_payment_category(aid)
         deleted = self.ar.delete(aid)
         if not deleted:
