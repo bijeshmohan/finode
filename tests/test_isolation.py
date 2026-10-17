@@ -57,7 +57,7 @@ LISTS = {
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"), ("GET", "/api/transactions/deleted"),
     ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/move"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
-    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/summary"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
+    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/summary"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/api/accounts/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
 }
 
 # Routes that take A's ids or names inside the request: refused (see `test_b_cannot_use_a_s_things_in_requests`).
@@ -140,6 +140,10 @@ def world(client: TestClient, session, rich) -> World:  # noqa: F811
     spare = client.post("/api/transactions/", json={"payee": "Employer", "postings": [
         line(rich["groceries"], "debit", "7"), line(rich["bank"], "credit", "7")]}).json()
     client.delete(f"/api/transactions/{spare['tid']}")
+    assets = next(a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets")
+    shelf = client.post("/api/accounts/", json={"name": "Spare shelf", "parent_id": assets}).json()["aid"]
+    client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
+    w.dids = [d["did"] for d in client.get("/api/accounts/deleted").json()]
     doc = client.get("/api/backup").json()
     w.backup = doc
     w.accounts = {a["name"]: a["id"] for a in doc["accounts"]}
@@ -149,7 +153,7 @@ def world(client: TestClient, session, rich) -> World:  # noqa: F811
     w.hids = [d["hid"] for d in client.get("/api/transactions/deleted").json()]
     w.tkid, w.gid = str(w.token.tkid), str(w.grant.gid)
     w.markers = A_WORDS + [str(i) for i in (
-        *w.accounts.values(), *w.tids, *w.rids, *w.hids, w.tkid, w.gid)]
+        *w.accounts.values(), *w.tids, *w.rids, *w.hids, *w.dids, w.tkid, w.gid)]
     # B has a small ledger of their own (and none of A's names).
     with signed_in_as(B_USER):
         roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
@@ -191,6 +195,7 @@ def candidates(world: World, name: str) -> list[str]:
         "aid": [*world.accounts.values(), *world.roots],
         "tid": world.tids,
         "hid": world.hids,
+        "did": world.dids,
         "rid": world.rids,
         "tkid": [world.tkid],
         "gid": [world.gid],
@@ -420,7 +425,7 @@ def test_nothing_answers_without_a_sign_in(session, world: World):
                 if (method, template) in PUBLIC or method == "HEAD":
                     continue
                 url = template
-                for name in ("aid", "tid", "rid", "hid", "tkid", "gid"):
+                for name in ("aid", "tid", "rid", "hid", "did", "tkid", "gid"):
                     url = url.replace("{" + name + "}", str(world.tids[0]))
                 response = anonymous.request(method, url, json={} if url.startswith("/api/") else None, data=None if url.startswith("/api/") else {})
                 checked += 1

@@ -18,6 +18,7 @@ MESSAGES = {
     "account-moved": "Moved",
     "account-order-reset": "Back in alphabetical order",
     "account-reopened": "Account reopened",
+    "account-restored": "Account restored",
     "budget-note": "Note saved",
     "advanced-on": "Advanced features are shown",
     "advanced-off": "Advanced features are hidden",

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
-from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
+from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, DeletedAccountRead, RegisterEntry
 from ..services.account import AccountInUseError, SystemAccountError
 
 
@@ -21,6 +21,23 @@ router = APIRouter(
 def create_account(account: AccountCreate, accounts: Accounts):
     try:
         return accounts.create(account)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/deleted", response_model=list[DeletedAccountRead], status_code=200)
+def get_deleted_accounts(accounts: Accounts):
+    """Accounts and categories that were deleted for good and are not back, newest first."""
+    return accounts.restorable()
+
+
+@router.post("/deleted/{did}/restore", response_model=AccountRead, status_code=201)
+def restore_deleted_account(did: UUID, accounts: Accounts):
+    """Bring a deleted account back (same id, note, budget plan and target); `did` comes from `/deleted`."""
+    try:
+        return accounts.restore_deleted(did)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

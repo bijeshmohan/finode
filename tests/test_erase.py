@@ -8,6 +8,7 @@ from sqlmodel import select
 
 from app.config import settings
 from app.models.account import Account
+from app.models.account_deletion import AccountDeletion
 from app.models.api_token import ApiToken
 from app.models.oauth_grant import OAuthGrant
 from app.models.profile import Profile
@@ -46,7 +47,12 @@ def both(client, session, rich):  # noqa: F811
 
 def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, both):
     before_b = books_of(client, B_USER)
+    shelf = client.post("/api/accounts/", json={"name": "Shelf", "parent_id": next(
+        a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets")}).json()["aid"]
+    client.delete(f"/api/accounts/{shelf}")
+    assert rows(session, AccountDeletion), "a deleted account leaves a record"
     removed = EraseService(session, TEST_USER_ID).erase_books()
+    assert rows(session, AccountDeletion) == [] and "account_deletions" in removed, "erasing the books clears the records too"
     assert {"accounts", "transactions", "postings", "recurring_transactions", "budget_allocations",
             "transaction_history"} <= set(removed)
     for model in (Account, Transaction, Posting):

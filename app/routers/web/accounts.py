@@ -13,7 +13,7 @@ from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
-from ...clock import local_today
+from ...clock import local_day, local_today
 
 
 router = APIRouter(prefix="/accounts")
@@ -332,6 +332,36 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
         if node.postable and node.children
         else None,
     }
+
+
+def deleted_page(request: Request, accounts: Accounts, area: str):
+    """Closed and deleted accounts (`area` "accounts") or categories ("categories"), newest first, each with Restore."""
+    roots = ACCOUNT_ROOTS if area == "accounts" else CATEGORY_ROOTS
+    closed = [dict(c, kind="closed", when=c["closed_on"]) for c in accounts.closed() if c["root"] in roots]
+    gone = [dict(d, kind="deleted", when=local_day(d["at"])) for d in accounts.restorable() if d["root"] in roots]
+    entries = sorted(closed + gone, key=lambda e: e["when"], reverse=True)
+    return templates.TemplateResponse(
+        request,
+        "accounts_deleted.html",
+        {"active": "categories" if area == "categories" else "accounts", "area": area, "entries": entries},
+    )
+
+
+@router.get("/deleted")
+def deleted_accounts_page(request: Request, accounts: Accounts):
+    return deleted_page(request, accounts, "accounts")
+
+
+@router.post("/deleted/{did}/restore")
+def restore_deleted_account(did: UUID, accounts: Accounts):
+    try:
+        restored = accounts.restore_deleted(did)
+    except LookupError:
+        return htmx_error("That deleted account is not there any more.", "#restore-error", status_code=404)
+    except ValueError as e:
+        return htmx_error(str(e), "#restore-error")
+    category = area_of(accounts, restored.aid) == "/categories"
+    return htmx_redirect(f"/accounts/{restored.aid}", flash="category-restored" if category else "account-restored")
 
 
 @router.get("/{aid}")

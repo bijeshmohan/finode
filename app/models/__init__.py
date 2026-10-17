@@ -1,5 +1,6 @@
 from .auth import AuthUser
 from .account import Account
+from .account_deletion import AccountDeletion
 from .api_token import ApiToken
 from .budget import BudgetAllocation, BudgetTarget
 from .oauth_grant import OAuthGrant
@@ -12,6 +13,7 @@ from .transaction_history import TransactionHistory
 __all__ = [
     "AuthUser",
     "Account",
+    "AccountDeletion",
     "ApiToken",
     "BudgetAllocation",
     "OAuthGrant",
