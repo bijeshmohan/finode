@@ -31,3 +31,10 @@ def month_progress(today: date | None = None) -> int:
 
     day = today or local_today()
     return round(100 * day.day / monthrange(day.year, day.month)[1])
+
+
+def local_day(moment: datetime) -> date:
+    """The day a stored moment fell on, where the people using it live."""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(_zone(settings.timezone)).date() if settings.timezone else moment.astimezone().date()

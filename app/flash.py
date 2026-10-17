@@ -34,6 +34,7 @@ MESSAGES = {
     "transaction-saved-next": "Transaction saved. Add the next one.",
     "transaction-updated": "Transaction updated",
     "transaction-deleted": "Transaction deleted",
+    "transaction-restored": "Transaction restored",
     "account-created": "Account added",
     "account-updated": "Account updated",
     "account-deleted": "Account deleted",

@@ -41,6 +41,17 @@ def get_deleted_transactions(transactions: Transactions):
     return transactions.deleted()
 
 
+@router.post("/deleted/{hid}/restore", response_model=TransactionRead, status_code=201)
+def restore_transaction(hid: UUID, transactions: Transactions):
+    """Bring a deleted transaction back as it was (same id); `hid` is the `hid` of its deletion in `/deleted`."""
+    try:
+        return transactions.restore(hid)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (InvalidPostingError, LimitReached, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/{tid}/history", response_model=list[HistoryRead], status_code=200)
 def get_transaction_history(tid: UUID, transactions: Transactions):
     """Creation, edits and deletion of a transaction, oldest first (also for a deleted one)."""
