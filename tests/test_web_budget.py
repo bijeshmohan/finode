@@ -308,15 +308,19 @@ def test_a_budget_account_with_sub_accounts_is_not_announced_on_the_page(client,
     assert "Left out because" not in page and "sub-accounts" not in page
 
 
-def test_overspending_is_a_red_box_and_over_assigning_an_amber_one(client, setup):
+def test_one_overspent_category_is_not_a_warning_but_overspending_overall_is(client, setup):
     assign(client, setup["food"], "100")
-    move(client, setup["bank"], setup["food"], "150")  # spends 150 from the 100 in Food
+    assign(client, setup["rent"], "500")
+    move(client, setup["bank"], setup["food"], "150")  # Food is 50 over, Rent still has 500: overall there is 450 left
     page = client.get("/budget").text
-    assert 'class="ready-warn over"' in page and "Overspent" in page and "50.00 in 1 category" in page.replace("₹", "")
+    assert "ready-warn" not in page, "the category's own bar shows it"
+    move(client, setup["bank"], setup["food"], "600")  # now more is spent than was assigned in all
+    page = client.get("/budget").text
+    assert 'class="ready-warn over"' in page and "Overspent by" in page and "150.00" in page.replace("₹", "")
     assert "ready-warn assigned" not in page, "ready to assign is still positive"
     assign(client, setup["rent"], "5000")  # more than there is
     page = client.get("/budget").text
-    assert page.index("ready-warn over") < page.index("ready-warn assigned"), "both, the red one first"
+    assert "ready-warn assigned" in page
 
 
 def test_no_warning_when_nothing_is_over(client, setup):

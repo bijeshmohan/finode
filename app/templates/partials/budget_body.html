@@ -13,7 +13,7 @@
   </div>
   {% if overspent > 0 or rta < 0 %}
   <div class="ready-warns">
-    {% if overspent > 0 %}<p class="ready-warn over" role="alert">Overspent {{ overspent|money|amount(budget.currency) }} in {{ overspent_count }} {{ "category" if overspent_count == 1 else "categories" }}</p>{% endif %}
+    {% if overspent > 0 %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
     {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
   </div>
   {% endif %}
