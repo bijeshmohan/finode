@@ -20,8 +20,9 @@ def setup(client, root_accounts):
 
 def test_the_page_shows_what_is_left_to_assign(client, setup):
     page = client.get("/budget").text
-    assert "ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00")
-    assert "Left to spend in" in page and "Nothing assigned yet" in page, "the month first, then what is left to assign"
+    assert "Ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00")
+    assert "Left to spend in" not in page, "that figure is Home's; Budget leads with what is left to assign"
+    assert 'class="ready zero budget-hero ready-hero"' in page
     assert "Food" in page and "Rent" in page and "this month" in page, "the title says this month"
     assert 'href="/budget?month=' in page
 
@@ -65,7 +66,7 @@ def test_other_months_are_reachable(client, setup):
 def test_overspending_and_overassigning_are_called_out(client, setup):
     assign(client, setup["food"], "1500")
     page = client.get("/budget").text
-    assert "more than you have" in page and "ready-line over" in page
+    assert "more than you have" in page and "Over-assigned by" in page
 
 
 def test_every_unit_with_a_job_is_celebrated(client, setup):

@@ -1198,11 +1198,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 .budget-hero .figure.over { color: var(--danger); }
 .budget-hero .glance-bar { margin-top: .6rem; }
 .glance-note { font-size: .8125rem; color: var(--muted); margin-top: .35rem; }
-.ready-line { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin: 0 0 .75rem; padding: .75rem 1rem; border-radius: var(--radius-sm); font-size: .9375rem; }
-.ready-line.to-assign { background: var(--accent); color: var(--on-accent); }
-.ready-line.to-assign .go { font-size: .8125rem; opacity: .8; text-align: right; white-space: nowrap; }
-.ready-line.over { background: var(--danger-soft); color: var(--danger); }
-.ready-line.all-set { padding: 0 .25rem; color: var(--muted); font-size: .8125rem; }
 .budget-list .top + .top, .budget-list > .crow + .crow { border-top: 1px solid var(--surface-2); }
 .budget-list .crow { padding: .85rem 0; width: 100%; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 .budget-list .crow-main { flex: 1; }
