@@ -1,7 +1,7 @@
-{#- Expects `rows` (TransactionRow list, newest first). -#}
+{#- Expects `rows` (TransactionRow list, newest first; soonest first with `ascending`). `no_sheet` leaves out the details sheet when the page already has one. -#}
 {% from "partials/icons.html" import icon %}
 <div class="tx-list">
-  {% for day, items in rows|groupby("transaction.date")|reverse %}
+  {% for day, items in (rows|groupby("transaction.date") if ascending else rows|groupby("transaction.date")|reverse) %}
   <section class="tx-day">
     <h3 class="tx-day-head">{{ day|friendly_date }}</h3>
     <ul class="card list">
@@ -23,6 +23,8 @@
   </section>
   {% endfor %}
 </div>
+{% if not no_sheet %}
 <dialog id="txn-sheet" class="sheet sheet-bottom" aria-label="Transaction details">
   <div id="txn-sheet-body" class="sheet-body"></div>
 </dialog>
+{% endif %}

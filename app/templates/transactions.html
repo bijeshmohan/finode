@@ -45,9 +45,16 @@
   </form>
 </details>
 
+{% if upcoming %}
+<details class="upcoming" {{ "open" if searching }}>
+  <summary><span>{{ upcoming|length }} upcoming · next {{ upcoming[0].transaction.date|friendly_date }}</span><span class="gcaret">{{ icon("caret") }}</span></summary>
+  {% with rows=upcoming, ascending=true, no_sheet=(rows|length > 0) %}{% include "partials/transaction_list.html" %}{% endwith %}
+</details>
+{% endif %}
+
 {% if rows %}
   {% include "partials/transaction_list.html" %}
-{% else %}
+{% elif not upcoming %}
 <div class="card empty-state">
   <p>{{ "Nothing matches." if searching else "No transactions yet." }}</p>
   {% if not searching %}<a class="button" href="/transactions/new">Record a transaction</a>{% else %}<a class="button secondary" href="/transactions">Show everything</a>{% endif %}

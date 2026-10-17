@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from urllib.parse import urlencode
 from uuid import UUID
@@ -28,6 +28,9 @@ from ...services.lock import locked_through
 router = APIRouter(prefix="/transactions")
 
 PAGE_SIZE = 25
+
+# How many entries dated ahead the transactions page lists under "upcoming".
+UPCOMING_LIMIT = 100
 # "spending" and "transfers" are the older spellings of the chips and keep working in saved links.
 KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer", "spending": "expense", "transfers": "transfer"}
 
@@ -126,17 +129,33 @@ def transactions_page(
 
     error = None
     rows: list[TransactionRow] = []
+    upcoming: list[TransactionRow] = []
     has_next = False
+    today = local_today()
+    first = last = None
     try:
+        first, last = _parse_date(date_from), _parse_date(date_to)
+        # What is dated ahead is not history: it waits in its own row ("N upcoming"), soonest first, on the first page.
         found = transactions.list(
             UUID(account) if account else None,
-            _parse_date(date_from),
-            _parse_date(date_to),
+            first,
+            min(last, today) if last else today,
             PAGE_SIZE + 1,
             (page - 1) * PAGE_SIZE,
             q,
             KIND_FILTERS.get(kind),
         )
+        if page == 1 and (last is None or last > today):
+            ahead = transactions.list(
+                UUID(account) if account else None,
+                max(first, today + timedelta(days=1)) if first else today + timedelta(days=1),
+                last,
+                UPCOMING_LIMIT,
+                0,
+                q,
+                KIND_FILTERS.get(kind),
+            )
+            upcoming = [to_row(t, index) for t in sorted(ahead, key=lambda t: (t.date, t.created))]
     except ValueError as e:
         error = f"Invalid filter: {e}"
         found = []
@@ -156,6 +175,7 @@ def transactions_page(
             "focus_search": focus == "search",  # opened from the search icon in the top bar
             "currency": accounts.currency().code,
             "rows": rows,
+            "upcoming": upcoming,
             "error": error,
             "filters": filters,
             "active_filters": len(query),
