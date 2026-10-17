@@ -297,3 +297,11 @@ def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts
     nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
     assign(client, food, "50", nxt)
     assert "− assigned to later months 50.00 = ready to assign" in client.get("/budget").text
+
+
+def test_a_budget_account_with_sub_accounts_is_not_announced_on_the_page(client, setup, root_accounts):
+    """It is left out of the sums (only accounts that hold money count) but the page does not say so: nothing to do."""
+    deposits = account(client, root_accounts, "Deposits", "Assets")
+    client.post("/api/accounts/", json={"name": "FD", "parent_id": deposits, "balance": "10"})
+    page = client.get("/budget").text
+    assert "Left out because" not in page and "sub-accounts" not in page
