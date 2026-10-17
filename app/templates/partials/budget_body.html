@@ -5,22 +5,16 @@
 
 <div id="budget">
   {% set rta = budget.ready_to_assign %}
-  <div class="ready zero budget-hero ready-hero">
-    <span class="muted">Ready to assign in {{ month_name.split(" ")[0] }}</span>
-    <span class="figure">{{ figure(rta if rta > 0 else 0, budget.currency) }}</span>
-    {% if rta > 0 %}<span class="glance-note">Tap a category to give it a job.</span>
-    {% elif rta == 0 and budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
+  <div class="cat-bar bud-bar">
+    <span class="month-pill">
+      <span class="month-pill-name">{{ month_name.split(" ")[0][:3] }} {{ month_name.split(" ")[1] }}</span>
+      <a class="icon-button" href="/budget?month={{ previous }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
+      <a class="icon-button" href="/budget?month={{ next }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>
+    </span>
+    {% if attention %}<button type="button" class="need" data-toggle-attn aria-expanded="false" aria-controls="attn-panel">Needs you <i>{{ attention }}</i></button>{% endif %}
   </div>
-  {% if overspent > 0 or rta < 0 %}
-  <div class="ready-warns">
-    {% if overspent > 0 %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
-    {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
-  </div>
-  {% endif %}
-
   {% if attention %}
-  <details class="attn">
-    <summary><span>{{ attention }} thing{{ "" if attention == 1 else "s" }} need{{ "s" if attention == 1 }} you</span><span class="gcaret">{{ icon("caret") }}</span></summary>
+  <div class="attn-panel" id="attn-panel" hidden>
     {% if budget.left_out_accounts %}
     <div class="attn-item left-out">
       <p><strong>{{ budget.left_out|money|amount(budget.currency) }}</strong> spent this month is not in the categories below, because it was paid from
@@ -51,8 +45,22 @@
       <button type="submit" class="secondary">Copy last month's amounts · {{ budget.copyable|money }}</button>
     </form>
     {% endif %}
-  </details>
+  </div>
   {% endif %}
+  <div class="ready zero budget-hero ready-hero">
+    <span class="muted">Ready to assign</span>
+    <span class="figure">{{ figure(rta if rta > 0 else 0, budget.currency) }}</span>
+    {% if rta > 0 %}<span class="glance-note">Tap a category to give it a job.</span>
+    {% elif rta == 0 and budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
+  </div>
+  {% if overspent > 0 or rta < 0 %}
+  <div class="ready-warns">
+    {% if overspent > 0 %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
+    {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+
   <p id="budget-error" class="error" role="alert"></p>
 
   {% if not budget.budget_accounts %}

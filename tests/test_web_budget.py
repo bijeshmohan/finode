@@ -23,7 +23,7 @@ def test_the_page_shows_what_is_left_to_assign(client, setup):
     assert "Ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00")
     assert "Left to spend in" not in page, "that figure is Home's; Budget leads with what is left to assign"
     assert 'class="ready zero budget-hero ready-hero"' in page
-    assert "Food" in page and "Rent" in page and "this month" in page, "the title says this month"
+    assert "Food" in page and "Rent" in page and THIS_MONTH.strftime("%b %Y") in page, "the pill says which month"
     assert 'href="/budget?month=' in page
 
 
@@ -59,8 +59,8 @@ def test_a_bad_amount_is_explained_next_to_the_list(client, setup):
 def test_other_months_are_reachable(client, setup):
     last = (THIS_MONTH - timedelta(days=1)).strftime("%Y-%m")
     page = client.get(f"/budget?month={last}").text
-    assert (THIS_MONTH - timedelta(days=1)).strftime("%B %Y") in page and "this month" not in page
-    assert "this month" in client.get("/budget?month=nonsense").text, "unreadable falls back to now"
+    assert (THIS_MONTH - timedelta(days=1)).strftime("%b %Y") in page and THIS_MONTH.strftime("%b %Y") not in page
+    assert THIS_MONTH.strftime("%b %Y") in client.get("/budget?month=nonsense").text, "unreadable falls back to now"
 
 
 def test_overspending_and_overassigning_are_called_out(client, setup):
@@ -68,7 +68,7 @@ def test_overspending_and_overassigning_are_called_out(client, setup):
     page = client.get("/budget").text
     assert 'class="ready-warn assigned"' in page and "Over-assigned by" in page
     assert "ready-warn over" not in page, "nothing was spent beyond a category"
-    assert "Ready to assign in" in page and "0.00" in page
+    assert "Ready to assign" in page and "0.00" in page
 
 
 def test_every_unit_with_a_job_is_celebrated(client, setup):
@@ -182,11 +182,12 @@ def test_unused_groups_are_tucked_away_once_something_is_in_use_but_plain_catego
     assert 'class="top "' in page and "Rent" in page.split("data-toggle-budget-unused")[0], "Rent is a plain category: it stays"
 
 
-def test_what_needs_you_is_one_row_that_opens(client, setup):
+def test_what_needs_you_is_a_badge_that_opens_a_panel(client, setup):
     last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
     assign(client, setup["food"], "300", last)
     page = client.get("/budget").text
-    assert "1 thing needs you" in page and "Copy last month's amounts" in page
+    assert "data-toggle-attn" in page and "Needs you <i>1</i>" in page and "Copy last month's amounts" in page
+    assert "things need you" not in page and "thing needs you" not in page, "no separate card any more"
 
 
 def test_the_sheet_of_a_plain_account_is_not_offered(client, root_accounts, setup):
@@ -326,3 +327,10 @@ def test_one_overspent_category_is_not_a_warning_but_overspending_overall_is(cli
 def test_no_warning_when_nothing_is_over(client, setup):
     assign(client, setup["food"], "100")
     assert "ready-warn" not in client.get("/budget").text
+
+
+def test_the_heading_is_a_title_and_a_pill_with_both_arrows(client, setup):
+    page = client.get("/budget").text
+    assert "<h1>Budget</h1>" in page and 'class="month-pill"' in page
+    assert 'title="Previous month"' in page and 'title="Next month"' in page, "the budget can look ahead"
+    assert "Needs you" not in page, "nothing needs a decision yet"
