@@ -84,7 +84,7 @@ class BackupService:
                 BackupAccount(
                     id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details,
                     on_budget=a.on_budget, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
-                    pinned=a.pinned, position=a.position,
+                    position=a.position,
                 )
                 for a in accounts
             ],
@@ -308,7 +308,6 @@ class BackupService:
                     continue
                 account = self.ar.read(ids[a.id])
                 account.closed_on = a.closed_on
-                account.pinned = a.pinned and a.closed_on is None
                 account.position = a.position
                 account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)

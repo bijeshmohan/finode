@@ -39,7 +39,8 @@ class BackupAccount(BaseModel):
     on_budget: bool = False
     closed_on: Date | None = None
     payment_category_id: UUID | None = None
-    pinned: bool = False
+    # Older backups: accounts could be pinned. Read, never written.
+    pinned: bool = Field(default=False, exclude=True)
     position: int | None = None
 
 

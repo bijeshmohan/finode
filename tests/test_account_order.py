@@ -1,4 +1,4 @@
-"""Pinning accounts, placing them by hand, and the list of recently used ones."""
+"""Placing accounts by hand, and the list of recently used ones."""
 
 import re
 
@@ -52,44 +52,15 @@ def spend(client, debit, credit, amount="10"):
     assert response.status_code == 201, response.text
 
 
-# ---- pinning -------------------------------------------------------------------------------------------------------
+# ---- pinning is gone ------------------------------------------------------------------------------------------------
 
 
-def test_pin_and_unpin(client, books):
-    assert books["hdfc"]["pinned"] is False
-    assert client.post(f"/api/accounts/{books['hdfc']['aid']}/pin").json()["pinned"] is True
-    assert client.get(f"/api/accounts/{books['hdfc']['aid']}").json()["pinned"] is True
-    assert client.post(f"/api/accounts/{books['hdfc']['aid']}/unpin").json()["pinned"] is False
-
-
-def test_only_your_own_accounts_can_be_pinned(client, books):
-    for aid in (books["roots"]["Assets"], next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Opening Balances")):
-        response = client.post(f"/api/accounts/{aid}/pin")
-        assert response.status_code == 400, response.text
-    assert client.post("/api/accounts/00000000-0000-4000-8000-0000000000aa/pin").status_code == 404
-
-
-def test_a_closed_account_cannot_be_pinned_and_closing_unpins(client, books):
-    aid = books["wallet"]["aid"]
-    client.post(f"/api/accounts/{aid}/pin")
-    assert client.post(f"/api/accounts/{aid}/close").json()["pinned"] is False
-    refused = client.post(f"/api/accounts/{aid}/pin")
-    assert refused.status_code == 400 and "reopen it first" in refused.json()["detail"]
-
-
-def test_closing_a_group_unpins_what_is_inside(client, books):
-    client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
-    for name in ("axis", "hdfc", "sbi"):  # a group closes only when everything in it is empty
-        spend(client, books["wallet"], books[name], "100")
-    assert client.post(f"/api/accounts/{books['banks']['aid']}/close").status_code == 200
-    assert client.get(f"/api/accounts/{books['hdfc']['aid']}").json()["pinned"] is False
-
-
-def test_the_accounts_page_has_no_pinned_block(client, books):
-    client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
-    page = client.get("/accounts").text
-    assert "Pinned" not in squash(page), "pinning is kept in the API but the page no longer lists it"
-    assert "/pin" not in client.get(f"/accounts/{books['hdfc']['aid']}").text, "and the account page has no Pin button"
+def test_accounts_can_no_longer_be_pinned(client, books):
+    aid = books["hdfc"]["aid"]
+    assert "pinned" not in client.get(f"/api/accounts/{aid}").json()
+    assert client.post(f"/api/accounts/{aid}/pin").status_code in (404, 405)
+    assert client.post(f"/accounts/{aid}/pin").status_code in (404, 405)
+    assert "Pinned" not in squash(client.get("/accounts").text) and "/pin" not in client.get(f"/accounts/{aid}").text
 
 
 # ---- ordering ------------------------------------------------------------------------------------------------------
@@ -103,7 +74,6 @@ def test_siblings_start_alphabetical_and_move_by_one_place(client, books):
     spend(client, books["rent"], books["wallet"])  # categories with activity show in the budget
     spend(client, books["food"], books["wallet"])
     spend(client, books["travel"], books["wallet"])
-    client.post(f"/api/accounts/{books['wallet']['aid']}/pin")  # irrelevant to the order
     assert names_in_budget(client) == ["Food", "Rent", "Travel"]
     moved = move(client, books["travel"], "up")
     assert moved["position"] == 1

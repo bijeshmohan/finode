@@ -274,7 +274,6 @@ class AccountService:
             on_budget=account.on_budget,
             payment_category_id=account.payment_category_id,
             closed_on=account.closed_on,
-            pinned=account.pinned,
             position=account.position,
             created=account.created,
             updated=account.updated,
@@ -382,7 +381,6 @@ class AccountService:
             budget.clear_target(member.aid)
             self.ar.clear_payment_category(member.aid)
         self.ar.set_closed([m.aid for m in subtree if m.closed_on is None], today)
-        self.ar.set_pinned([m.aid for m in subtree], False)
         self.ar.db.commit()
         return self._to_read(self.ar.read(aid), self._ensure_roots())
 
@@ -393,17 +391,8 @@ class AccountService:
         if account is None:
             raise ValueError("account not found!")
         if self._is_root(account) or self.is_opening_balances(account, all_accounts):
-            raise SystemAccountError("only accounts you made yourself can be pinned or placed!")
+            raise SystemAccountError("only accounts you made yourself can be placed!")
         return account, all_accounts
-
-    def set_pinned(self, aid: UUID, pinned: bool) -> AccountRead:
-        """Pin an account to the top of the accounts page, or take it off again."""
-        account, _ = self._own(aid)
-        if pinned and account.closed_on is not None:
-            raise ValueError("a closed account cannot be pinned: reopen it first!")
-        self.ar.set_pinned([aid], pinned)
-        self.ar.db.commit()
-        return self._to_read(self.ar.read(aid), self._ensure_roots())
 
     @staticmethod
     def order_key(account: Account) -> tuple:
