@@ -176,6 +176,8 @@ def transactions_page(
             "currency": accounts.currency().code,
             "rows": rows,
             "upcoming": upcoming,
+            # What the schedule comes to; left out when something coming in is mixed with what is going out.
+            "upcoming_total": sum((r.amount for r in upcoming), 0) if upcoming and all(r.kind != "income" for r in upcoming) else None,
             "error": error,
             "filters": filters,
             "active_filters": len(query),

@@ -69,3 +69,21 @@ def test_later_pages_have_no_upcoming_row(client, ledger):
     record(client, bank, loan, "EMI later", local_today() + timedelta(days=20))
     assert '<details class="upcoming"' in client.get("/transactions").text
     assert '<details class="upcoming"' not in client.get("/transactions?page=2").text
+
+
+def test_the_header_says_what_the_schedule_comes_to(client, ledger):
+    bank, loan = ledger
+    for days in (10, 40):
+        record(client, bank, loan, "EMI", local_today() + timedelta(days=days))
+    page = client.get("/transactions").text
+    assert "2 upcoming" in page and "200.00 in all" in page
+
+
+def test_no_total_when_something_coming_in_is_mixed_with_what_goes_out(client, ledger, root_accounts):
+    bank, loan = ledger
+    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()["aid"]
+    record(client, bank, loan, "EMI", local_today() + timedelta(days=10))
+    client.post("/api/transactions/", json={"date": (local_today() + timedelta(days=12)).isoformat(), "payee": "Pay", "postings": [
+        {"account": bank, "side": "debit", "amount": "900"}, {"account": salary, "side": "credit", "amount": "900"}]})
+    page = client.get("/transactions").text
+    assert "2 upcoming" in page and "in all" not in page
