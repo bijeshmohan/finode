@@ -69,7 +69,7 @@ def test_unused_accounts_are_tucked_away_but_new_ones_are_not(client, tree, sess
     assert "unused-hidden" not in page and "hidden · Show" not in page, "everything is new"
     age(session, "Old Savings", "Snacks", "Rent")
     page = client.get("/accounts").text
-    assert page.count("unused-hidden") == 3
+    assert page.count("unused-hidden") == 4, "three accounts, and Rent's block, which has nothing else in it"
     assert "3 unused accounts hidden · Show" in page
     assert "unused-hidden" in item(page, tree["old"]) and "unused-hidden" not in item(page, tree["hdfc"])
     assert "unused-hidden" not in item(page, tree["groceries"]), "a new account stays"
@@ -107,3 +107,19 @@ def test_an_account_a_recurring_rule_uses_is_not_hidden(client, tree, session):
     })
     age(session, "Rent")
     assert "unused-hidden" not in item(client.get("/accounts").text, tree["rent"])
+
+
+def test_a_group_emptied_by_a_move_leaves_no_empty_tile(client, tree, session):
+    """Vehicles holds only Car; Car moves to Valuables. Vehicles is then an unused plain account, and the block it
+    shares with other unused plain accounts must hide with it instead of showing an empty line."""
+    assets = client.get(f"/api/accounts/{tree['banks']}").json()["parent_id"]
+    vehicles = client.post("/api/accounts/", json={"name": "Vehicles", "parent_id": assets}).json()["aid"]
+    valuables = client.post("/api/accounts/", json={"name": "Valuables", "parent_id": assets}).json()["aid"]
+    car = client.post("/api/accounts/", json={"name": "Car", "parent_id": vehicles, "balance": "900"}).json()["aid"]
+    assert client.patch(f"/api/accounts/{car}", json={"parent_id": valuables}).status_code == 200
+    age(session, "Vehicles", "Rent", "Valuables", "Car")
+    page = client.get("/accounts").text
+    assert "unused-hidden" in item(page, vehicles)
+    opening = page[:page.index(f'href="/accounts/{vehicles}"')].rsplit('<div class="acc-block', 1)[1].split(">", 1)[0]
+    assert "unused-hidden" in opening, "its block is hidden too"
+    assert "unused account" in page and "hidden · Show" in page
