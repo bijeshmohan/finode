@@ -1217,3 +1217,11 @@ dd.auto, dd.auto a { color: var(--auto); }
 .crow-amt .negative { color: var(--negative); }
 .budget-list .crow-amt { min-width: 7.5rem; }
 .crow-sub.short { color: var(--negative); }
+
+/* Entries dated ahead wait in one row on the transactions page. */
+.upcoming { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
+.upcoming > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; font-weight: 500; cursor: pointer; list-style: none; }
+.upcoming > summary::-webkit-details-marker { display: none; }
+.upcoming[open] { padding-bottom: .5rem; }
+.upcoming .tx-day ul.card.list { background: none; border: 0; padding: 0; }
+.upcoming .tx-day-head { padding-left: 0; }
