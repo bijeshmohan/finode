@@ -44,7 +44,6 @@ def rich(client, root_accounts):
     salary = acct(client, "Salary", root_accounts["Income"])
     client.patch(f"/api/accounts/{loan['aid']}", json={"payment_category_id": emi["aid"]})
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
-    assert client.post(f"/api/accounts/{bank['aid']}/pin").status_code == 200
     assert client.post(f"/api/accounts/{loan['aid']}/move", params={"direction": "up"}).status_code == 200  # Liabilities: Home Loan before Visa
 
     tx(client, [line(groceries, "debit", "250"), line(card, "credit", "250")], date="2026-09-03", payee="DMart")
@@ -93,7 +92,7 @@ def canonical(doc: dict) -> dict:
         "profile": doc["profile"],
         "accounts": sorted(
             (paths[a["id"]], a["details"], a["on_budget"], a["closed_on"] is not None,
-             paths.get(a["payment_category_id"]), a["pinned"], a["position"])
+             paths.get(a["payment_category_id"]), a["position"])
             for a in doc["accounts"]
         ),
         "transactions": [
@@ -147,6 +146,19 @@ def test_restoring_rebuilds_the_same_books_for_someone_else(client, rich):
     # The new books work like the old ones: balances agree, ids are new.
     old_ids = {a["id"] for a in doc["accounts"] if a["parent_id"]}
     assert not old_ids & {a["id"] for a in again["accounts"] if a["parent_id"]}
+
+
+def test_an_older_backup_with_pinned_accounts_still_restores(client, rich):
+    doc = client.get("/api/backup").json()
+    for account in doc["accounts"]:
+        account["pinned"] = True  # files from before pinning was removed carry the flag
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert done.status_code == 200, done.text
+        assert not any("pinned" in a for a in client.get("/api/backup").json()["accounts"]), "read, never written"
+    finally:
+        as_user(TEST_USER_ID)
 
 
 def test_a_restore_is_only_for_an_empty_ledger(client, rich):
