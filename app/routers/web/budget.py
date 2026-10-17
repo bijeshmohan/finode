@@ -101,6 +101,40 @@ def build_tree(lines: list[BudgetLine]) -> list[Node]:
     return roots
 
 
+def _by_assigned(nodes: list[Node]) -> list[Node]:
+    """Biggest budget first, then by name."""
+    return sorted(nodes, key=lambda n: (-n.line.assigned, n.line.name.lower()))
+
+
+def _hint(node: Node, advanced: bool) -> str:
+    """The small line under a category's name: the three biggest things inside a group and '+N'; for a plain category
+    what needs a look (a target that is short, last month's overspending) and its note."""
+    if node.is_group:
+        inside = [c.line.name for c in _by_assigned(node.children) if c.line.assigned or c.line.activity] or [c.line.name for c in node.children]
+        return " · ".join(inside[:3] + ([f"+{len(inside) - 3}"] if len(inside) > 3 else []))
+    line = node.line
+    parts = []
+    if advanced and line.underfunded:
+        parts.append(("overdue, " if line.overdue else "") + f"needs {line.underfunded:,.2f} more")
+    if line.overspent_last_month:
+        parts.append(f"{line.overspent_last_month:,.2f} overspent last month")
+    if line.note:
+        parts.append(line.note)
+    return " · ".join(parts)
+
+
+def _glance(data) -> dict:
+    """The month (or a group) at a glance, worked out as Home does: what is left, and what was spent out of what there was to spend."""
+    to_spend = data.activity + max(data.available, Decimal(0))
+    return {
+        "left": data.available,
+        "spent": data.activity,
+        "of": to_spend,
+        "percent": int(min(max(data.activity / to_spend, Decimal(0)), Decimal(1)) * 100) if to_spend > 0 else 0,
+        "planned": data.assigned > 0 or data.available > 0,
+    }
+
+
 def _context(budget: Budget, month: date) -> dict:
     data = budget.view(month)
     advanced = ProfileRepository(budget.br.db, budget.br.uid).advanced()
@@ -111,6 +145,8 @@ def _context(budget: Budget, month: date) -> dict:
     return {
         "budget": data,
         "tree": tree,
+        "glance": _glance(data),
+        "rows": [{"node": n, "hint": _hint(n, advanced)} for n in _by_assigned(tree)],
         "unused_ids": {n.line.aid for n in unused},
         "unused_count": len(unused),
         "attention": sum(
@@ -135,8 +171,29 @@ def budget_page(request: Request, budget: Budget, month: str = ""):
     return templates.TemplateResponse(request, "budget.html", _context(budget, parse_month(month)))
 
 
+def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
+    context = _context(budget, month)
+    node = next((n for n in context["tree"] if n.line.aid == aid and n.is_group), None)
+    if node is None:
+        raise HTTPException(status_code=404, detail="category not found")
+    advanced = context["advanced"]
+    return {
+        **context,
+        "group": node,
+        "kids": [{"node": c, "hint": _hint(c, advanced)} for c in _by_assigned(node.children)],
+        "other_row": {"node": Node(node.other), "hint": ""},
+        "glance": _glance(node.line),
+    }
+
+
+@router.get("/group/{aid}")
+def group_page(request: Request, budget: Budget, aid: UUID, month: str = ""):
+    """One group: what is left in it, and the categories inside it, each opening the assign sheet."""
+    return templates.TemplateResponse(request, "budget_group.html", _group_context(budget, parse_month(month), aid))
+
+
 @router.get("/category/{aid}/sheet")
-def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = ""):
+def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "", group: str = ""):
     """One category in the sheet over the budget: assign, what was spent, the target, the week by week."""
     when = parse_month(month)
     context = _context(budget, when)
@@ -144,7 +201,7 @@ def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "")
     line = next((l for l in lines if l.aid == aid and not l.group), None)
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
-    return templates.TemplateResponse(request, "partials/budget_sheet.html", {**context, "line": line})
+    return templates.TemplateResponse(request, "partials/budget_sheet.html", {**context, "line": line, "group_id": group})
 
 
 @router.post("/assign")
@@ -155,12 +212,18 @@ def assign(
     month: Annotated[str, Form()] = "",
     amount: Annotated[str, Form()] = "",
     sheet: Annotated[str, Form()] = "",
+    group: Annotated[str, Form()] = "",
 ):
     when = parse_month(month)
     try:
         budget.assign(when, category, parse_amount(amount, default=parse_amount("0")))
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#cat-sheet-error" if sheet else "#budget-error")
+    if group:  # assigned from a group's page: that page's block comes back
+        try:
+            return templates.TemplateResponse(request, "partials/budget_group_body.html", _group_context(budget, when, UUID(group)))
+        except ValueError:
+            pass
     return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
 
 

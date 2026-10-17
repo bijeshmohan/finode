@@ -20,7 +20,8 @@ def setup(client, root_accounts):
 
 def test_the_page_shows_what_is_left_to_assign(client, setup):
     page = client.get("/budget").text
-    assert "Ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00")
+    assert "ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00")
+    assert "Left to spend in" in page and "Nothing assigned yet" in page, "the month first, then what is left to assign"
     assert "Food" in page and "Rent" in page and "this month" in page, "the title says this month"
     assert 'href="/budget?month=' in page
 
@@ -64,7 +65,7 @@ def test_other_months_are_reachable(client, setup):
 def test_overspending_and_overassigning_are_called_out(client, setup):
     assign(client, setup["food"], "1500")
     page = client.get("/budget").text
-    assert "more than you have" in page and "ready over" in page
+    assert "more than you have" in page and "ready-line over" in page
 
 
 def test_every_unit_with_a_job_is_celebrated(client, setup):
@@ -124,15 +125,37 @@ def test_the_inline_amount_also_saves_on_the_return_key(client, setup):
     assert 'hx-post="/budget/assign"' in sheet and 'enterkeyhint="done"' in sheet and 'type="submit"' in sheet
 
 
-def test_a_group_is_a_row_that_folds_and_its_categories_follow_with_everything_else(client, root_accounts, setup):
-    client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]})
+def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, root_accounts, setup):
+    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    assign(client, setup["rent"], "500")
+    assign(client, groceries, "200")
     page = client.get("/budget").text
-    assert page.count('<details class="grp"') == 1 and 'class="r gsum"' in page, "Food is one folding row"
-    assert "<em class=\"cnt\">1</em>" in page, "it says how many categories are inside"
-    assert page.count('class="r catrow"') == 3, "Groceries, Food's own 'Everything else' and the plain Rent"
-    assert "Everything else" in page
-    assert 'name="amount"' not in page, "no input boxes on the page: assigning happens in the sheet"
-    assert page.count('class="bar') == 4 and 'aria-label="Category"' in page
+    assert 'class="grp"' not in page and "gsum" not in page, "nothing folds"
+    assert page.index(">Rent<") < page.index(">Food<"), "biggest budget first"
+    assert f'href="/budget/group/{setup["food"]["aid"]}?month=' in page and "Groceries" in page, "Food opens its page; its hint names what is inside"
+    assert 'class="r crow catrow"' in page and 'name="amount"' not in page, "no input boxes on the page: assigning happens in the sheet"
+    assert 'aria-label="Category"' in page and page.count('class="bar') == 2
+
+
+def test_a_group_page_lists_its_categories_and_everything_else(client, root_accounts, setup):
+    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
+    assign(client, groceries, "200")
+    assign(client, dining, "300")
+    page = client.get(f"/budget/group/{setup['food']['aid']}").text
+    assert page.index("Dining") < page.index("Groceries") < page.index("Everything else"), "biggest first, everything else last"
+    assert "Left in Food" in page and "500.00" in page
+    assert f'/budget/category/{groceries["aid"]}/sheet?month=' in page and f"group={setup['food']['aid']}" in page
+    assert client.get(f"/budget/group/{setup['rent']['aid']}").status_code == 404, "a plain category has no group page"
+    assert client.get("/budget/group/00000000-0000-4000-8000-0000000000ff").status_code == 404
+
+
+def test_assigning_from_a_group_page_returns_that_page_block(client, root_accounts, setup):
+    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    sheet = client.get(f"/budget/category/{groceries['aid']}/sheet?group={setup['food']['aid']}").text
+    assert f'name="group" value="{setup["food"]["aid"]}"' in sheet
+    response = client.post("/budget/assign", data={"category": groceries["aid"], "amount": "250", "group": setup["food"]["aid"], "sheet": "1"})
+    assert response.status_code == 200 and "budget-group" in response.text and "Left in Food" in response.text and "250.00" in response.text
 
 
 def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client, root_accounts, setup):
