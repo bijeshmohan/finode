@@ -11,8 +11,11 @@
     {% if rta > 0 %}<span class="glance-note">Tap a category to give it a job.</span>
     {% elif rta == 0 and budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
   </div>
-  {% if rta < 0 %}
-  <p class="ready-warn" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>
+  {% if overspent > 0 or rta < 0 %}
+  <div class="ready-warns">
+    {% if overspent > 0 %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
+    {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
+  </div>
   {% endif %}
 
   {% if attention %}

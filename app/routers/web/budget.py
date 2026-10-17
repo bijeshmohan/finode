@@ -148,6 +148,8 @@ def _context(budget: Budget, month: date) -> dict:
         "rows": [{"node": n, "hint": _hint(n, advanced)} for n in _by_assigned(tree)],
         "unused_ids": {n.line.aid for n in unused},
         "unused_count": len(unused),
+        # More spent than there was to spend in all the categories together (a single overspent category shows on its own bar).
+        "overspent": -data.available if data.available < 0 else Decimal("0.00"),
         "attention": sum(
             1 for flag in (
                 bool(data.left_out_accounts), bool(data.overspent_last_month), advanced and bool(data.underfunded), bool(data.copyable)
