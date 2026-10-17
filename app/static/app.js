@@ -1,3 +1,30 @@
+// ---- Amount fields only take what makes an amount ----
+// Digits, commas to group them, one decimal point and (first only) a minus sign: "42.00.00" or "12a" cannot be typed or
+// pasted. This runs before the other input handlers (capture), so what they read is already clean.
+function cleanAmount(text) {
+  let out = "";
+  let dot = false;
+  for (const ch of text) {
+    if (ch >= "0" && ch <= "9") out += ch;
+    else if (ch === ",") out += ch;
+    else if (ch === "." && !dot) { dot = true; out += ch; }
+    else if (ch === "-" && out === "") out += ch;
+  }
+  return out;
+}
+
+document.addEventListener("input", (event) => {
+  const field = event.target;
+  if (!field || field.tagName !== "INPUT" || field.getAttribute("inputmode") !== "decimal") return;
+  const cleaned = cleanAmount(field.value);
+  if (cleaned === field.value) return;
+  // Keep the cursor where it was, minus what was taken out in front of it.
+  const caret = field.selectionStart ?? field.value.length;
+  const kept = cleanAmount(field.value.slice(0, caret)).length;
+  field.value = cleaned;
+  try { field.setSelectionRange(kept, kept); } catch (e) { /* not every input type allows it */ }
+}, true);
+
 // Let htmx swap server-rendered validation messages (4xx) into the page.
 document.body.addEventListener("htmx:beforeSwap", (event) => {
   const status = event.detail.xhr.status;
