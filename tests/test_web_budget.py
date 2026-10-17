@@ -66,7 +66,8 @@ def test_other_months_are_reachable(client, setup):
 def test_overspending_and_overassigning_are_called_out(client, setup):
     assign(client, setup["food"], "1500")
     page = client.get("/budget").text
-    assert "Over-assigned by" in page and "ready-warn" in page
+    assert 'class="ready-warn assigned"' in page and "Over-assigned by" in page
+    assert "ready-warn over" not in page, "nothing was spent beyond a category"
     assert "Ready to assign in" in page and "0.00" in page
 
 
@@ -305,3 +306,19 @@ def test_a_budget_account_with_sub_accounts_is_not_announced_on_the_page(client,
     client.post("/api/accounts/", json={"name": "FD", "parent_id": deposits, "balance": "10"})
     page = client.get("/budget").text
     assert "Left out because" not in page and "sub-accounts" not in page
+
+
+def test_overspending_is_a_red_box_and_over_assigning_an_amber_one(client, setup):
+    assign(client, setup["food"], "100")
+    move(client, setup["bank"], setup["food"], "150")  # spends 150 from the 100 in Food
+    page = client.get("/budget").text
+    assert 'class="ready-warn over"' in page and "Overspent" in page and "50.00 in 1 category" in page.replace("₹", "")
+    assert "ready-warn assigned" not in page, "ready to assign is still positive"
+    assign(client, setup["rent"], "5000")  # more than there is
+    page = client.get("/budget").text
+    assert page.index("ready-warn over") < page.index("ready-warn assigned"), "both, the red one first"
+
+
+def test_no_warning_when_nothing_is_over(client, setup):
+    assign(client, setup["food"], "100")
+    assert "ready-warn" not in client.get("/budget").text
