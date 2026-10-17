@@ -6,12 +6,14 @@
 <div id="budget">
   {% set rta = budget.ready_to_assign %}
   <div class="ready zero budget-hero ready-hero">
-    <span class="muted">{{ "Over-assigned by" if rta < 0 else "Ready to assign" }}</span>
-    <span class="figure {{ 'over' if rta < 0 }}">{{ figure((-rta) if rta < 0 else rta, budget.currency) }}</span>
-    {% if rta < 0 %}<span class="glance-note">You have assigned more than you have. Lower a category, or add income.</span>
-    {% elif rta > 0 %}<span class="glance-note">Tap a category to give it a job.</span>
-    {% elif budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
+    <span class="muted">Ready to assign in {{ month_name.split(" ")[0] }}</span>
+    <span class="figure">{{ figure(rta if rta > 0 else 0, budget.currency) }}</span>
+    {% if rta > 0 %}<span class="glance-note">Tap a category to give it a job.</span>
+    {% elif rta == 0 and budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
   </div>
+  {% if rta < 0 %}
+  <p class="ready-warn" role="alert"><strong>Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</strong></p>
+  {% endif %}
 
   {% if attention %}
   <details class="attn">
