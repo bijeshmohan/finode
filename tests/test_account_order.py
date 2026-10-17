@@ -85,15 +85,11 @@ def test_closing_a_group_unpins_what_is_inside(client, books):
     assert client.get(f"/api/accounts/{books['hdfc']['aid']}").json()["pinned"] is False
 
 
-def test_the_accounts_page_lists_what_is_pinned(client, books):
-    page = client.get("/accounts").text
-    assert "Pinned" not in squash(page) and 'data-quick' not in page
+def test_the_accounts_page_has_no_pinned_block(client, books):
     client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
-    client.post(f"/api/accounts/{books['wallet']['aid']}/pin")
     page = client.get("/accounts").text
-    quick = page[page.index("data-quick"):page.index('<details class="account-group"')]
-    assert "Pinned" in squash(quick) and "HDFC" in quick and "Wallet" in quick and "Assets › Banks" in squash(quick)
-    assert quick.index("HDFC") < quick.index("Wallet")  # in path order
+    assert "Pinned" not in squash(page), "pinning is kept in the API but the page no longer lists it"
+    assert "/pin" not in client.get(f"/accounts/{books['hdfc']['aid']}").text, "and the account page has no Pin button"
 
 
 # ---- ordering ------------------------------------------------------------------------------------------------------
@@ -169,29 +165,31 @@ def test_roots_and_the_system_account_cannot_be_placed(client, books):
 # ---- recently used -------------------------------------------------------------------------------------------------
 
 
-def test_recently_used_accounts(client, books):
+def cards(page: str) -> list[str]:
+    return re.findall(r'<span class="ca-name">(\w+)</span>', page)
+
+
+def test_recently_used_accounts_are_cards_on_top(client, books):
     assert "Recently used" not in squash(client.get("/accounts").text)  # nothing recorded yet
     spend(client, books["cash"], books["hdfc"])
     spend(client, books["gold"], books["wallet"])
     spend(client, books["axis"], books["sbi"])
     text = client.get("/accounts").text
-    quick = text[text.index('<details class="quick recent"'):]
-    assert "Recently used" in squash(quick), "folded at the bottom of the page"
-    names = re.findall(r'<span class="account-name">(\w+)', quick)
+    assert text.index("Recently used") < text.index("acc-section"), "above the accounts"
+    names = cards(text)
     # newest entry first (the two accounts of one entry are equally recent), each account once, five at most
     assert len(names) == 5 and len(set(names)) == 5
     assert set(names[:2]) == {"Axis", "SBI"} and set(names[2:4]) == {"Gold", "Wallet"}
+    assert 'class="ca-cap">Banks<' in text, "each card says which group it is in"
 
 
-def test_recent_leaves_out_pinned_closed_and_the_systems_accounts(client, books):
+def test_recent_leaves_out_closed_and_the_systems_accounts(client, books):
     spend(client, books["cash"], books["hdfc"])
     spend(client, books["gold"], books["wallet"], "5")
-    client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
-    text = client.get("/accounts").text
-    recent = text[text.index('<details class="quick recent"'):]
-    assert "HDFC" not in recent and "Gold" in recent and "Opening Balances" not in recent
-    pinned = text[text.index("data-quick"):text.index('<details class="account-group"')]
-    assert "HDFC" in pinned
+    spend(client, books["wallet"], books["gold"], "5")  # back to nothing in it, so it can be closed
+    assert client.post(f"/api/accounts/{books['wallet']['aid']}/close").status_code == 200
+    names = cards(client.get("/accounts").text)
+    assert "Wallet" not in names and "Gold" in names and "Opening" not in " ".join(names)
 
 
 def test_recent_ignores_what_recurring_rules_and_imports_made(client, books):
@@ -208,23 +206,10 @@ def test_recent_shows_at_most_five(client, books, root_accounts):
     extra = [client.post("/api/accounts/", json={"name": f"Spare{i}", "parent_id": root_accounts["Assets"]}).json() for i in range(4)]
     for account in [books["cash"], books["gold"], books["axis"], *extra]:
         spend(client, account, books["wallet"], "1")
-    text = client.get("/accounts").text
-    quick = text[text.index('<details class="quick recent"'):]
-    assert len(re.findall(r'<li>\s*<a class="account-row"', quick)) == 5
+    assert len(cards(client.get("/accounts").text)) == 5
 
 
 # ---- the web pages -------------------------------------------------------------------------------------------------
-
-
-def test_pin_from_the_account_page(client, books):
-    aid = books["hdfc"]["aid"]
-    page = client.get(f"/accounts/{aid}").text
-    assert f'hx-post="/accounts/{aid}/pin"' in page and 'aria-pressed="false"' in page and "Unpin" not in page
-    response = client.post(f"/accounts/{aid}/pin", data={"pinned": "1"})
-    assert response.headers["HX-Redirect"] == f"/accounts/{aid}" and "account-pinned" in response.headers["set-cookie"]
-    assert 'aria-pressed="true"' in client.get(f"/accounts/{aid}").text
-    response = client.post(f"/accounts/{aid}/pin", data={"pinned": "0"})
-    assert "account-unpinned" in response.headers["set-cookie"]
 
 
 def test_the_order_controls_on_the_account_page(client, books):
@@ -247,8 +232,4 @@ def test_a_lone_account_has_nothing_to_move(client, books):
 
 
 def test_errors_are_shown_in_place(client, books):
-    closed = client.post(f"/api/accounts/{books['wallet']['aid']}/close")
-    assert closed.status_code == 200
-    bad = client.post(f"/accounts/{books['wallet']['aid']}/pin", data={"pinned": "1"})
-    assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#page-error" and "reopen it first" in bad.text
     assert client.post(f"/accounts/{books['roots']['Assets']}/move", data={"direction": "up"}).status_code in (400, 404)

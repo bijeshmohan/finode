@@ -1,4 +1,4 @@
-"""The accounts page: groups that open, what starts open, unused accounts tucked away, net worth."""
+"""The accounts page: every group open under its heading, unused accounts tucked away."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -41,20 +41,25 @@ def item(page: str, aid: str) -> str:
     return page[start:page.index("</li>", page.index(f'/accounts/{aid}"'))]
 
 
-def test_groups_are_rows_that_open_with_their_own_link(client, tree):
+def test_a_group_is_a_heading_with_its_accounts_under_it_and_nothing_folds(client, tree):
     page = client.get("/accounts").text
-    assert f'data-key="{tree["banks"]}" open' not in page, "a group starts closed, under every type"
-    assert f'data-key="{tree["food"]}" open' not in page, "a group under Assets starts closed too"
-    assert f'href="/accounts/{tree["food"]}" title="Open Food"' in page
-    assert f'href="/accounts/{tree["hdfc"]}"' in page and "data-account-search" in page and "data-toggle-all" not in page, "no Collapse all button"
+    assert f'href="/accounts/{tree["food"]}" title="Open Food"' in page, "the heading opens the group's own page"
+    assert f'href="/accounts/{tree["hdfc"]}"' in page and "data-account-search" in page
+    assert "<details" not in page.split('<section class="acc-section"', 1)[1].split('<details class="acc-section equity"')[0], "Assets and Liabilities never fold"
+    assert page.count('class="acc-gh"') == 3, "Banks, Food and Credit Cards"
+    assert 'class="mono" aria-hidden="true">H<' in page, "each account has its initial"
 
 
-def test_assets_and_liabilities_start_open_the_other_types_folded_and_there_is_no_net_worth_card(client, tree):
+def test_plain_accounts_under_a_type_share_one_block_without_a_heading(client, tree):
     page = client.get("/accounts").text
-    heads = page.split('<details class="account-group"')[1:]
-    assert len(heads) == 3, "Assets, Liabilities and Equity: the Expenses and Income accounts are on the Categories page"
-    opened = [h.split("<h2>")[1].split("</span>")[1].split("<")[0] for h in heads if " open>" in h.split(">", 1)[0] + ">"]
-    assert opened == ["Assets", "Liabilities"], "only these two start open"
+    assert page.count('<div class="acc-block') == 5, "Banks, Food, Rent (no heading), Credit Cards, and Equity's Opening Balances"
+    assert page.count('class="acc-gh"') == 3, "Rent has no heading of its own"
+
+
+def test_assets_and_liabilities_are_open_equity_folds_and_there_is_no_net_worth_card(client, tree):
+    page = client.get("/accounts").text
+    assert page.count("data-section") == 3, "Assets, Liabilities and Equity: the Expenses and Income accounts are on the Categories page"
+    assert '<details class="acc-section equity"' in page and "<details class=\"acc-section\"" not in page
     assert "Net worth" not in page and "net-worth" not in page
     assert 'class="circ-button" href="/accounts/new"' in page, "the round + adds an account"
 
@@ -86,14 +91,14 @@ def test_an_account_with_entries_or_a_balance_is_never_unused(client, tree, sess
 def test_a_group_is_unused_only_when_everything_in_it_is(client, tree, session):
     age(session, "Food", "Groceries", "Snacks")
     page = client.get("/accounts").text
-    assert "unused-hidden" in item(page, tree["food"])
+    assert page.count("unused-hidden") == 3, "the group's heading block and its two accounts"
     client.post("/api/transactions/", json={"postings": [
         {"account": tree["groceries"], "side": "debit", "amount": "5"},
         {"account": tree["hdfc"], "side": "credit", "amount": "5"},
     ]})
     age(session, "Food", "Groceries", "Snacks")
     page = client.get("/accounts").text
-    assert "unused-hidden" not in item(page, tree["food"]), "it holds an account that was used"
+    assert 'class="acc-block "' in page and page.count("unused-hidden") == 1, "only Snacks: the group holds an account that was used"
 
 
 def test_an_account_a_recurring_rule_uses_is_not_hidden(client, tree, session):
@@ -102,8 +107,3 @@ def test_an_account_a_recurring_rule_uses_is_not_hidden(client, tree, session):
     })
     age(session, "Rent")
     assert "unused-hidden" not in item(client.get("/accounts").text, tree["rent"])
-
-
-def test_each_group_shows_how_many_accounts_it_holds(client, tree):
-    page = client.get("/accounts").text
-    assert '>Food <small class="muted">2</small>' in page and '>Banks <small class="muted">2</small>' in page

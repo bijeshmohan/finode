@@ -433,7 +433,7 @@ class AccountService:
         return self._to_read(self.ar.read(aid), self._ensure_roots())
 
     def recent(self, limit: int = 5) -> list[UUID]:
-        """The accounts used most recently by hand that can still be used: not closed, not pinned, not the system's."""
+        """The accounts used most recently by hand that can still be used: not closed, not the system's."""
         all_accounts = self._ensure_roots()
         by_id = {a.aid: a for a in all_accounts}
         out: list[UUID] = []
@@ -442,7 +442,7 @@ class AccountService:
         for aid in self.ar.recent_account_ids(limit * 4, opening.aid if opening else None):
             account = by_id.get(aid)
             if (
-                account is None or account.closed_on is not None or account.pinned
+                account is None or account.closed_on is not None
                 or self._is_root(account) or self.is_opening_balances(account, all_accounts)
             ):
                 continue
