@@ -145,7 +145,6 @@ def _context(budget: Budget, month: date) -> dict:
     return {
         "budget": data,
         "tree": tree,
-        "glance": _glance(data),
         "rows": [{"node": n, "hint": _hint(n, advanced)} for n in _by_assigned(tree)],
         "unused_ids": {n.line.aid for n in unused},
         "unused_count": len(unused),
