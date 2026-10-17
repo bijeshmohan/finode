@@ -20,8 +20,9 @@ def setup(client, root_accounts):
 
 def test_the_page_shows_what_is_left_to_assign(client, setup):
     page = client.get("/budget").text
-    assert "ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00")
-    assert "Left to spend in" in page and "Nothing assigned yet" in page, "the month first, then what is left to assign"
+    assert "Ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00")
+    assert "Left to spend in" not in page, "that figure is Home's; Budget leads with what is left to assign"
+    assert 'class="ready zero budget-hero ready-hero"' in page
     assert "Food" in page and "Rent" in page and "this month" in page, "the title says this month"
     assert 'href="/budget?month=' in page
 
@@ -65,7 +66,9 @@ def test_other_months_are_reachable(client, setup):
 def test_overspending_and_overassigning_are_called_out(client, setup):
     assign(client, setup["food"], "1500")
     page = client.get("/budget").text
-    assert "more than you have" in page and "ready-line over" in page
+    assert 'class="ready-warn assigned"' in page and "Over-assigned by" in page
+    assert "ready-warn over" not in page, "nothing was spent beyond a category"
+    assert "Ready to assign in" in page and "0.00" in page
 
 
 def test_every_unit_with_a_job_is_celebrated(client, setup):
@@ -295,3 +298,31 @@ def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts
     nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
     assign(client, food, "50", nxt)
     assert "− assigned to later months 50.00 = ready to assign" in client.get("/budget").text
+
+
+def test_a_budget_account_with_sub_accounts_is_not_announced_on_the_page(client, setup, root_accounts):
+    """It is left out of the sums (only accounts that hold money count) but the page does not say so: nothing to do."""
+    deposits = account(client, root_accounts, "Deposits", "Assets")
+    client.post("/api/accounts/", json={"name": "FD", "parent_id": deposits, "balance": "10"})
+    page = client.get("/budget").text
+    assert "Left out because" not in page and "sub-accounts" not in page
+
+
+def test_one_overspent_category_is_not_a_warning_but_overspending_overall_is(client, setup):
+    assign(client, setup["food"], "100")
+    assign(client, setup["rent"], "500")
+    move(client, setup["bank"], setup["food"], "150")  # Food is 50 over, Rent still has 500: overall there is 450 left
+    page = client.get("/budget").text
+    assert "ready-warn" not in page, "the category's own bar shows it"
+    move(client, setup["bank"], setup["food"], "600")  # now more is spent than was assigned in all
+    page = client.get("/budget").text
+    assert 'class="ready-warn over"' in page and "Overspent by" in page and "150.00" in page.replace("₹", "")
+    assert "ready-warn assigned" not in page, "ready to assign is still positive"
+    assign(client, setup["rent"], "5000")  # more than there is
+    page = client.get("/budget").text
+    assert "ready-warn assigned" in page
+
+
+def test_no_warning_when_nothing_is_over(client, setup):
+    assign(client, setup["food"], "100")
+    assert "ready-warn" not in client.get("/budget").text

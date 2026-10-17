@@ -1,16 +1,21 @@
 {#- The budget for one month; htmx swaps this whole block after every change. -#}
 {% from "partials/icons.html" import icon %}
-{% from "partials/budget_rows.html" import row, glance_block %}
+{% from "partials/budget_rows.html" import row %}
+{% from "partials/money.html" import figure %}
 
 <div id="budget">
   {% set rta = budget.ready_to_assign %}
-  {{ glance_block(glance, "Left to spend in " ~ month_name.split(" ")[0], "Over budget in " ~ month_name.split(" ")[0], budget.currency, pace) }}
-  {% if rta < 0 %}
-  <p class="ready-line over">You have assigned {{ (-rta)|money }} more than you have. Lower a category, or add income.</p>
-  {% elif rta > 0 %}
-  <p class="ready-line to-assign"><span><strong>{{ rta|money|amount(budget.currency) }}</strong> ready to assign</span><span class="go">Tap a category</span></p>
-  {% elif budget.lines %}
-  <p class="ready-line all-set">Every {{ budget.currency|symbol }} has a job.</p>
+  <div class="ready zero budget-hero ready-hero">
+    <span class="muted">Ready to assign in {{ month_name.split(" ")[0] }}</span>
+    <span class="figure">{{ figure(rta if rta > 0 else 0, budget.currency) }}</span>
+    {% if rta > 0 %}<span class="glance-note">Tap a category to give it a job.</span>
+    {% elif rta == 0 and budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
+  </div>
+  {% if overspent > 0 or rta < 0 %}
+  <div class="ready-warns">
+    {% if overspent > 0 %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
+    {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
+  </div>
   {% endif %}
 
   {% if attention %}
@@ -52,9 +57,6 @@
 
   {% if not budget.budget_accounts %}
   <p class="card muted">No account is part of the budget yet. Open an asset account (or a credit card) and switch on <strong>Part of the budget</strong> in its edit page.</p>
-  {% endif %}
-  {% if budget.ignored_accounts %}
-  <p class="muted budget-fine">Left out because they have sub-accounts: {{ budget.ignored_accounts|join(", ") }}.</p>
   {% endif %}
 
   {% if tree %}

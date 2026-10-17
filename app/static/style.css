@@ -17,6 +17,8 @@
   --on-accent: #ffffff;
   --danger: #b3412e;
   --danger-soft: #fbedea;
+  --warn: #8a5300;
+  --warn-soft: #fbf0d9;
   --positive: #2e7d5b;
   --negative: #b3412e;
   --shadow: 0 1px 2px rgb(27 27 25 / 4%);
@@ -48,6 +50,8 @@
     --on-accent: #131312;
     --danger: #e7826d;
     --danger-soft: #3a211c;
+    --warn: #e6b055;
+    --warn-soft: #382b17;
     --positive: #5dbe8f;
     --negative: #e7826d;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%);
@@ -72,6 +76,8 @@
   --on-accent: #131312;
   --danger: #e7826d;
   --danger-soft: #3a211c;
+  --warn: #e6b055;
+  --warn-soft: #382b17;
   --positive: #5dbe8f;
   --negative: #e7826d;
   --shadow: 0 1px 2px rgb(0 0 0 / 40%);
@@ -1121,7 +1127,7 @@ details[open] > summary .gcaret, details[open].attn > summary .gcaret { transfor
 .cat-name { display: inline-flex; align-items: center; min-width: 0; }
 .cnt { margin-left: .4rem; font-style: normal; font-weight: 400; font-size: .8125rem; color: var(--faint); }
 /* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and sub-categories indent from there. */
-.attn { margin: .25rem 0 .5rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
+.attn { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
 .attn > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; font-weight: 500; cursor: pointer; list-style: none; }
 .attn > summary::-webkit-details-marker { display: none; }
 .attn-item { margin: 0; padding: .75rem 0; border-top: 1px solid var(--surface-2); color: var(--muted); }
@@ -1196,13 +1202,12 @@ dd.auto, dd.auto a { color: var(--auto); }
 /* ---------- Budget: left to spend first, then a ranked list ---------- */
 .budget-hero { display: flex; flex-direction: column; gap: .15rem; padding: .25rem 0 .75rem; }
 .budget-hero .figure.over { color: var(--danger); }
+.ready-warns { display: flex; flex-direction: column; gap: .5rem; margin: -.75rem 0 1rem; }
+.ready-warn { margin: 0; padding: .5rem 1rem; border-radius: var(--radius-sm); font-size: .9375rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ready-warn.over { background: var(--danger-soft); color: var(--danger); }
+.ready-warn.assigned { background: var(--warn-soft); color: var(--warn); }
 .budget-hero .glance-bar { margin-top: .6rem; }
 .glance-note { font-size: .8125rem; color: var(--muted); margin-top: .35rem; }
-.ready-line { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin: 0 0 .75rem; padding: .75rem 1rem; border-radius: var(--radius-sm); font-size: .9375rem; }
-.ready-line.to-assign { background: var(--accent); color: var(--on-accent); }
-.ready-line.to-assign .go { font-size: .8125rem; opacity: .8; text-align: right; white-space: nowrap; }
-.ready-line.over { background: var(--danger-soft); color: var(--danger); }
-.ready-line.all-set { padding: 0 .25rem; color: var(--muted); font-size: .8125rem; }
 .budget-list .top + .top, .budget-list > .crow + .crow { border-top: 1px solid var(--surface-2); }
 .budget-list .crow { padding: .85rem 0; width: 100%; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 .budget-list .crow-main { flex: 1; }

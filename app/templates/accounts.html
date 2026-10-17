@@ -16,7 +16,9 @@
 {#- A type's accounts: every group is a heading (linking to the group's page) with its accounts under it, always open. -#}
 {% macro blocks_of(root) %}
   {% for head, items in blocks[root.account.aid] %}
-  <div class="acc-block {{ 'unused-hidden' if head and head.unused }}{{ ' closed-hidden' if head and head.closed }}">
+  {#- A block with nothing left to show (a group that is unused or closed, or plain accounts that all are) hides whole, so no empty tile is left. -#}
+  {% set quiet = items|selectattr("unused")|list|length + items|selectattr("closed")|list|length == items|length %}
+  <div class="acc-block {{ 'unused-hidden' if (head and head.unused) or (not head and quiet) }}{{ ' closed-hidden' if (head and head.closed) or (not head and quiet and items|selectattr("closed")|list) }}">
     {% if head %}
     <a class="acc-gh" href="/accounts/{{ head.account.aid }}" title="Open {{ head.account.name }}"><span>{{ head.account.name }}</span><span>{{ head.account.balance|money }}</span></a>
     {% endif %}
