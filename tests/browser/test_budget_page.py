@@ -11,7 +11,7 @@ LAST_MONTH = (THIS_MONTH - timedelta(days=1)).replace(day=1)
 
 
 def ready(page: Page) -> str:
-    return page.locator(".ready .figure").inner_text()
+    return page.locator(".ready-line strong").inner_text()
 
 
 def assign_in_sheet(page: Page, name: str, amount: str) -> None:
@@ -28,7 +28,7 @@ def test_assigning_changes_ready_to_assign_without_a_reload(page: Page, books):
     page.goto("/budget")
     assert ready(page) == "\u20b95,000.00"
     assign_in_sheet(page, "Groceries", "1200")
-    expect(page.locator(".ready .figure")).to_have_text("\u20b93,800.00")
+    expect(page.locator(".ready-line strong")).to_have_text("\u20b93,800.00")
     page.locator("a.catrow", has_text="Groceries").first.click()
     assert page.locator('#cat-sheet input[aria-label="Assigned to Groceries"]').input_value() == "1,200.00"
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
@@ -50,11 +50,11 @@ def test_copying_last_months_amounts(page: Page, books, api: Api):
 def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, api: Api):
     api.put(f"/budget/categories/{books['rent']['aid']}/target", kind="monthly", amount="800")
     page.goto("/budget")
-    expect(page.locator("a.catrow .cap.short")).to_contain_text("needs 800.00 more")
+    expect(page.locator("a.catrow .crow-sub.short")).to_contain_text("needs 800.00 more")
     page.locator("details.attn > summary").click()
     page.get_by_role("button", name="Assign what is needed").click()
-    expect(page.locator("a.catrow .cap.short")).to_have_count(0)
-    expect(page.locator(".ready .figure")).to_have_text("\u20b94,200.00")
+    expect(page.locator("a.catrow .crow-sub.short")).to_have_count(0)
+    expect(page.locator(".ready-line strong")).to_have_text("\u20b94,200.00")
 
 
 def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Page, books, api: Api):
@@ -70,7 +70,7 @@ def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Pag
     expect(page.locator(".calc").first).to_contain_text("set aside for card bills 120.00")
     # Assigning money to a category changes ready to assign, and the explanation follows it.
     assign_in_sheet(page, "Rent", "500")
-    expect(page.locator(".ready .figure")).to_have_text("\u20b94,500.00")
+    expect(page.locator(".ready-line strong")).to_have_text("\u20b94,500.00")
     expect(page.locator(".calc").first).to_contain_text("in categories 380.00")
 
 
@@ -130,25 +130,27 @@ def test_a_weekly_target_opens_into_its_weeks(page: Page, books, api: Api):
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
 
 
-def test_a_group_folds_opens_remembers_and_takes_money_for_itself(page: Page, books, api: Api):
+def test_a_group_opens_its_page_and_takes_money_for_itself(page: Page, books, api: Api):
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
     api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
     api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
     page.goto("/budget")
-    group = page.locator("details.grp", has_text="Dining").first
-    expect(page.locator("a.catrow", has_text="Delivery")).to_be_hidden()
-    group.locator("summary").click()
+    expect(page.locator("a.catrow", has_text="Delivery")).to_have_count(0)  # inside the group, on its page
+    expect(page.locator("a.grow", has_text="Dining")).to_contain_text("Delivery")  # the hint names what is inside
+    page.locator("a.grow", has_text="Dining").click()
+    page.wait_for_url("**/budget/group/**")
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
-    page.reload()
-    expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()  # remembered
     # money for the group itself, not in a sub-category
     page.locator("a.catrow", has_text="Everything else").first.click()
     box = page.locator('#cat-sheet input[aria-label^="Assigned to"]')
     expect(page.locator("#cat-sheet")).to_contain_text("Dining · everything else")
     box.fill("700")
     page.locator("#cat-sheet").get_by_role("button", name="Save").click()
-    expect(page.locator(".ready .figure")).to_have_text("\u20b94,300.00")
-    expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()  # still open after the page block was replaced
+    expect(page.locator("#cat-sheet")).not_to_be_visible()
+    expect(page.locator(".budget-hero .figure")).to_have_text("\u20b9700.00")  # the group's page block was replaced, still on the group page
+    expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
+    page.get_by_role("link", name="Budget", exact=True).first.click()
+    expect(page.locator(".ready-line strong")).to_have_text("\u20b94,300.00")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
@@ -167,29 +169,20 @@ def test_the_month_tick_also_shows_in_full_on_a_group_row(page: Page, books, api
     api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
     api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
     page.goto("/budget")
-    tick = page.locator("details.grp > summary .pace").first
+    tick = page.locator("a.grow .pace").first
     expect(tick).to_be_visible()
     box = tick.bounding_box()
     assert box["height"] >= 10 and box["width"] <= 4, f"a tall thin line on a group's bar too: {box}"
-    bar = page.locator("details.grp > summary .bar").first
+    bar = page.locator("a.grow .bar").first
     assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible"
 
 
-NAME_LEFTS = """() => [...document.querySelectorAll('.cat-name')].filter(e => e.offsetParent).map(e => {
-  const text = [...e.childNodes].reverse().find(n => n.nodeType === 3 && n.textContent.trim());
-  const r = document.createRange(); r.selectNodeContents(text);
-  return [text.textContent.trim(), Math.round(r.getBoundingClientRect().left), !!e.closest('.gkids')];
-})"""
-
-
-def test_budget_names_line_up_in_one_column(page: Page, books, api: Api):
+def test_budget_names_and_amounts_line_up(page: Page, books, api: Api):
     delivery = api.post("/accounts/", name="Delivery", parent_id=books["food"]["aid"])
     api.put(f"/budget/categories/{books['rent']['aid']}", amount="900")
-    api.put(f"/budget/categories/{delivery['aid']}", amount="100")  # a group with nothing in it is tucked away
+    api.put(f"/budget/categories/{delivery['aid']}", amount="100")
     page.goto("/budget")
-    page.locator("details.grp", has_text="Groceries").locator("summary").first.click()
-    names = page.evaluate(NAME_LEFTS)
-    top = {left for _, left, inside in names if not inside}
-    inner = {left for _, left, inside in names if inside}
-    assert len(top) == 1, names
-    assert len(inner) == 1 and min(inner) > min(top), names
+    lefts = page.eval_on_selector_all(".crow-name", "els => els.filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().left))")
+    rights = page.eval_on_selector_all(".crow-amt", "els => els.filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().right))")
+    assert len(lefts) >= 2 and len(set(lefts)) == 1, lefts
+    assert len(set(rights)) == 1, rights

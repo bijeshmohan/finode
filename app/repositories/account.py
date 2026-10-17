@@ -86,12 +86,6 @@ class AccountRepository:
             self.db.add(account)
         self.db.flush()
 
-    def set_pinned(self, aids: list[UUID], pinned: bool) -> None:
-        for account in self.db.exec(select(Account).where(Account.user == self.uid, Account.aid.in_(aids))).all():
-            account.pinned = pinned
-            self.db.add(account)
-        self.db.flush()
-
     def set_positions(self, positions: dict[UUID, int | None]) -> None:
         for account in self.db.exec(
             select(Account).where(Account.user == self.uid, Account.aid.in_(list(positions)))

@@ -52,7 +52,7 @@ def test_categories_are_ranked_by_what_they_came_to_with_their_share_and_what_is
     entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
     page = client.get("/categories").text
     assert "1,500.00" in page, "the month's spending"
-    assert rows(page)[:2] == [("Rent", "", "1,000.00 67%"), ("Food", "Groceries, Dining", "500.00 33%")], "biggest first"
+    assert rows(page)[:2] == [("Rent", "", "1,000.00 67%"), ("Food", "Groceries · Dining", "500.00 33%")], "biggest first"
     assert "cgrp" not in page and "<details" not in page.split('data-categories')[1], "nothing folds"
 
 
@@ -60,7 +60,7 @@ def test_the_hint_names_the_three_biggest_and_counts_the_rest(client, books):
     for name, amount in (("A1", "50"), ("A2", "40"), ("A3", "30"), ("A4", "20")):
         made = client.post("/api/accounts/", json={"name": name, "parent_id": books["travel"]["aid"]}).json()
         entry(client, made, books["bank"], amount, THIS_MONTH)
-    assert rows(client.get("/categories").text)[0] == ("Travel", "A1, A2, A3 +1", "140.00 100%")
+    assert rows(client.get("/categories").text)[0] == ("Travel", "A1 · A2 · A3 · +1", "140.00 100%")
 
 
 def test_a_small_share_says_less_than_one_percent(client, books):

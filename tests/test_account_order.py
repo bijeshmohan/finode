@@ -1,4 +1,4 @@
-"""Pinning accounts, placing them by hand, and the list of recently used ones."""
+"""Placing accounts by hand, and the list of recently used ones."""
 
 import re
 
@@ -52,48 +52,15 @@ def spend(client, debit, credit, amount="10"):
     assert response.status_code == 201, response.text
 
 
-# ---- pinning -------------------------------------------------------------------------------------------------------
+# ---- pinning is gone ------------------------------------------------------------------------------------------------
 
 
-def test_pin_and_unpin(client, books):
-    assert books["hdfc"]["pinned"] is False
-    assert client.post(f"/api/accounts/{books['hdfc']['aid']}/pin").json()["pinned"] is True
-    assert client.get(f"/api/accounts/{books['hdfc']['aid']}").json()["pinned"] is True
-    assert client.post(f"/api/accounts/{books['hdfc']['aid']}/unpin").json()["pinned"] is False
-
-
-def test_only_your_own_accounts_can_be_pinned(client, books):
-    for aid in (books["roots"]["Assets"], next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Opening Balances")):
-        response = client.post(f"/api/accounts/{aid}/pin")
-        assert response.status_code == 400, response.text
-    assert client.post("/api/accounts/00000000-0000-4000-8000-0000000000aa/pin").status_code == 404
-
-
-def test_a_closed_account_cannot_be_pinned_and_closing_unpins(client, books):
-    aid = books["wallet"]["aid"]
-    client.post(f"/api/accounts/{aid}/pin")
-    assert client.post(f"/api/accounts/{aid}/close").json()["pinned"] is False
-    refused = client.post(f"/api/accounts/{aid}/pin")
-    assert refused.status_code == 400 and "reopen it first" in refused.json()["detail"]
-
-
-def test_closing_a_group_unpins_what_is_inside(client, books):
-    client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
-    for name in ("axis", "hdfc", "sbi"):  # a group closes only when everything in it is empty
-        spend(client, books["wallet"], books[name], "100")
-    assert client.post(f"/api/accounts/{books['banks']['aid']}/close").status_code == 200
-    assert client.get(f"/api/accounts/{books['hdfc']['aid']}").json()["pinned"] is False
-
-
-def test_the_accounts_page_lists_what_is_pinned(client, books):
-    page = client.get("/accounts").text
-    assert "Pinned" not in squash(page) and 'data-quick' not in page
-    client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
-    client.post(f"/api/accounts/{books['wallet']['aid']}/pin")
-    page = client.get("/accounts").text
-    quick = page[page.index("data-quick"):page.index('<details class="account-group"')]
-    assert "Pinned" in squash(quick) and "HDFC" in quick and "Wallet" in quick and "Assets › Banks" in squash(quick)
-    assert quick.index("HDFC") < quick.index("Wallet")  # in path order
+def test_accounts_can_no_longer_be_pinned(client, books):
+    aid = books["hdfc"]["aid"]
+    assert "pinned" not in client.get(f"/api/accounts/{aid}").json()
+    assert client.post(f"/api/accounts/{aid}/pin").status_code in (404, 405)
+    assert client.post(f"/accounts/{aid}/pin").status_code in (404, 405)
+    assert "Pinned" not in squash(client.get("/accounts").text) and "/pin" not in client.get(f"/accounts/{aid}").text
 
 
 # ---- ordering ------------------------------------------------------------------------------------------------------
@@ -107,7 +74,6 @@ def test_siblings_start_alphabetical_and_move_by_one_place(client, books):
     spend(client, books["rent"], books["wallet"])  # categories with activity show in the budget
     spend(client, books["food"], books["wallet"])
     spend(client, books["travel"], books["wallet"])
-    client.post(f"/api/accounts/{books['wallet']['aid']}/pin")  # irrelevant to the order
     assert names_in_budget(client) == ["Food", "Rent", "Travel"]
     moved = move(client, books["travel"], "up")
     assert moved["position"] == 1
@@ -169,29 +135,31 @@ def test_roots_and_the_system_account_cannot_be_placed(client, books):
 # ---- recently used -------------------------------------------------------------------------------------------------
 
 
-def test_recently_used_accounts(client, books):
+def cards(page: str) -> list[str]:
+    return re.findall(r'<span class="ca-name">(\w+)</span>', page)
+
+
+def test_recently_used_accounts_are_cards_on_top(client, books):
     assert "Recently used" not in squash(client.get("/accounts").text)  # nothing recorded yet
     spend(client, books["cash"], books["hdfc"])
     spend(client, books["gold"], books["wallet"])
     spend(client, books["axis"], books["sbi"])
     text = client.get("/accounts").text
-    quick = text[text.index('<details class="quick recent"'):]
-    assert "Recently used" in squash(quick), "folded at the bottom of the page"
-    names = re.findall(r'<span class="account-name">(\w+)', quick)
+    assert text.index("Recently used") < text.index("acc-section"), "above the accounts"
+    names = cards(text)
     # newest entry first (the two accounts of one entry are equally recent), each account once, five at most
     assert len(names) == 5 and len(set(names)) == 5
     assert set(names[:2]) == {"Axis", "SBI"} and set(names[2:4]) == {"Gold", "Wallet"}
+    assert 'class="ca-cap">Banks<' in text, "each card says which group it is in"
 
 
-def test_recent_leaves_out_pinned_closed_and_the_systems_accounts(client, books):
+def test_recent_leaves_out_closed_and_the_systems_accounts(client, books):
     spend(client, books["cash"], books["hdfc"])
     spend(client, books["gold"], books["wallet"], "5")
-    client.post(f"/api/accounts/{books['hdfc']['aid']}/pin")
-    text = client.get("/accounts").text
-    recent = text[text.index('<details class="quick recent"'):]
-    assert "HDFC" not in recent and "Gold" in recent and "Opening Balances" not in recent
-    pinned = text[text.index("data-quick"):text.index('<details class="account-group"')]
-    assert "HDFC" in pinned
+    spend(client, books["wallet"], books["gold"], "5")  # back to nothing in it, so it can be closed
+    assert client.post(f"/api/accounts/{books['wallet']['aid']}/close").status_code == 200
+    names = cards(client.get("/accounts").text)
+    assert "Wallet" not in names and "Gold" in names and "Opening" not in " ".join(names)
 
 
 def test_recent_ignores_what_recurring_rules_and_imports_made(client, books):
@@ -208,23 +176,10 @@ def test_recent_shows_at_most_five(client, books, root_accounts):
     extra = [client.post("/api/accounts/", json={"name": f"Spare{i}", "parent_id": root_accounts["Assets"]}).json() for i in range(4)]
     for account in [books["cash"], books["gold"], books["axis"], *extra]:
         spend(client, account, books["wallet"], "1")
-    text = client.get("/accounts").text
-    quick = text[text.index('<details class="quick recent"'):]
-    assert len(re.findall(r'<li>\s*<a class="account-row"', quick)) == 5
+    assert len(cards(client.get("/accounts").text)) == 5
 
 
 # ---- the web pages -------------------------------------------------------------------------------------------------
-
-
-def test_pin_from_the_account_page(client, books):
-    aid = books["hdfc"]["aid"]
-    page = client.get(f"/accounts/{aid}").text
-    assert f'hx-post="/accounts/{aid}/pin"' in page and 'aria-pressed="false"' in page and "Unpin" not in page
-    response = client.post(f"/accounts/{aid}/pin", data={"pinned": "1"})
-    assert response.headers["HX-Redirect"] == f"/accounts/{aid}" and "account-pinned" in response.headers["set-cookie"]
-    assert 'aria-pressed="true"' in client.get(f"/accounts/{aid}").text
-    response = client.post(f"/accounts/{aid}/pin", data={"pinned": "0"})
-    assert "account-unpinned" in response.headers["set-cookie"]
 
 
 def test_the_order_controls_on_the_account_page(client, books):
@@ -247,8 +202,4 @@ def test_a_lone_account_has_nothing_to_move(client, books):
 
 
 def test_errors_are_shown_in_place(client, books):
-    closed = client.post(f"/api/accounts/{books['wallet']['aid']}/close")
-    assert closed.status_code == 200
-    bad = client.post(f"/accounts/{books['wallet']['aid']}/pin", data={"pinned": "1"})
-    assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#page-error" and "reopen it first" in bad.text
     assert client.post(f"/accounts/{books['roots']['Assets']}/move", data={"direction": "up"}).status_code in (400, 404)

@@ -1,64 +1,17 @@
 {#- The budget for one month; htmx swaps this whole block after every change. -#}
 {% from "partials/icons.html" import icon %}
-{% from "partials/money.html" import figure %}
-
-{#- A category's caption: what was spent of what there was, what a target still needs, the note... -#}
-{% macro caption(line, extra="") %}
-  {% set total = line.activity + line.available %}
-  {% set parts = [] %}
-  {% if extra %}{% set _ = parts.append(extra) %}{% endif %}
-  {% if line.activity or line.available > 0 %}{% set _ = parts.append(line.activity|money ~ " of " ~ (total if total > 0 else line.activity)|money ~ " spent") %}{% endif %}
-  {% if advanced and line.underfunded %}{% set _ = parts.append(("overdue, " if line.overdue else "") ~ "needs " ~ line.underfunded|money ~ " more") %}{% endif %}
-  {% if line.overspent_last_month %}{% set _ = parts.append(line.overspent_last_month|money ~ " overspent last month") %}{% endif %}
-  {% if line.note %}{% set _ = parts.append(line.note) %}{% endif %}
-  {% if parts %}<span class="cap {{ 'short' if extra or (advanced and line.underfunded) else '' }}">{{ parts|join(" · ") }}</span>{% endif %}
-{%- endmacro %}
-
-{% macro bar(line) -%}
-  {% set total = line.activity + line.available %}
-  <span class="bar {{ 'over' if line.available < 0 }}" aria-hidden="true"><i style="width: {{ 100 if line.available < 0 else (((line.activity / total) * 100)|round|int if total > 0 else 0) }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
-{%- endmacro %}
-
-{#- One category (or a group's own "everything else" line) as a row that opens its sheet. -#}
-{% macro leaf(line, depth, label=None) %}
-<a class="r catrow" href="/budget/target?month={{ month_key }}&category={{ line.aid }}" hx-get="/budget/category/{{ line.aid }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false"
-   style="--d: {{ depth }}">
-  <span class="l1"><span class="cat-name">{{ label or line.name }}</span><span class="cat-left {{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span></span>
-  {{ bar(line) }}
-  {{ caption(line) }}
-</a>
-{% endmacro %}
-
-{#- A group folds: its row shows everything inside it; opened, its categories follow, then its own "everything else". -#}
-{% macro group(n, depth) %}
-{% set line = n.line %}
-{% set over = n.over %}
-<details class="grp" data-key="{{ line.aid }}" {{ "open" if over }}>
-  <summary class="r gsum" style="--d: {{ depth }}">
-    <span class="l1"><span class="cat-name"><span class="gcaret">{{ icon("caret") }}</span>{{ line.name }}<em class="cnt">{{ n.count }}</em></span><span class="cat-left {{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span></span>
-    {{ bar(line) }}
-    {{ caption(line, (over ~ " over") if over else "") }}
-  </summary>
-  <div class="gkids">
-    {% for c in n.children %}{{ leaf(c.line, depth + 1) }}{% endfor %}
-    {{ leaf(n.other, depth + 1, "Everything else") }}
-  </div>
-</details>
-{% endmacro %}
+{% from "partials/budget_rows.html" import row, glance_block %}
 
 <div id="budget">
   {% set rta = budget.ready_to_assign %}
-  <div class="ready {{ 'over' if rta < 0 else ('zero all-set' if rta == 0 and budget.lines else ('zero' if rta == 0 else '')) }}">
-    <span class="muted">Ready to assign</span>
-    <span class="figure">{{ figure(rta, budget.currency) }}</span>
-    {% if rta < 0 %}
-    <span>You have assigned {{ (-rta)|money }} more than you have. Lower a category, or add income.</span>
-    {% elif rta == 0 and budget.lines %}
-    <span>Every {{ budget.currency|symbol }} has a job.</span>
-    {% elif rta > 0 %}
-    <span>Give it a job: tap a category below.</span>
-    {% endif %}
-  </div>
+  {{ glance_block(glance, "Left to spend in " ~ month_name.split(" ")[0], "Over budget in " ~ month_name.split(" ")[0], budget.currency, pace) }}
+  {% if rta < 0 %}
+  <p class="ready-line over">You have assigned {{ (-rta)|money }} more than you have. Lower a category, or add income.</p>
+  {% elif rta > 0 %}
+  <p class="ready-line to-assign"><span><strong>{{ rta|money|amount(budget.currency) }}</strong> ready to assign</span><span class="go">Tap a category</span></p>
+  {% elif budget.lines %}
+  <p class="ready-line all-set">Every {{ budget.currency|symbol }} has a job.</p>
+  {% endif %}
 
   {% if attention %}
   <details class="attn">
@@ -105,12 +58,9 @@
   {% endif %}
 
   {% if tree %}
-  <div class="gh"><span>Categories</span><span>Left</span></div>
   <div class="budget-list tile" data-budget-tree>
-    {% for n in tree %}
-    <div class="top {{ 'unused-hidden' if n.line.aid in unused_ids }}">
-      {% if n.is_group %}{{ group(n, 0) }}{% else %}{{ leaf(n.line, 0) }}{% endif %}
-    </div>
+    {% for item in rows %}
+    <div class="top {{ 'unused-hidden' if item.node.line.aid in unused_ids }}">{{ row(item, month_key, pace) }}</div>
     {% endfor %}
   </div>
   {% if unused_count %}

@@ -2,45 +2,27 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Accounts · finode{% endblock %}
 
-{#- One account in the list: a group is a row that opens (with a small link to its own page), a plain account links straight there. -#}
+{#- One account: a round initial, its name and its balance. -#}
 {% macro entry(node) %}
 <li data-path="{{ node.path|lower }}" class="{{ 'unused-hidden' if node.unused }}{{ ' closed-hidden' if node.closed }}">
-  {% if node.children %}
-  <details class="acct-group" data-key="{{ node.account.aid }}" {{ "open" if node.open }}>
-    <summary class="account-row group" style="--depth: {{ node.depth - 1 }}">
-      <span class="caret">{{ icon("caret") }}</span>
-      <span class="account-name">{{ node.account.name }}{% if node.closed %} <span class="badge">closed</span>{% endif %} <small class="muted">{{ node.size }}</small></span>
-      <span class="account-balance">{{ node.account.balance|money }}</span>
-      <a class="open-link" href="/accounts/{{ node.account.aid }}" title="Open {{ node.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ node.account.name }}</span></a>
-    </summary>
-    <ul class="list nested">
-      {% for child in node.children %}{{ entry(child) }}{% endfor %}
-    </ul>
-  </details>
-  {% else %}
-  <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}" style="--depth: {{ node.depth - 1 }}">
-    <span class="caret spacer" aria-hidden="true"></span>
+  <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}">
+    <i class="mono" aria-hidden="true">{{ node.account.name[:1]|upper }}</i>
     <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}</span>
     <span class="account-balance">{{ node.account.balance|money }}</span>
-    <span class="trail" aria-hidden="true"></span>
   </a>
-  {% endif %}
 </li>
 {% endmacro %}
 
-{#- A short flat list above the tree (pinned accounts) or folded below it (the ones used last). -#}
-{% macro quick_rows(nodes) %}
-  <ul class="tile list">
-    {% for node in nodes %}
-    <li>
-      <a class="account-row" href="/accounts/{{ node.account.aid }}" style="--depth: 0">
-        <span class="account-name">{{ node.account.name }}<small class="muted path">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "" }}</small></span>
-        <span class="account-balance">{{ node.account.balance|money }}</span>
-        <span class="trail" aria-hidden="true"></span>
-      </a>
-    </li>
-    {% endfor %}
-  </ul>
+{#- A type's accounts: every group is a heading (linking to the group's page) with its accounts under it, always open. -#}
+{% macro blocks_of(root) %}
+  {% for head, items in blocks[root.account.aid] %}
+  <div class="acc-block {{ 'unused-hidden' if head and head.unused }}{{ ' closed-hidden' if head and head.closed }}">
+    {% if head %}
+    <a class="acc-gh" href="/accounts/{{ head.account.aid }}" title="Open {{ head.account.name }}"><span>{{ head.account.name }}</span><span>{{ head.account.balance|money }}</span></a>
+    {% endif %}
+    <ul class="tile list">{% for node in items %}{{ entry(node) }}{% endfor %}</ul>
+  </div>
+  {% endfor %}
 {% endmacro %}
 
 {% block content %}
@@ -55,33 +37,40 @@
   </div>
   <p class="muted" data-no-match hidden>No account matches.</p>
 
-  {% if pinned %}<section class="quick" data-quick><div class="gh"><span>Pinned</span></div>{{ quick_rows(pinned) }}</section>{% endif %}
+  {% if recent %}
+  <section class="recent-cards" data-quick>
+    <div class="acc-gh plain"><span>Recently used</span></div>
+    <div class="cards">
+      {% for node in recent %}
+      <a class="card-acc" href="/accounts/{{ node.account.aid }}">
+        <span class="ca-name">{{ node.account.name }}</span>
+        <span class="ca-cap">{{ node.path.rsplit(" › ", 2)[-2] if node.path.count(" › ") >= 2 else node.path.split(" › ")[0] }}</span>
+        <span class="ca-bal">{{ node.account.balance|money }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
   {% for root in roots %}
-  <details class="account-group" data-key="{{ root.account.aid }}" {{ "open" if root.account.name in ("Assets", "Liabilities") }}>
-    <summary class="group-head">
-      <h2><span class="caret">{{ icon("caret") }}</span>{{ root.account.name }}</h2>
-      <span class="group-total">{{ root.account.balance|money }}</span>
-      <a class="open-link" href="/accounts/{{ root.account.aid }}" title="Open {{ root.account.name }}">{{ icon("chevron-right") }}<span class="sr-only">Open {{ root.account.name }}</span></a>
-    </summary>
+  {% if root.account.name == "Equity" %}
+  <details class="acc-section equity" data-section>
+    <summary class="acc-head"><h2><span class="caret">{{ icon("caret") }}</span>{{ root.account.name }}</h2><span class="group-total">{{ root.account.balance|money }}</span></summary>
+    {% if root.children %}{{ blocks_of(root) }}{% endif %}
+  </details>
+  {% else %}
+  <section class="acc-section" data-section>
+    <a class="acc-head" href="/accounts/{{ root.account.aid }}" title="Open {{ root.account.name }}"><h2>{{ root.account.name }}</h2><span class="group-total">{{ root.account.balance|money }}</span></a>
     {% if root.children %}
-    <ul class="tile list">
-      {% for child in root.children %}{{ entry(child) }}{% endfor %}
-    </ul>
+    {{ blocks_of(root) }}
     {% else %}
     <a class="card add-first" href="/accounts/new?parent={{ root.account.aid }}">
-      {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan", "Equity": "an equity account", "Income": "an income source", "Expenses": "an expense category"}[root.account.name] or "an account" }}
+      {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan"}[root.account.name] or "an account" }}
     </a>
     {% endif %}
-  </details>
-  {% endfor %}
-
-  {% if recent %}
-  <details class="quick recent" data-quick>
-    <summary>Recently used · {{ recent|length }}</summary>
-    {{ quick_rows(recent) }}
-  </details>
+  </section>
   {% endif %}
+  {% endfor %}
 
   <p class="muted budget-fine accounts-note">Where your money is. What it was spent on, and what came in, is under <a href="/categories">Categories</a>.</p>
 

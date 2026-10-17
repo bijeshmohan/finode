@@ -12,6 +12,7 @@
   <input type="hidden" name="category" value="{{ line.aid }}">
   <input type="hidden" name="month" value="{{ month_key }}">
   <input type="hidden" name="sheet" value="1">
+  {% if group_id %}<input type="hidden" name="group" value="{{ group_id }}">{% endif %}
   <label>Assigned this month
     <input class="assign" type="text" name="amount" inputmode="decimal" autocomplete="off" enterkeyhint="done" data-autofocus
            value="{{ line.assigned|money if line.assigned else '' }}" placeholder="0.00" aria-label="Assigned to {{ line.name }}">

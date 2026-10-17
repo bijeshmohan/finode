@@ -104,17 +104,6 @@ def reopen_account(aid: UUID, accounts: Accounts):
     return _closing(accounts.reopen, aid)
 
 
-@router.post("/{aid}/pin", response_model=AccountRead, status_code=200)
-def pin_account(aid: UUID, accounts: Accounts):
-    """Pin an account: the accounts page lists it at the top."""
-    return _closing(lambda a: accounts.set_pinned(a, True), aid)
-
-
-@router.post("/{aid}/unpin", response_model=AccountRead, status_code=200)
-def unpin_account(aid: UUID, accounts: Accounts):
-    return _closing(lambda a: accounts.set_pinned(a, False), aid)
-
-
 @router.post("/{aid}/move", response_model=AccountRead, status_code=200)
 def move_account(aid: UUID, accounts: Accounts, direction: Literal["up", "down"] = "up"):
     """Move an account one place up or down among the accounts in the same group (the budget lists

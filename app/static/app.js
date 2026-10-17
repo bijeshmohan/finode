@@ -567,49 +567,13 @@ document.body.addEventListener("change", (event) => {
 (function accountsPage() {
   const page = document.querySelector("[data-accounts]");
   if (!page) return;
-  const KEY = "finode.accounts.open.v3"; // v3: the defaults changed again (only Assets and Liabilities start open)
-  let saved = {};
-  try {
-    saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
-  } catch (error) {
-    saved = {};
-  }
-  const groups = [...page.querySelectorAll("details[data-key]")];
-  let searching = false;
-
-  function remember() {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(saved));
-    } catch (error) {
-      // private mode: the page still works, it just forgets
-    }
-  }
-
-  groups.forEach((group) => {
-    if (group.dataset.key in saved) group.open = !!saved[group.dataset.key];
-  });
-  page.addEventListener(
-    "toggle",
-    (event) => {
-      const group = event.target;
-      if (searching || !group.dataset || !group.dataset.key) return;
-      saved[group.dataset.key] = group.open;
-      remember();
-    },
-    true
-  );
-
-  // Tapping the arrow link inside a group row opens the account's page and must not also toggle the group.
-  page.addEventListener("click", (event) => {
-    if (event.target.closest(".open-link")) event.stopPropagation();
-  }, true);
 
   const unusedButton = page.querySelector("[data-toggle-unused]");
   if (unusedButton) {
     unusedButton.addEventListener("click", () => {
       const shown = page.classList.toggle("show-unused");
       const n = unusedButton.dataset.count;
-      unusedButton.textContent = shown ? `Hide the ${n} unused` : `${n} unused account${n === "1" ? "" : "s"} hidden · Show`;
+      unusedButton.textContent = shown ? `Hide the ${n} unused` : `${n} unused account${n === "1" ? "" : "s"} hidden \u00b7 Show`;
     });
   }
 
@@ -618,52 +582,40 @@ document.body.addEventListener("change", (event) => {
     closedButton.addEventListener("click", () => {
       const shown = page.classList.toggle("show-closed");
       const n = closedButton.dataset.count;
-      closedButton.textContent = shown ? `Hide the ${n} closed` : `${n} closed account${n === "1" ? "" : "s"} · Show`;
+      closedButton.textContent = shown ? `Hide the ${n} closed` : `${n} closed account${n === "1" ? "" : "s"} \u00b7 Show`;
     });
   }
 
+  // Search: an account shows when its path matches (so a matching group brings its accounts). Headings and types with
+  // nothing left under them go; Equity opens to show a match.
   const input = page.querySelector("[data-account-search]");
   const nothing = page.querySelector("[data-no-match]");
-  const wasOpen = new Map();
+  const equity = page.querySelector("details.equity");
+  let equityWasOpen = equity ? equity.open : false;
+  let searching = false;
   input.addEventListener("input", () => {
     const query = input.value.trim().toLowerCase();
     const items = [...page.querySelectorAll("li[data-path]")];
     if (!query) {
-      if (searching) {
-        groups.forEach((group) => {
-          if (wasOpen.has(group)) group.open = wasOpen.get(group);
-        });
-        wasOpen.clear();
-      }
+      if (searching && equity) equity.open = equityWasOpen;
       searching = false;
       page.classList.remove("searching");
       items.forEach((item) => (item.hidden = false));
-      groups.forEach((group) => {
-        if (group.parentElement === page) group.hidden = false;
-      });
+      page.querySelectorAll(".acc-block, [data-section]").forEach((el) => (el.hidden = false));
       nothing.hidden = true;
       return;
     }
-    if (!searching) groups.forEach((group) => wasOpen.set(group, group.open));
+    if (!searching && equity) equityWasOpen = equity.open;
     searching = true;
     page.classList.add("searching");
-    // An account shows when its path matches (so a matching group brings its accounts) or when something inside does.
+    items.forEach((item) => (item.hidden = !item.dataset.path.includes(query)));
+    page.querySelectorAll(".acc-block").forEach((block) => (block.hidden = !block.querySelector("li:not([hidden])")));
     let any = false;
-    items.slice().reverse().forEach((item) => {
-      const inner = item.querySelectorAll("li[data-path]:not([hidden])").length > 0;
-      item.hidden = !(item.dataset.path.includes(query) || inner);
-      if (!item.hidden && !item.querySelector("li")) any = true;
-      if (!item.hidden && inner) {
-        const group = item.querySelector(":scope > details");
-        if (group) group.open = true;
-      }
-    });
-    groups.forEach((group) => {
-      if (group.parentElement !== page) return;
-      const named = group.querySelector("summary h2").textContent.toLowerCase().includes(query);
-      const found = !!group.querySelector("li:not([hidden])");
-      group.hidden = !found && !named;
-      if (found) group.open = true;
+    page.querySelectorAll("[data-section]").forEach((section) => {
+      const found = !!section.querySelector("li:not([hidden])");
+      section.hidden = !found;
+      if (found) any = true;
+      if (found && section === equity) equity.open = true;
     });
     nothing.hidden = any;
   });
@@ -721,32 +673,8 @@ document.body.addEventListener("change", (event) => {
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
 })();
 
-// ---- Budget: groups fold (and are remembered), unused groups can be shown ----
+// ---- Budget: unused groups can be shown ----
 (() => {
-  const KEY = "finode.budget.open.v1";
-  const read = () => {
-    try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (error) { return {}; }
-  };
-  const write = (saved) => {
-    try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (error) { /* private mode: it just forgets */ }
-  };
-  function restore(root) {
-    const saved = read();
-    root.querySelectorAll("details.grp[data-key]").forEach((group) => {
-      if (group.dataset.key in saved) group.open = !!saved[group.dataset.key];
-    });
-  }
-  restore(document);
-  document.body.addEventListener("htmx:afterSwap", (event) => {
-    if (event.target && event.target.id === "budget") restore(event.target);
-  });
-  document.body.addEventListener("toggle", (event) => {
-    const group = event.target;
-    if (!group.matches || !group.matches("details.grp[data-key]")) return;
-    const saved = read();
-    saved[group.dataset.key] = group.open;
-    write(saved);
-  }, true);
   document.body.addEventListener("click", (event) => {
     const button = event.target.closest && event.target.closest("[data-toggle-budget-unused]");
     if (!button) return;

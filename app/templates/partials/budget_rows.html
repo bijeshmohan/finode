@@ -1,0 +1,33 @@
+{#- Rows of the budget: a category (or a group) with what is left, what it had, and a bar with today's tick. -#}
+{% from "partials/money.html" import figure %}
+
+{% macro bar(line, pace) -%}
+  {% set total = line.activity + line.available %}
+  <span class="bar {{ 'over' if line.available < 0 }}" aria-hidden="true"><i style="width: {{ 100 if line.available < 0 else (((line.activity / total) * 100)|round|int if total > 0 else 0) }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
+{%- endmacro %}
+
+{#- One row. A group opens its own page; a category opens the sheet where its amount is set (group_id: the page it came from). -#}
+{% macro row(item, month_key, pace, group_id="", other=False) %}
+{% set line = item.node.line %}
+{% set name = "Everything else" if other else line.name %}
+<a class="r crow {{ 'grow' if item.node.is_group else 'catrow' }}"
+   {% if item.node.is_group %}href="/budget/group/{{ line.aid }}?month={{ month_key }}"
+   {% else %}href="/budget/target?month={{ month_key }}&category={{ line.aid }}" hx-get="/budget/category/{{ line.aid }}/sheet?month={{ month_key }}{{ '&group=' ~ group_id if group_id }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false"{% endif %}>
+  <span class="crow-main">
+    <span class="crow-name">{{ name }}</span>
+    {% if item.hint %}<span class="crow-sub {{ 'short' if not item.node.is_group and line.underfunded else '' }}">{{ item.hint }}</span>{% endif %}
+    {{ bar(line, pace) }}
+  </span>
+  <span class="crow-amt"><span class="{{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span><span class="crow-share">{% if line.assigned or line.available or line.activity %}of {{ (line.activity + line.available if line.activity + line.available > 0 else line.activity)|money }}{% else %}nothing assigned{% endif %}</span></span>
+</a>
+{% endmacro %}
+
+{#- The month (or a group) at a glance: what is left, and a bar of what is spent out of what there was. -#}
+{% macro glance_block(glance, label, over_label, currency, pace) %}
+<div class="ready zero budget-hero">
+  <span class="muted">{{ over_label if glance.left < 0 else label }}</span>
+  <span class="figure {{ 'over' if glance.left < 0 }}">{{ figure(glance.left, currency) }}</span>
+  <span class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent{% if pace is not none %}, and {{ pace }}% of the month has passed{% endif %}"><i style="width: {{ glance.percent }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
+  <span class="glance-note">{% if glance.planned %}Spent {{ glance.spent|money }} of {{ glance.of|money }}{% else %}Nothing assigned yet{% endif %}</span>
+</div>
+{% endmacro %}

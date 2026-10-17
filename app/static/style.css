@@ -498,29 +498,9 @@ details.filters .count {
 }
 .back:hover { color: var(--text); }
 
-.account-group + .account-group { margin-top: 1.25rem; }
-.group-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 .25rem; margin-bottom: .4rem; }
-.group-head h2 { margin: 0; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.group-total { font-size: .9rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
 
-/* Every account row is the same four columns (arrow, name, amount, link), so amounts line up on the right. */
-:root { --trail: 2.5rem; }
-.account-row {
-  display: grid;
-  grid-template-columns: 1.25rem minmax(0, 1fr) auto var(--trail);
-  align-items: center;
-  column-gap: .5rem;
-  min-height: 52px;
-  padding: .55rem 0 .55rem calc(.75rem + var(--depth, 0) * 1.1rem);
-  color: inherit;
-  text-decoration: none;
-}
-@media (hover: hover) { .account-row:hover { background: var(--surface-2); } }
-.account-row .icon { color: var(--muted); width: 1.1em; height: 1.1em; }
 .account-name { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-row.system .account-name { color: var(--muted); font-weight: 400; }
 .account-balance { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; text-align: right; justify-self: end; }
-.account-row > .icon { justify-self: center; }
 
 .add-first {
   display: flex;
@@ -809,20 +789,13 @@ form.notice.fund button { margin: 0; }
 .accounts-tools { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
 .accounts-tools input[type="search"] { flex: 1 1 12rem; min-width: 0; }
 .accounts-tools button { margin: 0; }
-details.account-group > summary.group-head { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto var(--trail); align-items: center; column-gap: .5rem; padding-right: 1px; }
-details.account-group > summary.group-head::-webkit-details-marker, details.acct-group > summary::-webkit-details-marker { display: none; }
-details.account-group > summary h2 { flex: 1; display: flex; align-items: center; gap: .25rem; }
-details.acct-group > summary { list-style: none; cursor: pointer; }
 .caret { display: inline-grid; place-items: center; width: 1.25rem; flex: none; color: var(--muted); transition: transform .12s; transform: rotate(-90deg); }
 .caret .icon { width: 1.1em; height: 1.1em; }
-details[open] > summary .caret, details[open] > summary.group-head .caret { transform: none; }
-.caret.spacer { height: 1px; }
-.open-link { display: grid; place-items: center; align-self: stretch; min-height: var(--tap); color: var(--muted); }
-.open-link .icon { width: 1.1em; height: 1.1em; }
+details[open] > summary .caret { transform: none; }
 ul.list.nested { border-top: 1px solid var(--border); }
 .unused-hidden, .closed-hidden { display: none; }
-.show-unused .unused-hidden:not(.closed-hidden), .searching .unused-hidden:not(.closed-hidden) { display: list-item; }
-.show-closed .closed-hidden, .searching .closed-hidden { display: list-item; }
+.show-unused .unused-hidden:not(.closed-hidden), .searching .unused-hidden:not(.closed-hidden) { display: revert; }
+.show-closed .closed-hidden, .searching .closed-hidden { display: revert; }
 [data-accounts] li[hidden] { display: none !important; }
 .unused-toggle { margin: 1rem 0 0; text-align: center; }
 .link-button { background: none; border: 0; color: var(--accent); padding: .5rem; font: inherit; cursor: pointer; }
@@ -866,10 +839,6 @@ form.copy-last button { margin: 0; }
 .shares .bar i { display: block; height: 100%; border-radius: 999px; }
 
 /* ---------- Pinned and recent accounts ---------- */
-.quick { margin-bottom: 1rem; }
-.quick h2 { margin: 0 0 .4rem; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.quick .path { display: block; font-weight: 400; }
-.searching .quick { display: none; }
 .note-card { margin-top: 1rem; }
 
 /* ---------- Weekly targets, week by week ---------- */
@@ -1013,16 +982,8 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
 .ready.all-set .figure { color: var(--text); }
 
 /* ---------- Accounts, the calm version: flat rows, quiet type headings, a pill search ---------- */
-.account-group > ul.card.list, .quick > ul.card.list { background: none; border: 0; box-shadow: none; border-radius: 0; }
-.account-group + .account-group { margin-top: .75rem; }
-.group-head { padding: 0; margin-bottom: 0; min-height: 44px; }
-.group-head h2 { font-size: .8125rem; letter-spacing: .03em; color: var(--text); opacity: .75; }
-.group-total { font-size: .875rem; font-weight: 500; }
-.account-row { min-height: 46px; padding-top: .35rem; padding-bottom: .35rem; padding-left: calc(.25rem + var(--depth, 0) * 1.1rem); border-radius: var(--radius-sm); }
 .account-balance { font-weight: 500; }
 ul.list > li + li { border-top-color: var(--border); }
-.account-group > ul.card.list > li + li, .quick > ul.card.list > li + li, ul.list.nested { border-top-color: var(--surface-2); }
-.quick h2 { text-transform: none; letter-spacing: 0; font-size: .8125rem; font-weight: 500; }
 .accounts-tools input[type="search"] { border-radius: 999px; background: var(--surface-2); border-color: transparent; padding-left: 1rem; }
 .accounts-tools input[type="search"]:focus { background: var(--surface); border-color: var(--text); }
 .accounts-tools button { border-radius: 999px; }
@@ -1065,10 +1026,6 @@ button.switch[aria-checked="true"] span { transform: translateX(20px); backgroun
 .tx-day + .tx-day { margin-top: 0; }
 .tx-day-head { margin: 0 0 .4rem .25rem; }
 .tx-day ul.card.list > li + li { border-top-color: var(--surface-2); }
-.account-group + .account-group { margin-top: 1.25rem; }
-.group-head { padding: 0 .25rem; }
-.quick { margin-bottom: 1.25rem; }
-.quick h2 { margin-left: .25rem; }
 ul.list.nested { border-top-color: var(--surface-2); }
 .add-first { background: var(--surface); }
 
@@ -1113,12 +1070,6 @@ form.htmx-request button[type="submit"], form.htmx-request button:not([type]) { 
 .r .cap.short { color: var(--negative); }
 .budget-list { display: flex; flex-direction: column; }
 .budget-list .gh:first-child { margin-top: .6rem; }
-a.catrow { display: block; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
-a.catrow:active { background: var(--surface-2); margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }
-a.catrow .bar { display: block; position: relative; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: visible; } /* visible: the month tick is taller than the bar */
-a.catrow .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
-a.catrow .bar.over i { background: var(--danger); }
-a.catrow .cap { display: block; }
 .subhead { display: flex; justify-content: space-between; padding: .7rem 0 .2rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
 details.how { margin: -.4rem 0 .75rem; font-size: .8125rem; }
 details.how summary { cursor: pointer; color: var(--muted); list-style: none; text-decoration: underline; text-decoration-color: var(--faint); width: max-content; }
@@ -1142,24 +1093,6 @@ dialog.sheet .weeks summary { font-size: .8125rem; color: var(--muted); cursor: 
 .accounts-tools { margin-bottom: .25rem; }
 ul.tile.list { padding: 0 1rem; }
 ul.tile.list > li + li, ul.list.nested { border-top-color: var(--surface-2); }
-.account-group { margin-top: .25rem; }
-.account-group + .account-group { margin-top: .25rem; }
-details.account-group > summary.group-head { margin: .9rem 0 .35rem; padding: 0 .25rem; min-height: 2.25rem; display: flex; align-items: center; gap: .5rem; }
-.group-head h2 { flex: 1; margin: 0; display: flex; align-items: center; gap: .35rem; font-size: 1rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text); opacity: 1; }
-.group-total { font-size: .875rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
-.group-head .caret, .account-row .caret { color: var(--faint); }
-.group-head .open-link { min-height: 0; align-self: center; color: var(--faint); }
-.account-row { display: flex; align-items: center; gap: .6rem; min-height: 3rem; padding: .55rem 0 .55rem calc(var(--depth, 0) * 1rem); border-radius: 0; font-variant-numeric: tabular-nums; }
-.account-row:hover { background: transparent; }
-.account-row .account-name { flex: 1; min-width: 0; font-weight: 500; }
-.account-row .account-name small { font-weight: 400; }
-.account-row .account-balance { font-weight: 500; }
-.account-row.group .account-name { display: flex; align-items: baseline; gap: .4rem; }
-.account-row .open-link { min-height: 0; color: var(--faint); }
-.quick .gh { margin-top: .9rem; }
-details.quick.recent { margin: 1.25rem 0 0; }
-details.quick.recent > summary { cursor: pointer; list-style: none; padding: 0 .25rem .4rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
-details.quick.recent > summary::-webkit-details-marker { display: none; }
 
 /* An account's page: the balance, one main button and a menu for everything else */
 .account-hero { padding: 0 0 .5rem; }
@@ -1177,33 +1110,17 @@ details.menu > summary::-webkit-details-marker { display: none; }
 
 .budget-fine { font-size: .8125rem; }
 
-/* Every row (and every type heading) has the same slots, so names line up and so do amounts: [arrow] name ... amount [link]. */
-.account-row .caret, .account-row .caret.spacer { flex: none; width: 1.25rem; }
-.account-row .open-link, .account-row .trail, .group-head .open-link { flex: none; width: 1.5rem; display: grid; place-items: center; }
-.account-row .trail { height: 1px; }
-details.account-group > summary.group-head { padding-right: 1rem; }
-.group-head .caret { flex: none; width: 1.25rem; }
-.group-head h2 { gap: 0; }
-.account-row { gap: .5rem; }
-details.account-group > summary.group-head { padding-right: calc(1rem + 1px); }
 
 /* The budget tree: groups fold, a leaf opens its sheet. Rows indent with --d. */
 .budget-list.tile { padding: 0 1rem; display: block; }
 .budget-list .top + .top { border-top: 1px solid var(--surface-2); }
 .budget-list .top > .r { border-top: 0; }
-.budget-list .r { padding-left: calc(var(--d, 0) * 1rem); }
-.gkids > * { border-top: 1px solid var(--surface-2); }
-details.grp > summary { list-style: none; cursor: pointer; display: block; }
-details.grp > summary::-webkit-details-marker { display: none; }
 .gcaret { display: inline-grid; place-items: center; width: 1rem; margin-right: .35rem; color: var(--faint); transform: rotate(-90deg); transition: transform .12s; }
 .gcaret .icon { width: 1rem; height: 1rem; }
 details[open] > summary .gcaret, details[open].attn > summary .gcaret { transform: none; }
 .cat-name { display: inline-flex; align-items: center; min-width: 0; }
 .cnt { margin-left: .4rem; font-style: normal; font-weight: 400; font-size: .8125rem; color: var(--faint); }
-.gsum .cat-name { font-weight: 600; }
-.gkids .catrow .cat-name, .gkids .gsum .cat-name { font-weight: 500; }
 /* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and sub-categories indent from there. */
-a.catrow .cat-name::before { content: ""; flex: none; width: 1.35rem; }
 .attn { margin: .25rem 0 .5rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
 .attn > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; font-weight: 500; cursor: pointer; list-style: none; }
 .attn > summary::-webkit-details-marker { display: none; }
@@ -1215,10 +1132,6 @@ form.attn-item.fund { display: flex; gap: .75rem; align-items: center; justify-c
 .show-budget-unused .unused-hidden { display: block; }
 details.how { margin: 1.25rem 0 0; }
 
-.gsum .bar { display: block; position: relative; height: 3px; margin: .5rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: visible; }
-.gsum .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
-.gsum .bar.over i { background: var(--danger); }
-.gsum .cap { display: block; margin-top: .3rem; }
 
 /* Where today falls in the month, on the bars of the current month: a tick. A fill ahead of the tick is spending faster than the month passes. */
 .glance-bar, .bar { position: relative; overflow: visible; }
@@ -1254,3 +1167,48 @@ dd.auto, dd.auto a { color: var(--auto); }
 
 /* Room between the Expense / Income chips and the first row of the list */
 .cat-chips { margin-bottom: 1.4rem; }
+
+/* ---------- Accounts page: recently used as cards, every group open under its heading ---------- */
+.acc-section { margin-top: 1.1rem; }
+.acc-head { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; min-height: 2.25rem; padding: 0 .25rem; color: var(--text); text-decoration: none; list-style: none; cursor: pointer; }
+.acc-head::-webkit-details-marker { display: none; }
+.acc-head h2 { margin: 0; display: flex; align-items: center; font-size: 1.0625rem; font-weight: 600; }
+.group-total { font-size: .9375rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+.acc-block { margin-top: .35rem; }
+.acc-gh { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .45rem .25rem .3rem; font-size: .8125rem; font-weight: 600; color: var(--muted); text-decoration: none; font-variant-numeric: tabular-nums; }
+.acc-gh.plain { padding-top: 0; padding-bottom: .4rem; }
+.acc-block > ul.tile { margin: 0; }
+.account-row { display: flex; align-items: center; gap: .75rem; min-height: 3.25rem; padding: .5rem 0; color: inherit; text-decoration: none; font-variant-numeric: tabular-nums; }
+@media (hover: hover) { .account-row:hover { background: var(--surface-2); } }
+.account-row .account-name { flex: 1; min-width: 0; }
+.account-row.system .account-name { color: var(--muted); font-weight: 400; }
+.mono { flex: none; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; font-style: normal; font-weight: 600; font-size: .875rem; }
+.recent-cards { margin: .75rem 0 0; }
+.searching .recent-cards { display: none; }
+.cards { display: flex; gap: .625rem; overflow-x: auto; padding: .1rem 0 .4rem; scroll-snap-type: x proximity; scrollbar-width: none; }
+.cards::-webkit-scrollbar { display: none; }
+.card-acc { flex: 0 0 8.75rem; scroll-snap-align: start; display: flex; flex-direction: column; gap: .125rem; padding: .75rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); color: inherit; text-decoration: none; min-width: 0; }
+.ca-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ca-cap { font-size: .75rem; color: var(--muted); margin-bottom: .6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ca-bal { font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (min-width: 60rem) { .cards { flex-wrap: wrap; overflow: visible; } }
+
+/* ---------- Budget: left to spend first, then a ranked list ---------- */
+.budget-hero { display: flex; flex-direction: column; gap: .15rem; padding: .25rem 0 .75rem; }
+.budget-hero .figure.over { color: var(--danger); }
+.budget-hero .glance-bar { margin-top: .6rem; }
+.glance-note { font-size: .8125rem; color: var(--muted); margin-top: .35rem; }
+.ready-line { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin: 0 0 .75rem; padding: .75rem 1rem; border-radius: var(--radius-sm); font-size: .9375rem; }
+.ready-line.to-assign { background: var(--accent); color: var(--on-accent); }
+.ready-line.to-assign .go { font-size: .8125rem; opacity: .8; text-align: right; white-space: nowrap; }
+.ready-line.over { background: var(--danger-soft); color: var(--danger); }
+.ready-line.all-set { padding: 0 .25rem; color: var(--muted); font-size: .8125rem; }
+.budget-list .top + .top, .budget-list > .crow + .crow { border-top: 1px solid var(--surface-2); }
+.budget-list .crow { padding: .85rem 0; width: 100%; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+.budget-list .crow-main { flex: 1; }
+.crow .bar { display: block; position: relative; height: 3px; margin: .55rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: visible; }
+.crow .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
+.crow .bar.over i { background: var(--danger); }
+.crow-amt .negative { color: var(--negative); }
+.budget-list .crow-amt { min-width: 7.5rem; }
+.crow-sub.short { color: var(--negative); }
