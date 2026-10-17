@@ -28,9 +28,12 @@ class TransactionRepository:
         data: TransactionCreate,
         origin: str | None = None,
         recurring: tuple[UUID, date] | None = None,
+        tid: UUID | None = None,
     ) -> Transaction:
         fields = data.model_dump(exclude={"postings"})
         transaction = Transaction(**fields, user=self.uid, created_via=origin, updated_via=origin)
+        if tid is not None:  # bringing a deleted entry back keeps its id
+            transaction.tid = tid
         if recurring is not None:
             transaction.recurring_id, transaction.recurring_date = recurring
         self.db.add(transaction)
@@ -79,6 +82,13 @@ class TransactionRepository:
             .order_by(TransactionHistory.at.desc())
         )
         return self.db.exec(statement).all()
+
+    def deleted_row(self, hid: UUID) -> TransactionHistory | None:
+        return self.db.exec(
+            select(TransactionHistory).where(
+                TransactionHistory.hid == hid, TransactionHistory.user == self.uid, TransactionHistory.action == "deleted"
+            )
+        ).first()
 
     def _add_postings(self, transaction: Transaction, postings) -> None:
         for posting_data in postings:

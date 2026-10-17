@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Recently deleted · finode{% endblock %}
+{% block content %}
+<a class="back" href="/transactions">{{ icon("back") }}Transactions</a>
+<h1>Recently deleted</h1>
+<p class="muted form-narrow">Restoring puts an entry back exactly as it was, on its own date. It stays here until you restore it.</p>
+<p id="restore-error" class="error" role="alert"></p>
+
+{% if entries %}
+<ul class="tile list del-list">
+  {% for e in entries %}
+  {% set debits = e.postings|selectattr("side", "equalto", "debit")|list %}
+  {% set credits = e.postings|selectattr("side", "equalto", "credit")|list %}
+  <li class="del-row">
+    <span class="del-main">
+      <span class="del-title">{{ e.payee or "No payee" }}</span>
+      <span class="del-sub">{% for p in credits %}{{ p.account.split(":")[-1] }}{{ ", " if not loop.last }}{% endfor %} → {% for p in debits %}{{ p.account.split(":")[-1] }}{{ ", " if not loop.last }}{% endfor %}</span>
+      <span class="del-sub">{{ e.date|friendly_date }} · deleted {{ e.at|local_day|friendly_date|lower }}</span>
+    </span>
+    <span class="del-side">
+      <span class="del-amount">{{ debits|sum(attribute="amount")|money }}</span>
+      <button type="button" class="secondary" hx-post="/transactions/deleted/{{ e.hid }}/restore" hx-target="#restore-error" hx-swap="innerHTML">Restore</button>
+    </span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card empty-state"><p>Nothing deleted.</p><a class="button secondary" href="/transactions">Back to transactions</a></div>
+{% endif %}
+{% endblock %}

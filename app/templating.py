@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from .flash import flash_message
 from .models.utils import normalize_amount
-from .clock import local_today
+from .clock import local_day, local_today
 
 
 BASE_DIR = Path(__file__).parent
@@ -77,6 +77,7 @@ templates.env.filters["money"] = money
 templates.env.filters["symbol"] = symbol
 templates.env.filters["amount"] = amount
 templates.env.filters["friendly_date"] = friendly_date
+templates.env.filters["local_day"] = local_day
 templates.env.filters["origin_label"] = origin_label
 templates.env.globals["flash_message"] = flash_message
 templates.env.globals["asset_url"] = asset_url

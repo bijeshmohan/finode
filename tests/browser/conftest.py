@@ -106,6 +106,10 @@ class Api:
         assert response.ok, f"{path}: {response.status} {response.text()}"
         return response.json()
 
+    def delete(self, path: str):
+        response = self.request.delete(f"/api{path}")
+        assert response.ok, f"{path}: {response.status} {response.text()}"
+
     def get(self, path: str):
         response = self.request.get(f"/api{path}")
         assert response.ok, f"{path}: {response.status}"

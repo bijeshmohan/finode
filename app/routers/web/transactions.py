@@ -235,6 +235,28 @@ def delete_transaction(tid: UUID, transactions: Transactions, back: str = "", sh
     return htmx_redirect(safe_back(back), flash="transaction-deleted")
 
 
+@router.get("/deleted")
+def deleted_page(request: Request, accounts: Accounts, transactions: Transactions):
+    """Entries that were deleted, newest deletion first, each with a Restore button."""
+    entries = transactions.restorable()
+    return templates.TemplateResponse(
+        request,
+        "transactions_deleted.html",
+        {"active": "transactions", "entries": entries, "currency": accounts.currency().code},
+    )
+
+
+@router.post("/deleted/{hid}/restore")
+def restore_deleted(hid: UUID, transactions: Transactions):
+    try:
+        transactions.restore(hid)
+    except LookupError:
+        return htmx_error("That deleted transaction is not there any more.", "#restore-error", status_code=404)
+    except ValueError as e:
+        return htmx_error(str(e), "#restore-error")
+    return htmx_redirect("/transactions/deleted", flash="transaction-restored")
+
+
 # Paths that are not pages of the web app.
 NOT_PAGES = ("/api", "/mcp", "/static", "/.well-known", "/docs", "/openapi.json", "/app")
 
