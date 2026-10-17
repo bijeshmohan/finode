@@ -12,7 +12,7 @@
     {% elif rta == 0 and budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
   </div>
   {% if rta < 0 %}
-  <p class="ready-warn" role="alert"><strong>You have assigned {{ (-rta)|money|amount(budget.currency) }} more than you have.</strong> Lower a category's amount, or add income, to cover it.</p>
+  <p class="ready-warn" role="alert"><strong>Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</strong></p>
   {% endif %}
 
   {% if attention %}

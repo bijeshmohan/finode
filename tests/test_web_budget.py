@@ -66,7 +66,7 @@ def test_other_months_are_reachable(client, setup):
 def test_overspending_and_overassigning_are_called_out(client, setup):
     assign(client, setup["food"], "1500")
     page = client.get("/budget").text
-    assert "more than you have" in page and "ready-warn" in page and "Over-assigned by" not in page
+    assert "Over-assigned by" in page and "ready-warn" in page
     assert "Ready to assign in" in page and "0.00" in page
 
 
