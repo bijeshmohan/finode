@@ -65,13 +65,13 @@ def test_off_hides_targets_on_the_budget_and_keeps_the_money(client, books):
     assert client.get("/api/budget/").json()["underfunded"] == "300.00", "the data is untouched"
 
 
-def test_off_hides_pin_order_and_close_on_an_account(client, books):
+def test_off_hides_order_and_close_on_an_account(client, books):
     aid = books["bank"]["aid"]
     on = client.get(f"/accounts/{aid}").text
-    assert "/pin" in on and "Close account" in on
+    assert "Close account" in on
     switch(client, False)
     off = client.get(f"/accounts/{aid}").text
-    assert "/pin" not in off and "Close account" not in off and "listed alphabetically" not in off
+    assert "Close account" not in off and "listed alphabetically" not in off
     assert "Edit" in off and "New transaction" in off
 
 
@@ -80,13 +80,6 @@ def test_a_deleted_category_can_still_be_restored_with_the_switch_off(client, bo
     assert client.post(f"/api/accounts/{aid}/close").status_code == 200
     switch(client, False)
     assert "Restore category" in client.get(f"/accounts/{aid}").text
-
-
-def test_pinned_accounts_are_not_listed_while_off(client, books):
-    client.post(f"/api/accounts/{books['bank']['aid']}/pin")
-    assert 'data-quick' in client.get("/accounts").text and ">Pinned<" in client.get("/accounts").text
-    switch(client, False)
-    assert ">Pinned<" not in client.get("/accounts").text
 
 
 def test_the_switch_is_in_the_backup(client):

@@ -15,8 +15,6 @@ MESSAGES = {
     "your-account-deleted": "Your account was deleted. Goodbye!",
     "restore-done": "Backup restored",
     "account-closed": "Account closed",
-    "account-pinned": "Pinned to the top of Accounts",
-    "account-unpinned": "Unpinned",
     "account-moved": "Moved",
     "account-order-reset": "Back in alphabetical order",
     "account-reopened": "Account reopened",

@@ -36,10 +36,6 @@
       <div class="menu-panel">
         {% if node.kind == "user" %}
         <a href="/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
-        {% if advanced and not category and not account.closed_on %}
-        <button type="button" hx-post="/accounts/{{ account.aid }}/pin" hx-vals='{"pinned": "{{ 0 if account.pinned else 1 }}"}'
-          aria-pressed="{{ 'true' if account.pinned else 'false' }}">{{ icon("pin") }}{{ "Unpin" if account.pinned else "Pin" }}</button>
-        {% endif %}
         {% endif %}
         {% if category and root.account.name == "Expenses" %}<a href="/budget">{{ icon("budget") }}See in the Budget</a>{% endif %}
         {% if can_add_child and not account.closed_on %}

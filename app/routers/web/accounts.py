@@ -32,11 +32,9 @@ class Node:
     path: str = ""
     postable: bool = False
     children: list["Node"] = field(default_factory=list)
-    # For the accounts page: nothing has ever happened here, whether it starts open, how many accounts it holds.
+    # For the accounts page: nothing has ever happened here, and whether it is closed.
     unused: bool = False
     closed: bool = False
-    open: bool = False
-    size: int = 0
 
     @property
     def is_leaf(self) -> bool:
@@ -131,28 +129,38 @@ CATEGORY_ROOTS = ("Expenses", "Income")
 
 
 @router.get("")
-def accounts_page(request: Request, accounts: Accounts, profiles: Profiles):
+def accounts_page(request: Request, accounts: Accounts):
     roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
     unused = annotate_for_page(roots, accounts.used_account_ids(), local_today())
     nodes = {n.account.aid: n for root in roots for n in root.walk()}
-    pinned = sorted(
-        (n for n in nodes.values() if n.account.pinned and n.kind == "user" and n.account.closed_on is None),
-        key=lambda n: n.path.lower(),
-    )
     recent = [nodes[aid] for aid in accounts.recent(RECENT_ACCOUNTS) if aid in nodes]  # categories are not accounts here
     return templates.TemplateResponse(
         request,
         "accounts.html",
         {
             "active": "accounts",
-            "pinned": pinned if profiles.advanced() else [],
             "recent": recent,
             "roots": roots,
+            "blocks": {root.account.aid: page_blocks(root) for root in roots},
             "currency": accounts.currency().code,
             "unused": unused,
             "closed": closed_count(roots),
         },
     )
+
+
+def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
+    """A type's accounts as the page lists them: each group is a heading with its accounts under it, and the plain
+    accounts that sit directly under the type share one block without a heading. Accounts only go two levels deep."""
+    blocks: list[tuple[Node | None, list[Node]]] = []
+    for child in root.children:
+        if child.children:
+            blocks.append((child, child.children))
+        elif blocks and blocks[-1][0] is None:
+            blocks[-1][1].append(child)
+        else:
+            blocks.append((None, [child]))
+    return blocks
 
 
 # How many recently used accounts the accounts page lists.
@@ -162,14 +170,12 @@ RECENT_ACCOUNTS = 5
 NEW_ACCOUNT_DAYS = 7
 
 def annotate_for_page(roots: list[Node], used: set[UUID], today: date) -> int:
-    """Mark what the accounts page starts with: which groups are open and which accounts are unused.
+    """Mark which accounts the accounts page tucks away as unused.
     Returns how many accounts are unused (and so tucked away)."""
     cutoff = today - timedelta(days=NEW_ACCOUNT_DAYS)
 
     def visit(node: Node) -> bool:
         children = [visit(child) for child in node.children]
-        node.size = sum(c.size for c in node.children) if node.children else 1
-        node.open = node.kind == "root"  # every type starts open, showing one level of accounts; groups start closed
         node.closed = node.account.closed_on is not None
         node.unused = (
             node.kind == "user"
@@ -362,16 +368,6 @@ def reopen_account(aid: UUID, accounts: Accounts):
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
     return htmx_redirect(f"/accounts/{aid}", flash="category-restored" if category else "account-reopened")
-
-
-@router.post("/{aid}/pin")
-def pin_account(aid: UUID, accounts: Accounts, pinned: Annotated[str, Form()] = "1"):
-    on = pinned != "0"
-    try:
-        accounts.set_pinned(aid, on)
-    except ValueError as e:
-        return htmx_error(str(e), "#page-error")
-    return htmx_redirect(f"/accounts/{aid}", flash="account-pinned" if on else "account-unpinned")
 
 
 @router.post("/{aid}/move")
