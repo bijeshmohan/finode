@@ -673,32 +673,8 @@ document.body.addEventListener("change", (event) => {
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
 })();
 
-// ---- Budget: groups fold (and are remembered), unused groups can be shown ----
+// ---- Budget: unused groups can be shown ----
 (() => {
-  const KEY = "finode.budget.open.v1";
-  const read = () => {
-    try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (error) { return {}; }
-  };
-  const write = (saved) => {
-    try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (error) { /* private mode: it just forgets */ }
-  };
-  function restore(root) {
-    const saved = read();
-    root.querySelectorAll("details.grp[data-key]").forEach((group) => {
-      if (group.dataset.key in saved) group.open = !!saved[group.dataset.key];
-    });
-  }
-  restore(document);
-  document.body.addEventListener("htmx:afterSwap", (event) => {
-    if (event.target && event.target.id === "budget") restore(event.target);
-  });
-  document.body.addEventListener("toggle", (event) => {
-    const group = event.target;
-    if (!group.matches || !group.matches("details.grp[data-key]")) return;
-    const saved = read();
-    saved[group.dataset.key] = group.open;
-    write(saved);
-  }, true);
   document.body.addEventListener("click", (event) => {
     const button = event.target.closest && event.target.closest("[data-toggle-budget-unused]");
     if (!button) return;
