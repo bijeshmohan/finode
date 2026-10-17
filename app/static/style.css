@@ -1218,9 +1218,19 @@ dd.auto, dd.auto a { color: var(--auto); }
 .budget-list .crow-amt { min-width: 7.5rem; }
 .crow-sub.short { color: var(--negative); }
 
-/* Entries dated ahead wait in one row on the transactions page; opened, their days are tiles like the rest of the list. */
-.upcoming { margin: 0 0 1rem; font-size: .875rem; }
-.upcoming > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; padding: 0 1rem; font-weight: 500; cursor: pointer; list-style: none; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; }
+/* Entries dated ahead: one card. Closed it is a single line with what they come to; opened, a statement: the date down the left, hairlines between rows. */
+.upcoming { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); overflow: hidden; font-size: .9375rem; }
+.upcoming > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; padding: 0 1rem; font-size: .875rem; font-weight: 500; cursor: pointer; list-style: none; }
 .upcoming > summary::-webkit-details-marker { display: none; }
-.upcoming[open] > summary { margin-bottom: .5rem; }
-.upcoming .tx-day:last-child { margin-bottom: 0; }
+.upcoming > summary .sub { color: var(--muted); font-weight: 400; }
+.up-list { list-style: none; margin: 0; padding: 0; }
+.up-list li { border-top: 1px solid var(--surface-2); }
+.up-row { display: flex; align-items: center; gap: .75rem; padding: .7rem 1rem; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.up-date { display: flex; flex-direction: column; align-items: center; width: 2.4rem; flex: none; line-height: 1.05; }
+.up-date b { font-size: 1.0625rem; font-weight: 600; }
+.up-date span { font-size: .6875rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.up-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.up-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-sub { color: var(--muted); font-size: .8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-amount { font-variant-numeric: tabular-nums; }
+.up-amount.income { color: var(--positive); }
