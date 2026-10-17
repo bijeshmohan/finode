@@ -20,21 +20,22 @@
   </span>
 </div>
 
-<div class="month-nav">
-  <a class="icon-button" href="/categories?month={{ previous }}&tab={{ tab }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
-  <h2 class="month-title">{{ month_name }}</h2>
-  {% if is_current %}<span class="icon-button" aria-hidden="true" style="visibility: hidden"></span>{% else %}
-  <a class="icon-button" href="/categories?month={{ next }}&tab={{ tab }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>{% endif %}
+<div class="cat-bar">
+  <span class="month-pill">
+    <span class="month-pill-name">{{ month_name.split(" ")[0][:3] }} {{ month_name.split(" ")[1] }}</span>
+    <a class="icon-button" href="/categories?month={{ previous }}&tab={{ tab }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
+    {% if is_current %}<span class="icon-button" aria-hidden="true" style="visibility: hidden"></span>{% else %}
+    <a class="icon-button" href="/categories?month={{ next }}&tab={{ tab }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>{% endif %}
+  </span>
+  <div class="chips cat-chips" role="group" aria-label="What to show">
+    <a class="chip" href="/categories?month={{ month_key }}&tab=expense" aria-pressed="{{ 'true' if tab == 'expense' else 'false' }}">Expense</a>
+    <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
+  </div>
 </div>
 
 <div class="ready zero cat-hero">
-  <span class="muted">{{ "Spent in" if tab == "expense" else "Earned in" }} {{ month_name.split(" ")[0] }}{% if is_current %} so far{% endif %}</span>
+  <span class="muted">{{ "Spent" if tab == "expense" else "Earned" }} {% if is_current %}so far{% else %}in {{ month_name.split(" ")[0] }}{% endif %}</span>
   <span class="figure">{{ figure(grand, currency) }}</span>
-</div>
-
-<div class="chips cat-chips" role="group" aria-label="What to show">
-  <a class="chip" href="/categories?month={{ month_key }}&tab=expense" aria-pressed="{{ 'true' if tab == 'expense' else 'false' }}">Expense</a>
-  <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
 </div>
 
 <div data-categories>

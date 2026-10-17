@@ -1155,7 +1155,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 .total-field .amount-field input { width: calc(var(--n, 4) * 1ch + .12em); max-width: 100%; }
 
 /* Categories */
-.cat-hero { padding-bottom: .9rem; }
+.cat-hero { padding-top: .5rem; padding-bottom: 1.1rem; }
 .month-title { margin: 0; flex: 1; text-align: center; font-size: 1rem; font-weight: 600; }
 .month-nav.small { margin: .25rem 0 0; }
 .show-quiet .unused-hidden { display: block; }
@@ -1172,7 +1172,10 @@ dd.auto, dd.auto a { color: var(--auto); }
 .accounts-note { margin: 1.25rem .25rem 0; }
 
 /* Room between the Expense / Income chips and the first row of the list */
-.cat-chips { margin-bottom: 1.4rem; }
+.cat-chips { min-height: 0; }
+.cat-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .75rem; margin: 0 0 .75rem; }
+.month-pill { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; padding: 0 .25rem 0 1rem; min-height: 2.25rem; font-weight: 600; font-size: .9375rem; }
+.month-pill .icon-button { width: 2rem; height: 2rem; color: var(--faint); }
 
 /* ---------- Accounts page: recently used as cards, every group open under its heading ---------- */
 .acc-section { margin-top: 1.1rem; }
