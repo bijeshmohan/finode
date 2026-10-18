@@ -11,7 +11,7 @@ from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, month_start
 from ...schemas.budget import TARGET_KINDS, BudgetLine
-from ...templating import templates
+from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount
 
 
@@ -106,7 +106,7 @@ def _by_assigned(nodes: list[Node]) -> list[Node]:
     return sorted(nodes, key=lambda n: (-n.line.assigned, n.line.name.lower()))
 
 
-def _hint(node: Node, advanced: bool) -> str:
+def _hint(node: Node, advanced: bool, style: str = "western") -> str:
     """The small line under a category's name: the three biggest things inside a group and '+N'; for a plain category
     what needs a look (a target that is short, last month's overspending) and its note."""
     if node.is_group:
@@ -115,9 +115,9 @@ def _hint(node: Node, advanced: bool) -> str:
     line = node.line
     parts = []
     if advanced and line.underfunded:
-        parts.append(("overdue, " if line.overdue else "") + f"needs {line.underfunded:,.2f} more")
+        parts.append(("overdue, " if line.overdue else "") + f"needs {money(line.underfunded, style)} more")
     if line.overspent_last_month:
-        parts.append(f"{line.overspent_last_month:,.2f} overspent last month")
+        parts.append(f"{money(line.overspent_last_month, style)} overspent last month")
     if line.note:
         parts.append(line.note)
     return " · ".join(parts)
@@ -145,7 +145,7 @@ def _context(budget: Budget, month: date) -> dict:
     return {
         "budget": data,
         "tree": tree,
-        "rows": [{"node": n, "hint": _hint(n, advanced)} for n in _by_assigned(tree)],
+        "rows": [{"node": n, "hint": _hint(n, advanced, grouping_for(data.currency))} for n in _by_assigned(tree)],
         "unused_ids": {n.line.aid for n in unused},
         "unused_count": len(unused),
         # More spent than there was to spend in all the categories together (a single overspent category shows on its own bar).
@@ -181,7 +181,7 @@ def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
     return {
         **context,
         "group": node,
-        "kids": [{"node": c, "hint": _hint(c, advanced)} for c in _by_assigned(node.children)],
+        "kids": [{"node": c, "hint": _hint(c, advanced, grouping_for(context["budget"].currency))} for c in _by_assigned(node.children)],
         "other_row": {"node": Node(node.other), "hint": ""},
         "glance": _glance(node.line),
     }

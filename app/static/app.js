@@ -295,9 +295,17 @@ function formatDec(value) {
   return `${sign}${whole}.${fraction}`;
 }
 
+function groupDigits(whole) {
+  // Lakhs and crores for rupees (12,34,567), thousands otherwise (1,234,567); the page says which on <html>.
+  if (document.documentElement.dataset.grouping === "indian") {
+    return whole.replace(/\B(?=(\d{2})*\d{3}(?!\d))/g, ",");
+  }
+  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 function money(value) {
   const [whole, fraction] = formatDec(value).split(".");
-  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction}`;
+  return `${groupDigits(whole)}.${fraction}`;
 }
 
 // What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
