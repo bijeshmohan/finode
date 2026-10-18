@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
-from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService
+from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService, RegisterPage
 from ...templating import templates
 from .utils import UpcomingItem, htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 from ...clock import local_day, local_today
@@ -307,23 +307,30 @@ def _is_inflow(root_name: str, change: Decimal) -> bool:
     return (root_name == "Assets" and change > 0) or (root_name == "Liabilities" and change < 0)
 
 
-def account_context(accounts: AccountService, profiles, aid: UUID, entries=None) -> dict:
+def account_context(accounts: AccountService, profiles, aid: UUID, entries=None, offset: int = 0) -> dict:
     """What the account page needs; the category page (categories.py) reuses it with its month's entries."""
     roots, node = _load(accounts, aid)
-    entries = accounts.register(aid) or [] if entries is None else entries
     root = _root_of(roots, node)
-    # What is dated ahead is not history: it waits in its own card, soonest first, and out of the running list.
     today = local_today()
-    history = [e for e in entries if e.date <= today]
+    page = None
+    if entries is None:
+        # An account's own page reads only its newest entries (and what is dated ahead); a category passes its month's.
+        page = accounts.register_page(aid, today, offset) or RegisterPage([], [], 0, 0, False, False)
+        history, ahead, has_any = page.entries, page.upcoming, page.has_any
+    else:
+        history = list(reversed([e for e in entries if e.date <= today]))
+        ahead = [e for e in sorted((e for e in entries if e.date > today), key=lambda e: e.date)]
+        has_any = bool(entries)
+    # What is dated ahead is not history: it waits in its own card, soonest first, and out of the running list.
     upcoming = [
         UpcomingItem(e.tid, e.date, e.payee or "No payee", ", ".join(e.counter_accounts) + (f" \u00b7 {e.comment}" if e.comment else ""), abs(e.change), _is_inflow(root.account.name, e.change))
-        for e in sorted((e for e in entries if e.date > today), key=lambda e: e.date)
+        for e in ahead
     ]
-    signs = {e.change > 0 for e in entries if e.date > today}
+    signs = {e.change > 0 for e in ahead}
     upcoming_total = sum((u.amount for u in upcoming), Decimal("0.00")) if upcoming and len(signs) == 1 else None
     at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
     # Asset and liability accounts with their own postings cannot gain sub-accounts.
-    has_own_postings = node.is_leaf and bool(entries) and node.kind != "root"
+    has_own_postings = node.is_leaf and has_any and node.kind != "root"
     can_add_child = (
         node.kind != "system"
         and not at_limit
@@ -339,7 +346,9 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
         "ordered_by_hand": any(s.account.position is not None for s in siblings),
         "node": node,
         "root": root,
-        "entries": list(reversed(history)),
+        "entries": history,
+        "has_more": page.has_more if page else False,
+        "next_offset": page.next_offset if page else 0,
         "upcoming": upcoming,
         "upcoming_total": upcoming_total,
         "is_inflow": lambda change: _is_inflow(root.account.name, change),
@@ -434,6 +443,13 @@ def reset_account_order(aid: UUID, accounts: Accounts):
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
     return htmx_redirect(f"/accounts/{aid}", flash="account-order-reset")
+
+
+@router.get("/{aid}/more")
+def account_more(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles, offset: int = 0):
+    """The next chunk of an account's transactions (htmx replaces the "Show earlier" button with it)."""
+    context = account_context(accounts, profiles, aid, None, offset=max(offset, 0))
+    return templates.TemplateResponse(request, "partials/account_entries.html", {**context, "category": False, "area": "/accounts"})
 
 
 @router.get("/{aid}/register")

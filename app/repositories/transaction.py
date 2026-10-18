@@ -211,6 +211,18 @@ class TransactionRepository:
         postings = self.db.exec(statement).all()
         return postings
 
+    def posting_facts(self, aids: list[UUID]):
+        """What an account's running balance needs from its postings (transaction, side, amount, date, created): no
+        payees, notes or other accounts, so a long history costs little to read."""
+        if not aids:
+            return []
+        statement = (
+            select(Posting.transaction, Posting.side, Posting.amount, Transaction.date, Transaction.created)
+            .join(Transaction, Transaction.tid == Posting.transaction)
+            .where(Posting.account.in_(aids), Posting.user == self.uid, Transaction.user == self.uid)
+        )
+        return self.db.exec(statement).all()
+
     def postings_for_accounts(
         self,
         aids: list[UUID],
