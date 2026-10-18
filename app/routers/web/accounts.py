@@ -301,6 +301,12 @@ def create_account(
     return htmx_redirect(f"/accounts/{created.aid}", flash="account-created")
 
 
+def _is_inflow(root_name: str, change: Decimal) -> bool:
+    """Money coming in, as an account's page marks it (green, "+"): what raises an asset account, and a payment into a
+    liability (a card or loan), which lowers what is owed. A charge on a card is plain."""
+    return (root_name == "Assets" and change > 0) or (root_name == "Liabilities" and change < 0)
+
+
 def account_context(accounts: AccountService, profiles, aid: UUID, entries=None) -> dict:
     """What the account page needs; the category page (categories.py) reuses it with its month's entries."""
     roots, node = _load(accounts, aid)
@@ -310,7 +316,7 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
     today = local_today()
     history = [e for e in entries if e.date <= today]
     upcoming = [
-        UpcomingItem(e.tid, e.date, e.payee or "No payee", ", ".join(e.counter_accounts) + (f" \u00b7 {e.comment}" if e.comment else ""), abs(e.change), e.change > 0 and root.account.name == "Assets")
+        UpcomingItem(e.tid, e.date, e.payee or "No payee", ", ".join(e.counter_accounts) + (f" \u00b7 {e.comment}" if e.comment else ""), abs(e.change), _is_inflow(root.account.name, e.change))
         for e in sorted((e for e in entries if e.date > today), key=lambda e: e.date)
     ]
     signs = {e.change > 0 for e in entries if e.date > today}
@@ -336,6 +342,7 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
         "entries": list(reversed(history)),
         "upcoming": upcoming,
         "upcoming_total": upcoming_total,
+        "is_inflow": lambda change: _is_inflow(root.account.name, change),
         "currency": accounts.currency().code,
         "can_add_child": can_add_child,
         # Part of a group's balance that was posted to the group itself.

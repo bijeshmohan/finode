@@ -117,8 +117,8 @@
           {% if category %}
           <span class="tx-amount {{ 'income' if root.account.name == 'Income' and e.change > 0 }}">{{ "+" if root.account.name == "Income" and e.change > 0 }}{{ "−" if e.change < 0 }}{{ (e.change|abs)|money }}</span>
           {% else %}
-          {#- Green and "+" mean money coming in: only on an asset account. A card's charges and payments are plain; its running balance shows which way it went. -#}
-          {% set inflow = root.account.name == "Assets" and e.change > 0 %}
+          {#- Green and "+" mean money coming in: what raises an asset account, and a payment into a card or loan (it lowers what you owe). A charge is plain; the running balance shows which way it went. -#}
+          {% set inflow = is_inflow(e.change) %}
           <span class="tx-amount {{ 'income' if inflow }}">{{ "+" if inflow }}{{ (e.change|abs)|money }}<small>{{ e.balance|money }}</small></span>
           {% endif %}
         </a>

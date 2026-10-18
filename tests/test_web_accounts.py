@@ -303,7 +303,7 @@ def test_a_category_has_the_month_pill_above_the_figure_and_no_label(client, roo
     assert 'title="Next month"' in last and "Jan 2026" in last
 
 
-def test_green_and_plus_mean_money_in_so_a_cards_page_has_neither(client, root_accounts):
+def test_green_and_plus_mean_money_in_on_a_bank_and_a_payment_into_a_card(client, root_accounts):
     bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"}).json()
     card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
@@ -312,15 +312,14 @@ def test_green_and_plus_mean_money_in_so_a_cards_page_has_neither(client, root_a
     client.post("/api/transactions/", json={"payee": "Pay the card", "postings": [
         {"account": card["aid"], "side": "debit", "amount": "100"}, {"account": bank["aid"], "side": "credit", "amount": "100"}]})
     page = client.get(f"/accounts/{card['aid']}").text.split("<h2>Transactions</h2>", 1)[1]
-    assert "Dinner" in page and "Pay the card" in page
-    assert "tx-amount income" not in page and "+300.00" not in page and "+100.00" not in page, "a charge is not money in"
-    assert "300.00" in page and "100.00" in page
+    assert page.count("tx-amount income") == 1 and "+100.00" in page, "the payment is green with a plus"
+    assert "+300.00" not in page and "300.00" in page, "a charge is plain"
     bank_page = client.get(f"/accounts/{bank['aid']}").text.split("<h2>Transactions</h2>", 1)[1]
-    assert "+1,000.00" in bank_page and "tx-amount income" in bank_page, "money into a bank account is still green"
+    assert "+1,000.00" in bank_page and bank_page.count("tx-amount income") == 1, "money into a bank account is green"
     assert "+100.00" not in bank_page, "what leaves the bank is plain"
 
 
-def test_upcoming_charges_on_a_card_are_not_green_either(client, root_accounts):
+def test_upcoming_on_a_card_follows_the_same_rule(client, root_accounts):
     from datetime import timedelta
 
     from app.clock import local_today
@@ -331,3 +330,16 @@ def test_upcoming_charges_on_a_card_are_not_green_either(client, root_accounts):
         {"account": food["aid"], "side": "debit", "amount": "70"}, {"account": card["aid"], "side": "credit", "amount": "70"}]})
     page = client.get(f"/accounts/{card['aid']}").text
     assert "1 upcoming" in page and "up-amount income" not in page and "+70.00" not in page
+
+
+def test_an_upcoming_payment_into_a_card_is_green_and_a_charge_is_not(client, root_accounts):
+    from datetime import timedelta
+
+    from app.clock import local_today
+
+    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"}).json()
+    card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"], "balance": "500"}).json()
+    client.post("/api/transactions/", json={"date": str(local_today() + timedelta(days=9)), "payee": "Pay later", "postings": [
+        {"account": card["aid"], "side": "debit", "amount": "200"}, {"account": bank["aid"], "side": "credit", "amount": "200"}]})
+    page = client.get(f"/accounts/{card['aid']}").text
+    assert "1 upcoming" in page and "+200.00" in page and "up-amount income" in page
