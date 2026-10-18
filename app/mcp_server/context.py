@@ -1,3 +1,5 @@
+"""Builds the services for the token's user inside a tool call, the way dependencies.py does for a web request."""
+
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar

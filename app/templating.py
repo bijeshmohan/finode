@@ -1,3 +1,5 @@
+"""The Jinja2 environment and its filters: money (with Indian or western digit grouping), currency signs, friendly dates, hashed static URLs."""
+
 import hashlib
 from datetime import date, timedelta
 from decimal import Decimal

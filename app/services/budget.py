@@ -1,3 +1,5 @@
+"""Envelope budgeting on top of the ledger: assigned, activity, available and Ready to assign, targets, moving and copying money. Only the plan and targets are stored; the rest is derived (see docs/architecture/budget.md)."""
+
 import calendar
 from datetime import date, timedelta
 from decimal import ROUND_CEILING, Decimal

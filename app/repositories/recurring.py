@@ -1,3 +1,5 @@
+"""Persistence for recurring rules and their split postings, always filtered by the user's id."""
+
 from datetime import date
 from uuid import UUID
 

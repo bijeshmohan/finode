@@ -1,3 +1,5 @@
+"""Read-only reports computed from postings: summary, per-account breakdown, the month report, account totals and the trial balance that re-checks the books."""
+
 import calendar
 from datetime import date
 from decimal import Decimal

@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation
+
+`docs/` holds the user guide, the architecture (with Mermaid diagrams) and the developer docs (`docs/index.md` is the entry). This file stays the dense rulebook for assistants; when behaviour or a rule changes, update the matching page in `docs/` as well.
+
 ## Commands
 
 - Apply migrations: `uv run alembic upgrade head` (run before first boot and after pulling schema changes)
