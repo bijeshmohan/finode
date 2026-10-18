@@ -268,3 +268,16 @@ def test_expense_group_page_shows_direct_postings(
     assert "30.00 posted directly to groceries" in text
     assert f"/transactions/new?account={expense_account['aid']}" in text
     assert f"/categories/new?parent={expense_account['aid']}" in text
+
+
+def test_the_edit_button_is_beside_the_menu_not_inside_it(client, root_accounts):
+    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}).json()
+    page = client.get(f"/accounts/{bank['aid']}").text
+    head, menu = page.split('<details class="menu">', 1)
+    assert f'class="circ-button" href="/accounts/{bank["aid"]}/edit"' in head and 'title="Edit"' in head
+    assert f"/accounts/{bank['aid']}/edit" not in menu.split("</details>", 1)[0], "it left the menu"
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    cat = client.get(f"/categories/{food['aid']}").text
+    assert f'class="circ-button" href="/accounts/{food["aid"]}/edit"' in cat.split('<details class="menu">', 1)[0]
+    roots_page = client.get(f"/accounts/{root_accounts['Assets']}").text
+    assert f"/accounts/{root_accounts['Assets']}/edit" not in roots_page, "a top-level account cannot be edited"

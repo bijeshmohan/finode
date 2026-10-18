@@ -186,3 +186,4 @@ def test_budget_names_and_amounts_line_up(page: Page, books, api: Api):
     rights = page.eval_on_selector_all(".crow-amt", "els => els.filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().right))")
     assert len(lefts) >= 2 and len(set(lefts)) == 1, lefts
     assert len(set(rights)) == 1, rights
+

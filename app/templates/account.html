@@ -29,14 +29,14 @@
     {% if node.postable and not account.closed_on %}
     <a class="button" href="/transactions/new?account={{ account.aid }}&back={{ area }}/{{ account.aid }}">{{ icon("plus") }}Add transaction</a>
     {% endif %}
+    {% if node.kind == "user" %}
+    <a class="circ-button" href="/accounts/{{ account.aid }}/edit" title="Edit" aria-label="Edit {{ account.name }}">{{ icon("edit") }}</a>
+    {% endif %}
     {% set has_menu = node.kind == "user" or (can_add_child and not account.closed_on) %}
     {% if has_menu %}
     <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
-        {% if node.kind == "user" %}
-        <a href="/accounts/{{ account.aid }}/edit">{{ icon("edit") }}Edit</a>
-        {% endif %}
         {% if category and root.account.name == "Expenses" %}<a href="/budget">{{ icon("budget") }}See in the Budget</a>{% endif %}
         {% if can_add_child and not account.closed_on %}
         <a href="{{ '/categories/new' if category else '/accounts/new' }}?parent={{ account.aid }}">{{ icon("plus") }}Add sub-{{ "category" if category else "account" }}</a>
