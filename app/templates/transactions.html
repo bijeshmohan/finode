@@ -49,7 +49,7 @@
 </details>
 
 {% if upcoming %}
-<details class="upcoming" {{ "open" if searching }}>
+<details class="upcoming" {{ "open" if searching and not rows }}>
   <summary><span>{{ upcoming|length }} upcoming{% if upcoming_total is not none %} <span class="sub">· {{ upcoming_total|money }} in all</span>{% endif %}</span><span class="gcaret">{{ icon("caret") }}</span></summary>
   <ul class="up-list">
     {% for row in upcoming %}{% set t = row.transaction %}
