@@ -1,0 +1,111 @@
+# Why it is built this way
+
+The decisions that look odd until you know the reason. Each entry says what was decided, why, and what it costs. Where the reason is inferred from the code and its history rather than written down by the owner at the time, it says so with *(inferred)*.
+
+## Balances and the budget are derived, never stored
+
+**Decision.** No balance, no "available", no "Ready to assign" is a column. They are computed from postings and the plan.
+**Why.** Editing, deleting or restoring a transaction can never leave a stored number stale or wrong. There is one source of truth, and `trial_balance` can re-check it.
+**Cost.** Pages must compute from many postings. This is why queries are bulk (one query for all postings, not one per account) and why `tests/test_query_counts.py` exists.
+
+## One currency per person
+
+**Decision.** `profiles.currency` labels every amount. There are no conversions, prices, shares or coins; the `commodities` and `prices` tables were dropped.
+**Why (inferred).** The goal is a small, correct, fast core. Multi-currency and own assets multiply the bookkeeping rules (what is a balanced transaction across currencies?) for little benefit to the intended users.
+**Cost.** Changing the currency relabels, it does not convert. The migration that did this cannot be undone; restore a backup instead. Importing a file in another currency is refused with a pointer to Settings.
+
+## Accounts go two levels deep, for everybody
+
+**Decision.** `Expenses › Food › Groceries` is the deepest there is (`MAX_ACCOUNT_DEPTH = 2`). It is not a setting.
+**Why (inferred).** Deep trees make every list, picker and budget screen harder to read, especially on a phone. Templates and the budget only ever nest a group once, which keeps the UI simple. (An earlier version had a per-person depth limit; it was removed.)
+**Cost.** People who want finer detail use notes or more categories.
+
+## Categories are accounts
+
+**Decision.** A category is an Expenses or Income account. The web app shows them on a separate page, but nothing else treats them differently.
+**Why.** Double entry already says what spending is: a debit to an expense account. One tree and one posting rule cover accounts and categories, and reports are just sums over postings.
+
+## Postings have positive amounts and a side
+
+**Decision.** `amount > 0` and `side` is `DEBIT` or `CREDIT`, enforced by database `CHECK`s.
+**Why.** There is no ambiguity about direction, no negative-amount tricks, and the database itself refuses garbage even if a bug slipped past the service.
+
+## The transaction service is the only writer
+
+**Decision.** The web form, the JSON API, imports, recurring rules and assistants all create transactions through `TransactionService`.
+**Why.** Balancing, ownership of accounts, closed accounts, limits and the period lock then exist once. The exceptions (imports and restores fill an empty ledger through repositories) are documented and tested.
+
+## History is append-only and has no foreign key
+
+**Decision.** `transaction_history` and `account_deletions` only ever get new rows.
+**Why.** A deleted transaction's trace survives it, which is what makes *Recently deleted* and the edit page's history possible with no extra storage. Restoring recreates the entry with its old id.
+
+## The budget sits on top of the ledger
+
+**Decision.** The ledger knows nothing about budgeting. The budget stores only the plan, the targets and an `on_budget` flag.
+**Why.** The ledger stays correct and simple whatever the budget does, and the budget can never corrupt it.
+**Cost.** Some numbers (Home's Left to spend, the Budget page and the Month summary) come from different calculations and can differ in what they count; for example the Month summary does not count loan payments as spending the way the Budget does. This is a known inconsistency, not a bug in one of them.
+
+## An overspent category starts the next month at zero
+
+**Decision.** The deficit is taken out of Ready to assign from then on (the YNAB way), instead of the category carrying a negative.
+**Why.** The money was spent from real cash, so the shortfall must come out of what is unassigned. A negative carry would hide it.
+
+## Budgeting starts with the first month anything was assigned
+
+**Why.** Cash is the balance *now*; past spending already left it. Counting earlier spending as overspending would deduct it twice.
+
+## Entries dated in the future are not history
+
+**Decision.** Home's Recent and the main transactions list show only entries up to today. Future entries sit in one collapsed "upcoming" card, on the Transactions page and on account pages.
+**Why.** People enter EMI schedules and bills ahead of time; mixing them into the recent list buried what actually happened. Balances also count only up to today, so the list and the numbers agree.
+
+## Server-rendered HTML with htmx, no JavaScript build
+
+**Decision.** Jinja2 templates, vendored htmx, one `app.js`.
+**Why (inferred).** One developer, a small app, and no build pipeline to maintain. Pages work without scripts where they can. (This is the documented intent; the project guidance says not to add a build step.)
+
+## A small JSON API; the web app and MCP are the real front doors
+
+**Decision.** The API keeps accounts, transactions, the profile, recurring rules, the budget read/assign/targets, the trial balance, backup/restore and import/export. Everything else was removed.
+**Why.** Unused routes are surface area to secure and keep working. The web app and assistants use services directly. A new route is for the web UI or the assistants first.
+
+## Supabase for identity, finode for data
+
+**Decision.** Passwords, sessions and the OAuth server belong to Supabase; the ledger is in the same Postgres. App tokens and OAuth grants are finode's own tables.
+**Why (inferred).** Authentication is hard to get right and not what this project is for. Supabase gives sign-in, token refresh and an OAuth 2.1 server for AI connectors.
+**Cost.** finode depends on Supabase being up for sign-in. Read/write scope for connectors is stored by finode because Supabase has no such scope.
+
+## Stateless MCP with JSON responses
+
+**Decision.** Any worker can answer any `/mcp` request.
+**Why (inferred).** With two or more workers behind a proxy, session affinity would be a failure mode. Tools are plain calls into the services, so they do not need a session.
+
+## Tokens and app tokens are walled off from each other
+
+**Decision.** A personal access token or an OAuth app token only works on `/mcp`; a normal sign-in token is refused there; an app's token is refused by the JSON API and web UI.
+**Why.** Connecting an assistant must never hand it the ability to act as a full sign-in (changing the password, minting tokens, deleting the account).
+
+## The Advanced switch
+
+**Decision.** Rarely used features (budget targets, week-by-week, move up/down, closing accounts, the period lock) hide behind `profiles.advanced`; new profiles start with it off.
+**Why.** The default experience stays minimal. Hiding never touches the data, so turning it on again shows everything, and the API and assistants keep working.
+
+## Typed columns for settings
+
+**Decision.** A setting is a column on `profiles`, not a JSON blob or Supabase `user_metadata`.
+**Why.** A column has a type, a default and a migration. `user_metadata` is writable by users directly and is copied into every token.
+
+## One backup file format, restore only into an empty ledger
+
+**Decision.** The JSON backup restores only into an empty ledger, all or nothing, with new ids.
+**Why.** Merging two ledgers safely is a hard problem with little payoff. An empty target means the restore either fully works or changes nothing.
+
+## Amounts use the Indian lakh and crore grouping for INR only
+
+**Decision.** `12,34,567.00` for rupees; thousands grouping for every other currency, even where lakh-style is also used (PKR, BDT), unless asked.
+**Why (inferred).** The first users are Indian. Doing it for one currency was cheap and safe; extending it is one line per currency.
+
+## Feature freeze and the MVP scope
+
+The owner froze new features on 2026-10-14 and defined the MVP on 2026-10-18: correct double entry, monthly budgets (future-proofed for weekly and yearly), a minimal web UI, an MCP server, removing unused code, speed, and documentation. Splitting expenses with friends is a good idea explicitly *not* in the MVP. A review of what to keep or cut is planned for about 2026-11-04.

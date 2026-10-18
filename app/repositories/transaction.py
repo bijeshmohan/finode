@@ -1,3 +1,5 @@
+"""Persistence for transactions and postings, always filtered by the user's id; appends the history row on every create, update and delete."""
+
 from datetime import date, datetime
 from uuid import UUID
 

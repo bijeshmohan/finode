@@ -1,3 +1,5 @@
+"""Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits, the period lock), plus history, deleted entries and restoring."""
+
 from datetime import date
 from decimal import Decimal
 from uuid import UUID

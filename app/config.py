@@ -1,3 +1,5 @@
+"""All configuration: the `settings` instance, read from FINODE_* environment variables and an optional .env file."""
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

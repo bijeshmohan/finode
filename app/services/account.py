@@ -1,3 +1,5 @@
+"""Accounts: the tree and its rules (two levels, no posting to roots or groups), balances derived from postings, closing, deleting, restoring, ordering and the account register."""
+
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal

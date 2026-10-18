@@ -4,6 +4,13 @@ Personal finance API and web app built with FastAPI and SQLModel. Finode uses
 a double-entry ledger: every category-like concept is an account, and every
 posting is recorded as a balanced journal entry.
 
+## Documentation
+
+The full documentation is in [`docs/`](docs/index.md): a [user guide](docs/guide/getting-started.md),
+the [architecture](docs/architecture/overview.md) with diagrams, and
+[developer docs](docs/developer/code-map.md) (code map, conventions, the reasons behind the design).
+This README keeps the setup, deployment and configuration notes.
+
 ## Setup
 
 Requires Python 3.14+.

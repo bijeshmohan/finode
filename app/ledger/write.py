@@ -1,3 +1,5 @@
+"""Renders accounts and transactions as a journal that ledger and hledger can read."""
+
 import re
 from datetime import date
 

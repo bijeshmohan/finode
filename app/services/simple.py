@@ -1,3 +1,5 @@
+"""The two postings of a plain money-moves-from-here-to-there transaction, shared by the web form's simple case, recurring rules and the assistants."""
+
 from decimal import Decimal
 from uuid import UUID
 

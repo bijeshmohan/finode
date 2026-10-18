@@ -1,3 +1,5 @@
+"""Invite-only sign-up: checks the invite code and creates pre-confirmed users through Supabase's admin API (service key, server side only)."""
+
 import hashlib
 import hmac
 

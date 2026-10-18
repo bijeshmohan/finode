@@ -1,3 +1,5 @@
+"""Wires the application: routers, middleware and the background work run in the lifespan (see docs/architecture/overview.md)."""
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request

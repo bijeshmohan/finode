@@ -1,3 +1,5 @@
+"""Recurring transactions: validating a rule, recording every occurrence that is due, skipping one, pausing and resuming."""
+
 from datetime import date, timedelta
 from uuid import UUID
 

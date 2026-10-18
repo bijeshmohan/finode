@@ -1,3 +1,5 @@
+"""Turns a request into "this user": opens the database session and builds repositories and services bound to the user's id."""
+
 from typing import Annotated
 
 from fastapi import Depends, Request
