@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from ..models.transaction import PostingSide
+from .day import Day
 
 
 FORMAT = "finode-backup"
@@ -25,7 +26,7 @@ class BackupProfile(BaseModel):
     max_depth_equity: int = Field(default=0, exclude=True)
     max_depth_income: int = Field(default=0, exclude=True)
     max_depth_expenses: int = Field(default=0, exclude=True)
-    locked_through: Date | None = None
+    locked_through: Day | None = None
     advanced: bool = False
 
 
@@ -37,7 +38,7 @@ class BackupAccount(BaseModel):
     # Version 1 only: what the account held. Read to check it is the profile's currency, never written.
     commodity: str | None = Field(default=None, exclude=True)
     on_budget: bool = False
-    closed_on: Date | None = None
+    closed_on: Day | None = None
     payment_category_id: UUID | None = None
     # Older backups: accounts could be pinned. Read, never written.
     pinned: bool = Field(default=False, exclude=True)
@@ -54,7 +55,7 @@ class BackupPosting(BaseModel):
 
 class BackupTransaction(BaseModel):
     id: UUID
-    date: Date
+    date: Day
     payee: str | None = None
     comment: str | None = None
     # Version 1 only: the transaction's currency; must be the profile's.
@@ -62,7 +63,7 @@ class BackupTransaction(BaseModel):
     created_via: str | None = None
     updated_via: str | None = None
     recurring_id: UUID | None = None
-    recurring_date: Date | None = None
+    recurring_date: Day | None = None
     postings: list[BackupPosting]
 
 
@@ -85,17 +86,17 @@ class BackupRecurring(BaseModel):
     comment: str | None = None
     frequency: str
     every: int = 1
-    start_date: Date
-    end_date: Date | None = None
-    next_date: Date
-    last_date: Date | None = None
-    skipped_date: Date | None = None
+    start_date: Day
+    end_date: Day | None = None
+    next_date: Day
+    last_date: Day | None = None
+    skipped_date: Day | None = None
     active: bool = True
     last_error: str | None = None
 
 
 class BackupAllocation(BaseModel):
-    month: Date
+    month: Day
     account_id: UUID
     amount: Decimal
 
@@ -104,7 +105,7 @@ class BackupTarget(BaseModel):
     account_id: UUID
     kind: str
     amount: Decimal
-    target_date: Date | None = None
+    target_date: Day | None = None
     weekday: int | None = None
 
 

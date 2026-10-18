@@ -25,7 +25,9 @@ In the web app, **Assets, Liabilities and Equity** are shown as *Accounts* and *
 Rules enforced by `AccountService`:
 
 - **Two levels.** Accounts go at most two levels below a root (`MAX_ACCOUNT_DEPTH = 2`): `Expenses › Food › Groceries` is the deepest there is.
-- **Names** cannot contain `:` (it is the path separator, as in `Assets:Bank:HDFC`) and are at most 40 characters. Only the root names are unique in the database; restoring a deleted account refuses a name its parent already has.
+- **Names** are trimmed, visible, on one line, at most 40 characters and cannot contain `:` (it is the path separator, as in `Assets:Bank:HDFC`). They are **unique among their siblings, capitals aside** (`_check_name_free`), because the paths name accounts in journal files and for assistants. A journal import is case-sensitive, like the format, and may create `Food` and `food` side by side.
+- **Dates** a person can enter lie between 1 Jan 1900 and 31 Dec 2999 (`clock.FIRST_DAY`, `LAST_DAY`, the `Day` type). Past the ends the month arithmetic could fail, so the edges are refused with a message rather than allowed to break pages.
+- **Text** never holds a NUL character (Postgres cannot store it); it is dropped on every write.
 - **No posting to a root.** Postings may not target a root account.
 - **Groups.** An Assets or Liabilities account that has sub-accounts cannot be posted to, and cannot gain sub-accounts once it has postings. Income and Expenses groups *can* be posted to (`GROUP_POSTING_ROOT_NAMES`); the budget shows that money as "Everything else".
 - **No reclassifying.** An account cannot move under a different root, because that would silently change what its history means.

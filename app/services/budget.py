@@ -14,7 +14,7 @@ from ..schemas.account import AccountUpdate
 from .account import AccountService
 from .lock import locked_through
 from .transaction import decimal_places
-from ..clock import local_today
+from ..clock import FIRST_DAY, LAST_DAY, local_today
 
 
 ZERO = Decimal("0.00")
@@ -24,8 +24,18 @@ class BudgetError(ValueError):
     ...
 
 
+def first_of_month(day: date) -> date:
+    """The first day of a day's month, for dates already stored or checked (no range check)."""
+    return day.replace(day=1)
+
+
 def month_start(day: date | None) -> date:
-    return (day or local_today()).replace(day=1)
+    """The first day of the month a day is in (this month when empty). Months outside the calendar finode works in
+    (clock.FIRST_DAY to LAST_DAY) are refused, so no sum or step to the next or previous month can run off its ends."""
+    day = day or local_today()
+    if not FIRST_DAY <= day <= LAST_DAY:
+        raise BudgetError(f"{day:%b %Y} is outside the months finode works with!")
+    return day.replace(day=1)
 
 
 def months_between(first: date, last: date) -> int:
@@ -64,12 +74,12 @@ def due_month(target: BudgetTarget, month: date) -> date | None:
     if target.kind == "yearly":
         due = date(month.year, target.target_date.month, 1)
         return due if due >= month else date(month.year + 1, due.month, 1)
-    return month_start(target.target_date)
+    return first_of_month(target.target_date)
 
 
 def is_overdue(target: BudgetTarget, month: date, underfunded: Decimal) -> bool:
     """A by_date target whose month is behind us and that is still short (yearly targets just roll on)."""
-    return target.kind == "by_date" and underfunded > 0 and target.target_date is not None and month_start(target.target_date) < month
+    return target.kind == "by_date" and underfunded > 0 and target.target_date is not None and first_of_month(target.target_date) < month
 
 
 def funding(target: BudgetTarget, assigned: Decimal, carried: Decimal, month: date, decimals: int) -> tuple[Decimal, Decimal]:
@@ -194,7 +204,7 @@ class BudgetService:
             if p.transaction in touching:
                 continue
             transaction = transactions[p.transaction]
-            if p.account in categories and month_start(transaction.date) == month:
+            if p.account in categories and first_of_month(transaction.date) == month:
                 value = p.amount if p.side == PostingSide.DEBIT else -p.amount
                 outside.setdefault(p.transaction, [ZERO, set()])[0] += value
         for p in postings:
@@ -205,7 +215,7 @@ class BudgetService:
         allocations = [row for row in every_row if row.month <= month]
         # Money assigned to later months is out of what can be assigned now.
         later = sum((row.amount for row in every_row if row.month > month and row.account_id in categories), ZERO)
-        previous_month = month_start(month - timedelta(days=1))
+        previous_month = first_of_month(month - timedelta(days=1))
         assigned_here = {row.account_id for row in allocations if row.month == month}
         copyable = sum(
             (
@@ -238,25 +248,25 @@ class BudgetService:
                 if p.account in liabilities:
                     book_ = card_books[p.account]
                     book_[0] += p.amount if p.side == PostingSide.DEBIT else -p.amount
-                    if month_start(transactions[p.transaction].date) == month:
+                    if first_of_month(transactions[p.transaction].date) == month:
                         book_[2 if p.side == PostingSide.DEBIT else 1] += p.amount
             # Spending is what is posted to a category, and what is paid into an account that has one.
             target = p.account if p.account in categories else (payments.get(p.account) if p.side == PostingSide.DEBIT else None)
             if target is not None and p.transaction in touching:
                 transaction = transactions[p.transaction]
-                if month_start(transaction.date) < start:
+                if first_of_month(transaction.date) < start:
                     continue
                 value = p.amount if p.side == PostingSide.DEBIT else -p.amount
-                figures = by_category.setdefault(target, {}).setdefault(month_start(transaction.date), [ZERO, ZERO])
+                figures = by_category.setdefault(target, {}).setdefault(first_of_month(transaction.date), [ZERO, ZERO])
                 figures[1] += value
-                if target in weekly and month_start(transaction.date) == month:
+                if target in weekly and first_of_month(transaction.date) == month:
                     days = daily.setdefault(target, {})
                     days[transaction.date] = days.get(transaction.date, ZERO) + value
         for row in allocations:
             if row.account_id in categories:
                 by_category.setdefault(row.account_id, {}).setdefault(row.month, [ZERO, ZERO])[0] += row.amount
 
-        previous = month_start(month - timedelta(days=1))
+        previous = first_of_month(month - timedelta(days=1))
         own: dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]] = {}
         for aid in categories:
             own[aid] = self._roll(by_category.get(aid, {}), month, previous)
@@ -468,7 +478,7 @@ class BudgetService:
         if kind == "by_date":
             if target_date is None:
                 raise BudgetError("a target by a date needs the date!")
-            if month_start(target_date) < month_start(None):
+            if first_of_month(target_date) < month_start(None):
                 raise BudgetError("the date is in the past: choose this month or later!")
         elif kind == "yearly":
             if target_date is None:
@@ -538,6 +548,18 @@ class BudgetService:
         month = month_start(month)
         self._check_open(month)
         self._category(aid)
+        if amount < 0:
+            # A month's amount may be negative to take back what an earlier month left in the category (that is what
+            # Move money writes too), but never more than the category has left: past that it would show as overspent
+            # with nothing spent and make Ready to assign larger than the money there is.
+            available = self._compute(month)[1][aid][2]
+            taken = self.assigned(month, aid) - amount
+            if taken > available:
+                name = self.accounts.ar.read(aid).name
+                raise BudgetError(
+                    f"only {max(available, ZERO):f} is available in '{name}' to take out: assign at least "
+                    f"{self.assigned(month, aid) - max(available, ZERO):f}!"
+                )
         self._check_amount(amount)
         self.br.set(month, aid, amount)
         self.br.db.commit()
@@ -547,7 +569,7 @@ class BudgetService:
         """Assign this month what each category got last month, for the categories with nothing assigned yet."""
         month = month_start(month)
         self._check_open(month)
-        previous = month_start(month - timedelta(days=1))
+        previous = first_of_month(month - timedelta(days=1))
         categories = self._categories(self.accounts.ar.list())
         rows = self.br.list(up_to=month)
         have = {row.account_id for row in rows if row.month == month}

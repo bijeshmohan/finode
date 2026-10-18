@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .day import Day
+
 
 def _clean(value: str | None) -> str | None:
     if value is None:
@@ -15,7 +17,7 @@ class ProfileUpdate(BaseModel):
     # Code of the currency the whole ledger is kept in (ISO 4217, e.g. "INR"). Changing it relabels every amount; nothing is converted.
     default_currency: str | None = Field(default=None, max_length=20)
     # Close the books up to and including this day (a day before today at the latest); null opens them again.
-    locked_through: date | None = None
+    locked_through: Day | None = None
     advanced: bool | None = None
 
     @field_validator("first_name", "last_name")

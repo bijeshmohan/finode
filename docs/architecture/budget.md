@@ -48,6 +48,7 @@ flowchart LR
 - Budgeting **starts with the first month anything was assigned**. Earlier spending is ignored, because cash is the balance *now* and past spending already left it; counting it would deduct it twice.
 - Money assigned to **later months** is subtracted from Ready to assign in every earlier month, so assigning ahead uses up what is ready now, and the same money reads the same from either month.
 - **Moving money** between categories (`move`, limited to what is available) never changes Ready to assign.
+- A month's **assigned amount may be negative** to take back what an earlier month left in the category (Move money writes the same), but not by more than the category has left. Otherwise the category would show as overspent with nothing spent and Ready to assign would exceed the money there is.
 
 ## Budget accounts, tracking accounts and liabilities
 
