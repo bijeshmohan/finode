@@ -8,7 +8,7 @@ from starlette.routing import Route
 
 from .routers import accounts, budget, data, profile, recurring, reports, transactions, web
 from . import recurring_runner
-from .caching import cache_headers_middleware
+from .caching import Compression, cache_headers_middleware
 from .flash import clear_shown_flash_middleware
 from .mcp_server import transport as mcp_transport
 from .templating import BASE_DIR
@@ -46,3 +46,4 @@ app.add_exception_handler(LoginRequired, login_required_handler)
 app.middleware("http")(refreshed_cookies_middleware)
 app.middleware("http")(clear_shown_flash_middleware)
 app.middleware("http")(cache_headers_middleware)
+app.add_middleware(Compression, minimum_size=1000, compresslevel=5)  # outermost: it compresses what the others return

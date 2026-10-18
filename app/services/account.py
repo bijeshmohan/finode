@@ -497,6 +497,16 @@ class AccountService:
             current_id = parent.parent_id
         return False
 
+    @staticmethod
+    def _check_name_free(name: str, parent_id: UUID | None, all_accounts: list[Account], exclude: UUID | None = None) -> None:
+        """Two accounts in the same place may not read the same (capitals aside): paths such as Expenses:Food name an
+        account in the journal files and for the assistants, so they must tell accounts apart."""
+        wanted = name.casefold()
+        for other in all_accounts:
+            if other.parent_id == parent_id and other.aid != exclude and other.name.casefold() == wanted:
+                parent = next((a.name for a in all_accounts if a.aid == parent_id), None)
+                raise ValueError(f"{'there' if parent is None else repr(parent)} already has an account called '{other.name}'!")
+
     def create(self, account: AccountCreate) -> AccountRead:
         all_accounts = self._ensure_roots()
 
@@ -521,6 +531,7 @@ class AccountService:
         ):
             raise ValueError(f"system account '{account.name}' already exists!")
 
+        self._check_name_free(account.name, account.parent_id, all_accounts)
         accounts_by_id = {a.aid: a for a in all_accounts}
         in_budget = account.on_budget
         if in_budget is None:  # money in an asset account is budgeted unless said otherwise
@@ -751,6 +762,7 @@ class AccountService:
                 candidate.name, candidate.parent_id
             ):
                 raise ValueError(f"system account '{candidate.name}' already exists!")
+            self._check_name_free(candidate.name, candidate.parent_id, all_accounts, exclude=aid)
 
         if "balance" in data.model_fields_set and data.balance is not None:
             if is_system_root:

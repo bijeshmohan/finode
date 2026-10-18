@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from ..models.budget import BudgetAllocation, BudgetTarget
+from .cache import remembered
 
 
 class BudgetRepository:
@@ -18,7 +19,7 @@ class BudgetRepository:
         statement = select(BudgetAllocation).where(BudgetAllocation.user == self.uid)
         if up_to is not None:
             statement = statement.where(BudgetAllocation.month <= up_to)
-        return self.db.exec(statement).all()
+        return list(remembered(self.db, ("allocations", self.uid, up_to), lambda: self.db.exec(statement).all()))
 
     def read(self, month: date, account_id: UUID) -> BudgetAllocation | None:
         return self.db.exec(
@@ -43,7 +44,9 @@ class BudgetRepository:
         self.db.flush()
 
     def targets(self) -> dict[UUID, BudgetTarget]:
-        rows = self.db.exec(select(BudgetTarget).where(BudgetTarget.user == self.uid)).all()
+        rows = remembered(
+            self.db, ("targets", self.uid), lambda: self.db.exec(select(BudgetTarget).where(BudgetTarget.user == self.uid)).all()
+        )
         return {r.account_id: r for r in rows}
 
     def set_target(

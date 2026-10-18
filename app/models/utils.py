@@ -1,13 +1,29 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Numeric
+from sqlalchemy import DateTime, Numeric, event, inspect
 from sqlalchemy.types import TypeDecorator
-from sqlmodel import SQLModel, Field
+from sqlmodel import Session, SQLModel, Field
 
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def without_nul(text: str) -> str:
+    """A NUL character (U+0000) cannot be stored or searched for in Postgres text: it answers with an error."""
+    return text.replace("\x00", "")
+
+
+@event.listens_for(Session, "before_flush")
+def _strip_nul_characters(session: Session, flush_context, instances) -> None:
+    """Whatever is written (a payee, a note, an account name, from the web, the API or an assistant), a NUL is dropped
+    first, so it can never turn into a server error."""
+    for obj in (*session.new, *session.dirty):
+        for column in inspect(obj).mapper.column_attrs:
+            value = getattr(obj, column.key, None)
+            if isinstance(value, str) and "\x00" in value:
+                setattr(obj, column.key, without_nul(value))
 
 
 class TimestampMixin(SQLModel):

@@ -7,6 +7,15 @@ from zoneinfo import ZoneInfo
 from .config import settings
 
 
+# The days finode accepts for entries, rules, targets and months. Far wider than any real use, narrow enough that
+# date arithmetic (the next month, the day before) can never run off the calendar's ends at year 1 or 9999.
+FIRST_DAY = date(1900, 1, 1)
+LAST_DAY = date(2999, 12, 31)
+# The months that can be looked at: one in from each end, so "the month before" always exists.
+FIRST_MONTH = date(1900, 2, 1)
+LAST_MONTH = date(2999, 12, 1)
+
+
 @lru_cache
 def _zone(name: str) -> ZoneInfo:
     return ZoneInfo(name)

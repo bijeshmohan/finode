@@ -17,12 +17,13 @@ from ..schemas.report import (
     TrialBalanceRead,
 )
 from .account import AccountService
-from ..clock import local_today
+from ..clock import FIRST_MONTH, LAST_MONTH, local_today
 
 
 def _shift(month: date, by: int) -> date:
     index = month.year * 12 + month.month - 1 + by
-    return date(index // 12, index % 12 + 1, 1)
+    moved = date(index // 12, index % 12 + 1, 1) if 1 <= index // 12 <= 9998 else month
+    return moved if FIRST_MONTH <= moved <= LAST_MONTH else month
 
 
 class ReportService:

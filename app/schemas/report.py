@@ -9,18 +9,18 @@ class SummaryRead(BaseModel):
     currency: str
     period_start: Date
     period_end: Date
-    assets: Decimal = Field(decimal_places=8, max_digits=24)
-    liabilities: Decimal = Field(decimal_places=8, max_digits=24)
-    net_worth: Decimal = Field(decimal_places=8, max_digits=24)
-    income: Decimal = Field(decimal_places=8, max_digits=24)
-    expenses: Decimal = Field(decimal_places=8, max_digits=24)
-    net_income: Decimal = Field(decimal_places=8, max_digits=24)
+    assets: Decimal
+    liabilities: Decimal
+    net_worth: Decimal
+    income: Decimal
+    expenses: Decimal
+    net_income: Decimal
 
 
 class BreakdownLine(BaseModel):
     # Account path below the top-level account, e.g. "Food › Groceries".
     account: str
-    amount: Decimal = Field(decimal_places=8, max_digits=24)
+    amount: Decimal
 
 
 class BreakdownRead(BaseModel):
@@ -29,7 +29,7 @@ class BreakdownRead(BaseModel):
     currency: str
     period_start: Date
     period_end: Date
-    total: Decimal = Field(decimal_places=8, max_digits=24)
+    total: Decimal
     # Largest first.
     lines: list[BreakdownLine]
 
@@ -37,8 +37,8 @@ class BreakdownRead(BaseModel):
 class TrialBalanceLine(BaseModel):
     # Account path, e.g. "Assets:Bank:HDFC".
     account: str
-    debit: Decimal = Field(decimal_places=8, max_digits=24)
-    credit: Decimal = Field(decimal_places=8, max_digits=24)
+    debit: Decimal
+    credit: Decimal
 
 
 class TrialBalanceRead(BaseModel):
@@ -47,8 +47,8 @@ class TrialBalanceRead(BaseModel):
     balanced: bool
     currency: str
     lines: list[TrialBalanceLine]
-    debit: Decimal = Field(decimal_places=8, max_digits=24)
-    credit: Decimal = Field(decimal_places=8, max_digits=24)
+    debit: Decimal
+    credit: Decimal
     # Plain-language findings, e.g. a transaction whose debits and credits differ. Empty when the books are sound.
     problems: list[str]
 
@@ -56,18 +56,18 @@ class TrialBalanceRead(BaseModel):
 class MonthLine(BaseModel):
     # Account path below the top-level account, e.g. "Food", and what it came to in the month.
     account: str
-    amount: Decimal = Field(decimal_places=8, max_digits=24)
+    amount: Decimal
     # The same account the month before (zero when nothing was recorded), to see what moved.
-    previous: Decimal = Field(decimal_places=8, max_digits=24)
+    previous: Decimal
     # Its share of the month's total, in percent.
     share: Decimal = Field(decimal_places=1, max_digits=6)
 
 
 class MonthTotals(BaseModel):
     month: Date
-    income: Decimal = Field(decimal_places=8, max_digits=24)
-    expenses: Decimal = Field(decimal_places=8, max_digits=24)
-    net: Decimal = Field(decimal_places=8, max_digits=24)
+    income: Decimal
+    expenses: Decimal
+    net: Decimal
 
 
 class MonthReportRead(BaseModel):
@@ -77,13 +77,13 @@ class MonthReportRead(BaseModel):
     month: Date
     period_end: Date
     currency: str
-    income: Decimal = Field(decimal_places=8, max_digits=24)
-    expenses: Decimal = Field(decimal_places=8, max_digits=24)
-    net: Decimal = Field(decimal_places=8, max_digits=24)
+    income: Decimal
+    expenses: Decimal
+    net: Decimal
     # net as a percentage of income; none when nothing came in.
     savings_rate: Decimal | None = Field(default=None, decimal_places=1, max_digits=6)
-    previous_income: Decimal = Field(decimal_places=8, max_digits=24)
-    previous_expenses: Decimal = Field(decimal_places=8, max_digits=24)
+    previous_income: Decimal
+    previous_expenses: Decimal
     # Largest first, per top-level account below Expenses / Income.
     spending: list[MonthLine]
     earnings: list[MonthLine]

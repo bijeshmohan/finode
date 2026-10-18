@@ -75,18 +75,19 @@ class TransactionService:
                 f"a transaction can have at most {settings.max_postings_per_transaction} postings: split it into several!"
             )
         currency = self.currency()
-        accounts_by_id = None
+        # One read of the account list serves every posting (it is remembered for the session), instead of two
+        # queries per posting: a split of 20 rows used to cost 40 round trips.
+        accounts_by_id = {a.aid: a for a in self.ar.list()}
+        has_children = {a.parent_id for a in accounts_by_id.values() if a.parent_id is not None}
         for posting in postings:
-            account = self.ar.read(posting.account)
+            account = accounts_by_id.get(posting.account)
             if not account:
                 raise ValueError(f"account with aid '{posting.account}' not found!")
             if account.parent_id is None:
                 raise InvalidPostingAccountError(f"cannot post to root account '{account.name}'!")
             if account.closed_on is not None and account.aid not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
-            if self.ar.has_children(account.aid):
-                if accounts_by_id is None:
-                    accounts_by_id = {a.aid: a for a in self.ar.list()}
+            if account.aid in has_children:
                 if AccountService.root_name(account, accounts_by_id) not in GROUP_POSTING_ROOT_NAMES:
                     raise InvalidPostingAccountError(
                         f"cannot post to account '{account.name}' because it has sub-accounts!"

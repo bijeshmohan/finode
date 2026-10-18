@@ -65,6 +65,7 @@ def session() -> Generator[Session, None, None]:
 @pytest.fixture
 def client(session: Session) -> Generator[TestClient, None, None]:
     def get_session_override():
+        session.info.pop("read_memory", None)  # in production every request has its own session, hence its own memory
         return session
 
     def auth_override():
