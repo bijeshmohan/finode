@@ -115,10 +115,6 @@ def _load(accounts: AccountService, aid: UUID) -> tuple[list[Node], Node]:
     return roots, node
 
 
-def root_of_node(roots: list[Node], node: Node) -> str:
-    return _root_of(roots, node).account.name
-
-
 def _root_of(roots: list[Node], node: Node) -> Node:
     return next(r for r in roots if any(n is node for n in r.walk()))
 

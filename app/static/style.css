@@ -269,7 +269,7 @@ body.bare main { padding-top: max(1.5rem, env(safe-area-inset-top)); }
 
 .muted { color: var(--muted); }
 .block { display: block; }
-.nowrap { white-space: nowrap; }
+
 .pos { color: var(--positive); }
 .neg { color: var(--negative); }
 
@@ -411,7 +411,7 @@ a.plain:hover { text-decoration: underline; }
 .empty { padding: 1.25rem; margin: 0; }
 
 /* ---------- Tables (legacy pages) ---------- */
-.table-card { padding: 0; overflow-x: auto; }
+
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: .65rem .9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
@@ -419,7 +419,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 td.row-actions { text-align: right; white-space: nowrap; }
 td.row-actions button, td.row-actions a.button { min-height: 32px; padding: .2rem .55rem; font-size: .8rem; }
-.amount-inline { font-weight: 400; font-variant-numeric: tabular-nums; margin-left: .5rem; }
+
 .filters { margin-bottom: 1rem; }
 
 /* ---------- Accounts tree (legacy) ---------- */
@@ -435,11 +435,6 @@ td.row-actions button, td.row-actions a.button { min-height: 32px; padding: .2re
 .tree .row.editing { display: grid; padding: .75rem 0; }
 
 /* ---------- Dashboard stats ---------- */
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .75rem; }
-.stat { display: flex; flex-direction: column; gap: .2rem; }
-.stat .label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.stat .value { font-size: 1.4rem; font-weight: 650; font-variant-numeric: tabular-nums; }
-.stat.primary .value { font-size: 2rem; }
 
 /* ---------- Transaction form ---------- */
 /* ---------- Lists ---------- */
@@ -504,7 +499,6 @@ details.filters .count {
 }
 .back:hover { color: var(--text); }
 
-
 .account-name { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-balance { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; text-align: right; justify-self: end; }
 
@@ -522,7 +516,7 @@ details.filters .count {
 .add-first:hover { background: var(--accent-soft); }
 
 .account-hero h1 { margin: .1rem 0 .25rem; }
-.account-hero .crumbs { margin: 0; font-size: .85rem; }
+
 .hero-balance { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: .25rem 0 1rem; letter-spacing: -.01em; }
 
 .form-narrow { max-width: 36rem; }
@@ -561,9 +555,8 @@ details.filters .count {
 }
 
 /* ---------- Dashboard ---------- */
-.networth, .month, .onboarding { margin-bottom: .9rem; }
-.networth .label { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.networth .value { display: block; font-size: 2.1rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; margin: .1rem 0 .75rem; }
+ .month { margin-bottom: .9rem; }
+
 .month h2 { margin: 0 0 .5rem; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 
 dl.split { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin: 0; padding-top: .75rem; border-top: 1px solid var(--border); }
@@ -577,8 +570,6 @@ dl.split dd { margin: 0; font-weight: 650; font-variant-numeric: tabular-nums; f
   .overview { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
 }
 
-.onboarding h2 { margin: 0 0 .25rem; }
-.onboarding > p { margin: 0 0 .75rem; }
 ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .35rem; }
 ol.steps li { display: flex; align-items: center; gap: .75rem; min-height: var(--tap); }
 ol.steps a { font-weight: 600; text-decoration: none; }
@@ -736,11 +727,10 @@ label.check:has(input:checked) { border-color: var(--accent); background: var(--
 .ready .figure { display: block; font-size: 1.75rem; font-weight: 700; }
 .ready.zero { background: var(--surface-2); }
 .ready.over { background: var(--danger-soft); color: var(--danger); }
-.ready.all-set .figure { color: var(--positive); }
+
 /* Every row, and the header above them, is a grid with the same fixed amount columns, so the
    Assigned and Available cells line up whatever the figures or names are. */
 /* Same height, border and side padding in the input, the plain figure and the pill, so the digits end at the same edge. */
-
 
 /* Safari draws fieldsets with display:flex/grid badly (the legend becomes an item): keep them block */
 fieldset.plain { display: block; min-width: 0; }
@@ -748,7 +738,6 @@ fieldset.plain > legend { padding: 0; margin-bottom: .4rem; font-size: .875rem; 
 fieldset.plain > * + * { margin-top: .9rem; }
 .secret { -webkit-user-select: text; user-select: text; }
 .secret-row { display: flex; flex-direction: column; gap: .5rem; }
-
 
 form.notice.fund { display: flex; gap: .75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 form.notice.fund button { margin: 0; }
@@ -760,11 +749,6 @@ form.notice.fund button { margin: 0; }
 /* ---------- One transaction form (simple, or split across accounts) ---------- */
 [data-section][hidden] { display: none; }
 .txn-form { max-width: 36rem; }
-.txn-form.is-split { max-width: 46rem; }
-.split-switch { border-top: 1px solid var(--border); padding-top: .75rem; }
-.split-switch label { display: flex; align-items: center; gap: .6rem; min-height: var(--tap); cursor: pointer; font-weight: 500; }
-.split-switch input[type="checkbox"] { width: 1.25rem; height: 1.25rem; flex: none; }
-.split-switch .hint { margin: 0; }
 
 /* ---------- Transaction form: a total, then rows on each side ---------- */
 .txn-form { max-width: 40rem; }
@@ -789,23 +773,20 @@ form.notice.fund button { margin: 0; }
 [data-payment-category][hidden] { display: none; }
 
 /* ---------- Accounts page: groups that open, search, unused accounts tucked away ---------- */
-.net-worth { display: flex; flex-direction: column; gap: .15rem; margin-bottom: 1rem; }
-.net-worth .figure { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
-.net-worth .figure small { font-size: .9rem; font-weight: 500; color: var(--muted); }
+
 .accounts-tools { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
 .accounts-tools input[type="search"] { flex: 1 1 12rem; min-width: 0; }
 .accounts-tools button { margin: 0; }
 .caret { display: inline-grid; place-items: center; width: 1.25rem; flex: none; color: var(--muted); transition: transform .12s; transform: rotate(-90deg); }
 .caret .icon { width: 1.1em; height: 1.1em; }
 details[open] > summary .caret { transform: none; }
-ul.list.nested { border-top: 1px solid var(--border); }
+
 .unused-hidden, .closed-hidden { display: none; }
 .show-unused .unused-hidden:not(.closed-hidden), .searching .unused-hidden:not(.closed-hidden) { display: revert; }
 .show-closed .closed-hidden, .searching .closed-hidden { display: revert; }
 [data-accounts] li[hidden] { display: none !important; }
 .unused-toggle { margin: 1rem 0 0; text-align: center; }
 .link-button { background: none; border: 0; color: var(--accent); padding: .5rem; font: inherit; cursor: pointer; }
-.close-card, .order-card { margin-top: 1rem; }
 
 form.copy-last { margin: .25rem 0 .75rem; }
 form.copy-last button { margin: 0; }
@@ -985,7 +966,6 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
 .ready > span:last-child:not(.figure):not(.muted) { font-size: .8125rem; color: var(--muted); }
 .ready.over, .ready.over .figure { color: var(--danger); }
 .ready.over > span:last-child { color: var(--danger); }
-.ready.all-set .figure { color: var(--text); }
 
 /* ---------- Accounts, the calm version: flat rows, quiet type headings, a pill search ---------- */
 .account-balance { font-weight: 500; }
@@ -999,7 +979,6 @@ ul.list > li + li { border-top-color: var(--border); }
 .account-hero.card { background: none; border: 0; box-shadow: none; padding: 0 0 .75rem; }
 .hero-balance { font-size: 2.5rem; font-weight: 600; letter-spacing: -.03em; margin: .15rem 0 .75rem; }
 .account-hero h1 { font-size: 1.25rem; }
-.order-card.card, .close-card.card { background: none; border: 0; box-shadow: none; padding: 0; margin-top: .5rem; }
 
 /* ---------- Settings, the calm version ---------- */
 a.profile-head { display: flex; align-items: center; gap: .9rem; padding: .25rem 0 1.1rem; margin-bottom: .5rem; border-bottom: 1px solid var(--surface-2); color: inherit; text-decoration: none; }
@@ -1032,9 +1011,8 @@ button.switch[aria-checked="true"] span { transform: translateX(20px); backgroun
 .tx-day + .tx-day { margin-top: 0; }
 .tx-day-head { margin: 0 0 .4rem .25rem; }
 .tx-day ul.card.list > li + li { border-top-color: var(--surface-2); }
-ul.list.nested { border-top-color: var(--surface-2); }
-.add-first { background: var(--surface); }
 
+.add-first { background: var(--surface); }
 
 /* Settings: a tile per section */
 .settings .tile .setting:last-child { border-bottom: 0; }
@@ -1068,15 +1046,15 @@ form.htmx-request button[type="submit"], form.htmx-request button:not([type]) { 
 .gh { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin: 1.1rem .25rem .4rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
 .gh span:last-child { font-variant-numeric: tabular-nums; }
 .r { padding: .7rem 0; }
-.r + .r, .r + .subhead, .subhead + .r { border-top: 1px solid var(--surface-2); }
+.r + .r { border-top: 1px solid var(--surface-2); }
 .r .l1 { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
-.r .l1 .negative, .cat-left.negative { color: var(--negative); }
+.r .l1 .negative { color: var(--negative); }
 .r .l1 .positive { color: var(--text); }
 .r .cap { margin-top: .3rem; font-size: .78125rem; color: var(--muted); overflow-wrap: anywhere; }
 .r .cap.short { color: var(--negative); }
 .budget-list { display: flex; flex-direction: column; }
 .budget-list .gh:first-child { margin-top: .6rem; }
-.subhead { display: flex; justify-content: space-between; padding: .7rem 0 .2rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
+
 details.how { margin: -.4rem 0 .75rem; font-size: .8125rem; }
 details.how summary { cursor: pointer; color: var(--muted); list-style: none; text-decoration: underline; text-decoration-color: var(--faint); width: max-content; }
 details.how summary::-webkit-details-marker { display: none; }
@@ -1098,7 +1076,7 @@ dialog.sheet .weeks summary { font-size: .8125rem; color: var(--muted); cursor: 
 .circ-button .icon { width: 1.125rem; height: 1.125rem; }
 .accounts-tools { margin-bottom: .25rem; }
 ul.tile.list { padding: 0 1rem; }
-ul.tile.list > li + li, ul.list.nested { border-top-color: var(--surface-2); }
+ul.tile.list > li + li { border-top-color: var(--surface-2); }
 
 /* An account's page: the balance, one main button and a menu for everything else */
 .account-hero { padding: 0 0 .5rem; }
@@ -1121,22 +1099,18 @@ details.menu > summary::-webkit-details-marker { display: none; }
 
 .budget-fine { font-size: .8125rem; }
 
-
 /* The budget tree: groups fold, a leaf opens its sheet. Rows indent with --d. */
 .budget-list.tile { padding: 0 1rem; display: block; }
 .budget-list .top + .top { border-top: 1px solid var(--surface-2); }
 .budget-list .top > .r { border-top: 0; }
 .gcaret { display: inline-grid; place-items: center; width: 1rem; margin-right: .35rem; color: var(--faint); transform: rotate(-90deg); transition: transform .12s; }
 .gcaret .icon { width: 1rem; height: 1rem; }
-details[open] > summary .gcaret, details[open].attn > summary .gcaret { transform: none; }
-.cat-name { display: inline-flex; align-items: center; min-width: 0; }
-.cnt { margin-left: .4rem; font-style: normal; font-weight: 400; font-size: .8125rem; color: var(--faint); }
+details[open] > summary .gcaret { transform: none; }
+
 /* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and sub-categories indent from there. */
 .attn-panel { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
 .attn-panel .attn-item:first-child { border-top: 0; }
-.attn { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
-.attn > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; font-weight: 500; cursor: pointer; list-style: none; }
-.attn > summary::-webkit-details-marker { display: none; }
+
 .attn-item { margin: 0; padding: .75rem 0; border-top: 1px solid var(--surface-2); color: var(--muted); }
 .attn-item p { margin: 0 0 .4rem; }
 form.attn-item.fund { display: flex; gap: .75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
@@ -1144,7 +1118,6 @@ form.attn-item.fund { display: flex; gap: .75rem; align-items: center; justify-c
 .unused-hidden { display: none; }
 .show-budget-unused .unused-hidden { display: block; }
 details.how { margin: 1.25rem 0 0; }
-
 
 /* Where today falls in the month, on the bars of the current month: a tick. A fill ahead of the tick is spending faster than the month passes. */
 .glance-bar, .bar { position: relative; overflow: visible; }
@@ -1163,7 +1136,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 
 /* Categories */
 .cat-hero { padding-top: .5rem; padding-bottom: 1.1rem; }
-.month-title { margin: 0; flex: 1; text-align: center; font-size: 1rem; font-weight: 600; }
+
 .month-nav.small { margin: .25rem 0 0; }
 .show-quiet .unused-hidden { display: block; }
 /* Categories: one row per category, biggest first; a second line says what is inside; the amount has its share under it. */
