@@ -107,11 +107,13 @@ def test_an_account_page_keeps_what_is_dated_ahead_out_of_its_activity(client, l
     for i, days in enumerate((40, 10)):
         record(client, bank, loan, f"EMI {i}", local_today() + timedelta(days=days))
     page = client.get(f"/accounts/{bank}").text
+    assert page.index("<h2>Transactions</h2>") < page.index('<details class="upcoming"'), "the card sits under the heading"
+    assert "Activity" not in page
     card, activity = page.split('<details class="upcoming"', 1)[1].split("</details>", 1)
     assert "2 upcoming" in card and "200.00 in all" in card
     assert card.index("EMI 1") < card.index("EMI 0"), "soonest first"
     assert f"/transactions/" in card and f"?back=/accounts/{bank}" in card, "a row opens the entry and comes back here"
-    assert "Paid already" in activity and "EMI" not in activity, "the activity list is history only"
+    assert "Paid already" in activity and "EMI" not in activity, "the list below the card is history only"
 
 
 def test_an_account_page_with_nothing_ahead_has_no_card(client, ledger):

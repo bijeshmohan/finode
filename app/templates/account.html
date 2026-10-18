@@ -97,11 +97,10 @@
 </div>
 {% endif %}
 
+<h2>Transactions</h2>
 {% if upcoming %}
 {{ upcoming_card(upcoming, upcoming_total, false, back=area ~ "/" ~ account.aid) }}
 {% endif %}
-
-<h2>{{ "Transactions" if category else "Activity" }}</h2>
 {% if entries %}
 <div class="tx-list">
   {% for day, items in entries|groupby("date")|reverse %}
@@ -129,7 +128,7 @@
 </div>
 {% else %}
 <div class="card empty-state">
-  <p>{{ "Nothing in " ~ month_name.split(" ")[0] ~ "." if category else "No activity yet." }}</p>
+  <p>{{ "Nothing in " ~ month_name.split(" ")[0] ~ "." if category else "No transactions yet." }}</p>
   {% if node.postable and not account.closed_on %}<a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">Record a transaction</a>{% endif %}
 </div>
 {% endif %}
