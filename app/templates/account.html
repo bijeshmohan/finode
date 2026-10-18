@@ -22,6 +22,13 @@
       <a class="circ-button" href="/accounts/{{ account.aid }}/edit" title="Edit" aria-label="Edit {{ account.name }}">{{ icon("edit") }}</a>
       {% endif %}
       {% if has_menu %}
+      {# An asset or liability account with entries, with Advanced off, has nothing to offer here: no empty menu. #}
+      {% set menu_items = (category and root.account.name == "Expenses")
+          or (can_add_child and not account.closed_on)
+          or (advanced and node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand))
+          or (node.kind == "user" and category)
+          or (node.kind == "user" and not category and (advanced or account.closed_on)) %}
+      {% if menu_items %}
       <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
@@ -54,6 +61,7 @@
         {% endif %}
       </div>
       </details>
+      {% endif %}
       {% endif %}
     </div>
     {% endif %}

@@ -2,7 +2,7 @@
 
 ## Recurring transactions
 
-A recurring transaction is a rule that records itself on a schedule: rent, a salary, a subscription. Open it from **Settings › Recurring** (or the repeat link on the Transactions page).
+A recurring transaction is a rule that records itself on a schedule: rent, a salary, a subscription. Open it from **Settings › Your data › Recurring transactions**, or from the repeat icon at the top of the Transactions page.
 
 A rule has:
 
@@ -29,11 +29,13 @@ Settings is about how the application works (your name and your data are on Prof
 
 | Setting | What it does |
 |---|---|
-| **Currency** | the one currency of your ledger. Changing it relabels; nothing is converted |
-| **Appearance** | match the device, light or dark (kept per browser) |
-| **Advanced** | a switch that shows rarely used features: budget targets, Assign what is needed, week-by-week view, ordering accounts by hand, closing accounts, and the period lock. Switching it off only hides them; nothing is deleted |
-| **Period lock** (under Advanced) | close the books up to a day, say last month's end once you have checked it. Nothing dated on or before it can be added, changed or deleted, and the budget for those months is frozen |
-| **Recurring** | the list of rules |
+| **Preferences › Currency** | the one currency of your ledger. Changing it relabels; nothing is converted |
+| **Preferences › Appearance** | match the device, light or dark (kept per browser) |
+| **Your data** | backup, export and import (the same as on Profile), and **Recurring transactions** |
+| **Connections › AI assistants** | connect Claude or another assistant (see [the MCP guide](mcp.md)) |
+| **More › Advanced** | a switch that shows rarely used features: budget targets, Assign what is needed, week-by-week view, ordering accounts by hand, closing accounts, and the period lock. Switching it off only hides them; nothing is deleted |
+| **Period lock** (inside Advanced, once it is on) | close the books up to a day, say last month's end once you have checked it. Nothing dated on or before it can be added, changed or deleted, and the budget for those months is frozen |
+| **More** | also *Send feedback* (when the installation has an address for it), *About this test*, and *Sign out* |
 
 ## Profile and your data
 

@@ -21,9 +21,13 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 ### Add an account
 
-Tap the round **+** on the Accounts page, give the account a name, pick where it goes (Assets or Liabilities, or inside a group) and enter today's balance. The balance becomes an *Opening balance* entry against the system's Opening Balances account.
+Tap the round **+** (*Add account*) on the Accounts page. The form asks for a **Name**, **Belongs under** (Assets for banks, cash and wallets; Liabilities for cards and loans; or a group you already made), an optional **Current balance** and optional **Notes**. The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
 
-An account page shows its balance, an **Add transaction** button, a pencil for Edit, a **…** menu, and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
+<img src="img/accounts.png" alt="The Accounts page: groups with subtotals, accounts in tiles" width="300">
+
+An account page shows its balance, an **Add transaction** button, a pencil for Edit, a **…** menu when there is something in it (to add a sub-account, or, with Advanced on, to reorder or close the account), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
+
+<img src="img/account-page.png" alt="An account page: balance, Add transaction, upcoming card, transactions" width="300">
 
 ### Colours and signs on an account's page
 
@@ -41,6 +45,8 @@ An account that holds a balance cannot be closed. A closed account keeps its his
 ## Categories page
 
 **Categories** shows one month at a time (never a future one). Pick **Expense** or **Income**. The big figure is the month's total (*Spent so far* during the current month). Below it is a ranked list, biggest first, each row with its three biggest sub-categories and its share of the month. Tap a row to see the category's page: its sub-categories and the month's transactions. Use the arrows on the month pill to move between months.
+
+<img src="img/categories.png" alt="The Categories page: the month, Expense and Income, ranked categories" width="300">
 
 To add one, tap the round **+**. A category can have sub-categories one level down (Food › Groceries), no further.
 
