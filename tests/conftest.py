@@ -124,3 +124,11 @@ def income_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
     )
     assert response.status_code == 201
     return response.json()
+
+
+@pytest.fixture
+def svc(session):
+    """The services for the test user, for checking what the code does without a route (see tests/svc.py)."""
+    from .svc import services
+
+    return services(session)

@@ -122,21 +122,23 @@ def test_the_end_date_stops_it(client, accounts, session):
 def test_pausing_stops_it_and_resuming_skips_what_was_missed(client, accounts, session):
     created = rule(client, accounts, start_date="2999-01-01", frequency="daily")
     rid = created["rid"]
-    assert client.post(f"/api/recurring/{rid}/pause").json()["active"] is False
+    assert client.post(f"/recurring/{rid}/pause").status_code == 200
+    assert client.get(f"/api/recurring/{rid}").json()["active"] is False
     # pretend it was due a month ago while paused
     session.exec(RecurringTransaction.__table__.update().values(next_date=date(2026, 1, 1)))
     session.commit()
     client.get("/api/recurring/")
     assert transactions(session) == [], "paused: nothing recorded"
-    resumed = client.post(f"/api/recurring/{rid}/resume").json()
+    assert client.post(f"/recurring/{rid}/resume").status_code == 200
+    resumed = client.get(f"/api/recurring/{rid}").json()
     assert resumed["active"] is True and resumed["next_date"] >= str(date.today())
     assert all(r.date >= date.today() for r in transactions(session)), "nothing recorded for the paused days"
 
 
 def test_resuming_an_ended_rule_explains(client, accounts):
     created = rule(client, accounts, start_date="2026-01-15", end_date="2026-02-20")
-    response = client.post(f"/api/recurring/{created['rid']}/resume")
-    assert response.status_code == 400 and "ended" in response.json()["detail"]
+    response = client.post(f"/recurring/{created['rid']}/resume")
+    assert response.status_code == 400 and "ended" in response.text
 
 
 def test_editing_carries_on_after_what_was_recorded(client, accounts, session):

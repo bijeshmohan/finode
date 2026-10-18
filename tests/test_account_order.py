@@ -36,9 +36,10 @@ def books(client, root_accounts):
 
 
 def move(client, account, direction):
-    response = client.post(f"/api/accounts/{account['aid']}/move", params={"direction": direction})
+    """Move it one place, as the account page's button does, and read the account back."""
+    response = client.post(f"/accounts/{account['aid']}/move", data={"direction": direction})
     assert response.status_code == 200, response.text
-    return response.json()
+    return client.get(f"/api/accounts/{account['aid']}").json()
 
 
 def spend(client, debit, credit, amount="10"):
@@ -119,17 +120,17 @@ def test_moving_to_another_group_forgets_the_place(client, books):
 def test_back_to_alphabetical(client, books):
     move(client, books["sbi"], "up")
     move(client, books["sbi"], "up")
-    reset = client.post(f"/api/accounts/{books['sbi']['aid']}/reset-order")
-    assert reset.status_code == 200 and reset.json()["position"] is None
+    reset = client.post(f"/accounts/{books['sbi']['aid']}/reset-order")
+    assert reset.status_code == 200 and client.get(f"/api/accounts/{books['sbi']['aid']}").json()["position"] is None
     assert all(client.get(f"/api/accounts/{books[n]['aid']}").json()["position"] is None for n in ("axis", "hdfc", "sbi"))
     page = client.get("/accounts").text
     assert page.index(">Axis<") < page.index(">HDFC<") < page.index(">SBI<")
 
 
 def test_roots_and_the_system_account_cannot_be_placed(client, books):
-    assert client.post(f"/api/accounts/{books['roots']['Assets']}/move").status_code == 400
-    assert client.post(f"/api/accounts/{books['roots']['Assets']}/reset-order").status_code == 400
-    assert client.post(f"/api/accounts/{books['hdfc']['aid']}/move", params={"direction": "sideways"}).status_code == 422
+    assert client.post(f"/accounts/{books['roots']['Assets']}/move", data={"direction": "up"}).status_code == 400
+    assert client.post(f"/accounts/{books['roots']['Assets']}/reset-order").status_code == 400
+    assert client.post(f"/accounts/{books['hdfc']['aid']}/move", data={"direction": "sideways"}).status_code == 400
 
 
 # ---- recently used -------------------------------------------------------------------------------------------------

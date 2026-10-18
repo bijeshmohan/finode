@@ -78,16 +78,3 @@ class RegisterEntry(BaseModel):
     counter_accounts: list[str]
     change: Decimal = Field(decimal_places=8, max_digits=24)
     balance: Decimal = Field(decimal_places=8, max_digits=24)
-
-
-class DeletedAccountRead(BaseModel):
-    """An account or category that was deleted for good, as it was (its path and type), newest first."""
-
-    did: UUID
-    account_id: UUID
-    at: datetime
-    name: str
-    # Where it was, e.g. "Expenses:Food:Snacks".
-    path: str
-    # Its top-level account: Assets, Liabilities, Equity, Expenses or Income.
-    root: str

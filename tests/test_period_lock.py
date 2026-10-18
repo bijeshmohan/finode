@@ -7,6 +7,8 @@ import pytest
 
 from app.clock import local_today
 
+from .test_budget import move_budget, press
+
 TODAY = local_today()
 YESTERDAY = TODAY - timedelta(days=1)
 LAST_MONTH_END = TODAY.replace(day=1) - timedelta(days=1)
@@ -164,11 +166,9 @@ def test_a_closed_months_budget_is_frozen(client, books):
     refused = assign(client, books, LAST_MONTH, "70")
     assert refused.status_code == 400 and "locked period" in refused.json()["detail"]
     assert assign(client, books, TODAY.replace(day=1), "70").status_code == 200
-    moved = client.post("/api/budget/move", json={"month": LAST_MONTH.isoformat(), "from_category": books["food"]["aid"],
-                                                  "to_category": books["rent"]["aid"], "amount": "5"})
-    assert moved.status_code == 400
-    assert client.post("/api/budget/copy", json={"month": LAST_MONTH.isoformat()}).status_code == 400
-    assert client.post("/api/budget/fund", json={"month": LAST_MONTH.isoformat()}).status_code == 400
+    assert move_budget(client, books["food"], books["rent"], "5", LAST_MONTH).status_code == 400
+    assert press(client, "copy", LAST_MONTH).status_code == 400
+    assert press(client, "fund", LAST_MONTH).status_code == 400
 
 
 def test_a_month_only_part_of_which_is_locked_is_still_open(client, books):

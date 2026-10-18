@@ -437,7 +437,7 @@ async def test_assistants_can_create_split_recurring_transactions_and_skip_one(s
 @pytest.mark.anyio
 async def test_get_budget_shows_category_notes(session, books, client, secret):
     rent = client.post("/api/accounts/", json={"name": "Rent", "parent_id": books["food"]["parent_id"]}).json()
-    client.put(f"/api/budget/categories/{rent['aid']}/note", json={"note": "Due on the 5th"})
+    client.post("/budget/note", data={"category": rent["aid"], "note": "Due on the 5th"})
     async with running_app(session), mcp_client(secret) as c:
         data = payload(await c.call_tool("get_budget", {}))
         mine = next(l for l in data["categories"] if l["category"].endswith("Rent"))

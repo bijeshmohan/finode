@@ -1,9 +1,12 @@
 """The AI assistants page: creating, showing once and revoking tokens; marks on what assistants did."""
 
+import pytest
+
 from tests.htmlutil import element, text_of
 
 from .conftest import TEST_USER_ID
 from .mcputil import make_token
+from .svc import plain
 
 
 def test_profile_links_to_the_assistants_page(client):
@@ -85,18 +88,18 @@ def test_imports_are_marked(client):
     assert client.get("/api/transactions/").json()[0]["created_via"] == "import"
 
 
-def test_breakdown_is_also_in_the_json_api(client, root_accounts):
+def test_the_spending_breakdown_adds_up_what_was_recorded(client, root_accounts, svc):
     bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     client.post(
         "/transactions/split",
         data={"account": [food["aid"], bank["aid"]], "side": ["debit", "credit"], "amount": ["70", "70"]},
     )
-    report = client.get("/api/reports/breakdown").json()
+    report = plain(svc.reports.breakdown("Expenses"))
     assert report["root"] == "Expenses" and report["total"] == "70.00"
     assert report["lines"] == [{"account": "Food", "amount": "70.00"}]
-    assert client.get("/api/reports/breakdown", params={"depth": 0}).status_code == 400
-    assert client.get("/api/reports/breakdown", params={"root": "Assets"}).status_code == 422
+    with pytest.raises(ValueError):
+        svc.reports.breakdown("Expenses", depth=0)
 
 
 def test_page_explains_both_access_levels_on_the_token_form(client):

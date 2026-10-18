@@ -223,9 +223,8 @@ uv run alembic upgrade head
 
 ## Other API endpoints
 
-- `GET /api/accounts/{aid}/register` — an account's transactions oldest first with a signed change and running balance
-- `GET /api/budget/?month=YYYY-MM` — ready to assign and each expense category's assigned, spent and available; `PUT /api/budget/categories/{aid}` sets a category's amount for a month; `POST /api/budget/move` moves available money between categories
-- `PUT`/`DELETE /api/budget/categories/{aid}/target` set or remove a category's target (`monthly`, `refill`, `by_date`); `POST /api/budget/fund` assigns what the targets still need
+- `GET /api/budget/?month=YYYY-MM` — ready to assign and each expense category's assigned, spent and available; `PUT /api/budget/categories/{aid}` sets a category's amount for a month
+- `PUT`/`DELETE /api/budget/categories/{aid}/target` set or remove a category's target (`monthly`, `refill`, `by_date`)
 - `GET /api/reports/trial-balance` — every account's debits and credits up to `as_of` (default today) and a list of problems; `balanced` is false when a transaction does not balance
-- `GET /api/transactions/{tid}/history` and `GET /api/transactions/deleted` — the append-only log of creations, edits and deletions
-- `GET /api/reports/summary` — assets, liabilities, net worth, and income/expenses for `date_from`..`date_to` (default: current month)
+
+Moving budget money, copying last month, funding targets, notes, ordering and reopening accounts, pausing recurring rules, restoring deleted entries, an account's register, the reports and the history are in the web app and in the MCP tools; the JSON API keeps the core above.

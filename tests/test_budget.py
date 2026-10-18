@@ -45,6 +45,28 @@ def assign(client, category, amount, month=None):
     return response.json()
 
 
+class Done:
+    """What pressing a budget button did: the status and message of the answer, and the budget as it reads afterwards."""
+
+    def __init__(self, client, response, month):
+        self.client, self.status_code, self.text, self.month = client, response.status_code, response.text, month
+
+    def json(self):
+        return budget(self.client, self.month)
+
+
+def press(client, route, month=None, **form):
+    """Post a budget form the way the page does (/budget/move, /budget/copy, /budget/fund)."""
+    data = {k: v for k, v in form.items() if v is not None}
+    if month is not None:
+        data["month"] = month.isoformat() if hasattr(month, "isoformat") else month
+    return Done(client, client.post(f"/budget/{route}", data=data), month)
+
+
+def move_budget(client, source, target, amount, month=None):
+    return press(client, "move", month, from_category=source["aid"], to_category=target["aid"], amount=amount)
+
+
 def line(data, name):
     return next(l for l in data["lines"] if l["name"] == name)
 
@@ -242,10 +264,7 @@ def test_a_group_posted_to_directly_gets_its_own_row(client, root_accounts, setu
 
 def test_money_moves_between_categories(client, setup):
     assign(client, setup["food"], "300")
-    response = client.post(
-        "/api/budget/move",
-        json={"from_category": setup["food"]["aid"], "to_category": setup["rent"]["aid"], "amount": "120"},
-    )
+    response = move_budget(client, setup["food"], setup["rent"], "120")
     assert response.status_code == 200
     data = response.json()
     assert line(data, "Food")["available"] == "180.00" and line(data, "Rent")["available"] == "120.00"
@@ -254,20 +273,11 @@ def test_money_moves_between_categories(client, setup):
 
 def test_only_what_is_available_can_be_moved(client, setup):
     assign(client, setup["food"], "100")
-    response = client.post(
-        "/api/budget/move",
-        json={"from_category": setup["food"]["aid"], "to_category": setup["rent"]["aid"], "amount": "150"},
-    )
-    assert response.status_code == 400 and "only 100.00 is available" in response.json()["detail"]
-    same = client.post(
-        "/api/budget/move",
-        json={"from_category": setup["food"]["aid"], "to_category": setup["food"]["aid"], "amount": "1"},
-    )
-    assert same.status_code == 400 and "different" in same.json()["detail"]
-    assert client.post(
-        "/api/budget/move",
-        json={"from_category": setup["food"]["aid"], "to_category": setup["rent"]["aid"], "amount": "0"},
-    ).status_code == 422
+    response = move_budget(client, setup["food"], setup["rent"], "150")
+    assert response.status_code == 400 and "only 100.00 is available" in response.text
+    same = move_budget(client, setup["food"], setup["food"], "1")
+    assert same.status_code == 400 and "different" in same.text
+    assert move_budget(client, setup["food"], setup["rent"], "0").status_code == 400
 
 
 # ---- guards ----------------------------------------------------------------------------------------------
@@ -384,12 +394,8 @@ def test_groups_add_up_the_overspending_of_their_categories(client, root_account
 
 
 def test_a_category_with_nothing_available_cannot_give_money_away(client, lastmonth):
-    response = client.post(
-        "/api/budget/move",
-        json={"from_category": lastmonth["food"]["aid"], "to_category": lastmonth["rent"]["aid"],
-              "amount": "5", "month": THIS_MONTH.isoformat()},
-    )
-    assert response.status_code == 400 and "nothing available to move" in response.json()["detail"]
+    response = move_budget(client, lastmonth["food"], lastmonth["rent"], "5", THIS_MONTH)
+    assert response.status_code == 400 and "nothing available to move" in response.text
 
 
 # ---- targets ------------------------------------------------------------------------------------------
@@ -496,19 +502,19 @@ def test_fund_assigns_what_is_needed_within_ready_to_assign(client, root_account
     bank, food, rent = fixture_budget(client, root_accounts)  # 2000 ready to assign
     target(client, rent, "monthly", "1500")
     target(client, food, "monthly", "800")
-    response = client.post("/api/budget/fund", json={})
+    response = press(client, "fund")
     assert response.status_code == 200, response.text
     data = response.json()
     amounts = {l["name"]: l["assigned"] for l in data["lines"]}
     assert amounts == {"Food": "800.00", "Rent": "1200.00"}, "in display order, until the money runs out"
     assert data["ready_to_assign"] == "0.00" and data["underfunded"] != "0.00"
-    assert client.post("/api/budget/fund", json={}).status_code == 400, "nothing left to assign"
+    assert press(client, "fund").status_code == 400, "nothing left to assign"
 
 
 def test_fund_with_nothing_underfunded_is_refused(client, root_accounts):
     fixture_budget(client, root_accounts)
-    response = client.post("/api/budget/fund", json={})
-    assert response.status_code == 400 and "nothing is underfunded" in response.json()["detail"]
+    response = press(client, "fund")
+    assert response.status_code == 400 and "nothing is underfunded" in response.text
 
 
 def test_deleting_a_category_removes_its_target(client, root_accounts):
@@ -579,12 +585,12 @@ def test_copying_last_months_amounts(client, setup):
     assign(client, setup["food"], "300", LAST_MONTH)
     assign(client, setup["rent"], "500", LAST_MONTH)
     assert budget(client)["copyable"] == "800.00"
-    response = client.post("/api/budget/copy", json={})
+    response = press(client, "copy")
     assert response.status_code == 200
     data = response.json()
     assert line(data, "Food")["assigned"] == "300.00" and line(data, "Rent")["assigned"] == "500.00"
     assert data["copyable"] == "0.00"
-    assert client.post("/api/budget/copy", json={}).status_code == 400, "everything is already assigned"
+    assert press(client, "copy").status_code == 400, "everything is already assigned"
 
 
 def test_copying_never_overwrites_what_is_assigned(client, setup):
@@ -592,18 +598,18 @@ def test_copying_never_overwrites_what_is_assigned(client, setup):
     assign(client, setup["rent"], "500", LAST_MONTH)
     assign(client, setup["food"], "50")
     assert budget(client)["copyable"] == "500.00"
-    data = client.post("/api/budget/copy", json={}).json()
+    data = press(client, "copy").json()
     assert line(data, "Food")["assigned"] == "50.00" and line(data, "Rent")["assigned"] == "500.00"
 
 
 def test_copying_with_nothing_last_month_is_explained(client, setup):
-    response = client.post("/api/budget/copy", json={})
-    assert response.status_code == 400 and "nothing assigned to copy" in response.json()["detail"]
+    response = press(client, "copy")
+    assert response.status_code == 400 and "nothing assigned to copy" in response.text
 
 
 def test_copying_into_another_month_uses_the_month_before_it(client, setup):
     assign(client, setup["food"], "70")
-    data = client.post("/api/budget/copy", json={"month": NEXT_MONTH.isoformat()}).json()
+    data = press(client, "copy", NEXT_MONTH).json()
     assert line(data, "Food")["assigned"] == "70.00" and data["month"] == NEXT_MONTH.isoformat()
 
 
@@ -611,7 +617,7 @@ def test_copying_skips_closed_categories(client, setup):
     assign(client, setup["food"], "300", LAST_MONTH)
     assign(client, setup["rent"], "500", LAST_MONTH)
     assert client.post(f"/api/accounts/{setup['rent']['aid']}/close").status_code == 200
-    data = client.post("/api/budget/copy", json={}).json()
+    data = press(client, "copy").json()
     assert line(data, "Food")["assigned"] == "300.00"
     assert line(data, "Rent")["assigned"] == "0.00", "a closed category gets nothing more (what it holds just carries over)"
 # ---- credit card payments ----------------------------------------------------------------------------------

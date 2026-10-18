@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
-from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, DeletedAccountRead, RegisterEntry
+from ..schemas.account import AccountCreate, AccountRead, AccountUpdate
 from ..services.account import AccountInUseError, SystemAccountError
 
 
@@ -25,23 +25,6 @@ def create_account(account: AccountCreate, accounts: Accounts):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/deleted", response_model=list[DeletedAccountRead], status_code=200)
-def get_deleted_accounts(accounts: Accounts):
-    """Accounts and categories that were deleted for good and are not back, newest first."""
-    return accounts.restorable()
-
-
-@router.post("/deleted/{did}/restore", response_model=AccountRead, status_code=201)
-def restore_deleted_account(did: UUID, accounts: Accounts):
-    """Bring a deleted account back (same id, note, budget plan and target); `did` comes from `/deleted`."""
-    try:
-        return accounts.restore_deleted(did)
-    except LookupError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.get("/{aid}", response_model=AccountRead, status_code=200)
 def get_account(aid: UUID, accounts: Accounts, as_of: date | None = None):
     """The account with its balance as of a day (today by default: later entries do not count yet)."""
@@ -49,14 +32,6 @@ def get_account(aid: UUID, accounts: Accounts, as_of: date | None = None):
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
     return account
-
-
-@router.get("/{aid}/register", response_model=list[RegisterEntry], status_code=200)
-def get_account_register(aid: UUID, accounts: Accounts):
-    register = accounts.register(aid)
-    if register is None:
-        raise HTTPException(status_code=404, detail="account not found")
-    return register
 
 
 @router.get("/", response_model=list[AccountRead], status_code=200)
@@ -114,21 +89,3 @@ def close_account(aid: UUID, accounts: Accounts):
     """Close an account (and everything inside it): its history stays, nothing more can be posted to it.
     Refused while it holds a balance or a recurring transaction still uses it."""
     return _closing(accounts.close, aid)
-
-
-@router.post("/{aid}/reopen", response_model=AccountRead, status_code=200)
-def reopen_account(aid: UUID, accounts: Accounts):
-    return _closing(accounts.reopen, aid)
-
-
-@router.post("/{aid}/move", response_model=AccountRead, status_code=200)
-def move_account(aid: UUID, accounts: Accounts, direction: Literal["up", "down"] = "up"):
-    """Move an account one place up or down among the accounts in the same group (the budget lists
-    categories in the same order)."""
-    return _closing(lambda a: accounts.move(a, direction), aid)
-
-
-@router.post("/{aid}/reset-order", response_model=AccountRead, status_code=200)
-def reset_account_order(aid: UUID, accounts: Accounts):
-    """Put the account's group back in alphabetical order."""
-    return _closing(accounts.reset_order, aid)
