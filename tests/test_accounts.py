@@ -1,7 +1,9 @@
 from datetime import date
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
+
+from .svc import plain, services
 
 
 def test_create_account(client: TestClient, root_accounts: dict[str, str]):
@@ -512,7 +514,7 @@ def _transfer(client: TestClient, debit: dict, credit: dict, amount: str, date: 
 
 
 def test_account_register_has_running_balance(
-    client: TestClient, root_accounts: dict[str, str], expense_account: dict
+    client: TestClient, root_accounts: dict[str, str], expense_account: dict, session
 ):
     bank = client.post(
         "/api/accounts/",
@@ -522,9 +524,7 @@ def test_account_register_has_running_balance(
     _transfer(client, expense_account, bank, "30.00", today, "shop")
     _transfer(client, expense_account, bank, "10.00", today, "cafe")
 
-    response = client.get(f"/api/accounts/{bank['aid']}/register")
-    assert response.status_code == 200
-    entries = response.json()
+    entries = plain(services(session).accounts.register(UUID(bank["aid"])))
     assert [e["change"] for e in entries] == ["100.00", "-30.00", "-10.00"]
     assert [e["balance"] for e in entries] == ["100.00", "70.00", "60.00"]
     assert entries[1]["counter_accounts"] == ["groceries"]
@@ -532,7 +532,7 @@ def test_account_register_has_running_balance(
 
 
 def test_account_register_uses_normal_side_and_sub_accounts(
-    client: TestClient, root_accounts: dict[str, str], account: dict
+    client: TestClient, root_accounts: dict[str, str], account: dict, session
 ):
     parent = client.post(
         "/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}
@@ -542,13 +542,12 @@ def test_account_register_uses_normal_side_and_sub_accounts(
     ).json()
     _transfer(client, child, account, "12.50", "2026-02-02", "lunch")
 
-    entries = client.get(f"/api/accounts/{parent['aid']}/register").json()
+    entries = plain(services(session).accounts.register(UUID(parent["aid"])))
     assert len(entries) == 1
     assert entries[0]["change"] == "12.50"
     assert entries[0]["balance"] == "12.50"
     assert entries[0]["counter_accounts"] == ["checking"]
 
 
-def test_account_register_not_found(client: TestClient):
-    response = client.get(f"/api/accounts/{uuid4()}/register")
-    assert response.status_code == 404
+def test_account_register_not_found(session):
+    assert services(session).accounts.register(uuid4()) is None

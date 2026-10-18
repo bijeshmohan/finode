@@ -126,29 +126,8 @@ class BudgetRead(BaseModel):
     lines: list[BudgetLine]
 
 
-class BudgetNoteSet(BaseModel):
-    # A short note for the category, e.g. "Due on the 5th, pay by UPI"; empty or null removes it.
-    note: str | None = Field(default=None, max_length=200)
-
-
 class BudgetAssign(BaseModel):
     # Any day in the month.
     month: Date | None = None
     # The month's total for the category, not an addition to it.
     amount: Decimal = Field(decimal_places=8, max_digits=24)
-
-
-class BudgetFund(BaseModel):
-    month: Date | None = None
-
-
-class BudgetCopy(BaseModel):
-    # Any day in the month to copy into (this month by default).
-    month: Date | None = None
-
-
-class BudgetMove(BaseModel):
-    month: Date | None = None
-    from_category: UUID
-    to_category: UUID
-    amount: Decimal = Field(gt=0, decimal_places=8, max_digits=24)

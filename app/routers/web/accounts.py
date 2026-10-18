@@ -452,11 +452,6 @@ def account_more(request: Request, aid: UUID, accounts: Accounts, profiles: Prof
     return templates.TemplateResponse(request, "partials/account_entries.html", {**context, "category": False, "area": "/accounts"})
 
 
-@router.get("/{aid}/register")
-def account_register(aid: UUID):
-    return RedirectResponse(f"/accounts/{aid}", status_code=301)
-
-
 @router.get("/{aid}/edit")
 def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles):
     roots, node = _load(accounts, aid)

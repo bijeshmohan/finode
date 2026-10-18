@@ -2,6 +2,8 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
+from .svc import plain
+
 
 def test_dashboard_empty_state(client: TestClient):
     response = client.get("/")
@@ -17,6 +19,7 @@ def test_dashboard_shows_summary_and_recent_transactions(
     root_accounts: dict[str, str],
     income_account: dict,
     expense_account: dict,
+    svc,
 ):
     bank = client.post(
         "/api/accounts/",
@@ -45,7 +48,7 @@ def test_dashboard_shows_summary_and_recent_transactions(
     assert "Income 2,500.00" in " ".join(text.split())
     assert 'href="/budget"' in text and "Set up your budget" in text
     assert "Employer" in text and "Supermarket" in text
-    assert client.get("/api/reports/summary").json()["net_worth"] == "3379.50"  # 1000 + 2500 - 120.50
+    assert plain(svc.reports.summary())["net_worth"] == "3379.50"  # 1000 + 2500 - 120.50
 
 
 def test_dashboard_shows_what_is_left_to_spend_once_there_is_a_budget(

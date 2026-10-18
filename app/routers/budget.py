@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Budget
-from ..schemas.budget import BudgetAssign, BudgetCopy, BudgetFund, BudgetMove, BudgetNoteSet, BudgetRead, BudgetTargetSet
+from ..schemas.budget import BudgetAssign, BudgetRead, BudgetTargetSet
 from ..services.budget import BudgetError
 
 
@@ -31,24 +31,6 @@ def assign(aid: UUID, data: BudgetAssign, budget: Budget):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/move", response_model=BudgetRead, status_code=200)
-def move(data: BudgetMove, budget: Budget):
-    """Move money that is available in one category to another."""
-    try:
-        return budget.move(data.month, data.from_category, data.to_category, data.amount)
-    except BudgetError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.put("/categories/{aid}/note", response_model=BudgetRead, status_code=200)
-def set_note(aid: UUID, data: BudgetNoteSet, budget: Budget):
-    """Put a short note on a category (an expense account); an empty note removes it."""
-    try:
-        return budget.set_note(aid, data.note)
-    except BudgetError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.put("/categories/{aid}/target", response_model=BudgetRead, status_code=200)
 def set_target(aid: UUID, data: BudgetTargetSet, budget: Budget):
     """Set a category's target: monthly (X every month), weekly (X every week, on `weekday`, 0 = Monday), refill (keep X
@@ -63,23 +45,5 @@ def set_target(aid: UUID, data: BudgetTargetSet, budget: Budget):
 def clear_target(aid: UUID, budget: Budget):
     try:
         return budget.clear_target(aid)
-    except BudgetError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/fund", response_model=BudgetRead, status_code=200)
-def fund(data: BudgetFund, budget: Budget):
-    """Assign what the targets still need, until nothing is left to assign."""
-    try:
-        return budget.fund(data.month)
-    except BudgetError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/copy", response_model=BudgetRead, status_code=200)
-def copy_previous_month(data: BudgetCopy, budget: Budget):
-    """Assign this month what each category got last month (categories that already have an amount are left alone)."""
-    try:
-        return budget.copy_previous(data.month)
     except BudgetError as e:
         raise HTTPException(status_code=400, detail=str(e))

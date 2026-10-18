@@ -1,12 +1,15 @@
 """An account's page reads only its newest entries; "Load more" fetches the next chunk without splitting a day."""
 
 from datetime import timedelta
+from uuid import UUID
 
 import pytest
 from sqlalchemy import event
 
 from app.clock import local_today
 from app.services.account import REGISTER_PAGE
+
+from .svc import plain, services
 
 
 @pytest.fixture
@@ -59,11 +62,11 @@ def test_show_earlier_walks_back_to_the_start_without_repeats(client, busy):
     assert sorted(seen) == sorted(n for _, _, n in made), "every entry came, once"
 
 
-def test_the_running_balance_is_the_same_as_the_full_register(client, busy):
+def test_the_running_balance_is_the_same_as_the_full_register(client, busy, session):
     from app.templating import money
 
     bank, _, made = busy
-    full = {e["payee"]: e for e in client.get(f"/api/accounts/{bank}/register").json()}
+    full = {e["payee"]: e for e in plain(services(session).accounts.register(UUID(bank)))}
     page = client.get(f"/accounts/{bank}").text
     checked = 0
     for _, _, name in made:
