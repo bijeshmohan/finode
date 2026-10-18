@@ -101,3 +101,34 @@ def test_a_payee_is_one_tidy_line_and_a_blank_one_is_none(client, account, expen
     assert made.json()["payee"] == "Big Bazaar" and made.json()["comment"] == "keep\nlines"
     blank = post(client, expense_account, account, "5", payee="   ", comment=" ")
     assert blank.json()["payee"] is None and blank.json()["comment"] is None
+
+
+def test_an_account_cannot_be_on_both_sides_of_one_entry(client, account, expense_account, other_account):
+    both = client.post("/api/transactions/", json={"postings": [
+        {"account": account["aid"], "side": "debit", "amount": "10"},
+        {"account": account["aid"], "side": "credit", "amount": "10"}]})
+    assert both.status_code == 400 and "'checking' is on both sides of the entry" in both.json()["detail"]
+
+    mixed = client.post("/api/transactions/", json={"postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "100"},
+        {"account": account["aid"], "side": "credit", "amount": "80"},
+        {"account": expense_account["aid"], "side": "credit", "amount": "20"}]})
+    assert mixed.status_code == 400 and "'groceries' is on both sides" in mixed.json()["detail"]
+
+    # the same account on several rows of one side is an ordinary split
+    split = client.post("/api/transactions/", json={"postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "60"},
+        {"account": expense_account["aid"], "side": "debit", "amount": "40"},
+        {"account": account["aid"], "side": "credit", "amount": "100"}]})
+    assert split.status_code == 201
+
+    # editing only the payee of an entry does not look at the postings again
+    assert client.patch(f"/api/transactions/{split.json()['tid']}", json={"payee": "Shop"}).status_code == 200
+    bad_edit = client.patch(f"/api/transactions/{split.json()['tid']}", json={"postings": [
+        {"account": account["aid"], "side": "debit", "amount": "5"},
+        {"account": account["aid"], "side": "credit", "amount": "5"}]})
+    assert bad_edit.status_code == 400
+
+    web = client.post("/transactions/split", data={"account": [account["aid"], account["aid"]],
+                                                  "side": ["credit", "debit"], "amount": ["10", "10"]})
+    assert web.status_code == 400 and "on both sides" in web.text

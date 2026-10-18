@@ -58,4 +58,4 @@ Home shows one number, *Left to spend in <month>*, with a thin bar: the total le
 
 ## If numbers disagree
 
-The **Month summary** reports what happened in the ledger by income and expense accounts, so it can differ from the Budget in small ways: a loan payment counts as spending in the Budget and on the Categories page (through the loan's payment category), but the Month summary only counts postings made to expense accounts. This is known.
+The **Budget**, the **Categories** page, the **Month summary** and the overview all count a loan payment the same way: as spending in the loan's payment category. They differ only in what the Budget leaves out on purpose: it counts what your budget accounts paid, so interest a lender adds to a loan (which no budget account paid) shows up as an expense in the reports but not in the Budget.

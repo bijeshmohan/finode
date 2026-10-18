@@ -135,3 +135,49 @@ def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root
     move(client, books["bank"], books["loan"], "7000")
     assert "7,000.00" in client.get("/categories").text
     assert client.get(f"/categories/{debts['aid']}").text.count('class="tx"') == 1
+
+
+def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, books, svc):
+    """The Categories page, the Month summary, the breakdown and the overview all count the EMI once, as spending in
+    the loan's payment category, and the interest the lender charges as the expense it is; borrowing is not spending.
+    (The Budget counts only what budget money paid, so interest, which no budget account paid, is not in it.)"""
+    point(client, books["loan"], books["emi"])
+    assign(client, books["emi"], "15000")
+    move(client, books["bank"], books["loan"], "15000")  # the EMI
+    move(client, books["loan"], books["interest"], "900")  # interest the lender charges
+    move(client, books["loan"], books["bank"], "5000")  # borrowing more: not spending
+
+    data = budget(client)
+    assert line(data, "EMI")["activity"] == "15000.00" and line(data, "Interest")["activity"] == "0.00"
+    summary = svc.reports.summary()
+    month = svc.reports.month_report()
+    breakdown = svc.reports.breakdown("Expenses")
+    assert str(summary.expenses) == "15900.00" and str(summary.net_income) == "-15900.00"
+    assert str(month.expenses) == "15900.00" and str(month.net) == "-15900.00"
+    assert [(l.account, str(l.amount)) for l in month.spending] == [("EMI", "15000.00"), ("Interest", "900.00")]
+    assert str(month.trend[-1].expenses) == "15900.00"
+    assert str(breakdown.total) == "15900.00" and [l.account for l in breakdown.lines] == ["EMI", "Interest"]
+    categories = " ".join(client.get("/categories").text.split())
+    assert "15,000.00" in categories and "900.00" in categories
+
+
+def test_without_a_payment_category_no_report_counts_the_emi(client, books, svc):
+    move(client, books["bank"], books["loan"], "15000")
+    assert str(svc.reports.summary().expenses) == "0.00"
+    assert str(svc.reports.month_report().expenses) == "0.00"
+    assert str(svc.reports.breakdown("Expenses").total) == "0.00"
+
+
+def test_an_emi_in_an_earlier_month_lands_in_that_months_trend(client, books, svc):
+    from datetime import timedelta
+
+    from app.clock import local_today
+
+    point(client, books["loan"], books["emi"])
+    earlier = (local_today().replace(day=1) - timedelta(days=15)).isoformat()
+    client.post("/api/transactions/", json={"date": earlier, "postings": [
+        {"account": books["loan"]["aid"], "side": "debit", "amount": "700"},
+        {"account": books["bank"]["aid"], "side": "credit", "amount": "700"}]})
+    month = svc.reports.month_report()
+    assert [str(t.expenses) for t in month.trend][-2:] == ["700.00", "0.00"]
+    assert str(month.previous_expenses) == "700.00" and str(month.expenses) == "0.00"

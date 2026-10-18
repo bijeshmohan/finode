@@ -59,6 +59,8 @@ flowchart LR
 | Credit card (liability) flagged `on_budget` | Yes, opted in | Purchases count as category spending; the debt is subtracted from cash and shown under **Cards to pay**. |
 | Loan or other liability **not** in the budget | Tracking | Can name a **payment category**: debits to it in a transaction touching a budget account count as spending in that category (credits, such as the loan paying out, do not). |
 
+Reports agree: Categories, the Month summary, the breakdown and the overview count the same payment into a loan as spending in its payment category (interest the lender adds touches no budget account, so only the reports, which count every posting to an expense account, show it).
+
 Spending on an unflagged card is not counted in a category; it is reported as `left_out` and the page offers "Add to budget" for that account.
 
 Credit cards need no assigning. The "Cards to pay" block shows what is owed at the month's end (`BudgetCard.owed`), with the month's charged and paid; it is the same arithmetic, made visible.
