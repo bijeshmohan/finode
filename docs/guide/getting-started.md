@@ -16,7 +16,7 @@ Everything in finode is in **one currency**, INR (₹) unless you change it in *
 
 A new Home screen shows **Get started** with three steps:
 
-1. **Add a bank account, cash or card.** Give it a name and today's balance.
+1. **Add a bank account, cash or card.** Give it a name and today's balance. The balance is recorded as an *Opening balance* entry, which you will see in Recent on Home and in the Transactions list.
 2. **Add an expense category**, like Groceries.
 3. **Record your first transaction.**
 
@@ -34,15 +34,20 @@ On a phone, the bottom bar has four tabs and a floating **+**:
 | **Categories** | what you spend on and earn from, and how much, month by month |
 | **+** | add a transaction |
 
-On a wide screen a sidebar replaces the bar and the **+** (it has a *New transaction* button). **Transactions** (the full list) has no tab: use *View all* on Home or the sidebar. **Settings** is the round avatar at the top on phones and the link at the bottom of the sidebar on wide screens; your **Profile** (name, AI assistants, your data, sign out) is one tap from there.
+On a wide screen a sidebar replaces the bar and the **+** (it has a *New transaction* button). **Transactions** (the full list) has no tab: use *View all* on Home or the sidebar. **Settings** is the round person icon at the top right on phones and the link at the bottom of the sidebar on wide screens; your **Profile** (name, AI assistants, your data, sign out) is one tap from there.
+
+<img src="img/home.png" alt="Home: what is left to spend this month, a bar with a tick for today, and recent transactions" width="300">
 
 ## 5. Your first expense
 
 1. Tap **+**.
-2. Type the amount.
-3. Choose **Expense** (the default), then *From* (the account you paid with) and *To* (the category, such as Groceries). You can create an account or category right there with *+ New account…*.
-4. Optionally add a payee and a note, and change the date.
-5. **Save.**
+2. Type the **amount** at the top.
+3. Optionally type a **payee** (who you paid).
+4. Keep **Expense** selected (the default), then choose **From** (the account you paid with) and **To** (what it was for, such as Groceries). You can create an account or category right there with *+ New account…*.
+5. Change the **date** if it was not today, and add a **note** if you like.
+6. **Save**, or **Save & add another** to keep entering.
+
+<img src="img/new-transaction.png" alt="The new transaction form: amount, payee, Expense, Income and Transfer, From and To, date" width="300">
 
 After a few entries, tapping a payee chip under the payee field fills in the same accounts as last time.
 

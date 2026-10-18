@@ -14,7 +14,7 @@ Tap **+** (phone) or **New transaction** (wide screen).
    - Tap the selected kind again to select *none*: every account is offered. Use this for anything unusual.
 3. **From** and **To**: pick the accounts. Choose *+ New account…* to create one without leaving the form.
 4. **Payee**, **note** and **date** (today by default).
-5. **Save.**
+5. **Save**, or **Save & add another** to keep entering.
 
 ### Payee chips
 
@@ -34,7 +34,9 @@ Open a transaction and tap **Add again** to start a new one pre-filled with the 
 
 - **Search** by payee, note, or the name of any account involved.
 - **Kind chips** (Expense, Income, Transfer) filter the list; **More filters** adds account and date filters.
-- **Tap a row** to see its details: the accounts, the note, who added it (you, a recurring rule, or an AI assistant), and the buttons **Edit**, **Add again** and **Delete**.
+- **Tap a row** to see its details in a sheet: the accounts (*Paid from* and *Spent on* for an expense), the note, who added it (*By the app* for what you entered, or *Recurring* or the assistant's name), and the buttons **Edit**, **Add again** and **Delete**.
+
+<img src="img/transaction-sheet.png" alt="A transaction's details sheet with Edit, Add again and Delete" width="300">
 - The list shows 25 entries a page; use *Older →* and *← Newer* at the bottom to move between pages.
 
 ### Upcoming entries
