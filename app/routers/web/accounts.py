@@ -12,7 +12,7 @@ from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService
 from ...templating import templates
-from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
+from .utils import UpcomingItem, htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 from ...clock import local_day, local_today
 
 
@@ -306,6 +306,15 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
     roots, node = _load(accounts, aid)
     entries = accounts.register(aid) or [] if entries is None else entries
     root = _root_of(roots, node)
+    # What is dated ahead is not history: it waits in its own card, soonest first, and out of the running list.
+    today = local_today()
+    history = [e for e in entries if e.date <= today]
+    upcoming = [
+        UpcomingItem(e.tid, e.date, e.payee or "No payee", ", ".join(e.counter_accounts) + (f" \u00b7 {e.comment}" if e.comment else ""), abs(e.change), e.change > 0)
+        for e in sorted((e for e in entries if e.date > today), key=lambda e: e.date)
+    ]
+    signs = {e.change > 0 for e in entries if e.date > today}
+    upcoming_total = sum((u.amount for u in upcoming), Decimal("0.00")) if upcoming and len(signs) == 1 else None
     at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
     # Asset and liability accounts with their own postings cannot gain sub-accounts.
     has_own_postings = node.is_leaf and bool(entries) and node.kind != "root"
@@ -324,7 +333,9 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
         "ordered_by_hand": any(s.account.position is not None for s in siblings),
         "node": node,
         "root": root,
-        "entries": list(reversed(entries)),
+        "entries": list(reversed(history)),
+        "upcoming": upcoming,
+        "upcoming_total": upcoming_total,
         "currency": accounts.currency().code,
         "can_add_child": can_add_child,
         # Part of a group's balance that was posted to the group itself.

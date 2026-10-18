@@ -99,3 +99,43 @@ def test_a_filter_does_not_open_the_upcoming_row_while_there_is_history_to_show(
         assert 'class="upcoming" open' not in page, f"{url}: history is showing, so the row stays closed"
     only_ahead = client.get("/transactions?q=EMI later").text
     assert 'class="upcoming" open' in only_ahead, "nothing else matches, so the row opens to show the match"
+
+
+def test_an_account_page_keeps_what_is_dated_ahead_out_of_its_activity(client, ledger):
+    bank, loan = ledger
+    record(client, bank, loan, "Paid already", local_today())
+    for i, days in enumerate((40, 10)):
+        record(client, bank, loan, f"EMI {i}", local_today() + timedelta(days=days))
+    page = client.get(f"/accounts/{bank}").text
+    card, activity = page.split('<details class="upcoming"', 1)[1].split("</details>", 1)
+    assert "2 upcoming" in card and "200.00 in all" in card
+    assert card.index("EMI 1") < card.index("EMI 0"), "soonest first"
+    assert f"/transactions/" in card and f"?back=/accounts/{bank}" in card, "a row opens the entry and comes back here"
+    assert "Paid already" in activity and "EMI" not in activity, "the activity list is history only"
+
+
+def test_an_account_page_with_nothing_ahead_has_no_card(client, ledger):
+    bank, loan = ledger
+    record(client, bank, loan, "Paid already", local_today())
+    assert '<details class="upcoming"' not in client.get(f"/accounts/{bank}").text
+
+
+def test_money_in_and_out_ahead_gives_no_total_on_an_account(client, ledger, root_accounts):
+    bank, loan = ledger
+    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()["aid"]
+    record(client, bank, loan, "EMI", local_today() + timedelta(days=10))
+    client.post("/api/transactions/", json={"date": (local_today() + timedelta(days=12)).isoformat(), "payee": "Pay", "postings": [
+        {"account": bank, "side": "debit", "amount": "900"}, {"account": salary, "side": "credit", "amount": "900"}]})
+    page = client.get(f"/accounts/{bank}").text
+    assert "2 upcoming" in page and "in all" not in page
+    assert "+900.00" in page, "money coming in is marked"
+
+
+def test_a_category_page_only_lists_what_has_happened(client, ledger, root_accounts):
+    bank, _ = ledger
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()["aid"]
+    for payee, days in (("Lunch", 0), ("Dinner next week", 7)):
+        client.post("/api/transactions/", json={"date": (local_today() + timedelta(days=days)).isoformat(), "payee": payee, "postings": [
+            {"account": food, "side": "debit", "amount": "50"}, {"account": bank, "side": "credit", "amount": "50"}]})
+    page = client.get(f"/categories/{food}").text
+    assert "Lunch" in page and "Dinner next week" not in page and '<details class="upcoming"' not in page

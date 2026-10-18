@@ -20,7 +20,7 @@ from ...schemas.transaction import (
 )
 from ...templating import templates
 from .accounts import build_tree, posting_groups
-from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
+from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
 from ...clock import local_today
 from ...services.lock import locked_through
 
@@ -129,7 +129,7 @@ def transactions_page(
 
     error = None
     rows: list[TransactionRow] = []
-    upcoming: list[TransactionRow] = []
+    upcoming: list[UpcomingItem] = []
     has_next = False
     today = local_today()
     first = last = None
@@ -155,7 +155,12 @@ def transactions_page(
                 q,
                 KIND_FILTERS.get(kind),
             )
-            upcoming = [to_row(t, index) for t in sorted(ahead, key=lambda t: (t.date, t.created))]
+            for t in sorted(ahead, key=lambda t: (t.date, t.created)):
+                r = to_row(t, index)
+                upcoming.append(UpcomingItem(
+                    t.tid, t.date, t.payee or "No payee", f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}",
+                    r.amount, r.kind == "income",
+                ))
     except ValueError as e:
         error = f"Invalid filter: {e}"
         found = []
@@ -177,7 +182,7 @@ def transactions_page(
             "rows": rows,
             "upcoming": upcoming,
             # What the schedule comes to; left out when something coming in is mixed with what is going out.
-            "upcoming_total": sum((r.amount for r in upcoming), 0) if upcoming and all(r.kind != "income" for r in upcoming) else None,
+            "upcoming_total": sum((r.amount for r in upcoming), 0) if upcoming and not any(r.income for r in upcoming) else None,
             "error": error,
             "filters": filters,
             "active_filters": len(query),

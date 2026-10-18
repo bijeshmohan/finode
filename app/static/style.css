@@ -1260,3 +1260,4 @@ dd.auto, dd.auto a { color: var(--auto); }
 .need { display: inline-flex; align-items: center; gap: .45rem; min-height: 2.25rem; padding: 0 .8rem; margin: 0; font: inherit; font-size: .875rem; color: var(--text); background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; cursor: pointer; }
 .need i { display: inline-grid; place-items: center; min-width: 1.2rem; height: 1.2rem; padding: 0 .3rem; font-style: normal; font-size: .75rem; font-weight: 600; color: var(--on-accent); background: var(--accent); border-radius: 999px; }
 .bud-bar { margin-bottom: .5rem; }
+.account-hero + .upcoming { margin-top: .75rem; }

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/upcoming.html" import upcoming_card %}
 {% block title %}Transactions · finode{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -49,20 +50,7 @@
 </details>
 
 {% if upcoming %}
-<details class="upcoming" {{ "open" if searching and not rows }}>
-  <summary><span>{{ upcoming|length }} upcoming{% if upcoming_total is not none %} <span class="sub">· {{ upcoming_total|money }} in all</span>{% endif %}</span><span class="gcaret">{{ icon("caret") }}</span></summary>
-  <ul class="up-list">
-    {% for row in upcoming %}{% set t = row.transaction %}
-    <li>
-      <a class="up-row" href="/transactions/{{ t.tid }}/edit" hx-get="/transactions/{{ t.tid }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
-        <span class="up-date"><b>{{ t.date.day }}</b><span>{{ t.date.strftime("%b") }}</span></span>
-        <span class="up-main"><span class="up-title">{{ t.payee or "No payee" }}</span><span class="up-sub">{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}</span></span>
-        <span class="up-amount {{ row.kind }}">{{ "+" if row.kind == "income" }}{{ row.amount|money }}</span>
-      </a>
-    </li>
-    {% endfor %}
-  </ul>
-</details>
+{{ upcoming_card(upcoming, upcoming_total, searching and not rows, sheet=True) }}
 {% if not rows %}
 <dialog id="txn-sheet" class="sheet sheet-bottom" aria-label="Transaction details">
   <div id="txn-sheet-body" class="sheet-body"></div>

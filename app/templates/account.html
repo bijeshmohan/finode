@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
 {% from "partials/money.html" import figure %}
+{% from "partials/upcoming.html" import upcoming_card %}
 {% set account = node.account %}
 {% set category = category|default(false) %}
 {% set area = "/categories" if category else "/accounts" %}
@@ -94,6 +95,10 @@
   </div>
   {% endif %}
 </div>
+{% endif %}
+
+{% if upcoming %}
+{{ upcoming_card(upcoming, upcoming_total, false, back=area ~ "/" ~ account.aid) }}
 {% endif %}
 
 <h2>{{ "Transactions" if category else "Activity" }}</h2>

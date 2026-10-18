@@ -1,5 +1,8 @@
 import json
+from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal, InvalidOperation
+from uuid import UUID
 from html import escape
 
 from fastapi import Response
@@ -10,6 +13,18 @@ from ...flash import set_flash
 
 
 from ...services.validation import validation_message  # noqa: F401  (shared with the services)
+
+
+@dataclass
+class UpcomingItem:
+    """One entry dated ahead, as the "upcoming" card shows it (see partials/upcoming.html)."""
+
+    tid: UUID
+    date: date
+    title: str
+    sub: str
+    amount: Decimal
+    income: bool = False
 
 
 def parse_amount(value: str | None, default: Decimal | None = None) -> Decimal:
