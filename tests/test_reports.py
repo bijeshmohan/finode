@@ -1,6 +1,9 @@
 from datetime import date
 
+import pytest
 from fastapi.testclient import TestClient
+
+from .svc import plain
 
 
 def _transfer(client: TestClient, debit: dict, credit: dict, amount: str, on: str):
@@ -17,10 +20,8 @@ def _transfer(client: TestClient, debit: dict, credit: dict, amount: str, on: st
     assert response.status_code == 201
 
 
-def test_summary_empty(client: TestClient):
-    response = client.get("/api/reports/summary")
-    assert response.status_code == 200
-    data = response.json()
+def test_summary_empty(client: TestClient, svc):
+    data = plain(svc.reports.summary())
     assert data["net_worth"] == "0.00"
     assert data["income"] == "0.00"
     assert data["expenses"] == "0.00"
@@ -33,6 +34,7 @@ def test_summary_net_worth_and_period_totals(
     root_accounts: dict[str, str],
     income_account: dict,
     expense_account: dict,
+    svc,
 ):
     bank = client.post(
         "/api/accounts/",
@@ -46,9 +48,7 @@ def test_summary_net_worth_and_period_totals(
     _transfer(client, expense_account, bank, "120.00", "2026-03-12")
     _transfer(client, expense_account, card, "30.00", "2026-04-01")
 
-    march = client.get(
-        "/api/reports/summary", params={"date_from": "2026-03-01", "date_to": "2026-03-31"}
-    ).json()
+    march = plain(svc.reports.summary(date(2026, 3, 1), date(2026, 3, 31)))
     assert march["income"] == "500.00"
     assert march["expenses"] == "120.00"
     assert march["net_income"] == "380.00"
@@ -57,16 +57,11 @@ def test_summary_net_worth_and_period_totals(
     assert march["liabilities"] == "230.00"
     assert march["net_worth"] == "1150.00"
 
-    april = client.get(
-        "/api/reports/summary", params={"date_from": "2026-04-01", "date_to": "2026-04-30"}
-    ).json()
+    april = plain(svc.reports.summary(date(2026, 4, 1), date(2026, 4, 30)))
     assert april["income"] == "0.00"
     assert april["expenses"] == "30.00"
 
 
-def test_summary_rejects_inverted_period(client: TestClient):
-    response = client.get(
-        "/api/reports/summary", params={"date_from": "2026-05-01", "date_to": "2026-04-01"}
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "period start must not be after period end!"
+def test_summary_rejects_inverted_period(svc):
+    with pytest.raises(ValueError, match="period start must not be after period end!"):
+        svc.reports.summary(date(2026, 5, 1), date(2026, 4, 1))

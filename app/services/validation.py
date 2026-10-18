@@ -1,3 +1,5 @@
+"""Turns a pydantic ValidationError into one readable sentence for forms, flashes and tool errors."""
+
 from pydantic import ValidationError
 
 

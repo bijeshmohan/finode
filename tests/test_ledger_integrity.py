@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.transaction import Posting, PostingSide, Transaction
 
 from .conftest import TEST_USER_ID
+from .svc import plain
 
 
 def post(client, source, target, amount, on=None, **extra):
@@ -204,7 +205,7 @@ def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expen
 # ---- history -------------------------------------------------------------------------------------
 
 
-def test_history_follows_a_transaction_from_creation_to_deletion(client, account, expense_account):
+def test_history_follows_a_transaction_from_creation_to_deletion(client, account, expense_account, svc):
     made = post(client, account, expense_account, "10", payee="Shop")
     client.patch(f"/api/transactions/{made['tid']}", json={"payee": "Market"})
     client.patch(
@@ -219,7 +220,7 @@ def test_history_follows_a_transaction_from_creation_to_deletion(client, account
     client.delete(f"/api/transactions/{made['tid']}")
 
     assert client.get(f"/api/transactions/{made['tid']}").status_code == 404
-    history = client.get(f"/api/transactions/{made['tid']}/history").json()
+    history = plain(svc.transactions.history(UUID(made["tid"])))
     assert [h["action"] for h in history] == ["created", "updated", "updated", "deleted"]
     assert [h["payee"] for h in history] == ["Shop", "Market", "Market", "Market"]
     assert [h["via"] for h in history] == ["api"] * 4
@@ -227,21 +228,21 @@ def test_history_follows_a_transaction_from_creation_to_deletion(client, account
     assert {p["amount"] for p in history[0]["postings"]} == {"10.00"}
     assert {p["amount"] for p in history[3]["postings"]} == {"12.00"}
 
-    deleted = client.get("/api/transactions/deleted").json()
+    deleted = plain(svc.transactions.deleted())
     assert [d["transaction"] for d in deleted] == [made["tid"]]
 
 
-def test_saving_without_changes_adds_nothing(client, account, expense_account):
+def test_saving_without_changes_adds_nothing(client, account, expense_account, svc):
     made = post(client, account, expense_account, "10", payee="Shop")
     client.patch(f"/api/transactions/{made['tid']}", json={"payee": "Shop"})
-    assert len(client.get(f"/api/transactions/{made['tid']}/history").json()) == 1
+    assert len(svc.transactions.history(UUID(made["tid"]))) == 1
 
 
-def test_an_unknown_transaction_has_no_history(client, root_accounts):
-    assert client.get("/api/transactions/00000000-0000-4000-8000-0000000000aa/history").status_code == 404
+def test_an_unknown_transaction_has_no_history(svc):
+    assert svc.transactions.history(UUID("00000000-0000-4000-8000-0000000000aa")) == []
 
 
-def test_history_belongs_to_one_user(client, session, account, expense_account):
+def test_history_belongs_to_one_user(client, session, account, expense_account, svc):
     from app.models.transaction_history import TransactionHistory
 
     theirs = TransactionHistory(
@@ -249,8 +250,8 @@ def test_history_belongs_to_one_user(client, session, account, expense_account):
     )
     session.add(theirs)
     session.commit()
-    assert client.get(f"/api/transactions/{UUID(int=5)}/history").status_code == 404
-    assert client.get("/api/transactions/deleted").json() == []
+    assert svc.transactions.history(UUID(int=5)) == []
+    assert svc.transactions.deleted() == []
 
 
 def test_balance_adjustments_are_in_the_history_too(client, session, account):

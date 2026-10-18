@@ -1,3 +1,5 @@
+"""Personal access tokens for /mcp: creating one (only a sha256 of the secret is kept), checking it, revoking it."""
+
 import hashlib
 import secrets
 from dataclasses import dataclass

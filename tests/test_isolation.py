@@ -28,6 +28,7 @@ from app.web_auth import web_login_required
 
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
+from .svc import plain, services
 from .test_backup import line, rich  # noqa: F401  (a ledger that uses every feature)
 
 B_USER = UUID("00000000-0000-4000-8000-0000000000b2")
@@ -43,7 +44,6 @@ PUBLIC = {
     ("GET", "/login"), ("POST", "/login"), ("POST", "/logout"), ("GET", "/signup"), ("POST", "/signup"),
     ("GET", "/forgot"), ("POST", "/forgot"), ("GET", "/reset"), ("POST", "/reset"),
     ("GET", "/.well-known/oauth-protected-resource"), ("GET", "/.well-known/oauth-protected-resource/mcp"),
-    ("GET", "/app"), ("GET", "/app/{rest:path}"),
     ("DELETE", "/mcp"), ("GET", "/mcp"), ("HEAD", "/mcp"), ("POST", "/mcp"),  # bearer tokens, tested below
     ("GET", "/oauth/consent"), ("POST", "/oauth/consent"),  # a Supabase authorization id of the signed-in user
 }
@@ -53,17 +53,16 @@ LISTS = {
     ("GET", "/"), ("GET", "/accounts"), ("GET", "/accounts/new"), ("GET", "/accounts/options"), ("GET", "/accounts/quick"),
     ("GET", "/api/accounts/"), ("GET", "/api/backup"), ("GET", "/api/budget/"),
     ("GET", "/api/export"), ("GET", "/api/profile/"),
-    ("GET", "/api/recurring/"), ("GET", "/api/reports/breakdown"), ("GET", "/api/reports/month"), ("GET", "/api/reports/summary"),
-    ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"), ("GET", "/api/transactions/deleted"),
+    ("GET", "/api/recurring/"), 
+    ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"),
     ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/move"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
-    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/summary"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/api/accounts/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
+    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/summary"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
 }
 
 # Routes that take A's ids or names inside the request: refused (see `test_b_cannot_use_a_s_things_in_requests`).
 REFERENCES = {
-    ("POST", "/accounts"), ("POST", "/accounts/quick"), ("POST", "/api/accounts/"), ("POST", "/api/budget/copy"),
-    ("POST", "/api/budget/fund"), ("POST", "/api/budget/move"),
+    ("POST", "/accounts"), ("POST", "/accounts/quick"), ("POST", "/api/accounts/"),
     ("POST", "/api/import"), ("PATCH", "/api/profile/"), ("POST", "/api/recurring/"),
     ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/budget/assign"), ("POST", "/budget/copy"),
     ("POST", "/budget/fund"), ("POST", "/budget/move"), ("POST", "/budget/note"), ("GET", "/budget/target"), ("POST", "/budget/target"),
@@ -143,14 +142,14 @@ def world(client: TestClient, session, rich) -> World:  # noqa: F811
     assets = next(a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets")
     shelf = client.post("/api/accounts/", json={"name": "Spare shelf", "parent_id": assets}).json()["aid"]
     client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
-    w.dids = [d["did"] for d in client.get("/api/accounts/deleted").json()]
+    w.dids = [str(d["did"]) for d in services(session).accounts.restorable()]
     doc = client.get("/api/backup").json()
     w.backup = doc
     w.accounts = {a["name"]: a["id"] for a in doc["accounts"]}
     w.roots = [a["id"] for a in doc["accounts"] if a["parent_id"] is None]
     w.tids = [t["id"] for t in doc["transactions"]] + [spare["tid"]]
     w.rids = [r["id"] for r in doc["recurring"]]
-    w.hids = [d["hid"] for d in client.get("/api/transactions/deleted").json()]
+    w.hids = [str(d.hid) for d in services(session).transactions.deleted()]
     w.tkid, w.gid = str(w.token.tkid), str(w.grant.gid)
     w.markers = A_WORDS + [str(i) for i in (
         *w.accounts.values(), *w.tids, *w.rids, *w.hids, *w.dids, w.tkid, w.gid)]
@@ -212,7 +211,6 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("PATCH", "/api/transactions/{tid}"): {"json": {"payee": "hacked"}},
         ("PUT", "/api/budget/categories/{aid}"): {"json": {"amount": "5"}},
         ("PUT", "/api/budget/categories/{aid}/target"): {"json": {"kind": "monthly", "amount": "5"}},
-        ("PUT", "/api/budget/categories/{aid}/note"): {"json": {"note": "hacked"}},
         ("PUT", "/api/recurring/{rid}"): {"json": {"from_account": mine, "to_account": bills, "amount": "1", "start_date": "2999-01-01"}},
         ("POST", "/accounts/{aid}/edit"): {"data": {"name": "hacked"}},
         ("POST", "/transactions/{tid}/edit"): {"data": rows},
@@ -250,7 +248,7 @@ def test_nothing_of_a_is_reachable_by_id(client: TestClient, world: World):
 # ---- what lists and pages show ---------------------------------------------------------------------------------
 
 
-def test_b_sees_only_b_in_every_list_and_page(client: TestClient, world: World):
+def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world: World):
     seen = 0
     with signed_in_as(B_USER):
         for method, path in sorted(LISTS):
@@ -259,14 +257,15 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, world: World):
             assert not leaked(world, response.text), (path, leaked(world, response.text)[:3])
             seen += 1
         # The numbers are B's too: the same endpoints, read as data.
-        assert client.get("/api/reports/summary").json()["net_worth"] == "660.00"
-        month = client.get("/api/reports/month").json()
+        theirs = services(session, B_USER)
+        assert plain(theirs.reports.summary())["net_worth"] == "660.00"
+        month = plain(theirs.reports.month_report())
         assert not leaked(world, json.dumps(month)) and {l["account"] for l in month["spending"] + month["earnings"]} <= {"Bills"}
         trial = client.get("/api/reports/trial-balance").json()
         assert trial["balanced"] and {a["account"] for a in trial["lines"]} <= {"Assets:Mine", "Expenses:Bills", "Equity:Opening Balances"}
         assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"]} == {"Mine", "Bills", "Opening Balances"}
         assert sorted(t["payee"] for t in client.get("/api/transactions/").json() if t["payee"]) == ["Opening balance", "Power"]
-        assert client.get("/api/transactions/deleted").json() == []
+        assert theirs.transactions.deleted() == [] and theirs.accounts.restorable() == []
         assert client.get("/api/recurring/").json() == []
         assert client.get("/api/profile/").json()["first_name"] in (None, "")
         assert {l["name"] for l in client.get("/api/budget/").json()["lines"]} <= {"Bills"}
@@ -310,7 +309,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         refused("recurring split with A's", "POST", "/api/recurring/", json={"start_date": "2999-01-01", "postings": [
             line({"aid": a["Groceries"]}, "debit", "5"), line({"aid": mine}, "credit", "5")]})
         refused("budget A's category", "PUT", f"/api/budget/categories/{a['Groceries']}", json={"amount": "5"})
-        refused("budget move A's", "POST", "/api/budget/move", json={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
+        refused("budget move A's", "POST", "/budget/move", data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
         refused("restore into a used ledger", "POST", "/api/restore", files={"file": ("b.json", json.dumps(world.backup), "application/json")})
         # the web forms
         refused("form tx with A's account", "POST", "/transactions/split", data={

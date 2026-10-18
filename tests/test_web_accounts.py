@@ -94,12 +94,6 @@ def test_account_page_not_found(client: TestClient):
     assert client.get(f"/accounts/{MISSING}").status_code == 404
 
 
-def test_old_register_url_redirects(client: TestClient, account: dict):
-    response = client.get(f"/accounts/{account['aid']}/register", follow_redirects=False)
-    assert response.status_code == 301
-    assert response.headers["location"] == f"/accounts/{account['aid']}"
-
-
 # --- create ----------------------------------------------------------------
 
 

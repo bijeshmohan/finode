@@ -1,3 +1,5 @@
+"""Persistence for the profile row (created lazily on first access)."""
+
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError

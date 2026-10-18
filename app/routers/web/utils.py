@@ -54,10 +54,6 @@ def htmx_trigger(event: str, detail: dict) -> Response:
     return Response(status_code=200, headers={"HX-Trigger": json.dumps({event: detail})})
 
 
-def htmx_refresh() -> Response:
-    return Response(status_code=200, headers={"HX-Refresh": "true"})
-
-
 def htmx_error(message: str, target: str, status_code: int = 400) -> HTMLResponse:
     return HTMLResponse(
         escape(message),

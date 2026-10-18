@@ -1,3 +1,5 @@
+"""Persistence for personal access tokens, always filtered by the user's id."""
+
 from datetime import datetime
 from uuid import UUID
 

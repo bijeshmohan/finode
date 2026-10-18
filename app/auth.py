@@ -1,3 +1,5 @@
+"""Who is calling the JSON API or /mcp: verifies Supabase JWTs against Supabase's published keys and exposes `CurrentUser`."""
+
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID

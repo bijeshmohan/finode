@@ -14,8 +14,19 @@ def setup(client, root_accounts):
     return {"bank": bank, "rent": rent, "food": food, "groceries": groceries}
 
 
+class Saved:
+    """What saving a note did: the status of the form's answer, and the budget as it reads afterwards."""
+
+    def __init__(self, client, response):
+        self.client, self.status_code, self.headers, self.text = client, response.status_code, response.headers, response.text
+
+    def json(self):
+        return budget(self.client)
+
+
 def put_note(client, category, note):
-    return client.put(f"/api/budget/categories/{category['aid']}/note", json={"note": note})
+    """Save a note the way the category's page does."""
+    return Saved(client, client.post("/budget/note", data={"category": category["aid"], "note": note or ""}))
 
 
 def test_a_note_shows_on_the_category(client, setup):
@@ -52,7 +63,7 @@ def test_a_group_has_its_note_but_not_on_its_other_row(client, setup):
 
 
 def test_validation(client, setup):
-    assert put_note(client, setup["rent"], "x" * 201).status_code == 422
+    assert put_note(client, setup["rent"], "x" * 201).status_code == 400
     assert put_note(client, setup["bank"], "not a category").status_code == 400
     assert put_note(client, {"aid": "00000000-0000-4000-8000-0000000000aa"}, "x").status_code == 400
 

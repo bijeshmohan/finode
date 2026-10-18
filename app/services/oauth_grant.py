@@ -1,3 +1,5 @@
+"""What a connected app (an OAuth client of Supabase) may do: its read-only or read & write grant for one user."""
+
 from datetime import datetime, timezone
 from uuid import UUID
 

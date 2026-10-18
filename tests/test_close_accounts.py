@@ -1,7 +1,10 @@
 """Closing accounts: what is refused, what stays, where closed accounts disappear from, and reopening."""
 
+from uuid import UUID
+
 import pytest
 
+from .svc import services
 from .test_budget import assign, budget, line
 
 
@@ -31,7 +34,7 @@ def close(client, account):
     return client.post(f"/api/accounts/{account['aid']}/close")
 
 
-def test_an_empty_account_closes_and_keeps_its_history(client, books):
+def test_an_empty_account_closes_and_keeps_its_history(client, books, session):
     spend(client, books["hdfc"], books["groceries"], "10")
     client.post("/api/transactions/", json={"postings": [
         {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
@@ -43,7 +46,7 @@ def test_an_empty_account_closes_and_keeps_its_history(client, books):
     ]})
     closed = close(client, books["old"])
     assert closed.status_code == 200 and closed.json()["closed_on"]
-    register = client.get(f"/api/accounts/{books['old']['aid']}/register").json()
+    register = services(session).accounts.register(UUID(books["old"]["aid"]))
     assert len(register) == 2, "its history stays"
 
 
@@ -120,11 +123,11 @@ def test_a_running_recurring_rule_blocks_closing(client, books):
 
 def test_reopening_brings_back_the_account_its_groups_and_what_is_inside(client, books):
     close(client, books["food"])
-    reopened = client.post(f"/api/accounts/{books['food']['aid']}/reopen")
-    assert reopened.status_code == 200 and reopened.json()["closed_on"] is None
+    reopened = client.post(f"/accounts/{books['food']['aid']}/reopen")
+    assert reopened.status_code == 200 and client.get(f"/api/accounts/{books['food']['aid']}").json()["closed_on"] is None
     assert client.get(f"/api/accounts/{books['groceries']['aid']}").json()["closed_on"] is None
     close(client, books["food"])
-    client.post(f"/api/accounts/{books['groceries']['aid']}/reopen")
+    client.post(f"/accounts/{books['groceries']['aid']}/reopen")
     assert client.get(f"/api/accounts/{books['food']['aid']}").json()["closed_on"] is None, "its group opens with it"
     assert spend(client, books["hdfc"], books["groceries"]).status_code == 201
 

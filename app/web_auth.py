@@ -1,3 +1,5 @@
+"""Web sign-in through Supabase's password grant, with the tokens kept in HttpOnly cookies and refreshed when they expire."""
+
 from dataclasses import dataclass
 from urllib.parse import urlencode
 

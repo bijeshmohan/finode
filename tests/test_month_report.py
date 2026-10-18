@@ -7,6 +7,8 @@ import pytest
 
 from app.clock import local_today
 
+from .svc import plain
+
 THIS_MONTH = local_today().replace(day=1)
 
 
@@ -57,14 +59,12 @@ def books(client, root_accounts):
     return {"bank": bank}
 
 
-def report(client, month=None):
-    response = client.get("/api/reports/month", params={"month": month.isoformat()} if month else {})
-    assert response.status_code == 200, response.text
-    return response.json()
+def report(svc, month=None):
+    return plain(svc.reports.month_report(month))
 
 
-def test_the_current_month(client, books):
-    data = report(client)
+def test_the_current_month(client, books, svc):
+    data = report(svc)
     assert data["month"] == THIS_MONTH.isoformat() and data["period_end"] == local_today().isoformat()
     assert (data["income"], data["expenses"], data["net"]) == ("5000.00", "2000.00", "3000.00")
     assert data["savings_rate"] == "60.0"
@@ -72,8 +72,8 @@ def test_the_current_month(client, books):
     assert "unpriced" not in data
 
 
-def test_spending_is_per_top_level_account_against_last_month(client, books):
-    data = report(client)
+def test_spending_is_per_top_level_account_against_last_month(client, books, svc):
+    data = report(svc)
     assert [(l["account"], l["amount"], l["previous"], l["share"]) for l in data["spending"]] == [
         ("Rent", "1500.00", "1500.00", "75.0"),
         ("Food", "500.00", "300.00", "25.0"),  # Groceries and Dining together
@@ -83,16 +83,16 @@ def test_spending_is_per_top_level_account_against_last_month(client, books):
     ]
 
 
-def test_an_earlier_month_and_any_day_in_it(client, books):
+def test_an_earlier_month_and_any_day_in_it(client, books, svc):
     last = shift(THIS_MONTH, -1)
-    data = report(client, last.replace(day=15))
+    data = report(svc, last.replace(day=15))
     assert data["month"] == last.isoformat() and data["period_end"] == (THIS_MONTH - timedelta(days=1)).isoformat()
     assert (data["income"], data["expenses"], data["net"]) == ("6000.00", "1800.00", "4200.00")
     assert {l["account"]: l["amount"] for l in data["spending"]} == {"Rent": "1500.00", "Food": "300.00"}
 
 
-def test_the_trend_is_the_last_six_months_oldest_first(client, books):
-    trend = report(client)["trend"]
+def test_the_trend_is_the_last_six_months_oldest_first(client, books, svc):
+    trend = report(svc)["trend"]
     assert [t["month"] for t in trend] == [shift(THIS_MONTH, -i).isoformat() for i in (5, 4, 3, 2, 1, 0)]
     assert [(t["income"], t["expenses"], t["net"]) for t in trend[3:]] == [
         ("4000.00", "0.00", "4000.00"),
@@ -102,37 +102,37 @@ def test_the_trend_is_the_last_six_months_oldest_first(client, books):
     assert all(t["income"] == t["expenses"] == "0.00" for t in trend[:3])  # and the 777 from seven months ago is not in it
 
 
-def test_the_trend_ends_with_the_month_asked_for(client, books):
-    trend = report(client, shift(THIS_MONTH, -1))["trend"]
+def test_the_trend_ends_with_the_month_asked_for(client, books, svc):
+    trend = report(svc, shift(THIS_MONTH, -1))["trend"]
     assert trend[-1]["month"] == shift(THIS_MONTH, -1).isoformat() and trend[-1]["income"] == "6000.00"
 
 
-def test_spending_beyond_income_is_a_negative_rate(client, root_accounts):
+def test_spending_beyond_income_is_a_negative_rate(client, root_accounts, svc):
     bank = make(client, "Bank", root_accounts["Assets"])
     salary = make(client, "Salary", root_accounts["Income"])
     rent = make(client, "Rent", root_accounts["Expenses"])
     post(client, bank, salary, "1000", THIS_MONTH)
     post(client, rent, bank, "1500", THIS_MONTH)
-    data = report(client)
+    data = report(svc)
     assert data["net"] == "-500.00" and data["savings_rate"] == "-50.0"
 
 
-def test_no_income_gives_no_rate(client, root_accounts):
+def test_no_income_gives_no_rate(client, root_accounts, svc):
     bank = make(client, "Bank", root_accounts["Assets"])
     rent = make(client, "Rent", root_accounts["Expenses"])
     post(client, rent, bank, "50", THIS_MONTH)
-    data = report(client)
+    data = report(svc)
     assert data["savings_rate"] is None and data["expenses"] == "50.00"
 
 
-def test_an_empty_ledger(client, root_accounts):
-    data = report(client)
+def test_an_empty_ledger(client, root_accounts, svc):
+    data = report(svc)
     assert (data["income"], data["expenses"]) == ("0.00", "0.00") and data["spending"] == [] and len(data["trend"]) == 6
 
 
-def test_a_month_that_has_not_started_is_refused(client, books):
-    response = client.get("/api/reports/month", params={"month": shift(THIS_MONTH, 1).isoformat()})
-    assert response.status_code == 400 and "not started" in response.json()["detail"]
+def test_a_month_that_has_not_started_is_refused(svc):
+    with pytest.raises(ValueError, match="not started"):
+        svc.reports.month_report(shift(THIS_MONTH, 1))
 
 
 # ---- the page ------------------------------------------------------------------------------------------------------

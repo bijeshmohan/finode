@@ -1,3 +1,5 @@
+"""Accounts: the tree and its rules (two levels, no posting to roots or groups), balances derived from postings, closing, deleting, restoring, ordering and the account register."""
+
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -690,9 +692,6 @@ class AccountService:
             has_more=offset + len(chunk) < len(history),
             has_any=bool(changes),
         )
-
-    def has_postings(self, aid: UUID) -> bool:
-        return bool(self.tr.postings_for_account(aid))
 
     def update(self, aid: UUID, data: AccountUpdate) -> AccountRead | None:
         all_accounts = self._ensure_roots()

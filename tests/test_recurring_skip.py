@@ -86,7 +86,7 @@ def test_skipping_the_last_occurrence_ends_the_rule(client, accounts):  # noqa: 
 
 def test_a_paused_rule_cannot_skip(client, accounts):  # noqa: F811
     created = future_rule(client, accounts)
-    client.post(f"/api/recurring/{created['rid']}/pause")
+    client.post(f"/recurring/{created['rid']}/pause")
     response = skip(client, created["rid"])
     assert response.status_code == 400 and "resume it first" in response.json()["detail"]
 

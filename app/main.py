@@ -1,7 +1,8 @@
+"""Wires the application: routers, middleware and the background work run in the lifespan (see docs/architecture/overview.md)."""
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
@@ -45,12 +46,3 @@ app.add_exception_handler(LoginRequired, login_required_handler)
 app.middleware("http")(refreshed_cookies_middleware)
 app.middleware("http")(clear_shown_flash_middleware)
 app.middleware("http")(cache_headers_middleware)
-
-
-@app.get("/app", include_in_schema=False)
-@app.get("/app/{rest:path}", include_in_schema=False)
-def moved_from_app(request: Request, rest: str = ""):
-    """The web UI used to live under /app: keep old bookmarks, the installed app and OAuth consent links working."""
-    target = "/" + rest
-    query = request.url.query
-    return RedirectResponse(target + (f"?{query}" if query else ""), status_code=301)

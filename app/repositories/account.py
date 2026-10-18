@@ -1,3 +1,5 @@
+"""Persistence for accounts, always filtered by the user's id."""
+
 from datetime import date
 from uuid import UUID
 

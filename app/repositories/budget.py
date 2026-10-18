@@ -1,3 +1,5 @@
+"""Persistence for the budget plan and targets, always filtered by the user's id."""
+
 from datetime import date
 from decimal import Decimal
 from uuid import UUID

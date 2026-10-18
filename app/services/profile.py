@@ -1,3 +1,5 @@
+"""The person's profile and settings: names, currency, the Advanced switch and the period lock."""
+
 from datetime import timedelta
 
 from ..clock import local_today

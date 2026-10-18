@@ -44,7 +44,7 @@ def rich(client, root_accounts):
     salary = acct(client, "Salary", root_accounts["Income"])
     client.patch(f"/api/accounts/{loan['aid']}", json={"payment_category_id": emi["aid"]})
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
-    assert client.post(f"/api/accounts/{loan['aid']}/move", params={"direction": "up"}).status_code == 200  # Liabilities: Home Loan before Visa
+    assert client.post(f"/accounts/{loan['aid']}/move", data={"direction": "up"}).status_code == 200  # Liabilities: Home Loan before Visa
 
     tx(client, [line(groceries, "debit", "250"), line(card, "credit", "250")], date="2026-09-03", payee="DMart")
     tx(client, [line(bank, "debit", "90000"), line(salary, "credit", "90000")], date="2026-09-01", payee="Employer")
