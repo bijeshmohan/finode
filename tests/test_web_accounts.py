@@ -292,13 +292,12 @@ def test_the_top_is_a_title_with_its_actions_then_the_figure_and_a_wide_add_butt
     assert 'class="button acct-add"' in head and "Add transaction" in head
 
 
-def test_a_category_has_the_month_pill_and_says_what_the_figure_is(client, root_accounts):
+def test_a_category_has_the_month_pill_above_the_figure_and_no_label(client, root_accounts):
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     page = client.get(f"/categories/{food['aid']}").text
     head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
-    assert "month-pill" in head and "Spent so far" in head and 'title="Previous month"' in head
-    assert 'title="Next month"' not in head, "nothing after the current month"
-    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
-    assert "Earned so far" in client.get(f"/categories/{salary['aid']}").text
+    assert head.index("month-pill") < head.index("hero-balance"), "the month sits above the figure"
+    assert "so far" not in head and "Spent" not in head and "Earned" not in head, "the figure needs no label"
+    assert 'title="Previous month"' in head and 'title="Next month"' not in head, "nothing after the current month"
     last = client.get(f"/categories/{food['aid']}?month=2026-01").text
-    assert "Spent in January" in last and 'title="Next month"' in last
+    assert 'title="Next month"' in last and "Jan 2026" in last

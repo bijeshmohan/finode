@@ -67,7 +67,6 @@
       <a class="icon-button" href="/categories/{{ account.aid }}?month={{ next }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>{% endif %}
     </span>
   </div>
-  <p class="muted acct-label">{{ "Earned" if root.account.name == "Income" else "Spent" }} {% if is_current %}so far{% else %}in {{ month_name.split(" ")[0] }}{% endif %}</p>
   <p class="hero-balance">{{ figure(total, currency) }}</p>
   {% else %}
   <p class="hero-balance">{{ account.balance|money }}</p>

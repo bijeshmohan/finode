@@ -1107,8 +1107,7 @@ ul.tile.list > li + li, ul.list.nested { border-top-color: var(--surface-2); }
 .acct-names { min-width: 0; }
 .acct-sub { margin: .25rem 0 0; color: var(--muted); font-size: .875rem; }
 .acct-icons { display: flex; align-items: center; gap: .5rem; flex: none; }
-.cat-bar.acct-month { margin: .9rem 0 .5rem; }
-.acct-label { margin: 0; }
+.cat-bar.acct-month { margin: .9rem 0 .25rem; }
 .acct-add { display: flex; width: 100%; min-height: 2.75rem; margin-top: .25rem; }
 details.menu { position: static; }
 details.menu > summary { list-style: none; cursor: pointer; }
