@@ -87,3 +87,15 @@ def test_no_total_when_something_coming_in_is_mixed_with_what_goes_out(client, l
         {"account": bank, "side": "debit", "amount": "900"}, {"account": salary, "side": "credit", "amount": "900"}]})
     page = client.get("/transactions").text
     assert "2 upcoming" in page and "in all" not in page
+
+
+def test_a_filter_does_not_open_the_upcoming_row_while_there_is_history_to_show(client, ledger):
+    bank, loan = ledger
+    record(client, bank, loan, "Paid already", local_today())
+    record(client, bank, loan, "EMI later", local_today() + timedelta(days=20))
+    for url in ("/transactions?kind=transfer", f"/transactions?account={bank}", "/transactions?q=a"):
+        page = client.get(url).text
+        assert "1 upcoming" in page and "Paid already" in page, url
+        assert 'class="upcoming" open' not in page, f"{url}: history is showing, so the row stays closed"
+    only_ahead = client.get("/transactions?q=EMI later").text
+    assert 'class="upcoming" open' in only_ahead, "nothing else matches, so the row opens to show the match"
