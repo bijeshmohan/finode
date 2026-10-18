@@ -1,0 +1,20 @@
+{#- Entries dated ahead, in one card: closed, a line with what they come to; opened, a statement (the date down the left).
+    `items` have tid, date, title, sub, amount (positive) and income. `sheet` opens the details sheet (the transactions page has
+    one); otherwise a row opens the entry's edit page and `back` brings the person back. -#}
+{% from "partials/icons.html" import icon %}
+{% macro upcoming_card(items, total, is_open, sheet=False, back="") %}
+<details class="upcoming" {{ "open" if is_open }}>
+  <summary><span>{{ items|length }} upcoming{% if total is not none %} <span class="sub">· {{ total|money }} in all</span>{% endif %}</span><span class="gcaret">{{ icon("caret") }}</span></summary>
+  <ul class="up-list">
+    {% for it in items %}
+    <li>
+      <a class="up-row" href="/transactions/{{ it.tid }}/edit{{ '?back=' ~ back if back }}"{% if sheet %} hx-get="/transactions/{{ it.tid }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false"{% endif %}>
+        <span class="up-date"><b>{{ it.date.day }}</b><span>{{ it.date.strftime("%b") }}</span></span>
+        <span class="up-main"><span class="up-title">{{ it.title }}</span><span class="up-sub">{{ it.sub }}</span></span>
+        <span class="up-amount {{ 'income' if it.income }}">{{ "+" if it.income }}{{ it.amount|money }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endmacro %}

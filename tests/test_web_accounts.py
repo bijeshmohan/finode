@@ -76,7 +76,7 @@ def test_account_page_shows_balance_activity_and_actions(
 def test_account_page_for_empty_leaf_offers_sub_account(client: TestClient, account: dict):
     text = client.get(f"/accounts/{account['aid']}").text
     assert f"/accounts/new?parent={account['aid']}" in text
-    assert "No activity yet." in text
+    assert "No transactions yet." in text
 
 
 def test_root_and_system_account_pages_are_read_only(
