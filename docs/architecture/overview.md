@@ -98,6 +98,7 @@ See [Data and operations](data-and-ops.md) for deployment details and [MCP and a
 - **One currency per person.** Stored amounts are plain numbers; the currency (`profiles.currency`) only decides how they are labelled and how many decimals are allowed.
 - **Derived, not stored.** Balances, the budget's available amounts and Ready to assign are computed from postings and the plan on demand, so editing the ledger cannot leave them stale.
 - **Today.** Code asks `clock.local_today()`, never `date.today()`, so "today" follows `FINODE_TIMEZONE`.
-- **Queries per page.** A page must not query once per row. `tests/test_query_counts.py` fails when the statement count grows with the data.
+- **Queries per page.** Each query is a ~15 ms round trip to the hosted database, so a page must not query once per row, and what several services ask for repeatedly (accounts, postings, the profile, budget targets) is loaded once per request by the session's read memory (`repositories/cache.py`; it forgets on every write). `tests/test_query_counts.py` fails when the statement count grows with the data or a page exceeds its ceiling.
+- **Compression.** Pages, styles, scripts and JSON are gzip-compressed (`caching.Compression`); fonts and images are not.
 
 Next: [The ledger](ledger.md).

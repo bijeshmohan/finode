@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from ..currencies import DEFAULT_CURRENCY
 from ..models.profile import Profile
 from ..schemas.profile import ProfileUpdate
+from .cache import remembered
 
 
 # New people start with the rarely used features hidden (tests switch this on so they see everything).
@@ -20,7 +21,9 @@ class ProfileRepository:
         self.uid = uid
 
     def read(self) -> Profile | None:
-        return self.db.exec(select(Profile).where(Profile.user == self.uid)).first()
+        return remembered(
+            self.db, ("profile", self.uid), lambda: self.db.exec(select(Profile).where(Profile.user == self.uid)).first()
+        )
 
     def advanced(self) -> bool:
         """Whether the rarely used features are shown; a person with no profile row yet gets the default."""

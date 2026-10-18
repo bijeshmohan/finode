@@ -9,6 +9,12 @@ from sqlalchemy import event
 import pytest
 
 PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/summary", "/categories", "/categories?tab=income"]
+# What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
+# brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
+CEILING = {
+    "/transactions/new": 6, "/transactions": 8, "/": 13, "/accounts": 9, "/budget": 7, "/summary": 8,
+    "/categories": 5, "/categories?tab=income": 5,
+}
 
 
 @pytest.fixture
@@ -52,7 +58,7 @@ def test_the_number_of_queries_does_not_grow_with_the_books(client, root_account
     large = {p: count_queries(lambda p=p: client.get(p)) for p in PAGES}
     for page in PAGES:
         assert large[page] <= small[page] + 2, f"{page} asks the database more often as the books grow: {small[page]} -> {large[page]}"
-        assert large[page] <= 40, f"{page} makes {large[page]} queries"
+        assert large[page] <= CEILING[page], f"{page} makes {large[page]} queries"
 
 
 def test_an_accounts_own_page_and_its_filtered_list_do_not_grow_either(client, root_accounts, count_queries):
@@ -68,3 +74,20 @@ def test_an_accounts_own_page_and_its_filtered_list_do_not_grow_either(client, r
         "list": count_queries(lambda: client.get(f"/transactions?account={busiest}")),
     }
     assert second["page"] <= first["page"] + 2 and second["list"] <= first["list"] + 2, (first, second)
+
+
+def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_accounts, count_queries):
+    """Checking each posting's account used to cost two queries per row."""
+    grow(client, root_accounts, accounts=14, transactions=0)
+    accounts = client.get("/api/accounts/").json()
+    leaves = [a for a in accounts if a["parent_id"] in (root_accounts["Assets"], root_accounts["Expenses"])]
+    assets = [a["aid"] for a in leaves if a["parent_id"] == root_accounts["Assets"]]
+    expenses = [a["aid"] for a in leaves if a["parent_id"] == root_accounts["Expenses"]]
+
+    def save(rows: int):
+        data = {"account": [assets[0]] + expenses[:rows], "side": ["credit"] + ["debit"] * rows,
+                "amount": [str(rows)] + ["1"] * rows, "payee": "split"}
+        return count_queries(lambda: client.post("/transactions/split", data=data))
+
+    short, long = save(2), save(7)
+    assert long <= short + 1, (short, long)
