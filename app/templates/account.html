@@ -47,7 +47,7 @@
         <p class="menu-note">Reopen {{ account.name }}{% if node.children %} and everything inside it{% endif %} to use {{ "them" if node.children else "it" }} again.</p>
         <button type="button" hx-post="/accounts/{{ account.aid }}/reopen">Reopen account</button>
         {% else %}
-        <p class="menu-note">Done with {{ account.name }}? Closing {{ "it and everything inside it" if node.children else "it" }} removes {{ "them" if node.children else "it" }} from your lists and pickers. The history stays, and you can reopen {{ "them" if node.children else "it" }} any time.{% if account.balance != 0 %} It has to be empty first: it still holds {{ account.balance|money }}.{% endif %}</p>
+        <p class="menu-note">Done with {{ account.name }}? Closing {{ "it and everything inside it" if node.children else "it" }} removes {{ "them" if node.children else "it" }} from your lists and pickers. The history stays, and you can reopen {{ "them" if node.children else "it" }} any time.{% if account.balance != 0 %} It has to be empty first: it still holds {{ account.balance|money|amount(currency) }}.{% endif %}</p>
         <button type="button" class="danger-text" hx-post="/accounts/{{ account.aid }}/close" hx-confirm="Close {{ account.name }}? You can reopen it later.">Close account</button>
         {% endif %}
         {% endif %}
@@ -69,7 +69,7 @@
   </div>
   <p class="hero-balance">{{ figure(total, currency) }}</p>
   {% else %}
-  <p class="hero-balance">{{ account.balance|money }}</p>
+  <p class="hero-balance">{{ figure(account.balance, currency) }}</p>
   {% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
   {% if node.postable and not account.closed_on %}
