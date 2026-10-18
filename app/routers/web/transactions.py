@@ -263,7 +263,7 @@ def restore_deleted(hid: UUID, transactions: Transactions):
 
 
 # Paths that are not pages of the web app.
-NOT_PAGES = ("/api", "/mcp", "/static", "/.well-known", "/docs", "/openapi.json", "/app")
+NOT_PAGES = ("/api", "/mcp", "/static", "/.well-known", "/docs", "/openapi.json")
 
 
 def safe_back(value: str | None, default: str = "/transactions") -> str:

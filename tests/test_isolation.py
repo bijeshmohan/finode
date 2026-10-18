@@ -44,7 +44,6 @@ PUBLIC = {
     ("GET", "/login"), ("POST", "/login"), ("POST", "/logout"), ("GET", "/signup"), ("POST", "/signup"),
     ("GET", "/forgot"), ("POST", "/forgot"), ("GET", "/reset"), ("POST", "/reset"),
     ("GET", "/.well-known/oauth-protected-resource"), ("GET", "/.well-known/oauth-protected-resource/mcp"),
-    ("GET", "/app"), ("GET", "/app/{rest:path}"),
     ("DELETE", "/mcp"), ("GET", "/mcp"), ("HEAD", "/mcp"), ("POST", "/mcp"),  # bearer tokens, tested below
     ("GET", "/oauth/consent"), ("POST", "/oauth/consent"),  # a Supabase authorization id of the signed-in user
 }
