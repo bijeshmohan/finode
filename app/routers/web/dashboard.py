@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request
 
 from ...dependencies import Accounts, Budget, Recurring, Reports, Transactions
 from ...services.account import AccountService
-from ...clock import month_progress
+from ...clock import local_today, month_progress
 from ...templating import templates
 from .transactions import AccountIndex, to_row
 
@@ -36,7 +36,7 @@ def dashboard(
     summary = reports.summary()
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts)
-    recent = [to_row(t, index) for t in transactions.list(limit=RECENT_LIMIT)]
+    recent = [to_row(t, index) for t in transactions.list(date_to=local_today(), limit=RECENT_LIMIT)]  # entries dated ahead are not recent
 
     roots = {a.name: a.aid for a in all_accounts if a.parent_id is None}
     system_ids = {a.aid for a in all_accounts if AccountService.is_opening_balances(a, all_accounts)}

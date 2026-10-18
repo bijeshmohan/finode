@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from urllib.parse import urlencode
 from uuid import UUID
@@ -20,7 +20,7 @@ from ...schemas.transaction import (
 )
 from ...templating import templates
 from .accounts import build_tree, posting_groups
-from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
+from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
 from ...clock import local_today
 from ...services.lock import locked_through
 
@@ -28,6 +28,9 @@ from ...services.lock import locked_through
 router = APIRouter(prefix="/transactions")
 
 PAGE_SIZE = 25
+
+# How many entries dated ahead the transactions page lists under "upcoming".
+UPCOMING_LIMIT = 100
 # "spending" and "transfers" are the older spellings of the chips and keep working in saved links.
 KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer", "spending": "expense", "transfers": "transfer"}
 
@@ -126,17 +129,38 @@ def transactions_page(
 
     error = None
     rows: list[TransactionRow] = []
+    upcoming: list[UpcomingItem] = []
     has_next = False
+    today = local_today()
+    first = last = None
     try:
+        first, last = _parse_date(date_from), _parse_date(date_to)
+        # What is dated ahead is not history: it waits in its own row ("N upcoming"), soonest first, on the first page.
         found = transactions.list(
             UUID(account) if account else None,
-            _parse_date(date_from),
-            _parse_date(date_to),
+            first,
+            min(last, today) if last else today,
             PAGE_SIZE + 1,
             (page - 1) * PAGE_SIZE,
             q,
             KIND_FILTERS.get(kind),
         )
+        if page == 1 and (last is None or last > today):
+            ahead = transactions.list(
+                UUID(account) if account else None,
+                max(first, today + timedelta(days=1)) if first else today + timedelta(days=1),
+                last,
+                UPCOMING_LIMIT,
+                0,
+                q,
+                KIND_FILTERS.get(kind),
+            )
+            for t in sorted(ahead, key=lambda t: (t.date, t.created)):
+                r = to_row(t, index)
+                upcoming.append(UpcomingItem(
+                    t.tid, t.date, t.payee or "No payee", f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}",
+                    r.amount, r.kind == "income",
+                ))
     except ValueError as e:
         error = f"Invalid filter: {e}"
         found = []
@@ -156,6 +180,9 @@ def transactions_page(
             "focus_search": focus == "search",  # opened from the search icon in the top bar
             "currency": accounts.currency().code,
             "rows": rows,
+            "upcoming": upcoming,
+            # What the schedule comes to; left out when something coming in is mixed with what is going out.
+            "upcoming_total": sum((r.amount for r in upcoming), 0) if upcoming and not any(r.income for r in upcoming) else None,
             "error": error,
             "filters": filters,
             "active_filters": len(query),
@@ -211,6 +238,28 @@ def delete_transaction(tid: UUID, transactions: Transactions, back: str = "", sh
     except ValueError as e:
         return htmx_error(str(e), "#sheet-error" if sheet else "#page-error")
     return htmx_redirect(safe_back(back), flash="transaction-deleted")
+
+
+@router.get("/deleted")
+def deleted_page(request: Request, accounts: Accounts, transactions: Transactions):
+    """Entries that were deleted, newest deletion first, each with a Restore button."""
+    entries = transactions.restorable()
+    return templates.TemplateResponse(
+        request,
+        "transactions_deleted.html",
+        {"active": "transactions", "entries": entries, "currency": accounts.currency().code},
+    )
+
+
+@router.post("/deleted/{hid}/restore")
+def restore_deleted(hid: UUID, transactions: Transactions):
+    try:
+        transactions.restore(hid)
+    except LookupError:
+        return htmx_error("That deleted transaction is not there any more.", "#restore-error", status_code=404)
+    except ValueError as e:
+        return htmx_error(str(e), "#restore-error")
+    return htmx_redirect("/transactions/deleted", flash="transaction-restored")
 
 
 # Paths that are not pages of the web app.

@@ -1,4 +1,5 @@
-{#- A large amount with its currency: the rupee sign in front for INR, the code after it for anything else. -#}
+{#- A large amount with its currency: the rupee sign in front for INR (after a minus: −₹5.00), the code after it for anything else. -#}
 {% macro figure(value, code) -%}
-{%- if code == "INR" -%}<span class="cur">&#8377;</span>{{ value|money }}{%- else -%}{{ value|money }}<small>{{ code }}</small>{%- endif -%}
+{%- set text = value|money -%}
+{%- if code == "INR" -%}{%- if text.startswith("\u2212") -%}&minus;{%- set text = text[1:] -%}{%- endif -%}<span class="cur">&#8377;</span>{{ text }}{%- else -%}{{ text }}<small>{{ code }}</small>{%- endif -%}
 {%- endmacro %}

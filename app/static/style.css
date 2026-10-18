@@ -1102,8 +1102,13 @@ ul.tile.list > li + li, ul.list.nested { border-top-color: var(--surface-2); }
 
 /* An account's page: the balance, one main button and a menu for everything else */
 .account-hero { padding: 0 0 .5rem; }
-.account-actions { display: flex; align-items: center; gap: .6rem; margin-top: .25rem; position: relative; }
-.account-actions > .button { min-height: 2.75rem; }
+.acct-title { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; position: relative; }
+.acct-title h1 { margin: 0; font-size: 1.75rem; line-height: 1.15; letter-spacing: -.01em; }
+.acct-names { min-width: 0; }
+.acct-sub { margin: .25rem 0 0; color: var(--muted); font-size: .875rem; }
+.acct-icons { display: flex; align-items: center; gap: .5rem; flex: none; }
+.cat-bar.acct-month { margin: .9rem 0 .25rem; }
+.acct-add { display: flex; width: 100%; min-height: 2.75rem; margin-top: .25rem; }
 details.menu { position: static; }
 details.menu > summary { list-style: none; cursor: pointer; }
 details.menu > summary::-webkit-details-marker { display: none; }
@@ -1127,6 +1132,8 @@ details[open] > summary .gcaret, details[open].attn > summary .gcaret { transfor
 .cat-name { display: inline-flex; align-items: center; min-width: 0; }
 .cnt { margin-left: .4rem; font-style: normal; font-weight: 400; font-size: .8125rem; color: var(--faint); }
 /* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and sub-categories indent from there. */
+.attn-panel { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
+.attn-panel .attn-item:first-child { border-top: 0; }
 .attn { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
 .attn > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; font-weight: 500; cursor: pointer; list-style: none; }
 .attn > summary::-webkit-details-marker { display: none; }
@@ -1155,7 +1162,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 .total-field .amount-field input { width: calc(var(--n, 4) * 1ch + .12em); max-width: 100%; }
 
 /* Categories */
-.cat-hero { padding-bottom: .9rem; }
+.cat-hero { padding-top: .5rem; padding-bottom: 1.1rem; }
 .month-title { margin: 0; flex: 1; text-align: center; font-size: 1rem; font-weight: 600; }
 .month-nav.small { margin: .25rem 0 0; }
 .show-quiet .unused-hidden { display: block; }
@@ -1172,7 +1179,10 @@ dd.auto, dd.auto a { color: var(--auto); }
 .accounts-note { margin: 1.25rem .25rem 0; }
 
 /* Room between the Expense / Income chips and the first row of the list */
-.cat-chips { margin-bottom: 1.4rem; }
+.cat-chips { min-height: 0; }
+.cat-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .75rem; margin: 0 0 .75rem; }
+.month-pill { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; padding: 0 .25rem 0 1rem; min-height: 2.25rem; font-weight: 600; font-size: .9375rem; }
+.month-pill .icon-button { width: 2rem; height: 2rem; color: var(--faint); }
 
 /* ---------- Accounts page: recently used as cards, every group open under its heading ---------- */
 .acc-section { margin-top: 1.1rem; }
@@ -1217,3 +1227,38 @@ dd.auto, dd.auto a { color: var(--auto); }
 .crow-amt .negative { color: var(--negative); }
 .budget-list .crow-amt { min-width: 7.5rem; }
 .crow-sub.short { color: var(--negative); }
+
+/* Entries dated ahead: one card. Closed it is a single line with what they come to; opened, a statement: the date down the left, hairlines between rows. */
+.upcoming { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); overflow: hidden; font-size: .9375rem; }
+.upcoming > summary { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; padding: 0 1rem; font-size: .875rem; font-weight: 500; cursor: pointer; list-style: none; }
+.upcoming > summary::-webkit-details-marker { display: none; }
+.upcoming > summary .sub { color: var(--muted); font-weight: 400; }
+.up-list { list-style: none; margin: 0; padding: 0; }
+.up-list li { border-top: 1px solid var(--surface-2); }
+.up-row { display: flex; align-items: center; gap: .75rem; padding: .7rem 1rem; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.up-date { display: flex; flex-direction: column; align-items: center; width: 2.4rem; flex: none; line-height: 1.05; }
+.up-date b { font-size: 1.0625rem; font-weight: 600; }
+.up-date span { font-size: .6875rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.up-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.up-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-sub { color: var(--muted); font-size: .8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-amount { font-variant-numeric: tabular-nums; }
+.up-amount.income { color: var(--positive); }
+
+/* Recently deleted: one tile, a row per entry with its Restore button. */
+.del-row { display: flex; align-items: center; gap: .75rem; padding: .75rem 0; }
+.del-row + .del-row { border-top: 1px solid var(--surface-2); }
+.del-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.del-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.del-sub { color: var(--muted); font-size: .8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.del-side { display: flex; flex-direction: column; align-items: flex-end; gap: .35rem; flex: none; }
+.del-amount { font-variant-numeric: tabular-nums; }
+.del-side button { margin: 0; min-height: 2rem; padding: .25rem .9rem; font-size: .875rem; }
+.head-icons { display: flex; align-items: center; gap: .25rem; }
+
+/* The "Needs you" badge beside the month on the budget page. */
+.need { display: inline-flex; align-items: center; gap: .45rem; min-height: 2.25rem; padding: 0 .8rem; margin: 0; font: inherit; font-size: .875rem; color: var(--text); background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; cursor: pointer; }
+.need i { display: inline-grid; place-items: center; min-width: 1.2rem; height: 1.2rem; padding: 0 .3rem; font-style: normal; font-size: .75rem; font-weight: 600; color: var(--on-accent); background: var(--accent); border-radius: 999px; }
+.bud-bar { margin-bottom: .5rem; }
+.more-entries { display: flex; justify-content: center; padding: .25rem 0 1rem; }
+.more-entries button { margin: 0; }

@@ -1,3 +1,30 @@
+// ---- Amount fields only take what makes an amount ----
+// Digits, commas to group them, one decimal point and (first only) a minus sign: "42.00.00" or "12a" cannot be typed or
+// pasted. This runs before the other input handlers (capture), so what they read is already clean.
+function cleanAmount(text) {
+  let out = "";
+  let dot = false;
+  for (const ch of text) {
+    if (ch >= "0" && ch <= "9") out += ch;
+    else if (ch === ",") out += ch;
+    else if (ch === "." && !dot) { dot = true; out += ch; }
+    else if (ch === "-" && out === "") out += ch;
+  }
+  return out;
+}
+
+document.addEventListener("input", (event) => {
+  const field = event.target;
+  if (!field || field.tagName !== "INPUT" || field.getAttribute("inputmode") !== "decimal") return;
+  const cleaned = cleanAmount(field.value);
+  if (cleaned === field.value) return;
+  // Keep the cursor where it was, minus what was taken out in front of it.
+  const caret = field.selectionStart ?? field.value.length;
+  const kept = cleanAmount(field.value.slice(0, caret)).length;
+  field.value = cleaned;
+  try { field.setSelectionRange(kept, kept); } catch (e) { /* not every input type allows it */ }
+}, true);
+
 // Let htmx swap server-rendered validation messages (4xx) into the page.
 document.body.addEventListener("htmx:beforeSwap", (event) => {
   const status = event.detail.xhr.status;
@@ -268,9 +295,17 @@ function formatDec(value) {
   return `${sign}${whole}.${fraction}`;
 }
 
+function groupDigits(whole) {
+  // Lakhs and crores for rupees (12,34,567), thousands otherwise (1,234,567); the page says which on <html>.
+  if (document.documentElement.dataset.grouping === "indian") {
+    return whole.replace(/\B(?=(\d{2})*\d{3}(?!\d))/g, ",");
+  }
+  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 function money(value) {
   const [whole, fraction] = formatDec(value).split(".");
-  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction}`;
+  return `${groupDigits(whole)}.${fraction}`;
 }
 
 // What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
@@ -674,6 +709,18 @@ document.body.addEventListener("change", (event) => {
 })();
 
 // ---- Budget: unused groups can be shown ----
+// The "Needs you" badge on the budget page opens and closes the list of what needs a decision.
+(() => {
+  document.body.addEventListener("click", (event) => {
+    const badge = event.target.closest && event.target.closest("[data-toggle-attn]");
+    if (!badge) return;
+    const panel = document.getElementById(badge.getAttribute("aria-controls"));
+    if (!panel) return;
+    panel.hidden = !panel.hidden;
+    badge.setAttribute("aria-expanded", String(!panel.hidden));
+  });
+})();
+
 (() => {
   document.body.addEventListener("click", (event) => {
     const button = event.target.closest && event.target.closest("[data-toggle-budget-unused]");

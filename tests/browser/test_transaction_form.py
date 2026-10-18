@@ -213,3 +213,44 @@ def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(page: Page, book
         expect(mobile.locator("#total")).to_be_focused()
     finally:
         phone.close()
+
+
+def test_an_amount_cannot_be_typed_with_two_decimal_points_or_letters(page: Page, books):
+    page.goto("/transactions/new")
+    total = page.locator("#total")
+    total.click()
+    page.keyboard.type("42.00.00")
+    assert total.input_value() == "42.0000", "the second point is ignored"
+    total.fill("")
+    page.keyboard.type("1a2b,5.5x")
+    assert total.input_value() == "12,5.5", "letters are ignored, commas and one point stay"
+    total.fill("")
+    page.keyboard.type("--7")
+    assert total.input_value() == "-7", "a minus only at the start"
+
+
+def test_pasting_a_messy_amount_keeps_the_good_part_and_the_cursor(page: Page, books):
+    page.goto("/transactions/new")
+    total = page.locator("#total")
+    total.evaluate("e => { e.focus(); document.execCommand('insertText', false, '1,200.50.25 INR'); }")
+    assert total.input_value() == "1,200.5025"
+    total.fill("123")
+    total.evaluate("e => { e.focus(); e.setSelectionRange(1, 1); }")
+    page.keyboard.type("x4")
+    assert total.input_value() == "1423", "the cursor stayed after the 1"
+
+
+def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, books):
+    page.goto("/budget/move")
+    field = page.locator('input[name="amount"]')
+    field.click()
+    page.keyboard.type("9..9.9")
+    assert field.input_value() == "9.99"
+
+
+def test_the_allocation_status_groups_rupees_in_lakhs(page: Page, books):
+    page.goto("/transactions/new")
+    page.fill("#total", "1500000")
+    page.fill('[data-rows="debit"] [name="amount"]', "500000")
+    expect(page.locator('[data-status="debit"]')).to_contain_text("15,00,000.00 INR allocated")
+    assert page.evaluate("document.documentElement.dataset.grouping") == "indian"

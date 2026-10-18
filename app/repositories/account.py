@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlmodel import Session, func, or_, select
 
 from ..models.account import Account
+from ..models.account_deletion import AccountDeletion
 from ..models.transaction import Posting, Transaction
 from ..schemas.account import AccountCreate, AccountUpdate
 
@@ -77,6 +78,28 @@ class AccountRepository:
         if not account:
             return None
         self.db.delete(account)
+        self.db.flush()
+        return account
+
+    def record_deletion(self, account_id: UUID, snapshot: dict) -> None:
+        self.db.add(AccountDeletion(user=self.uid, account_id=account_id, snapshot=snapshot))
+        self.db.flush()
+
+    def deletions(self) -> list[AccountDeletion]:
+        """Every deletion, newest first."""
+        return self.db.exec(
+            select(AccountDeletion).where(AccountDeletion.user == self.uid).order_by(AccountDeletion.at.desc())
+        ).all()
+
+    def deletion(self, did: UUID) -> AccountDeletion | None:
+        return self.db.exec(
+            select(AccountDeletion).where(AccountDeletion.did == did, AccountDeletion.user == self.uid)
+        ).first()
+
+    def restore(self, aid: UUID, fields: dict) -> Account:
+        """Put a deleted account back with its old id."""
+        account = Account(aid=aid, user=self.uid, **fields)
+        self.db.add(account)
         self.db.flush()
         return account
 

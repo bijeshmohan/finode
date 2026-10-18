@@ -78,10 +78,19 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(pag
     expect(page.get_by_role("link", name="See in the Budget")).to_be_visible()
 
 
-def test_there_is_room_between_the_chips_and_the_first_row(page: Page, books, api: Api):
+def test_there_is_room_between_the_figure_and_the_first_row(page: Page, books, api: Api):
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
-    chips = page.locator(".cat-chips").bounding_box()
+    figure = page.locator(".cat-hero .figure").bounding_box()
     first = page.locator("[data-cat-tree]").bounding_box()
-    gap = first["y"] - (chips["y"] + chips["height"])
-    assert gap >= 14, f"the list starts {gap}px under the chips"
+    gap = first["y"] - (figure["y"] + figure["height"])
+    assert gap >= 14, f"the list starts {gap}px under the figure"
+
+
+def test_the_month_and_the_kind_share_one_row_above_the_figure(page: Page, books, api: Api):
+    spend(api, books, books["rent"], "900")
+    page.goto("/categories")
+    pill, chips, hero = (page.locator(s).bounding_box() for s in (".month-pill", ".cat-chips", ".cat-hero"))
+    assert abs(pill["y"] - chips["y"]) < 14, "side by side"
+    assert hero["y"] > pill["y"] + pill["height"] and hero["y"] > chips["y"] + chips["height"] - 2, "the figure is under both"
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"

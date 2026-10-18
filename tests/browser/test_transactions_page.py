@@ -109,3 +109,23 @@ def test_the_kind_chips_filter(page: Page, books, api: Api):
     expect(page.get_by_role("link", name="Income", exact=True)).to_have_attribute("aria-pressed", "true")
     page.get_by_role("link", name="All", exact=True).click()
     expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(1)
+
+
+def test_choosing_a_kind_chip_leaves_the_upcoming_row_closed(page: Page, books, api: Api):
+    from datetime import date, timedelta
+
+    api.post("/transactions/", payee="Lunch", postings=[
+        {"account": books["food"]["aid"], "side": "debit", "amount": "120"},
+        {"account": books["checking"]["aid"], "side": "credit", "amount": "120"},
+    ])
+    api.post("/transactions/", payee="Next month", date=str(date.today() + timedelta(days=40)), postings=[
+        {"account": books["food"]["aid"], "side": "debit", "amount": "90"},
+        {"account": books["checking"]["aid"], "side": "credit", "amount": "90"},
+    ])
+    page.goto("/transactions")
+    expect(page.locator("details.upcoming")).not_to_have_attribute("open", "")
+    page.get_by_role("link", name="Expense", exact=True).click()
+    page.wait_for_url(re.compile(r"kind=expense$"))
+    expect(page.locator("details.upcoming")).to_have_count(1)
+    expect(page.locator("details.upcoming")).not_to_have_attribute("open", "")
+    expect(page.locator("a.tx", has_text="Lunch")).to_be_visible()

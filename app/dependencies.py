@@ -58,6 +58,15 @@ def get_profile_repository(
     return ProfileRepository(db, user.id)
 
 
+def load_currency(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> None:
+    """Note the person's currency for the page being built: amounts are grouped the way it is written (see templating)."""
+    request.state.currency = ProfileRepository(db, user.id).currency()
+
+
 def get_account_service(
     ar: AccountRepository = Depends(get_account_repository),
     tr: TransactionRepository = Depends(get_transaction_repository),

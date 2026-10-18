@@ -76,7 +76,7 @@ def test_account_page_shows_balance_activity_and_actions(
 def test_account_page_for_empty_leaf_offers_sub_account(client: TestClient, account: dict):
     text = client.get(f"/accounts/{account['aid']}").text
     assert f"/accounts/new?parent={account['aid']}" in text
-    assert "No activity yet." in text
+    assert "No transactions yet." in text
 
 
 def test_root_and_system_account_pages_are_read_only(
@@ -268,3 +268,78 @@ def test_expense_group_page_shows_direct_postings(
     assert "30.00 posted directly to groceries" in text
     assert f"/transactions/new?account={expense_account['aid']}" in text
     assert f"/categories/new?parent={expense_account['aid']}" in text
+
+
+def test_the_edit_button_is_beside_the_menu_not_inside_it(client, root_accounts):
+    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}).json()
+    page = client.get(f"/accounts/{bank['aid']}").text
+    head, menu = page.split('<details class="menu">', 1)
+    assert f'class="circ-button" href="/accounts/{bank["aid"]}/edit"' in head and 'title="Edit"' in head
+    assert f"/accounts/{bank['aid']}/edit" not in menu.split("</details>", 1)[0], "it left the menu"
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    cat = client.get(f"/categories/{food['aid']}").text
+    assert f'class="circ-button" href="/accounts/{food["aid"]}/edit"' in cat.split('<details class="menu">', 1)[0]
+    roots_page = client.get(f"/accounts/{root_accounts['Assets']}").text
+    assert f"/accounts/{root_accounts['Assets']}/edit" not in roots_page, "a top-level account cannot be edited"
+
+
+def test_the_top_is_a_title_with_its_actions_then_the_figure_and_a_wide_add_button(client, root_accounts):
+    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10", "details": "main account"}).json()
+    page = client.get(f"/accounts/{bank['aid']}").text
+    head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
+    assert head.index("<h1>Bank") < head.index('title="Edit"') < head.index('class="menu"') < head.index("hero-balance") < head.index("acct-add")
+    assert "Assets · main account" in head, "the type and the note share one small line"
+    assert 'class="button acct-add"' in head and "Add transaction" in head
+
+
+def test_a_category_has_the_month_pill_above_the_figure_and_no_label(client, root_accounts):
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    page = client.get(f"/categories/{food['aid']}").text
+    head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
+    assert head.index("month-pill") < head.index("hero-balance"), "the month sits above the figure"
+    assert "so far" not in head and "Spent" not in head and "Earned" not in head, "the figure needs no label"
+    assert 'title="Previous month"' in head and 'title="Next month"' not in head, "nothing after the current month"
+    last = client.get(f"/categories/{food['aid']}?month=2026-01").text
+    assert 'title="Next month"' in last and "Jan 2026" in last
+
+
+def test_green_and_plus_mean_money_in_on_a_bank_and_a_payment_into_a_card(client, root_accounts):
+    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"}).json()
+    card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    client.post("/api/transactions/", json={"payee": "Dinner", "postings": [
+        {"account": food["aid"], "side": "debit", "amount": "300"}, {"account": card["aid"], "side": "credit", "amount": "300"}]})
+    client.post("/api/transactions/", json={"payee": "Pay the card", "postings": [
+        {"account": card["aid"], "side": "debit", "amount": "100"}, {"account": bank["aid"], "side": "credit", "amount": "100"}]})
+    page = client.get(f"/accounts/{card['aid']}").text.split("<h2>Transactions</h2>", 1)[1]
+    assert page.count("tx-amount income") == 1 and "+100.00" in page, "the payment is green with a plus"
+    assert "+300.00" not in page and "300.00" in page, "a charge is plain"
+    bank_page = client.get(f"/accounts/{bank['aid']}").text.split("<h2>Transactions</h2>", 1)[1]
+    assert "+1,000.00" in bank_page and bank_page.count("tx-amount income") == 1, "money into a bank account is green"
+    assert "+100.00" not in bank_page, "what leaves the bank is plain"
+
+
+def test_upcoming_on_a_card_follows_the_same_rule(client, root_accounts):
+    from datetime import timedelta
+
+    from app.clock import local_today
+
+    card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    client.post("/api/transactions/", json={"date": str(local_today() + timedelta(days=9)), "payee": "Later", "postings": [
+        {"account": food["aid"], "side": "debit", "amount": "70"}, {"account": card["aid"], "side": "credit", "amount": "70"}]})
+    page = client.get(f"/accounts/{card['aid']}").text
+    assert "1 upcoming" in page and "up-amount income" not in page and "+70.00" not in page
+
+
+def test_an_upcoming_payment_into_a_card_is_green_and_a_charge_is_not(client, root_accounts):
+    from datetime import timedelta
+
+    from app.clock import local_today
+
+    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"}).json()
+    card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"], "balance": "500"}).json()
+    client.post("/api/transactions/", json={"date": str(local_today() + timedelta(days=9)), "payee": "Pay later", "postings": [
+        {"account": card["aid"], "side": "debit", "amount": "200"}, {"account": bank["aid"], "side": "credit", "amount": "200"}]})
+    page = client.get(f"/accounts/{card['aid']}").text
+    assert "1 upcoming" in page and "+200.00" in page and "up-amount income" in page

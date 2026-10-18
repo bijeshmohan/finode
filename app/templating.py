@@ -1,6 +1,7 @@
 import hashlib
 from datetime import date, timedelta
 from decimal import Decimal
+from contextvars import ContextVar
 from functools import lru_cache
 from pathlib import Path
 
@@ -8,18 +9,45 @@ from fastapi.templating import Jinja2Templates
 
 from .flash import flash_message
 from .models.utils import normalize_amount
-from .clock import local_today
+from .clock import local_day, local_today
 
 
 BASE_DIR = Path(__file__).parent
 
 
-def money(value: Decimal | str | None) -> str:
-    """Thousands separators and at least two decimals; coins and fund units keep their extra places."""
+# How the whole part of an amount is grouped: thousands (1,234,567.00) or, for rupees, lakhs and crores (12,34,567.00).
+_grouping: ContextVar[str] = ContextVar("grouping", default="western")
+
+
+def grouping_for(code: str | None) -> str:
+    """Rupees are written in lakhs and crores; every other currency in thousands."""
+    return "indian" if code == "INR" else "western"
+
+
+def group_digits(digits: str, style: str) -> str:
+    """Put commas into a run of digits: 1,234,567 (western) or 12,34,567 (indian)."""
+    if style == "indian" and len(digits) > 3:
+        head, tail = digits[:-3], digits[-3:]
+        pairs = []
+        while len(head) > 2:
+            pairs.insert(0, head[-2:])
+            head = head[:-2]
+        return ",".join(([head] if head else []) + pairs + [tail])
+    return f"{int(digits):,}" if digits.isdigit() else digits
+
+
+def money(value: Decimal | str | None, style: str | None = None) -> str:
+    """Grouped digits and at least two decimals; coins and fund units keep their extra places.
+    The grouping follows the person's currency (see `grouping_for`) unless a style is given."""
     if value is None:
         return ""
-    # A true minus sign lines up with "+" and reads better than a hyphen.
-    return format(normalize_amount(Decimal(value)), ",f").replace("-", "\u2212")
+    text = format(normalize_amount(Decimal(value)), "f")
+    sign = ""
+    if text.startswith("-"):
+        # A true minus sign lines up with "+" and reads better than a hyphen.
+        sign, text = "\u2212", text[1:]
+    whole, dot, fraction = text.partition(".")
+    return f"{sign}{group_digits(whole, style or _grouping.get())}{dot}{fraction}"
 
 
 SYMBOLS = {"INR": "\u20b9"}
@@ -74,9 +102,27 @@ def origin_label(origin: str | None) -> str | None:
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["money"] = money
+templates.env.globals["grouping"] = lambda: _grouping.get()
 templates.env.filters["symbol"] = symbol
 templates.env.filters["amount"] = amount
 templates.env.filters["friendly_date"] = friendly_date
+templates.env.filters["local_day"] = local_day
 templates.env.filters["origin_label"] = origin_label
 templates.env.globals["flash_message"] = flash_message
 templates.env.globals["asset_url"] = asset_url
+
+
+# A page is rendered inside TemplateResponse, in the thread that handled the request, so the person's grouping can be
+# set around it from what the request loaded (`request.state.currency`, see dependencies.load_currency).
+_render = templates.TemplateResponse
+
+
+def _template_response(request, *args, **kwargs):
+    token = _grouping.set(grouping_for(getattr(request.state, "currency", None)))
+    try:
+        return _render(request, *args, **kwargs)
+    finally:
+        _grouping.reset(token)
+
+
+templates.TemplateResponse = _template_response

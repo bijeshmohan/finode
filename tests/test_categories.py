@@ -100,7 +100,7 @@ def test_it_is_one_month_at_a_time_and_never_the_future(client, books):
 def test_income_is_its_own_tab_with_a_plus_free_green_list(client, books):
     entry(client, books["bank"], books["salary"], "5000", THIS_MONTH)
     page = client.get("/categories?tab=income").text
-    assert "Earned in" in page and "5,000.00" in page and "Salary" in page and "Rent" not in page
+    assert "Earned so far" in page and "5,000.00" in page and "Salary" in page and "Rent" not in page
     assert 'aria-pressed="true">Income<' in page
 
 
@@ -205,3 +205,12 @@ def test_a_category_page_says_delete_where_an_account_says_close(client, books):
     assert "Close account" in account_page and "Delete category" not in account_page
     form = client.get(f"/accounts/{books['rent']['aid']}/edit").text
     assert "removed for good" in form and "Delete category" in form
+
+
+def test_the_label_says_so_far_for_this_month_and_in_the_month_for_the_past(client, books):
+    entry(client, books["bank"], books["rent"], "40", THIS_MONTH)
+    assert "Spent so far" in client.get("/categories").text
+    last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
+    entry(client, books["bank"], books["rent"], "60", last)
+    past = client.get(f"/categories?month={last.strftime('%Y-%m')}").text
+    assert f"Spent in {last.strftime('%B')}" in past and "so far" not in past

@@ -126,3 +126,32 @@ def test_names_and_amounts_line_up_in_every_row(page: Page, api, books):
     )
     assert len(rights) >= 5 and len(set(rights)) == 1, f"amounts end at the same edge: {rights}"
     assert len(lefts) >= 5 and len(set(lefts)) == 1, f"names start at the same edge: {lefts}"
+
+
+def test_the_edit_button_on_an_account_is_one_tap_away(page: Page, books):
+    page.goto(f"/accounts/{books['checking']['aid']}")
+    page.get_by_role("link", name="Edit Checking").click()
+    page.wait_for_url(f"**/accounts/{books['checking']['aid']}/edit")
+
+
+def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api):
+    from datetime import date, timedelta
+
+    for i in range(70):
+        api.post("/transactions/", payee=f"Shop {i:02d}", date=str(date.today() - timedelta(days=1 + i)), postings=[
+            {"account": books["food"]["aid"], "side": "debit", "amount": "5"},
+            {"account": books["checking"]["aid"], "side": "credit", "amount": "5"},
+        ])
+    page.goto(f"/accounts/{books['checking']['aid']}")
+    rows = page.locator("a.tx")
+    first = rows.count()
+    assert 25 <= first <= 35, first
+    expect(page.get_by_text("Shop 69")).to_have_count(0)
+    button = page.get_by_role("button", name="Load more")
+    button.click()
+    expect(rows).not_to_have_count(first)
+    assert rows.count() > first + 25
+    expect(page.get_by_text("Shop 00")).to_be_visible()
+    page.get_by_role("button", name="Load more").click()
+    expect(page.get_by_role("button", name="Load more")).to_have_count(0)
+    expect(page.get_by_text("Shop 69")).to_be_visible()

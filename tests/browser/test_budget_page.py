@@ -38,7 +38,7 @@ def test_copying_last_months_amounts(page: Page, books, api: Api):
     api.put(f"/budget/categories/{books['food']['aid']}", month=LAST_MONTH.isoformat(), amount="300")
     api.put(f"/budget/categories/{books['rent']['aid']}", month=LAST_MONTH.isoformat(), amount="900")
     page.goto("/budget")
-    page.locator("details.attn > summary").click()
+    page.locator("button.need").click()
     button = page.get_by_role("button", name="Copy last month's amounts")
     expect(button).to_contain_text("1,200.00")
     button.click()
@@ -51,7 +51,7 @@ def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, 
     api.put(f"/budget/categories/{books['rent']['aid']}/target", kind="monthly", amount="800")
     page.goto("/budget")
     expect(page.locator("a.catrow .crow-sub.short")).to_contain_text("needs 800.00 more")
-    page.locator("details.attn > summary").click()
+    page.locator("button.need").click()
     page.get_by_role("button", name="Assign what is needed").click()
     expect(page.locator("a.catrow .crow-sub.short")).to_have_count(0)
     expect(page.locator(".ready-hero .figure")).to_have_text("\u20b94,200.00")
@@ -186,3 +186,4 @@ def test_budget_names_and_amounts_line_up(page: Page, books, api: Api):
     rights = page.eval_on_selector_all(".crow-amt", "els => els.filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().right))")
     assert len(lefts) >= 2 and len(set(lefts)) == 1, lefts
     assert len(set(rights)) == 1, rights
+

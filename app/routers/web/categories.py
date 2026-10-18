@@ -13,7 +13,7 @@ from fastapi.responses import RedirectResponse
 from ...clock import local_today
 from ...dependencies import Accounts, Profiles, Reports
 from ...templating import templates
-from .accounts import CATEGORY_ROOTS, Node, _load, _root_of, account_context, build_tree, new_account_page
+from .accounts import CATEGORY_ROOTS, Node, _load, _root_of, account_context, build_tree, deleted_page, new_account_page
 from .budget import parse_month, shift
 
 
@@ -120,6 +120,11 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
 def new_category_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None):
     """The form for a new category is the account form, set to categories (see accounts.new_account_page)."""
     return new_account_page(request, accounts, profiles, parent=parent, kind="category")
+
+
+@router.get("/deleted")
+def deleted_categories_page(request: Request, accounts: Accounts):
+    return deleted_page(request, accounts, "categories")
 
 
 @router.get("/{aid}")

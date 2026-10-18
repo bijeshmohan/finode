@@ -1,0 +1,32 @@
+{#- The days of an account's transactions (newest first) and, when there are more, the button that fetches the next chunk and
+    replaces itself with it. Included by account.html and returned by GET /accounts/{aid}/more. -#}
+{% set account = node.account %}
+{% for day, items in entries|groupby("date")|reverse %}
+<section class="tx-day">
+  <h3 class="tx-day-head">{{ day|friendly_date }}</h3>
+  <ul class="card list">
+    {% for e in items %}
+    <li>
+      <a class="tx" href="/transactions/{{ e.tid }}/edit?back={{ area }}/{{ account.aid }}">
+        <span class="tx-main">
+          <span class="tx-title">{{ e.payee or "No payee" }}</span>
+          <span class="tx-sub">{{ e.counter_accounts|join(", ") }}{% if e.comment %} · {{ e.comment }}{% endif %}</span>
+        </span>
+        {% if category %}
+        <span class="tx-amount {{ 'income' if root.account.name == 'Income' and e.change > 0 }}">{{ "+" if root.account.name == "Income" and e.change > 0 }}{{ "−" if e.change < 0 }}{{ (e.change|abs)|money }}</span>
+        {% else %}
+        {#- Green and "+" mean money coming in: what raises an asset account, and a payment into a card or loan (it lowers what you owe). A charge is plain; the running balance shows which way it went. -#}
+        {% set inflow = is_inflow(e.change) %}
+        <span class="tx-amount {{ 'income' if inflow }}">{{ "+" if inflow }}{{ (e.change|abs)|money }}<small>{{ e.balance|money }}</small></span>
+        {% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% if has_more %}
+<div class="more-entries">
+  <button type="button" class="secondary" hx-get="/accounts/{{ account.aid }}/more?offset={{ next_offset }}" hx-target="closest .more-entries" hx-swap="outerHTML">Load more</button>
+</div>
+{% endif %}

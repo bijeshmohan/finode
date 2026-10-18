@@ -1,7 +1,7 @@
 {% from "partials/icons.html" import icon %}
 <!doctype html>
 {% set theme = request.cookies.get("finode_theme") %}
-<html lang="en"{% if theme in ("light", "dark") %} data-theme="{{ theme }}"{% endif %}>
+<html lang="en" data-grouping="{{ grouping() }}"{% if theme in ("light", "dark") %} data-theme="{{ theme }}"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

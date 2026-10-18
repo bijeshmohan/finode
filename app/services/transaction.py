@@ -20,6 +20,9 @@ from ..schemas.transaction import (
 )
 
 
+# How many deleted entries the recently-deleted page lists.
+RESTORABLE_LIMIT = 50
+
 class InvalidPostingError(ValueError):
     ...
 
@@ -167,6 +170,44 @@ class TransactionService:
         """Transactions that were deleted, as they were when deleted, newest first."""
         paths = self._account_paths()
         return [self._history_read(row, paths) for row in self.tr.deleted()]
+
+    def restorable(self, limit: int = RESTORABLE_LIMIT) -> list[HistoryRead]:
+        """Entries that were deleted and are not back, newest deletion first (one per entry, as it stood when it went)."""
+        latest: dict[UUID, object] = {}
+        for row in self.tr.deleted():
+            latest.setdefault(row.transaction_id, row)
+        alive = self.tr.read_many(list(latest))
+        paths = self._account_paths()
+        rows = [row for tid, row in latest.items() if tid not in alive]
+        return [self._history_read(row, paths) for row in rows[:limit]]
+
+    def restore(self, hid: UUID) -> TransactionRead:
+        """Bring a deleted entry back as it was, with its old id (so its history carries on). It becomes an
+        ordinary entry: the link to a recurring rule is not restored, so the rule cannot record the day twice."""
+        row = self.tr.deleted_row(hid)
+        if row is None:
+            raise LookupError("deleted transaction not found!")
+        if self.tr.read(row.transaction_id) is not None:
+            raise ValueError("this transaction is already back!")
+        if self.tr.history(row.transaction_id)[-1].hid != row.hid:
+            raise ValueError("this transaction was changed after it was deleted; restore the latest deletion!")
+        snapshot = row.snapshot
+        known = {a.aid for a in self.ar.list()}
+        if any(UUID(p["account"]) not in known for p in snapshot["postings"]):
+            raise ValueError("an account this transaction used no longer exists, so it cannot be restored!")
+        data = TransactionCreate(
+            date=date.fromisoformat(snapshot["date"]),
+            payee=snapshot.get("payee"),
+            comment=snapshot.get("comment"),
+            postings=[{"account": UUID(p["account"]), "side": p["side"], "amount": Decimal(p["amount"])} for p in snapshot["postings"]],
+        )
+        self._refuse_locked(data.date)
+        self._check_limits()
+        self._resolve(data)
+        transaction = self.tr.create(data, self.origin, None, tid=row.transaction_id)
+        self.tr.db.commit()
+        self.tr.db.refresh(transaction)
+        return self._to_read(transaction)
 
     def validate(self, data: TransactionCreate) -> None:
         """Raise what create would raise, without saving anything."""
