@@ -1,4 +1,4 @@
-"""An account's page reads only its newest entries; "Show earlier" fetches the next chunk without splitting a day."""
+"""An account's page reads only its newest entries; "Load more" fetches the next chunk without splitting a day."""
 
 from datetime import timedelta
 
@@ -30,7 +30,7 @@ def test_the_page_shows_only_the_newest_entries_and_a_button(client, busy):
     shown = [name for _, _, name in made if name in page]
     assert REGISTER_PAGE <= len(shown) <= REGISTER_PAGE + 2, "a chunk, finished to the end of its day"
     assert "Shop 00" in page and "Shop 79" not in page, "the newest are there, the oldest are not"
-    assert "Show earlier transactions" in page and f"/accounts/{bank}/more?offset=" in page
+    assert "Load more" in page and f"/accounts/{bank}/more?offset=" in page
 
 
 def test_a_day_is_never_split_between_chunks(client, busy):
@@ -50,7 +50,7 @@ def test_show_earlier_walks_back_to_the_start_without_repeats(client, busy):
     page = client.get(f"/accounts/{bank}").text
     import re
 
-    while "Show earlier transactions" in page:
+    while "Load more" in page:
         offset = int(re.search(r"/more\?offset=(\d+)", page).group(1))
         page = client.get(f"/accounts/{bank}/more?offset={offset}").text
         chunk = [n for _, _, n in made if n in page]
@@ -86,7 +86,7 @@ def test_entries_dated_ahead_still_all_show_in_their_card(client, busy):
 
 def test_a_small_account_has_no_button(client, root_accounts):
     bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}).json()["aid"]
-    assert "Show earlier" not in client.get(f"/accounts/{bank}").text
+    assert "Load more" not in client.get(f"/accounts/{bank}").text
 
 
 def test_the_database_is_not_read_in_full_for_the_page(client, busy, session):

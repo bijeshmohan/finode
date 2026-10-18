@@ -447,7 +447,7 @@ def reset_account_order(aid: UUID, accounts: Accounts):
 
 @router.get("/{aid}/more")
 def account_more(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles, offset: int = 0):
-    """The next chunk of an account's transactions (htmx replaces the "Show earlier" button with it)."""
+    """The next chunk of an account's transactions (htmx replaces the "Load more" button with it)."""
     context = account_context(accounts, profiles, aid, None, offset=max(offset, 0))
     return templates.TemplateResponse(request, "partials/account_entries.html", {**context, "category": False, "area": "/accounts"})
 

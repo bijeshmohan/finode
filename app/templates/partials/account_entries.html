@@ -27,6 +27,6 @@
 {% endfor %}
 {% if has_more %}
 <div class="more-entries">
-  <button type="button" class="secondary" hx-get="/accounts/{{ account.aid }}/more?offset={{ next_offset }}" hx-target="closest .more-entries" hx-swap="outerHTML">Show earlier transactions</button>
+  <button type="button" class="secondary" hx-get="/accounts/{{ account.aid }}/more?offset={{ next_offset }}" hx-target="closest .more-entries" hx-swap="outerHTML">Load more</button>
 </div>
 {% endif %}
