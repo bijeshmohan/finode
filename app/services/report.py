@@ -3,6 +3,7 @@
 import calendar
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 
 from ..models.transaction import PostingSide
 from ..repositories import TransactionRepository
@@ -53,6 +54,10 @@ class ReportService:
 
         income = self._period_total("Income", PostingSide.CREDIT, roots, period_start, period_end)
         expenses = self._period_total("Expenses", PostingSide.DEBIT, roots, period_start, period_end)
+        # Paying into a loan budgeted under a category spends that category: as on the Budget and the Categories page.
+        expenses += sum(
+            (p.amount for _, p in self.accounts.payments_into_loans(accounts, period_start, period_end)), Decimal("0.00")
+        )
 
         return SummaryRead(
             currency=self.accounts.currency().code,
@@ -91,20 +96,25 @@ class ReportService:
         accounts = {a.aid: a for a in self.accounts.list()}
         by_month: dict[str, dict[date, Decimal]] = {"Income": {}, "Expenses": {}}
         by_group: dict[str, dict[date, dict[str, Decimal]]] = {"Income": {}, "Expenses": {}}
+        transactions = {t.tid: t for t in self.tr.list(date_from=first, date_to=end)}
+
+        def add(root_name: str, account: UUID, posting, value: Decimal) -> None:
+            when = transactions[posting.transaction].date.replace(day=1)
+            by_month[root_name][when] = by_month[root_name].get(when, Decimal("0.00")) + value
+            if when in (month, previous):
+                top = account
+                while accounts[top].parent_id is not None and accounts[accounts[top].parent_id].parent_id is not None:
+                    top = accounts[top].parent_id
+                groups = by_group[root_name].setdefault(when, {})
+                groups[accounts[top].name] = groups.get(accounts[top].name, Decimal("0.00")) + value
+
         for root_name, normal_side in (("Income", PostingSide.CREDIT), ("Expenses", PostingSide.DEBIT)):
             root = next(a for a in accounts.values() if a.parent_id is None and a.name == root_name)
-            transactions = {t.tid: t for t in self.tr.list(date_from=first, date_to=end)}
             for posting in self.tr.postings_for_accounts(self.accounts.subtree_ids(root.aid), first, end):
-                value = posting.amount if posting.side == normal_side else -posting.amount
-                transaction = transactions[posting.transaction]
-                when = transaction.date.replace(day=1)
-                by_month[root_name][when] = by_month[root_name].get(when, Decimal("0.00")) + value
-                if when in (month, previous):
-                    top = posting.account
-                    while accounts[top].parent_id is not None and accounts[accounts[top].parent_id].parent_id is not None:
-                        top = accounts[top].parent_id
-                    groups = by_group[root_name].setdefault(when, {})
-                    groups[accounts[top].name] = groups.get(accounts[top].name, Decimal("0.00")) + value
+                add(root_name, posting.account, posting, posting.amount if posting.side == normal_side else -posting.amount)
+        # Paying into a loan budgeted under a category spends that category: as on the Budget and the Categories page.
+        for category, posting in self.accounts.payments_into_loans(list(accounts.values()), first, end):
+            add("Expenses", category, posting, posting.amount)
 
         zero = Decimal("0.00")
         income, expenses = by_month["Income"].get(month, zero), by_month["Expenses"].get(month, zero)

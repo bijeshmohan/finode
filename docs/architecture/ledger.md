@@ -61,6 +61,8 @@ Which side raises a balance:
 | Assets, Expenses | debit |
 | Liabilities, Equity, Income | credit |
 
+An account cannot be on both sides of one entry (money cannot move from an account to itself); the same account on several rows of one side is an ordinary split.
+
 So buying groceries with cash is: debit `Expenses:Food:Groceries`, credit `Assets:Cash`, same amount.
 
 `TransactionService._resolve` is where the invariants live: it checks that postings balance, that every account belongs to the person, that none is closed, deleted or a forbidden target, the decimal places the currency allows, the per-person limits, and the period lock. The web form, the API, imports, recurring rules and the assistants all create transactions through this one service.

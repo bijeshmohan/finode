@@ -98,6 +98,16 @@ class TransactionService:
                     f"decimal place{'' if currency.decimals == 1 else 's'}!"
                 )
 
+        both = {p.account for p in postings if p.side == PostingSide.DEBIT} & {
+            p.account for p in postings if p.side == PostingSide.CREDIT
+        }
+        if both:
+            name = accounts_by_id[min(both, key=str)].name
+            raise InvalidPostingError(
+                f"'{name}' is on both sides of the entry: money cannot move from an account to itself. "
+                "Leave it out, or enter only the difference!"
+            )
+
         debits = sum((p.amount for p in postings if p.side == PostingSide.DEBIT), Decimal(0))
         credits = sum((p.amount for p in postings if p.side == PostingSide.CREDIT), Decimal(0))
         if debits != credits:
