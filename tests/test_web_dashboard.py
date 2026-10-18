@@ -75,7 +75,7 @@ def test_dashboard_says_over_budget_when_a_category_is_overspent(
         {"account": expense_account["aid"], "side": "debit", "amount": "80"},
         {"account": bank["aid"], "side": "credit", "amount": "80"}]})
     text = " ".join(client.get("/").text.split())
-    assert "Over budget in" in text and "−30.00" in text and 'style="width: 100%"' in text
+    assert "Over budget in" in text and '&minus;<span class="cur">&#8377;</span>30.00' in text and 'style="width: 100%"' in text
 
 
 def test_dashboard_limits_recent_transactions(
