@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -19,12 +20,27 @@ from ..clock import local_today
 
 # Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
 MAX_ACCOUNT_DEPTH = 2
+
+# How many entries an account's page shows before "Load more" (a day is never split, so a chunk can run a little over).
+REGISTER_PAGE = 30
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
 ROOT_ACCOUNT_NAMES = ("Assets", "Expenses", "Equity", "Income", "Liabilities")
 DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
 # Income and expense accounts are categories, so a group may hold postings of its own.
 # Assets and liabilities are real holdings and stay leaf-only.
 GROUP_POSTING_ROOT_NAMES = frozenset({"Income", "Expenses"})
+
+
+@dataclass
+class RegisterPage:
+    """One chunk of an account's activity (see `AccountService.register_page`)."""
+
+    entries: list  # newest first, up to today
+    upcoming: list  # dated after today, soonest first
+    total: int  # how many entries up to today there are in all
+    next_offset: int
+    has_more: bool
+    has_any: bool  # whether the account has any entry at all
 
 
 class AccountInUseError(ValueError):
@@ -618,6 +634,62 @@ class AccountService:
                 )
             )
         return entries
+
+    def register_page(self, aid: UUID, today: date, offset: int = 0, limit: int = REGISTER_PAGE) -> "RegisterPage | None":
+        """An account's activity for its page without reading all of it: the newest `limit` entries up to today (then
+        whatever finishes the last day, so a day is never split between two chunks), starting `offset` entries in, plus
+        everything dated after today. Only what is shown has its payee and other accounts read; the running balance
+        comes from the postings alone. Entries are the same as `register` gives."""
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.aid == aid), None)
+        if not account:
+            return None
+        accounts_by_id = {acc.aid: acc for acc in all_accounts}
+        target_ids = self.subtree_ids(aid, all_accounts)
+        normal_side = self._normal_side(account, accounts_by_id)
+        changes: dict[UUID, Decimal] = {}
+        when: dict[UUID, tuple] = {}
+        for transaction, side, amount, day, created in self.tr.posting_facts(target_ids):
+            signed = amount if side == normal_side else -amount
+            changes[transaction] = changes.get(transaction, Decimal("0.00")) + signed
+            when[transaction] = (day, created)
+        ordered = sorted(changes, key=lambda tid: when[tid])
+        balances: dict[UUID, Decimal] = {}
+        running = Decimal("0.00")
+        for tid in ordered:
+            running += changes[tid]
+            balances[tid] = running
+        history = [tid for tid in reversed(ordered) if when[tid][0] <= today]
+        ahead = [tid for tid in ordered if when[tid][0] > today]
+        chunk = history[offset: offset + limit]
+        while chunk and offset + len(chunk) < len(history) and when[history[offset + len(chunk)]][0] == when[chunk[-1]][0]:
+            chunk.append(history[offset + len(chunk)])
+        wanted = [*chunk, *ahead]
+        loaded = self.tr.read_many(wanted)
+        postings_of = self.tr.postings_for_transactions(wanted)
+
+        def entry(tid: UUID) -> RegisterEntry:
+            transaction = loaded[tid]
+            counter: list[str] = []
+            for posting in postings_of.get(tid, []):
+                if posting.account in target_ids:
+                    continue
+                name = accounts_by_id[posting.account].name
+                if name not in counter:
+                    counter.append(name)
+            return RegisterEntry(
+                tid=tid, date=transaction.date, payee=transaction.payee, comment=transaction.comment,
+                counter_accounts=counter, change=changes[tid], balance=balances[tid],
+            )
+
+        return RegisterPage(
+            entries=[entry(t) for t in chunk if t in loaded],
+            upcoming=[entry(t) for t in ahead if t in loaded],
+            total=len(history),
+            next_offset=offset + len(chunk),
+            has_more=offset + len(chunk) < len(history),
+            has_any=bool(changes),
+        )
 
     def has_postings(self, aid: UUID) -> bool:
         return bool(self.tr.postings_for_account(aid))
