@@ -1102,8 +1102,14 @@ ul.tile.list > li + li, ul.list.nested { border-top-color: var(--surface-2); }
 
 /* An account's page: the balance, one main button and a menu for everything else */
 .account-hero { padding: 0 0 .5rem; }
-.account-actions { display: flex; align-items: center; gap: .6rem; margin-top: .25rem; position: relative; }
-.account-actions > .button { min-height: 2.75rem; }
+.acct-title { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; position: relative; }
+.acct-title h1 { margin: 0; font-size: 1.75rem; line-height: 1.15; letter-spacing: -.01em; }
+.acct-names { min-width: 0; }
+.acct-sub { margin: .25rem 0 0; color: var(--muted); font-size: .875rem; }
+.acct-icons { display: flex; align-items: center; gap: .5rem; flex: none; }
+.cat-bar.acct-month { margin: .9rem 0 .5rem; }
+.acct-label { margin: 0; }
+.acct-add { display: flex; width: 100%; min-height: 2.75rem; margin-top: .25rem; }
 details.menu { position: static; }
 details.menu > summary { list-style: none; cursor: pointer; }
 details.menu > summary::-webkit-details-marker { display: none; }

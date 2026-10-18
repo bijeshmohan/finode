@@ -281,3 +281,24 @@ def test_the_edit_button_is_beside_the_menu_not_inside_it(client, root_accounts)
     assert f'class="circ-button" href="/accounts/{food["aid"]}/edit"' in cat.split('<details class="menu">', 1)[0]
     roots_page = client.get(f"/accounts/{root_accounts['Assets']}").text
     assert f"/accounts/{root_accounts['Assets']}/edit" not in roots_page, "a top-level account cannot be edited"
+
+
+def test_the_top_is_a_title_with_its_actions_then_the_figure_and_a_wide_add_button(client, root_accounts):
+    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10", "details": "main account"}).json()
+    page = client.get(f"/accounts/{bank['aid']}").text
+    head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
+    assert head.index("<h1>Bank") < head.index('title="Edit"') < head.index('class="menu"') < head.index("hero-balance") < head.index("acct-add")
+    assert "Assets · main account" in head, "the type and the note share one small line"
+    assert 'class="button acct-add"' in head and "Add transaction" in head
+
+
+def test_a_category_has_the_month_pill_and_says_what_the_figure_is(client, root_accounts):
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    page = client.get(f"/categories/{food['aid']}").text
+    head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
+    assert "month-pill" in head and "Spent so far" in head and 'title="Previous month"' in head
+    assert 'title="Next month"' not in head, "nothing after the current month"
+    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
+    assert "Earned so far" in client.get(f"/categories/{salary['aid']}").text
+    last = client.get(f"/categories/{food['aid']}?month=2026-01").text
+    assert "Spent in January" in last and 'title="Next month"' in last
