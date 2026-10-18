@@ -10,6 +10,7 @@ from ..models.account import Account
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..models.transaction_history import TransactionHistory
 from ..schemas.transaction import TransactionCreate, TransactionUpdate
+from .cache import remembered
 
 
 def _comparable(snapshot: dict) -> dict:
@@ -245,8 +246,13 @@ class TransactionRepository:
                 statement = statement.where(Transaction.date >= date_from)
             if date_to is not None:
                 statement = statement.where(Transaction.date <= date_to)
-        postings = self.db.exec(statement).all()
-        return postings
+        return list(
+            remembered(
+                self.db,
+                ("postings", self.uid, tuple(aids), date_from, date_to),
+                lambda: self.db.exec(statement).all(),
+            )
+        )
 
     def update(
         self,

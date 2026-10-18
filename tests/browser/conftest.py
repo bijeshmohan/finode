@@ -56,7 +56,17 @@ def browser() -> Generator["Browser", None, None]:
 @pytest.fixture
 def live_server(session) -> Generator[str, None, None]:
     """The app on a free port, signed in as the test user, with the fresh in-memory database of the test."""
-    app.dependency_overrides[get_db_session] = lambda: session
+    # The test database is one in-memory SQLite connection, which must not be used by two threads at once (a page
+    # fetches several things at the same time; that raised "bad parameter or other API misuse" now and then). So
+    # requests take turns, each with its own read memory, as every request has its own session in production.
+    turn = threading.Lock()
+
+    def one_at_a_time():
+        with turn:
+            session.info.pop("read_memory", None)
+            yield session
+
+    app.dependency_overrides[get_db_session] = one_at_a_time
     app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(
         id=TEST_USER_ID, email="test@example.com", claims={}
     )

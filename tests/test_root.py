@@ -23,3 +23,16 @@ def test_settings_ignore_unrelated_dotenv_keys(tmp_path):
     env_file.write_text("FINODE_DATABASE_ECHO=false\nAPP_DOMAIN=finode.example.com\n")
     settings = Settings(_env_file=env_file)
     assert settings.database_echo is False
+
+
+def test_pages_and_styles_are_compressed_but_fonts_are_not(client):
+    page = client.get("/login", headers={"Accept-Encoding": "gzip"})
+    assert page.headers.get("content-encoding") == "gzip" and page.status_code == 200 and "<form" in page.text
+    plain = client.get("/login", headers={"Accept-Encoding": "identity"})
+    assert "content-encoding" not in plain.headers and plain.text == page.text
+
+    css = client.get("/static/style.css", headers={"Accept-Encoding": "gzip"})
+    assert css.headers.get("content-encoding") == "gzip" and css.num_bytes_downloaded < len(css.content) // 3
+
+    font = client.get("/static/fonts/figtree-rupee.woff2", headers={"Accept-Encoding": "gzip"})
+    assert font.status_code == 200 and "content-encoding" not in font.headers

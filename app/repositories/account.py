@@ -9,6 +9,7 @@ from ..models.account import Account
 from ..models.account_deletion import AccountDeletion
 from ..models.transaction import Posting, Transaction
 from ..schemas.account import AccountCreate, AccountUpdate
+from .cache import remembered
 
 
 class AccountRepository:
@@ -35,9 +36,9 @@ class AccountRepository:
         return account
 
     def list(self) -> list[Account]:
+        """Every account of the person, loaded once per session (see repositories/cache.py)."""
         statement = select(Account).where(Account.user == self.uid)
-        accounts = self.db.exec(statement).all()
-        return accounts
+        return list(remembered(self.db, ("accounts", self.uid), lambda: self.db.exec(statement).all()))
 
     def read_by_name(
         self,

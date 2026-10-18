@@ -46,6 +46,12 @@ The decisions that look odd until you know the reason. Each entry says what was 
 **Why.** The ledger stays correct and simple whatever the budget does, and the budget can never corrupt it.
 **Cost.** Some numbers (Home's Left to spend, the Budget page and the Month summary) come from different calculations and can differ in what they count; for example the Month summary does not count loan payments as spending the way the Budget does. This is a known inconsistency, not a bug in one of them.
 
+## The session remembers repeated reads
+
+**Decision.** `repositories/cache.py` keeps the account list, postings, profile and budget targets for the length of one session, and forgets on every write.
+**Why.** Services are written independently, so one page asked for the same accounts and postings four times; at 15 ms a query that was most of the page's time. Remembering is safe because every write path passes through the session (flush, commit, rollback, any non-SELECT), and the memory is not used while the session holds unwritten changes.
+**Cost.** Cached lists are shared objects (copy before sorting), and the test suite has to forget between requests to imitate one session per request.
+
 ## An overspent category starts the next month at zero
 
 **Decision.** The deficit is taken out of Ready to assign from then on (the YNAB way), instead of the category carrying a negative.

@@ -24,7 +24,7 @@ Python 3.14 or newer is required. No linter or formatter is configured.
 - **Today is `clock.local_today()`**, never `date.today()`.
 - **Money is a `Decimal`.** Amounts are stored as `Numeric(24,8)` and read back without padding zeros. Do not format money with `:.2f`; use the `money` filter or `normalize_amount`.
 - **Config goes in `app/config.py`**, not into constants.
-- **A page must not query once per row or per account.** Load postings and transactions in bulk (`postings_for_transactions`, `read_many`, `AccountService._postings_by_account`).
+- **A page must not query once per row or per account.** Load postings and transactions in bulk (`postings_for_transactions`, `read_many`, `AccountService._postings_by_account`). A read that several services repeat goes through `repositories.cache.remembered`, which the session forgets on any write; its results are shared, so copy a list before sorting it in place.
 - **Comments say why**, not what. A module docstring says what the module is for.
 
 ## How to add a web page
