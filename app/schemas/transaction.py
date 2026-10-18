@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..models.transaction import PostingSide
 from ..clock import local_today
+from .day import Day
 
 
 class PostingBase(BaseModel):
@@ -34,10 +35,22 @@ class PostingRead(PostingBase):
     updated: datetime
 
 
+def _tidy_payee(value: str | None) -> str | None:
+    """One line, single spaces, nothing at all when blank: a payee is a label, not text."""
+    return " ".join(value.split()) or None if value is not None else None
+
+
+def _tidy_comment(value: str | None) -> str | None:
+    return value.strip() or None if value is not None else None
+
+
 class TransactionBase(BaseModel):
-    date: Date = Field(default_factory=local_today)
+    date: Day = Field(default_factory=local_today)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
+
+    _tidy_payee = field_validator("payee")(lambda cls, v: _tidy_payee(v))
+    _tidy_comment = field_validator("comment")(lambda cls, v: _tidy_comment(v))
 
 
 class TransactionCreate(TransactionBase):
@@ -62,10 +75,13 @@ class TransactionRead(TransactionBase):
 
 
 class TransactionUpdate(BaseModel):
-    date: Date | None = Field(default=None)
+    date: Day | None = Field(default=None)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
     postings: list[PostingCreate] | None = Field(default=None)
+
+    _tidy_payee = field_validator("payee")(lambda cls, v: _tidy_payee(v))
+    _tidy_comment = field_validator("comment")(lambda cls, v: _tidy_comment(v))
 
     @model_validator(mode="after")
     def non_nullable_fields_must_not_be_null(self) -> "TransactionUpdate":

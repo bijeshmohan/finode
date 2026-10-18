@@ -699,3 +699,30 @@ def test_card_figures_follow_the_month(client, card_books):
     last = budget(client, LAST_MONTH)["cards"][0]
     assert this["owed"] == "40.00" and this["charged"] == "0.00", "still owed, but charged last month"
     assert last["charged"] == "40.00" and last["owed"] == "40.00"
+
+
+def test_a_negative_assignment_can_only_take_back_what_the_category_has_left(client, root_accounts, svc):
+    from datetime import timedelta
+    from decimal import Decimal
+
+    from app.clock import local_today
+    from app.schemas import AccountCreate
+    from app.services.budget import BudgetError
+
+    svc.accounts.create(AccountCreate(name="Bank", parent_id=root_accounts["Assets"], balance=Decimal(1000)))
+    food = svc.accounts.create(AccountCreate(name="Food", parent_id=root_accounts["Expenses"]))
+    this_month = local_today().replace(day=1)
+    last_month = (this_month - timedelta(days=1)).replace(day=1)
+
+    with pytest.raises(BudgetError, match="only 0.00 is available in 'Food'"):
+        svc.budget.assign(this_month, food.aid, Decimal(-300))  # nothing there to take back
+    assert svc.budget.view(this_month).ready_to_assign == Decimal(1000), "Ready to assign never exceeds the money there is"
+
+    svc.budget.assign(last_month, food.aid, Decimal(100))
+    taken = svc.budget.assign(this_month, food.aid, Decimal(-60))  # last month left 100 in Food: 60 of it goes back
+    assert [l.available for l in taken.lines if l.name == "Food"] == [Decimal(40)]
+    with pytest.raises(BudgetError, match="only 40.00 is available"):
+        svc.budget.assign(this_month, food.aid, Decimal(-150))
+
+    api = client.put(f"/api/budget/categories/{food.aid}", json={"amount": "-500"})
+    assert api.status_code == 400 and "is available in 'Food'" in api.json()["detail"]

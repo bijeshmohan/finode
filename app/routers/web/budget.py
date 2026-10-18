@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
 
-from ...clock import month_progress
+from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
 from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, month_start
@@ -23,15 +23,17 @@ def parse_month(value: str) -> date:
     value = (value or "").strip()
     try:
         if len(value) == 7:
-            return date.fromisoformat(value + "-01")
+            return month_start(date.fromisoformat(value + "-01"))
         return month_start(date.fromisoformat(value)) if value else month_start(None)
     except ValueError:
         return month_start(None)
 
 
 def shift(month: date, by: int) -> date:
+    """The month `by` months away; at the ends of the calendar finode works in, the month it already is."""
     index = month.year * 12 + month.month - 1 + by
-    return date(index // 12, index % 12 + 1, 1)
+    moved = date(index // 12, index % 12 + 1, 1) if 1 <= index // 12 <= 9998 else month
+    return moved if FIRST_MONTH <= moved <= LAST_MONTH else month
 
 
 class Node:

@@ -37,7 +37,7 @@ You have ₹50,000 in your bank account, and no budget yet.
 - Tap the **month pill** arrows to look at other months, including future ones.
 - The list is ranked, **biggest budget first**. Each row has a bar showing how much is spent, with a small **tick marking how far through the month today is**: a bar ahead of the tick means you are spending faster than the month passes.
 - A **group** (like Food) shows the total of its sub-categories; tap it to open its own page. A plain category, or a row on a group's page, opens a **sheet**: type what to *Assign*, see what was spent, **Move money** to another category, and reach the note and target.
-- **Move money** never changes Ready to assign; it limits you to what the source category has left.
+- **Move money** never changes Ready to assign; it limits you to what the source category has left. Typing a smaller (even negative) amount in a category's *Assign* field takes money back to Ready to assign, but never more than the category has left.
 - Behind the **Needs you N** badge are the things that need a decision: accounts left out of the budget, last month's overspending, *Copy last month's amounts*, and (Advanced) *Assign what is needed*.
 - **Copy last month's amounts** assigns each category what it got last month, but only where nothing is assigned yet.
 - **Cards to pay** at the bottom shows what you owe on budget credit cards, with the month's charges and payments. You do not assign to cards; their debt is already set aside from your cash.

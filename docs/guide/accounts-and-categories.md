@@ -48,4 +48,4 @@ To add one, tap the round **+**. A category can have sub-categories one level do
 
 ## Notes
 
-Names can be up to 40 characters and cannot contain a colon (`:`). A category can carry a short note, shown on the Budget.
+Names can be up to 40 characters, must be visible and on one line, cannot contain a colon (`:`), and must differ from the other accounts or categories in the same place (capitals do not count: `Food` and `food` are the same). Dates you can enter run from 1900 to 2999. A category can carry a short note, shown on the Budget.

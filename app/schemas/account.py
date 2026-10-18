@@ -2,7 +2,22 @@ from datetime import date as Date, datetime
 from decimal import Decimal
 from uuid import UUID
 
+import unicodedata
+
 from pydantic import BaseModel, Field, field_validator
+
+
+def clean_name(value: str) -> str:
+    """An account's name as it will be kept: trimmed, with something visible in it, on one line, without ':' (the path
+    separator). Zero-width and other invisible characters do not count as a name."""
+    value = value.strip()
+    if not value or all(unicodedata.category(c) in ("Cf", "Zs", "Zl", "Zp") for c in value):
+        raise ValueError("name must not be empty!")
+    if any(unicodedata.category(c) == "Cc" for c in value):
+        raise ValueError("name must be on one line, without control characters!")
+    if ":" in value:
+        raise ValueError("name must not contain ':'!")
+    return value
 
 
 class AccountBase(BaseModel):
@@ -13,11 +28,7 @@ class AccountBase(BaseModel):
     @field_validator("name")
     @classmethod
     def name_must_not_be_empty(cls, v: str) -> str:
-        if not v:
-            raise ValueError("name must not be empty!")
-        if ":" in v:
-            raise ValueError("name must not contain ':'!")
-        return v
+        return clean_name(v)
 
 
 class AccountCreate(AccountBase):
@@ -32,7 +43,7 @@ class AccountCreate(AccountBase):
 
 class AccountRead(AccountBase):
     aid: UUID
-    balance: Decimal = Field(decimal_places=8, max_digits=24)
+    balance: Decimal  # a sum: no digit limits, see schemas/budget.py
     # True when the account's money is part of the budget.
     on_budget: bool = False
     # An account outside the budget: the expense category that payments into it are budgeted under.
@@ -61,13 +72,7 @@ class AccountUpdate(BaseModel):
     @field_validator("name")
     @classmethod
     def name_must_not_be_empty(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        if not v:
-            raise ValueError("name must not be empty!")
-        if ":" in v:
-            raise ValueError("name must not contain ':'!")
-        return v
+        return None if v is None else clean_name(v)
 
 
 class RegisterEntry(BaseModel):
@@ -76,5 +81,5 @@ class RegisterEntry(BaseModel):
     payee: str | None
     comment: str | None
     counter_accounts: list[str]
-    change: Decimal = Field(decimal_places=8, max_digits=24)
-    balance: Decimal = Field(decimal_places=8, max_digits=24)
+    change: Decimal
+    balance: Decimal

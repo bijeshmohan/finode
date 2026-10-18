@@ -4,8 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from .day import Day
 
-Money = Field(decimal_places=8, max_digits=24)
+
+# Figures the budget computes. No digit limits: a sum of valid amounts may be longer than one amount can be, and a
+# limit here would turn a long total into an error on every page.
+Money = Field()
 
 
 TARGET_KINDS = ("monthly", "weekly", "refill", "by_date", "yearly")
@@ -23,7 +27,7 @@ class BudgetTargetRead(BaseModel):
 class BudgetTargetSet(BaseModel):
     kind: str
     amount: Decimal = Field(gt=0, decimal_places=8, max_digits=24)
-    target_date: Date | None = None
+    target_date: Day | None = None
     weekday: int | None = Field(default=None, ge=0, le=6)
 
 
@@ -128,6 +132,6 @@ class BudgetRead(BaseModel):
 
 class BudgetAssign(BaseModel):
     # Any day in the month.
-    month: Date | None = None
+    month: Day | None = None
     # The month's total for the category, not an addition to it.
     amount: Decimal = Field(decimal_places=8, max_digits=24)

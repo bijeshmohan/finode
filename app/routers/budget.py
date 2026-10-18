@@ -19,7 +19,10 @@ router = APIRouter(
 @router.get("/", response_model=BudgetRead, status_code=200)
 def get_budget(budget: Budget, month: date | None = None):
     """The month's budget (the current month by default): what is left to assign and each category's figures."""
-    return budget.view(month)
+    try:
+        return budget.view(month)
+    except BudgetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.put("/categories/{aid}", response_model=BudgetRead, status_code=200)
