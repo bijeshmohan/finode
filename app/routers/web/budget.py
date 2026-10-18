@@ -54,10 +54,6 @@ class Node:
         return ([self.other] if self.other is not None else []) + [child.line for child in self.children]
 
     @property
-    def over(self) -> int:
-        return sum(1 for l in self.lines() if l.available < 0)
-
-    @property
     def used(self) -> bool:
         return any(
             l.assigned or l.activity or l.available or l.overspent_last_month or l.underfunded or l.target or l.note

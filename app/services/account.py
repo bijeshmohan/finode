@@ -691,9 +691,6 @@ class AccountService:
             has_any=bool(changes),
         )
 
-    def has_postings(self, aid: UUID) -> bool:
-        return bool(self.tr.postings_for_account(aid))
-
     def update(self, aid: UUID, data: AccountUpdate) -> AccountRead | None:
         all_accounts = self._ensure_roots()
         account = next((a for a in all_accounts if a.aid == aid), None)
