@@ -310,7 +310,7 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None)
     today = local_today()
     history = [e for e in entries if e.date <= today]
     upcoming = [
-        UpcomingItem(e.tid, e.date, e.payee or "No payee", ", ".join(e.counter_accounts) + (f" \u00b7 {e.comment}" if e.comment else ""), abs(e.change), e.change > 0)
+        UpcomingItem(e.tid, e.date, e.payee or "No payee", ", ".join(e.counter_accounts) + (f" \u00b7 {e.comment}" if e.comment else ""), abs(e.change), e.change > 0 and root.account.name == "Assets")
         for e in sorted((e for e in entries if e.date > today), key=lambda e: e.date)
     ]
     signs = {e.change > 0 for e in entries if e.date > today}
