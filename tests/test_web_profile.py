@@ -79,7 +79,7 @@ def test_sections_are_collapsible_and_summarise_values(client: TestClient):
 def test_theme_cookie_sets_data_theme(client: TestClient):
     assert "data-theme" not in client.get("/profile").text.split("<head>")[0]
     client.cookies.set("finode_theme", "dark")
-    assert '<html lang="en" data-theme="dark">' in client.get("/profile").text
+    assert '<html lang="en" data-grouping="indian" data-theme="dark">' in client.get("/profile").text
     client.cookies.set("finode_theme", "<script>")
     assert "data-theme" not in client.get("/profile").text.split("<head>")[0]
 
