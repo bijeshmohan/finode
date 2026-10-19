@@ -151,7 +151,7 @@ def test_a_group_page_lists_its_categories_and_its_figure_opens_its_own_budget(c
     assert "Everything else" not in page, "no row for what is not in a category: the group's bar covers it"
     assert f'hx-get="/budget/group/{setup["food"]["aid"]}/sheet?month=' in page and "budget-hero tappable" in page, "the figure area opens the group's budget"
     assert "circ-button" not in page.split('id="budget"', 1)[1], "no pencil"
-    assert 'class="cat-bar acct-nav"' in page and 'class="month-pill"' in page and 'class="group-title"' in page and "Left to spend" in page and "Left in Food" not in page
+    assert 'class="cat-bar acct-nav"' in page and 'class="month-pill"' in page and 'class="group-title"' in page and '<span class="sr-only">Left to spend</span>' in page and "Left in Food" not in page
     assert page.index('class="month-pill"') < page.index('class="group-title"'), "the pill is above the name"
     assert "500.00" in page
     assert f'/budget/category/{groceries["aid"]}/sheet?month=' in page and f"group={setup['food']['aid']}" in page
