@@ -271,3 +271,21 @@ def test_a_tap_beside_the_sheet_while_typing_only_puts_the_keyboard_away(page: P
     assert box.input_value() == "77", "what was typed is kept"
     page.mouse.click(195, 20)
     expect(page.locator("#cat-sheet")).not_to_be_visible()
+
+
+def test_save_works_after_the_keyboard_is_put_away_with_its_own_button(page: Page, books):
+    """iOS's tick under the keyboard blurs the field and closes the keyboard without a resize event; Save must still work."""
+    box = with_keyboard(page, books, {"width": 390, "height": 844}, 340)
+    box.fill("1234")
+    page.evaluate("document.activeElement.blur()")  # the viewport is left as it was: no event, like iOS
+    page.wait_for_timeout(200)
+    save = page.locator("#cat-sheet").get_by_role("button", name="Save")
+    area = save.bounding_box()
+    assert area["y"] + area["height"] > 844 - 340, "the sheet is back down, not lifted over the empty space"
+    x, y = area["x"] + area["width"] / 2, area["y"] + area["height"] / 2
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).closest('button')?.textContent.trim()", [x, y]) == "Save"
+    save.click()
+    expect(page.locator("#cat-sheet")).not_to_be_visible()
+    assert page.request.get("/api/budget/").ok
+    page.evaluate("window.__keyboard(0)")
+    page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})

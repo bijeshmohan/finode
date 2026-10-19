@@ -424,7 +424,11 @@ document.body.addEventListener("click", (event) => {
   const place = () => {
     if (!vv) return;
     const root = document.documentElement.style;
-    root.setProperty("--kb", `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
+    // With no field focused there is no keyboard, whatever the viewport says: iOS Safari's keyboard-down button (the tick)
+    // puts the keyboard away without a resize event, which left the sheet lifted over empty space and Save untappable.
+    const field = document.activeElement;
+    const typing = !!field && field.matches && field.matches("input, select, textarea") && !!field.closest("dialog.sheet");
+    root.setProperty("--kb", `${typing ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0}px`);
     root.setProperty("--vvh", `${Math.round(vv.height)}px`);
   };
   if (vv) {
@@ -443,7 +447,14 @@ document.body.addEventListener("click", (event) => {
   document.addEventListener("focusout", (event) => {
     const dialog = sheetOf(event);
     // Later than the tap on Save that caused it, so the sheet does not change shape under the finger.
-    if (dialog) dialog._typingTimer = setTimeout(() => dialog.classList.remove("typing"), 300);
+    if (!dialog) return;
+    dialog._typingTimer = setTimeout(() => dialog.classList.remove("typing"), 300);
+    // The keyboard is going: lower the sheet now, and look again as the viewport settles (iOS may send no event at all).
+    place();
+    [100, 350, 700].forEach((ms) => setTimeout(() => {
+      place();
+      if (vv && vv.offsetTop && !document.activeElement.matches("input, select, textarea")) window.scrollTo(0, 0);
+    }, ms));
   });
 })();
 
