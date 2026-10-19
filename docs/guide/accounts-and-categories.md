@@ -44,7 +44,7 @@ An account that holds a balance cannot be closed. A closed account keeps its his
 
 ## Categories page
 
-**Categories** shows one month at a time (never a future one). Pick **Expense** or **Income**. The big figure is the month's total (*Spent so far* during the current month). Below it is a ranked list, biggest first, each row with its three biggest sub-categories and its share of the month. Tap a row to see the category's page: its sub-categories and the month's transactions. Use the arrows on the month pill to move between months.
+**Categories** shows one month at a time (never a future one). Pick **Expense** or **Income**. The big figure is the month's total up to today (the whole month for a past one); it has no label, the Expense and Income chips say which it is. Below it is a ranked list, biggest first, each row with its three biggest sub-categories and its share of the month. Tap a row to see the category's page: its sub-categories and the month's transactions. Use the arrows on the month pill to move between months.
 
 <img src="img/categories.png" alt="The Categories page: the month, Expense and Income, ranked categories" width="300">
 

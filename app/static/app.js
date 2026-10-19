@@ -737,10 +737,8 @@ document.body.addEventListener("change", (event) => {
   document.body.addEventListener("click", (event) => {
     const button = event.target.closest && event.target.closest("[data-toggle-cat-quiet]");
     if (!button) return;
-    const page = document.querySelector("[data-categories]");
-    const shown = page.classList.toggle("show-quiet");
-    if (!button.dataset.label) button.dataset.label = button.textContent;
-    button.textContent = shown ? `Hide the ${button.dataset.count} with nothing` : button.dataset.label;
+    document.querySelector("[data-categories]").classList.add("show-quiet");
+    button.closest(".unused-toggle").remove();
   });
 })();
 

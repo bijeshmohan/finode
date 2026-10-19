@@ -34,7 +34,7 @@
 </div>
 
 <div class="ready zero cat-hero">
-  <span class="muted">{{ "Spent" if tab == "expense" else "Earned" }} {% if is_current %}so far{% else %}in {{ month_name.split(" ")[0] }}{% endif %}</span>
+  <span class="sr-only">{{ "Spent" if tab == "expense" else "Earned" }} {% if is_current %}so far{% else %}in {{ month_name.split(" ")[0] }}{% endif %}</span>
   <span class="figure">{{ figure(grand, currency) }}</span>
 </div>
 
@@ -46,7 +46,7 @@
   {% endfor %}
 </div>
 {% if quiet_count %}
-<p class="unused-toggle"><button type="button" class="link-button" data-toggle-cat-quiet data-count="{{ quiet_count }}">{{ quiet_count }} with nothing in {{ month_name.split(" ")[0] }} · Show</button></p>
+<p class="unused-toggle"><button type="button" class="link-button" data-toggle-cat-quiet>Load more</button></p>
 {% endif %}
 {% else %}
 <div class="empty-state card">
@@ -54,6 +54,5 @@
   <a class="button" href="/categories/new">Add a category</a>
 </div>
 {% endif %}
-<p class="muted budget-fine">Tap a category to see what is inside it and its transactions.</p>
 </div>
 {% endblock %}
