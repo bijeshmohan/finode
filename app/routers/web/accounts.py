@@ -309,7 +309,10 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
     root = _root_of(roots, node)
     today = local_today()
     page = None
-    if entries is None:
+    if entries is None and node.children:
+        # An account with sub-accounts cannot be posted to: its page lists the sub-accounts, whose entries are on their own pages.
+        history, ahead, has_any = [], [], False
+    elif entries is None:
         # An account's own page reads only its newest entries (and what is dated ahead); a category passes its month's.
         page = accounts.register_page(aid, today, offset) or RegisterPage([], [], 0, 0, False, False)
         history, ahead, has_any = page.entries, page.upcoming, page.has_any
