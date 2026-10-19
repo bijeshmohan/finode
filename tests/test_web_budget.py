@@ -376,3 +376,19 @@ def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_
     assert line(api_budget(client), "Groceries")["assigned"] == "200.00", "its categories are untouched"
     assert client.post(f"/budget/group/{food}/assign", data={"month": month, "amount": "500"}).status_code == 200, "back to the minimum is fine"
     assert client.get(f"/budget/group/{setup['rent']['aid']}/sheet").status_code == 404, "a plain category has no group budget"
+
+
+def test_the_month_pill_is_in_the_title_row_and_needs_you_is_beside_ready_to_assign(client, root_accounts, setup):
+    page = client.get("/budget").text
+    head = page.split('<div class="page-head tall">', 1)[1].split('<div id="budget">', 1)[0]
+    assert "<h1>Budget</h1>" in head and 'class="month-pill"' in head and 'href="/budget?month=' in head
+    body = page.split('<div id="budget">', 1)[1]
+    assert 'class="month-pill"' not in body and "bud-bar" not in body, "the second row is gone"
+    assert "data-toggle-attn" not in page, "nothing needs a decision yet"
+    # spending paid from an account that is not part of the budget is left out of it: that needs a decision
+    card = account(client, root_accounts, "Card", "Liabilities")
+    client.post("/api/transactions/", json={"postings": [
+        {"account": setup["food"]["aid"], "side": "debit", "amount": "5"},
+        {"account": card["aid"], "side": "credit", "amount": "5"}]})
+    page = client.get("/budget").text
+    assert page.index('class="hero-top"') < page.index("data-toggle-attn") < page.index('id="attn-panel"'), "the badge is in the hero, its panel below"
