@@ -75,17 +75,17 @@ def test_money_posted_to_a_group_itself_is_its_everything_else_row(client, books
     entry(client, books["groceries"], books["bank"], "60", THIS_MONTH)
     assert ("Food", "Groceries", "100.00 100%") in rows(client.get("/categories").text)
     page = client.get(f"/categories/{books['food']['aid']}").text
-    assert "Sub-categories" in page and "Everything else" in page and "posted to Food itself" in page and "40.00" in page
+    assert "Subcategories" in page and "Everything else" in page and "posted to Food itself" in page and "40.00" in page
 
 
 def test_a_category_page_lists_its_sub_categories_biggest_first(client, books):
     entry(client, books["dining"], books["bank"], "200", THIS_MONTH)
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     page = client.get(f"/categories/{books['food']['aid']}").text
-    inside = page.split("Sub-categories")[1].split("Transactions")[0]
+    inside = page.split("Subcategories")[1].split("Transactions")[0]
     assert inside.index("Groceries") < inside.index("Dining") and "Everything else" not in inside
     assert f"/categories/{books['groceries']['aid']}?month=" in inside
-    assert "Sub-categories" not in client.get(f"/categories/{books['groceries']['aid']}").text, "nothing inside it"
+    assert "Subcategories" not in client.get(f"/categories/{books['groceries']['aid']}").text, "nothing inside it"
 
 
 def test_it_is_one_month_at_a_time_and_never_the_future(client, books):
@@ -118,8 +118,8 @@ def test_a_category_page_shows_its_month_and_its_transactions(client, books):
     page = client.get(f"/categories/{books['groceries']['aid']}").text
     assert "300.00" in page and "Add transaction" in page and "/budget" in page
     assert page.count('class="tx"') == 1, "only this month's"
-    assert "Add sub-category" not in page, "a sub-category is as deep as it gets"
-    assert "Add sub-category" in client.get(f"/categories/{books['food']['aid']}").text
+    assert "Add subcategory" not in page, "a subcategory is as deep as it gets"
+    assert "Add subcategory" in client.get(f"/categories/{books['food']['aid']}").text
 
 
 def test_an_account_page_for_a_category_goes_to_the_category_page(client, books):
@@ -188,7 +188,7 @@ def test_a_closed_sub_category_is_not_listed_under_its_group(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     client.post(f"/api/accounts/{books['dining']['aid']}/close")
     page = client.get(f"/categories/{books['food']['aid']}").text
-    assert "Groceries" in page and "Dining" not in page.split("Sub-categories")[1].split("Transactions")[0]
+    assert "Groceries" in page and "Dining" not in page.split("Subcategories")[1].split("Transactions")[0]
     assert rows(client.get("/categories").text)[0] == ("Food", "Groceries", "300.00 100%")
 
 
@@ -317,7 +317,7 @@ def test_a_category_with_sub_categories_has_its_own_share_bar(client, books):
 
 def test_a_category_page_has_no_bar_when_there_is_nothing_to_split(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
-    assert bar_of(client.get(f"/categories/{books['food']['aid']}").text) is None, "only one sub-category has money"
+    assert bar_of(client.get(f"/categories/{books['food']['aid']}").text) is None, "only one subcategory has money"
     entry(client, books["rent"], books["bank"], "50", THIS_MONTH)
     assert bar_of(client.get(f"/categories/{books['rent']['aid']}").text) is None, "a category with nothing inside it"
 
@@ -342,3 +342,15 @@ def test_a_category_page_lists_only_what_was_posted_to_it_not_its_sub_categories
     assert page.count('class="tx"') == 1, "Food's own entry only"
     assert "340.00" in page, "the figure is still the whole category"
     assert client.get(f"/categories/{books['groceries']['aid']}").text.count('class="tx"') == 1
+
+
+def test_each_list_heading_on_a_category_page_has_its_own_plus(client, books):
+    entry(client, books["groceries"], books["bank"], "30", THIS_MONTH)
+    group = client.get(f"/categories/{books['food']['aid']}").text
+    assert f'href="/categories/new?parent={books["food"]["aid"]}"' in group and 'title="Add subcategory"' in group
+    assert f'href="/transactions/new?account={books["food"]["aid"]}' in group and 'title="Add transaction"' in group
+    leaf = client.get(f"/categories/{books['groceries']['aid']}").text
+    assert 'title="Add transaction"' in leaf and "Subcategories" not in leaf and 'title="Add subcategory"' not in leaf, "as deep as it gets"
+    empty = client.get(f"/categories/{books['rent']['aid']}").text
+    assert "Subcategories" not in empty and 'title="Add subcategory"' not in empty, "no empty row: the … menu adds the first"
+    assert "Add subcategory" in empty, "the menu still does"

@@ -38,7 +38,7 @@ You have ₹50,000 in your bank account, and no budget yet.
 
 - Tap the **month pill** arrows to look at other months, including future ones.
 - The list is ranked, **biggest budget first**. Each row has a bar showing how much is spent, with a small **tick marking how far through the month today is**: a bar ahead of the tick means you are spending faster than the month passes.
-- A **group** (like Food) shows the total of its sub-categories; tap it to open its own page. A plain category, or a row on a group's page, opens a **sheet** with **Assigned this month** (type the amount and **Save**), what was **Spent**, **Move money** to another category, and the **Note** (and, with Advanced on, the target).
+- A **group** (like Food) shows the total of its subcategories; tap it to open its own page. A plain category, or a row on a group's page, opens a **sheet** with **Assigned this month** (type the amount and **Save**), what was **Spent**, **Move money** to another category, and the **Note** (and, with Advanced on, the target).
 
 <img src="img/budget-sheet.png" alt="The category sheet: Assigned this month, Spent, Save, Move money, Note" width="300">
 - The Budget looks at the **whole month**, so an entry dated later this month already counts as spent in its category, while Home's Transactions list, account balances and the Month summary count up to today.

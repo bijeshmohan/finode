@@ -675,7 +675,7 @@ def _budget(data) -> dict[str, Any]:
 def get_budget(month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None) -> dict[str, Any]:
     """The envelope budget for a month: what is still ready to assign, and for each expense category what
     was assigned this month, what was spent and what is available (leftovers carry over; a category overspent last month starts at zero and that amount was already taken out of ready to assign).
-    Groups sum their sub-categories."""
+    Groups sum their subcategories."""
     with services() as s:
         return _budget(s.budget.view(_month(month)))
 
