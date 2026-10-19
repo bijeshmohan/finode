@@ -1143,7 +1143,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 .total-field .amount-field input { width: calc(var(--n, 4) * 1ch + .12em); max-width: 100%; }
 
 /* Categories */
-.cat-hero { padding-top: .5rem; padding-bottom: 1.1rem; }
+.ready.zero.cat-hero { padding-top: 1.25rem; padding-bottom: 1.75rem; }
 
 .month-nav.small { margin: .25rem 0 0; }
 .show-quiet .unused-hidden { display: block; }
