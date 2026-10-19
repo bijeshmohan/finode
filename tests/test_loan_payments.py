@@ -134,7 +134,8 @@ def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root
     point(client, books["loan"], sub)
     move(client, books["bank"], books["loan"], "7000")
     assert "7,000.00" in client.get("/categories").text
-    assert client.get(f"/categories/{debts['aid']}").text.count('class="tx"') == 1
+    assert "7,000.00" in client.get(f"/categories/{debts['aid']}").text, "the group's figure"
+    assert client.get(f"/categories/{sub['aid']}").text.count('class="tx"') == 1, "listed on the category itself"
 
 
 def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, books, svc):
