@@ -25,7 +25,7 @@ Tap the round **+** (*Add account*) on the Accounts page. The form asks for a **
 
 <img src="img/accounts.png" alt="The Accounts page: groups with subtotals, accounts in tiles" width="300">
 
-An account page shows its balance, an **Add transaction** button, a pencil for Edit, a **…** menu when there is something in it (to add a sub-account, or, with Advanced on, to reorder or close the account), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
+An account page shows its balance, an **Add transaction** button, a pencil for Edit, a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu when there is something in it (to add a sub-account, or, with Advanced on, to reorder or close the account), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
 
 <img src="img/account-page.png" alt="An account page: balance, Add transaction, upcoming card, transactions" width="300">
 

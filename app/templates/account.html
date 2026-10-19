@@ -12,8 +12,17 @@
 <header class="account-hero">
   <div class="acct-title">
     <div class="acct-names">
-      <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
-      <p class="acct-sub">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}{% if account.details %} · {{ account.details }}{% endif %}</p>
+      <div class="acct-name-row">
+        <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
+        {% if account.details %}
+        {# The description is behind an "i" beside the name: it is read once and would only take room on every visit. #}
+        <details class="note-info">
+          <summary class="info-button" title="About this {{ 'category' if category else 'account' }}" aria-label="About {{ account.name }}">{{ icon("info") }}</summary>
+          <div class="menu-panel"><p class="menu-note">{{ account.details }}</p></div>
+        </details>
+        {% endif %}
+      </div>
+      <p class="acct-sub">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}</p>
     </div>
     {% set has_menu = node.kind == "user" or (can_add_child and not account.closed_on) %}
     {% if node.kind == "user" or has_menu %}
