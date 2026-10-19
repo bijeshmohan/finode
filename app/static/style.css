@@ -1175,7 +1175,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 .crow-share { color: var(--muted); font-size: .8125rem; font-weight: 400; }
 /* The share bar: how the month divides between the biggest categories; the rows below are its legend. */
 .ready.zero.cat-hero.has-bar { padding-bottom: .75rem; }
-.sharebar { display: flex; gap: 2px; height: .75rem; margin: 0 0 1.5rem; border-radius: .375rem; overflow: hidden; }
+.sharebar { display: flex; gap: 2px; height: .5rem; margin: 0 0 1.5rem; border-radius: .25rem; overflow: hidden; }
 .sharebar i { display: block; flex-basis: 0; min-width: 4px; }
 .cdot { display: inline-block; flex: none; width: .625rem; height: .625rem; margin-right: .5rem; border-radius: 50%; }
 [data-cat-tree] .crow-name { display: flex; align-items: center; }
