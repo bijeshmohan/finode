@@ -18,7 +18,7 @@
     <select name="parent_id" required>
       {% if not editing %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
-      <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}>{{ "   " * n.depth }}{{ n.account.name }}</option>
+      <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}{% if root_of and not cat %} data-root="{{ root_of[n.account.aid] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
       {% endfor %}
     </select>
     <span class="hint">{% if cat %}Expenses: what you spend on · Income: where money comes from{% else %}Assets: bank, cash, wallets · Liabilities: cards, loans{% endif %}</span>
@@ -30,7 +30,8 @@
     <span class="hint">{{ "Changing this records an adjustment against Opening Balances." if editing else "Optional. Recorded as an opening balance." }}</span>
   </label>
   {% endif %}
-  {% if editing and can_budget %}
+  {% if not cat and (editing and can_budget or not editing) %}
+  <div class="stack" data-budget-fields {{ "hidden" if not can_budget }}>
   <input type="hidden" name="budget_choice" value="1">
   <label class="check">
     <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
@@ -43,6 +44,7 @@
     </select>
     <span class="hint">For a loan: paying its EMI then spends this category, so assign the EMI to it each month. Interest the lender charges stays outside the budget.</span>
   </label>
+  </div>
   {% endif %}
   <label>Notes
     <input type="text" name="details" maxlength="200" value="{{ (node.account.details or '') if editing else '' }}">

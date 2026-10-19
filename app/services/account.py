@@ -513,6 +513,14 @@ class AccountService:
             in_budget = self._get_root_name(parent, accounts_by_id) == "Assets"
         elif in_budget:
             self._check_budgetable(parent, accounts_by_id)
+        if account.payment_category_id is not None:
+            target = accounts_by_id.get(account.payment_category_id)
+            if target is None or target.parent_id is None or self._get_root_name(target, accounts_by_id) != "Expenses":
+                raise ValueError("payments can only be budgeted under an expense category!")
+            if self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):
+                raise ValueError("only asset and liability accounts can have a payment category!")
+            if in_budget:
+                raise ValueError("an account that is part of the budget doesn't need one: its money is already budgeted!")
         created = self.ar.create(account, on_budget=in_budget)
         all_accounts_with_created = all_accounts + [created]
 
