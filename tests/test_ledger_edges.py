@@ -86,7 +86,7 @@ def test_account_names_are_trimmed_and_unique_where_they_sit(client, root_accoun
     assert clash.status_code == 400 and "already has an account called 'Food'" in clash.json()["detail"]
     assert make("Food", root_accounts["Income"]).status_code == 201, "the same name elsewhere is fine"
     sub = make("Food", food.json()["aid"])
-    assert sub.status_code == 201, "a sub-category may share its parent's name"
+    assert sub.status_code == 201, "a subcategory may share its parent's name"
 
     fun = make("Fun", root_accounts["Expenses"]).json()
     assert client.patch(f"/api/accounts/{fun['aid']}", json={"name": "FOOD"}).status_code == 400

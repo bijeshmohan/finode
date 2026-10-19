@@ -384,7 +384,7 @@ class BudgetService:
         return [root.name, *names]
 
     def _lines(self, categories, by_id, parents, own, targets, needs) -> list[BudgetLine]:
-        """The categories as a tree in display order: a group row (sums) before its sub-categories;
+        """The categories as a tree in display order: a group row (sums) before its subcategories;
         a group that was itself posted to or assigned money also gets an '(other)' row of its own."""
         children: dict[UUID | None, list[Account]] = {}
         for a in categories.values():

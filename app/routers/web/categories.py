@@ -181,12 +181,12 @@ def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Pro
     if when is None:
         return RedirectResponse(f"/categories/{aid}", status_code=303)
     # The figure is the whole category's month; the list is what was posted to this category itself (each
-    # sub-category's entries are on its own page).
+    # subcategory's entries are on its own page).
     in_month = lambda rows: [e for e in (rows or []) if when <= e.date <= end]
     everything = in_month(accounts.register(aid))
     entries = in_month(accounts.register(aid, own_only=True))
     context = account_context(accounts, profiles, aid, entries)
-    # What its sub-categories came to in the month, biggest first, and what was posted to it itself.
+    # What its subcategories came to in the month, biggest first, and what was posted to it itself.
     top, own, totals = _figures(accounts, reports, root.account.name, when, end)
     shown = next((n for t in top for n in t.walk() if n.account.aid == aid), None)
     subs = [(c, totals[c.account.aid]) for c in _by_amount(shown.children, totals)] if shown is not None else []

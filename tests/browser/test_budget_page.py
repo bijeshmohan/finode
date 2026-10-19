@@ -140,7 +140,7 @@ def test_a_group_opens_its_page_and_takes_money_for_itself(page: Page, books, ap
     page.locator("a.grow", has_text="Dining").click()
     page.wait_for_url("**/budget/group/**")
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
-    # money for the group itself, not in a sub-category
+    # money for the group itself, not in a subcategory
     page.locator("a.catrow", has_text="Everything else").first.click()
     box = page.locator('#cat-sheet input[aria-label^="Assigned to"]')
     expect(page.locator("#cat-sheet")).to_contain_text("Dining · everything else")

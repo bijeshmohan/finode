@@ -286,13 +286,16 @@ def test_the_top_is_a_title_with_its_actions_then_the_figure_and_a_wide_add_butt
     assert 'class="button acct-add"' in head and "Add transaction" in head
 
 
-def test_a_category_has_the_month_pill_above_the_figure_and_no_label(client, root_accounts):
+def test_a_category_has_the_month_pill_in_the_top_row_and_no_label(client, root_accounts):
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     page = client.get(f"/categories/{food['aid']}").text
+    nav = page.split('class="cat-bar acct-nav"', 1)[1].split('<header class="account-hero">', 1)[0]
     head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
-    assert head.index("month-pill") < head.index("hero-balance"), "the month sits above the figure"
+    assert nav.index('class="back"') < nav.index("month-pill"), "the back link and the month share one row above the title"
+    assert "month-pill" not in head and ">Expenses</p>" in head, "the type stays under the title"
     assert "so far" not in head and "Spent" not in head and "Earned" not in head, "the figure needs no label"
-    assert 'title="Previous month"' in head and 'title="Next month"' not in head, "nothing after the current month"
+    assert 'title="Previous month"' in nav and 'title="Next month"' not in nav, "nothing after the current month"
+    assert "acct-add" not in page, "adding is a + on the Transactions heading"
     last = client.get(f"/categories/{food['aid']}?month=2026-01").text
     assert 'title="Next month"' in last and "Jan 2026" in last
 

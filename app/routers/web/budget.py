@@ -37,8 +37,8 @@ def shift(month: date, by: int) -> date:
 
 
 class Node:
-    """A category in the budget: a group (with its sub-categories, and its own 'everything else' line) or a plain category.
-    Accounts go two levels deep, so a sub-category is never a group itself."""
+    """A category in the budget: a group (with its subcategories, and its own 'everything else' line) or a plain category.
+    Accounts go two levels deep, so a subcategory is never a group itself."""
 
     def __init__(self, line: BudgetLine):
         self.line = line
@@ -69,7 +69,7 @@ class Node:
 
 
 def other_line(group: BudgetLine) -> BudgetLine:
-    """The part of a group that is in none of its sub-categories: money can be assigned to it and spent from it."""
+    """The part of a group that is in none of its subcategories: money can be assigned to it and spent from it."""
     zero = Decimal("0.00")
     return BudgetLine(
         aid=group.aid, name=f"{group.name} (other)", path=group.path, depth=group.depth + 1,
@@ -79,7 +79,7 @@ def other_line(group: BudgetLine) -> BudgetLine:
 
 def build_tree(lines: list[BudgetLine]) -> list[Node]:
     """The flat display-order lines as a tree. Every group gets an 'everything else' line (made up when the
-    budget has none yet, so money can be assigned at group level as well as to the sub-categories)."""
+    budget has none yet, so money can be assigned at group level as well as to the subcategories)."""
     roots: list[Node] = []
     stack: list[Node] = []
     for line in lines:

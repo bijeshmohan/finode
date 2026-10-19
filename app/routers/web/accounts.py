@@ -536,7 +536,7 @@ def delete_account(aid: UUID, accounts: Accounts):
     except ValueError as e:
         if area != "/categories" or not isinstance(e, AccountInUseError):
             return htmx_error(str(e), "#page-error")
-        # A category with entries (or sub-categories) cannot vanish from the history: it leaves every list and
+        # A category with entries (or subcategories) cannot vanish from the history: it leaves every list and
         # picker instead, and its past stays in the reports.
         try:
             accounts.close(aid)

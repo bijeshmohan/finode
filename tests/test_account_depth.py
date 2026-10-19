@@ -1,4 +1,4 @@
-"""Accounts are two levels deep at most: a category and a sub-category (Expenses › Food › Groceries)."""
+"""Accounts are two levels deep at most: a category and a subcategory (Expenses › Food › Groceries)."""
 
 import json
 
@@ -21,7 +21,7 @@ def test_every_type_stops_at_two_levels(client: TestClient, root_accounts, root)
     assert level2.status_code == 201
     refused = _make(client, "Three", level2.json()["aid"])
     assert refused.status_code == 400
-    assert "at most two levels deep" in refused.json()["detail"] and "category and a sub-category" in refused.json()["detail"]
+    assert "at most two levels deep" in refused.json()["detail"] and "category and a subcategory" in refused.json()["detail"]
 
 
 def test_there_is_no_depth_setting_any_more(client: TestClient):

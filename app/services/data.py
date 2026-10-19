@@ -244,7 +244,7 @@ class DataService:
                 )
                 errors.append(
                     f"line {line}: '{':'.join(key)}' is {depth} levels deep, but accounts can be at most "
-                    f"{MAX_ACCOUNT_DEPTH} levels deep (a category and a sub-category): flatten the account."
+                    f"{MAX_ACCOUNT_DEPTH} levels deep (a category and a subcategory): flatten the account."
                 )
             note = declared.get(key, (None, 0))[0]
             try:

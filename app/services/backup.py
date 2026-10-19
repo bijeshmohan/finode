@@ -217,7 +217,7 @@ class BackupService:
         too_deep = [a.name for a in file.accounts if self._depth(a, accounts) > MAX_ACCOUNT_DEPTH]
         if too_deep:
             errors.append(
-                f"accounts can be at most {MAX_ACCOUNT_DEPTH} levels deep (a category and a sub-category), "
+                f"accounts can be at most {MAX_ACCOUNT_DEPTH} levels deep (a category and a subcategory), "
                 f"but {', '.join(too_deep[:3])}{' and more' if len(too_deep) > 3 else ''} go deeper: flatten them first."
             )
             return

@@ -1103,7 +1103,10 @@ ul.tile.list > li + li { border-top-color: var(--surface-2); }
 .acct-names { min-width: 0; }
 .acct-sub { margin: .25rem 0 0; color: var(--muted); font-size: .875rem; }
 .acct-icons { display: flex; align-items: center; gap: .5rem; flex: none; }
-.cat-bar.acct-month { margin: .9rem 0 .25rem; }
+.cat-bar.acct-nav { margin: 0 0 .9rem; }
+.cat-bar.acct-nav .back { margin: 0 0 0 -.35rem; }
+.acct-nav + .account-hero .hero-balance { margin-top: .5rem; }
+.section-head:has(> .circ-button) { align-items: center; }
 .acct-add { display: flex; width: 100%; min-height: 2.75rem; margin-top: .25rem; }
 details.menu, details.note-info { position: static; }
 .acct-name-row { display: flex; align-items: center; gap: .35rem; min-width: 0; }
@@ -1133,7 +1136,7 @@ details.menu > summary::-webkit-details-marker { display: none; }
 .gcaret .icon { width: 1rem; height: 1rem; }
 details[open] > summary .gcaret { transform: none; }
 
-/* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and sub-categories indent from there. */
+/* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and subcategories indent from there. */
 .attn-panel { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
 .attn-panel .attn-item:first-child { border-top: 0; }
 

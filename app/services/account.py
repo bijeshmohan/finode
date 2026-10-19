@@ -133,7 +133,7 @@ class AccountService:
         resulting = self._depth(parent, {a.aid: a for a in all_accounts}) + levels_below_parent
         if resulting > MAX_ACCOUNT_DEPTH:
             raise AccountDepthError(
-                "accounts can be at most two levels deep (a category and a sub-category, like Expenses › Food › Groceries)!"
+                "accounts can be at most two levels deep (a category and a subcategory, like Expenses › Food › Groceries)!"
             )
 
     def ensure_roots(self) -> list[Account]:

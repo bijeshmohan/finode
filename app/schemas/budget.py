@@ -72,7 +72,7 @@ class BudgetLine(BaseModel):
     path: str
     # Levels below Expenses (Expenses:Food is 1).
     depth: int
-    # True for a category with sub-categories: its figures are the sum of theirs.
+    # True for a category with subcategories: its figures are the sum of theirs.
     group: bool = False
     # What was assigned in the month, what was spent (refunds subtract) and what is left,
     # counting everything assigned and spent in earlier months too.
@@ -83,7 +83,7 @@ class BudgetLine(BaseModel):
     # and that amount was taken out of what is ready to assign.
     overspent_last_month: Decimal = Money
     # The category's target (none on groups), what it needs from this month's assigning, and what of that
-    # is still missing (zero when funded or without a target). A group sums its sub-categories' missing money.
+    # is still missing (zero when funded or without a target). A group sums its subcategories' missing money.
     target: BudgetTargetRead | None = None
     needed: Decimal = Money
     underfunded: Decimal = Money
