@@ -354,3 +354,11 @@ def test_each_list_heading_on_a_category_page_has_its_own_plus(client, books):
     empty = client.get(f"/categories/{books['rent']['aid']}").text
     assert "Subcategories" not in empty and 'title="Add subcategory"' not in empty, "no empty row: the … menu adds the first"
     assert "Add subcategory" in empty, "the menu still does"
+
+
+def test_every_bar_takes_its_thickness_from_one_token():
+    css = open("app/static/style.css").read()
+    assert "--bar-h: 6px" in css
+    for rule in (".glance-bar {", ".crow .bar {", ".sharebar {"):
+        line = next(l for l in css.splitlines() if l.startswith(rule))
+        assert "height: var(--bar-h)" in line, rule
