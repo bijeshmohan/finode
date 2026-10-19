@@ -220,3 +220,54 @@ def test_save_works_on_the_first_tap_even_when_the_sheet_moves_under_the_finger(
     page.mouse.up()
     expect(page.locator("#cat-sheet")).not_to_be_visible()
     expect(page.locator(".ready-hero .figure")).to_have_text("₹3,800.00")  # 5,000 - 1,200: it saved
+
+
+FAKE_KEYBOARD = """
+const vv = new EventTarget();
+Object.assign(vv, {width: innerWidth, height: innerHeight, offsetTop: 0, offsetLeft: 0, scale: 1});
+Object.defineProperty(window, "visualViewport", {value: vv, configurable: true});
+window.__keyboard = (px) => { vv.height = innerHeight - px; vv.dispatchEvent(new Event("resize")); };
+"""
+
+
+def with_keyboard(page: Page, books, size, keyboard):
+    """A phone of `size` where a soft keyboard of `keyboard` px takes the bottom of the screen when a field has focus."""
+    page.set_viewport_size(size)
+    page.add_init_script(FAKE_KEYBOARD)
+    page.goto("/budget")
+    page.locator("a.catrow", has_text="Groceries").first.click()
+    box = page.locator('#cat-sheet input[aria-label="Assigned to Groceries"]')
+    expect(box).to_be_visible()
+    box.click()
+    page.evaluate(f"window.__keyboard({keyboard})")
+    page.wait_for_timeout(150)
+    return box
+
+
+def test_save_is_above_the_keyboard_and_tappable_on_a_phone_and_a_small_phone(page: Page, books):
+    for size, keyboard in (({"width": 390, "height": 844}, 340), ({"width": 320, "height": 568}, 290)):
+        box = with_keyboard(page, books, size, keyboard)
+        box.fill("1200")
+        save = page.locator("#cat-sheet").get_by_role("button", name="Save")
+        area = save.bounding_box()
+        visible_bottom = size["height"] - keyboard
+        assert 0 <= area["y"] and area["y"] + area["height"] <= visible_bottom, f"Save is under the keyboard on {size}: {area}"
+        x, y = area["x"] + area["width"] / 2, area["y"] + area["height"] / 2
+        assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).closest('button')?.textContent.trim()", [x, y]) == "Save"
+        page.mouse.click(x, y)
+        expect(page.locator("#cat-sheet")).not_to_be_visible()
+        expect(page.locator(".ready-hero .figure")).to_have_text("₹3,800.00")  # it saved on the first tap
+        page.evaluate("window.__keyboard(0)")
+        api_reset = page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})
+        assert api_reset.ok
+
+
+def test_a_tap_beside_the_sheet_while_typing_only_puts_the_keyboard_away(page: Page, books):
+    box = with_keyboard(page, books, {"width": 390, "height": 844}, 340)
+    box.fill("77")
+    page.mouse.click(195, 20)  # the dim area above the sheet
+    expect(page.locator("#cat-sheet")).to_be_visible()
+    expect(box).not_to_be_focused()
+    assert box.input_value() == "77", "what was typed is kept"
+    page.mouse.click(195, 20)
+    expect(page.locator("#cat-sheet")).not_to_be_visible()
