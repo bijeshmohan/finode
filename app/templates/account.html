@@ -122,6 +122,21 @@
 </div>
 {% endif %}
 
+{% if not category and node.children %}
+{% set subs = node.children|rejectattr("account.closed_on")|list %}
+<div class="section-head">
+  <h2>Sub-accounts</h2>
+  {% if can_add_child and not account.closed_on %}<a class="circ-button" href="/accounts/new?parent={{ account.aid }}" title="Add sub-account" aria-label="Add sub-account">{{ icon("plus") }}</a>{% endif %}
+</div>
+<div class="tile sub-tile">
+  {% for c in subs %}
+  <a class="r crow" href="/accounts/{{ c.account.aid }}">
+    <span class="crow-main"><span class="crow-name">{{ c.account.name }}</span></span>
+    <span class="crow-amt"><span class="{{ 'negative' if c.account.balance < 0 }}">{{ c.account.balance|money }}</span></span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
 <div class="section-head">
   <h2>Transactions</h2>
   {% if category and node.postable and not account.closed_on %}<a class="circ-button" href="/transactions/new?account={{ account.aid }}&back={{ area }}/{{ account.aid }}" title="Add transaction" aria-label="Add transaction">{{ icon("plus") }}</a>{% endif %}
@@ -138,5 +153,6 @@
   <p>{{ "Nothing in " ~ month_name.split(" ")[0] ~ "." if category else "No transactions yet." }}</p>
   {% if node.postable and not account.closed_on %}<a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">Record a transaction</a>{% endif %}
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}
