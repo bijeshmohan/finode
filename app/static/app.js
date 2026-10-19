@@ -603,21 +603,12 @@ document.body.addEventListener("change", (event) => {
   const page = document.querySelector("[data-accounts]");
   if (!page) return;
 
-  const unusedButton = page.querySelector("[data-toggle-unused]");
-  if (unusedButton) {
-    unusedButton.addEventListener("click", () => {
-      const shown = page.classList.toggle("show-unused");
-      const n = unusedButton.dataset.count;
-      unusedButton.textContent = shown ? `Hide the ${n} unused` : `${n} unused account${n === "1" ? "" : "s"} hidden \u00b7 Show`;
-    });
-  }
-
-  const closedButton = page.querySelector("[data-toggle-closed]");
-  if (closedButton) {
-    closedButton.addEventListener("click", () => {
-      const shown = page.classList.toggle("show-closed");
-      const n = closedButton.dataset.count;
-      closedButton.textContent = shown ? `Hide the ${n} closed` : `${n} closed account${n === "1" ? "" : "s"} \u00b7 Show`;
+  // One button shows the unused and the closed accounts together (closed ones carry a badge) and goes away.
+  const more = page.querySelector("[data-load-more-accounts]");
+  if (more) {
+    more.addEventListener("click", () => {
+      page.classList.add("show-unused", "show-closed");
+      more.closest(".unused-toggle").remove();
     });
   }
 

@@ -149,7 +149,7 @@ def test_pickers_leave_closed_accounts_out_but_keep_what_an_entry_uses(client, b
 def test_the_accounts_page_tucks_closed_accounts_away(client, books):
     close(client, books["old"])
     page = client.get("/accounts").text
-    assert "1 closed account · Show" in page and "closed-hidden" in page and '<span class="badge">closed</span>' in page
+    assert ">Load more</button>" in page and "closed account" not in page.split("<main", 1)[1].split("data-accounts", 1)[0] and "closed-hidden" in page and '<span class="badge">closed</span>' in page
     detail = client.get(f"/accounts/{books['old']['aid']}").text
     assert "Reopen account" in detail and "Closed on " in detail and f"/transactions/new?account={books['old']['aid']}" not in detail
     open_detail = client.get(f"/accounts/{books['hdfc']['aid']}").text
