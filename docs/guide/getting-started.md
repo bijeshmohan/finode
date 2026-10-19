@@ -16,7 +16,7 @@ Everything in finode is in **one currency**, INR (₹) unless you change it in *
 
 A new Home screen shows **Get started** with three steps:
 
-1. **Add a bank account, cash or card.** Give it a name and today's balance. The balance is recorded as an *Opening balance* entry, which you will see in Recent on Home and in the Transactions list.
+1. **Add a bank account, cash or card.** Give it a name and today's balance. The balance is recorded as an *Opening balance* entry, which you will see in the Transactions list on Home and on the Transactions page.
 2. **Add an expense category**, like Groceries.
 3. **Record your first transaction.**
 

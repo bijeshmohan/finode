@@ -41,7 +41,7 @@ Open a transaction and tap **Add again** to start a new one pre-filled with the 
 
 ### Upcoming entries
 
-An entry dated in the future (a loan instalment, a bill you entered ahead) is **not history**. It does not appear in Recent on Home, and it does not change balances until its date. On the Transactions page, and on an account's page, all of them sit in **one collapsed card**: *N upcoming · X in all*. Open it for a statement of dates, payees and amounts, soonest first.
+An entry dated in the future (a loan instalment, a bill you entered ahead) is **not history**. It does not appear in the Transactions list on Home, and it does not change balances until its date. On the Transactions page, and on an account's page, all of them sit in **one collapsed card**: *N upcoming · X in all*. Open it for a statement of dates, payees and amounts, soonest first.
 
 ## Editing and deleting
 
