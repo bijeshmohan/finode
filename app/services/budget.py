@@ -565,6 +565,27 @@ class BudgetService:
         self.br.db.commit()
         return self.view(month)
 
+    def group_minimum(self, month: date | None, aid: UUID, data: BudgetRead | None = None) -> Decimal:
+        """The least a group can be given in a month: what its subcategories were given add up to."""
+        data = data or self.view(month)
+        group = next((l for l in data.lines if l.aid == aid and l.group), None)
+        if group is None:
+            raise BudgetError("only a category with subcategories has a budget of its own!")
+        prefix = f"{group.path}:"
+        return sum(
+            (l.assigned for l in data.lines if l.path.startswith(prefix) and not l.group and not l.name.endswith("(other)")),
+            ZERO,
+        )
+
+    def assign_group(self, month: date | None, aid: UUID, total: Decimal) -> BudgetRead:
+        """Set a group's budget for a month. It starts at what its subcategories add up to and may be more (the rest is
+        the group's own money, which the budget keeps on the group's own account); never less."""
+        month = month_start(month)
+        minimum = self.group_minimum(month, aid)
+        if total < minimum:
+            raise BudgetError(f"minimum {minimum:f}")
+        return self.assign(month, aid, total - minimum)
+
     def copy_previous(self, month: date | None) -> BudgetRead:
         """Assign this month what each category got last month, for the categories with nothing assigned yet."""
         month = month_start(month)

@@ -1290,3 +1290,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 .calc-row-line.total { margin-top: .2rem; border-top: 2px solid var(--text); font-weight: 600; }
 .calc-row-line.total b { font-weight: 600; }
 .calc-note { margin: .6rem 0 0; font-size: .8125rem; color: var(--muted); }
+/* A budget field that is below its minimum (a group under what its subcategories add up to) turns red. */
+input[aria-invalid="true"], input[aria-invalid="true"]:focus, dialog.sheet input.assign[aria-invalid="true"], dialog.sheet input.assign[aria-invalid="true"]:focus { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); outline-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.glance-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.glance-head .muted { font-size: .8125rem; }

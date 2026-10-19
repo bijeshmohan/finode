@@ -2,13 +2,11 @@
 {% from "partials/budget_rows.html" import row, glance_block %}
 
 <div id="budget" class="budget-group">
-  {{ glance_block(glance, "Left in " ~ group.line.name, "Over budget in " ~ group.line.name, budget.currency, pace) }}
+  {{ glance_block(glance, "Left in " ~ group.line.name, "Over budget in " ~ group.line.name, budget.currency, pace, edit_url) }}
   <p id="budget-error" class="error" role="alert"></p>
   <div class="budget-list tile" data-budget-tree>
     {% for item in kids %}{{ row(item, month_key, pace, group_id=group.line.aid) }}{% endfor %}
-    {{ row(other_row, month_key, pace, group_id=group.line.aid, other=True) }}
   </div>
-  <p class="muted budget-fine">Everything else is money for {{ group.line.name }} that is not in one of its categories.</p>
   <dialog id="cat-sheet" class="sheet sheet-bottom" aria-label="Category">
     <div id="cat-sheet-body" class="sheet-body"></div>
   </dialog>

@@ -1,0 +1,18 @@
+{#- A group's own budget in the sheet. Expects group (Node), budget, month_key, minimum. -#}
+<div class="sheet-grab" aria-hidden="true"></div>
+<div class="sheet-title">
+  <div>
+    <h2>{{ group.line.name }}</h2>
+    <p class="muted">{{ month_name }}</p>
+  </div>
+</div>
+
+<form class="stack" hx-post="/budget/group/{{ group.line.aid }}/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
+  <input type="hidden" name="month" value="{{ month_key }}">
+  <label>Budget
+    <input class="assign" type="text" name="amount" inputmode="decimal" autocomplete="off" enterkeyhint="done" data-autofocus
+           data-min="{{ minimum }}" value="{{ group.line.assigned|money }}" aria-label="Budget for {{ group.line.name }}">
+  </label>
+  <p id="cat-sheet-error" class="error" role="alert"></p>
+  <div class="sheet-actions"><button type="submit">Save</button></div>
+</form>
