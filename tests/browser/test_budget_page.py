@@ -142,7 +142,7 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(pa
     page.wait_for_url("**/budget/group/**")
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
     page.locator(".budget-hero").click()
-    box = page.locator('#cat-sheet input[aria-label="Budget for Dining"]')
+    box = page.locator('#cat-sheet input[aria-label="Assigned to Dining"]')
     expect(box).to_be_visible()
     box.fill("200")  # below what Delivery and Restaurant add up to
     expect(box).to_have_attribute("aria-invalid", "true")
