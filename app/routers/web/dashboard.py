@@ -1,4 +1,5 @@
 import calendar
+from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Request
@@ -6,13 +7,53 @@ from fastapi import APIRouter, Request
 from ...dependencies import Accounts, Budget, Recurring, Reports, Transactions
 from ...services.account import AccountService
 from ...clock import local_today, month_progress
+from ...models.transaction import PostingSide
 from ...templating import templates
+from .budget import shift
+from .recurring import _paths, _row
 from .transactions import AccountIndex, to_row
 
 
 router = APIRouter()
 
 RECENT_LIMIT = 8
+COMING_UP_LIMIT = 3  # the next few recurring entries ...
+COMING_UP_DAYS = 14  # ... that fall due within this many days
+
+
+def _versus(now: Decimal, before: Decimal, name: str) -> tuple[str, Decimal, str] | None:
+    """How the month so far compares with the same days of the month before: (more than / less than / same as, by
+    how much, that month's name); None when there is nothing to compare."""
+    if not before:
+        return None
+    return ("same as" if now == before else "more than" if now > before else "less than"), abs(now - before), name
+
+
+def _coming_up(recurring: Recurring, accounts: Accounts, index: AccountIndex) -> list[dict]:
+    """The next recurring entries due within a fortnight, soonest first."""
+    today = local_today()
+    paths = _paths(accounts)
+    rows = [_row(r, paths) for r in recurring.list()]
+    due = sorted(
+        (r for r in rows if r.status == "active" and r.rule.next_date <= today + timedelta(days=COMING_UP_DAYS)),
+        key=lambda r: (r.rule.next_date, r.from_name),
+    )
+    items = []
+    for r in due[:COMING_UP_LIMIT]:
+        rule = r.rule
+        first = rule.from_account if rule.from_account else next((p.account for p in rule.postings if p.side == PostingSide.CREDIT), None)
+        income = first is not None and index.roots.get(first) == "Income"
+        items.append(
+            {
+                "rid": rule.rid,
+                "date": rule.next_date,
+                "title": rule.payee or r.to_name.split(" › ")[-1],
+                "sub": (r.to_name if income else r.from_name).split(" › ")[-1],
+                "amount": r.amount,
+                "income": income,
+            }
+        )
+    return items
 
 
 def _catch_up(recurring: Recurring) -> None:
@@ -77,6 +118,32 @@ def dashboard(
         "percent": int(min(max(month.activity / to_spend, Decimal(0)), Decimal(1)) * 100) if to_spend > 0 else 0,
         "pace": month_progress(),  # how far through the month today is: the tick on the bar
     }
+    # The month so far against the same days of the month before.
+    today = local_today()
+    before_start = shift(month.month, -1)
+    before_end = before_start.replace(day=min(today.day, calendar.monthrange(before_start.year, before_start.month)[1]))
+    before = reports.summary(before_start, before_end) if has_recorded else None
+    previous_name = calendar.month_abbr[before_start.month]
+    overspent = sorted(
+        (l for l in month.lines if not l.group and l.available < 0), key=lambda l: l.available
+    )
+    tiles = {
+        "money": month.money_in_accounts,
+        "cards": month.reserved_for_cards,
+        "has_cards": bool(month.cards),
+        "ready": month.ready_to_assign,
+        "income": summary.income,
+        "expenses": summary.expenses,
+        "income_vs": _versus(summary.income, before.income, previous_name) if before else None,
+        "expenses_vs": _versus(summary.expenses, before.expenses, previous_name) if before else None,
+        "cards_n": len(month.cards),
+    }
+    warning = (
+        {"name": overspent[0].name, "n": len(overspent), "over": -sum((l.available for l in overspent), Decimal(0)), "first": -overspent[0].available}
+        if overspent
+        else None
+    )
+    coming_up = _coming_up(recurring, accounts, index) if has_recorded else []
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -86,6 +153,10 @@ def dashboard(
             "currency": summary.currency,
             "month_name": calendar.month_name[month.month.month],
             "glance": glance,
+            "tiles": tiles,
+            "warning": warning,
+            "coming_up": coming_up,
+            "month_short": calendar.month_abbr[month.month.month],
             "has_recorded": has_recorded,
             "recent": recent,
             "steps": steps if not all(step["done"] for step in steps) else None,
