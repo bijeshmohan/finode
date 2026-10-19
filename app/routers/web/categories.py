@@ -80,6 +80,34 @@ def _share(total: Decimal, grand: Decimal) -> str:
     return "<1%" if percent < 1 else f"{round(percent)}%"
 
 
+CHART_COLOURS = 5  # the biggest categories get a colour of their own, the rest share the grey
+
+
+def _bar(rows: list[dict]) -> list[dict]:
+    """The share bar: the five biggest categories and 'everything else', each with its colour and its share of the month.
+    Sets row["colour"] (a theme token number) on every row that is part of it. Nothing when the bar would say nothing:
+    fewer than two things to compare, or money going the other way (refunds) among them."""
+    for r in rows:
+        r["colour"] = 0
+    counted = [r for r in rows if r["total"]]
+    if len(counted) < 2 or any(r["total"] < 0 for r in counted):
+        return []
+    total = sum((r["total"] for r in counted), ZERO)
+    slices = []
+    for i, r in enumerate(counted[:CHART_COLOURS], start=1):
+        r["colour"] = i
+        slices.append({"name": r["node"].account.name, "amount": r["total"], "colour": i})
+    rest = counted[CHART_COLOURS:]
+    if rest:
+        for r in rest:
+            r["colour"] = CHART_COLOURS + 1
+        slices.append({"name": "Everything else", "amount": sum((r["total"] for r in rest), ZERO), "colour": CHART_COLOURS + 1})
+    for s in slices:
+        s["percent"] = float(s["amount"] / total * 100)
+        s["label"] = f"{s['name']} {_share(s['amount'], total)}"
+    return slices
+
+
 def _by_amount(nodes: list[Node], totals: dict[UUID, Decimal]) -> list[Node]:
     return sorted(nodes, key=lambda n: (-abs(totals[n.account.aid]), n.account.name.lower()))
 
@@ -102,6 +130,7 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
         rows.append({"node": n, "total": total, "share": _share(total, grand), "hint": hint})
     # Categories with nothing in the month are tucked away once anything has something.
     quiet = [r for r in rows if r["total"] == 0] if any(r["total"] for r in rows) else []
+    bar = _bar(rows)
     return templates.TemplateResponse(
         request,
         "categories.html",
@@ -110,6 +139,7 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
             "tab": tab,
             "root_name": root_name,
             "rows": rows,
+            "bar": bar,
             "grand": grand,
             "quiet_ids": {r["node"].account.aid for r in quiet},
             "quiet_count": len(quiet),

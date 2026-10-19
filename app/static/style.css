@@ -21,6 +21,12 @@
   --warn-soft: #fbf0d9;
   --positive: #2e7d5b;
   --negative: #b3412e;
+  --chart-1: #2f6f57;
+  --chart-2: #c9803a;
+  --chart-3: #5b7bb0;
+  --chart-4: #b0566b;
+  --chart-5: #8a6fb0;
+  --chart-6: #b9b6ac; /* everything else */
   --shadow: 0 1px 2px rgb(27 27 25 / 4%);
   --shadow-lg: 0 6px 18px rgb(27 27 25 / 18%);
   --radius: 16px;
@@ -54,6 +60,12 @@
     --warn-soft: #382b17;
     --positive: #5dbe8f;
     --negative: #e7826d;
+    --chart-1: #5dbe8f;
+    --chart-2: #e0a15f;
+    --chart-3: #86a4d6;
+    --chart-4: #d98093;
+    --chart-5: #b39bd9;
+    --chart-6: #6c6b64;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-lg: 0 6px 18px rgb(0 0 0 / 55%);
     color-scheme: dark;
@@ -80,6 +92,12 @@
   --warn-soft: #382b17;
   --positive: #5dbe8f;
   --negative: #e7826d;
+  --chart-1: #5dbe8f;
+  --chart-2: #e0a15f;
+  --chart-3: #86a4d6;
+  --chart-4: #d98093;
+  --chart-5: #b39bd9;
+  --chart-6: #6c6b64;
   --shadow: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-lg: 0 6px 18px rgb(0 0 0 / 55%);
   color-scheme: dark;
@@ -1155,6 +1173,12 @@ dd.auto, dd.auto a { color: var(--auto); }
 .crow-amt { display: flex; flex-direction: column; align-items: flex-end; flex: none; font-weight: 500; font-variant-numeric: tabular-nums; }
 .crow-amt .income { color: var(--positive); }
 .crow-share { color: var(--muted); font-size: .8125rem; font-weight: 400; }
+/* The share bar: how the month divides between the biggest categories; the rows below are its legend. */
+.ready.zero.cat-hero.has-bar { padding-bottom: .75rem; }
+.sharebar { display: flex; gap: 2px; height: .75rem; margin: 0 0 1.5rem; border-radius: .375rem; overflow: hidden; }
+.sharebar i { display: block; flex-basis: 0; min-width: 4px; }
+.cdot { display: inline-block; flex: none; width: .625rem; height: .625rem; margin-right: .5rem; border-radius: 50%; }
+[data-cat-tree] .crow-name { display: flex; align-items: center; }
 /* Every category row is two lines tall, used or not: the name sits on the first line beside the amount. */
 [data-cat-tree] .crow { align-items: stretch; }
 [data-cat-tree] .crow-main { justify-content: flex-start; }
