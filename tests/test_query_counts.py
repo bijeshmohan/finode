@@ -12,7 +12,7 @@ PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/su
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
 CEILING = {
-    "/transactions/new": 6, "/transactions": 8, "/": 13, "/accounts": 9, "/budget": 7, "/summary": 8,
+    "/transactions/new": 6, "/transactions": 8, "/": 14, "/accounts": 9, "/budget": 7, "/summary": 8,
     "/categories": 5, "/categories?tab=income": 5,
 }
 

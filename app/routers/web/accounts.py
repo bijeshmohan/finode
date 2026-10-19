@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -32,8 +32,7 @@ class Node:
     path: str = ""
     postable: bool = False
     children: list["Node"] = field(default_factory=list)
-    # For the accounts page: nothing has ever happened here, and whether it is closed.
-    unused: bool = False
+    # For the accounts page: whether the account is closed (closed ones wait behind "Load more").
     closed: bool = False
 
     @property
@@ -127,7 +126,7 @@ CATEGORY_ROOTS = ("Expenses", "Income")
 @router.get("")
 def accounts_page(request: Request, accounts: Accounts):
     roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
-    unused = annotate_for_page(roots, accounts.used_account_ids(), local_today())
+    mark_closed(roots)
     nodes = {n.account.aid: n for root in roots for n in root.walk()}
     recent = [nodes[aid] for aid in accounts.recent(RECENT_ACCOUNTS) if aid in nodes]  # categories are not accounts here
     return templates.TemplateResponse(
@@ -139,7 +138,6 @@ def accounts_page(request: Request, accounts: Accounts):
             "roots": roots,
             "blocks": {root.account.aid: page_blocks(root) for root in roots},
             "currency": accounts.currency().code,
-            "unused": unused,
             "closed": closed_count(roots),
         },
     )
@@ -162,30 +160,11 @@ def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
 # How many recently used accounts the accounts page lists.
 RECENT_ACCOUNTS = 5
 
-# Accounts created within this many days always show, even before their first entry.
-NEW_ACCOUNT_DAYS = 7
-
-def annotate_for_page(roots: list[Node], used: set[UUID], today: date) -> int:
-    """Mark which accounts the accounts page tucks away as unused.
-    Returns how many accounts are unused (and so tucked away)."""
-    cutoff = today - timedelta(days=NEW_ACCOUNT_DAYS)
-
-    def visit(node: Node) -> bool:
-        children = [visit(child) for child in node.children]
-        node.closed = node.account.closed_on is not None
-        node.unused = (
-            node.kind == "user"
-            and not node.closed
-            and node.account.aid not in used
-            and node.account.balance == 0
-            and node.account.created.date() < cutoff
-            and all(children)
-        )
-        return node.unused
-
+def mark_closed(roots: list[Node]) -> None:
+    """Flag the closed accounts: the accounts page lists every open account, and keeps the closed ones behind "Load more"."""
     for root in roots:
-        visit(root)
-    return sum(1 for root in roots for n in root.walk() if n.unused)
+        for node in root.walk():
+            node.closed = node.account.closed_on is not None
 
 
 def closed_count(roots: list[Node]) -> int:
@@ -309,7 +288,10 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
     root = _root_of(roots, node)
     today = local_today()
     page = None
-    if entries is None:
+    if entries is None and node.children:
+        # An account with sub-accounts cannot be posted to: its page lists the sub-accounts, whose entries are on their own pages.
+        history, ahead, has_any = [], [], False
+    elif entries is None:
         # An account's own page reads only its newest entries (and what is dated ahead); a category passes its month's.
         page = accounts.register_page(aid, today, offset) or RegisterPage([], [], 0, 0, False, False)
         history, ahead, has_any = page.entries, page.upcoming, page.has_any

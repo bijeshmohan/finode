@@ -378,9 +378,85 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   const first = dialog && dialog.querySelector("[data-autofocus]");
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
 });
+// A tap that starts on a sheet's Save counts as Save even when the sheet moves under the finger before it ends (the keyboard
+// opening or closing shifts it): the browser then sends the click to whatever is under the finger, which closed the sheet
+// without saving and made Save feel like it needed several taps.
+let pressedSave = null;
+document.addEventListener("pointerdown", (event) => {
+  pressedSave = event.target.closest ? event.target.closest('dialog.sheet button[type="submit"]') : null;
+}, true);
+document.addEventListener("click", (event) => {
+  const button = pressedSave;
+  pressedSave = null;
+  if (!button || !button.isConnected || event.target === button || button.contains(event.target)) return;
+  const dialog = button.closest("dialog");
+  if (!dialog || !(dialog === event.target || dialog.contains(event.target))) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (button.form) button.form.requestSubmit(button);
+}, true);
+// While a field in the sheet has the keyboard open, a tap on the dim area only puts the keyboard away; it never throws the
+// sheet (and what was typed) away. The next tap outside closes it.
+// (The browser moves focus off the field when the press starts, so what was focused is noted then.)
+let wasTyping = false;
+document.addEventListener("pointerdown", (event) => {
+  const field = document.activeElement;
+  wasTyping = event.target instanceof HTMLDialogElement && !!field && event.target.contains(field) && field.matches("input, select, textarea");
+}, true);
 document.body.addEventListener("click", (event) => {
-  if (event.target instanceof HTMLDialogElement && event.target.classList.contains("sheet-bottom")) event.target.close();
+  const dialog = event.target;
+  if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains("sheet-bottom")) return;
+  if (wasTyping) {
+    wasTyping = false;
+    if (document.activeElement && dialog.contains(document.activeElement)) document.activeElement.blur();
+    return;
+  }
+  dialog.close();
 });
+
+// ---- Sheets and the soft keyboard ----
+// A bottom sheet sits under the keyboard on a phone, so Save could not be reached until the keyboard was put away. The
+// visual viewport tells how much of the screen the keyboard takes (--kb) and how tall the visible part is (--vvh): the
+// sheet is lifted above the keyboard, and while a field is being typed in it shows only what is needed (`typing`), so it
+// fits even on a small phone.
+(() => {
+  const vv = window.visualViewport;
+  const place = () => {
+    if (!vv) return;
+    const root = document.documentElement.style;
+    // With no field focused there is no keyboard, whatever the viewport says: iOS Safari's keyboard-down button (the tick)
+    // puts the keyboard away without a resize event, which left the sheet lifted over empty space and Save untappable.
+    const field = document.activeElement;
+    const typing = !!field && field.matches && field.matches("input, select, textarea") && !!field.closest("dialog.sheet");
+    root.setProperty("--kb", `${typing ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0}px`);
+    root.setProperty("--vvh", `${Math.round(vv.height)}px`);
+  };
+  if (vv) {
+    vv.addEventListener("resize", place);
+    vv.addEventListener("scroll", place);
+    place();
+  }
+  const sheetOf = (event) => (event.target.closest && event.target.matches && event.target.matches("input, select, textarea") ? event.target.closest("dialog.sheet") : null);
+  document.addEventListener("focusin", (event) => {
+    const dialog = sheetOf(event);
+    if (!dialog) return;
+    clearTimeout(dialog._typingTimer);
+    dialog.classList.add("typing");
+    place();
+  });
+  document.addEventListener("focusout", (event) => {
+    const dialog = sheetOf(event);
+    // Later than the tap on Save that caused it, so the sheet does not change shape under the finger.
+    if (!dialog) return;
+    dialog._typingTimer = setTimeout(() => dialog.classList.remove("typing"), 300);
+    // The keyboard is going: lower the sheet now, and look again as the viewport settles (iOS may send no event at all).
+    place();
+    [100, 350, 700].forEach((ms) => setTimeout(() => {
+      place();
+      if (vv && vv.offsetTop && !document.activeElement.matches("input, select, textarea")) window.scrollTo(0, 0);
+    }, ms));
+  });
+})();
 
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
 function applySuggestion(form, chip, focus = true) {
@@ -598,16 +674,16 @@ document.body.addEventListener("change", (event) => {
   if (field) field.hidden = box.checked;
 });
 
-// ---- Accounts page: groups open and close (and are remembered), search, unused accounts ----
+// ---- Accounts page: search, closed accounts ----
 (function accountsPage() {
   const page = document.querySelector("[data-accounts]");
   if (!page) return;
 
-  // One button shows the unused and the closed accounts together (closed ones carry a badge) and goes away.
+  // One button shows the closed accounts (they carry a badge) and goes away.
   const more = page.querySelector("[data-load-more-accounts]");
   if (more) {
     more.addEventListener("click", () => {
-      page.classList.add("show-unused", "show-closed");
+      page.classList.add("show-closed");
       more.closest(".unused-toggle").remove();
     });
   }
@@ -744,3 +820,47 @@ document.body.addEventListener("change", (event) => {
     });
   }, true);
 })();
+
+// ---- A group's budget cannot be set below what its subcategories add up to: the field turns red and nothing is saved ----
+(function groupMinimum() {
+  const below = (input) => {
+    const value = Number(input.value.replace(/,/g, "")) || 0;
+    return value < Number(input.dataset.min);
+  };
+  document.addEventListener("input", (event) => {
+    const input = event.target;
+    if (input instanceof HTMLInputElement && input.dataset.min !== undefined) {
+      input.setAttribute("aria-invalid", below(input) ? "true" : "false");
+    }
+  });
+  document.addEventListener("submit", (event) => {
+    const input = event.target.querySelector && event.target.querySelector("input[data-min]");
+    if (input && below(input)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      input.setAttribute("aria-invalid", "true");
+    }
+  }, true);
+  document.addEventListener("htmx:responseError", (event) => {
+    const input = event.target.querySelector && event.target.querySelector("input[data-min]");
+    if (input) input.setAttribute("aria-invalid", "true");
+  });
+})();
+
+// The month in a month pill is a native month picker (an invisible `input[type=month]` over its name): choosing a month
+// opens that month's page. The page's address is in `data-url`, with {month} where the month goes. Where the browser has no
+// month picker the field is a plain text box, so only a complete YYYY-MM is taken.
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || !input.classList.contains("month-input")) return;
+  const value = input.value;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value) || value < input.min || value > input.max) return;
+  window.location.href = input.dataset.url.replace("{month}", value);
+});
+document.addEventListener("click", (event) => {
+  // Desktop browsers open their picker from the little icon only; a tap anywhere on the name opens it here.
+  const input = event.target;
+  if (input instanceof HTMLInputElement && input.classList.contains("month-input") && typeof input.showPicker === "function") {
+    try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
+  }
+});

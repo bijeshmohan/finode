@@ -1,4 +1,6 @@
-from datetime import date
+import calendar
+import re
+from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -100,8 +102,6 @@ def test_dashboard_limits_recent_transactions(
 
 
 def test_friendly_date_filter():
-    from datetime import timedelta
-
     from app.templating import friendly_date
 
     today = date.today()
@@ -167,3 +167,70 @@ def test_the_latest_entries_on_home_sit_under_a_transactions_heading(
     page = client.get("/").text
     assert "<h2>Transactions</h2>" in page and "<h2>Recent</h2>" not in page
     assert 'href="/transactions">View all</a>' in page
+
+
+def test_the_i_on_home_shows_the_sum_with_the_persons_own_numbers(
+    client: TestClient, root_accounts: dict[str, str], expense_account: dict
+):
+    bank = client.post(
+        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
+    ).json()
+    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "400"})
+    client.post("/api/transactions/", json={"payee": "Shop", "postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "100"},
+        {"account": bank["aid"], "side": "credit", "amount": "100"}]})
+    page = client.get("/").text
+    assert 'aria-label="How what is left to spend is worked out"' in page
+    sums = re.findall(r'<p class="calc-row-line([^"]*)"><span>([^<]*)</span><b>([^<]*)</b>', page)
+    assert [(c.strip(), label, amount) for c, label, amount in sums] == [
+        ("", "Carried in from earlier months", "₹0.00"),
+        ("plus", f"Assigned in {calendar.month_name[date.today().month]}", "₹400.00"),
+        ("minus", "Spent so far", "₹100.00"),
+        ("total", "Left to spend", "₹300.00"),
+    ]
+
+
+def test_home_shows_four_tiles_and_a_warning_for_an_overspent_category(
+    client: TestClient, root_accounts: dict[str, str], expense_account: dict, income_account: dict
+):
+    bank = client.post(
+        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
+    ).json()
+    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "50"})
+    for debit, credit, amount in ((expense_account, bank, "80"), (bank, income_account, "500")):
+        client.post("/api/transactions/", json={"payee": "x", "postings": [
+            {"account": debit["aid"], "side": "debit", "amount": amount},
+            {"account": credit["aid"], "side": "credit", "amount": amount}]})
+    page = client.get("/").text
+    text = " ".join(page.split())
+    tiles = page[page.index('class="home-tiles"'):]
+    assert "Balance" in tiles and "Earned" in tiles and "Spent" in tiles
+    assert "Ready to assign" in tiles, "no card: that tile shows what is ready to assign instead"
+    assert "₹500.00" in " ".join(tiles.split()) and "₹80.00" in " ".join(tiles.split())
+    assert 'class="home-alert"' in page and f"<b>{expense_account['name']}</b> is over by ₹30.00" in text
+    assert page.index('class="home-alert"') < page.index('class="home-tiles"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"
+
+
+def test_home_has_no_warning_when_nothing_is_overspent(client: TestClient, root_accounts: dict[str, str], expense_account: dict):
+    client.post("/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"})
+    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "50"})
+    client.post("/api/transactions/", json={"payee": "x", "postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "10"},
+        {"account": client.get("/api/accounts/").json()[0]["aid"], "side": "credit", "amount": "10"}]})
+    assert 'class="home-alert"' not in client.get("/").text
+
+
+def test_home_compares_the_month_so_far_with_the_same_days_of_last_month(
+    client: TestClient, root_accounts: dict[str, str], expense_account: dict
+):
+    bank = client.post(
+        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
+    ).json()
+    today = date.today()
+    last = (today.replace(day=1) - timedelta(days=1)).replace(day=1)  # the 1st of last month
+    for when, amount in ((last, "300"), (today, "100")):
+        client.post("/api/transactions/", json={"date": when.isoformat(), "payee": "x", "postings": [
+            {"account": expense_account["aid"], "side": "debit", "amount": amount},
+            {"account": bank["aid"], "side": "credit", "amount": amount}]})
+    text = " ".join(client.get("/").text.split())
+    assert f"₹200.00 less than {last:%b} so far" in text

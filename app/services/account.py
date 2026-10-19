@@ -473,12 +473,6 @@ class AccountService:
         self.ar.db.commit()
         return self._to_read(self.ar.read(aid), self._ensure_roots())
 
-    def used_account_ids(self) -> set[UUID]:
-        """Accounts that have postings or that a recurring rule records into: the rest are not in use (yet)."""
-        used = self.tr.account_ids_with_postings()
-        used |= RecurringRepository.account_ids_in_rules(self.ar.db, self.ar.uid)
-        return used
-
     def _check_budgetable(self, parent: Account | None, accounts_by_id: dict) -> None:
         """Only an asset or liability account can be part of the budget."""
         if parent is None or self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):

@@ -356,3 +356,22 @@ def test_a_description_sits_behind_an_i_beside_the_name_not_under_it(client, roo
     category_page = client.get(f"/categories/{cat['aid']}").text
     assert "Only cabs" in category_page.split('<details class="note-info">', 1)[1].split("</details>", 1)[0]
     assert "Only cabs" not in category_page.split('<p class="acct-sub">', 1)[1].split("</p>", 1)[0]
+
+
+def test_an_account_with_sub_accounts_lists_them_not_their_transactions(client: TestClient, root_accounts: dict[str, str]):
+    banks = client.post("/api/accounts/", json={"name": "Banks", "parent_id": root_accounts["Assets"]}).json()
+    hdfc = client.post("/api/accounts/", json={"name": "HDFC", "parent_id": banks["aid"], "balance": "500.00"}).json()
+    client.post("/api/accounts/", json={"name": "ICICI", "parent_id": banks["aid"], "balance": "250.00"})
+    shop = client.post("/api/accounts/", json={"name": "Shopping", "parent_id": root_accounts["Expenses"]}).json()
+    client.post("/api/transactions/", json={"payee": "Gadget Store", "postings": [
+        {"account": shop["aid"], "side": "debit", "amount": "40.00"},
+        {"account": hdfc["aid"], "side": "credit", "amount": "40.00"}]})
+
+    group = client.get(f"/accounts/{banks['aid']}").text
+    assert "Gadget Store" not in group and "Opening balance" not in group, "their entries are on their own pages"
+    assert "<h2>Sub-accounts</h2>" in group and "<h2>Transactions</h2>" not in group
+    assert f'href="/accounts/{hdfc["aid"]}"' in group and "HDFC" in group and "ICICI" in group
+    assert "460.00" in group and "250.00" in group, "each sub-account's balance"
+    assert f"/accounts/new?parent={banks['aid']}" in group, "the + adds another"
+    leaf = client.get(f"/accounts/{hdfc['aid']}").text
+    assert "Gadget Store" in leaf and "<h2>Sub-accounts</h2>" not in leaf

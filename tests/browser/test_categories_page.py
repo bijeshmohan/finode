@@ -1,5 +1,6 @@
 """The Categories page and the new navigation in a browser."""
 
+import re
 from datetime import date
 
 from playwright.sync_api import Page, expect
@@ -95,3 +96,23 @@ def test_the_month_and_the_kind_share_one_row_above_the_figure(page: Page, books
     assert abs(pill["y"] - chips["y"]) < 14, "side by side"
     assert hero["y"] > pill["y"] + pill["height"] and hero["y"] > chips["y"] + chips["height"] - 2, "the figure is under both"
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
+
+
+def test_the_month_in_the_pill_is_a_picker_that_goes_straight_to_that_month(page: Page, books):
+    page.goto("/categories")
+    pill = page.locator(".month-pill")
+    arrows = pill.locator("a.mp-arrow")
+    name = pill.locator(".month-pill-name").bounding_box()
+    previous = arrows.first.bounding_box()
+    assert previous["x"] + previous["width"] <= name["x"], "the back arrow is before the month"
+    month = pill.locator(".month-input")
+    assert month.get_attribute("type") == "month" and month.get_attribute("max") == date.today().strftime("%Y-%m")
+    box = month.bounding_box()
+    assert box["width"] >= name["width"] and box["height"] >= name["height"], "the picker covers the month's name"
+    month.evaluate("(el) => { el.value = '2026-02'; el.dispatchEvent(new Event('change', {bubbles: true})); }")
+    page.wait_for_url(re.compile(r"month=2026-02"))
+    expect(page.locator(".month-pill-name")).to_have_text("Feb 2026")
+    month = page.locator(".month-input")
+    month.evaluate("(el) => { el.value = '2999-01'; el.dispatchEvent(new Event('change', {bubbles: true})); }")
+    page.wait_for_timeout(300)
+    assert "month=2026-02" in page.url, "a month the page never shows is not taken"

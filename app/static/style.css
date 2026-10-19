@@ -613,6 +613,7 @@ dialog.sheet {
   width: min(28rem, calc(100vw - 2rem));
   max-height: calc(100vh - 2rem);
   max-height: calc(100dvh - 2rem);
+  max-height: calc(var(--vvh, 100dvh) - 1rem);
   padding: 0;
   overflow: auto;
   color: var(--text);
@@ -791,7 +792,7 @@ form.notice.fund button { margin: 0; }
 }
 [data-payment-category][hidden] { display: none; }
 
-/* ---------- Accounts page: groups that open, search, unused accounts tucked away ---------- */
+/* ---------- Accounts page: search, closed accounts tucked away ---------- */
 
 .accounts-tools { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
 .accounts-tools input[type="search"] { flex: 1 1 12rem; min-width: 0; }
@@ -800,8 +801,7 @@ form.notice.fund button { margin: 0; }
 .caret .icon { width: 1.1em; height: 1.1em; }
 details[open] > summary .caret { transform: none; }
 
-.unused-hidden, .closed-hidden { display: none; }
-.show-unused .unused-hidden:not(.closed-hidden), .searching .unused-hidden:not(.closed-hidden) { display: revert; }
+.closed-hidden { display: none; }
 .show-closed .closed-hidden, .searching .closed-hidden { display: revert; }
 [data-accounts] li[hidden] { display: none !important; }
 .unused-toggle { margin: 1rem 0 0; text-align: center; }
@@ -917,6 +917,15 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .glance-bar { margin-top: .9rem; height: var(--bar-h); border-radius: calc(var(--bar-h) / 2); background: var(--border); overflow: hidden; }
 .glance-bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .glance-note { margin: .5rem 0 0; font-size: .8125rem; color: var(--muted); }
+/* Home under the figure: an overspent warning, four tiles */
+.home-alert { display: flex; align-items: center; gap: .65rem; margin: .25rem 0 .75rem; padding: .7rem .9rem; background: var(--warn-soft); border: 1px solid var(--tile-border); border-radius: 14px; color: var(--text); text-decoration: none; font-size: .9375rem; }
+.home-alert .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--warn); flex: none; }
+.home-alert > span:nth-child(2) { flex: 1; min-width: 0; }
+.home-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-top: .25rem; }
+.home-tile { min-width: 0; padding: .9rem 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 16px; }
+.home-tile .k { margin: 0; font-size: .8125rem; color: var(--muted); }
+.home-tile .v { margin: .2rem 0 0; font-size: 1.25rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.home-tile .v small { display: block; margin-top: .15rem; font-size: .75rem; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .home-empty { padding: .5rem 0 1rem; }
 .home-headline { margin: .25rem 0 .5rem; font-size: 1.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
 .section-label { margin: 2rem 0 .25rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
@@ -968,7 +977,7 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
 .sheet-delete:hover { background: transparent; text-decoration: underline; }
 @media (max-width: 40rem) {
   dialog.sheet.sheet-bottom {
-    width: 100%; max-width: none; margin: auto 0 0; border-radius: 24px 24px 0 0; border-width: 1px 0 0;
+    width: 100%; max-width: none; margin: auto 0 var(--kb, 0px); border-radius: 24px 24px 0 0; border-width: 1px 0 0;
     padding-bottom: env(safe-area-inset-bottom);
   }
   .sheet-grab { display: block; width: 2.5rem; height: 4px; margin: -.25rem auto 1rem; border-radius: 2px; background: var(--border); }
@@ -1195,8 +1204,14 @@ dd.auto, dd.auto a { color: var(--auto); }
 /* Room between the Expense / Income chips and the first row of the list */
 .cat-chips { min-height: 0; }
 .cat-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .75rem; margin: 0 0 .75rem; }
-.month-pill { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; padding: 0 .25rem 0 1rem; min-height: 2.25rem; font-weight: 600; font-size: .9375rem; }
-.month-pill .icon-button { width: 2rem; height: 2rem; color: var(--faint); }
+.month-pill { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; padding: 0 .15rem; min-height: 2.5rem; font-weight: 600; font-size: .9375rem; }
+.month-pill .mp-arrow { display: grid; place-items: center; width: 2.5rem; height: 2.25rem; color: var(--muted); border-radius: 999px; }
+.month-pill .mp-arrow.off { opacity: .3; }
+.month-pill a.mp-arrow:hover { background: var(--surface-2); }
+/* The month is a native month picker, invisible and laid over its own name: tapping the name opens the phone's picker. */
+.month-pick { position: relative; color: var(--text); display: grid; place-items: center; min-height: 2.25rem; padding: 0 .6rem; border-radius: 999px; cursor: pointer; }
+.month-pick:hover { background: var(--surface-2); }
+.month-pick .month-input { min-height: 0; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
 
 /* ---------- Accounts page: recently used as cards, every group open under its heading ---------- */
 .acc-section { margin-top: 1.1rem; }
@@ -1273,6 +1288,42 @@ dd.auto, dd.auto a { color: var(--auto); }
 /* The "Needs you" badge beside the month on the budget page. */
 .need { display: inline-flex; align-items: center; gap: .45rem; min-height: 2.25rem; padding: 0 .8rem; margin: 0; font: inherit; font-size: .875rem; color: var(--text); background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; cursor: pointer; }
 .need i { display: inline-grid; place-items: center; min-width: 1.2rem; height: 1.2rem; padding: 0 .3rem; font-style: normal; font-size: .75rem; font-weight: 600; color: var(--on-accent); background: var(--accent); border-radius: 999px; }
-.bud-bar { margin-bottom: .5rem; }
 .more-entries { display: flex; justify-content: center; padding: .25rem 0 1rem; }
 .more-entries button { margin: 0; }
+/* The "i" beside a headline figure opens the sum behind it, in place (Home, Budget). */
+.calc-row { display: flex; align-items: center; gap: .1rem; }
+.calc-row .info-button { margin: -.25rem 0; }
+.ready .calc-row > .muted { font-size: .8125rem; }
+.hero-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.calc-panel { display: none; margin-top: .9rem; padding: .9rem 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius-sm); }
+.glance:has(.calc-info[open]) .calc-panel, .ready-hero:has(.calc-info[open]) .calc-panel { display: block; }
+.calc-panel h3 { margin: 0 0 .5rem; font-size: 1rem; font-weight: 600; }
+.calc-row-line { display: flex; justify-content: space-between; gap: 1rem; margin: 0; padding: .4rem 0; border-top: 1px solid var(--surface-2); font-size: .9375rem; color: var(--text); }
+.calc-panel h3 + .calc-row-line { border-top: 0; }
+.calc-row-line b { font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.calc-row-line.plus b::before { content: "+ "; color: var(--muted); }
+.calc-row-line.minus b::before { content: "− "; color: var(--muted); }
+.calc-row-line.total { margin-top: .2rem; border-top: 2px solid var(--text); font-weight: 600; }
+.calc-row-line.total b { font-weight: 600; }
+.calc-note { margin: .6rem 0 0; font-size: .8125rem; color: var(--muted); }
+/* A budget field that is below its minimum (a group under what its subcategories add up to) turns red. */
+input[aria-invalid="true"], input[aria-invalid="true"]:focus, dialog.sheet input.assign[aria-invalid="true"], dialog.sheet input.assign[aria-invalid="true"]:focus { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); outline-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+/* The name is a line of its own under the back link and the month pill, so a long one just wraps. */
+.group-title { margin: 0 0 1.25rem; font-size: 1.5rem; font-weight: 600; overflow-wrap: break-word; }
+/* A group's figure, bar and "Spent … of …" are one button: tapping them opens the group's budget. */
+a.tappable { color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+a.tappable:active { opacity: .7; }
+.hero-note { display: flex; justify-content: space-between; align-items: center; }
+.hero-chev { display: inline-flex; color: var(--faint); transform: scaleX(-1); }
+.hero-chev .icon { width: 1.1rem; height: 1.1rem; }
+/* While a sheet's field has the keyboard open, only what is needed to type and save stays. */
+dialog.sheet.typing .sheet-facts, dialog.sheet.typing .sheet-more, dialog.sheet.typing .weeks, dialog.sheet.typing .sheet-grab { display: none; }
+dialog.sheet.typing .sheet-title .muted, dialog.sheet.typing .sheet-amount small { display: none; }
+dialog.sheet.typing .sheet-body { padding-block: .75rem; }
+dialog.sheet.typing form.stack { margin-top: .5rem; }
+dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
+/* Room around a group's figure and bar: under the name above, and above the list below. */
+.budget-group .budget-hero { padding-bottom: 1.5rem; }
+/* Budget's title row is as tall as the rows that carry round buttons (Accounts, Categories), so the titles line up. */
+.page-head.tall { min-height: 2.75rem; }
+@media (hover: hover) { .need:hover { background: var(--surface-2); } }

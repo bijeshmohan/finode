@@ -23,7 +23,7 @@
   <details id="lock" class="setting">
     <summary><span class="setting-title">Period lock</span><span class="setting-value">{{ profile.locked_through.strftime("up to %d %b %Y") if profile.locked_through else "off" }}</span>{{ icon("chevron-right") }}</summary>
     <form class="stack" hx-post="/settings/lock">
-      <p class="muted">Close the books up to a day, say the end of last month once you have checked it. Nothing dated on or before that day can be added, changed or deleted, the budget of those months is frozen, and recurring transactions leave out what falls in them. Remove the lock any time to make a correction.</p>
+      <p class="muted">Nothing dated on or before this day can be added, changed or deleted, and its budget months are frozen. Remove the lock any time.</p>
       <label>Lock everything up to and including
         <input type="date" name="locked_through" value="{{ profile.locked_through.isoformat() if profile.locked_through else '' }}" max="{{ yesterday }}">
         <span class="hint">Leave it empty to remove the lock. Yesterday is the latest day you can lock.</span>

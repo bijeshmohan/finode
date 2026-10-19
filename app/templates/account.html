@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/month_pill.html" import month_pill %}
 {% from "partials/money.html" import figure %}
 {% from "partials/upcoming.html" import upcoming_card %}
 {% set account = node.account %}
@@ -10,12 +11,7 @@
 {% if category %}
 <div class="cat-bar acct-nav">
   <a class="back" href="{{ "/categories?month=" ~ month_key ~ "&tab=" ~ tab }}">{{ icon("back") }}Categories</a>
-  <span class="month-pill">
-    <span class="month-pill-name">{{ month_name.split(" ")[0][:3] }} {{ month_name.split(" ")[1] }}</span>
-    <a class="icon-button" href="/categories/{{ account.aid }}?month={{ previous }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
-    {% if is_current %}<span class="icon-button" aria-hidden="true" style="visibility: hidden"></span>{% else %}
-    <a class="icon-button" href="/categories/{{ account.aid }}?month={{ next }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>{% endif %}
-  </span>
+  {{ month_pill("/categories/" ~ account.aid ~ "?month={month}", month_name, month_key, previous, next, this_month) }}
 </div>
 {% else %}
 <a class="back" href="/accounts">{{ icon("back") }}Accounts</a>
@@ -122,6 +118,21 @@
 </div>
 {% endif %}
 
+{% if not category and node.children %}
+{% set subs = node.children|rejectattr("account.closed_on")|list %}
+<div class="section-head">
+  <h2>Sub-accounts</h2>
+  {% if can_add_child and not account.closed_on %}<a class="circ-button" href="/accounts/new?parent={{ account.aid }}" title="Add sub-account" aria-label="Add sub-account">{{ icon("plus") }}</a>{% endif %}
+</div>
+<div class="tile sub-tile">
+  {% for c in subs %}
+  <a class="r crow" href="/accounts/{{ c.account.aid }}">
+    <span class="crow-main"><span class="crow-name">{{ c.account.name }}</span></span>
+    <span class="crow-amt"><span class="{{ 'negative' if c.account.balance < 0 }}">{{ c.account.balance|money }}</span></span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
 <div class="section-head">
   <h2>Transactions</h2>
   {% if category and node.postable and not account.closed_on %}<a class="circ-button" href="/transactions/new?account={{ account.aid }}&back={{ area }}/{{ account.aid }}" title="Add transaction" aria-label="Add transaction">{{ icon("plus") }}</a>{% endif %}
@@ -138,5 +149,6 @@
   <p>{{ "Nothing in " ~ month_name.split(" ")[0] ~ "." if category else "No transactions yet." }}</p>
   {% if node.postable and not account.closed_on %}<a class="button" href="/transactions/new?account={{ account.aid }}&back=/accounts/{{ account.aid }}">Record a transaction</a>{% endif %}
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}

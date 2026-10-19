@@ -40,6 +40,7 @@ def _month_context(when, is_current: bool) -> dict:
         "month_key": when.strftime("%Y-%m"),
         "month_name": f"{calendar.month_name[when.month]} {when.year}",
         "is_current": is_current,
+        "this_month": local_today().strftime("%Y-%m"),
         "previous": shift(when, -1).strftime("%Y-%m"),
         "next": shift(when, 1).strftime("%Y-%m"),
     }

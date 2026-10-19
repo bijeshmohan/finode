@@ -4,7 +4,7 @@
 
 {#- One account: a round initial, its name and its balance. -#}
 {% macro entry(node) %}
-<li data-path="{{ node.path|lower }}" class="{{ 'unused-hidden' if node.unused }}{{ ' closed-hidden' if node.closed }}">
+<li data-path="{{ node.path|lower }}" class="{{ 'closed-hidden' if node.closed }}">
   <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}">
     <i class="mono" aria-hidden="true">{{ node.account.name[:1]|upper }}</i>
     <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}</span>
@@ -16,9 +16,8 @@
 {#- A type's accounts: every group is a heading (linking to the group's page) with its accounts under it, always open. -#}
 {% macro blocks_of(root) %}
   {% for head, items in blocks[root.account.aid] %}
-  {#- A block with nothing left to show (a group that is unused or closed, or plain accounts that all are) hides whole, so no empty tile is left. -#}
-  {% set quiet = items|selectattr("unused")|list|length + items|selectattr("closed")|list|length == items|length %}
-  <div class="acc-block {{ 'unused-hidden' if (head and head.unused) or (not head and quiet) }}{{ ' closed-hidden' if (head and head.closed) or (not head and quiet and items|selectattr("closed")|list) }}">
+  {#- A block with nothing left to show (a closed group, or plain accounts that all are closed) hides whole, so no empty tile is left. -#}
+  <div class="acc-block{{ ' closed-hidden' if (head and head.closed) or (not head and items|selectattr("closed")|list|length == items|length) }}">
     {% if head %}
     <a class="acc-gh" href="/accounts/{{ head.account.aid }}" title="Open {{ head.account.name }}"><span>{{ head.account.name }}</span><span>{{ head.account.balance|money }}</span></a>
     {% endif %}
@@ -77,7 +76,7 @@
   {% endif %}
   {% endfor %}
 
-  {% if unused or closed %}
+  {% if closed %}
   <p class="unused-toggle"><button type="button" class="link-button" data-load-more-accounts>Load more</button></p>
   {% endif %}
 </div>

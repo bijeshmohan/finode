@@ -1,0 +1,25 @@
+{#- A group's own budget in the sheet, laid out like a category's (budget_sheet.html). Expects group (Node), budget, month_key, month_name, minimum. -#}
+{% set line = group.line %}
+<div class="sheet-grab" aria-hidden="true"></div>
+<div class="sheet-title">
+  <div>
+    <h2>{{ line.name }}</h2>
+    <p class="muted">{{ month_name }}</p>
+  </div>
+  <div class="sheet-amount {{ 'over' if line.available < 0 }}">{{ line.available|money }}<small class="muted">left</small></div>
+</div>
+
+<form class="stack" hx-post="/budget/group/{{ line.aid }}/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
+  <input type="hidden" name="month" value="{{ month_key }}">
+  <label>Assigned this month
+    <input class="assign" type="text" name="amount" inputmode="decimal" autocomplete="off" enterkeyhint="done" data-autofocus
+           data-min="{{ minimum }}" value="{{ line.assigned|money if line.assigned else '' }}" placeholder="0.00" aria-label="Assigned to {{ line.name }}">
+  </label>
+  <p id="cat-sheet-error" class="error" role="alert"></p>
+  <dl class="sheet-facts">
+    <div><dt>Spent</dt><dd>{{ line.activity|money }}</dd></div>
+  </dl>
+  <div class="sheet-actions">
+    <button type="submit">Save</button>
+  </div>
+</form>

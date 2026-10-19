@@ -4,7 +4,7 @@
 {% block content %}
 <a class="back" href="/budget?month={{ month_key }}">{{ icon("back") }}Budget</a>
 <h1>Target for {{ line.name }}</h1>
-<p class="muted">What this category should get. The budget then shows how much is still missing each month. A target never moves money by itself.</p>
+<p class="muted">What this category should get. A target never moves money by itself.</p>
 {% set t = line.target %}
 <form class="card stack form-narrow" hx-post="/budget/target">
   <input type="hidden" name="month" value="{{ month_key }}">

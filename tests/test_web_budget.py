@@ -1,5 +1,6 @@
 """The budget page: reading it, assigning inline, moving money, and switching accounts in."""
 
+import re
 from datetime import date, timedelta
 
 import pytest
@@ -140,14 +141,19 @@ def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, roo
     assert 'aria-label="Category"' in page and page.count('class="bar') == 2
 
 
-def test_a_group_page_lists_its_categories_and_everything_else(client, root_accounts, setup):
+def test_a_group_page_lists_its_categories_and_its_figure_opens_its_own_budget(client, root_accounts, setup):
     groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
     dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
     assign(client, groceries, "200")
     assign(client, dining, "300")
     page = client.get(f"/budget/group/{setup['food']['aid']}").text
-    assert page.index("Dining") < page.index("Groceries") < page.index("Everything else"), "biggest first, everything else last"
-    assert "Left in Food" in page and "500.00" in page
+    assert page.index("Dining") < page.index("Groceries"), "biggest first"
+    assert "Everything else" not in page, "no row for what is not in a category: the group's bar covers it"
+    assert f'hx-get="/budget/group/{setup["food"]["aid"]}/sheet?month=' in page and "budget-hero tappable" in page, "the figure area opens the group's budget"
+    assert "circ-button" not in page.split('id="budget"', 1)[1], "no pencil"
+    assert 'class="cat-bar acct-nav"' in page and 'class="month-pill"' in page and 'class="group-title"' in page and '<span class="sr-only">Left to spend</span>' in page and "Left in Food" not in page
+    assert page.index('class="month-pill"') < page.index('class="group-title"'), "the pill is above the name"
+    assert "500.00" in page
     assert f'/budget/category/{groceries["aid"]}/sheet?month=' in page and f"group={setup['food']['aid']}" in page
     assert client.get(f"/budget/group/{setup['rent']['aid']}").status_code == 404, "a plain category has no group page"
     assert client.get("/budget/group/00000000-0000-4000-8000-0000000000ff").status_code == 404
@@ -158,7 +164,7 @@ def test_assigning_from_a_group_page_returns_that_page_block(client, root_accoun
     sheet = client.get(f"/budget/category/{groceries['aid']}/sheet?group={setup['food']['aid']}").text
     assert f'name="group" value="{setup["food"]["aid"]}"' in sheet
     response = client.post("/budget/assign", data={"category": groceries["aid"], "amount": "250", "group": setup["food"]["aid"], "sheet": "1"})
-    assert response.status_code == 200 and "budget-group" in response.text and "Left in Food" in response.text and "250.00" in response.text
+    assert response.status_code == 200 and "budget-group" in response.text and "Left to spend" in response.text and "250.00" in response.text
 
 
 def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client, root_accounts, setup):
@@ -334,3 +340,55 @@ def test_the_heading_is_a_title_and_a_pill_with_both_arrows(client, setup):
     assert "<h1>Budget</h1>" in page and 'class="month-pill"' in page
     assert 'title="Previous month"' in page and 'title="Next month"' in page, "the budget can look ahead"
     assert "Needs you" not in page, "nothing needs a decision yet"
+
+
+def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
+    assign(client, setup["food"], "300")
+    page = client.get("/budget").text
+    assert 'aria-label="How what is ready to assign is worked out"' in page
+    sums = re.findall(r'<p class="calc-row-line([^"]*)"><span>([^<]*)</span><b>([^<]*)</b>', page)
+    assert [(c.strip(), label, amount) for c, label, amount in sums] == [
+        ("", "In your accounts", "₹1,000.00"),
+        ("minus", "Set aside for card bills", "₹0.00"),
+        ("minus", "Left in your categories", "₹300.00"),
+        ("minus", "Assigned to later months", "₹0.00"),
+        ("total", "Ready to assign", "₹700.00"),
+    ]
+
+
+def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_below(client, root_accounts, setup):
+    food = setup["food"]["aid"]
+    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": food}).json()
+    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food}).json()
+    assign(client, groceries, "200")
+    assign(client, dining, "300")
+    month = THIS_MONTH.strftime("%Y-%m")
+    sheet = client.get(f"/budget/group/{food}/sheet?month={month}").text
+    assert 'value="500.00"' in sheet and 'data-min="500.00"' in sheet
+
+    below = client.post(f"/budget/group/{food}/assign", data={"month": month, "amount": "499"})
+    assert below.status_code == 400 and "Minimum 500.00" in below.text and below.headers["HX-Retarget"] == "#cat-sheet-error"
+    assert line(api_budget(client), "Food")["assigned"] == "500.00", "nothing was saved"
+
+    more = client.post(f"/budget/group/{food}/assign", data={"month": month, "amount": "800"})
+    assert more.status_code == 200 and "budget-group" in more.text
+    assert line(api_budget(client), "Food")["assigned"] == "800.00" and 'value="800.00"' in client.get(f"/budget/group/{food}/sheet?month={month}").text
+    assert line(api_budget(client), "Groceries")["assigned"] == "200.00", "its categories are untouched"
+    assert client.post(f"/budget/group/{food}/assign", data={"month": month, "amount": "500"}).status_code == 200, "back to the minimum is fine"
+    assert client.get(f"/budget/group/{setup['rent']['aid']}/sheet").status_code == 404, "a plain category has no group budget"
+
+
+def test_the_month_pill_is_in_the_title_row_and_needs_you_is_beside_ready_to_assign(client, root_accounts, setup):
+    page = client.get("/budget").text
+    head = page.split('<div class="page-head tall">', 1)[1].split('<div id="budget">', 1)[0]
+    assert "<h1>Budget</h1>" in head and 'class="month-pill"' in head and 'href="/budget?month=' in head
+    body = page.split('<div id="budget">', 1)[1]
+    assert 'class="month-pill"' not in body and "bud-bar" not in body, "the second row is gone"
+    assert "data-toggle-attn" not in page, "nothing needs a decision yet"
+    # spending paid from an account that is not part of the budget is left out of it: that needs a decision
+    card = account(client, root_accounts, "Card", "Liabilities")
+    client.post("/api/transactions/", json={"postings": [
+        {"account": setup["food"]["aid"], "side": "debit", "amount": "5"},
+        {"account": card["aid"], "side": "credit", "amount": "5"}]})
+    page = client.get("/budget").text
+    assert page.index('class="hero-top"') < page.index("data-toggle-attn") < page.index('id="attn-panel"'), "the badge is in the hero, its panel below"

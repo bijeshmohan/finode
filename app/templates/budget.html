@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/month_pill.html" import month_pill %}
 {% block title %}Budget · finode{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head tall">
   <h1>Budget</h1>
+  {{ month_pill("/budget?month={month}", month_name, month_key, previous, next) }}
 </div>
 {% include "partials/budget_body.html" %}
 {% endblock %}

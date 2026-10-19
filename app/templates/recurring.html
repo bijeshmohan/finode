@@ -4,7 +4,7 @@
 {% block content %}
 <a class="back" href="/transactions">{{ icon("back") }}Transactions</a>
 <h1>Recurring transactions</h1>
-<p class="muted form-narrow">Rent, salary, subscriptions: set it once and finode records it for you on schedule. Each one shows up in your transactions on its date, marked as recurring.</p>
+<p class="muted form-narrow">Rent, salary, subscriptions: set once, recorded on schedule.</p>
 
 {% if rows %}
   {% for title, group in (("Active", live), ("Paused or ended", stopped)) %}{% if group %}

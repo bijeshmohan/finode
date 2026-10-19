@@ -17,6 +17,8 @@ Budgets are **monthly**. (Weekly and yearly *targets* exist behind the Advanced 
 
 The page's main figure is **Ready to assign in <month>**. Your aim is to bring it to zero: *every ₹ has a job*.
 
+Tap the **i** beside the figure (on Budget and on Home's *Left to spend*) to see how it is worked out with your own numbers: for example, money in your accounts, minus what is set aside for card bills, minus what is left in your categories, minus what you assigned to later months.
+
 <img src="img/budget.png" alt="The Budget page: Ready to assign, and the categories ranked with a bar and a tick for today" width="300">
 
 ## A worked example
@@ -36,9 +38,9 @@ You have ₹50,000 in your bank account, and no budget yet.
 
 ## Using the page
 
-- Tap the **month pill** arrows to look at other months, including future ones.
+- Use the arrows around the month at the top (**‹ Oct 2026 ›**) to look at the next or previous month, including future ones, or tap the month itself to pick any month and year.
 - The list is ranked, **biggest budget first**. Each row has a bar showing how much is spent, with a small **tick marking how far through the month today is**: a bar ahead of the tick means you are spending faster than the month passes.
-- A **group** (like Food) shows the total of its subcategories; tap it to open its own page. A plain category, or a row on a group's page, opens a **sheet** with **Assigned this month** (type the amount and **Save**), what was **Spent**, **Move money** to another category, and the **Note** (and, with Advanced on, the target).
+- A **group** (like Food) shows the total of its subcategories; tap it to open its own page. A plain category, or a row on a group's page, opens a **sheet** with **Assigned this month** (type the amount and **Save**), what was **Spent**, **Move money** to another category, and the **Note** (and, with Advanced on, the target). On a group's page, tap the figure at the top to set the group's own budget: it starts at what its subcategories add up to, you can raise it, and a lower amount is refused (the field turns red).
 
 <img src="img/budget-sheet.png" alt="The category sheet: Assigned this month, Spent, Save, Move money, Note" width="300">
 - The Budget looks at the **whole month**, so an entry dated later this month already counts as spent in its category, while Home's Transactions list, account balances and the Month summary count up to today.
@@ -59,7 +61,7 @@ With **Settings › Advanced** on, each category's target page lets you say what
 
 ## Home vs Budget
 
-Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. The Budget page is for *deciding*, Home is for *glancing*.
+Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. Under it Home shows, once you have recorded something: a line when a category is overspent, four tiles (*Balance*, the money in your budget accounts, what you owe (*Owed*) or what is ready to assign, and *Earned* and *Spent* this month against the same days of last month), and last your latest transactions. The Budget page is for *deciding*, Home is for *glancing*.
 
 ## If numbers disagree
 

@@ -1,4 +1,5 @@
 {#- Rows of the budget: a category (or a group) with what is left, what it had, and a bar with today's tick. -#}
+{% from "partials/icons.html" import icon %}
 {% from "partials/money.html" import figure %}
 
 {% macro bar(line, pace) -%}
@@ -22,12 +23,14 @@
 </a>
 {% endmacro %}
 
-{#- The month (or a group) at a glance: what is left, and a bar of what is spent out of what there was. -#}
-{% macro glance_block(glance, label, over_label, currency, pace) %}
-<div class="ready zero budget-hero">
-  <span class="muted">{{ over_label if glance.left < 0 else label }}</span>
+{#- A group at a glance: what is left, and a bar of what is spent out of what there was. The whole block opens the group's own
+    budget in the sheet (edit_url; href is the page itself, for when scripts do not run). -#}
+{% macro glance_block(glance, label, over_label, currency, pace, edit_url, href) %}
+<a class="ready zero budget-hero tappable" href="{{ href }}" hx-get="{{ edit_url }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false" title="Set the budget">
+  {#- No visible label: the name above says whose figure it is. Over budget is the one thing worth saying. -#}
+  {% if glance.left < 0 %}<span class="muted">{{ over_label }}</span>{% else %}<span class="sr-only">{{ label }}</span>{% endif %}
   <span class="figure {{ 'over' if glance.left < 0 }}">{{ figure(glance.left, currency) }}</span>
   <span class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent{% if pace is not none %}, and {{ pace }}% of the month has passed{% endif %}"><i style="width: {{ glance.percent }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
-  <span class="glance-note">{% if glance.planned %}Spent {{ glance.spent|money }} of {{ glance.of|money }}{% else %}Nothing assigned yet{% endif %}</span>
-</div>
+  <span class="glance-note hero-note"><span>{% if glance.planned %}Spent {{ glance.spent|money }} of {{ glance.of|money }}{% else %}Nothing assigned yet{% endif %}</span><span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span></span>
+</a>
 {% endmacro %}

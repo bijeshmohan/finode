@@ -1,4 +1,4 @@
-"""The accounts page in a browser: groups under their headings, the recent cards, search, unused and closed accounts."""
+"""The accounts page in a browser: groups under their headings, the recent cards, search and closed accounts."""
 
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -58,7 +58,7 @@ def test_searching_finds_accounts_inside_closed_groups(page: Page, api, books):
     assert "assets › banks › hdfc" in visible(page), "clearing the search puts the layout back"
 
 
-def test_unused_and_closed_accounts_are_tucked_away(page: Page, api, books, session):
+def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(page: Page, api, books, session):
     old = api.post("/accounts/", name="Old Wallet", parent_id=books["roots"]["Assets"])
     closed = api.post("/accounts/", name="Old Card", parent_id=books["roots"]["Liabilities"])
     api.request.post(f"/api/accounts/{closed['aid']}/close")
@@ -66,10 +66,10 @@ def test_unused_and_closed_accounts_are_tucked_away(page: Page, api, books, sess
     session.exec(table.update().where(table.c.aid == UUID(old["aid"])).values(created=datetime.now(timezone.utc) - timedelta(days=30)))
     session.commit()
     page.goto("/accounts")
-    assert "assets › old wallet" not in visible(page) and "liabilities › old card" not in visible(page)
+    assert "assets › old wallet" in visible(page), "no entries, no balance and old: still listed"
+    assert "liabilities › old card" not in visible(page)
     page.get_by_role("button", name="Load more").click()
-    assert "assets › old wallet" in visible(page)
-    assert "liabilities › old card" in visible(page), "one button shows both kinds"
+    assert "liabilities › old card" in visible(page)
     expect(page.get_by_role("button", name="Load more")).to_have_count(0)
     expect(page.locator("li", has_text="Old Card").locator(".badge")).to_have_text("closed")
 
