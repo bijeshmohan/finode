@@ -130,21 +130,26 @@ def test_a_weekly_target_opens_into_its_weeks(page: Page, books, api: Api):
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
 
 
-def test_a_group_opens_its_page_and_takes_money_for_itself(page: Page, books, api: Api):
+def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(page: Page, books, api: Api):
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
-    api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
+    delivery = api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
     api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
+    api.put(f"/budget/categories/{delivery['aid']}", amount="300")
     page.goto("/budget")
     expect(page.locator("a.catrow", has_text="Delivery")).to_have_count(0)  # inside the group, on its page
     expect(page.locator("a.grow", has_text="Dining")).to_contain_text("Delivery")  # the hint names what is inside
     page.locator("a.grow", has_text="Dining").click()
     page.wait_for_url("**/budget/group/**")
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
-    # money for the group itself, not in a subcategory
-    page.locator("a.catrow", has_text="Everything else").first.click()
-    box = page.locator('#cat-sheet input[aria-label^="Assigned to"]')
-    expect(page.locator("#cat-sheet")).to_contain_text("Dining · everything else")
+    page.get_by_label("Edit the budget for Dining").click()
+    box = page.locator('#cat-sheet input[aria-label="Budget for Dining"]')
+    expect(box).to_be_visible()
+    box.fill("200")  # below what Delivery and Restaurant add up to
+    expect(box).to_have_attribute("aria-invalid", "true")
+    page.locator("#cat-sheet").get_by_role("button", name="Save").click()
+    expect(page.locator("#cat-sheet")).to_be_visible()  # refused: still open
     box.fill("700")
+    expect(box).to_have_attribute("aria-invalid", "false")
     page.locator("#cat-sheet").get_by_role("button", name="Save").click()
     expect(page.locator("#cat-sheet")).not_to_be_visible()
     expect(page.locator(".budget-hero .figure")).to_have_text("\u20b9700.00")  # the group's page block was replaced, still on the group page

@@ -180,7 +180,7 @@ def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
         **context,
         "group": node,
         "kids": [{"node": c, "hint": _hint(c, advanced, grouping_for(context["budget"].currency))} for c in _by_assigned(node.children)],
-        "other_row": {"node": Node(node.other), "hint": ""},
+        "edit_url": f"/budget/group/{aid}/sheet?month={month:%Y-%m}",
         "glance": _glance(node.line),
     }
 
@@ -189,6 +189,28 @@ def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
 def group_page(request: Request, budget: Budget, aid: UUID, month: str = ""):
     """One group: what is left in it, and the categories inside it, each opening the assign sheet."""
     return templates.TemplateResponse(request, "budget_group.html", _group_context(budget, parse_month(month), aid))
+
+
+@router.get("/group/{aid}/sheet")
+def group_sheet(request: Request, budget: Budget, aid: UUID, month: str = ""):
+    """A group's own budget in the sheet over its page: it starts at what its subcategories add up to."""
+    when = parse_month(month)
+    context = _group_context(budget, when, aid)
+    return templates.TemplateResponse(
+        request, "partials/budget_group_sheet.html", {**context, "minimum": budget.group_minimum(when, aid, context["budget"])}
+    )
+
+
+@router.post("/group/{aid}/assign")
+def assign_group(
+    request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = "", amount: Annotated[str, Form()] = ""
+):
+    when = parse_month(month)
+    try:
+        budget.assign_group(when, aid, parse_amount(amount, default=parse_amount("0")))
+    except (BudgetError, ValueError) as e:
+        return htmx_error(str(e).capitalize(), "#cat-sheet-error")
+    return templates.TemplateResponse(request, "partials/budget_group_body.html", _group_context(budget, when, aid))
 
 
 @router.get("/category/{aid}/sheet")

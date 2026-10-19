@@ -67,7 +67,7 @@ Credit cards need no assigning. The "Cards to pay" block shows what is owed at t
 
 ## Groups
 
-Two-level categories (`Food › Groceries`) show **the sum of their children**. A group posted to directly also gets an "Everything else" row (the group's own account in `budget_allocations`), so a group's total always adds up its own money and its categories'.
+Two-level categories (`Food › Groceries`) show **the sum of their children**. A group's own budget (the pencil on its page) starts at that sum and may be raised but never lowered below it (`BudgetService.assign_group`); the extra is kept on the group's own account in `budget_allocations`, so a group's total always adds up its own money and its categories'. The page shows no separate row for it.
 
 ## Targets
 

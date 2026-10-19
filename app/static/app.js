@@ -744,3 +744,29 @@ document.body.addEventListener("change", (event) => {
     });
   }, true);
 })();
+
+// ---- A group's budget cannot be set below what its subcategories add up to: the field turns red and nothing is saved ----
+(function groupMinimum() {
+  const below = (input) => {
+    const value = Number(input.value.replace(/,/g, "")) || 0;
+    return value < Number(input.dataset.min);
+  };
+  document.addEventListener("input", (event) => {
+    const input = event.target;
+    if (input instanceof HTMLInputElement && input.dataset.min !== undefined) {
+      input.setAttribute("aria-invalid", below(input) ? "true" : "false");
+    }
+  });
+  document.addEventListener("submit", (event) => {
+    const input = event.target.querySelector && event.target.querySelector("input[data-min]");
+    if (input && below(input)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      input.setAttribute("aria-invalid", "true");
+    }
+  }, true);
+  document.addEventListener("htmx:responseError", (event) => {
+    const input = event.target.querySelector && event.target.querySelector("input[data-min]");
+    if (input) input.setAttribute("aria-invalid", "true");
+  });
+})();

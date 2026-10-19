@@ -141,13 +141,15 @@ def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, roo
     assert 'aria-label="Category"' in page and page.count('class="bar') == 2
 
 
-def test_a_group_page_lists_its_categories_and_everything_else(client, root_accounts, setup):
+def test_a_group_page_lists_its_categories_and_has_a_pencil_for_its_own_budget(client, root_accounts, setup):
     groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
     dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
     assign(client, groceries, "200")
     assign(client, dining, "300")
     page = client.get(f"/budget/group/{setup['food']['aid']}").text
-    assert page.index("Dining") < page.index("Groceries") < page.index("Everything else"), "biggest first, everything else last"
+    assert page.index("Dining") < page.index("Groceries"), "biggest first"
+    assert "Everything else" not in page, "no row for what is not in a category: the group's bar covers it"
+    assert f'hx-get="/budget/group/{setup["food"]["aid"]}/sheet?month=' in page and 'aria-label="Edit the budget for Food"' in page
     assert "Left in Food" in page and "500.00" in page
     assert f'/budget/category/{groceries["aid"]}/sheet?month=' in page and f"group={setup['food']['aid']}" in page
     assert client.get(f"/budget/group/{setup['rent']['aid']}").status_code == 404, "a plain category has no group page"
@@ -349,3 +351,25 @@ def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
         ("minus", "Assigned to later months", "₹0.00"),
         ("total", "Ready to assign", "₹700.00"),
     ]
+
+
+def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_below(client, root_accounts, setup):
+    food = setup["food"]["aid"]
+    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": food}).json()
+    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food}).json()
+    assign(client, groceries, "200")
+    assign(client, dining, "300")
+    month = THIS_MONTH.strftime("%Y-%m")
+    sheet = client.get(f"/budget/group/{food}/sheet?month={month}").text
+    assert 'value="500.00"' in sheet and 'data-min="500.00"' in sheet
+
+    below = client.post(f"/budget/group/{food}/assign", data={"month": month, "amount": "499"})
+    assert below.status_code == 400 and "Minimum 500.00" in below.text and below.headers["HX-Retarget"] == "#cat-sheet-error"
+    assert line(api_budget(client), "Food")["assigned"] == "500.00", "nothing was saved"
+
+    more = client.post(f"/budget/group/{food}/assign", data={"month": month, "amount": "800"})
+    assert more.status_code == 200 and "budget-group" in more.text
+    assert line(api_budget(client), "Food")["assigned"] == "800.00" and 'value="800.00"' in client.get(f"/budget/group/{food}/sheet?month={month}").text
+    assert line(api_budget(client), "Groceries")["assigned"] == "200.00", "its categories are untouched"
+    assert client.post(f"/budget/group/{food}/assign", data={"month": month, "amount": "500"}).status_code == 200, "back to the minimum is fine"
+    assert client.get(f"/budget/group/{setup['rent']['aid']}/sheet").status_code == 404, "a plain category has no group budget"
