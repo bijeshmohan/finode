@@ -917,7 +917,7 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .glance-bar { margin-top: .9rem; height: var(--bar-h); border-radius: calc(var(--bar-h) / 2); background: var(--border); overflow: hidden; }
 .glance-bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .glance-note { margin: .5rem 0 0; font-size: .8125rem; color: var(--muted); }
-/* Home under the figure: an overspent warning, four tiles, what is coming up */
+/* Home under the figure: an overspent warning, four tiles */
 .home-alert { display: flex; align-items: center; gap: .65rem; margin: .25rem 0 .75rem; padding: .7rem .9rem; background: var(--warn-soft); border: 1px solid var(--tile-border); border-radius: 14px; color: var(--text); text-decoration: none; font-size: .9375rem; }
 .home-alert .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--warn); flex: none; }
 .home-alert > span:nth-child(2) { flex: 1; min-width: 0; }
@@ -926,14 +926,6 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .home-tile .k { margin: 0; font-size: .8125rem; color: var(--muted); }
 .home-tile .v { margin: .2rem 0 0; font-size: 1.25rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .home-tile .v small { display: block; margin-top: .15rem; font-size: .75rem; font-weight: 500; letter-spacing: 0; color: var(--muted); }
-.home-coming { list-style: none; margin: 0; padding: .1rem 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 16px; }
-.home-coming li + li { border-top: 1px solid var(--surface-2); }
-.home-coming .coming-row { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .7rem 0; color: var(--text); text-decoration: none; }
-.home-coming .coming-row > span:first-child { min-width: 0; }
-.home-coming b { display: block; font-weight: 500; }
-.home-coming small { display: block; font-size: .8125rem; color: var(--muted); }
-.home-coming .amt { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
-.home-coming .amt.income { color: var(--positive); }
 .home-empty { padding: .5rem 0 1rem; }
 .home-headline { margin: .25rem 0 .5rem; font-size: 1.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
 .section-label { margin: 2rem 0 .25rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }

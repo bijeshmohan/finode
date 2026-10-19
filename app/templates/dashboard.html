@@ -62,20 +62,6 @@
   <div class="home-tile"><p class="k">Income in {{ month_short }}</p><p class="v">{{ tiles.income|money|amount(currency) }}{{ versus(tiles.income_vs) }}</p></div>
   <div class="home-tile"><p class="k">Spent in {{ month_short }}</p><p class="v">{{ tiles.expenses|money|amount(currency) }}{{ versus(tiles.expenses_vs) }}</p></div>
 </div>
-{% if coming_up %}
-<div class="section-head">
-  <h2>Coming up</h2>
-  <a href="/recurring">Recurring</a>
-</div>
-<ul class="home-coming">
-  {% for it in coming_up %}
-  <li><a class="coming-row" href="/recurring/{{ it.rid }}/edit">
-    <span><b>{{ it.title }}</b><small>{{ it.date|friendly_date }} · {{ it.sub }}</small></span>
-    <span class="amt {{ 'income' if it.income }}">{{ "+" if it.income }}{{ it.amount|money }}</span>
-  </a></li>
-  {% endfor %}
-</ul>
-{% endif %}
 <div class="section-head">
   <h2>Transactions</h2>
   <a href="/transactions">View all</a>

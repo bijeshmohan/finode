@@ -1,5 +1,4 @@
 import calendar
-from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Request
@@ -7,18 +6,14 @@ from fastapi import APIRouter, Request
 from ...dependencies import Accounts, Budget, Recurring, Reports, Transactions
 from ...services.account import AccountService
 from ...clock import local_today, month_progress
-from ...models.transaction import PostingSide
 from ...templating import templates
 from .budget import shift
-from .recurring import _paths, _row
 from .transactions import AccountIndex, to_row
 
 
 router = APIRouter()
 
 RECENT_LIMIT = 8
-COMING_UP_LIMIT = 3  # the next few recurring entries ...
-COMING_UP_DAYS = 14  # ... that fall due within this many days
 
 
 def _versus(now: Decimal, before: Decimal, name: str) -> tuple[str, Decimal, str] | None:
@@ -28,32 +23,6 @@ def _versus(now: Decimal, before: Decimal, name: str) -> tuple[str, Decimal, str
         return None
     return ("same as" if now == before else "more than" if now > before else "less than"), abs(now - before), name
 
-
-def _coming_up(recurring: Recurring, accounts: Accounts, index: AccountIndex) -> list[dict]:
-    """The next recurring entries due within a fortnight, soonest first."""
-    today = local_today()
-    paths = _paths(accounts)
-    rows = [_row(r, paths) for r in recurring.list()]
-    due = sorted(
-        (r for r in rows if r.status == "active" and r.rule.next_date <= today + timedelta(days=COMING_UP_DAYS)),
-        key=lambda r: (r.rule.next_date, r.from_name),
-    )
-    items = []
-    for r in due[:COMING_UP_LIMIT]:
-        rule = r.rule
-        first = rule.from_account if rule.from_account else next((p.account for p in rule.postings if p.side == PostingSide.CREDIT), None)
-        income = first is not None and index.roots.get(first) == "Income"
-        items.append(
-            {
-                "rid": rule.rid,
-                "date": rule.next_date,
-                "title": rule.payee or r.to_name.split(" › ")[-1],
-                "sub": (r.to_name if income else r.from_name).split(" › ")[-1],
-                "amount": r.amount,
-                "income": income,
-            }
-        )
-    return items
 
 
 def _catch_up(recurring: Recurring) -> None:
@@ -143,7 +112,6 @@ def dashboard(
         if overspent
         else None
     )
-    coming_up = _coming_up(recurring, accounts, index) if has_recorded else []
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -155,7 +123,6 @@ def dashboard(
             "glance": glance,
             "tiles": tiles,
             "warning": warning,
-            "coming_up": coming_up,
             "month_short": calendar.month_abbr[month.month.month],
             "has_recorded": has_recorded,
             "recent": recent,
