@@ -83,28 +83,39 @@ def _share(total: Decimal, grand: Decimal) -> str:
 CHART_COLOURS = 5  # the biggest categories get a colour of their own, the rest share the grey
 
 
-def _bar(rows: list[dict]) -> list[dict]:
-    """The share bar: the five biggest categories and 'everything else', each with its colour and its share of the month.
-    Sets row["colour"] (a theme token number) on every row that is part of it. Nothing when the bar would say nothing:
-    fewer than two things to compare, or money going the other way (refunds) among them."""
-    for r in rows:
-        r["colour"] = 0
-    counted = [r for r in rows if r["total"]]
-    if len(counted) < 2 or any(r["total"] < 0 for r in counted):
-        return []
-    total = sum((r["total"] for r in counted), ZERO)
-    slices = []
-    for i, r in enumerate(counted[:CHART_COLOURS], start=1):
-        r["colour"] = i
-        slices.append({"name": r["node"].account.name, "amount": r["total"], "colour": i})
-    rest = counted[CHART_COLOURS:]
+def share_bar(items: list[tuple[object, str, Decimal]]) -> tuple[list[dict], dict]:
+    """The share bar for (key, name, amount) items listed in the order they are shown: the five biggest each get a colour
+    (1 to 5, in the order shown), everything else the grey (6), and the bar has one slice per colour. Returns
+    (slices, colour_of), where colour_of maps each key with an amount to its colour. Nothing when the bar would say
+    nothing: fewer than two things to compare, or money going the other way (a refund) among them."""
+    counted = [(key, name, amount) for key, name, amount in items if amount]
+    if len(counted) < 2 or any(amount < 0 for _, _, amount in counted):
+        return [], {}
+    total = sum((amount for _, _, amount in counted), ZERO)
+    biggest = {key for key, _, _ in sorted(counted, key=lambda i: -i[2])[:CHART_COLOURS]}
+    colour_of: dict = {}
+    slices: list[dict] = []
+    rest = ZERO
+    for key, name, amount in counted:
+        if key in biggest:
+            colour_of[key] = len(slices) + 1
+            slices.append({"name": name, "amount": amount, "colour": colour_of[key]})
+        else:
+            colour_of[key] = CHART_COLOURS + 1
+            rest += amount
     if rest:
-        for r in rest:
-            r["colour"] = CHART_COLOURS + 1
-        slices.append({"name": "Everything else", "amount": sum((r["total"] for r in rest), ZERO), "colour": CHART_COLOURS + 1})
+        slices.append({"name": "Everything else", "amount": rest, "colour": CHART_COLOURS + 1})
     for s in slices:
         s["percent"] = float(s["amount"] / total * 100)
         s["label"] = f"{s['name']} {_share(s['amount'], total)}"
+    return slices, colour_of
+
+
+def _bar(rows: list[dict]) -> list[dict]:
+    """The Categories page's bar (see share_bar); sets row["colour"] on every row (0 = not in the bar)."""
+    slices, colour_of = share_bar([(i, r["node"].account.name, r["total"]) for i, r in enumerate(rows)])
+    for i, r in enumerate(rows):
+        r["colour"] = colour_of.get(i, 0)
     return slices
 
 
@@ -176,6 +187,7 @@ def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Pro
     shown = next((n for t in top for n in t.walk() if n.account.aid == aid), None)
     subs = [(c, totals[c.account.aid]) for c in _by_amount(shown.children, totals)] if shown is not None else []
     own_here = own.get(aid, ZERO) if subs else ZERO
+    bar, colour_of = share_bar([(c.account.aid, c.account.name, amount) for c, amount in subs] + ([("own", "Everything else", own_here)] if own_here else []))
     return templates.TemplateResponse(
         request,
         "account.html",
@@ -186,6 +198,8 @@ def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Pro
             "total": sum((e.change for e in entries), ZERO),
             "subs": subs,
             "own_here": own_here,
+            "bar": bar,
+            "colour_of": colour_of,
             "tab": "income" if root.account.name == "Income" else "expense",
             **_month_context(when, is_current),
         },

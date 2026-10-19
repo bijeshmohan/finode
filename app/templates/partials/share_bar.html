@@ -1,0 +1,4 @@
+{#- The share bar: how a month divides between the biggest things; the rows beside it are its legend. Needs `bar`. -#}
+{% if bar %}
+<div class="sharebar" role="img" aria-label="Share of the month: {{ bar|map(attribute='label')|join(', ') }}">{% for s in bar %}<i style="flex-grow: {{ '%.3f'|format(s.percent) }}; background: var(--chart-{{ s.colour }})"></i>{% endfor %}</div>
+{% endif %}

@@ -303,3 +303,33 @@ def test_income_has_its_own_bar(client, books, root_accounts):
     label, segments = bar_of(client.get("/categories?tab=income").text)
     assert [c for _, c in segments] == [1, 2] and "Salary 90%" in label and "Interest 10%" in label
     assert bar_of(client.get("/categories").text) is None, "the expense tab has none of the income"
+
+
+def test_a_category_with_sub_categories_has_its_own_share_bar(client, books):
+    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
+    entry(client, books["dining"], books["bank"], "100", THIS_MONTH)
+    entry(client, books["food"], books["bank"], "100", THIS_MONTH)  # posted to Food itself
+    page = client.get(f"/categories/{books['food']['aid']}").text
+    label, segments = bar_of(page)
+    assert [c for _, c in segments] == [1, 2, 3] and label == "Share of the month: Groceries 60%, Dining 20%, Everything else 20%"
+    assert page.count('class="cdot"') == 3 and page.count('background: var(--chart-') == 6, "three dots and three segments"
+
+
+def test_a_category_page_has_no_bar_when_there_is_nothing_to_split(client, books):
+    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
+    assert bar_of(client.get(f"/categories/{books['food']['aid']}").text) is None, "only one sub-category has money"
+    entry(client, books["rent"], books["bank"], "50", THIS_MONTH)
+    assert bar_of(client.get(f"/categories/{books['rent']['aid']}").text) is None, "a category with nothing inside it"
+
+
+def test_the_pages_share_one_bar_helper_and_the_same_rules():
+    from decimal import Decimal
+
+    from app.routers.web.categories import share_bar
+
+    slices, colour_of = share_bar([("a", "A", Decimal(50)), ("b", "B", Decimal(30)), ("c", "C", Decimal(0)), ("d", "D", Decimal(20))])
+    assert [s["colour"] for s in slices] == [1, 2, 3] and colour_of == {"a": 1, "b": 2, "d": 3} and "c" not in colour_of
+    many = [(i, f"N{i}", Decimal(100 - i)) for i in range(8)]
+    slices, colour_of = share_bar(many)
+    assert [s["colour"] for s in slices] == [1, 2, 3, 4, 5, 6] and colour_of[7] == 6 and slices[-1]["name"] == "Everything else"
+    assert share_bar([("a", "A", Decimal(5))]) == ([], {}) and share_bar([("a", "A", Decimal(5)), ("b", "B", Decimal(-1))]) == ([], {})
