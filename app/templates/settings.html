@@ -18,7 +18,7 @@
   <details id="currency" class="setting">
     <summary><span class="setting-title">Currency</span><span class="setting-value">{{ profile.default_currency }}</span>{{ icon("chevron-right") }}</summary>
     <form class="stack" hx-post="/settings/currency">
-      <p class="muted">Every amount in finode is in this currency. Changing it only changes the label: nothing is converted, so the numbers stay as they are. A currency with fewer decimals (such as the yen) will refuse new amounts with decimals.</p>
+      <p class="muted">Changing it only changes the label: nothing is converted.</p>
       <label>Currency
         <select name="currency">
           {% for c in currencies %}<option value="{{ c.code }}" {{ "selected" if c.code == profile.default_currency }}>{{ c.code }} · {{ c.name }}</option>{% endfor %}

@@ -201,7 +201,7 @@ def test_a_broken_file_is_refused_and_saves_nothing(client, rich):
 def test_the_data_page_offers_backup_and_restore(client, rich):
     page = client.get("/profile/data").text
     assert 'href="/backup"' in page and "Full backup" in page
-    assert "only be restored into an empty ledger" in page
+    assert "only works on an empty ledger" in page
     assert client.get("/backup").headers["content-type"].startswith("application/json")
 
 

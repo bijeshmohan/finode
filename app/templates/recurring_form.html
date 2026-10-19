@@ -33,7 +33,7 @@
         <input type="date" name="end" value="{{ (rule.end_date or '') if editing else '' }}">
       </label>
     </div>
-    <p class="hint muted">A start date in the past is recorded right away for every missed date. A monthly rule that starts on the 31st falls on the last day of shorter months.</p>
+    <p class="hint muted">A past start date is recorded right away for every missed date.</p>
   </fieldset>
 
   <div class="grid-form">
@@ -57,11 +57,11 @@
   {% if rule.active %}
   <p class="muted">Pause it to stop recording without losing the rule.</p>
   <div class="actions"><button type="button" class="secondary" hx-post="/recurring/{{ rule.rid }}/pause">Pause</button></div>
-  <p class="muted">Just this once? Skip the next one ({{ rule.next_date|friendly_date }}): nothing is recorded for it and the rule carries on after it.</p>
+  <p class="muted">Just this once? Skip the next one ({{ rule.next_date|friendly_date }}) and carry on after it.</p>
   <div class="actions"><button type="button" class="secondary" hx-post="/recurring/{{ rule.rid }}/skip"
     hx-confirm="Skip {{ rule.next_date.strftime('%d %b %Y') }}? Nothing will be recorded for it.">Skip {{ rule.next_date|friendly_date }}</button></div>
   {% elif status != "ended" %}
-  <p class="muted">Occurrences missed while it was paused are skipped.</p>
+  <p class="muted">Occurrences missed while paused are skipped.</p>
   <div class="actions"><button type="button" hx-post="/recurring/{{ rule.rid }}/resume">Resume</button></div>
   {% else %}
   <p class="muted">It has ended. Move the end date to carry on.</p>
