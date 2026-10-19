@@ -141,7 +141,7 @@ def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, roo
     assert 'aria-label="Category"' in page and page.count('class="bar') == 2
 
 
-def test_a_group_page_lists_its_categories_and_has_a_pencil_for_its_own_budget(client, root_accounts, setup):
+def test_a_group_page_lists_its_categories_and_its_figure_opens_its_own_budget(client, root_accounts, setup):
     groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
     dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
     assign(client, groceries, "200")
@@ -149,8 +149,11 @@ def test_a_group_page_lists_its_categories_and_has_a_pencil_for_its_own_budget(c
     page = client.get(f"/budget/group/{setup['food']['aid']}").text
     assert page.index("Dining") < page.index("Groceries"), "biggest first"
     assert "Everything else" not in page, "no row for what is not in a category: the group's bar covers it"
-    assert f'hx-get="/budget/group/{setup["food"]["aid"]}/sheet?month=' in page and 'aria-label="Edit the budget for Food"' in page
-    assert "Left in Food" in page and "500.00" in page
+    assert f'hx-get="/budget/group/{setup["food"]["aid"]}/sheet?month=' in page and "budget-hero tappable" in page, "the figure area opens the group's budget"
+    assert "circ-button" not in page.split('id="budget"', 1)[1], "no pencil"
+    assert 'class="cat-bar acct-nav"' in page and 'class="month-pill"' in page and 'class="group-title"' in page and '<span class="sr-only">Left to spend</span>' in page and "Left in Food" not in page
+    assert page.index('class="month-pill"') < page.index('class="group-title"'), "the pill is above the name"
+    assert "500.00" in page
     assert f'/budget/category/{groceries["aid"]}/sheet?month=' in page and f"group={setup['food']['aid']}" in page
     assert client.get(f"/budget/group/{setup['rent']['aid']}").status_code == 404, "a plain category has no group page"
     assert client.get("/budget/group/00000000-0000-4000-8000-0000000000ff").status_code == 404
@@ -161,7 +164,7 @@ def test_assigning_from_a_group_page_returns_that_page_block(client, root_accoun
     sheet = client.get(f"/budget/category/{groceries['aid']}/sheet?group={setup['food']['aid']}").text
     assert f'name="group" value="{setup["food"]["aid"]}"' in sheet
     response = client.post("/budget/assign", data={"category": groceries["aid"], "amount": "250", "group": setup["food"]["aid"], "sheet": "1"})
-    assert response.status_code == 200 and "budget-group" in response.text and "Left in Food" in response.text and "250.00" in response.text
+    assert response.status_code == 200 and "budget-group" in response.text and "Left to spend" in response.text and "250.00" in response.text
 
 
 def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client, root_accounts, setup):
