@@ -333,3 +333,12 @@ def test_the_pages_share_one_bar_helper_and_the_same_rules():
     slices, colour_of = share_bar(many)
     assert [s["colour"] for s in slices] == [1, 2, 3, 4, 5, 6] and colour_of[7] == 6 and slices[-1]["name"] == "Everything else"
     assert share_bar([("a", "A", Decimal(5))]) == ([], {}) and share_bar([("a", "A", Decimal(5)), ("b", "B", Decimal(-1))]) == ([], {})
+
+
+def test_a_category_page_lists_only_what_was_posted_to_it_not_its_sub_categories(client, books):
+    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
+    entry(client, books["food"], books["bank"], "40", THIS_MONTH)  # posted to Food itself
+    page = client.get(f"/categories/{books['food']['aid']}").text
+    assert page.count('class="tx"') == 1, "Food's own entry only"
+    assert "340.00" in page, "the figure is still the whole category"
+    assert client.get(f"/categories/{books['groceries']['aid']}").text.count('class="tx"') == 1
