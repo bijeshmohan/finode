@@ -23,15 +23,13 @@
 </a>
 {% endmacro %}
 
-{#- The month (or a group) at a glance: what is left, and a bar of what is spent out of what there was. -#}
-{% macro glance_block(glance, label, over_label, currency, pace, edit_url="") %}
-<div class="ready zero budget-hero">
-  {% if edit_url %}
-  <div class="glance-head"><span class="muted">{{ over_label if glance.left < 0 else label }}</span>
-    <a class="circ-button" href="/budget" hx-get="{{ edit_url }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false" title="Edit budget" aria-label="Edit the budget for {{ label[8:] }}">{{ icon("edit") }}</a></div>
-  {% else %}<span class="muted">{{ over_label if glance.left < 0 else label }}</span>{% endif %}
+{#- A group at a glance: what is left, and a bar of what is spent out of what there was. The whole block opens the group's own
+    budget in the sheet (edit_url; href is the page itself, for when scripts do not run). -#}
+{% macro glance_block(glance, label, over_label, currency, pace, edit_url, href) %}
+<a class="ready zero budget-hero tappable" href="{{ href }}" hx-get="{{ edit_url }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false" title="Set the budget">
+  <span class="muted">{{ over_label if glance.left < 0 else label }}</span>
   <span class="figure {{ 'over' if glance.left < 0 }}">{{ figure(glance.left, currency) }}</span>
   <span class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent{% if pace is not none %}, and {{ pace }}% of the month has passed{% endif %}"><i style="width: {{ glance.percent }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
-  <span class="glance-note">{% if glance.planned %}Spent {{ glance.spent|money }} of {{ glance.of|money }}{% else %}Nothing assigned yet{% endif %}</span>
-</div>
+  <span class="glance-note hero-note"><span>{% if glance.planned %}Spent {{ glance.spent|money }} of {{ glance.of|money }}{% else %}Nothing assigned yet{% endif %}</span><span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span></span>
+</a>
 {% endmacro %}

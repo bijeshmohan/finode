@@ -141,7 +141,7 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(pa
     page.locator("a.grow", has_text="Dining").click()
     page.wait_for_url("**/budget/group/**")
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
-    page.get_by_label("Edit the budget for Dining").click()
+    page.locator(".budget-hero").click()
     box = page.locator('#cat-sheet input[aria-label="Budget for Dining"]')
     expect(box).to_be_visible()
     box.fill("200")  # below what Delivery and Restaurant add up to
