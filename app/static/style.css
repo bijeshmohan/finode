@@ -1293,11 +1293,8 @@ dd.auto, dd.auto a { color: var(--auto); }
 .calc-note { margin: .6rem 0 0; font-size: .8125rem; color: var(--muted); }
 /* A budget field that is below its minimum (a group under what its subcategories add up to) turns red. */
 input[aria-invalid="true"], input[aria-invalid="true"]:focus, dialog.sheet input.assign[aria-invalid="true"], dialog.sheet input.assign[aria-invalid="true"]:focus { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); outline-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
-.group-back { display: inline-flex; margin: 0 0 .6rem -.35rem; }
-.group-bar { margin: 0 0 .9rem; }
-/* A long name takes the room it needs and the pill drops under it on a narrow screen; words are only broken as a last resort. */
-.group-bar h1 { margin: 0; flex: 1 1 9rem; min-width: 0; font-size: 1.5rem; font-weight: 600; overflow-wrap: break-word; }
-.group-bar .month-pill { flex: none; }
+/* The name is a line of its own under the back link and the month pill, so a long one just wraps. */
+.group-title { margin: 0 0 .9rem; font-size: 1.5rem; font-weight: 600; overflow-wrap: break-word; }
 /* A group's figure, bar and "Spent … of …" are one button: tapping them opens the group's budget. */
 a.tappable { color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
 a.tappable:active { opacity: .7; }
