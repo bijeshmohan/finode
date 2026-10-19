@@ -53,7 +53,7 @@
 </a>
 {% endif %}
 <div class="home-tiles">
-  <div class="home-tile"><p class="k">Money in accounts</p><p class="v">{{ tiles.money|money|amount(currency) }}<small>In your budget accounts</small></p></div>
+  <div class="home-tile"><p class="k">Balance</p><p class="v">{{ tiles.money|money|amount(currency) }}</p></div>
   {% if tiles.has_cards %}
   <div class="home-tile"><p class="k">Owed</p><p class="v">{{ tiles.cards|money|amount(currency) }}</p></div>
   {% else %}
