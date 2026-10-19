@@ -85,8 +85,7 @@
   </div>
   {% if account.closed_on %}<p class="muted">Closed on {{ account.closed_on.strftime("%d %b %Y") }}. Its history stays; nothing can be added to it until you reopen it.</p>{% endif %}
   {% if category %}
-  <p class="hero-balance{{ ' has-bar' if bar }}">{{ figure(total, currency) }}</p>
-  {% include "partials/share_bar.html" %}
+  <p class="hero-balance">{{ figure(total, currency) }}</p>
   {% else %}
   <p class="hero-balance">{{ figure(account.balance, currency) }}</p>
   {% endif %}
@@ -105,13 +104,13 @@
 <div class="tile sub-tile">
   {% for c, amount in subs %}
   <a class="r crow" href="/categories/{{ c.account.aid }}?month={{ month_key }}">
-    <span class="crow-main"><span class="crow-name">{% if bar %}<span class="cdot" {% if colour_of[c.account.aid] %}style="background: var(--chart-{{ colour_of[c.account.aid] }})"{% endif %} aria-hidden="true"></span>{% endif %}{{ c.account.name }}</span></span>
+    <span class="crow-main"><span class="crow-name">{{ c.account.name }}</span></span>
     <span class="crow-amt"><span class="{{ 'income' if root.account.name == 'Income' and amount > 0 }}">{{ amount|money }}</span></span>
   </a>
   {% endfor %}
   {% if own_here %}
   <div class="r crow">
-    <span class="crow-main"><span class="crow-name">{% if bar %}<span class="cdot" {% if colour_of["own"] %}style="background: var(--chart-{{ colour_of["own"] }})"{% endif %} aria-hidden="true"></span>{% endif %}Everything else</span><span class="crow-sub">posted to {{ account.name }} itself</span></span>
+    <span class="crow-main"><span class="crow-name">Everything else</span><span class="crow-sub">posted to {{ account.name }} itself</span></span>
     <span class="crow-amt"><span class="{{ 'income' if root.account.name == 'Income' and own_here > 0 }}">{{ own_here|money }}</span></span>
   </div>
   {% endif %}
