@@ -1,0 +1,15 @@
+{#- The month selector: ‹ Oct 2026 ›. The arrows go one month back or forward; the month in the middle is a native month
+    picker laid invisibly over its name (tap it, choose, and the page for that month opens: `monthPicker` in app.js).
+    `url` holds `{month}` where the month goes; `max` is the last month that may be chosen (pages that never look ahead). -#}
+{% from "partials/icons.html" import icon %}
+{% macro month_pill(url, month_name, month_key, previous, next, max="2999-12") %}
+<span class="month-pill">
+  <a class="mp-arrow" href="{{ url|replace('{month}', previous) }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
+  <span class="month-pick">
+    <span class="month-pill-name">{{ month_name.split(" ")[0][:3] }} {{ month_name.split(" ")[1] }}</span>
+    <input type="month" class="month-input" value="{{ month_key }}" min="1900-01" max="{{ max }}" data-url="{{ url }}" aria-label="Choose a month">
+  </span>
+  {% if next <= max %}<a class="mp-arrow" href="{{ url|replace('{month}', next) }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>
+  {% else %}<span class="mp-arrow off" aria-hidden="true" style="transform: scaleX(-1)">{{ icon("back") }}</span>{% endif %}
+</span>
+{% endmacro %}
