@@ -64,64 +64,19 @@ def test_assets_and_liabilities_are_open_equity_folds_and_there_is_no_net_worth_
     assert 'class="circ-button" href="/accounts/new"' in page, "the round + adds an account"
 
 
-def test_unused_accounts_are_tucked_away_but_new_ones_are_not(client, tree, session):
+def test_every_open_account_shows_even_with_no_entries_and_no_balance(client, tree, session):
+    age(session, "Old Savings", "Snacks", "Rent", "Food", "Groceries", "HDFC", "Amex")
     page = client.get("/accounts").text
-    assert "unused-hidden" not in page and "Load more" not in page, "everything is new"
-    age(session, "Old Savings", "Snacks", "Rent")
+    assert "unused" not in page and "Load more" not in page, "nothing is tucked away for being quiet"
+    assert "closed-hidden" not in page
+    for name in ("old", "snacks", "rent", "food", "groceries", "hdfc", "amex"):
+        assert f'href="/accounts/{tree[name]}"' in page, name
+
+
+def test_closed_accounts_wait_behind_load_more(client, tree, session):
+    assert client.post(f"/api/accounts/{tree['old']}/close").status_code == 200
     page = client.get("/accounts").text
-    assert page.count("unused-hidden") == 4, "three accounts, and Rent's block, which has nothing else in it"
-    assert ">Load more</button>" in page and "unused accounts hidden" not in page
-    assert "unused-hidden" in item(page, tree["old"]) and "unused-hidden" not in item(page, tree["hdfc"])
-    assert "unused-hidden" not in item(page, tree["groceries"]), "a new account stays"
-
-
-def test_an_account_with_entries_or_a_balance_is_never_unused(client, tree, session):
-    age(session, "HDFC", "Amex", "Old Savings")
-    client.post("/api/transactions/", json={"postings": [
-        {"account": tree["groceries"], "side": "debit", "amount": "5"},
-        {"account": tree["hdfc"], "side": "credit", "amount": "5"},
-    ]})
-    age(session, "Groceries")
-    page = client.get("/accounts").text
-    assert "unused-hidden" not in item(page, tree["hdfc"]) and "unused-hidden" not in item(page, tree["amex"])
-    assert "unused-hidden" not in item(page, tree["groceries"])
-    assert "unused-hidden" in item(page, tree["old"])
-
-
-def test_a_group_is_unused_only_when_everything_in_it_is(client, tree, session):
-    age(session, "Food", "Groceries", "Snacks")
-    page = client.get("/accounts").text
-    assert page.count("unused-hidden") == 3, "the group's heading block and its two accounts"
-    client.post("/api/transactions/", json={"postings": [
-        {"account": tree["groceries"], "side": "debit", "amount": "5"},
-        {"account": tree["hdfc"], "side": "credit", "amount": "5"},
-    ]})
-    age(session, "Food", "Groceries", "Snacks")
-    page = client.get("/accounts").text
-    assert 'class="acc-block "' in page and page.count("unused-hidden") == 1, "only Snacks: the group holds an account that was used"
-
-
-def test_an_account_a_recurring_rule_uses_is_not_hidden(client, tree, session):
-    client.post("/api/recurring/", json={
-        "from_account": tree["hdfc"], "to_account": tree["rent"], "amount": "10", "start_date": "2999-01-01",
-    })
-    age(session, "Rent")
-    assert "unused-hidden" not in item(client.get("/accounts").text, tree["rent"])
-
-
-def test_a_group_emptied_by_a_move_leaves_no_empty_tile(client, tree, session):
-    """Vehicles holds only Car; Car moves to Valuables. Vehicles is then an unused plain account, and the block it
-    shares with other unused plain accounts must hide with it instead of showing an empty line."""
-    assets = client.get(f"/api/accounts/{tree['banks']}").json()["parent_id"]
-    vehicles = client.post("/api/accounts/", json={"name": "Vehicles", "parent_id": assets}).json()["aid"]
-    valuables = client.post("/api/accounts/", json={"name": "Valuables", "parent_id": assets}).json()["aid"]
-    car = client.post("/api/accounts/", json={"name": "Car", "parent_id": vehicles, "balance": "900"}).json()["aid"]
-    assert client.patch(f"/api/accounts/{car}", json={"parent_id": valuables}).status_code == 200
-    age(session, "Vehicles", "Rent", "Valuables", "Car")
-    page = client.get("/accounts").text
-    assert "unused-hidden" in item(page, vehicles)
-    opening = page[:page.index(f'href="/accounts/{vehicles}"')].rsplit('<div class="acc-block', 1)[1].split(">", 1)[0]
-    assert "unused-hidden" in opening, "its block is hidden too"
+    assert "closed-hidden" in item(page, tree["old"]) and "closed-hidden" not in item(page, tree["hdfc"])
     assert ">Load more</button>" in page
 
 
