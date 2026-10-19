@@ -791,7 +791,7 @@ form.notice.fund button { margin: 0; }
 }
 [data-payment-category][hidden] { display: none; }
 
-/* ---------- Accounts page: groups that open, search, unused accounts tucked away ---------- */
+/* ---------- Accounts page: search, closed accounts tucked away ---------- */
 
 .accounts-tools { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
 .accounts-tools input[type="search"] { flex: 1 1 12rem; min-width: 0; }
@@ -800,8 +800,7 @@ form.notice.fund button { margin: 0; }
 .caret .icon { width: 1.1em; height: 1.1em; }
 details[open] > summary .caret { transform: none; }
 
-.unused-hidden, .closed-hidden { display: none; }
-.show-unused .unused-hidden:not(.closed-hidden), .searching .unused-hidden:not(.closed-hidden) { display: revert; }
+.closed-hidden { display: none; }
 .show-closed .closed-hidden, .searching .closed-hidden { display: revert; }
 [data-accounts] li[hidden] { display: none !important; }
 .unused-toggle { margin: 1rem 0 0; text-align: center; }

@@ -15,7 +15,7 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 - **Recently used** cards at the top show the last five accounts you used by hand; swipe them.
 - The **search box** filters by name or path.
-- Accounts you never use, and closed ones, are tucked behind one **Load more** button at the bottom (closed ones carry a *closed* badge).
+- Every open account is listed, used or not. Closed ones are tucked behind one **Load more** button at the bottom (they carry a *closed* badge).
 - Accounts go **two levels** deep, at most: a group and the accounts in it.
 
 ### Add an account

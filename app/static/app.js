@@ -598,16 +598,16 @@ document.body.addEventListener("change", (event) => {
   if (field) field.hidden = box.checked;
 });
 
-// ---- Accounts page: groups open and close (and are remembered), search, unused accounts ----
+// ---- Accounts page: search, closed accounts ----
 (function accountsPage() {
   const page = document.querySelector("[data-accounts]");
   if (!page) return;
 
-  // One button shows the unused and the closed accounts together (closed ones carry a badge) and goes away.
+  // One button shows the closed accounts (they carry a badge) and goes away.
   const more = page.querySelector("[data-load-more-accounts]");
   if (more) {
     more.addEventListener("click", () => {
-      page.classList.add("show-unused", "show-closed");
+      page.classList.add("show-closed");
       more.closest(".unused-toggle").remove();
     });
   }
