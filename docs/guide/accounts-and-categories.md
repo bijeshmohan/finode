@@ -11,10 +11,8 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 ## Accounts page
 
-**Accounts** lists Assets and Liabilities with their totals. Each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts share one tile. Things to know:
+**Accounts** has three chips, **Assets**, **Liabilities** and **Equity**, in that order, like Expense and Income on Categories. The chosen one shows its total as a large figure, then its accounts: each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts share one tile. Things to know:
 
-- **Recently used** cards at the top show the last five accounts you used by hand; swipe them.
-- The **search box** filters by name or path.
 - Every open account is listed, used or not. Closed ones are tucked behind one **Load more** button at the bottom (they carry a *closed* badge).
 - Accounts go **two levels** deep, at most: a group and the accounts in it.
 

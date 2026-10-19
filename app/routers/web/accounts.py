@@ -123,22 +123,27 @@ ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
 CATEGORY_ROOTS = ("Expenses", "Income")
 
 
+# The chips on the accounts page, in this order (?tab=): each shows one type of account.
+ACCOUNT_TABS = {"assets": "Assets", "liabilities": "Liabilities", "equity": "Equity"}
+
+
 @router.get("")
-def accounts_page(request: Request, accounts: Accounts):
+def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
+    tab = tab.lower() if tab.lower() in ACCOUNT_TABS else "assets"
     roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
     mark_closed(roots)
-    nodes = {n.account.aid: n for root in roots for n in root.walk()}
-    recent = [nodes[aid] for aid in accounts.recent(RECENT_ACCOUNTS) if aid in nodes]  # categories are not accounts here
+    root = next(r for r in roots if r.account.name == ACCOUNT_TABS[tab])
     return templates.TemplateResponse(
         request,
         "accounts.html",
         {
             "active": "accounts",
-            "recent": recent,
-            "roots": roots,
-            "blocks": {root.account.aid: page_blocks(root) for root in roots},
+            "tab": tab,
+            "tabs": ACCOUNT_TABS,
+            "root": root,
+            "blocks": page_blocks(root),
             "currency": accounts.currency().code,
-            "closed": closed_count(roots),
+            "closed": closed_count([root]),
         },
     )
 
@@ -156,9 +161,6 @@ def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
             blocks.append((None, [child]))
     return blocks
 
-
-# How many recently used accounts the accounts page lists.
-RECENT_ACCOUNTS = 5
 
 def mark_closed(roots: list[Node]) -> None:
     """Flag the closed accounts: the accounts page lists every open account, and keeps the closed ones behind "Load more"."""

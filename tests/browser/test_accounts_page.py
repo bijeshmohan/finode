@@ -1,4 +1,4 @@
-"""The accounts page in a browser: groups under their headings, the recent cards, search and closed accounts."""
+"""The accounts page in a browser: the type chips, groups under their headings and closed accounts."""
 
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -26,15 +26,29 @@ def nested(api: Api, books):
     return banks, food
 
 
-def test_every_group_is_open_under_its_heading_and_only_equity_folds(page: Page, api, books):
+def test_every_group_is_open_under_its_heading_and_nothing_folds(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
     shown = visible(page)
     assert "assets › banks › hdfc" in shown and "assets › savings › rainy" in shown and "assets › checking" in shown
-    assert "equity › opening balances" not in shown, "Equity starts folded to one line"
-    assert page.locator("details").count() == 1 and page.locator("[data-section]").count() == 3
-    page.locator("details.equity > summary").click()
-    assert "equity › opening balances" in visible(page)
+    assert page.locator("details").count() == 0, "nothing folds, not even Equity"
+    assert "equity › opening balances" not in shown, "Equity has its own chip"
+
+
+def test_the_chips_switch_between_assets_liabilities_and_equity(page: Page, api, books):
+    nested(api, books)
+    page.goto("/accounts")
+    chips = page.locator(".cat-chips .chip")
+    assert chips.all_inner_texts() == ["Assets", "Liabilities", "Equity"]
+    expect(chips.nth(0)).to_have_attribute("aria-pressed", "true")
+    page.get_by_role("link", name="Liabilities").click()
+    page.wait_for_url("**/accounts?tab=liabilities")
+    shown = visible(page)
+    assert shown == ["liabilities › visa"], shown
+    expect(page.locator(".cat-chips .chip").nth(1)).to_have_attribute("aria-pressed", "true")
+    page.get_by_role("link", name="Equity").click()
+    page.wait_for_url("**/accounts?tab=equity")
+    assert visible(page) == ["equity › opening balances"]
 
 
 def test_a_groups_heading_goes_to_its_page(page: Page, api, books):
@@ -43,19 +57,6 @@ def test_a_groups_heading_goes_to_its_page(page: Page, api, books):
     page.locator(f'a.acc-gh[href="/accounts/{banks["aid"]}"]').click()
     page.wait_for_url(f"**/accounts/{banks['aid']}")
     expect(page.get_by_role("heading", name="Banks")).to_be_visible()
-
-
-def test_searching_finds_accounts_inside_closed_groups(page: Page, api, books):
-    nested(api, books)
-    page.goto("/accounts")
-    page.fill("[data-account-search]", "rain")
-    assert visible(page) == ["assets › savings › rainy"]
-    expect(page.locator("a.acc-gh", has_text="Savings")).to_be_visible()
-    expect(page.locator("a.acc-gh", has_text="Banks")).to_be_hidden()
-    page.fill("[data-account-search]", "zzz")
-    expect(page.locator("[data-no-match]")).to_be_visible()
-    page.fill("[data-account-search]", "")
-    assert "assets › banks › hdfc" in visible(page), "clearing the search puts the layout back"
 
 
 def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(page: Page, api, books, session):
@@ -67,6 +68,7 @@ def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(page: Pag
     session.commit()
     page.goto("/accounts")
     assert "assets › old wallet" in visible(page), "no entries, no balance and old: still listed"
+    page.goto("/accounts?tab=liabilities")
     assert "liabilities › old card" not in visible(page)
     page.get_by_role("button", name="Load more").click()
     assert "liabilities › old card" in visible(page)
@@ -83,21 +85,6 @@ def test_closing_an_account_from_its_page(page: Page, api, books):
     assert "assets › cash" not in visible(page)
     page.get_by_role("button", name="Load more").click()
     assert "assets › cash" in visible(page)
-
-
-def test_recently_used_accounts_are_cards_that_the_search_hides(page: Page, api, books):
-    banks, _ = nested(api, books)
-    hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
-    api.post("/transactions/", date="2026-01-05", postings=[
-        {"account": hdfc["aid"], "side": "debit", "amount": "5"}, {"account": books["cash"]["aid"], "side": "credit", "amount": "5"}])
-    page.goto("/accounts")
-    card = page.locator("a.card-acc", has_text="HDFC")
-    expect(card).to_be_visible()
-    expect(card.locator(".ca-cap")).to_have_text("Banks")
-    page.locator("[data-account-search]").fill("hdfc")
-    expect(page.locator(".recent-cards")).to_be_hidden()
-    page.locator("[data-account-search]").fill("")
-    expect(page.locator(".recent-cards")).to_be_visible()
 
 
 def test_moving_an_account_changes_the_order_on_the_page(page: Page, api, books):

@@ -1,4 +1,4 @@
-"""Placing accounts by hand, and the list of recently used ones."""
+"""Placing accounts by hand."""
 
 import re
 
@@ -131,53 +131,6 @@ def test_roots_and_the_system_account_cannot_be_placed(client, books):
     assert client.post(f"/accounts/{books['roots']['Assets']}/move", data={"direction": "up"}).status_code == 400
     assert client.post(f"/accounts/{books['roots']['Assets']}/reset-order").status_code == 400
     assert client.post(f"/accounts/{books['hdfc']['aid']}/move", data={"direction": "sideways"}).status_code == 400
-
-
-# ---- recently used -------------------------------------------------------------------------------------------------
-
-
-def cards(page: str) -> list[str]:
-    return re.findall(r'<span class="ca-name">(\w+)</span>', page)
-
-
-def test_recently_used_accounts_are_cards_on_top(client, books):
-    assert "Recently used" not in squash(client.get("/accounts").text)  # nothing recorded yet
-    spend(client, books["cash"], books["hdfc"])
-    spend(client, books["gold"], books["wallet"])
-    spend(client, books["axis"], books["sbi"])
-    text = client.get("/accounts").text
-    assert text.index("Recently used") < text.index("acc-section"), "above the accounts"
-    names = cards(text)
-    # newest entry first (the two accounts of one entry are equally recent), each account once, five at most
-    assert len(names) == 5 and len(set(names)) == 5
-    assert set(names[:2]) == {"Axis", "SBI"} and set(names[2:4]) == {"Gold", "Wallet"}
-    assert 'class="ca-cap">Banks<' in text, "each card says which group it is in"
-
-
-def test_recent_leaves_out_closed_and_the_systems_accounts(client, books):
-    spend(client, books["cash"], books["hdfc"])
-    spend(client, books["gold"], books["wallet"], "5")
-    spend(client, books["wallet"], books["gold"], "5")  # back to nothing in it, so it can be closed
-    assert client.post(f"/api/accounts/{books['wallet']['aid']}/close").status_code == 200
-    names = cards(client.get("/accounts").text)
-    assert "Wallet" not in names and "Gold" in names and "Opening" not in " ".join(names)
-
-
-def test_recent_ignores_what_recurring_rules_and_imports_made(client, books):
-    rule = client.post("/api/recurring/", json={
-        "from_account": books["wallet"]["aid"], "to_account": books["rent"]["aid"], "amount": "5",
-        "frequency": "daily", "start_date": "2020-01-01"})
-    assert rule.status_code == 201
-    made = client.get("/api/transactions/").json()  # opening the list records what is due
-    assert any(t["created_via"] == "recurring" for t in made)
-    assert "Recently used" not in squash(client.get("/accounts").text)
-
-
-def test_recent_shows_at_most_five(client, books, root_accounts):
-    extra = [client.post("/api/accounts/", json={"name": f"Spare{i}", "parent_id": root_accounts["Assets"]}).json() for i in range(4)]
-    for account in [books["cash"], books["gold"], books["axis"], *extra]:
-        spend(client, account, books["wallet"], "1")
-    assert len(cards(client.get("/accounts").text)) == 5
 
 
 # ---- the web pages -------------------------------------------------------------------------------------------------

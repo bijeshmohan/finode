@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/money.html" import figure %}
 {% block title %}Accounts · finode{% endblock %}
 
 {#- One account: a round initial, its name and its balance. -#}
@@ -15,7 +16,7 @@
 
 {#- A type's accounts: every group is a heading (linking to the group's page) with its accounts under it, always open. -#}
 {% macro blocks_of(root) %}
-  {% for head, items in blocks[root.account.aid] %}
+  {% for head, items in blocks %}
   {#- A block with nothing left to show (a closed group, or plain accounts that all are closed) hides whole, so no empty tile is left. -#}
   <div class="acc-block{{ ' closed-hidden' if (head and head.closed) or (not head and items|selectattr("closed")|list|length == items|length) }}">
     {% if head %}
@@ -35,46 +36,25 @@
   </span>
 </div>
 
-<div data-accounts>
-  <div class="accounts-tools">
-    <input type="search" data-account-search placeholder="Search accounts" aria-label="Search accounts" autocomplete="off">
+<div class="cat-bar">
+  <div class="chips cat-chips" role="group" aria-label="What to show">
+    {% for key, name in tabs.items() %}<a class="chip" href="/accounts?tab={{ key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
   </div>
-  <p class="muted" data-no-match hidden>No account matches.</p>
+</div>
 
-  {% if recent %}
-  <section class="recent-cards" data-quick>
-    <div class="acc-gh plain"><span>Recently used</span></div>
-    <div class="cards">
-      {% for node in recent %}
-      <a class="card-acc" href="/accounts/{{ node.account.aid }}">
-        <span class="ca-name">{{ node.account.name }}</span>
-        <span class="ca-cap">{{ node.path.rsplit(" › ", 2)[-2] if node.path.count(" › ") >= 2 else node.path.split(" › ")[0] }}</span>
-        <span class="ca-bal">{{ node.account.balance|money }}</span>
-      </a>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
+<div class="ready zero cat-hero">
+  <span class="sr-only">{{ {"assets": "What you own", "liabilities": "What you owe", "equity": "Equity"}[tab] }}</span>
+  <span class="figure">{{ figure(root.account.balance, currency) }}</span>
+</div>
 
-  {% for root in roots %}
-  {% if root.account.name == "Equity" %}
-  <details class="acc-section equity" data-section>
-    <summary class="acc-head"><h2><span class="caret">{{ icon("caret") }}</span>{{ root.account.name }}</h2><span class="group-total">{{ root.account.balance|money }}</span></summary>
-    {% if root.children %}{{ blocks_of(root) }}{% endif %}
-  </details>
+<div data-accounts>
+  {% if root.children %}
+  {{ blocks_of(root) }}
   {% else %}
-  <section class="acc-section" data-section>
-    <a class="acc-head" href="/accounts/{{ root.account.aid }}" title="Open {{ root.account.name }}"><h2>{{ root.account.name }}</h2><span class="group-total">{{ root.account.balance|money }}</span></a>
-    {% if root.children %}
-    {{ blocks_of(root) }}
-    {% else %}
-    <a class="card add-first" href="/accounts/new?parent={{ root.account.aid }}">
-      {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan"}[root.account.name] or "an account" }}
-    </a>
-    {% endif %}
-  </section>
+  <a class="card add-first" href="/accounts/new?parent={{ root.account.aid }}">
+    {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan"}[root.account.name] or "an account" }}
+  </a>
   {% endif %}
-  {% endfor %}
 
   {% if closed %}
   <p class="unused-toggle"><button type="button" class="link-button" data-load-more-accounts>Load more</button></p>
