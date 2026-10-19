@@ -99,7 +99,7 @@
     <summary>How this works</summary>
     {% if budget.cards %}
     <p class="muted calc">Money in your accounts {{ budget.money_in_accounts|money }} − set aside for card bills {{ budget.reserved_for_cards|money }} − in categories {{ budget.available|money }}{% if budget.assigned_to_later_months %} − assigned to later months {{ budget.assigned_to_later_months|money }}{% endif %} = ready to assign.</p>
-    <p class="muted calc">What you owe on a card is set aside automatically. Buying on a card spends the category; paying the bill from your bank changes nothing else.</p>
+    <p class="muted calc">What you owe on a card is set aside automatically.</p>
     {% endif %}
     {% if budget.assigned_to_later_months %}
     <p class="muted calc">{{ budget.assigned_to_later_months|money|amount(budget.currency) }} is already assigned to later months, so it is not counted in Ready to assign.</p>

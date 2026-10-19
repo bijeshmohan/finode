@@ -4,7 +4,7 @@
 {% block content %}
 <a class="back" href="/budget?month={{ month_key }}">{{ icon("back") }}Budget</a>
 <h1>Move money</h1>
-<p class="muted">{{ month_name }} · from what is available in a category to another category. It does not change what is left to assign.</p>
+<p class="muted">{{ month_name }} · from one category's available money to another. Ready to assign stays the same.</p>
 <form class="card stack form-narrow" hx-post="/budget/move">
   <input type="hidden" name="month" value="{{ month_key }}">
   <label>Amount
