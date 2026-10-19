@@ -114,6 +114,17 @@ def _load(accounts: AccountService, aid: UUID) -> tuple[list[Node], Node]:
     return roots, node
 
 
+def _category_options(roots: list[Node]) -> list[tuple[UUID, str]]:
+    """The expense categories a payment-category choice may name: (aid, path below Expenses)."""
+    return [
+        (n.account.aid, n.path.split(" › ", 1)[1])
+        for r in roots
+        if r.account.name == "Expenses"
+        for n in r.walk()
+        if n.account.parent_id is not None
+    ]
+
+
 def _root_of(roots: list[Node], node: Node) -> Node:
     return next(r for r in roots if any(n is node for n in r.walk()))
 
@@ -179,7 +190,9 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
     (under Expenses or Income, reached from the Categories page)."""
     kind = "category" if kind == "category" else "account"
     allowed = CATEGORY_ROOTS if kind == "category" else ACCOUNT_ROOTS
-    roots = [r for r in build_tree(accounts.list()) if r.account.name in allowed]
+    everything = build_tree(accounts.list())
+    roots = [r for r in everything if r.account.name in allowed]
+    root_of = {n.account.aid: r.account.name for r in roots for n in r.walk()}
     return templates.TemplateResponse(
         request,
         "account_form.html",
@@ -191,6 +204,11 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "parent_id": parent,
             "parent_options": _parent_options(roots),
             "currency": accounts.currency().code,
+            "root_name": root_of.get(parent),
+            "root_of": root_of,
+            "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
+            "on_budget": root_of.get(parent) == "Assets",  # an asset starts in the budget; a card or loan, outside it
+            "category_options": _category_options(everything),
         },
     )
 
@@ -260,6 +278,9 @@ def create_account(
     parent_id: Annotated[str, Form()] = "",
     details: Annotated[str, Form()] = "",
     balance: Annotated[str, Form()] = "",
+    on_budget: Annotated[str | None, Form()] = None,
+    budget_choice: Annotated[str | None, Form()] = None,
+    payment_category: Annotated[str, Form()] = "",
 ):
     try:
         if not parent_id:
@@ -269,6 +290,9 @@ def create_account(
             details=details.strip() or None,
             parent_id=UUID(parent_id),
             balance=parse_amount(balance, Decimal("0.00")),
+            # The form asked (budget_choice): its box says yes or no. Without it the default applies (an asset: yes).
+            on_budget=None if budget_choice is None else on_budget is not None,
+            payment_category_id=None if on_budget is not None or not payment_category.strip() else UUID(payment_category.strip()),
         )
         created = accounts.create(data)
     except ValidationError as e:
@@ -453,13 +477,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
             "on_budget": node.account.on_budget,
             "payment_category_id": node.account.payment_category_id,
-            "category_options": [
-                (n.account.aid, n.path.split(" › ", 1)[1])
-                for r in roots
-                if r.account.name == "Expenses"
-                for n in r.walk()
-                if n.account.parent_id is not None
-            ],
+            "category_options": _category_options(roots),
             "parent_options": [
                 n
                 for n in _parent_options(roots, exclude=node, keep=node.account.parent_id)

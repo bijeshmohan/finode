@@ -35,7 +35,7 @@ An account that has sub-accounts (such as a *Banks* group) is not posted to itse
 
 ### Credit cards and loans
 
-A card or loan is a **liability**: its balance is what you owe. Paying the bill is a *transfer* from your bank account to the card. To have the budget count a card's purchases as spending, turn on **Part of the budget** in its edit page. A loan outside the budget can name a **payment category**, so an EMI counts as spending in that category.
+A card or loan is a **liability**: its balance is what you owe. Paying the bill is a *transfer* from your bank account to the card. To have the budget count a card's purchases as spending, turn on **Part of the budget** when you add it (or later in its edit page). A card or loan outside the budget can name a **payment category**, chosen in the same form, so an EMI counts as spending in that category.
 
 ### Closing and deleting
 

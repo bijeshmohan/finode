@@ -142,3 +142,29 @@ def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api)
     page.get_by_role("button", name="Load more").click()
     expect(page.get_by_role("button", name="Load more")).to_have_count(0)
     expect(page.get_by_text("Shop 69")).to_be_visible()
+
+
+def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Page, api, books):
+    page.goto("/accounts/new")
+    fields = page.locator("[data-budget-fields]")
+    expect(fields).to_be_hidden()  # nothing chosen yet
+    parent = page.locator('select[name="parent_id"]')
+    box = page.locator('input[name="on_budget"]')
+    payment = page.locator("[data-payment-category]")
+    parent.select_option(label="Assets")
+    expect(fields).to_be_visible()
+    expect(box).to_be_checked()
+    expect(payment).to_be_hidden()
+    parent.select_option(label="Liabilities")
+    expect(box).not_to_be_checked()
+    expect(payment).to_be_visible()  # outside the budget: the expense category can be chosen
+    parent.select_option(label="Equity")
+    expect(fields).to_be_hidden()
+    assert page.locator('[data-budget-fields] input[name="on_budget"]').is_disabled(), "hidden fields are not sent"
+    parent.select_option(label="Liabilities")
+    page.locator('input[name="name"]').fill("Car loan")
+    page.locator('select[name="payment_category"]').select_option(label="Rent")
+    page.get_by_role("button", name="Add account").click()
+    page.wait_for_url("**/accounts/*")
+    loan = next(a for a in api.get("/accounts/") if a["name"] == "Car loan")
+    assert loan["on_budget"] is False and loan["payment_category_id"] == books["rent"]["aid"]
