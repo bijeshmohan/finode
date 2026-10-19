@@ -17,6 +17,8 @@ Budgets are **monthly**. (Weekly and yearly *targets* exist behind the Advanced 
 
 The page's main figure is **Ready to assign in <month>**. Your aim is to bring it to zero: *every ₹ has a job*.
 
+<img src="img/budget.png" alt="The Budget page: Ready to assign, and the categories ranked with a bar and a tick for today" width="300">
+
 ## A worked example
 
 You have ₹50,000 in your bank account, and no budget yet.
@@ -36,7 +38,10 @@ You have ₹50,000 in your bank account, and no budget yet.
 
 - Tap the **month pill** arrows to look at other months, including future ones.
 - The list is ranked, **biggest budget first**. Each row has a bar showing how much is spent, with a small **tick marking how far through the month today is**: a bar ahead of the tick means you are spending faster than the month passes.
-- A **group** (like Food) shows the total of its sub-categories; tap it to open its own page. A plain category, or a row on a group's page, opens a **sheet**: type what to *Assign*, see what was spent, **Move money** to another category, and reach the note and target.
+- A **group** (like Food) shows the total of its subcategories; tap it to open its own page. A plain category, or a row on a group's page, opens a **sheet** with **Assigned this month** (type the amount and **Save**), what was **Spent**, **Move money** to another category, and the **Note** (and, with Advanced on, the target).
+
+<img src="img/budget-sheet.png" alt="The category sheet: Assigned this month, Spent, Save, Move money, Note" width="300">
+- The Budget looks at the **whole month**, so an entry dated later this month already counts as spent in its category, while Home's Transactions list, account balances and the Month summary count up to today.
 - **Move money** never changes Ready to assign; it limits you to what the source category has left. Typing a smaller (even negative) amount in a category's *Assign* field takes money back to Ready to assign, but never more than the category has left.
 - Behind the **Needs you N** badge are the things that need a decision: accounts left out of the budget, last month's overspending, *Copy last month's amounts*, and (Advanced) *Assign what is needed*.
 - **Copy last month's amounts** assigns each category what it got last month, but only where nothing is assigned yet.
@@ -58,4 +63,4 @@ Home shows one number, *Left to spend in <month>*, with a thin bar: the total le
 
 ## If numbers disagree
 
-The **Month summary** reports what happened in the ledger by income and expense accounts, so it can differ from the Budget in small ways: a loan payment counts as spending in the Budget and on the Categories page (through the loan's payment category), but the Month summary only counts postings made to expense accounts. This is known.
+The **Budget**, the **Categories** page, the **Month summary** and the overview all count a loan payment the same way: as spending in the loan's payment category. They differ only in what the Budget leaves out on purpose: it counts what your budget accounts paid, so interest a lender adds to a loan (which no budget account paid) shows up as an expense in the reports but not in the Budget.

@@ -281,18 +281,21 @@ def test_the_top_is_a_title_with_its_actions_then_the_figure_and_a_wide_add_butt
     bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10", "details": "main account"}).json()
     page = client.get(f"/accounts/{bank['aid']}").text
     head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
-    assert head.index("<h1>Bank") < head.index('title="Edit"') < head.index('class="menu"') < head.index("hero-balance") < head.index("acct-add")
-    assert "Assets · main account" in head, "the type and the note share one small line"
+    assert head.index("<h1>Bank") < head.index('class="note-info"') < head.index('title="Edit"') < head.index('class="menu"') < head.index("hero-balance") < head.index("acct-add")
+    assert "Assets · main account" not in head and ">Assets</p>" in head, "the small line is the type; the note is behind the i"
     assert 'class="button acct-add"' in head and "Add transaction" in head
 
 
-def test_a_category_has_the_month_pill_above_the_figure_and_no_label(client, root_accounts):
+def test_a_category_has_the_month_pill_in_the_top_row_and_no_label(client, root_accounts):
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     page = client.get(f"/categories/{food['aid']}").text
+    nav = page.split('class="cat-bar acct-nav"', 1)[1].split('<header class="account-hero">', 1)[0]
     head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
-    assert head.index("month-pill") < head.index("hero-balance"), "the month sits above the figure"
+    assert nav.index('class="back"') < nav.index("month-pill"), "the back link and the month share one row above the title"
+    assert "month-pill" not in head and ">Expenses</p>" in head, "the type stays under the title"
     assert "so far" not in head and "Spent" not in head and "Earned" not in head, "the figure needs no label"
-    assert 'title="Previous month"' in head and 'title="Next month"' not in head, "nothing after the current month"
+    assert 'title="Previous month"' in nav and 'title="Next month"' not in nav, "nothing after the current month"
+    assert "acct-add" not in page, "adding is a + on the Transactions heading"
     last = client.get(f"/categories/{food['aid']}?month=2026-01").text
     assert 'title="Next month"' in last and "Jan 2026" in last
 
@@ -337,3 +340,19 @@ def test_an_upcoming_payment_into_a_card_is_green_and_a_charge_is_not(client, ro
         {"account": card["aid"], "side": "debit", "amount": "200"}, {"account": bank["aid"], "side": "credit", "amount": "200"}]})
     page = client.get(f"/accounts/{card['aid']}").text
     assert "1 upcoming" in page and "+200.00" in page and "up-amount income" in page
+
+
+def test_a_description_sits_behind_an_i_beside_the_name_not_under_it(client, root_accounts):
+    made = client.post("/api/accounts/", json={"name": "Wallet", "details": "Kept in the bag, for taxis", "parent_id": root_accounts["Assets"]}).json()
+    plain = client.post("/api/accounts/", json={"name": "Spare", "parent_id": root_accounts["Assets"]}).json()
+    page = client.get(f"/accounts/{made['aid']}").text
+    sub = page.split('<p class="acct-sub">', 1)[1].split("</p>", 1)[0]
+    assert "Kept in the bag" not in sub and sub.strip() == "Assets", "the line under the name is just the type"
+    info = page.split('<details class="note-info">', 1)[1].split("</details>", 1)[0]
+    assert "Kept in the bag, for taxis" in info and 'aria-label="About Wallet"' in info
+    assert 'class="note-info"' not in client.get(f"/accounts/{plain['aid']}").text, "no description, no icon"
+
+    cat = client.post("/api/accounts/", json={"name": "Taxis", "details": "Only cabs", "parent_id": root_accounts["Expenses"]}).json()
+    category_page = client.get(f"/categories/{cat['aid']}").text
+    assert "Only cabs" in category_page.split('<details class="note-info">', 1)[1].split("</details>", 1)[0]
+    assert "Only cabs" not in category_page.split('<p class="acct-sub">', 1)[1].split("</p>", 1)[0]

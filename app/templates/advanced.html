@@ -37,5 +37,5 @@
   <div class="setting setting-plain"><span class="setting-title">Period lock</span><span class="setting-value">Close the books up to a day</span></div>
   {% endif %}
 </div></div>
-<p class="muted small-print form-narrow">Switched off, none of these show anywhere else in the app: no targets on the budget, no pin button, no lock. Turn it on whenever you need one.</p>
+<p class="muted small-print form-narrow">{% if profile.advanced %}These now show in the app: targets on the budget, ordering and closing of accounts, the lock. Switch it off to hide them again; nothing you set is lost.{% else %}Switched off, none of these show anywhere else in the app: no targets on the budget, no ordering or closing of accounts, no lock. Turn it on whenever you need one.{% endif %}</p>
 {% endblock %}

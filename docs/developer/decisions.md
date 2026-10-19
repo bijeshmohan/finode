@@ -44,7 +44,7 @@ The decisions that look odd until you know the reason. Each entry says what was 
 
 **Decision.** The ledger knows nothing about budgeting. The budget stores only the plan, the targets and an `on_budget` flag.
 **Why.** The ledger stays correct and simple whatever the budget does, and the budget can never corrupt it.
-**Cost.** Some numbers (Home's Left to spend, the Budget page and the Month summary) come from different calculations and can differ in what they count; for example the Month summary does not count loan payments as spending the way the Budget does. This is a known inconsistency, not a bug in one of them.
+**Cost.** The Budget counts only what budget money paid, while the reports (Categories, Month summary, breakdown, overview) count every posting to an expense account. They agree on an EMI (a payment into a loan with a payment category is spending in that category everywhere), and differ only where that is the point: interest the lender charges to a loan is an expense in the reports but touches no budget account, so it is not in the Budget.
 
 ## The session remembers repeated reads
 
@@ -63,7 +63,7 @@ The decisions that look odd until you know the reason. Each entry says what was 
 
 ## Entries dated in the future are not history
 
-**Decision.** Home's Recent and the main transactions list show only entries up to today. Future entries sit in one collapsed "upcoming" card, on the Transactions page and on account pages.
+**Decision.** Home's Transactions list and the Transactions page show only entries up to today. Future entries sit in one collapsed "upcoming" card, on the Transactions page and on account pages.
 **Why.** People enter EMI schedules and bills ahead of time; mixing them into the recent list buried what actually happened. Balances also count only up to today, so the list and the numbers agree.
 
 ## Server-rendered HTML with htmx, no JavaScript build

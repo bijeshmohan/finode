@@ -50,6 +50,7 @@ Pages work without scripts where they can: rows are links to detail or edit page
 
 - **Phones first.** Keep text inputs at 16px or more so iOS does not zoom. Prefer our own chips and sheets over native pickers so iOS and Android look the same.
 - **Bento tiles.** Rows are grouped into soft rounded tiles (a tile per day in transaction lists, per group on Accounts and Budget). One rule block at the end of `style.css` defines them; new lists should reuse it.
+- **The share bar** on Categories is drawn with CSS only (flex widths from each category's share), coloured by six `--chart-N` tokens that exist in the light and both dark blocks; it is left out when it would say nothing.
 - **Tokens only.** Colours come from the CSS variables at the top of `style.css`; the light theme, the automatic dark block and the manual `data-theme="dark"` block must define the same tokens (a test compares them). Green and red are for money in and out only.
 - **The `back` path.** Forms that can be opened from several places take a `back` path and return there; always pass it through `safe_back`, which only allows local paths of the web UI.
 - **The Advanced switch.** Rarely used features (budget targets, week-by-week view, move up/down, closing accounts, the period lock) hide behind `profiles.advanced`. The data is never touched.

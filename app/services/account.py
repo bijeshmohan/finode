@@ -133,7 +133,7 @@ class AccountService:
         resulting = self._depth(parent, {a.aid: a for a in all_accounts}) + levels_below_parent
         if resulting > MAX_ACCOUNT_DEPTH:
             raise AccountDepthError(
-                "accounts can be at most two levels deep (a category and a sub-category, like Expenses › Food › Groceries)!"
+                "accounts can be at most two levels deep (a category and a subcategory, like Expenses › Food › Groceries)!"
             )
 
     def ensure_roots(self) -> list[Account]:
@@ -593,11 +593,11 @@ class AccountService:
         touching = {tid for tid, rows in postings_of.items() if any(r.account in budget_accounts for r in rows)}
         return [(linked[p.account], p) for p in into if p.transaction in touching]
 
-    def register(self, aid: UUID) -> list[RegisterEntry] | None:
+    def register(self, aid: UUID, own_only: bool = False) -> list[RegisterEntry] | None:
         """Return the account's activity oldest first with a running balance.
 
         Postings on sub-accounts count towards the account, matching how its
-        balance is derived. Each entry's change is signed by the account's
+        balance is derived, unless `own_only` asks for what was posted to the account itself. Each entry's change is signed by the account's
         normal side, so it adds up to the account balance.
         """
         all_accounts = self._ensure_roots()
@@ -606,7 +606,7 @@ class AccountService:
             return None
 
         accounts_by_id = {acc.aid: acc for acc in all_accounts}
-        target_ids = self.subtree_ids(aid, all_accounts)
+        target_ids = {aid} if own_only else self.subtree_ids(aid, all_accounts)
         normal_side = self._normal_side(account, accounts_by_id)
 
         changes: dict[UUID, Decimal] = {}

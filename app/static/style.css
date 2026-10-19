@@ -1,6 +1,7 @@
 /* ---------- Design tokens ---------- */
 /* Calm and minimal: one ink colour for actions, warm neutral greys, green and red only where money is in or out. */
 :root {
+  --bar-h: 6px; /* every progress bar: Home, Budget, Categories */
   --bg: #fafaf8;
   --surface: #ffffff;
   --surface-2: #f1f0ec;
@@ -21,6 +22,12 @@
   --warn-soft: #fbf0d9;
   --positive: #2e7d5b;
   --negative: #b3412e;
+  --chart-1: #3d5a80;
+  --chart-2: #c9803a;
+  --chart-3: #8a6fb0;
+  --chart-4: #4f93a3;
+  --chart-5: #b09a6e;
+  --chart-6: #d2cfc6; /* everything else */
   --shadow: 0 1px 2px rgb(27 27 25 / 4%);
   --shadow-lg: 0 6px 18px rgb(27 27 25 / 18%);
   --radius: 16px;
@@ -54,6 +61,12 @@
     --warn-soft: #382b17;
     --positive: #5dbe8f;
     --negative: #e7826d;
+    --chart-1: #86a4d6;
+    --chart-2: #e0a15f;
+    --chart-3: #b39bd9;
+    --chart-4: #7cc0cf;
+    --chart-5: #cdb888;
+    --chart-6: #55544d;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-lg: 0 6px 18px rgb(0 0 0 / 55%);
     color-scheme: dark;
@@ -80,6 +93,12 @@
   --warn-soft: #382b17;
   --positive: #5dbe8f;
   --negative: #e7826d;
+  --chart-1: #86a4d6;
+  --chart-2: #e0a15f;
+  --chart-3: #b39bd9;
+  --chart-4: #7cc0cf;
+  --chart-5: #cdb888;
+  --chart-6: #55544d;
   --shadow: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-lg: 0 6px 18px rgb(0 0 0 / 55%);
   color-scheme: dark;
@@ -895,8 +914,8 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .glance-figure { margin: .25rem 0 0; font-size: 2.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
 .glance-figure small { margin-left: .4rem; font-size: .875rem; font-weight: 400; letter-spacing: 0; color: var(--muted); }
 .glance-figure.over { color: var(--negative); }
-.glance-bar { margin-top: .9rem; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
-.glance-bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
+.glance-bar { margin-top: .9rem; height: var(--bar-h); border-radius: calc(var(--bar-h) / 2); background: var(--border); overflow: hidden; }
+.glance-bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .glance-note { margin: .5rem 0 0; font-size: .8125rem; color: var(--muted); }
 .home-empty { padding: .5rem 0 1rem; }
 .home-headline { margin: .25rem 0 .5rem; font-size: 1.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
@@ -1085,9 +1104,20 @@ ul.tile.list > li + li { border-top-color: var(--surface-2); }
 .acct-names { min-width: 0; }
 .acct-sub { margin: .25rem 0 0; color: var(--muted); font-size: .875rem; }
 .acct-icons { display: flex; align-items: center; gap: .5rem; flex: none; }
-.cat-bar.acct-month { margin: .9rem 0 .25rem; }
+.cat-bar.acct-nav { margin: 0 0 .9rem; }
+.cat-bar.acct-nav .back { margin: 0 0 0 -.35rem; }
+.acct-nav + .account-hero .hero-balance { margin-top: .5rem; }
+.section-head:has(> .circ-button) { align-items: center; }
 .acct-add { display: flex; width: 100%; min-height: 2.75rem; margin-top: .25rem; }
-details.menu { position: static; }
+details.menu, details.note-info { position: static; }
+.acct-name-row { display: flex; align-items: center; gap: .35rem; min-width: 0; }
+.acct-name-row h1 { min-width: 0; overflow-wrap: anywhere; }
+.info-button { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; color: var(--muted); cursor: pointer; flex: none; list-style: none; }
+details.note-info > summary::-webkit-details-marker { display: none; }
+details[open].note-info > summary, .info-button:hover { color: var(--text); background: var(--surface-2); }
+.info-button .icon { width: 1.125rem; height: 1.125rem; }
+.note-info .menu-panel { padding: .75rem 1rem; }
+.note-info .menu-note { margin: 0; padding: 0; border-top: 0; font-size: .9375rem; color: var(--text); overflow-wrap: anywhere; }
 details.menu > summary { list-style: none; cursor: pointer; }
 details.menu > summary::-webkit-details-marker { display: none; }
 .menu-panel { position: absolute; z-index: 30; top: calc(100% + .4rem); left: 0; right: 0; max-width: 24rem; padding: .35rem 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; }
@@ -1107,7 +1137,7 @@ details.menu > summary::-webkit-details-marker { display: none; }
 .gcaret .icon { width: 1rem; height: 1rem; }
 details[open] > summary .gcaret { transform: none; }
 
-/* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and sub-categories indent from there. */
+/* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and subcategories indent from there. */
 .attn-panel { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
 .attn-panel .attn-item:first-child { border-top: 0; }
 
@@ -1122,7 +1152,7 @@ details.how { margin: 1.25rem 0 0; }
 /* Where today falls in the month, on the bars of the current month: a tick. A fill ahead of the tick is spending faster than the month passes. */
 .glance-bar, .bar { position: relative; overflow: visible; }
 .glance-bar i, .bar i { max-width: 100%; }
-.pace { position: absolute; top: 50%; left: 0; width: 3px; height: 13px; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 1.5px var(--surface); transform: translate(-50%, -50%); pointer-events: none; }
+.pace { position: absolute; top: 50%; left: 0; width: 3px; height: calc(var(--bar-h) + 9px); border-radius: 2px; background: var(--text); box-shadow: 0 0 0 1.5px var(--surface); transform: translate(-50%, -50%); pointer-events: none; }
 .glance-bar .pace { box-shadow: 0 0 0 1.5px var(--bg); }
 
 dd.auto, dd.auto a { color: var(--auto); }
@@ -1135,7 +1165,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 .total-field .amount-field input { width: calc(var(--n, 4) * 1ch + .12em); max-width: 100%; }
 
 /* Categories */
-.cat-hero { padding-top: .5rem; padding-bottom: 1.1rem; }
+.ready.zero.cat-hero { padding-top: .75rem; padding-bottom: 1.75rem; }
 
 .month-nav.small { margin: .25rem 0 0; }
 .show-quiet .unused-hidden { display: block; }
@@ -1147,9 +1177,20 @@ dd.auto, dd.auto a { color: var(--auto); }
 .crow-amt { display: flex; flex-direction: column; align-items: flex-end; flex: none; font-weight: 500; font-variant-numeric: tabular-nums; }
 .crow-amt .income { color: var(--positive); }
 .crow-share { color: var(--muted); font-size: .8125rem; font-weight: 400; }
+/* The share bar: how the month divides between the biggest categories; the rows below are its legend. */
+.ready.zero.cat-hero.has-bar { padding-bottom: .75rem; }
+.sharebar { display: flex; gap: 2px; height: var(--bar-h); margin: 0 0 1.5rem; border-radius: calc(var(--bar-h) / 2); overflow: hidden; }
+.sharebar i { display: block; flex-basis: 0; min-width: 4px; }
+/* On a category's page the bar sits between the figure and the Add button: the same gaps as on Categories (about 10 px under the digits, 24 px to what follows). */
+.account-hero .hero-balance.has-bar { margin-bottom: .25rem; }
+.account-hero .sharebar { margin-bottom: 1.25rem; }
+.cdot { display: inline-block; flex: none; width: .625rem; height: .625rem; margin-right: .5rem; border-radius: 50%; }
+[data-cat-tree] .crow-name, .sub-tile .crow-name { display: flex; align-items: center; }
+/* Every category row is two lines tall, used or not: the name sits on the first line beside the amount. */
+[data-cat-tree] .crow { align-items: stretch; }
+[data-cat-tree] .crow-main { justify-content: flex-start; }
 .tile > .top + .top { border-top: 1px solid var(--surface-2); }
 .tile > .top > .r { border-top: 0; }
-.accounts-note { margin: 1.25rem .25rem 0; }
 
 /* Room between the Expense / Income chips and the first row of the list */
 .cat-chips { min-height: 0; }
@@ -1194,8 +1235,8 @@ dd.auto, dd.auto a { color: var(--auto); }
 .budget-list .top + .top, .budget-list > .crow + .crow { border-top: 1px solid var(--surface-2); }
 .budget-list .crow { padding: .85rem 0; width: 100%; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 .budget-list .crow-main { flex: 1; }
-.crow .bar { display: block; position: relative; height: 3px; margin: .55rem 0 0; border-radius: 2px; background: var(--surface-2); overflow: visible; }
-.crow .bar i { display: block; height: 100%; border-radius: 2px; background: var(--text); }
+.crow .bar { display: block; position: relative; height: var(--bar-h); margin: .55rem 0 0; border-radius: calc(var(--bar-h) / 2); background: var(--surface-2); overflow: visible; }
+.crow .bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .crow .bar.over i { background: var(--danger); }
 .crow-amt .negative { color: var(--negative); }
 .budget-list .crow-amt { min-width: 7.5rem; }

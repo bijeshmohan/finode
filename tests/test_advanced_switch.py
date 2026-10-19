@@ -86,3 +86,17 @@ def test_the_switch_is_in_the_backup(client):
     switch(client, False)
     backup = client.get("/api/backup").json()
     assert backup["profile"]["advanced"] is False
+
+
+def test_an_account_page_has_no_empty_menu_when_there_is_nothing_in_it(client, books):
+    """An account with entries cannot get sub-accounts, and Advanced is off: the '...' button would open an empty box."""
+    client.post("/api/transactions/", json={"postings": [
+        {"account": books["food"]["aid"], "side": "debit", "amount": "5"},
+        {"account": books["bank"]["aid"], "side": "credit", "amount": "5"}]})
+    switch(client, False)
+    page = client.get(f"/accounts/{books['bank']['aid']}").text
+    assert 'class="menu"' not in page and "Edit Bank" in page, "the pencil stays, the empty menu goes"
+    switch(client, True)
+    assert 'class="menu"' in client.get(f"/accounts/{books['bank']['aid']}").text, "Advanced adds Close account"
+    switch(client, False)
+    assert 'class="menu"' in client.get(f"/categories/{books['food']['aid']}").text, "a category always has Delete"

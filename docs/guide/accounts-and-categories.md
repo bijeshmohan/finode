@@ -15,15 +15,18 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 - **Recently used** cards at the top show the last five accounts you used by hand; swipe them.
 - The **search box** filters by name or path.
-- Accounts you never use are tucked behind *N unused accounts hidden · Show*.
-- Closed accounts sit behind *N closed accounts · Show*.
+- Accounts you never use, and closed ones, are tucked behind one **Load more** button at the bottom (closed ones carry a *closed* badge).
 - Accounts go **two levels** deep, at most: a group and the accounts in it.
 
 ### Add an account
 
-Tap the round **+** on the Accounts page, give the account a name, pick where it goes (Assets or Liabilities, or inside a group) and enter today's balance. The balance becomes an *Opening balance* entry against the system's Opening Balances account.
+Tap the round **+** (*Add account*) on the Accounts page. The form asks for a **Name**, **Belongs under** (Assets for banks, cash and wallets; Liabilities for cards and loans; or a group you already made), an optional **Current balance** and optional **Notes**. The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
 
-An account page shows its balance, an **Add transaction** button, a pencil for Edit, a **…** menu, and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
+<img src="img/accounts.png" alt="The Accounts page: groups with subtotals, accounts in tiles" width="300">
+
+An account page shows its balance, an **Add transaction** button, a pencil for Edit, a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu when there is something in it (to add a sub-account, or, with Advanced on, to reorder or close the account), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
+
+<img src="img/account-page.png" alt="An account page: balance, Add transaction, upcoming card, transactions" width="300">
 
 ### Colours and signs on an account's page
 
@@ -40,9 +43,11 @@ An account that holds a balance cannot be closed. A closed account keeps its his
 
 ## Categories page
 
-**Categories** shows one month at a time (never a future one). Pick **Expense** or **Income**. The big figure is the month's total (*Spent so far* during the current month). Below it is a ranked list, biggest first, each row with its three biggest sub-categories and its share of the month. Tap a row to see the category's page: its sub-categories and the month's transactions. Use the arrows on the month pill to move between months.
+**Categories** shows one month at a time (never a future one). Pick **Expense** or **Income**. The big figure is the month's total up to today (the whole month for a past one); it has no label, the Expense and Income chips say which it is. Under it a thin **bar** shows how the month divides between the five biggest categories (each in its own colour, the rest in grey; it appears when there are at least two to compare). Below that is a ranked list, biggest first, each row with its three biggest subcategories and its share of the month (0% for one with nothing in it; every row is the same height). Tap a row to see the category's page: its subcategories (with the same thin bar, dividing the category's month between them, when there are at least two) and the month's transactions that were posted to that category itself (a subcategory's transactions are on its own page; the big figure still counts everything inside). On a category's page the month pill sits beside the back link; the round **+** on the *Subcategories* heading adds a subcategory and the one on *Transactions* adds a transaction in this category (a category with no subcategories has no such heading: use **…** › *Add subcategory*). Use the arrows on the month pill to move between months.
 
-To add one, tap the round **+**. A category can have sub-categories one level down (Food › Groceries), no further.
+<img src="img/categories.png" alt="The Categories page: the month, Expense and Income, ranked categories" width="300">
+
+To add one, tap the round **+**. A category can have subcategories one level down (Food › Groceries), no further.
 
 **Deleting a category:** if it has never been used it is removed. If it has history it is *closed* instead: it leaves your lists and pickers but stays in the months where it has amounts. **Restore category** brings it back. Both are under the **…** menu and in **Recently deleted** (the bin icon).
 

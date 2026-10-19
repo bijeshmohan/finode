@@ -4,9 +4,9 @@
 {% block title %}Categories · finode{% endblock %}
 
 {#- One category: its name and the biggest things inside it, what it came to in the month and its share of the month. -#}
-{% macro row(n, total, hint="", share="") %}
+{% macro row(n, total, hint="", share="", colour=0) %}
 <a class="r crow" href="/categories/{{ n.account.aid }}?month={{ month_key }}">
-  <span class="crow-main"><span class="crow-name">{{ n.account.name }}</span>{% if hint %}<span class="crow-sub">{{ hint }}</span>{% endif %}</span>
+  <span class="crow-main"><span class="crow-name">{% if bar %}<span class="cdot" {% if colour %}style="background: var(--chart-{{ colour }})"{% endif %} aria-hidden="true"></span>{% endif %}{{ n.account.name }}</span>{% if hint %}<span class="crow-sub">{{ hint }}</span>{% endif %}</span>
   <span class="crow-amt"><span class="{{ 'income' if root_name == 'Income' and total > 0 }}">{{ total|money }}</span>{% if share %}<span class="crow-share">{{ share }}</span>{% endif %}</span>
 </a>
 {% endmacro %}
@@ -33,20 +33,22 @@
   </div>
 </div>
 
-<div class="ready zero cat-hero">
-  <span class="muted">{{ "Spent" if tab == "expense" else "Earned" }} {% if is_current %}so far{% else %}in {{ month_name.split(" ")[0] }}{% endif %}</span>
+<div class="ready zero cat-hero{{ ' has-bar' if bar }}">
+  <span class="sr-only">{{ "Spent" if tab == "expense" else "Earned" }} {% if is_current %}so far{% else %}in {{ month_name.split(" ")[0] }}{% endif %}</span>
   <span class="figure">{{ figure(grand, currency) }}</span>
 </div>
+
+{% include "partials/share_bar.html" %}
 
 <div data-categories>
 {% if rows %}
 <div class="tile" data-cat-tree>
   {% for r in rows %}
-  <div class="top {{ 'unused-hidden' if r.node.account.aid in quiet_ids }}">{{ row(r.node, r.total, r.hint, r.share) }}</div>
+  <div class="top {{ 'unused-hidden' if r.node.account.aid in quiet_ids }}">{{ row(r.node, r.total, r.hint, r.share, r.colour) }}</div>
   {% endfor %}
 </div>
 {% if quiet_count %}
-<p class="unused-toggle"><button type="button" class="link-button" data-toggle-cat-quiet data-count="{{ quiet_count }}">{{ quiet_count }} with nothing in {{ month_name.split(" ")[0] }} · Show</button></p>
+<p class="unused-toggle"><button type="button" class="link-button" data-toggle-cat-quiet>Load more</button></p>
 {% endif %}
 {% else %}
 <div class="empty-state card">
@@ -54,6 +56,5 @@
   <a class="button" href="/categories/new">Add a category</a>
 </div>
 {% endif %}
-<p class="muted budget-fine">Tap a category to see what is inside it and its transactions.</p>
 </div>
 {% endblock %}

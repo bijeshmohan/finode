@@ -43,7 +43,8 @@ def rows(page: str) -> list[tuple[str, str, str]]:
     found = re.findall(
         r'<span class="crow-name">(.*?)</span>(?:<span class="crow-sub">(.*?)</span>)?</span>\s*<span class="crow-amt"><span class="[^"]*">(.*?)</span>(?:<span class="crow-share">(.*?)</span>)?',
         page, flags=re.S)
-    return [(name, hint, f"{amount} {share}".strip()) for name, hint, amount, share in found]
+    dot = re.compile(r'<span class="cdot".*?</span>')  # the colour dot of the share bar is not part of the name
+    return [(dot.sub("", name), hint, f"{amount} {share}".strip()) for name, hint, amount, share in found]
 
 
 def test_categories_are_ranked_by_what_they_came_to_with_their_share_and_what_is_inside(client, books):
@@ -74,17 +75,17 @@ def test_money_posted_to_a_group_itself_is_its_everything_else_row(client, books
     entry(client, books["groceries"], books["bank"], "60", THIS_MONTH)
     assert ("Food", "Groceries", "100.00 100%") in rows(client.get("/categories").text)
     page = client.get(f"/categories/{books['food']['aid']}").text
-    assert "Sub-categories" in page and "Everything else" in page and "posted to Food itself" in page and "40.00" in page
+    assert "Subcategories" in page and "Everything else" in page and "posted to Food itself" in page and "40.00" in page
 
 
 def test_a_category_page_lists_its_sub_categories_biggest_first(client, books):
     entry(client, books["dining"], books["bank"], "200", THIS_MONTH)
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     page = client.get(f"/categories/{books['food']['aid']}").text
-    inside = page.split("Sub-categories")[1].split("Transactions")[0]
+    inside = page.split("Subcategories")[1].split("Transactions")[0]
     assert inside.index("Groceries") < inside.index("Dining") and "Everything else" not in inside
     assert f"/categories/{books['groceries']['aid']}?month=" in inside
-    assert "Sub-categories" not in client.get(f"/categories/{books['groceries']['aid']}").text, "nothing inside it"
+    assert "Subcategories" not in client.get(f"/categories/{books['groceries']['aid']}").text, "nothing inside it"
 
 
 def test_it_is_one_month_at_a_time_and_never_the_future(client, books):
@@ -100,7 +101,7 @@ def test_it_is_one_month_at_a_time_and_never_the_future(client, books):
 def test_income_is_its_own_tab_with_a_plus_free_green_list(client, books):
     entry(client, books["bank"], books["salary"], "5000", THIS_MONTH)
     page = client.get("/categories?tab=income").text
-    assert "Earned so far" in page and "5,000.00" in page and "Salary" in page and "Rent" not in page
+    assert '<span class="sr-only">Earned so far</span>' in page and "5,000.00" in page and "Salary" in page and "Rent" not in page
     assert 'aria-pressed="true">Income<' in page
 
 
@@ -108,7 +109,7 @@ def test_categories_with_nothing_this_month_are_tucked_away_once_something_has_s
     assert "unused-hidden" not in client.get("/categories").text, "nothing yet: everything shows"
     entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
     page = client.get("/categories").text
-    assert page.count('class="top unused-hidden"') == 2 and "2 with nothing in" in page
+    assert page.count('class="top unused-hidden"') == 2 and ">Load more</button>" in page and "with nothing in" not in page
 
 
 def test_a_category_page_shows_its_month_and_its_transactions(client, books):
@@ -117,8 +118,8 @@ def test_a_category_page_shows_its_month_and_its_transactions(client, books):
     page = client.get(f"/categories/{books['groceries']['aid']}").text
     assert "300.00" in page and "Add transaction" in page and "/budget" in page
     assert page.count('class="tx"') == 1, "only this month's"
-    assert "Add sub-category" not in page, "a sub-category is as deep as it gets"
-    assert "Add sub-category" in client.get(f"/categories/{books['food']['aid']}").text
+    assert "Add subcategory" not in page, "a subcategory is as deep as it gets"
+    assert "Add subcategory" in client.get(f"/categories/{books['food']['aid']}").text
 
 
 def test_an_account_page_for_a_category_goes_to_the_category_page(client, books):
@@ -187,7 +188,7 @@ def test_a_closed_sub_category_is_not_listed_under_its_group(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     client.post(f"/api/accounts/{books['dining']['aid']}/close")
     page = client.get(f"/categories/{books['food']['aid']}").text
-    assert "Groceries" in page and "Dining" not in page.split("Sub-categories")[1].split("Transactions")[0]
+    assert "Groceries" in page and "Dining" not in page.split("Subcategories")[1].split("Transactions")[0]
     assert rows(client.get("/categories").text)[0] == ("Food", "Groceries", "300.00 100%")
 
 
@@ -207,10 +208,157 @@ def test_a_category_page_says_delete_where_an_account_says_close(client, books):
     assert "removed for good" in form and "Delete category" in form
 
 
-def test_the_label_says_so_far_for_this_month_and_in_the_month_for_the_past(client, books):
+def test_the_figure_has_no_visible_label_only_one_for_screen_readers(client, books):
     entry(client, books["bank"], books["rent"], "40", THIS_MONTH)
-    assert "Spent so far" in client.get("/categories").text
+    page = client.get("/categories").text
+    hero = page.split('class="ready zero cat-hero"', 1)[1].split("</div>", 1)[0]
+    assert '<span class="sr-only">Spent so far</span>' in hero and 'class="muted"' not in hero
     last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
     entry(client, books["bank"], books["rent"], "60", last)
     past = client.get(f"/categories?month={last.strftime('%Y-%m')}").text
-    assert f"Spent in {last.strftime('%B')}" in past and "so far" not in past
+    assert f'<span class="sr-only">Spent in {last.strftime("%B")}</span>' in past and "so far" not in past
+
+
+def test_the_page_ends_with_its_list_not_with_a_hint(client, books):
+    entry(client, books["bank"], books["rent"], "40", THIS_MONTH)
+    assert "Tap a category" not in client.get("/categories").text
+
+
+def test_every_row_has_a_share_the_unused_ones_say_0_percent(client, books):
+    entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
+    page = client.get("/categories").text
+    rows = page.split('data-cat-tree>', 1)[1].split("</main>", 1)[0].split('<div class="top')[1:]
+    assert len(rows) == 3
+    assert all('class="crow-share"' in row for row in rows), "no row is left without a share"
+    used = [r for r in rows if "unused-hidden" not in r.split(">", 1)[0]]
+    quiet = [r for r in rows if "unused-hidden" in r.split(">", 1)[0]]
+    assert len(used) == 1 and ">100%<" in used[0] and all(">0%<" in r for r in quiet)
+
+
+def test_with_nothing_in_the_month_every_row_reads_0_percent_and_still_has_one(client, books):
+    page = client.get("/categories").text
+    assert page.count('class="crow-share"') == page.count('class="r crow"') and ">0%<" in page
+
+
+def test_share_rounding_edges():
+    from decimal import Decimal
+
+    from app.routers.web.categories import _share
+
+    assert _share(Decimal(0), Decimal(100)) == "0%" and _share(Decimal(0), Decimal(0)) == "0%"
+    assert _share(Decimal("0.4"), Decimal(100)) == "<1%" and _share(Decimal(25), Decimal(100)) == "25%"
+    assert _share(Decimal(5), Decimal(0)) == "", "no total to take a share of"
+
+
+# ---- the share bar -----------------------------------------------------------------------------------------
+
+
+def bar_of(page: str):
+    import re
+
+    found = re.search(r'<div class="sharebar" role="img" aria-label="([^"]*)">(.*?)</div>', page, flags=re.S)
+    if not found:
+        return None
+    segments = re.findall(r'flex-grow: ([\d.]+); background: var\(--chart-(\d)\)', found.group(2))
+    return found.group(1), [(float(g), int(c)) for g, c in segments]
+
+
+def test_the_share_bar_shows_the_biggest_five_and_one_grey_for_the_rest(client, books, root_accounts):
+    more = [client.post("/api/accounts/", json={"name": f"More{i}", "parent_id": root_accounts["Expenses"]}).json() for i in range(3)]
+    for i, category in enumerate([books["rent"], books["food"], books["travel"], *more]):  # six categories, 600 down to 100
+        entry(client, category, books["bank"], str((6 - i) * 100), THIS_MONTH)
+    page = client.get("/categories").text
+    label, segments = bar_of(page)
+    assert [c for _, c in segments] == [1, 2, 3, 4, 5, 6], "five colours, then the grey"
+    assert abs(sum(g for g, _ in segments) - 100) < 0.1
+    assert label.startswith("Share of the month: Rent 29%") and label.endswith("Everything else 5%")
+
+
+def test_every_row_keeps_its_place_whether_it_has_a_colour_or_not(client, books):
+    entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
+    entry(client, books["groceries"], books["bank"], "500", THIS_MONTH)
+    page = client.get("/categories").text
+    assert page.count('class="cdot"') == page.count('class="r crow"') == 3, "an unused row has an invisible dot, so the names line up"
+    assert page.split('data-cat-tree>', 1)[1].count('style="background: var(--chart-') == 2, "only the rows in the bar are coloured"
+
+
+def test_no_bar_when_there_is_nothing_to_compare(client, books):
+    assert bar_of(client.get("/categories").text) is None, "an empty month"
+    entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
+    page = client.get("/categories").text
+    assert bar_of(page) is None and "cdot" not in page, "one category is the whole month: nothing to compare"
+
+
+def test_no_bar_when_money_came_back_in_a_category(client, books):
+    entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
+    entry(client, books["bank"], books["travel"], "50", THIS_MONTH)  # a refund: money into the bank from a category
+    entry(client, books["groceries"], books["bank"], "200", THIS_MONTH)
+    assert bar_of(client.get("/categories").text) is None
+
+
+def test_income_has_its_own_bar(client, books, root_accounts):
+    other = client.post("/api/accounts/", json={"name": "Interest", "parent_id": root_accounts["Income"]}).json()
+    entry(client, books["bank"], books["salary"], "9000", THIS_MONTH)
+    entry(client, books["bank"], other, "1000", THIS_MONTH)
+    label, segments = bar_of(client.get("/categories?tab=income").text)
+    assert [c for _, c in segments] == [1, 2] and "Salary 90%" in label and "Interest 10%" in label
+    assert bar_of(client.get("/categories").text) is None, "the expense tab has none of the income"
+
+
+def test_a_category_with_sub_categories_has_its_own_share_bar(client, books):
+    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
+    entry(client, books["dining"], books["bank"], "100", THIS_MONTH)
+    entry(client, books["food"], books["bank"], "100", THIS_MONTH)  # posted to Food itself
+    page = client.get(f"/categories/{books['food']['aid']}").text
+    label, segments = bar_of(page)
+    assert [c for _, c in segments] == [1, 2, 3] and label == "Share of the month: Groceries 60%, Dining 20%, Everything else 20%"
+    assert page.count('class="cdot"') == 3 and page.count('background: var(--chart-') == 6, "three dots and three segments"
+
+
+def test_a_category_page_has_no_bar_when_there_is_nothing_to_split(client, books):
+    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
+    assert bar_of(client.get(f"/categories/{books['food']['aid']}").text) is None, "only one subcategory has money"
+    entry(client, books["rent"], books["bank"], "50", THIS_MONTH)
+    assert bar_of(client.get(f"/categories/{books['rent']['aid']}").text) is None, "a category with nothing inside it"
+
+
+def test_the_pages_share_one_bar_helper_and_the_same_rules():
+    from decimal import Decimal
+
+    from app.routers.web.categories import share_bar
+
+    slices, colour_of = share_bar([("a", "A", Decimal(50)), ("b", "B", Decimal(30)), ("c", "C", Decimal(0)), ("d", "D", Decimal(20))])
+    assert [s["colour"] for s in slices] == [1, 2, 3] and colour_of == {"a": 1, "b": 2, "d": 3} and "c" not in colour_of
+    many = [(i, f"N{i}", Decimal(100 - i)) for i in range(8)]
+    slices, colour_of = share_bar(many)
+    assert [s["colour"] for s in slices] == [1, 2, 3, 4, 5, 6] and colour_of[7] == 6 and slices[-1]["name"] == "Everything else"
+    assert share_bar([("a", "A", Decimal(5))]) == ([], {}) and share_bar([("a", "A", Decimal(5)), ("b", "B", Decimal(-1))]) == ([], {})
+
+
+def test_a_category_page_lists_only_what_was_posted_to_it_not_its_sub_categories(client, books):
+    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
+    entry(client, books["food"], books["bank"], "40", THIS_MONTH)  # posted to Food itself
+    page = client.get(f"/categories/{books['food']['aid']}").text
+    assert page.count('class="tx"') == 1, "Food's own entry only"
+    assert "340.00" in page, "the figure is still the whole category"
+    assert client.get(f"/categories/{books['groceries']['aid']}").text.count('class="tx"') == 1
+
+
+def test_each_list_heading_on_a_category_page_has_its_own_plus(client, books):
+    entry(client, books["groceries"], books["bank"], "30", THIS_MONTH)
+    group = client.get(f"/categories/{books['food']['aid']}").text
+    assert f'href="/categories/new?parent={books["food"]["aid"]}"' in group and 'title="Add subcategory"' in group
+    assert f'href="/transactions/new?account={books["food"]["aid"]}' in group and 'title="Add transaction"' in group
+    leaf = client.get(f"/categories/{books['groceries']['aid']}").text
+    assert 'title="Add transaction"' in leaf and "Subcategories" not in leaf and 'title="Add subcategory"' not in leaf, "as deep as it gets"
+    empty = client.get(f"/categories/{books['rent']['aid']}").text
+    assert "Subcategories" not in empty and 'title="Add subcategory"' not in empty, "no empty row: the … menu adds the first"
+    assert "Add subcategory" in empty, "the menu still does"
+
+
+def test_every_bar_takes_its_thickness_from_one_token():
+    css = open("app/static/style.css").read()
+    assert "--bar-h: 6px" in css
+    for rule in (".glance-bar {", ".crow .bar {", ".sharebar {"):
+        line = next(l for l in css.splitlines() if l.startswith(rule))
+        assert "height: var(--bar-h)" in line, rule

@@ -39,7 +39,7 @@ Open **Profile › AI assistants**. There are two ways.
 ### B. Connect with a token (Claude Code, Claude Desktop, Cursor, …)
 
 1. Under *Connect with a token*, give it a **name** (where you will use it; it shows next to everything the assistant records) and choose the access level.
-2. **Create token.** The secret starts with `fin_` and is shown **once**; copy it now.
+2. **Create token.** A box titled *<name> is ready* shows the secret once, with a **Copy token** button; copy it now, because finode keeps only a fingerprint and cannot show it again. The secret starts with `fin_`.
 3. Use the setup instructions on the page. For Claude Code, for example:
 
    ```bash

@@ -64,3 +64,27 @@ def test_every_page_has_the_banner_and_the_loading_bar_but_the_banner_starts_hid
     page = client.get("/").text
     assert '<div id="net-banner" class="net-banner" role="status" aria-live="polite" hidden></div>' in page
     assert 'class="loadbar"' in page
+
+
+def test_the_chart_colours_never_look_like_the_money_colours():
+    """Green and red mean money in and out in finode; the share bar's categories must not borrow them."""
+    import colorsys
+    import re
+    from pathlib import Path
+
+    css = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
+    light = css[:css.index("@media (prefers-color-scheme: dark)")]
+    auto = css[css.index("@media (prefers-color-scheme: dark)"):css.index(':root[data-theme="dark"]')]
+    manual = css[css.index(':root[data-theme="dark"]'):css.index("/* ---------- Base")]
+    for theme, block in (("light", light), ("auto dark", auto), ("manual dark", manual)):
+        colours = re.findall(r"--chart-(\d): #([0-9a-fA-F]{6});", block)
+        assert [n for n, _ in colours] == ["1", "2", "3", "4", "5", "6"], f"{theme} defines all six chart colours"
+        for n, hex_ in colours:
+            r, g, b = (int(hex_[i:i + 2], 16) / 255 for i in (0, 2, 4))
+            hue, _, saturation = colorsys.rgb_to_hls(r, g, b)
+            hue *= 360
+            if saturation < 0.2:
+                continue  # a grey is neither
+            assert not 75 <= hue <= 170, f"{theme} --chart-{n} #{hex_} is green, the colour of money coming in"
+            assert not (hue <= 15 or hue >= 345), f"{theme} --chart-{n} #{hex_} is red, the colour of money going out"
+    assert re.findall(r"--chart-\d: #([0-9a-fA-F]{6});", auto) == re.findall(r"--chart-\d: #([0-9a-fA-F]{6});", manual)
