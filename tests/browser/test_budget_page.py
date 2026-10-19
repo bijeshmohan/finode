@@ -204,3 +204,19 @@ def test_the_i_opens_the_sum_behind_ready_to_assign_and_survives_assigning(page:
     page.get_by_label("How what is ready to assign is worked out").click()
     expect(panel).not_to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
+
+
+def test_save_works_on_the_first_tap_even_when_the_sheet_moves_under_the_finger(page: Page, books):
+    """The keyboard opening or closing shifts a bottom sheet while a tap is under way; the click then goes to whatever is
+    under the finger at the end, and Save used to need another tap."""
+    page.goto("/budget")
+    page.locator("a.catrow", has_text="Groceries").first.click()
+    box = page.locator('#cat-sheet input[aria-label="Assigned to Groceries"]')
+    box.fill("1200")
+    area = page.locator("#cat-sheet").get_by_role("button", name="Save").bounding_box()
+    page.mouse.move(area["x"] + area["width"] / 2, area["y"] + area["height"] / 2)
+    page.mouse.down()
+    page.evaluate("document.querySelector('#cat-sheet').style.transform = 'translateY(-160px)'")  # the sheet moves away
+    page.mouse.up()
+    expect(page.locator("#cat-sheet")).not_to_be_visible()
+    expect(page.locator(".ready-hero .figure")).to_have_text("₹3,800.00")  # 5,000 - 1,200: it saved

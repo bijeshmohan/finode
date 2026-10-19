@@ -378,6 +378,23 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   const first = dialog && dialog.querySelector("[data-autofocus]");
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
 });
+// A tap that starts on a sheet's Save counts as Save even when the sheet moves under the finger before it ends (the keyboard
+// opening or closing shifts it): the browser then sends the click to whatever is under the finger, which closed the sheet
+// without saving and made Save feel like it needed several taps.
+let pressedSave = null;
+document.addEventListener("pointerdown", (event) => {
+  pressedSave = event.target.closest ? event.target.closest('dialog.sheet button[type="submit"]') : null;
+}, true);
+document.addEventListener("click", (event) => {
+  const button = pressedSave;
+  pressedSave = null;
+  if (!button || !button.isConnected || event.target === button || button.contains(event.target)) return;
+  const dialog = button.closest("dialog");
+  if (!dialog || !(dialog === event.target || dialog.contains(event.target))) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (button.form) button.form.requestSubmit(button);
+}, true);
 document.body.addEventListener("click", (event) => {
   if (event.target instanceof HTMLDialogElement && event.target.classList.contains("sheet-bottom")) event.target.close();
 });
