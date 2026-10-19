@@ -35,14 +35,14 @@ def test_accounts_page_groups_accounts_under_roots_in_order(
 def test_accounts_page_suggests_first_account_for_empty_roots(
     client: TestClient, root_accounts: dict[str, str]
 ):
-    text = client.get("/accounts").text
+    text = client.get("/accounts?tab=liabilities").text
     assert f'href="/accounts/new?parent={root_accounts["Liabilities"]}"' in text
     assert "Add a credit card or loan" in text
 
 
 def test_accounts_page_marks_system_account(client: TestClient, root_accounts: dict[str, str]):
     _bank(client, root_accounts)
-    assert '<span class="badge">system</span>' in client.get("/accounts").text
+    assert '<span class="badge">system</span>' in client.get("/accounts?tab=equity").text
 
 
 # --- account page ----------------------------------------------------------

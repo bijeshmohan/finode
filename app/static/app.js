@@ -674,7 +674,7 @@ document.body.addEventListener("change", (event) => {
   if (field) field.hidden = box.checked;
 });
 
-// ---- Accounts page: search, closed accounts ----
+// ---- Accounts page: closed accounts ----
 (function accountsPage() {
   const page = document.querySelector("[data-accounts]");
   if (!page) return;
@@ -687,40 +687,6 @@ document.body.addEventListener("change", (event) => {
       more.closest(".unused-toggle").remove();
     });
   }
-
-  // Search: an account shows when its path matches (so a matching group brings its accounts). Headings and types with
-  // nothing left under them go; Equity opens to show a match.
-  const input = page.querySelector("[data-account-search]");
-  const nothing = page.querySelector("[data-no-match]");
-  const equity = page.querySelector("details.equity");
-  let equityWasOpen = equity ? equity.open : false;
-  let searching = false;
-  input.addEventListener("input", () => {
-    const query = input.value.trim().toLowerCase();
-    const items = [...page.querySelectorAll("li[data-path]")];
-    if (!query) {
-      if (searching && equity) equity.open = equityWasOpen;
-      searching = false;
-      page.classList.remove("searching");
-      items.forEach((item) => (item.hidden = false));
-      page.querySelectorAll(".acc-block, [data-section]").forEach((el) => (el.hidden = false));
-      nothing.hidden = true;
-      return;
-    }
-    if (!searching && equity) equityWasOpen = equity.open;
-    searching = true;
-    page.classList.add("searching");
-    items.forEach((item) => (item.hidden = !item.dataset.path.includes(query)));
-    page.querySelectorAll(".acc-block").forEach((block) => (block.hidden = !block.querySelector("li:not([hidden])")));
-    let any = false;
-    page.querySelectorAll("[data-section]").forEach((section) => {
-      const found = !!section.querySelector("li:not([hidden])");
-      section.hidden = !found;
-      if (found) any = true;
-      if (found && section === equity) equity.open = true;
-    });
-    nothing.hidden = any;
-  });
 })();
 
 // ---- Offline, failed requests and loading ----

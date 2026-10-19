@@ -120,27 +120,6 @@ class AccountRepository:
             self.db.add(account)
         self.db.flush()
 
-    def recent_account_ids(self, limit: int, leave_out: UUID | None = None) -> list[UUID]:
-        """The accounts the person recorded something in most recently, newest first. Entries made by recurring rules
-        or imports do not count, nor do entries that touch `leave_out` (opening balances: creating an account is not using it)."""
-        latest = func.max(Transaction.created)
-        opening = (
-            select(Posting.transaction).where(Posting.account == leave_out) if leave_out is not None else None
-        )
-        rows = self.db.exec(
-            select(Posting.account)
-            .join(Transaction, Transaction.tid == Posting.transaction)
-            .where(
-                Transaction.user == self.uid,
-                or_(Transaction.created_via.is_(None), Transaction.created_via.notin_(("recurring", "import"))),
-                *([Transaction.tid.notin_(opening)] if opening is not None else []),
-            )
-            .group_by(Posting.account)
-            .order_by(latest.desc())
-            .limit(limit)
-        ).all()
-        return list(rows)
-
     def clear_payment_category(self, category_id: UUID) -> None:
         """Accounts whose payments were budgeted under this category (it is being deleted) stop pointing at it."""
         for account in self.db.exec(
