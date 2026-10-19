@@ -156,3 +156,14 @@ def test_money_filter_groups_digits_and_uses_a_true_minus():
     assert money(Decimal("1234567.5")) == "1,234,567.50"
     assert money("-2652.75") == "−2,652.75"
     assert money(None) == ""
+
+
+def test_the_latest_entries_on_home_sit_under_a_transactions_heading(
+    client: TestClient, account: dict, expense_account: dict
+):
+    client.post("/api/transactions/", json={"payee": "Shop", "postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "5"},
+        {"account": account["aid"], "side": "credit", "amount": "5"}]})
+    page = client.get("/").text
+    assert "<h2>Transactions</h2>" in page and "<h2>Recent</h2>" not in page
+    assert 'href="/transactions">View all</a>' in page

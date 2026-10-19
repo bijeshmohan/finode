@@ -63,7 +63,7 @@ The decisions that look odd until you know the reason. Each entry says what was 
 
 ## Entries dated in the future are not history
 
-**Decision.** Home's Recent and the main transactions list show only entries up to today. Future entries sit in one collapsed "upcoming" card, on the Transactions page and on account pages.
+**Decision.** Home's Transactions list and the Transactions page show only entries up to today. Future entries sit in one collapsed "upcoming" card, on the Transactions page and on account pages.
 **Why.** People enter EMI schedules and bills ahead of time; mixing them into the recent list buried what actually happened. Balances also count only up to today, so the list and the numbers agree.
 
 ## Server-rendered HTML with htmx, no JavaScript build
