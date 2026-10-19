@@ -1195,8 +1195,14 @@ dd.auto, dd.auto a { color: var(--auto); }
 /* Room between the Expense / Income chips and the first row of the list */
 .cat-chips { min-height: 0; }
 .cat-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .75rem; margin: 0 0 .75rem; }
-.month-pill { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; padding: 0 .25rem 0 1rem; min-height: 2.25rem; font-weight: 600; font-size: .9375rem; }
-.month-pill .icon-button { width: 2rem; height: 2rem; color: var(--faint); }
+.month-pill { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; padding: 0 .15rem; min-height: 2.5rem; font-weight: 600; font-size: .9375rem; }
+.month-pill .mp-arrow { display: grid; place-items: center; width: 2.5rem; height: 2.25rem; color: var(--muted); border-radius: 999px; }
+.month-pill .mp-arrow.off { opacity: .3; }
+.month-pill a.mp-arrow:hover { background: var(--surface-2); }
+/* The month is a native month picker, invisible and laid over its own name: tapping the name opens the phone's picker. */
+.month-pick { position: relative; color: var(--text); display: grid; place-items: center; min-height: 2.25rem; padding: 0 .6rem; border-radius: 999px; cursor: pointer; }
+.month-pick:hover { background: var(--surface-2); }
+.month-pick .month-input { min-height: 0; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
 
 /* ---------- Accounts page: recently used as cards, every group open under its heading ---------- */
 .acc-section { margin-top: 1.1rem; }

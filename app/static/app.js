@@ -846,3 +846,21 @@ document.body.addEventListener("change", (event) => {
     if (input) input.setAttribute("aria-invalid", "true");
   });
 })();
+
+// The month in a month pill is a native month picker (an invisible `input[type=month]` over its name): choosing a month
+// opens that month's page. The page's address is in `data-url`, with {month} where the month goes. Where the browser has no
+// month picker the field is a plain text box, so only a complete YYYY-MM is taken.
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || !input.classList.contains("month-input")) return;
+  const value = input.value;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value) || value < input.min || value > input.max) return;
+  window.location.href = input.dataset.url.replace("{month}", value);
+});
+document.addEventListener("click", (event) => {
+  // Desktop browsers open their picker from the little icon only; a tap anywhere on the name opens it here.
+  const input = event.target;
+  if (input instanceof HTMLInputElement && input.classList.contains("month-input") && typeof input.showPicker === "function") {
+    try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
+  }
+});
