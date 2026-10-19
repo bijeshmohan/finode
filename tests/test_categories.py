@@ -221,3 +221,29 @@ def test_the_figure_has_no_visible_label_only_one_for_screen_readers(client, boo
 def test_the_page_ends_with_its_list_not_with_a_hint(client, books):
     entry(client, books["bank"], books["rent"], "40", THIS_MONTH)
     assert "Tap a category" not in client.get("/categories").text
+
+
+def test_every_row_has_a_share_the_unused_ones_say_0_percent(client, books):
+    entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
+    page = client.get("/categories").text
+    rows = page.split('data-cat-tree>', 1)[1].split("</main>", 1)[0].split('<div class="top')[1:]
+    assert len(rows) == 3
+    assert all('class="crow-share"' in row for row in rows), "no row is left without a share"
+    used = [r for r in rows if "unused-hidden" not in r.split(">", 1)[0]]
+    quiet = [r for r in rows if "unused-hidden" in r.split(">", 1)[0]]
+    assert len(used) == 1 and ">100%<" in used[0] and all(">0%<" in r for r in quiet)
+
+
+def test_with_nothing_in_the_month_every_row_reads_0_percent_and_still_has_one(client, books):
+    page = client.get("/categories").text
+    assert page.count('class="crow-share"') == page.count('class="r crow"') and ">0%<" in page
+
+
+def test_share_rounding_edges():
+    from decimal import Decimal
+
+    from app.routers.web.categories import _share
+
+    assert _share(Decimal(0), Decimal(100)) == "0%" and _share(Decimal(0), Decimal(0)) == "0%"
+    assert _share(Decimal("0.4"), Decimal(100)) == "<1%" and _share(Decimal(25), Decimal(100)) == "25%"
+    assert _share(Decimal(5), Decimal(0)) == "", "no total to take a share of"

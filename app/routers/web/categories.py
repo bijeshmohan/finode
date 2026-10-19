@@ -70,8 +70,11 @@ def _figures(accounts, reports, root_name: str, when, end):
 
 
 def _share(total: Decimal, grand: Decimal) -> str:
-    """What part of the month's total a category is: '34%', '<1%', or nothing when there is no total."""
-    if not grand or not total:
+    """What part of the month's total a category is: '34%', '<1%', '0%' for one with nothing in the month (so every row
+    has one), or nothing when the categories cancel out to no total at all."""
+    if not total:
+        return "0%"
+    if not grand:
         return ""
     percent = abs(total) / abs(grand) * 100
     return "<1%" if percent < 1 else f"{round(percent)}%"
