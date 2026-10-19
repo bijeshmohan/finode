@@ -11,9 +11,8 @@ import pytest
 PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/summary", "/categories", "/categories?tab=income"]
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
-# Home: 16 = the older 13 + 3 for the tiles (last month so far) and Coming up (the recurring rules).
 CEILING = {
-    "/transactions/new": 6, "/transactions": 8, "/": 16, "/accounts": 9, "/budget": 7, "/summary": 8,
+    "/transactions/new": 6, "/transactions": 8, "/": 14, "/accounts": 9, "/budget": 7, "/summary": 8,
     "/categories": 5, "/categories?tab=income": 5,
 }
 
