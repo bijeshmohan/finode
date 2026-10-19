@@ -71,6 +71,8 @@ def dashboard(
         "has_budget": month.assigned > 0 or month.available > 0,  # spending with no plan at all is not "over budget"
         "left": month.available,
         "spent": month.activity,
+        "assigned": month.assigned,
+        "carried": month.available - month.assigned + month.activity,  # what earlier months left in the categories
         "of": to_spend,
         "percent": int(min(max(month.activity / to_spend, Decimal(0)), Decimal(1)) * 100) if to_spend > 0 else 0,
         "pace": month_progress(),  # how far through the month today is: the tick on the bar

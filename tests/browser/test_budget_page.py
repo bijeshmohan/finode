@@ -187,3 +187,15 @@ def test_budget_names_and_amounts_line_up(page: Page, books, api: Api):
     assert len(lefts) >= 2 and len(set(lefts)) == 1, lefts
     assert len(set(rights)) == 1, rights
 
+
+
+def test_the_i_opens_the_sum_behind_ready_to_assign_and_survives_assigning(page: Page, books):
+    page.goto("/budget")
+    panel = page.locator(".ready-hero .calc-panel")
+    expect(panel).not_to_be_visible()
+    page.get_by_label("How what is ready to assign is worked out").click()
+    expect(panel).to_be_visible()
+    expect(panel.locator(".total")).to_contain_text("₹5,000.00")
+    page.get_by_label("How what is ready to assign is worked out").click()
+    expect(panel).not_to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"

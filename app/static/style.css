@@ -1276,3 +1276,18 @@ dd.auto, dd.auto a { color: var(--auto); }
 .bud-bar { margin-bottom: .5rem; }
 .more-entries { display: flex; justify-content: center; padding: .25rem 0 1rem; }
 .more-entries button { margin: 0; }
+/* The "i" beside a headline figure opens the sum behind it, in place (Home, Budget). */
+.calc-row { display: flex; align-items: center; gap: .1rem; }
+.calc-row .info-button { margin: -.25rem 0; }
+.ready > .calc-row > .muted { font-size: .8125rem; }
+.calc-panel { display: none; margin-top: .9rem; padding: .9rem 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius-sm); }
+.glance:has(.calc-info[open]) .calc-panel, .ready-hero:has(.calc-info[open]) .calc-panel { display: block; }
+.calc-panel h3 { margin: 0 0 .5rem; font-size: 1rem; font-weight: 600; }
+.calc-row-line { display: flex; justify-content: space-between; gap: 1rem; margin: 0; padding: .4rem 0; border-top: 1px solid var(--surface-2); font-size: .9375rem; color: var(--text); }
+.calc-panel h3 + .calc-row-line { border-top: 0; }
+.calc-row-line b { font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.calc-row-line.plus b::before { content: "+ "; color: var(--muted); }
+.calc-row-line.minus b::before { content: "− "; color: var(--muted); }
+.calc-row-line.total { margin-top: .2rem; border-top: 2px solid var(--text); font-weight: 600; }
+.calc-row-line.total b { font-weight: 600; }
+.calc-note { margin: .6rem 0 0; font-size: .8125rem; color: var(--muted); }

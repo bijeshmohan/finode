@@ -1,5 +1,6 @@
 """The budget page: reading it, assigning inline, moving money, and switching accounts in."""
 
+import re
 from datetime import date, timedelta
 
 import pytest
@@ -334,3 +335,17 @@ def test_the_heading_is_a_title_and_a_pill_with_both_arrows(client, setup):
     assert "<h1>Budget</h1>" in page and 'class="month-pill"' in page
     assert 'title="Previous month"' in page and 'title="Next month"' in page, "the budget can look ahead"
     assert "Needs you" not in page, "nothing needs a decision yet"
+
+
+def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
+    assign(client, setup["food"], "300")
+    page = client.get("/budget").text
+    assert 'aria-label="How what is ready to assign is worked out"' in page
+    sums = re.findall(r'<p class="calc-row-line([^"]*)"><span>([^<]*)</span><b>([^<]*)</b>', page)
+    assert [(c.strip(), label, amount) for c, label, amount in sums] == [
+        ("", "In your accounts", "₹1,000.00"),
+        ("minus", "Set aside for card bills", "₹0.00"),
+        ("minus", "Left in your categories", "₹300.00"),
+        ("minus", "Assigned to later months", "₹0.00"),
+        ("total", "Ready to assign", "₹700.00"),
+    ]

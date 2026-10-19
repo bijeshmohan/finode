@@ -1,0 +1,22 @@
+{% from "partials/icons.html" import icon %}
+{#- The "i" beside a headline figure and the card it opens: the sum behind the figure, with the person's own numbers.
+    `rows` is a list of (label, amount, sign) where sign is "+", "−" or "" for the first line; a negative amount flips the sign
+    so every row is a positive number and the column always adds up to `total`. -#}
+{% macro calc_button(what) -%}
+<details class="calc-info">
+  <summary class="info-button" title="How this is worked out" aria-label="How {{ what }} is worked out">{{ icon("info") }}</summary>
+</details>
+{%- endmacro %}
+
+{% macro calc_panel(rows, total_label, total, currency, note) -%}
+<div class="calc-panel">
+  <h3>How this is worked out</h3>
+  {% for label, amount, sign in rows %}
+  {% set flipped = amount < 0 %}
+  {% set shown = (sign == "+" and not flipped) or (sign == "−" and flipped) %}
+  <p class="calc-row-line{{ ' plus' if sign and shown else ' minus' if sign }}"><span>{{ label }}</span><b>{{ (-amount if flipped else amount)|money|amount(currency) }}</b></p>
+  {% endfor %}
+  <p class="calc-row-line total"><span>{{ total_label }}</span><b>{{ total|money|amount(currency) }}</b></p>
+  <p class="calc-note">{{ note }}</p>
+</div>
+{%- endmacro %}

@@ -1,3 +1,5 @@
+import calendar
+import re
 from datetime import date
 
 from fastapi.testclient import TestClient
@@ -167,3 +169,24 @@ def test_the_latest_entries_on_home_sit_under_a_transactions_heading(
     page = client.get("/").text
     assert "<h2>Transactions</h2>" in page and "<h2>Recent</h2>" not in page
     assert 'href="/transactions">View all</a>' in page
+
+
+def test_the_i_on_home_shows_the_sum_with_the_persons_own_numbers(
+    client: TestClient, root_accounts: dict[str, str], expense_account: dict
+):
+    bank = client.post(
+        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
+    ).json()
+    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "400"})
+    client.post("/api/transactions/", json={"payee": "Shop", "postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "100"},
+        {"account": bank["aid"], "side": "credit", "amount": "100"}]})
+    page = client.get("/").text
+    assert 'aria-label="How what is left to spend is worked out"' in page
+    sums = re.findall(r'<p class="calc-row-line([^"]*)"><span>([^<]*)</span><b>([^<]*)</b>', page)
+    assert [(c.strip(), label, amount) for c, label, amount in sums] == [
+        ("", "Carried in from earlier months", "₹0.00"),
+        ("plus", f"Assigned in {calendar.month_name[date.today().month]}", "₹400.00"),
+        ("minus", "Spent so far", "₹100.00"),
+        ("total", "Left to spend", "₹300.00"),
+    ]

@@ -17,6 +17,8 @@ Budgets are **monthly**. (Weekly and yearly *targets* exist behind the Advanced 
 
 The page's main figure is **Ready to assign in <month>**. Your aim is to bring it to zero: *every ₹ has a job*.
 
+Tap the **i** beside the figure (on Budget and on Home's *Left to spend*) to see how it is worked out with your own numbers: for example, money in your accounts, minus what is set aside for card bills, minus what is left in your categories, minus what you assigned to later months.
+
 <img src="img/budget.png" alt="The Budget page: Ready to assign, and the categories ranked with a bar and a tick for today" width="300">
 
 ## A worked example
