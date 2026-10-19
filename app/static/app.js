@@ -743,3 +743,15 @@ document.body.addEventListener("change", (event) => {
     button.textContent = shown ? `Hide the ${button.dataset.count} with nothing` : button.dataset.label;
   });
 })();
+
+// ---- An account's "i" and its "..." menu share the same place: opening one closes the other ----
+(() => {
+  document.addEventListener("toggle", (event) => {
+    const opened = event.target;
+    if (!(opened instanceof HTMLDetailsElement) || !opened.open) return;
+    if (!opened.matches("details.menu, details.note-info")) return;
+    document.querySelectorAll("details.menu[open], details.note-info[open]").forEach((other) => {
+      if (other !== opened) other.open = false;
+    });
+  }, true);
+})();
