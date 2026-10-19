@@ -105,7 +105,6 @@ def dashboard(
         "expenses": summary.expenses,
         "income_vs": _versus(summary.income, before.income, previous_name) if before else None,
         "expenses_vs": _versus(summary.expenses, before.expenses, previous_name) if before else None,
-        "cards_n": len(month.cards),
     }
     warning = (
         {"name": overspent[0].name, "n": len(overspent), "over": -sum((l.available for l in overspent), Decimal(0)), "first": -overspent[0].available}
@@ -123,7 +122,6 @@ def dashboard(
             "glance": glance,
             "tiles": tiles,
             "warning": warning,
-            "month_short": calendar.month_abbr[month.month.month],
             "has_recorded": has_recorded,
             "recent": recent,
             "steps": steps if not all(step["done"] for step in steps) else None,

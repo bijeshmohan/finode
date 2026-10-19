@@ -61,7 +61,7 @@ With **Settings › Advanced** on, each category's target page lets you say what
 
 ## Home vs Budget
 
-Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. Under it Home shows, once you have recorded something: a line when a category is overspent, four tiles (money in your budget accounts, what you owe on cards or what is ready to assign, and this month's income and spending against the same days of last month), and last your latest transactions. The Budget page is for *deciding*, Home is for *glancing*.
+Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. Under it Home shows, once you have recorded something: a line when a category is overspent, four tiles (money in your budget accounts, what you owe (*Owed*) or what is ready to assign, and *Earned* and *Spent* this month against the same days of last month), and last your latest transactions. The Budget page is for *deciding*, Home is for *glancing*.
 
 ## If numbers disagree
 

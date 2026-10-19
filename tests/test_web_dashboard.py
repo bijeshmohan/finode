@@ -204,7 +204,7 @@ def test_home_shows_four_tiles_and_a_warning_for_an_overspent_category(
     page = client.get("/").text
     text = " ".join(page.split())
     tiles = page[page.index('class="home-tiles"'):]
-    assert "Money in accounts" in tiles and "Income in" in tiles and "Spent in" in tiles
+    assert "Money in accounts" in tiles and "Earned" in tiles and "Spent" in tiles
     assert "Ready to assign" in tiles, "no card: that tile shows what is ready to assign instead"
     assert "₹500.00" in " ".join(tiles.split()) and "₹80.00" in " ".join(tiles.split())
     assert 'class="home-alert"' in page and f"<b>{expense_account['name']}</b> is over by ₹30.00" in text
