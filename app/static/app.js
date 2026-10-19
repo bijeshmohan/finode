@@ -395,9 +395,57 @@ document.addEventListener("click", (event) => {
   event.stopPropagation();
   if (button.form) button.form.requestSubmit(button);
 }, true);
+// While a field in the sheet has the keyboard open, a tap on the dim area only puts the keyboard away; it never throws the
+// sheet (and what was typed) away. The next tap outside closes it.
+// (The browser moves focus off the field when the press starts, so what was focused is noted then.)
+let wasTyping = false;
+document.addEventListener("pointerdown", (event) => {
+  const field = document.activeElement;
+  wasTyping = event.target instanceof HTMLDialogElement && !!field && event.target.contains(field) && field.matches("input, select, textarea");
+}, true);
 document.body.addEventListener("click", (event) => {
-  if (event.target instanceof HTMLDialogElement && event.target.classList.contains("sheet-bottom")) event.target.close();
+  const dialog = event.target;
+  if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains("sheet-bottom")) return;
+  if (wasTyping) {
+    wasTyping = false;
+    if (document.activeElement && dialog.contains(document.activeElement)) document.activeElement.blur();
+    return;
+  }
+  dialog.close();
 });
+
+// ---- Sheets and the soft keyboard ----
+// A bottom sheet sits under the keyboard on a phone, so Save could not be reached until the keyboard was put away. The
+// visual viewport tells how much of the screen the keyboard takes (--kb) and how tall the visible part is (--vvh): the
+// sheet is lifted above the keyboard, and while a field is being typed in it shows only what is needed (`typing`), so it
+// fits even on a small phone.
+(() => {
+  const vv = window.visualViewport;
+  const place = () => {
+    if (!vv) return;
+    const root = document.documentElement.style;
+    root.setProperty("--kb", `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
+    root.setProperty("--vvh", `${Math.round(vv.height)}px`);
+  };
+  if (vv) {
+    vv.addEventListener("resize", place);
+    vv.addEventListener("scroll", place);
+    place();
+  }
+  const sheetOf = (event) => (event.target.closest && event.target.matches && event.target.matches("input, select, textarea") ? event.target.closest("dialog.sheet") : null);
+  document.addEventListener("focusin", (event) => {
+    const dialog = sheetOf(event);
+    if (!dialog) return;
+    clearTimeout(dialog._typingTimer);
+    dialog.classList.add("typing");
+    place();
+  });
+  document.addEventListener("focusout", (event) => {
+    const dialog = sheetOf(event);
+    // Later than the tap on Save that caused it, so the sheet does not change shape under the finger.
+    if (dialog) dialog._typingTimer = setTimeout(() => dialog.classList.remove("typing"), 300);
+  });
+})();
 
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
 function applySuggestion(form, chip, focus = true) {
