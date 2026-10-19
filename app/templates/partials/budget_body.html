@@ -2,6 +2,7 @@
 {% from "partials/icons.html" import icon %}
 {% from "partials/budget_rows.html" import row %}
 {% from "partials/money.html" import figure %}
+{% from "partials/calc_info.html" import calc_button, calc_panel %}
 
 <div id="budget">
   {% set rta = budget.ready_to_assign %}
@@ -48,10 +49,11 @@
   </div>
   {% endif %}
   <div class="ready zero budget-hero ready-hero">
-    <span class="muted">Ready to assign</span>
+    <div class="calc-row"><span class="muted">Ready to assign</span>{{ calc_button("what is ready to assign") }}</div>
     <span class="figure">{{ figure(rta if rta > 0 else 0, budget.currency) }}</span>
     {% if rta > 0 %}<span class="glance-note">Tap a category to give it a job.</span>
     {% elif rta == 0 and budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
+    {{ calc_panel([("In your accounts", budget.money_in_accounts, ""), ("Set aside for card bills", budget.reserved_for_cards, "−"), ("Left in your categories", budget.available, "−"), ("Assigned to later months", budget.assigned_to_later_months, "−")], "Ready to assign", rta, budget.currency, "Money in your accounts that has no job yet.") }}
   </div>
   {% if overspent > 0 or rta < 0 %}
   <div class="ready-warns">
