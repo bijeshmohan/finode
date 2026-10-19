@@ -1160,7 +1160,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 [data-cat-tree] .crow-main { justify-content: flex-start; }
 .tile > .top + .top { border-top: 1px solid var(--surface-2); }
 .tile > .top > .r { border-top: 0; }
-.accounts-note { margin: 1.25rem .25rem 0; }
 
 /* Room between the Expense / Income chips and the first row of the list */
 .cat-chips { min-height: 0; }

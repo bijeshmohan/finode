@@ -67,10 +67,10 @@ def test_unused_and_closed_accounts_are_tucked_away(page: Page, api, books, sess
     session.commit()
     page.goto("/accounts")
     assert "assets › old wallet" not in visible(page) and "liabilities › old card" not in visible(page)
-    page.get_by_role("button", name="1 unused account hidden").click()
+    page.get_by_role("button", name="Load more").click()
     assert "assets › old wallet" in visible(page)
-    page.get_by_role("button", name="1 closed account").click()
-    assert "liabilities › old card" in visible(page)
+    assert "liabilities › old card" in visible(page), "one button shows both kinds"
+    expect(page.get_by_role("button", name="Load more")).to_have_count(0)
     expect(page.locator("li", has_text="Old Card").locator(".badge")).to_have_text("closed")
 
 
@@ -81,7 +81,7 @@ def test_closing_an_account_from_its_page(page: Page, api, books):
     page.get_by_role("button", name="Close account").click()
     page.wait_for_url("**/accounts")
     assert "assets › cash" not in visible(page)
-    page.get_by_role("button", name="1 closed account").click()
+    page.get_by_role("button", name="Load more").click()
     assert "assets › cash" in visible(page)
 
 

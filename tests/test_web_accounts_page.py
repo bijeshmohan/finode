@@ -66,11 +66,11 @@ def test_assets_and_liabilities_are_open_equity_folds_and_there_is_no_net_worth_
 
 def test_unused_accounts_are_tucked_away_but_new_ones_are_not(client, tree, session):
     page = client.get("/accounts").text
-    assert "unused-hidden" not in page and "hidden · Show" not in page, "everything is new"
+    assert "unused-hidden" not in page and "Load more" not in page, "everything is new"
     age(session, "Old Savings", "Snacks", "Rent")
     page = client.get("/accounts").text
     assert page.count("unused-hidden") == 4, "three accounts, and Rent's block, which has nothing else in it"
-    assert "3 unused accounts hidden · Show" in page
+    assert ">Load more</button>" in page and "unused accounts hidden" not in page
     assert "unused-hidden" in item(page, tree["old"]) and "unused-hidden" not in item(page, tree["hdfc"])
     assert "unused-hidden" not in item(page, tree["groceries"]), "a new account stays"
 
@@ -122,4 +122,9 @@ def test_a_group_emptied_by_a_move_leaves_no_empty_tile(client, tree, session):
     assert "unused-hidden" in item(page, vehicles)
     opening = page[:page.index(f'href="/accounts/{vehicles}"')].rsplit('<div class="acc-block', 1)[1].split(">", 1)[0]
     assert "unused-hidden" in opening, "its block is hidden too"
-    assert "unused account" in page and "hidden · Show" in page
+    assert ">Load more</button>" in page
+
+
+def test_the_page_has_no_note_under_its_list(client, root_accounts):
+    page = client.get("/accounts").text
+    assert "What it was spent on" not in page and 'class="muted budget-fine' not in page
