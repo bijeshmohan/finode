@@ -63,8 +63,9 @@ def test_quiet_categories_hide_behind_a_link(page: Page, books, api: Api):
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
     expect(page.locator("a.crow", has_text="Groceries")).to_be_hidden()
-    page.get_by_role("button", name="with nothing in").click()
+    page.get_by_role("button", name="Load more").click()
     expect(page.locator("a.crow", has_text="Groceries")).to_be_visible()
+    expect(page.get_by_role("button", name="Load more")).to_have_count(0)  # it loaded everything: nothing left to load
 
 
 def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(page: Page, books, api: Api):
