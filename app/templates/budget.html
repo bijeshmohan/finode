@@ -2,8 +2,13 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Budget · finode{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head tall">
   <h1>Budget</h1>
+  <span class="month-pill">
+    <span class="month-pill-name">{{ month_name.split(" ")[0][:3] }} {{ month_name.split(" ")[1] }}</span>
+    <a class="icon-button" href="/budget?month={{ previous }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
+    <a class="icon-button" href="/budget?month={{ next }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>
+  </span>
 </div>
 {% include "partials/budget_body.html" %}
 {% endblock %}

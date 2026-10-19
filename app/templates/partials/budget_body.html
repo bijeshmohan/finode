@@ -6,14 +6,24 @@
 
 <div id="budget">
   {% set rta = budget.ready_to_assign %}
-  <div class="cat-bar bud-bar">
-    <span class="month-pill">
-      <span class="month-pill-name">{{ month_name.split(" ")[0][:3] }} {{ month_name.split(" ")[1] }}</span>
-      <a class="icon-button" href="/budget?month={{ previous }}" title="Previous month">{{ icon("back") }}<span class="sr-only">Previous month</span></a>
-      <a class="icon-button" href="/budget?month={{ next }}" title="Next month" style="transform: scaleX(-1)">{{ icon("back") }}<span class="sr-only">Next month</span></a>
-    </span>
-    {% if attention %}<button type="button" class="need" data-toggle-attn aria-expanded="false" aria-controls="attn-panel">Needs you <i>{{ attention }}</i></button>{% endif %}
+  <div class="ready zero budget-hero ready-hero">
+    <div class="hero-top">
+      <div class="calc-row"><span class="muted">Ready to assign</span>{{ calc_button("what is ready to assign") }}</div>
+      {% if attention %}<button type="button" class="need" data-toggle-attn aria-expanded="false" aria-controls="attn-panel">Needs you <i>{{ attention }}</i></button>{% endif %}
+    </div>
+    <span class="figure">{{ figure(rta if rta > 0 else 0, budget.currency) }}</span>
+    {% if rta > 0 %}<span class="glance-note">Tap a category to give it a job.</span>
+    {% elif rta == 0 and budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
+    {{ calc_panel([("In your accounts", budget.money_in_accounts, ""), ("Set aside for card bills", budget.reserved_for_cards, "−"), ("Left in your categories", budget.available, "−"), ("Assigned to later months", budget.assigned_to_later_months, "−")], "Ready to assign", rta, budget.currency, "Money in your accounts that has no job yet.") }}
   </div>
+  {% if overspent > 0 or rta < 0 %}
+  <div class="ready-warns">
+    {% if overspent > 0 %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
+    {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+
   {% if attention %}
   <div class="attn-panel" id="attn-panel" hidden>
     {% if budget.left_out_accounts %}
@@ -48,21 +58,6 @@
     {% endif %}
   </div>
   {% endif %}
-  <div class="ready zero budget-hero ready-hero">
-    <div class="calc-row"><span class="muted">Ready to assign</span>{{ calc_button("what is ready to assign") }}</div>
-    <span class="figure">{{ figure(rta if rta > 0 else 0, budget.currency) }}</span>
-    {% if rta > 0 %}<span class="glance-note">Tap a category to give it a job.</span>
-    {% elif rta == 0 and budget.lines %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
-    {{ calc_panel([("In your accounts", budget.money_in_accounts, ""), ("Set aside for card bills", budget.reserved_for_cards, "−"), ("Left in your categories", budget.available, "−"), ("Assigned to later months", budget.assigned_to_later_months, "−")], "Ready to assign", rta, budget.currency, "Money in your accounts that has no job yet.") }}
-  </div>
-  {% if overspent > 0 or rta < 0 %}
-  <div class="ready-warns">
-    {% if overspent > 0 %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
-    {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
-  </div>
-  {% endif %}
-
-
   <p id="budget-error" class="error" role="alert"></p>
 
   {% if not budget.budget_accounts %}
