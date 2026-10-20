@@ -36,7 +36,7 @@ def test_accounts_page_suggests_first_account_for_empty_roots(
     client: TestClient, root_accounts: dict[str, str]
 ):
     text = client.get("/accounts?tab=liabilities").text
-    assert f'href="/accounts/new?parent={root_accounts["Liabilities"]}"' in text
+    assert ('href="/accounts/new?root=liabilities"') in text
     assert "Add a credit card or loan" in text
 
 
@@ -419,3 +419,15 @@ def test_a_payment_category_only_goes_with_an_account_outside_the_budget(client:
     other = client.post("/accounts", data={"budget_choice": "1", "name": "A2", "parent_id": root_accounts["Assets"], "payment_category": root_accounts["Assets"]})
     assert other.headers.get("HX-Retarget") == "#form-error", "it must be an expense category"
     assert not any(a["name"] == "A2" for a in client.get("/api/accounts/").json()), "nothing is left half made"
+
+
+def test_the_plus_on_a_type_tab_offers_only_that_type(client: TestClient, root_accounts: dict[str, str]):
+    page = client.get("/accounts?tab=liabilities").text
+    assert 'href="/accounts/new?root=liabilities"' in page
+    form = client.get("/accounts/new?root=liabilities").text
+    assert 'data-root="Liabilities"' in form
+    assert 'data-root="Assets"' not in form and 'data-root="Equity"' not in form
+    assert f'value="{root_accounts["Liabilities"]}" selected' in form, "it starts on the type itself"
+    assert 'data-root="Assets"' in client.get("/accounts/new?root=assets").text
+    assert 'data-root="Liabilities"' not in client.get("/accounts/new?root=assets").text
+    assert 'data-root="Liabilities"' in client.get("/accounts/new").text, "no tab: everything, as before"
