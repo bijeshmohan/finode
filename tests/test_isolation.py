@@ -57,7 +57,7 @@ LISTS = {
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"),
     ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/move"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
-    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/summary"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
+    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
 }
 
 # Routes that take A's ids or names inside the request: refused (see `test_b_cannot_use_a_s_things_in_requests`).
@@ -259,8 +259,6 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
         # The numbers are B's too: the same endpoints, read as data.
         theirs = services(session, B_USER)
         assert plain(theirs.reports.summary())["net_worth"] == "660.00"
-        month = plain(theirs.reports.month_report())
-        assert not leaked(world, json.dumps(month)) and {l["account"] for l in month["spending"] + month["earnings"]} <= {"Bills"}
         trial = client.get("/api/reports/trial-balance").json()
         assert trial["balanced"] and {a["account"] for a in trial["lines"]} <= {"Assets:Mine", "Expenses:Bills", "Equity:Opening Balances"}
         assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"]} == {"Mine", "Bills", "Opening Balances"}

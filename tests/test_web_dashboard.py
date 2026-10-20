@@ -211,7 +211,7 @@ def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_
     text = " ".join(page.split())
     strip = _words(page[page.index('class="home-strip"'):])
     assert "Earned ₹500.00" in strip and "Assigned ₹50.00" in strip and "Spent ₹80.00" in strip
-    assert 'href="/summary?month=' in page[page.index('class="home-strip"') - 40:page.index('class="home-strip"') + 40], "the columns are one link to the month's summary"
+    assert 'href="/summary' not in page, "the Summary page is gone"
     assert "home-tile" not in page and "Balance" not in page.split("<h2>Transactions</h2>")[0] and "Owed" not in page
     assert 'class="home-alert"' in page and f"<b>{expense_account['name']}</b> is over by ₹30.00" in text
     assert page.index('class="glance"') < page.index('class="home-strip"') < page.index('class="home-alert"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"

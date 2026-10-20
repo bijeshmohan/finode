@@ -67,7 +67,7 @@ def test_the_chips_pick_a_type_in_the_order_assets_liabilities_equity(client, tr
     assert "Amex" in liabilities and "HDFC" not in liabilities and 'tab=liabilities" aria-pressed="true"' in liabilities
     assert "Opening Balances" in client.get("/accounts?tab=equity").text
     assert "data-account-search" not in page and "Recently used" not in page and "Search accounts" not in page
-    assert "Net worth" not in page and 'class="circ-button" href="/accounts/new"' in page, "the round + adds an account"
+    assert "Net worth" not in page and 'class="circ-button" href="/accounts/new?root=assets"' in page, "the round + adds an account"
 
 
 def test_the_figure_is_the_chosen_types_total(client, tree):

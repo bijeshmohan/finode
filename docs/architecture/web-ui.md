@@ -6,7 +6,7 @@ The web app is **server-rendered HTML** (Jinja2) with a little vendored **htmx**
 
 | What | Where |
 |---|---|
-| Page handlers | `app/routers/web/*.py` (one module per area: `accounts`, `budget`, `categories`, `dashboard`, `transactions`, `recurring`, `settings`, `profile`, `summary`, `data`, `oauth`, `auth`) |
+| Page handlers | `app/routers/web/*.py` (one module per area: `accounts`, `budget`, `categories`, `dashboard`, `transactions`, `recurring`, `settings`, `profile`, `data`, `oauth`, `auth`) |
 | Shared helpers for handlers | `app/routers/web/utils.py` (`htmx_redirect`, `htmx_error`, `htmx_trigger`, `safe_back`, `UpcomingItem`) |
 | Page templates | `app/templates/*.html`, all extending `base.html` |
 | Fragments returned to htmx | `app/templates/partials/` |
