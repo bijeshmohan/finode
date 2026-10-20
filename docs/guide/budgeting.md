@@ -43,7 +43,7 @@ You have ₹50,000 in your bank account, and no budget yet.
 - A **group** (like Food) shows the total of its subcategories; tap it to open its own page. A plain category, or a row on a group's page, opens a **sheet** with **Assigned this month** (type the amount and **Save**), what was **Spent**, **Move money** to another category, and the **Note** (and, with Advanced on, the target). On a group's page, tap the figure at the top to set the group's own budget: it starts at what its subcategories add up to, you can raise it, and a lower amount is refused (the field turns red).
 
 <img src="img/budget-sheet.png" alt="The category sheet: Assigned this month, Spent, Save, Move money, Note" width="300">
-- The Budget looks at the **whole month**, so an entry dated later this month already counts as spent in its category, while Home's Transactions list, account balances and the Month summary count up to today.
+- The Budget looks at the **whole month**, so an entry dated later this month already counts as spent in its category, while Home's Transactions list, account balances count up to today.
 - **Move money** never changes Ready to assign; it limits you to what the source category has left. Typing a smaller (even negative) amount in a category's *Assign* field takes money back to Ready to assign, but never more than the category has left.
 - Behind the **Needs you N** badge are the things that need a decision: accounts left out of the budget, last month's overspending, *Copy last month's amounts*, and (Advanced) *Assign what is needed*.
 - **Copy last month's amounts** assigns each category what it got last month, but only where nothing is assigned yet.
@@ -61,8 +61,8 @@ With **Settings › Advanced** on, each category's target page lets you say what
 
 ## Home vs Budget
 
-Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. A month picker sits at the top right (any past month; never a future one), and under the bar three columns show what you *Earned*, *Assigned* and *Spent* in that month; tap them for that month's Summary. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. Under it Home shows, once you have recorded something: a line when a category is overspent, and last your latest transactions. The Budget page is for *deciding*, Home is for *glancing*.
+Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. A month picker sits at the top right (any past month; never a future one), and under the bar three columns show what you *Earned*, *Assigned* and *Spent* in that month. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. Under it Home shows, once you have recorded something: a line when a category is overspent, and last your latest transactions. The Budget page is for *deciding*, Home is for *glancing*.
 
 ## If numbers disagree
 
-The **Budget**, the **Categories** page, the **Month summary** and the overview all count a loan payment the same way: as spending in the loan's payment category. They differ only in what the Budget leaves out on purpose: it counts what your budget accounts paid, so interest a lender adds to a loan (which no budget account paid) shows up as an expense in the reports but not in the Budget.
+The **Budget**, the **Categories** page and the overview all count a loan payment the same way: as spending in the loan's payment category. They differ only in what the Budget leaves out on purpose: it counts what your budget accounts paid, so interest a lender adds to a loan (which no budget account paid) shows up as an expense in the reports but not in the Budget.

@@ -15,7 +15,7 @@ def test_sums_longer_than_one_amount_can_be_still_show_up(client, account, expen
     for _ in range(3):
         made = post(client, expense_account, account, "5000000000000000.00")
         assert made.status_code == 201, made.text
-    for page in ("/", "/accounts", "/categories", "/budget", "/summary", f"/accounts/{account['aid']}",
+    for page in ("/", "/accounts", "/categories", "/budget", f"/accounts/{account['aid']}",
                  "/api/accounts/", "/api/reports/trial-balance", "/api/budget/"):
         assert client.get(page).status_code == 200, page
     assert client.get("/api/reports/trial-balance").json()["balanced"]
@@ -31,14 +31,14 @@ def test_a_transaction_outside_the_calendar_finode_works_in_is_refused_with_a_re
 @pytest.mark.parametrize("day", ["1900-01-01", "2999-12-31"])
 def test_the_first_and_last_day_work_everywhere(client, account, expense_account, day):
     assert post(client, expense_account, account, "5", date=day).status_code == 201
-    for page in ("/", "/transactions", "/accounts", "/budget", "/summary", f"/budget?month={day[:7]}",
-                 f"/categories?month={day[:7]}", f"/summary?month={day[:7]}"):
+    for page in ("/", "/transactions", "/accounts", "/budget", f"/budget?month={day[:7]}",
+                 f"/categories?month={day[:7]}"):
         assert client.get(page).status_code == 200, page
 
 
 @pytest.mark.parametrize("month", ["0001-01", "9999-12", "1899-12", "2200-01", "1900-01", "2999-12"])
 def test_odd_months_in_the_address_never_break_a_page(client, expense_account, month):
-    for page in ("/budget", "/categories", "/summary", f"/budget/group/{expense_account['aid']}"):
+    for page in ("/budget", "/categories", f"/budget/group/{expense_account['aid']}"):
         assert client.get(f"{page}?month={month}").status_code in (200, 404), (page, month)
 
 

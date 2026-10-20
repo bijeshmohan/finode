@@ -1,30 +1,19 @@
-"""Read-only reports computed from postings: summary, per-account breakdown, the month report, account totals and the trial balance that re-checks the books."""
+"""Read-only reports computed from postings: summary, per-account breakdown, account totals and the trial balance that re-checks the books."""
 
-import calendar
 from datetime import date
 from decimal import Decimal
-from uuid import UUID
 
 from ..models.transaction import PostingSide
 from ..repositories import TransactionRepository
 from ..schemas.report import (
     BreakdownLine,
     BreakdownRead,
-    MonthLine,
-    MonthReportRead,
-    MonthTotals,
     SummaryRead,
     TrialBalanceLine,
     TrialBalanceRead,
 )
 from .account import AccountService
-from ..clock import FIRST_MONTH, LAST_MONTH, local_today
-
-
-def _shift(month: date, by: int) -> date:
-    index = month.year * 12 + month.month - 1 + by
-    moved = date(index // 12, index % 12 + 1, 1) if 1 <= index // 12 <= 9998 else month
-    return moved if FIRST_MONTH <= moved <= LAST_MONTH else month
+from ..clock import local_today
 
 
 class ReportService:
@@ -77,81 +66,6 @@ class ReportService:
         for posting in self.tr.postings_for_accounts(subtree, period_start, period_end):
             total += posting.amount if posting.side == normal_side else -posting.amount
         return total
-
-    TREND_MONTHS = 6
-
-    def month_report(self, month: date | None = None) -> MonthReportRead:
-        """A month's income and spending, per top-level account and against the month before, with the
-        last six months' totals. The current month counts up to today."""
-        today = local_today()
-        month = (month or today).replace(day=1)
-        if month > today.replace(day=1):
-            raise ValueError("that month has not started yet!")
-        first = _shift(month, -(self.TREND_MONTHS - 1))
-        last_day = date(month.year, month.month, calendar.monthrange(month.year, month.month)[1])
-        end = min(last_day, today)
-        previous = _shift(month, -1)
-
-        currency = self.accounts.currency()
-        accounts = {a.aid: a for a in self.accounts.list()}
-        by_month: dict[str, dict[date, Decimal]] = {"Income": {}, "Expenses": {}}
-        by_group: dict[str, dict[date, dict[str, Decimal]]] = {"Income": {}, "Expenses": {}}
-        transactions = {t.tid: t for t in self.tr.list(date_from=first, date_to=end)}
-
-        def add(root_name: str, account: UUID, posting, value: Decimal) -> None:
-            when = transactions[posting.transaction].date.replace(day=1)
-            by_month[root_name][when] = by_month[root_name].get(when, Decimal("0.00")) + value
-            if when in (month, previous):
-                top = account
-                while accounts[top].parent_id is not None and accounts[accounts[top].parent_id].parent_id is not None:
-                    top = accounts[top].parent_id
-                groups = by_group[root_name].setdefault(when, {})
-                groups[accounts[top].name] = groups.get(accounts[top].name, Decimal("0.00")) + value
-
-        for root_name, normal_side in (("Income", PostingSide.CREDIT), ("Expenses", PostingSide.DEBIT)):
-            root = next(a for a in accounts.values() if a.parent_id is None and a.name == root_name)
-            for posting in self.tr.postings_for_accounts(self.accounts.subtree_ids(root.aid), first, end):
-                add(root_name, posting.account, posting, posting.amount if posting.side == normal_side else -posting.amount)
-        # Paying into a loan budgeted under a category spends that category: as on the Budget and the Categories page.
-        for category, posting in self.accounts.payments_into_loans(list(accounts.values()), first, end):
-            add("Expenses", category, posting, posting.amount)
-
-        zero = Decimal("0.00")
-        income, expenses = by_month["Income"].get(month, zero), by_month["Expenses"].get(month, zero)
-
-        def lines(root_name: str, total: Decimal) -> list[MonthLine]:
-            now, before = by_group[root_name].get(month, {}), by_group[root_name].get(previous, {})
-            out = [
-                MonthLine(
-                    account=name,
-                    amount=amount,
-                    previous=before.get(name, zero),
-                    share=(amount / total * 100).quantize(Decimal("0.1")) if total > 0 else Decimal("0.0"),
-                )
-                for name, amount in now.items()
-                if amount != 0
-            ]
-            return sorted(out, key=lambda line: (-line.amount, line.account))
-
-        trend = []
-        for i in range(self.TREND_MONTHS):
-            m = _shift(first, i)
-            i_, e_ = by_month["Income"].get(m, zero), by_month["Expenses"].get(m, zero)
-            trend.append(MonthTotals(month=m, income=i_, expenses=e_, net=i_ - e_))
-        return MonthReportRead(
-            month=month,
-            period_end=end,
-            currency=currency.code,
-            income=income,
-            expenses=expenses,
-            net=income - expenses,
-            savings_rate=((income - expenses) / income * 100).quantize(Decimal("0.1")) if income > 0 else None,
-            previous_income=by_month["Income"].get(previous, zero),
-            previous_expenses=by_month["Expenses"].get(previous, zero),
-            spending=lines("Expenses", expenses),
-            earnings=lines("Income", income),
-            trend=trend,
-        )
 
     def account_totals(self, root_name: str, period_start: date, period_end: date) -> dict:
         """What each account under Income or Expenses took in a period (what was posted to the account itself:
