@@ -914,18 +914,11 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .tx:hover { background: transparent; }
 .tx-title { font-weight: 500; }
 .tx-amount { font-weight: 500; }
-
-/* ---------- Transactions: a search pill, kind chips, and the details sheet ---------- */
-.tx-search { margin: 0 0 .75rem; }
-.search-pill {
-  flex-direction: row; align-items: center; gap: .6rem; height: 2.75rem; padding: 0 1rem;
-  border-radius: 999px; background: var(--surface-2); color: var(--faint); font-weight: 400;
-}
-.search-pill .icon { width: 1.1rem; height: 1.1rem; }
-.search-pill input { flex: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--text); }
-.search-pill input:focus { border: 0; box-shadow: none; }
-.search-pill:focus-within { outline: 2px solid var(--text); outline-offset: 2px; }
-.tx-kinds { margin-bottom: .5rem; min-height: 0; }
+/* ---------- Transactions: kind chips and the details sheet ---------- */
+.tx-kinds { margin-bottom: 0; min-height: 0; }
+.tx-bar { margin-bottom: .5rem; flex-wrap: nowrap; }
+.tx-bar .head-icons { gap: 0; flex: none; }
+.tx-bar .icon-button { width: 2.375rem; height: 2.375rem; }
 a.chip {
   display: inline-flex; align-items: center; min-height: 2rem; padding: 0 .875rem; border-radius: 999px;
   font-size: .84rem; font-weight: 500; color: var(--text); background: var(--surface); border: 1px solid var(--border);

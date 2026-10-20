@@ -13,20 +13,20 @@
 {% endmacro %}
 
 {% block content %}
-<div class="page-head">
+<div class="page-head tall">
   <h1>Categories</h1>
-  <span class="head-icons">
-    <a class="icon-button" href="/categories/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
-    <a class="circ-button" href="/categories/new" title="Add category">{{ icon("plus") }}<span class="sr-only">Add category</span></a>
-  </span>
+  {{ month_pill("/categories?month={month}&tab=" ~ tab, month_name, month_key, previous, next, this_month) }}
 </div>
 
 <div class="cat-bar">
-  {{ month_pill("/categories?month={month}&tab=" ~ tab, month_name, month_key, previous, next, this_month) }}
   <div class="chips cat-chips" role="group" aria-label="What to show">
     <a class="chip" href="/categories?month={{ month_key }}&tab=expense" aria-pressed="{{ 'true' if tab == 'expense' else 'false' }}">Expense</a>
     <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
   </div>
+  <span class="head-icons">
+    <a class="icon-button" href="/categories/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
+    <a class="circ-button" href="/categories/new" title="Add category">{{ icon("plus") }}<span class="sr-only">Add category</span></a>
+  </span>
 </div>
 
 <div class="ready zero cat-hero">
