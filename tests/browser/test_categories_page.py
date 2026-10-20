@@ -123,3 +123,14 @@ def test_the_month_in_the_pill_is_a_picker_that_goes_straight_to_that_month(page
     month.evaluate("(el) => { el.value = '2999-01'; el.dispatchEvent(new Event('change', {bubbles: true})); }")
     page.wait_for_timeout(300)
     assert "month=2026-02" in page.url, "a month the page never shows is not taken"
+
+
+def test_accounts_and_categories_share_the_same_heights(page: Page, books):
+    spots = {}
+    for path in ("/accounts", "/categories"):
+        page.goto(path)
+        title, chips, hero = (page.locator(s).first.bounding_box() for s in (".page-head h1", ".cat-chips", ".cat-hero"))
+        icons = page.locator(".cat-bar .head-icons").first.bounding_box()
+        assert abs(chips["y"] - icons["y"]) < 14 and icons["x"] > chips["x"] + chips["width"], f"{path}: bin and + at the right of the chips"
+        spots[path] = (round(title["y"]), round(chips["y"]), round(hero["y"]), round(icons["x"] + icons["width"]))
+    assert spots["/accounts"] == spots["/categories"], f"title, chips, figure and the icons' right edge line up: {spots}"
