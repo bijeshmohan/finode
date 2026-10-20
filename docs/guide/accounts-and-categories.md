@@ -18,7 +18,7 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 ### Add an account
 
-Tap the round **+** (*Add account*) on the Accounts page. The form asks for a **Name**, **Belongs under** (Assets for banks, cash and wallets; Liabilities for cards and loans; or a group you already made), an optional **Current balance** and optional **Notes**. The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
+Tap the round **+** (*Add account*) on the Accounts page. The form asks for a **Name**, **Under** (Assets for banks, cash and wallets; Liabilities for cards and loans; or a group you already made), an optional **Current balance** and an optional note (behind *+ Add a note*). The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
 
 <img src="img/accounts.png" alt="The Accounts page: groups with subtotals, accounts in tiles" width="300">
 
@@ -35,7 +35,7 @@ An account that has sub-accounts (such as a *Banks* group) is not posted to itse
 
 ### Credit cards and loans
 
-A card or loan is a **liability**: its balance is what you owe. Paying the bill is a *transfer* from your bank account to the card. To have the budget count a card's purchases as spending, pick the **Credit** type when you add it (it starts in the budget), or change **Part of the budget** under *More options* or later in its edit page. A card or loan outside the budget can name a **payment category**, chosen in the same form, so an EMI counts as spending in that category.
+A card or loan is a **liability**: its balance is what you owe. Paying the bill is a *transfer* from your bank account to the card. To have the budget count a card's purchases as spending, turn on **Part of the budget** when you add it (or later in its edit page). A card or loan outside the budget can name a **payment category**, chosen in the same form, so an EMI counts as spending in that category.
 
 ### Closing and deleting
 
