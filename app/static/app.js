@@ -685,16 +685,39 @@ document.body.addEventListener("change", (event) => {
     fields.querySelectorAll("input, select").forEach((el) => { el.disabled = !asked; });
     if (!asked) return;
     const box = fields.querySelector('input[name="on_budget"]');
-    box.checked = root === "Assets";
+    // Moving to another group under the same root keeps the choice (a type's default or the person's own).
+    if (select.dataset.appliedRoot !== root) box.checked = root === "Assets";
+    select.dataset.appliedRoot = root;
     const payment = fields.querySelector("[data-payment-category]");
     if (payment) payment.hidden = box.checked;
   };
   document.body.addEventListener("change", (event) => {
     if (event.target.matches && event.target.matches('form select[name="parent_id"]')) apply(event.target);
   });
+  // The type chips on the new-account form pick the group (a group of the person's own whose name has a matching word, else
+  // the root) and whether the account starts in the budget; the group and the box stay editable under "More options".
+  document.body.addEventListener("change", (event) => {
+    const radio = event.target.matches && event.target.matches('input[name="account_type"]') ? event.target : null;
+    if (!radio) return;
+    const form = radio.form;
+    const select = form.querySelector('select[name="parent_id"]');
+    const words = radio.dataset.match.split(",").filter(Boolean);
+    const options = [...select.options].filter((o) => o.dataset.root === radio.dataset.root);
+    const named = options.find((o) => words.some((w) => o.textContent.trim().toLowerCase().includes(w)) && o.textContent.startsWith(" "));
+    const root = options.find((o) => !o.textContent.startsWith(" "));
+    const pick = named || root;
+    if (pick) select.value = pick.value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    const box = form.querySelector('input[name="on_budget"]');
+    if (box) {
+      box.checked = radio.dataset.budget === "1";
+      box.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  });
   const first = document.querySelector('[data-budget-fields]');
   const select = first && first.form && first.form.querySelector('select[name="parent_id"]');
   if (select && select.value) {
+    if (select.selectedOptions[0]) select.dataset.appliedRoot = select.selectedOptions[0].dataset.root || "";
     // The parent is already chosen (from an account's page): the server drew the right state; only disable what is hidden.
     first.querySelectorAll("input, select").forEach((el) => { el.disabled = first.hidden; });
   } else if (first) {

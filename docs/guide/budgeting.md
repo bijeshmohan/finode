@@ -8,7 +8,7 @@ Budgets are **monthly**. (Weekly and yearly *targets* exist behind the Advanced 
 
 | Word | Meaning |
 |---|---|
-| **Budget accounts** | The bank, cash and card accounts whose money you budget. When you add an account under Assets or Liabilities the form asks **Part of the budget**: it is on by default for a bank or cash account and off for a card or loan (turn it on for a card whose purchases you want counted). You can change it later on the account's edit page. |
+| **Budget accounts** | The bank, cash and card accounts whose money you budget. When you add an account you pick its **type** (Bank, Cash, Credit, Loan, Investment, Property, Other); the type sets **Part of the budget**: on for Bank, Cash and Credit, off for the rest. Change it under *More options* on the form, or later on the account's edit page. |
 | **Tracking accounts** | Accounts outside the budget (say, a long-term investment or a loan). They count in net worth but their money is not yours to assign. |
 | **Assigned** | How much you gave a category this month. |
 | **Spent** (activity) | What you spent in the category this month, from budget accounts. |

@@ -144,24 +144,33 @@ def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api)
     expect(page.get_by_text("Shop 69")).to_be_visible()
 
 
-def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Page, api, books):
+def test_the_new_account_form_sets_its_defaults_from_the_type(page: Page, api, books):
     page.goto("/accounts/new")
     fields = page.locator("[data-budget-fields]")
-    expect(fields).to_be_hidden()  # nothing chosen yet
     parent = page.locator('select[name="parent_id"]')
     box = page.locator('input[name="on_budget"]')
     payment = page.locator("[data-payment-category]")
-    parent.select_option(label="Assets")
+    expect(fields).to_be_hidden()  # tucked under "More options"
+    page.get_by_text("More options").click()
     expect(fields).to_be_visible()
+    expect(page.get_by_label("Bank", exact=True)).to_be_checked()  # starts as a bank account
+    expect(parent.locator("option:checked")).to_have_text("Assets")
     expect(box).to_be_checked()
     expect(payment).to_be_hidden()
-    parent.select_option(label="Liabilities")
+    page.locator(".type-chip", has_text="Loan").click()
+    expect(parent.locator("option:checked")).to_have_text("Liabilities")
     expect(box).not_to_be_checked()
     expect(payment).to_be_visible()  # outside the budget: the expense category can be chosen
+    page.locator(".type-chip", has_text="Credit").click()
+    expect(box).to_be_checked()
+    expect(payment).to_be_hidden()
+    page.locator(".type-chip", has_text="Investment").click()
+    expect(parent.locator("option:checked")).to_have_text("Assets")
+    expect(box).not_to_be_checked()
     parent.select_option(label="Equity")
     expect(fields).to_be_hidden()
     assert page.locator('[data-budget-fields] input[name="on_budget"]').is_disabled(), "hidden fields are not sent"
-    parent.select_option(label="Liabilities")
+    page.locator(".type-chip", has_text="Loan").click()
     page.locator('input[name="name"]').fill("Car loan")
     page.locator('select[name="payment_category"]').select_option(label="Rent")
     page.get_by_role("button", name="Add account").click()
