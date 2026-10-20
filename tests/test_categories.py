@@ -138,7 +138,7 @@ def test_adding_and_deleting_a_category_stay_on_the_categories_side(client, book
 
 def test_the_empty_page_invites_the_first_category(client, root_accounts):
     page = client.get("/categories").text
-    assert "No expense categories yet" in page and 'href="/categories/new"' in page
+    assert "No expense categories yet" in page and 'href="/categories/new?root=expense"' in page
 
 
 def test_the_chips_are_expense_and_income_and_the_old_spelling_still_works(client, books):
@@ -287,3 +287,15 @@ def test_the_categories_pages_have_no_share_bar_and_no_colour_dots(client, books
         assert "sharebar" not in page and "cdot" not in page and "--chart-" not in page, url
     css = open("app/static/style.css").read()
     assert "--chart-" not in css and ".sharebar" not in css and ".cdot" not in css
+
+
+def test_the_plus_on_a_categories_tab_offers_only_that_kind(client, root_accounts):
+    assert 'href="/categories/new?root=income"' in client.get("/categories?tab=income").text
+    assert 'href="/categories/new?root=expense"' in client.get("/categories").text
+    income = client.get("/categories/new?root=income").text
+    assert f'value="{root_accounts["Income"]}" selected' in income, "it starts on the kind itself"
+    assert f'value="{root_accounts["Expenses"]}"' not in income, "no Expenses accounts to put it under"
+    expense = client.get("/categories/new?root=expense").text
+    assert f'value="{root_accounts["Expenses"]}" selected' in expense and f'value="{root_accounts["Income"]}"' not in expense
+    both = client.get("/categories/new").text
+    assert f'value="{root_accounts["Income"]}"' in both and f'value="{root_accounts["Expenses"]}"' in both, "no tab: both, as before"
