@@ -32,7 +32,7 @@ def test_transactions_page_lists_newest_first(
     _post(client, expense_account, account, "10.00", "2026-01-01", "older-shop")
     _post(client, expense_account, account, "2000.00", "2026-02-01", "newer-shop")
 
-    text = client.get("/transactions").text
+    text = client.get("/transactions", params={"date_from": "2026-01-01"}).text
     assert text.index("newer-shop") < text.index("older-shop")
     assert "2,000.00" in text
     assert "checking" in text and "groceries" in text
@@ -44,7 +44,7 @@ def test_transactions_page_filters(
     _post(client, expense_account, account, "1.00", "2026-01-01", "from-checking")
     _post(client, expense_account, other_account, "1.00", "2026-03-01", "from-savings")
 
-    by_account = client.get("/transactions", params={"account": account["aid"]}).text
+    by_account = client.get("/transactions", params={"account": account["aid"], "date_from": "2026-01-01"}).text
     assert "from-checking" in by_account and "from-savings" not in by_account
 
     by_date = client.get("/transactions", params={"date_from": "2026-02-01"}).text
@@ -61,11 +61,11 @@ def test_transactions_page_paginates(client: TestClient, account: dict, expense_
     for i in range(27):
         _post(client, expense_account, account, "1.00", "2026-01-01", f"tx-{i:02d}")
 
-    first = client.get("/transactions")
+    first = client.get("/transactions", params={"date_from": "2026-01-01"})
     assert "Older" in first.text and "Newer" not in first.text
     assert first.text.count('class="tx"') == 25
 
-    second = client.get("/transactions", params={"page": 2})
+    second = client.get("/transactions", params={"page": 2, "date_from": "2026-01-01"})
     assert second.text.count('class="tx"') == 2
     assert "Newer" in second.text and "Older" not in second.text
 
@@ -91,7 +91,7 @@ def test_transactions_are_grouped_by_friendly_day_and_link_to_edit(
     tx = _post(client, expense_account, account, "5.00", today.isoformat(), "coffee")
     _post(client, expense_account, account, "7.00", "2020-02-03", "old")
 
-    text = client.get("/transactions").text
+    text = client.get("/transactions", params={"date_from": "2020-01-01"}).text
     assert ">Today<" in text
     assert ">3 Feb 2020<" in text
     assert f'href="/transactions/{tx["tid"]}/edit"' in text
@@ -104,7 +104,7 @@ def test_transaction_amounts_use_colour_not_a_minus_sign(
     _post(client, account, income_account, "500.00", "2026-01-02", "pay")
     _post(client, other_account, account, "20.00", "2026-01-03", "move")
 
-    text = client.get("/transactions").text
+    text = client.get("/transactions", params={"date_from": "2026-01-01"}).text
     assert 'tx-amount expense">10.00' in text, "an ordinary expense has no sign (it is the default)"
     assert "−" not in text.split("tx-list")[1].split("txn-sheet")[0]
     assert 'tx-amount income">+500.00' in text
@@ -122,10 +122,24 @@ def test_filters_open_with_count_only_when_active(client: TestClient, account: d
     assert "Nothing matches." in opened
 
 
-def test_recurring_is_an_icon_at_the_right_of_the_page_title(client):
+def test_recurring_is_an_icon_at_the_right_of_the_chips(client):
     page = client.get("/transactions").text
-    head = page[page.index('<div class="page-head">'):page.index("</div>", page.index('<div class="page-head">'))]
-    assert head.index("<h1>Transactions</h1>") < head.index('href="/recurring"')
+    head = page[page.index('<div class="cat-bar tx-bar">'):page.index("</details>")]
+    assert head.index("tx-kinds") < head.index('href="/recurring"')
     assert "<svg" in head and 'title="Recurring transactions"' in head
     assert 'class="sr-only">Recurring transactions' in head, "named for screen readers"
     assert '<p class="muted"><a href="/recurring">' not in page, "no visible text link any more"
+
+
+def test_the_month_pill_lists_one_month_and_has_no_search_box(client: TestClient, account: dict, expense_account: dict):
+    today = date.today()
+    _post(client, expense_account, account, "10", today.isoformat(), "ThisMonth")
+    _post(client, expense_account, account, "20", "2026-01-15", "InJanuary")
+    now = client.get("/transactions").text
+    assert "ThisMonth" in now and "InJanuary" not in now
+    assert 'class="month-input"' in now and 'type="search"' not in now
+    january = client.get("/transactions", params={"month": "2026-01"}).text
+    assert "InJanuary" in january and "ThisMonth" not in january
+    assert "Jan 2026" in january
+    ahead = client.get("/transactions", params={"month": "2999-01"}).text
+    assert "ThisMonth" in ahead, "a month that has not started opens this month"

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import calendar
 from datetime import date, timedelta
 from decimal import Decimal
 from urllib.parse import urlencode
@@ -20,6 +21,8 @@ from ...schemas.transaction import (
 )
 from ...templating import templates
 from .accounts import build_tree, posting_groups
+from .budget import parse_month
+from .categories import _month_context
 from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
 from ...clock import local_today
 from ...services.lock import locked_through
@@ -115,8 +118,8 @@ def transactions_page(
     date_to: str = "",
     q: str = "",
     kind: str = "",
+    month: str = "",
     page: int = 1,
-    focus: str = "",
 ):
     try:
         recurring.process_due()  # record what has fallen due; never stop the page from opening
@@ -126,6 +129,9 @@ def transactions_page(
     index = AccountIndex.build(all_accounts)
     page = max(page, 1)
     kind = KIND_FILTERS.get(kind, "")  # one spelling from here on
+    this_month = local_today().replace(day=1)
+    when = min(parse_month(month), this_month)  # never a month that has not started
+    is_current = when == this_month
 
     error = None
     rows: list[TransactionRow] = []
@@ -135,6 +141,10 @@ def transactions_page(
     first = last = None
     try:
         first, last = _parse_date(date_from), _parse_date(date_to)
+        if first is None and last is None:  # the month pill sets the days; dates in a link still win
+            first = when
+            # the current month also lists what is dated ahead (the "upcoming" card); a past month ends with its last day
+            last = None if is_current else when.replace(day=calendar.monthrange(when.year, when.month)[1])
         # What is dated ahead is not history: it waits in its own row ("N upcoming"), soonest first, on the first page.
         found = transactions.list(
             UUID(account) if account else None,
@@ -169,15 +179,16 @@ def transactions_page(
 
     filters = {"account": account, "date_from": date_from, "date_to": date_to}
     query = {k: v for k, v in filters.items() if v}
-    # What is typed in the search box and the chosen chip also travel with the page links.
-    base = {**query, **({"q": q.strip()} if q.strip() else {})}
+    # The month, the filters and the chosen chip also travel with the page links.
+    base = {"month": when.strftime("%Y-%m"), **query, **({"q": q.strip()} if q.strip() else {})}
     shown = {**base, **({"kind": kind} if kind else {})}
     return templates.TemplateResponse(
         request,
         "transactions.html",
         {
             "active": "transactions",
-            "focus_search": focus == "search",  # opened from the search icon in the top bar
+            **_month_context(when, is_current),
+            "keep": "".join(f"&{urlencode({k: v})}" for k, v in {**query, **({"kind": kind} if kind else {}), **({"q": q.strip()} if q.strip() else {})}.items()),
             "currency": accounts.currency().code,
             "rows": rows,
             "upcoming": upcoming,
@@ -189,8 +200,9 @@ def transactions_page(
             "q": q.strip(),
             "kind": kind,
             "chips": [
-                {"label": label, "value": value, "href": _chip_url(base, value)}
-                for label, value in (("All", ""), ("Expense", "expense"), ("Income", "income"), ("Transfer", "transfer"))
+                # tapping the chosen chip again shows everything
+                {"label": label, "value": value, "href": _chip_url(base, "" if value == kind else value)}
+                for label, value in (("Expense", "expense"), ("Income", "income"), ("Transfer", "transfer"))
             ],
             "searching": bool(q.strip() or kind or query),
             "roots": build_tree(all_accounts),
