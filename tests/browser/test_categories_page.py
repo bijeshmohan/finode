@@ -89,13 +89,20 @@ def test_there_is_room_between_the_figure_and_the_first_row(page: Page, books, a
     assert gap >= 14, f"the list starts {gap}px under the figure"
 
 
-def test_the_month_and_the_kind_share_one_row_above_the_figure(page: Page, books, api: Api):
+def test_the_month_pill_sits_in_the_title_row_as_on_budget_and_transactions(page: Page, books, api: Api):
     spend(api, books, books["rent"], "900")
+    spots = {}
+    for path in ("/budget", "/categories", "/transactions"):
+        page.goto(path)
+        title, pill = (page.locator(s).first.bounding_box() for s in (".page-head h1", ".page-head .month-pill"))
+        assert abs((title["y"] + title["height"] / 2) - (pill["y"] + pill["height"] / 2)) < 14, f"{path}: pill beside the title"
+        spots[path] = round(pill["x"] + pill["width"])
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
+    assert len(set(spots.values())) == 1, f"the pill ends at the same edge on every page: {spots}"
     page.goto("/categories")
-    pill, chips, hero = (page.locator(s).bounding_box() for s in (".month-pill", ".cat-chips", ".cat-hero"))
-    assert abs(pill["y"] - chips["y"]) < 14, "side by side"
-    assert hero["y"] > pill["y"] + pill["height"] and hero["y"] > chips["y"] + chips["height"] - 2, "the figure is under both"
-    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
+    chips, icons, hero = (page.locator(s).first.bounding_box() for s in (".cat-chips", ".cat-bar .head-icons", ".cat-hero"))
+    assert abs(chips["y"] - icons["y"]) < 14 and icons["x"] > chips["x"] + chips["width"], "bin and + at the right of the chips"
+    assert hero["y"] > chips["y"] + chips["height"] - 2
 
 
 def test_the_month_in_the_pill_is_a_picker_that_goes_straight_to_that_month(page: Page, books):

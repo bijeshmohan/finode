@@ -2,13 +2,15 @@
 {% from "partials/icons.html" import icon %}
 {% from "partials/money.html" import figure %}
 {% from "partials/calc_info.html" import calc_button, calc_panel %}
+{% from "partials/month_pill.html" import month_pill %}
 {% block title %}Home · finode{% endblock %}
 {% block content %}
 <h1 class="sr-only">Home</h1>
+{% set mname = month_name.split(" ")[0] %}
 
 {% if not has_recorded %}
 <section class="home-empty">
-  <p class="glance-label">{{ month_name }}</p>
+  <p class="glance-label">{{ mname }}</p>
   <p class="home-headline">Nothing recorded yet.</p>
   <p class="muted">Add your first transaction and this page starts to fill in.</p>
   {% if steps %}
@@ -27,24 +29,31 @@
   <p class="muted small-print">Amounts are in <strong>{{ currency }}</strong>. Using another currency? Change it in <a href="/settings#currency">Settings</a> before you add accounts. Already keep a ledger file? <a href="/profile/data">Import it</a>. Keep a backup safe from time to time: <a href="/profile/data#backup">Profile › Your data</a>.</p>
   {% endif %}
 </section>
-{% elif glance.has_budget %}
-<section class="glance">
-  <div class="calc-row"><p class="glance-label">{{ "Over budget in" if glance.left < 0 else "Left to spend in" }} {{ month_name }}</p>{{ calc_button("what is left to spend") }}</div>
-  <p class="glance-figure {{ 'over' if glance.left < 0 }}">{{ figure(glance.left, currency) }}</p>
-  <div class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent, and {{ glance.pace }}% of the month has passed"><i style="width: {{ glance.percent }}%"></i><b class="pace" style="left: {{ glance.pace }}%"></b></div>
-  <p class="glance-note">Spent {{ glance.spent|money }} of {{ glance.of|money }} · <a href="/summary">Details</a></p>
-  {{ calc_panel([("Carried in from earlier months", glance.carried, ""), ("Assigned in " ~ month_name, glance.assigned, "+"), ("Spent so far", glance.spent, "−")], "Left to spend", glance.left, currency, "Each category's leftover, plus what you assigned this month, minus what you spent.") }}
-</section>
 {% else %}
 <section class="glance">
-  <p class="glance-label">Spent in {{ month_name }}</p>
+  <div class="box-top">
+    {% if glance.has_budget %}<div class="calc-row"><p class="glance-label">{{ "Over budget" if glance.left < 0 else "Left to spend" }}</p>{{ calc_button("what is left to spend") }}</div>
+    {% else %}<p class="glance-label">Spent</p>{% endif %}
+    {{ month_pill("/?month={month}", month_name, month_key, previous, next, this_month) }}
+  </div>
+  {% if glance.has_budget %}
+  <p class="glance-figure {{ 'over' if glance.left < 0 }}">{{ figure(glance.left, currency) }}</p>
+  <div class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent{% if glance.pace is not none %}, and {{ glance.pace }}% of the month has passed{% endif %}"><i style="width: {{ glance.percent }}%"></i>{% if glance.pace is not none %}<b class="pace" style="left: {{ glance.pace }}%"></b>{% endif %}</div>
+  {{ calc_panel([("Carried in from earlier months", glance.carried, ""), ("Assigned in " ~ mname, glance.assigned, "+"), ("Spent so far" if is_current else "Spent", glance.spent, "−")], "Left to spend", glance.left, currency, "Each category's leftover, plus what you assigned this month, minus what you spent.") }}
+  {% else %}
   <p class="glance-figure">{{ figure(summary.expenses, currency) }}</p>
-  <p class="glance-note">{% if summary.income %}Income {{ summary.income|money }} · {% endif %}<a href="/budget">Set up your budget</a> to see what is left to spend · <a href="/summary">Details</a></p>
+  <p class="glance-note"><a href="/budget?month={{ month_key }}">Set up your budget</a> to see what is left to spend</p>
+  {% endif %}
+  <a class="home-strip" href="/summary?month={{ month_key }}" aria-label="Details of the month">
+    <span><span class="k">Earned</span><span class="v">{{ summary.income|money|amount(currency) }}</span></span>
+    <span><span class="k">Assigned</span><span class="v">{{ glance.assigned|money|amount(currency) }}</span></span>
+    <span><span class="k">Spent</span><span class="v">{{ summary.expenses|money|amount(currency) }}</span></span>
+    <span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span>
+  </a>
 </section>
 {% endif %}
 
 {% if has_recorded %}
-{% macro versus(v) %}{% if v %}<small>{% if v[0] == "same as" %}Same as {{ v[2] }} so far{% else %}{{ v[1]|money|amount(currency) }} {{ v[0] }} {{ v[2] }} so far{% endif %}</small>{% endif %}{% endmacro %}
 {% if warning %}
 <a class="home-alert" href="/budget">
   <span class="dot" aria-hidden="true"></span>
@@ -52,20 +61,27 @@
   <span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span>
 </a>
 {% endif %}
-<div class="home-tiles">
-  <div class="home-tile"><p class="k">Balance</p><p class="v">{{ tiles.money|money|amount(currency) }}</p></div>
-  {% if tiles.has_cards %}
-  <div class="home-tile"><p class="k">Owed</p><p class="v">{{ tiles.cards|money|amount(currency) }}</p></div>
-  {% else %}
-  <div class="home-tile"><p class="k">Ready to assign</p><p class="v">{{ [tiles.ready, 0]|max|money|amount(currency) }}<small><a href="/budget">In the budget</a></small></p></div>
-  {% endif %}
-  <div class="home-tile"><p class="k">Earned</p><p class="v">{{ tiles.income|money|amount(currency) }}{{ versus(tiles.income_vs) }}</p></div>
-  <div class="home-tile"><p class="k">Spent</p><p class="v">{{ tiles.expenses|money|amount(currency) }}{{ versus(tiles.expenses_vs) }}</p></div>
-</div>
+{% if cards %}
+<details class="home-cards">
+  <summary><span>Cards to pay</span><span class="hc-amt">{{ cards_owed|money|amount(currency) }}</span><span class="hc-caret" aria-hidden="true">{{ icon("back") }}</span></summary>
+  <div class="tile cards-list">
+    {% for card in cards %}
+    <div class="r budget-card">
+      <div class="l1"><span>{{ card.path.split(":")[-1] }}</span><span class="{{ 'positive' if card.owed }}" title="Set aside for the next bill">{{ card.owed|money }}</span></div>
+      <div class="cap">{% if card.charged or card.paid %}Charged {{ card.charged|money }} · paid {{ card.paid|money }} in {{ mname }}{% else %}Nothing charged or paid in {{ mname }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
 <div class="section-head">
   <h2>Transactions</h2>
-  <a href="/transactions">View all</a>
+  <a href="/transactions?month={{ month_key }}">View all</a>
 </div>
+{% if recent %}
 {% with rows=recent %}{% include "partials/transaction_list.html" %}{% endwith %}
+{% else %}
+<p class="muted">Nothing was recorded in {{ mname }}.</p>
+{% endif %}
 {% endif %}
 {% endblock %}

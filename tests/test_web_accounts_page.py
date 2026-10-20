@@ -1,5 +1,6 @@
 """The accounts page: every group open under its heading, unused accounts tucked away."""
 
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -44,24 +45,36 @@ def item(page: str, aid: str) -> str:
 def test_a_group_is_a_heading_with_its_accounts_under_it_and_nothing_folds(client, tree):
     page = client.get("/accounts").text
     assert f'href="/accounts/{tree["food"]}" title="Open Food"' in page, "the heading opens the group's own page"
-    assert f'href="/accounts/{tree["hdfc"]}"' in page and "data-account-search" in page
-    assert "<details" not in page.split('<section class="acc-section"', 1)[1].split('<details class="acc-section equity"')[0], "Assets and Liabilities never fold"
-    assert page.count('class="acc-gh"') == 3, "Banks, Food and Credit Cards"
+    assert f'href="/accounts/{tree["hdfc"]}"' in page
+    assert "<details" not in page
+    assert page.count('class="acc-gh"') == 2, "Banks and Food"
     assert 'class="mono" aria-hidden="true">H<' in page, "each account has its initial"
 
 
 def test_plain_accounts_under_a_type_share_one_block_without_a_heading(client, tree):
     page = client.get("/accounts").text
-    assert page.count('<div class="acc-block') == 5, "Banks, Food, Rent (no heading), Credit Cards, and Equity's Opening Balances"
-    assert page.count('class="acc-gh"') == 3, "Rent has no heading of its own"
+    assert page.count('<div class="acc-block') == 3, "Banks, Food and Rent (no heading)"
+    assert page.count('class="acc-gh"') == 2, "Rent has no heading of its own"
 
 
-def test_assets_and_liabilities_are_open_equity_folds_and_there_is_no_net_worth_card(client, tree):
+def test_the_chips_pick_a_type_in_the_order_assets_liabilities_equity(client, tree):
     page = client.get("/accounts").text
-    assert page.count("data-section") == 3, "Assets, Liabilities and Equity: the Expenses and Income accounts are on the Categories page"
-    assert '<details class="acc-section equity"' in page and "<details class=\"acc-section\"" not in page
-    assert "Net worth" not in page and "net-worth" not in page
-    assert 'class="circ-button" href="/accounts/new"' in page, "the round + adds an account"
+    chips = re.findall(r'<a class="chip" href="/accounts\?tab=(\w+)" aria-pressed="(\w+)">(\w+)</a>', page)
+    assert chips == [("assets", "true", "Assets"), ("liabilities", "false", "Liabilities"), ("equity", "false", "Equity")]
+    assert client.get("/accounts?tab=nonsense").text.count('aria-pressed="true"') == 1 and 'tab=assets" aria-pressed="true"' in client.get("/accounts?tab=nonsense").text
+    assert "Amex" not in page and "Opening Balances" not in page, "only the chosen type is listed"
+    liabilities = client.get("/accounts?tab=liabilities").text
+    assert "Amex" in liabilities and "HDFC" not in liabilities and 'tab=liabilities" aria-pressed="true"' in liabilities
+    assert "Opening Balances" in client.get("/accounts?tab=equity").text
+    assert "data-account-search" not in page and "Recently used" not in page and "Search accounts" not in page
+    assert "Net worth" not in page and 'class="circ-button" href="/accounts/new"' in page, "the round + adds an account"
+
+
+def test_the_figure_is_the_chosen_types_total(client, tree):
+    page = client.get("/accounts").text
+    assert '<span class="sr-only">What you own</span>' in page and "5,000.00" in page.split('class="ready zero cat-hero"', 1)[1].split("</div>", 1)[0]
+    owed = client.get("/accounts?tab=liabilities").text
+    assert "What you owe" in owed and "300.00" in owed.split('class="ready zero cat-hero"', 1)[1].split("</div>", 1)[0]
 
 
 def test_every_open_account_shows_even_with_no_entries_and_no_balance(client, tree, session):
@@ -69,8 +82,9 @@ def test_every_open_account_shows_even_with_no_entries_and_no_balance(client, tr
     page = client.get("/accounts").text
     assert "unused" not in page and "Load more" not in page, "nothing is tucked away for being quiet"
     assert "closed-hidden" not in page
-    for name in ("old", "snacks", "rent", "food", "groceries", "hdfc", "amex"):
+    for name in ("old", "snacks", "rent", "food", "groceries", "hdfc"):
         assert f'href="/accounts/{tree[name]}"' in page, name
+    assert f'href="/accounts/{tree["amex"]}"' in client.get("/accounts?tab=liabilities").text
 
 
 def test_closed_accounts_wait_behind_load_more(client, tree, session):

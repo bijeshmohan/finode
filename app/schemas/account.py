@@ -39,6 +39,8 @@ class AccountCreate(AccountBase):
     )
     # Whether the account's money is part of the budget. Default: yes for a new asset account.
     on_budget: bool | None = None
+    # For an account outside the budget: the expense category that payments into it are budgeted under.
+    payment_category_id: UUID | None = None
 
 
 class AccountRead(AccountBase):

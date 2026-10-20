@@ -84,18 +84,6 @@ def test_deleting_from_the_sheet(page: Page, books, api: Api):
     assert [t["payee"] for t in api.get("/transactions/") if t["payee"] and t["payee"] != "Opening balance"] == ["DMart"]
 
 
-def test_search_narrows_the_list(page: Page, books, api: Api):
-    add(api, books, "Swiggy", "food", "card")
-    add(api, books, "DMart", "food", "checking")
-    page.goto("/transactions")
-    page.fill('.tx-search input[name="q"]', "swig")
-    page.keyboard.press("Enter")
-    page.wait_for_url(re.compile(r"q=swig"))
-    expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(1)
-    expect(page.locator("a.tx", has_text="DMart")).to_have_count(0)
-    assert page.input_value('.tx-search input[name="q"]') == "swig"
-
-
 def test_the_kind_chips_filter(page: Page, books, api: Api):
     add(api, books, "Swiggy", "food", "card")
     api.post("/transactions/", payee="Employer", postings=[
@@ -103,11 +91,11 @@ def test_the_kind_chips_filter(page: Page, books, api: Api):
         {"account": books["salary"]["aid"], "side": "credit", "amount": "5000"}])
     page.goto("/transactions")
     page.get_by_role("link", name="Income", exact=True).click()
-    page.wait_for_url(re.compile(r"kind=income$"))
+    page.wait_for_url(re.compile(r"kind=income"))
     expect(page.locator("a.tx", has_text="Employer")).to_have_count(1)
     expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(0)
     expect(page.get_by_role("link", name="Income", exact=True)).to_have_attribute("aria-pressed", "true")
-    page.get_by_role("link", name="All", exact=True).click()
+    page.get_by_role("link", name="Income", exact=True).click()  # the chosen chip again shows everything
     expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(1)
 
 

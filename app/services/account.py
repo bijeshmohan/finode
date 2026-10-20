@@ -439,25 +439,6 @@ class AccountService:
         self.ar.db.commit()
         return self._to_read(self.ar.read(aid), self._ensure_roots())
 
-    def recent(self, limit: int = 5) -> list[UUID]:
-        """The accounts used most recently by hand that can still be used: not closed, not the system's."""
-        all_accounts = self._ensure_roots()
-        by_id = {a.aid: a for a in all_accounts}
-        out: list[UUID] = []
-        equity = next((a for a in all_accounts if a.name == "Equity" and a.parent_id is None), None)
-        opening = self.ar.read_by_name(OPENING_BALANCES_ACCOUNT_NAME, equity.aid) if equity else None
-        for aid in self.ar.recent_account_ids(limit * 4, opening.aid if opening else None):
-            account = by_id.get(aid)
-            if (
-                account is None or account.closed_on is not None
-                or self._is_root(account) or self.is_opening_balances(account, all_accounts)
-            ):
-                continue
-            out.append(aid)
-            if len(out) == limit:
-                break
-        return out
-
     def reopen(self, aid: UUID) -> AccountRead:
         """Reopen an account with everything inside it, and the groups above it (an open account sits in open groups)."""
         all_accounts = self._ensure_roots()
@@ -532,6 +513,14 @@ class AccountService:
             in_budget = self._get_root_name(parent, accounts_by_id) == "Assets"
         elif in_budget:
             self._check_budgetable(parent, accounts_by_id)
+        if account.payment_category_id is not None:
+            target = accounts_by_id.get(account.payment_category_id)
+            if target is None or target.parent_id is None or self._get_root_name(target, accounts_by_id) != "Expenses":
+                raise ValueError("payments can only be budgeted under an expense category!")
+            if self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):
+                raise ValueError("only asset and liability accounts can have a payment category!")
+            if in_budget:
+                raise ValueError("an account that is part of the budget doesn't need one: its money is already budgeted!")
         created = self.ar.create(account, on_budget=in_budget)
         all_accounts_with_created = all_accounts + [created]
 

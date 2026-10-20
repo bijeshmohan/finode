@@ -179,4 +179,4 @@ def test_an_empty_page_says_so(client, root_accounts):
 
 
 def test_the_dashboard_links_to_it(client, books):
-    assert 'href="/summary"' in client.get("/").text
+    assert 'href="/summary?month=' in client.get("/").text

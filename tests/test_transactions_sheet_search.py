@@ -90,10 +90,11 @@ def test_chips_filter_by_what_kind_of_entry_it_is(client, books, ledger):
 def test_the_chosen_chip_is_marked_and_chips_keep_the_search(client, books, ledger):
     html = page(client, kind="expense", q="swig")
     chips = {href.replace("&amp;", "&"): state for href, state in re.findall(r'<a class="chip" href="([^"]*)" aria-pressed="(\w+)">', html)}
-    assert [k for k, v in chips.items() if v == "true"] == ["/transactions?q=swig&kind=expense"]
-    assert "/transactions?q=swig" in chips and "/transactions?q=swig&kind=income" in chips, "All keeps the search too"
-    plain = re.findall(r'<a class="chip" href="([^"]*)"', page(client))
-    assert plain[0] == "/transactions" and plain[1] == "/transactions?kind=expense", "without a search, All is the bare list"
+    month = date.today().strftime("%Y-%m")
+    assert [k for k, v in chips.items() if v == "true"] == [f"/transactions?month={month}&q=swig"], "the chosen chip clears itself and keeps the search"
+    assert f"/transactions?month={month}&q=swig&kind=income" in chips
+    plain = [h.replace("&amp;", "&") for h in re.findall(r'<a class="chip" href="([^"]*)"', page(client))]
+    assert plain == [f"/transactions?month={month}&kind={k}" for k in ("expense", "income", "transfer")]
 
 
 def test_search_and_kind_combine_and_page(client, books, ledger):

@@ -673,8 +673,36 @@ document.body.addEventListener("change", (event) => {
   const field = box.closest("form").querySelector("[data-payment-category]");
   if (field) field.hidden = box.checked;
 });
+// A new account asks about the budget only under Assets and Liabilities (the options carry their root in `data-root`): an
+// asset starts in the budget, a card or loan outside it. Hidden fields are disabled so they are not sent.
+(function budgetChoice() {
+  const apply = (select) => {
+    const fields = select.form && select.form.querySelector("[data-budget-fields]");
+    if (!fields || !select.options.length || !select.selectedOptions[0] || !("root" in select.selectedOptions[0].dataset)) return;
+    const root = select.selectedOptions[0].dataset.root;
+    const asked = root === "Assets" || root === "Liabilities";
+    fields.hidden = !asked;
+    fields.querySelectorAll("input, select").forEach((el) => { el.disabled = !asked; });
+    if (!asked) return;
+    const box = fields.querySelector('input[name="on_budget"]');
+    box.checked = root === "Assets";
+    const payment = fields.querySelector("[data-payment-category]");
+    if (payment) payment.hidden = box.checked;
+  };
+  document.body.addEventListener("change", (event) => {
+    if (event.target.matches && event.target.matches('form select[name="parent_id"]')) apply(event.target);
+  });
+  const first = document.querySelector('[data-budget-fields]');
+  const select = first && first.form && first.form.querySelector('select[name="parent_id"]');
+  if (select && select.value) {
+    // The parent is already chosen (from an account's page): the server drew the right state; only disable what is hidden.
+    first.querySelectorAll("input, select").forEach((el) => { el.disabled = first.hidden; });
+  } else if (first) {
+    first.querySelectorAll("input, select").forEach((el) => { el.disabled = true; });
+  }
+})();
 
-// ---- Accounts page: search, closed accounts ----
+// ---- Accounts page: closed accounts ----
 (function accountsPage() {
   const page = document.querySelector("[data-accounts]");
   if (!page) return;
@@ -687,40 +715,6 @@ document.body.addEventListener("change", (event) => {
       more.closest(".unused-toggle").remove();
     });
   }
-
-  // Search: an account shows when its path matches (so a matching group brings its accounts). Headings and types with
-  // nothing left under them go; Equity opens to show a match.
-  const input = page.querySelector("[data-account-search]");
-  const nothing = page.querySelector("[data-no-match]");
-  const equity = page.querySelector("details.equity");
-  let equityWasOpen = equity ? equity.open : false;
-  let searching = false;
-  input.addEventListener("input", () => {
-    const query = input.value.trim().toLowerCase();
-    const items = [...page.querySelectorAll("li[data-path]")];
-    if (!query) {
-      if (searching && equity) equity.open = equityWasOpen;
-      searching = false;
-      page.classList.remove("searching");
-      items.forEach((item) => (item.hidden = false));
-      page.querySelectorAll(".acc-block, [data-section]").forEach((el) => (el.hidden = false));
-      nothing.hidden = true;
-      return;
-    }
-    if (!searching && equity) equityWasOpen = equity.open;
-    searching = true;
-    page.classList.add("searching");
-    items.forEach((item) => (item.hidden = !item.dataset.path.includes(query)));
-    page.querySelectorAll(".acc-block").forEach((block) => (block.hidden = !block.querySelector("li:not([hidden])")));
-    let any = false;
-    page.querySelectorAll("[data-section]").forEach((section) => {
-      const found = !!section.querySelector("li:not([hidden])");
-      section.hidden = !found;
-      if (found) any = true;
-      if (found && section === equity) equity.open = true;
-    });
-    nothing.hidden = any;
-  });
 })();
 
 // ---- Offline, failed requests and loading ----

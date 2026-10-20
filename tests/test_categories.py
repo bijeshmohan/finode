@@ -43,8 +43,7 @@ def rows(page: str) -> list[tuple[str, str, str]]:
     found = re.findall(
         r'<span class="crow-name">(.*?)</span>(?:<span class="crow-sub">(.*?)</span>)?</span>\s*<span class="crow-amt"><span class="[^"]*">(.*?)</span>(?:<span class="crow-share">(.*?)</span>)?',
         page, flags=re.S)
-    dot = re.compile(r'<span class="cdot".*?</span>')  # the colour dot of the share bar is not part of the name
-    return [(dot.sub("", name), hint, f"{amount} {share}".strip()) for name, hint, amount, share in found]
+    return [(name, hint, f"{amount} {share}".strip()) for name, hint, amount, share in found]
 
 
 def test_categories_are_ranked_by_what_they_came_to_with_their_share_and_what_is_inside(client, books):
@@ -250,91 +249,6 @@ def test_share_rounding_edges():
     assert _share(Decimal(5), Decimal(0)) == "", "no total to take a share of"
 
 
-# ---- the share bar -----------------------------------------------------------------------------------------
-
-
-def bar_of(page: str):
-    import re
-
-    found = re.search(r'<div class="sharebar" role="img" aria-label="([^"]*)">(.*?)</div>', page, flags=re.S)
-    if not found:
-        return None
-    segments = re.findall(r'flex-grow: ([\d.]+); background: var\(--chart-(\d)\)', found.group(2))
-    return found.group(1), [(float(g), int(c)) for g, c in segments]
-
-
-def test_the_share_bar_shows_the_biggest_five_and_one_grey_for_the_rest(client, books, root_accounts):
-    more = [client.post("/api/accounts/", json={"name": f"More{i}", "parent_id": root_accounts["Expenses"]}).json() for i in range(3)]
-    for i, category in enumerate([books["rent"], books["food"], books["travel"], *more]):  # six categories, 600 down to 100
-        entry(client, category, books["bank"], str((6 - i) * 100), THIS_MONTH)
-    page = client.get("/categories").text
-    label, segments = bar_of(page)
-    assert [c for _, c in segments] == [1, 2, 3, 4, 5, 6], "five colours, then the grey"
-    assert abs(sum(g for g, _ in segments) - 100) < 0.1
-    assert label.startswith("Share of the month: Rent 29%") and label.endswith("Everything else 5%")
-
-
-def test_every_row_keeps_its_place_whether_it_has_a_colour_or_not(client, books):
-    entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
-    entry(client, books["groceries"], books["bank"], "500", THIS_MONTH)
-    page = client.get("/categories").text
-    assert page.count('class="cdot"') == page.count('class="r crow"') == 3, "an unused row has an invisible dot, so the names line up"
-    assert page.split('data-cat-tree>', 1)[1].count('style="background: var(--chart-') == 2, "only the rows in the bar are coloured"
-
-
-def test_no_bar_when_there_is_nothing_to_compare(client, books):
-    assert bar_of(client.get("/categories").text) is None, "an empty month"
-    entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
-    page = client.get("/categories").text
-    assert bar_of(page) is None and "cdot" not in page, "one category is the whole month: nothing to compare"
-
-
-def test_no_bar_when_money_came_back_in_a_category(client, books):
-    entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
-    entry(client, books["bank"], books["travel"], "50", THIS_MONTH)  # a refund: money into the bank from a category
-    entry(client, books["groceries"], books["bank"], "200", THIS_MONTH)
-    assert bar_of(client.get("/categories").text) is None
-
-
-def test_income_has_its_own_bar(client, books, root_accounts):
-    other = client.post("/api/accounts/", json={"name": "Interest", "parent_id": root_accounts["Income"]}).json()
-    entry(client, books["bank"], books["salary"], "9000", THIS_MONTH)
-    entry(client, books["bank"], other, "1000", THIS_MONTH)
-    label, segments = bar_of(client.get("/categories?tab=income").text)
-    assert [c for _, c in segments] == [1, 2] and "Salary 90%" in label and "Interest 10%" in label
-    assert bar_of(client.get("/categories").text) is None, "the expense tab has none of the income"
-
-
-def test_a_category_with_sub_categories_has_its_own_share_bar(client, books):
-    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
-    entry(client, books["dining"], books["bank"], "100", THIS_MONTH)
-    entry(client, books["food"], books["bank"], "100", THIS_MONTH)  # posted to Food itself
-    page = client.get(f"/categories/{books['food']['aid']}").text
-    label, segments = bar_of(page)
-    assert [c for _, c in segments] == [1, 2, 3] and label == "Share of the month: Groceries 60%, Dining 20%, Everything else 20%"
-    assert page.count('class="cdot"') == 3 and page.count('background: var(--chart-') == 6, "three dots and three segments"
-
-
-def test_a_category_page_has_no_bar_when_there_is_nothing_to_split(client, books):
-    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
-    assert bar_of(client.get(f"/categories/{books['food']['aid']}").text) is None, "only one subcategory has money"
-    entry(client, books["rent"], books["bank"], "50", THIS_MONTH)
-    assert bar_of(client.get(f"/categories/{books['rent']['aid']}").text) is None, "a category with nothing inside it"
-
-
-def test_the_pages_share_one_bar_helper_and_the_same_rules():
-    from decimal import Decimal
-
-    from app.routers.web.categories import share_bar
-
-    slices, colour_of = share_bar([("a", "A", Decimal(50)), ("b", "B", Decimal(30)), ("c", "C", Decimal(0)), ("d", "D", Decimal(20))])
-    assert [s["colour"] for s in slices] == [1, 2, 3] and colour_of == {"a": 1, "b": 2, "d": 3} and "c" not in colour_of
-    many = [(i, f"N{i}", Decimal(100 - i)) for i in range(8)]
-    slices, colour_of = share_bar(many)
-    assert [s["colour"] for s in slices] == [1, 2, 3, 4, 5, 6] and colour_of[7] == 6 and slices[-1]["name"] == "Everything else"
-    assert share_bar([("a", "A", Decimal(5))]) == ([], {}) and share_bar([("a", "A", Decimal(5)), ("b", "B", Decimal(-1))]) == ([], {})
-
-
 def test_a_category_page_lists_only_what_was_posted_to_it_not_its_sub_categories(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     entry(client, books["food"], books["bank"], "40", THIS_MONTH)  # posted to Food itself
@@ -359,6 +273,17 @@ def test_each_list_heading_on_a_category_page_has_its_own_plus(client, books):
 def test_every_bar_takes_its_thickness_from_one_token():
     css = open("app/static/style.css").read()
     assert "--bar-h: 6px" in css
-    for rule in (".glance-bar {", ".crow .bar {", ".sharebar {"):
+    for rule in (".glance-bar {", ".crow .bar {"):
         line = next(l for l in css.splitlines() if l.startswith(rule))
         assert "height: var(--bar-h)" in line, rule
+
+
+def test_the_categories_pages_have_no_share_bar_and_no_colour_dots(client, books):
+    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
+    entry(client, books["dining"], books["bank"], "100", THIS_MONTH)
+    entry(client, books["rent"], books["bank"], "500", THIS_MONTH)
+    for url in ("/categories", f"/categories/{books['food']['aid']}"):
+        page = client.get(url).text
+        assert "sharebar" not in page and "cdot" not in page and "--chart-" not in page, url
+    css = open("app/static/style.css").read()
+    assert "--chart-" not in css and ".sharebar" not in css and ".cdot" not in css

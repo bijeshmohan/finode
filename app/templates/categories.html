@@ -5,42 +5,40 @@
 {% block title %}Categories · finode{% endblock %}
 
 {#- One category: its name and the biggest things inside it, what it came to in the month and its share of the month. -#}
-{% macro row(n, total, hint="", share="", colour=0) %}
+{% macro row(n, total, hint="", share="") %}
 <a class="r crow" href="/categories/{{ n.account.aid }}?month={{ month_key }}">
-  <span class="crow-main"><span class="crow-name">{% if bar %}<span class="cdot" {% if colour %}style="background: var(--chart-{{ colour }})"{% endif %} aria-hidden="true"></span>{% endif %}{{ n.account.name }}</span>{% if hint %}<span class="crow-sub">{{ hint }}</span>{% endif %}</span>
+  <span class="crow-main"><span class="crow-name">{{ n.account.name }}</span>{% if hint %}<span class="crow-sub">{{ hint }}</span>{% endif %}</span>
   <span class="crow-amt"><span class="{{ 'income' if root_name == 'Income' and total > 0 }}">{{ total|money }}</span>{% if share %}<span class="crow-share">{{ share }}</span>{% endif %}</span>
 </a>
 {% endmacro %}
 
 {% block content %}
-<div class="page-head">
+<div class="page-head tall">
   <h1>Categories</h1>
+  {{ month_pill("/categories?month={month}&tab=" ~ tab, month_name, month_key, previous, next, this_month) }}
+</div>
+
+<div class="cat-bar">
+  <div class="chips cat-chips" role="group" aria-label="What to show">
+    <a class="chip" href="/categories?month={{ month_key }}&tab=expense" aria-pressed="{{ 'true' if tab == 'expense' else 'false' }}">Expense</a>
+    <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
+  </div>
   <span class="head-icons">
     <a class="icon-button" href="/categories/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
     <a class="circ-button" href="/categories/new" title="Add category">{{ icon("plus") }}<span class="sr-only">Add category</span></a>
   </span>
 </div>
 
-<div class="cat-bar">
-  {{ month_pill("/categories?month={month}&tab=" ~ tab, month_name, month_key, previous, next, this_month) }}
-  <div class="chips cat-chips" role="group" aria-label="What to show">
-    <a class="chip" href="/categories?month={{ month_key }}&tab=expense" aria-pressed="{{ 'true' if tab == 'expense' else 'false' }}">Expense</a>
-    <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
-  </div>
-</div>
-
-<div class="ready zero cat-hero{{ ' has-bar' if bar }}">
+<div class="ready zero cat-hero">
   <span class="sr-only">{{ "Spent" if tab == "expense" else "Earned" }} {% if is_current %}so far{% else %}in {{ month_name.split(" ")[0] }}{% endif %}</span>
   <span class="figure">{{ figure(grand, currency) }}</span>
 </div>
-
-{% include "partials/share_bar.html" %}
 
 <div data-categories>
 {% if rows %}
 <div class="tile" data-cat-tree>
   {% for r in rows %}
-  <div class="top {{ 'unused-hidden' if r.node.account.aid in quiet_ids }}">{{ row(r.node, r.total, r.hint, r.share, r.colour) }}</div>
+  <div class="top {{ 'unused-hidden' if r.node.account.aid in quiet_ids }}">{{ row(r.node, r.total, r.hint, r.share) }}</div>
   {% endfor %}
 </div>
 {% if quiet_count %}

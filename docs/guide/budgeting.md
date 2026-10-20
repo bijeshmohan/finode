@@ -8,7 +8,7 @@ Budgets are **monthly**. (Weekly and yearly *targets* exist behind the Advanced 
 
 | Word | Meaning |
 |---|---|
-| **Budget accounts** | The bank, cash and card accounts whose money you budget. A new asset account is a budget account by default; a credit card is opted in on its edit page (*Part of the budget*). |
+| **Budget accounts** | The bank, cash and card accounts whose money you budget. When you add an account under Assets or Liabilities the form asks **Part of the budget**: it is on by default for a bank or cash account and off for a card or loan (turn it on for a card whose purchases you want counted). You can change it later on the account's edit page. |
 | **Tracking accounts** | Accounts outside the budget (say, a long-term investment or a loan). They count in net worth but their money is not yours to assign. |
 | **Assigned** | How much you gave a category this month. |
 | **Spent** (activity) | What you spent in the category this month, from budget accounts. |
@@ -47,7 +47,7 @@ You have ₹50,000 in your bank account, and no budget yet.
 - **Move money** never changes Ready to assign; it limits you to what the source category has left. Typing a smaller (even negative) amount in a category's *Assign* field takes money back to Ready to assign, but never more than the category has left.
 - Behind the **Needs you N** badge are the things that need a decision: accounts left out of the budget, last month's overspending, *Copy last month's amounts*, and (Advanced) *Assign what is needed*.
 - **Copy last month's amounts** assigns each category what it got last month, but only where nothing is assigned yet.
-- **Cards to pay** at the bottom shows what you owe on budget credit cards, with the month's charges and payments. You do not assign to cards; their debt is already set aside from your cash.
+- **Cards to pay** (now a collapsible row on Home, before the transactions) shows what you owe on budget credit cards, with the month's charges and payments. You do not assign to cards; their debt is already set aside from your cash.
 
 ### Credit cards, loans and EMIs
 
@@ -61,7 +61,7 @@ With **Settings › Advanced** on, each category's target page lets you say what
 
 ## Home vs Budget
 
-Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. Under it Home shows, once you have recorded something: a line when a category is overspent, four tiles (*Balance*, the money in your budget accounts, what you owe (*Owed*) or what is ready to assign, and *Earned* and *Spent* this month against the same days of last month), and last your latest transactions. The Budget page is for *deciding*, Home is for *glancing*.
+Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. A month picker sits at the top right (any past month; never a future one), and under the bar three columns show what you *Earned*, *Assigned* and *Spent* in that month; tap them for that month's Summary. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. Under it Home shows, once you have recorded something: a line when a category is overspent, and last your latest transactions. The Budget page is for *deciding*, Home is for *glancing*.
 
 ## If numbers disagree
 

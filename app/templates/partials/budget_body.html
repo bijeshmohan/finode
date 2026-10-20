@@ -80,18 +80,6 @@
   <p class="card muted">There are no expense categories yet. <a href="/accounts/new">Add an expense account</a> under Expenses, like Groceries.</p>
   {% endif %}
 
-  {% if budget.cards %}
-  <div class="gh"><span>Cards to pay</span></div>
-  <div class="tile cards-list">
-    {% for card in budget.cards %}
-    <div class="r budget-card">
-      <div class="l1"><span>{{ card.path.split(":")[-1] }}</span><span class="{{ 'positive' if card.owed }}" title="Set aside for the next bill">{{ card.owed|money }}</span></div>
-      <div class="cap">{% if card.charged or card.paid %}Charged {{ card.charged|money }} · paid {{ card.paid|money }} this month{% else %}Nothing charged or paid this month{% endif %}</div>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
-
   <details class="how">
     <summary>How this works</summary>
     {% if budget.cards %}

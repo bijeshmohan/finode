@@ -11,10 +11,8 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 ## Accounts page
 
-**Accounts** lists Assets and Liabilities with their totals. Each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts share one tile. Things to know:
+**Accounts** has three chips, **Assets**, **Liabilities** and **Equity**, in that order, like Expense and Income on Categories. The chosen one shows its total as a large figure, then its accounts: each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts share one tile. Things to know:
 
-- **Recently used** cards at the top show the last five accounts you used by hand; swipe them.
-- The **search box** filters by name or path.
 - Every open account is listed, used or not. Closed ones are tucked behind one **Load more** button at the bottom (they carry a *closed* badge).
 - Accounts go **two levels** deep, at most: a group and the accounts in it.
 
@@ -37,7 +35,7 @@ An account that has sub-accounts (such as a *Banks* group) is not posted to itse
 
 ### Credit cards and loans
 
-A card or loan is a **liability**: its balance is what you owe. Paying the bill is a *transfer* from your bank account to the card. To have the budget count a card's purchases as spending, turn on **Part of the budget** in its edit page. A loan outside the budget can name a **payment category**, so an EMI counts as spending in that category.
+A card or loan is a **liability**: its balance is what you owe. Paying the bill is a *transfer* from your bank account to the card. To have the budget count a card's purchases as spending, turn on **Part of the budget** when you add it (or later in its edit page). A card or loan outside the budget can name a **payment category**, chosen in the same form, so an EMI counts as spending in that category.
 
 ### Closing and deleting
 
@@ -45,7 +43,7 @@ An account that holds a balance cannot be closed. A closed account keeps its his
 
 ## Categories page
 
-**Categories** shows one month at a time (never a future one; the arrows around the month go back or forward, and tapping the month lets you pick any past month and year). Pick **Expense** or **Income**. The big figure is the month's total up to today (the whole month for a past one); it has no label, the Expense and Income chips say which it is. Under it a thin **bar** shows how the month divides between the five biggest categories (each in its own colour, the rest in grey; it appears when there are at least two to compare). Below that is a ranked list, biggest first, each row with its three biggest subcategories and its share of the month (0% for one with nothing in it; every row is the same height). Tap a row to see the category's page: its subcategories (with the same thin bar, dividing the category's month between them, when there are at least two) and the month's transactions that were posted to that category itself (a subcategory's transactions are on its own page; the big figure still counts everything inside). On a category's page the month pill sits beside the back link; the round **+** on the *Subcategories* heading adds a subcategory and the one on *Transactions* adds a transaction in this category (a category with no subcategories has no such heading: use **…** › *Add subcategory*). Use the arrows on the month pill to move between months.
+**Categories** shows one month at a time (never a future one; the month pill sits at the right of the title, as on Budget: the arrows go back or forward, and tapping the month lets you pick any past month and year). Pick **Expense** or **Income** (the bin and the round **+** are at the right of the chips). The big figure is the month's total up to today (the whole month for a past one); it has no label, the Expense and Income chips say which it is. Below it is a ranked list, biggest first, each row with its three biggest subcategories and its share of the month (0% for one with nothing in it; every row is the same height). Tap a row to see the category's page: its subcategories and the month's transactions that were posted to that category itself (a subcategory's transactions are on its own page; the big figure still counts everything inside). On a category's page the month pill sits beside the back link; the round **+** on the *Subcategories* heading adds a subcategory and the one on *Transactions* adds a transaction in this category (a category with no subcategories has no such heading: use **…** › *Add subcategory*). Use the arrows on the month pill to move between months.
 
 <img src="img/categories.png" alt="The Categories page: the month, Expense and Income, ranked categories" width="300">
 
