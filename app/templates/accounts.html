@@ -28,18 +28,18 @@
 {% endmacro %}
 
 {% block content %}
-<div class="page-head">
+<div class="page-head tall">
   <h1>Accounts</h1>
-  <span class="head-icons">
-    <a class="icon-button" href="/accounts/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
-    <a class="circ-button" href="/accounts/new" title="Add account">{{ icon("plus") }}<span class="sr-only">Add account</span></a>
-  </span>
 </div>
 
 <div class="cat-bar">
   <div class="chips cat-chips" role="group" aria-label="What to show">
     {% for key, name in tabs.items() %}<a class="chip" href="/accounts?tab={{ key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
   </div>
+  <span class="head-icons">
+    <a class="icon-button" href="/accounts/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
+    <a class="circ-button" href="/accounts/new?root={{ tab }}" title="Add account">{{ icon("plus") }}<span class="sr-only">Add account</span></a>
+  </span>
 </div>
 
 <div class="ready zero cat-hero">
@@ -51,7 +51,7 @@
   {% if root.children %}
   {{ blocks_of(root) }}
   {% else %}
-  <a class="card add-first" href="/accounts/new?parent={{ root.account.aid }}">
+  <a class="card add-first" href="/accounts/new?root={{ tab }}">
     {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan"}[root.account.name] or "an account" }}
   </a>
   {% endif %}

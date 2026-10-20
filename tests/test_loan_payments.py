@@ -92,7 +92,7 @@ def test_deleting_the_category_clears_the_link(client, books):
 
 def test_the_edit_page_offers_and_saves_it(client, books):
     page = client.get(f"/accounts/{books['loan']['aid']}/edit").text
-    assert "Budget payments to this account under" in page and ">EMI</option>" in page
+    assert "Payments budgeted under" in page and ">EMI</option>" in page
     saved = client.post(f"/accounts/{books['loan']['aid']}/edit", data={
         "name": "Home Loan", "budget_choice": "1", "payment_category": books["emi"]["aid"],
     })
@@ -151,12 +151,8 @@ def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, b
     data = budget(client)
     assert line(data, "EMI")["activity"] == "15000.00" and line(data, "Interest")["activity"] == "0.00"
     summary = svc.reports.summary()
-    month = svc.reports.month_report()
     breakdown = svc.reports.breakdown("Expenses")
     assert str(summary.expenses) == "15900.00" and str(summary.net_income) == "-15900.00"
-    assert str(month.expenses) == "15900.00" and str(month.net) == "-15900.00"
-    assert [(l.account, str(l.amount)) for l in month.spending] == [("EMI", "15000.00"), ("Interest", "900.00")]
-    assert str(month.trend[-1].expenses) == "15900.00"
     assert str(breakdown.total) == "15900.00" and [l.account for l in breakdown.lines] == ["EMI", "Interest"]
     categories = " ".join(client.get("/categories").text.split())
     assert "15,000.00" in categories and "900.00" in categories
@@ -165,20 +161,4 @@ def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, b
 def test_without_a_payment_category_no_report_counts_the_emi(client, books, svc):
     move(client, books["bank"], books["loan"], "15000")
     assert str(svc.reports.summary().expenses) == "0.00"
-    assert str(svc.reports.month_report().expenses) == "0.00"
     assert str(svc.reports.breakdown("Expenses").total) == "0.00"
-
-
-def test_an_emi_in_an_earlier_month_lands_in_that_months_trend(client, books, svc):
-    from datetime import timedelta
-
-    from app.clock import local_today
-
-    point(client, books["loan"], books["emi"])
-    earlier = (local_today().replace(day=1) - timedelta(days=15)).isoformat()
-    client.post("/api/transactions/", json={"date": earlier, "postings": [
-        {"account": books["loan"]["aid"], "side": "debit", "amount": "700"},
-        {"account": books["bank"]["aid"], "side": "credit", "amount": "700"}]})
-    month = svc.reports.month_report()
-    assert [str(t.expenses) for t in month.trend][-2:] == ["700.00", "0.00"]
-    assert str(month.previous_expenses) == "700.00" and str(month.expenses) == "0.00"

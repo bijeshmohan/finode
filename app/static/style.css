@@ -625,6 +625,8 @@ input[type="file"] { padding: .5rem; }
 .plain-list.flat li + li { border-top: 1px solid var(--border); margin-top: 0; }
 
 /* Optional fields tucked away until needed */
+details.add-note > summary { cursor: pointer; color: var(--muted); min-height: var(--tap); display: flex; align-items: center; font-size: .9rem; }
+details.add-note[open] > summary { min-height: 0; margin-bottom: .3rem; font-size: .875rem; font-weight: 500; }
 details.more { border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 0 .75rem; }
 details.more[open] { padding-bottom: .75rem; }
 details.more > summary { cursor: pointer; color: var(--muted); min-height: var(--tap); display: flex; align-items: center; list-style: none; }
@@ -789,14 +791,8 @@ form.copy-last button { margin: 0; }
 .segmented.kinds { flex-wrap: nowrap; }
 .segmented.kinds button { flex: 1 1 0; min-width: 0; padding-left: .25rem; padding-right: .25rem; }
 .muted.calc { font-size: .82rem; margin: .25rem 0 .75rem; font-variant-numeric: tabular-nums; }
-.cards-list { margin-bottom: .25rem; }
-/* Home's collapsible "Cards to pay" row: the name, what is owed in all, a caret; opened, one row per card. */
-.home-cards { margin: 0 0 .75rem; }
-.home-cards > summary { display: flex; align-items: center; gap: .6rem; min-height: 3rem; padding: 0 1rem; cursor: pointer; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 16px; font-weight: 500; }
-.home-cards[open] > summary { margin-bottom: .5rem; }
-.home-cards .hc-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
-.home-cards .hc-caret { display: inline-flex; color: var(--faint); transform: rotate(-90deg); transition: transform .15s; }
-.home-cards[open] .hc-caret { transform: rotate(90deg); }
+/* Home's credit row is the upcoming card's look (.upcoming) with one line per credit account. */
+.home-credit { margin: 0 0 .75rem; }
 
 /* ---------- Sign-in and sign-up ---------- */
 .login-notice { color: var(--positive); background: var(--accent-soft); border-radius: var(--radius-sm); padding: .6rem .75rem; margin: .5rem 0; }
@@ -805,27 +801,6 @@ form.copy-last button { margin: 0; }
 .danger-card details.more form { padding-top: .5rem; }
 
 .test-notice { font-size: .9rem; }
-
-/* ---------- Month summary ---------- */
-.summary-card { margin-bottom: .9rem; }
-.summary-card h2 { margin: 0; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.summary-notes { margin: .75rem 0 0; }
-.trend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: .5rem; }
-.trend a { display: flex; flex-direction: column; align-items: center; gap: .35rem; color: inherit; text-decoration: none; }
-.trend .bars { display: flex; align-items: flex-end; justify-content: center; gap: 3px; width: 100%; height: 7rem; border-bottom: 1px solid var(--border); }
-.trend .bars i { display: block; width: 38%; max-width: 1.4rem; min-height: 2px; border-radius: 3px 3px 0 0; }
-.trend i.in, .key.in, .bar.in i { background: var(--positive); }
-.trend i.out, .key.out, .bar i { background: var(--accent); }
-.trend li.current small { font-weight: 700; color: var(--text); }
-.trend small { color: var(--muted); }
-.legend { display: flex; gap: .5rem; align-items: center; margin: 0; }
-.legend .key { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-left: .5rem; }
-.shares { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .9rem; }
-.shares .row { display: flex; justify-content: space-between; gap: 1rem; }
-.shares .name { min-width: 0; overflow-wrap: anywhere; }
-.shares .amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.shares .bar { height: .45rem; background: var(--surface-2); border-radius: 999px; margin: .3rem 0; overflow: hidden; }
-.shares .bar i { display: block; height: 100%; border-radius: 999px; }
 
 /* ---------- Pinned and recent accounts ---------- */
 .note-card { margin-top: 1rem; }
@@ -907,11 +882,10 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .glance .box-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
 .glance .box-top .month-pill { flex: none; margin-top: -.35rem; }
 /* Earned, Assigned and Spent: three plain columns that are one link to the month's Summary. */
-.home-strip { display: flex; align-items: center; gap: .5rem; margin-top: 1.1rem; color: var(--text); text-decoration: none; }
-.home-strip > span:not(.hero-chev) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.home-strip { display: flex; align-items: center; gap: .5rem; margin-top: 1.1rem; }
+.home-strip > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .home-strip .k { font-size: .75rem; color: var(--muted); }
 .home-strip .v { margin-top: .1rem; font-size: 1rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.home-strip .hero-chev { flex: none; color: var(--faint); }
 .home-empty { padding: .5rem 0 1rem; }
 .home-headline { margin: .25rem 0 .5rem; font-size: 1.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
 .section-label { margin: 2rem 0 .25rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }

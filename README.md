@@ -32,7 +32,6 @@ and `FINODE_SUPABASE_ANON_KEY` first (see Configuration). Pages:
 
 - **Dashboard** — net worth, this month's income and spending, recent
   transactions, and a "Get started" checklist for new users
-- **Month summary** — tap the month on the dashboard: income, spending and what was left, spending per category against the month before, and the last six months side by side
 - **Accounts** — accounts grouped by type with balances; each opens an
   **account page** with its activity, running balance and actions
 - **Transactions** — grouped by day, filterable by account and date; tap one

@@ -18,7 +18,7 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 ### Add an account
 
-Tap the round **+** (*Add account*) on the Accounts page. The form asks for a **Name**, **Belongs under** (Assets for banks, cash and wallets; Liabilities for cards and loans; or a group you already made), an optional **Current balance** and optional **Notes**. The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
+Tap the round **+** (*Add account*) on the Accounts page. The form asks for a **Name**, **Under** (Assets for banks, cash and wallets; Liabilities for cards and loans; or a group you already made), an optional **Current balance** and an optional note (behind *+ Add a note*). The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
 
 <img src="img/accounts.png" alt="The Accounts page: groups with subtotals, accounts in tiles" width="300">
 
