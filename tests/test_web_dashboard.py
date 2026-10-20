@@ -52,7 +52,7 @@ def test_dashboard_shows_summary_and_recent_transactions(
 
     text = client.get("/").text
     assert ">Spent<" in text and "120.50" in text  # no budget yet: what was spent this month
-    strip = _words(text[text.index('class="box-strip"'):])
+    strip = _words(text[text.index('class="home-strip"'):])
     assert "Earned ₹2,500.00" in strip and "Assigned ₹0.00" in strip and "Spent ₹120.50" in strip
     assert 'href="/budget?month=' in text and "Set up your budget" in text
     assert "Employer" in text and "Supermarket" in text
@@ -71,7 +71,7 @@ def test_dashboard_shows_what_is_left_to_spend_once_there_is_a_budget(
         {"account": bank["aid"], "side": "credit", "amount": "100"}]})
     text = " ".join(client.get("/").text.split())
     assert "Left to spend" in text and "300.00" in text
-    assert "Spent 100.00 of 400.00" in text
+    assert "Spent 100.00 of 400.00" not in text, "the columns under the bar already say it"
     assert 'style="width: 25%"' in text
 
 
@@ -209,11 +209,12 @@ def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_
             {"account": credit["aid"], "side": "credit", "amount": amount}]})
     page = client.get("/").text
     text = " ".join(page.split())
-    strip = _words(page[page.index('class="box-strip"'):])
+    strip = _words(page[page.index('class="home-strip"'):])
     assert "Earned ₹500.00" in strip and "Assigned ₹50.00" in strip and "Spent ₹80.00" in strip
+    assert 'href="/summary?month=' in page[page.index('class="home-strip"') - 40:page.index('class="home-strip"') + 40], "the columns are one link to the month's summary"
     assert "home-tile" not in page and "Balance" not in page.split("<h2>Transactions</h2>")[0] and "Owed" not in page
     assert 'class="home-alert"' in page and f"<b>{expense_account['name']}</b> is over by ₹30.00" in text
-    assert page.index('home-box"') < page.index('class="box-strip"') < page.index('class="home-alert"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"
+    assert page.index('class="glance"') < page.index('class="home-strip"') < page.index('class="home-alert"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"
 
 
 def test_home_has_no_warning_when_nothing_is_overspent(client: TestClient, root_accounts: dict[str, str], expense_account: dict):
