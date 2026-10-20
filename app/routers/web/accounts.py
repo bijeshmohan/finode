@@ -185,7 +185,7 @@ def closed_count(roots: list[Node]) -> int:
 
 
 @router.get("/new")
-def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None, kind: str = "account"):
+def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None, kind: str = "account", root: str = ""):
     """The form for a new account (under Assets or Liabilities), or with kind=category for a new category
     (under Expenses or Income, reached from the Categories page)."""
     kind = "category" if kind == "category" else "account"
@@ -193,6 +193,14 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
     everything = build_tree(accounts.list())
     roots = [r for r in everything if r.account.name in allowed]
     root_of = {n.account.aid: r.account.name for r in roots for n in r.walk()}
+    only = ACCOUNT_TABS.get(root.lower()) if kind == "account" else None
+    if only:
+        # Opened from a type's tab on the Accounts page: only that type's accounts can be made.
+        parent_roots = [r for r in roots if r.account.name == only]
+        if parent is None or root_of.get(parent) != only:
+            parent = parent_roots[0].account.aid if parent_roots else None
+    else:
+        parent_roots = roots
     return templates.TemplateResponse(
         request,
         "account_form.html",
@@ -202,7 +210,7 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "hide_fab": True,
             "node": None,
             "parent_id": parent,
-            "parent_options": _parent_options(roots),
+            "parent_options": _parent_options(parent_roots),
             "currency": accounts.currency().code,
             "root_name": root_of.get(parent),
             "root_of": root_of,
