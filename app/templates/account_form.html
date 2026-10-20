@@ -14,20 +14,19 @@
     <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
            placeholder="{{ 'e.g. Groceries' if cat else 'e.g. HDFC Savings' }}" {{ "autofocus" if not editing }}>
   </label>
-  <label>Belongs under
+  <label>Under
     <select name="parent_id" required>
       {% if not editing %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
       <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}{% if root_of and not cat %} data-root="{{ root_of[n.account.aid] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
       {% endfor %}
     </select>
-    <span class="hint">{% if cat %}Expenses: what you spend on · Income: where money comes from{% else %}Assets: bank, cash, wallets · Liabilities: cards, loans{% endif %}</span>
   </label>
   {% if not cat and (not editing or node.is_leaf) %}
   <label>{{ "Balance" if editing else "Current balance" }}
     <input type="text" name="balance" inputmode="decimal" placeholder="0.00"
            value="{{ node.account.balance if editing else '' }}">
-    <span class="hint">{{ "Changing this records an adjustment against Opening Balances." if editing else "Optional. Recorded as an opening balance." }}</span>
+    {% if editing %}<span class="hint">Changing this records an adjustment against Opening Balances.</span>{% endif %}
   </label>
   {% endif %}
   {% if not cat and (editing and can_budget or not editing) %}
@@ -35,20 +34,24 @@
   <input type="hidden" name="budget_choice" value="1">
   <label class="check">
     <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
-    <span>Part of the budget <span class="hint">Its money is what you assign to categories{{ " (a card counts as money you owe)" if root_name == "Liabilities" }}. Leave off for savings you don't budget, loans or investments.</span></span>
+    <span>Part of the budget <span class="hint">Money you assign to categories</span></span>
   </label>
-  <label data-payment-category {{ "hidden" if on_budget }}>Budget payments to this account under
+  <label data-payment-category {{ "hidden" if on_budget }}>Payments budgeted under
     <select name="payment_category">
       <option value="">No category</option>
       {% for aid, path in category_options %}<option value="{{ aid }}" {{ "selected" if aid == payment_category_id }}>{{ path }}</option>{% endfor %}
     </select>
-    <span class="hint">For a loan: paying its EMI then spends this category, so assign the EMI to it each month. Interest the lender charges stays outside the budget.</span>
+    <span class="hint">For loans, like an EMI</span>
   </label>
   </div>
   {% endif %}
-  <label>Notes
-    <input type="text" name="details" maxlength="200" value="{{ (node.account.details or '') if editing else '' }}">
-  </label>
+  {% set note = (node.account.details or '') if editing else '' %}
+  <details class="add-note" {{ "open" if note }}>
+    <summary>{{ "Note" if note else "+ Add a note" }}</summary>
+    <label>
+      <input type="text" name="details" maxlength="200" value="{{ note }}" aria-label="Notes">
+    </label>
+  </details>
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions">
     <button type="submit">{{ "Save changes" if editing else "Add " ~ noun }}</button>

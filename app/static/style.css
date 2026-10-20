@@ -625,6 +625,8 @@ input[type="file"] { padding: .5rem; }
 .plain-list.flat li + li { border-top: 1px solid var(--border); margin-top: 0; }
 
 /* Optional fields tucked away until needed */
+details.add-note > summary { cursor: pointer; color: var(--muted); min-height: var(--tap); display: flex; align-items: center; font-size: .9rem; }
+details.add-note[open] > summary { min-height: 0; margin-bottom: .3rem; font-size: .875rem; font-weight: 500; }
 details.more { border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 0 .75rem; }
 details.more[open] { padding-bottom: .75rem; }
 details.more > summary { cursor: pointer; color: var(--muted); min-height: var(--tap); display: flex; align-items: center; list-style: none; }
