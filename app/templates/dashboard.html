@@ -62,16 +62,18 @@
 </a>
 {% endif %}
 {% if cards %}
-<details class="home-cards">
-  <summary><span>Cards to pay</span><span class="hc-amt">{{ cards_owed|money|amount(currency) }}</span><span class="hc-caret" aria-hidden="true">{{ icon("back") }}</span></summary>
-  <div class="tile cards-list">
+<details class="upcoming home-credit">
+  <summary><span>{{ cards|length }} credit account{{ "" if cards|length == 1 else "s" }} <span class="sub">· {{ cards_owed|money|amount(currency) }} owed</span></span><span class="gcaret">{{ icon("caret") }}</span></summary>
+  <ul class="up-list">
     {% for card in cards %}
-    <div class="r budget-card">
-      <div class="l1"><span>{{ card.path.split(":")[-1] }}</span><span class="{{ 'positive' if card.owed }}" title="Set aside for the next bill">{{ card.owed|money }}</span></div>
-      <div class="cap">{% if card.charged or card.paid %}Charged {{ card.charged|money }} · paid {{ card.paid|money }} in {{ mname }}{% else %}Nothing charged or paid in {{ mname }}{% endif %}</div>
-    </div>
+    <li>
+      <div class="up-row">
+        <span class="up-main"><span class="up-title">{{ card.path.split(":")[-1] }}</span><span class="up-sub">{% if card.charged or card.paid %}Charged {{ card.charged|money }} · paid {{ card.paid|money }}{% else %}Nothing charged or paid{% endif %}</span></span>
+        <span class="up-amount">{{ card.owed|money }}</span>
+      </div>
+    </li>
     {% endfor %}
-  </div>
+  </ul>
 </details>
 {% endif %}
 <div class="section-head">

@@ -294,15 +294,15 @@ def test_the_page_says_when_money_is_assigned_to_later_months(client, setup):
 def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts):
     account(client, root_accounts, "Bank", "Assets", balance="1000")
     food = account(client, root_accounts, "Food", "Expenses")
-    assert "Cards to pay" not in client.get("/").text, "no card in the budget, no section"
+    assert "credit account" not in client.get("/").text, "no credit account in the budget, no row"
     card = account(client, root_accounts, "Visa", "Liabilities", on_budget=True)
     move(client, card, food, "100")
     home = client.get("/").text
-    assert 'class="home-cards"' in home and "Cards to pay" in home and "Visa" in home
-    assert "Charged 100.00 · paid 0.00 in " in home
-    assert home.index('class="home-cards"') < home.index("<h2>Transactions</h2>"), "before the transactions"
+    assert 'class="upcoming home-credit"' in home and "1 credit account " in home and "₹100.00 owed" in home and "Visa" in home
+    assert "Charged 100.00 · paid 0.00" in home
+    assert home.index('home-credit"') < home.index("<h2>Transactions</h2>"), "before the transactions"
     page = client.get("/budget").text
-    assert "Cards to pay" not in page and "Visa" not in page, "moved to Home"
+    assert "credit account" not in page and "Visa" not in page, "moved to Home"
     assert "Money in your accounts 1,000.00 − set aside for card bills 100.00" in page
     assert "= ready to assign" in page and "assigned to later months" not in page
     nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)

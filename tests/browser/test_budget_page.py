@@ -63,15 +63,15 @@ def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Pag
         {"account": books["card"]["aid"], "side": "credit", "amount": "120"},
     ])
     page.goto("/")
-    row = page.locator("details.home-cards")
-    expect(row.locator("summary")).to_contain_text("Cards to pay")
-    expect(row.locator("summary")).to_contain_text("120.00")
-    expect(row.locator(".cards-list")).to_be_hidden()  # folded until tapped
+    row = page.locator("details.home-credit")
+    expect(row.locator("summary")).to_contain_text("1 credit account")
+    expect(row.locator("summary")).to_contain_text("120.00 owed")
+    expect(row.locator(".up-list")).to_be_hidden()  # folded until tapped
     row.locator("summary").click()
-    expect(row.locator(".cards-list")).to_contain_text("Visa")
-    expect(row.locator(".cards-list")).to_contain_text("120.00")
+    expect(row.locator(".up-list")).to_contain_text("Visa")
+    expect(row.locator(".up-list")).to_contain_text("120.00")
     page.goto("/budget")
-    expect(page.get_by_text("Cards to pay")).to_have_count(0)
+    expect(page.get_by_text("credit account")).to_have_count(0)
     page.locator("details.how > summary").click()
     expect(page.locator(".calc").first).to_contain_text("set aside for card bills 120.00")
     # Assigning money to a category changes ready to assign, and the explanation follows it.
