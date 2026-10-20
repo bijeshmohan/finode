@@ -302,7 +302,7 @@ def test_the_save_chip_plans_for_an_account_you_save_into(page: Page, books, api
     fund = api.post("/accounts/", name="Mutual Funds", parent_id=books["roots"]["Assets"], on_budget=False, saving=True)
     page.goto("/budget")
     chips = page.locator(".cat-chips .chip")
-    expect(chips).to_have_text(["Spend", "Save"])
+    expect(chips).to_have_text(["Spend", "Save", "Earn"])
     expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Spend")
     expect(page.locator("a.catrow", has_text="Mutual Funds")).to_have_count(0)
     page.locator(".cat-chips .chip", has_text="Save").click()
@@ -323,3 +323,29 @@ def test_the_save_chip_plans_for_an_account_you_save_into(page: Page, books, api
         {"account": books["checking"]["aid"], "side": "credit", "amount": "1500"}])
     page.reload()
     assert ready(page) == "₹3,500.00", "moving it in does the job and changes nothing else"
+
+
+def test_the_earn_chip_plans_expected_income(page: Page, books, api: Api):
+    page.goto("/budget")
+    expect(page.locator(".cat-chips .chip")).to_have_text(["Spend", "Save", "Earn"])
+    page.locator(".cat-chips .chip", has_text="Earn").click()
+    page.wait_for_url(re.compile(r"tab=earn"))
+    expect(page.locator("[data-plan-sum]")).to_be_visible()
+    row = page.locator("[data-budget-earning] a.earnrow", has_text="Salary")
+    expect(row).to_be_visible()
+    ready_before = ready(page)
+    row.click()
+    box = page.locator('#cat-sheet input[aria-label="Expected from Salary"]')
+    expect(box).to_be_visible()
+    box.fill("85000")
+    page.locator("#cat-sheet").get_by_role("button", name="Save").click()
+    expect(page.locator("#cat-sheet")).not_to_be_visible()
+    expect(page.locator("[data-budget-earning]")).to_be_visible()  # still on Earn after the swap
+    expect(page.locator("[data-plan-sum]")).to_contain_text("85,000")
+    assert ready(page) == ready_before, "expected income is not money you have"
+    api.post("/transactions/", postings=[
+        {"account": books["checking"]["aid"], "side": "debit", "amount": "85000"},
+        {"account": books["salary"]["aid"], "side": "credit", "amount": "85000"}])
+    page.reload()
+    assert ready(page) != ready_before, "it arrived: now it can be assigned"
+    expect(page.locator("[data-budget-earning] a.earnrow", has_text="Salary")).to_contain_text("received 85,000.00")

@@ -118,6 +118,21 @@ class BudgetSaving(BaseModel):
     note: str | None = None
 
 
+class BudgetEarning(BaseModel):
+    """A line of the plan's Earn section: an Income account and what is expected from it in the month."""
+
+    aid: UUID
+    name: str
+    # Its path below Income, e.g. "Salary:Employer".
+    path: str
+    # What is expected in the month (a plan row; nothing carries over) and what has come in (credits minus debits to the
+    # account in the month, up to the month's last day).
+    expected: Decimal = Money
+    received: Decimal = Money
+    closed: bool = False
+    note: str | None = None
+
+
 class BudgetRead(BaseModel):
     # First day of the month the figures are for; they count everything up to its last day.
     month: Date
@@ -143,6 +158,11 @@ class BudgetRead(BaseModel):
     saving_assigned: Decimal = Money
     saving_activity: Decimal = Money
     saving_available: Decimal = Money
+    # The Earn section: what is expected from each Income account in the month and what came in. Informational only:
+    # expected income never changes ready_to_assign (only money that has arrived does).
+    earning: list[BudgetEarning] = []
+    earning_expected: Decimal = Money
+    earning_received: Decimal = Money
     # Money in the budget's asset accounts and what is reserved for the cards' bills (sums of the cards' `owed`).
     # ready_to_assign = money_in_accounts - reserved_for_cards - available - saving_available - assigned_to_later_months.
     money_in_accounts: Decimal = Money

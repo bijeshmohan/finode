@@ -55,6 +55,14 @@ flowchart LR
 
 An asset outside the budget can be switched on for saving (`accounts.saving`, "Plan for saving" on its edit page; never together with *Part of the budget* or a payment category: switching it on clears the payment category, joining the budget switches it off). It then becomes a **Save line**: a plan row (`budget_allocations`, the same table) can be assigned to it in a month, and its *activity* is what was moved into it from the budget's accounts, that is the debits to it in transactions that touch a budget account (the rule loan payments use; withdrawals do not subtract). Its *available* rolls like a category's. In arithmetic it is a Spend line: assigning lowers Ready to assign, moving the money in does the job and changes nothing, so the identity only gained one term, `saving_available`. Spend's `assigned`, `activity` and `available` (and Home's *Left to spend*) never include Save lines (`BudgetRead.saving`, `saving_assigned`, `saving_activity`, `saving_available`). Because a Save account has no payment category, the reports never count the transfer as spending. Targets work on Save lines as on categories. Switching saving off keeps the amounts (they return if it is switched on again); a closed Save account stays listed while it still has plan left. See [Plan: design proposal](../developer/plan-design.md).
 
+## Earn: income you expect
+
+An Income account (any depth, a group's own account included) can have an **expected amount** for a month: a plan row in the same table (`budget_allocations`), never negative, nothing carrying over. `BudgetRead.earning` lists every open income account without sub-accounts (and a group, or a closed account, while something is expected or arrived) with `expected` and `received` (credits minus debits to the account in the month, up to its last day). It is **informational**: it never changes `ready_to_assign`, is not "assigned to later months", and does not start the budget (rows of other accounts than Spend and Save lines are left out of `_compute`'s plan rows). Income accounts have no targets and money cannot be moved to or from them. The web shows it as the Earn chip (Advanced only) with the month in one line: `expected − saving assigned − spending assigned = unplanned`.
+
+## Switching the Plan off
+
+`FINODE_PLAN_ENABLED=false` makes `BudgetService._savings` and `_earnings` return nothing, so the budget is the budget-only one again, with the stored Save and Earn data untouched (see [Plan: design proposal](../developer/plan-design.md), "Rolling back").
+
 ## Budget accounts, tracking accounts and liabilities
 
 | Kind of account | In the budget? | Effect |

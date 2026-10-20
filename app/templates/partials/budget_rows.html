@@ -23,6 +23,18 @@
 </a>
 {% endmacro %}
 
+{#- One Earn row: an income account with what has come in this month and what is expected. It opens the sheet where the
+    expected amount is set. No bar: income is not a limit that can be overspent. -#}
+{% macro earn_row(line, month_key) %}
+<a class="r crow earnrow" href="/budget?month={{ month_key }}&tab=earn" hx-get="/budget/category/{{ line.aid }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+  <span class="crow-main">
+    <span class="crow-name">{{ line.name }}</span>
+    <span class="crow-sub">{% if line.received %}received {{ line.received|money }}{% else %}nothing received yet{% endif %}{% if line.note %} · {{ line.note }}{% endif %}</span>
+  </span>
+  <span class="crow-amt"><span>{{ line.expected|money if line.expected else "—" }}</span><span class="crow-share">{{ "expected" if line.expected else "nothing expected" }}</span></span>
+</a>
+{% endmacro %}
+
 {#- A group at a glance: what is left, and a bar of what is spent out of what there was. The whole block opens the group's own
     budget in the sheet (edit_url; href is the page itself, for when scripts do not run). -#}
 {% macro glance_block(glance, label, over_label, currency, pace, edit_url, href) %}

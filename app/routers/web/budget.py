@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Form, HTTPException, Request
 
 from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
+from ...config import settings
 from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, month_start
@@ -18,8 +19,9 @@ from .utils import htmx_error, htmx_redirect, parse_amount
 
 router = APIRouter(prefix="/budget")
 
-# The sections of the page, as chips (Earn arrives with its own phase).
-TABS = {"spend": "Spend", "save": "Save"}
+# The sections of the page, as chips: Save and Earn only while the Plan is on (settings.plan_enabled), Earn also only with
+# Advanced on (its data stays when it is off).
+TABS = {"spend": "Spend", "save": "Save", "earn": "Earn"}
 
 
 def parse_month(value: str) -> date:
@@ -164,11 +166,16 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     # plain top-level categories always show, so there is always something to tap and assign to.
     unused = [n for n in tree if n.is_group and not n.used] if any(n.used for n in tree) else []
     style = grouping_for(data.currency)
+    tabs = {k: v for k, v in TABS.items() if k == "spend" or (settings.plan_enabled and (k != "earn" or advanced))}
     saving_lines = [_saving_line(s) for s in data.saving]
     return {
         "budget": data,
-        "tab": tab if tab in TABS else "spend",
-        "tabs": TABS,
+        "tab": tab if tab in tabs else "spend",
+        "tabs": tabs,
+        "plan_enabled": settings.plan_enabled,
+        "earning_rows": list(data.earning),
+        # What the month's plan leaves over: what is expected, less what is assigned to saving and to spending.
+        "unplanned": data.earning_expected - data.saving_assigned - data.assigned,
         "saving_rows": [
             {"node": SimpleNamespace(line=line, is_group=False), "hint": _saving_hint(line, advanced, style), "calm": not advanced}
             for line in saving_lines
@@ -251,14 +258,18 @@ def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "",
     context = _context(budget, when)
     lines = [l for n in context["tree"] for l in n.lines()]
     line = next((l for l in lines if l.aid == aid and not l.group), None)
-    saving = False
+    saving = earn = False
     if line is None:
         line = next((row["node"].line for row in context["saving_rows"] if row["node"].line.aid == aid), None)
         saving = line is not None
+    if line is None and "earn" in context["tabs"]:
+        line = next((l for l in context["earning_rows"] if l.aid == aid), None)
+        earn = line is not None
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
     return templates.TemplateResponse(
-        request, "partials/budget_sheet.html", {**context, "line": line, "group_id": group, "saving": saving, "tab": "save" if saving else "spend"}
+        request, "partials/budget_sheet.html",
+        {**context, "line": line, "group_id": group, "saving": saving, "earn": earn, "tab": "earn" if earn else "save" if saving else "spend"},
     )
 
 

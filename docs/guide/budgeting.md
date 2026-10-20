@@ -70,3 +70,7 @@ The **Budget**, the **Categories** page and the overview all count a loan paymen
 ## Saving
 
 Money you move into something you keep (a mutual fund, a deposit) is not spending. Open that asset account (it must not be part of the budget) and switch on **Plan for saving** on its edit page. On the Budget page the **Save** chip then lists it: tap it to assign what you plan to move in this month, exactly as you give a category money. Assigning takes the money out of *Ready to assign*; when you then transfer it into the account, the line shows it as *moved* and nothing else changes. These transfers never count as spending anywhere (Home, Categories, the reports), and a target (Advanced) works on a Save line too. If the account had a payment category, switching it on removes it: saving into the account is no longer an expense.
+
+## Earn (Advanced)
+
+With **Advanced** on, the Budget page has a third chip, **Earn**. It lists your income accounts: tap one to say what you expect from it this month (a salary, interest). The page shows what has arrived so far, and above the list **the month in one line**: what you expect, minus what you assigned to saving, minus what you budgeted to spend, is what is left unplanned (or "Over-planned" when it is negative). Expected income is a forecast: it never adds to *Ready to assign*; only money that has actually arrived does. "Copy last month's amounts" copies what you expected too.

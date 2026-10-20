@@ -1,6 +1,6 @@
 # Plan: design proposal
 
-**Status: design agreed 2026-10-20 (page arrangement P2, the five decisions below as recommended); building phase by phase (phase 1, Save, built on branch `feature/plan-save`).** Written at the owner's request. The feature freeze (since 2026-10-14) is lifted for this feature only; everything else stays frozen. The scope below is introduced in phases, one merge at a time, and each phase is shown to the owner (mock-ups, then real screenshots) before it is merged.
+**Status: design agreed 2026-10-20 (page arrangement P2, the five decisions below as recommended); building phase by phase: phase 1 Save is live (`3b59f4c`); phase 2 Earn is on branch `feature/plan-earn`.** Written at the owner's request. The feature freeze (since 2026-10-14) is lifted for this feature only; everything else stays frozen. The scope below is introduced in phases, one merge at a time, and each phase is shown to the owner (mock-ups, then real screenshots) before it is merged.
 
 ## The idea
 
@@ -72,6 +72,16 @@ Every phase ends with: unit and browser tests green (Chromium and WebKit), the d
 3. **Plan.** The rename (page, tab, route redirect, docs, tools), the overview, copy last month for all three sections.
 
 Each phase is shippable on its own; stopping after phase 1 still fixes the complaint.
+
+## Rolling back to the budget-only app
+
+The owner's requirement: the Plan must be reversible to the budget-only app. Nothing in the Plan destroys or rewrites data, so there are three levels, from the lightest:
+
+1. **The switch (seconds, no deploy):** set `FINODE_PLAN_ENABLED=false` in `.env` and restart the app (`docker compose up -d`). The Save and Earn sections are ignored and hidden: the budget page has no chips, the account forms have no "Plan for saving" switch, `get_budget` lists neither, Save and Earn plan rows are left out of every figure (including "where budgeting starts"), and nothing can be planned for saving or expected. `ready_to_assign` then reads exactly as the budget-only app computes it (a test compares them). Everything stored stays: switch it back on and the Save and Earn plans return.
+2. **Revert the code:** `git revert` the Plan merges (phase 1 `3b59f4c`, then each later phase) and redeploy. The extra column `accounts.saving` and the plan rows on Income and Save accounts are harmless to the older code: it ignores a column it does not know and only reads plan rows of Expenses accounts. Money assigned to a Save line is then simply no longer set aside (Ready to assign is larger by that amount, as with the switch).
+3. **Undo the schema (only if ever needed):** `alembic downgrade -1` drops `accounts.saving` (`d1e3f5a7b9c2`); it holds only the switch, so nothing else is lost. Restoring the pre-deploy dump (`backups/`) is the last resort.
+
+What a person who used Save sees after level 1 or 2: the fund account is an ordinary account outside the budget again; its payment category was cleared when they switched saving on, so the transfers are not counted as spending (set the payment category again on the account's edit page if they want the old behaviour).
 
 ## Risks and how they are handled
 

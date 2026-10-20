@@ -8,6 +8,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
+from ...config import settings
 from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService, RegisterPage
@@ -211,6 +212,7 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "active": "categories" if kind == "category" else "accounts",
             "kind": kind,
             "hide_fab": True,
+            "plan_enabled": settings.plan_enabled,
             "node": None,
             "parent_id": parent,
             "parent_options": _parent_options(parent_roots),
@@ -491,6 +493,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
             "on_budget": node.account.on_budget,
             "saving": node.account.saving,
+            "plan_enabled": settings.plan_enabled,
             "payment_category_id": node.account.payment_category_id,
             "category_options": _category_options(roots),
             "parent_options": [

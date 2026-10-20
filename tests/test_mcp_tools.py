@@ -468,3 +468,14 @@ async def test_assistants_can_plan_an_account_the_user_saves_into(session, root_
         assert after["ready_to_assign"] == "700.00" and after["saving"][0]["assigned"] == "300.00" and after["saving"][0]["left_to_move"] == "300.00"
         with pytest.raises(ToolFailed, match="not an expense account"):
             payload(await c.call_tool("assign_to_category", {"category": "Bank", "amount": "5"}))
+
+
+@pytest.mark.anyio
+async def test_assistants_can_say_what_income_is_expected(session, root_accounts, client):
+    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+        assert "earning" not in payload(await c.call_tool("get_budget", {}))
+        after = payload(await c.call_tool("assign_to_category", {"category": "Salary", "amount": "85000"}))
+        assert after["expected_income"] == "85000.00" and after["earning"] == [{"account": "Salary", "expected": "85000.00", "received": "0.00"}]
+        assert after["ready_to_assign"] == "1000.00", "expected income is never ready to assign"
