@@ -83,7 +83,7 @@ class BackupService:
             accounts=[
                 BackupAccount(
                     id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details,
-                    on_budget=a.on_budget, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
+                    on_budget=a.on_budget, saving=a.saving, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
                     position=a.position,
                 )
                 for a in accounts
@@ -309,6 +309,7 @@ class BackupService:
                 account = self.ar.read(ids[a.id])
                 account.closed_on = a.closed_on
                 account.position = a.position
+                account.saving = a.saving and not a.on_budget
                 account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)
             db.flush()

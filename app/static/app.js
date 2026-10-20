@@ -666,37 +666,54 @@ document.body.addEventListener("click", (event) => {
   }
 });
 
-// Account form: a payment category only applies to an account outside the budget.
-document.body.addEventListener("change", (event) => {
-  const box = event.target.closest && event.target.closest('input[name="on_budget"]');
-  if (!box) return;
-  const field = box.closest("form").querySelector("[data-payment-category]");
-  if (field) field.hidden = box.checked;
-});
-// A new account asks about the budget only under Assets and Liabilities (the options carry their root in `data-root`): an
-// asset starts in the budget, a card or loan outside it. Hidden fields are disabled so they are not sent.
+// Account form: outside the budget an asset can be planned for saving, and a payment category goes only with an account that is
+// neither in the budget nor planned for saving. A new account asks only under Assets and Liabilities (the options carry their root in
+// `data-root`): an asset starts in the budget, a card or loan outside it. Hidden fields are disabled so they are not sent.
 (function budgetChoice() {
+  const sync = (fields) => {
+    const box = fields.querySelector('input[name="on_budget"]');
+    const saving = fields.querySelector('input[name="saving"]');
+    const payment = fields.querySelector("[data-payment-category]");
+    const savingRow = fields.querySelector("[data-saving]");
+    if (!box) return;
+    const out = !box.checked;
+    if (savingRow) {
+      savingRow.hidden = !(out && fields.dataset.root === "Assets");
+      if (savingRow.hidden && saving) saving.checked = false;
+    }
+    if (payment) payment.hidden = !out || (saving && saving.checked);
+    if (payment && payment.hidden) {
+      const choice = payment.querySelector("select");
+      if (choice && saving && saving.checked) choice.value = "";
+    }
+  };
   const apply = (select) => {
     const fields = select.form && select.form.querySelector("[data-budget-fields]");
     if (!fields || !select.options.length || !select.selectedOptions[0] || !("root" in select.selectedOptions[0].dataset)) return;
     const root = select.selectedOptions[0].dataset.root;
     const asked = root === "Assets" || root === "Liabilities";
     fields.hidden = !asked;
+    fields.dataset.root = root;
     fields.querySelectorAll("input, select").forEach((el) => { el.disabled = !asked; });
     if (!asked) return;
     const box = fields.querySelector('input[name="on_budget"]');
     box.checked = root === "Assets";
-    const payment = fields.querySelector("[data-payment-category]");
-    if (payment) payment.hidden = box.checked;
+    sync(fields);
   };
   document.body.addEventListener("change", (event) => {
-    if (event.target.matches && event.target.matches('form select[name="parent_id"]')) apply(event.target);
+    if (!event.target.matches) return;
+    if (event.target.matches('form select[name="parent_id"]')) apply(event.target);
+    if (event.target.matches('input[name="on_budget"], input[name="saving"]')) {
+      const fields = event.target.closest("[data-budget-fields]");
+      if (fields) sync(fields);
+    }
   });
   const first = document.querySelector('[data-budget-fields]');
-  const formOf = first && first.closest("form");
-  const select = formOf && formOf.querySelector('select[name="parent_id"]');
+  const form = first && first.closest("form");
+  const select = form && form.querySelector('select[name="parent_id"]');
   if (select && select.value) {
-    // The parent is already chosen (from an account's page): the server drew the right state; only disable what is hidden.
+    // The parent is already chosen (from a type's tab, an account's page or the edit page): the server drew the right state;
+    // only disable what is hidden.
     first.querySelectorAll("input, select").forEach((el) => { el.disabled = first.hidden; });
   } else if (first) {
     first.querySelectorAll("input, select").forEach((el) => { el.disabled = true; });

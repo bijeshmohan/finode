@@ -1,6 +1,7 @@
 import calendar
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Annotated
 from uuid import UUID
 
@@ -10,12 +11,15 @@ from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
 from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, month_start
-from ...schemas.budget import TARGET_KINDS, BudgetLine
+from ...schemas.budget import TARGET_KINDS, BudgetLine, BudgetSaving
 from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount
 
 
 router = APIRouter(prefix="/budget")
+
+# The sections of the page, as chips (Earn arrives with its own phase).
+TABS = {"spend": "Spend", "save": "Save"}
 
 
 def parse_month(value: str) -> date:
@@ -133,15 +137,42 @@ def _glance(data) -> dict:
     }
 
 
-def _context(budget: Budget, month: date) -> dict:
+def _saving_line(saving: BudgetSaving) -> BudgetLine:
+    """A Save line shown with the same rows and sheet as a category (they share the figures)."""
+    return BudgetLine(
+        aid=saving.aid, name=saving.name, path=saving.path, depth=1, assigned=saving.assigned, activity=saving.activity,
+        available=saving.available, overspent_last_month=Decimal("0.00"), target=saving.target, needed=saving.needed, underfunded=saving.underfunded,
+        overdue=saving.overdue, note=saving.note,
+    )
+
+
+def _saving_hint(line: BudgetLine, advanced: bool, style: str) -> str:
+    parts = []
+    if advanced and line.underfunded:
+        parts.append(("overdue, " if line.overdue else "") + f"needs {money(line.underfunded, style)} more")
+    parts.append(f"moved {money(line.activity, style)} this month" if line.activity else "nothing moved yet")
+    if line.note:
+        parts.append(line.note)
+    return " · ".join(parts)
+
+
+def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     data = budget.view(month)
     advanced = ProfileRepository(budget.br.db, budget.br.uid).advanced()
     tree = build_tree(data.lines)
     # Whole groups with nothing in them (nothing assigned, spent or planned) are tucked away once anything is in use;
     # plain top-level categories always show, so there is always something to tap and assign to.
     unused = [n for n in tree if n.is_group and not n.used] if any(n.used for n in tree) else []
+    style = grouping_for(data.currency)
+    saving_lines = [_saving_line(s) for s in data.saving]
     return {
         "budget": data,
+        "tab": tab if tab in TABS else "spend",
+        "tabs": TABS,
+        "saving_rows": [
+            {"node": SimpleNamespace(line=line, is_group=False), "hint": _saving_hint(line, advanced, style), "calm": not advanced}
+            for line in saving_lines
+        ],
         "tree": tree,
         "rows": [{"node": n, "hint": _hint(n, advanced, grouping_for(data.currency))} for n in _by_assigned(tree)],
         "unused_ids": {n.line.aid for n in unused},
@@ -166,8 +197,8 @@ def _context(budget: Budget, month: date) -> dict:
 
 
 @router.get("")
-def budget_page(request: Request, budget: Budget, month: str = ""):
-    return templates.TemplateResponse(request, "budget.html", _context(budget, parse_month(month)))
+def budget_page(request: Request, budget: Budget, month: str = "", tab: str = "spend"):
+    return templates.TemplateResponse(request, "budget.html", _context(budget, parse_month(month), tab))
 
 
 def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
@@ -220,9 +251,15 @@ def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "",
     context = _context(budget, when)
     lines = [l for n in context["tree"] for l in n.lines()]
     line = next((l for l in lines if l.aid == aid and not l.group), None)
+    saving = False
+    if line is None:
+        line = next((row["node"].line for row in context["saving_rows"] if row["node"].line.aid == aid), None)
+        saving = line is not None
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
-    return templates.TemplateResponse(request, "partials/budget_sheet.html", {**context, "line": line, "group_id": group})
+    return templates.TemplateResponse(
+        request, "partials/budget_sheet.html", {**context, "line": line, "group_id": group, "saving": saving, "tab": "save" if saving else "spend"}
+    )
 
 
 @router.post("/assign")
@@ -234,6 +271,7 @@ def assign(
     amount: Annotated[str, Form()] = "",
     sheet: Annotated[str, Form()] = "",
     group: Annotated[str, Form()] = "",
+    tab: Annotated[str, Form()] = "spend",
 ):
     when = parse_month(month)
     try:
@@ -245,14 +283,14 @@ def assign(
             return templates.TemplateResponse(request, "partials/budget_group_body.html", _group_context(budget, when, UUID(group)))
         except ValueError:
             pass
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
 
 
 @router.get("/move")
 def move_page(request: Request, budget: Budget, month: str = "", source: UUID | None = None):
     when = parse_month(month)
     data = budget.view(when)
-    lines = [line for line in data.lines if not line.group]
+    lines = [line for line in data.lines if not line.group] + [_saving_line(s) for s in data.saving]
     if source is not None and not any(line.aid == source for line in lines):
         raise HTTPException(status_code=404, detail="category not found")
     return templates.TemplateResponse(
@@ -279,17 +317,18 @@ def move(
 
 
 @router.post("/fund")
-def fund(request: Request, budget: Budget, month: Annotated[str, Form()] = ""):
+def fund(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
     when = parse_month(month)
     try:
         budget.fund(when)
     except BudgetError as e:
         return htmx_error(str(e), "#budget-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
 
 
 def _target_line(budget: Budget, month: date, category: UUID):
-    line = next((l for l in budget.view(month).lines if l.aid == category and not l.name.endswith("(other)")), None)
+    data = budget.view(month)
+    line = next((l for l in [*data.lines, *map(_saving_line, data.saving)] if l.aid == category and not l.name.endswith("(other)")), None)
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
     return line
@@ -361,20 +400,20 @@ def clear_target(budget: Budget, category: Annotated[UUID, Form()], month: Annot
 
 
 @router.post("/accounts/{aid}/include")
-def include_account(request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = ""):
+def include_account(request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
     when = parse_month(month)
     try:
         budget.include_account(aid)
     except BudgetError as e:
         return htmx_error(str(e), "#budget-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
 
 
 @router.post("/copy")
-def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()] = ""):
+def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
     when = parse_month(month)
     try:
         budget.copy_previous(when)
     except BudgetError as e:
         return htmx_error(str(e), "#budget-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))

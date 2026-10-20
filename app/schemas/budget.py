@@ -95,6 +95,29 @@ class BudgetLine(BaseModel):
     weeks: list[BudgetWeek] = []
 
 
+class BudgetSaving(BaseModel):
+    """A line of the plan's Save section: an asset outside the budget that the person plans to save into."""
+
+    aid: UUID
+    name: str
+    # Its path below Assets, e.g. "Investments:Mutual Funds".
+    path: str
+    # What was assigned to it in the month, what was moved into it from the budget's accounts (withdrawals do not
+    # subtract) and what is left to move, counting everything assigned and moved in earlier months too.
+    assigned: Decimal = Money
+    activity: Decimal = Money
+    available: Decimal = Money
+    # What the account holds at the end of the month.
+    balance: Decimal = Money
+    closed: bool = False
+    # Its target (the same kinds as a category's), what it needs from this month's assigning and what is still missing.
+    target: BudgetTargetRead | None = None
+    needed: Decimal = Money
+    underfunded: Decimal = Money
+    overdue: bool = False
+    note: str | None = None
+
+
 class BudgetRead(BaseModel):
     # First day of the month the figures are for; they count everything up to its last day.
     month: Date
@@ -113,8 +136,15 @@ class BudgetRead(BaseModel):
     assigned_to_later_months: Decimal = Money
     # What copying last month's assignments would assign here (categories with nothing assigned this month yet).
     copyable: Decimal = Money
+    # The Save section: what was assigned to the accounts planned for saving, what was moved into them and what is
+    # still to move (their `available`), totals of the lines in `saving`. `assigned`, `activity` and `available`
+    # above are the Spend section's only.
+    saving: list[BudgetSaving] = []
+    saving_assigned: Decimal = Money
+    saving_activity: Decimal = Money
+    saving_available: Decimal = Money
     # Money in the budget's asset accounts and what is reserved for the cards' bills (sums of the cards' `owed`).
-    # ready_to_assign = money_in_accounts - reserved_for_cards - available - assigned_to_later_months.
+    # ready_to_assign = money_in_accounts - reserved_for_cards - available - saving_available - assigned_to_later_months.
     money_in_accounts: Decimal = Money
     reserved_for_cards: Decimal = Money
     cards: list[BudgetCard] = []

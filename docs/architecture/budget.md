@@ -12,6 +12,7 @@ Only these things are stored:
 |---|---|
 | The plan: how much each expense category is *assigned* in each month | `budget_allocations` (user, month = first day, expense account, amount; unique per month and account) |
 | Which asset or liability accounts are part of the budget | the flag `accounts.on_budget` |
+| Which assets outside the budget are planned for saving (the Save section) | the flag `accounts.saving` |
 | Targets (a wish per category: kind, amount, date, weekday) | `budget_targets`, one per category |
 | A category's short note | the expense account's `details` column |
 
@@ -26,7 +27,7 @@ For a month and an expense category:
 - **Available** — what you can still spend:
   `max(0, last month's available) + assigned − activity`
 - **Ready to assign** — money in budget accounts that has no job yet:
-  `ready to assign = money in accounts − reserved for cards − Σ available − assigned to later months`
+  `ready to assign = money in accounts − reserved for cards − Σ available − Σ saving available − assigned to later months`
 
 `BudgetRead` always satisfies that sum, and the page and the `get_budget` tool show it.
 
@@ -49,6 +50,10 @@ flowchart LR
 - Money assigned to **later months** is subtracted from Ready to assign in every earlier month, so assigning ahead uses up what is ready now, and the same money reads the same from either month.
 - **Moving money** between categories (`move`, limited to what is available) never changes Ready to assign.
 - A month's **assigned amount may be negative** to take back what an earlier month left in the category (Move money writes the same), but not by more than the category has left. Otherwise the category would show as overspent with nothing spent and Ready to assign would exceed the money there is.
+
+## Save: planning for the money you keep
+
+An asset outside the budget can be switched on for saving (`accounts.saving`, "Plan for saving" on its edit page; never together with *Part of the budget* or a payment category: switching it on clears the payment category, joining the budget switches it off). It then becomes a **Save line**: a plan row (`budget_allocations`, the same table) can be assigned to it in a month, and its *activity* is what was moved into it from the budget's accounts, that is the debits to it in transactions that touch a budget account (the rule loan payments use; withdrawals do not subtract). Its *available* rolls like a category's. In arithmetic it is a Spend line: assigning lowers Ready to assign, moving the money in does the job and changes nothing, so the identity only gained one term, `saving_available`. Spend's `assigned`, `activity` and `available` (and Home's *Left to spend*) never include Save lines (`BudgetRead.saving`, `saving_assigned`, `saving_activity`, `saving_available`). Because a Save account has no payment category, the reports never count the transfer as spending. Targets work on Save lines as on categories. Switching saving off keeps the amounts (they return if it is switched on again); a closed Save account stays listed while it still has plan left. See [Plan: design proposal](../developer/plan-design.md).
 
 ## Budget accounts, tracking accounts and liabilities
 

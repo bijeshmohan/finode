@@ -30,13 +30,17 @@
   </label>
   {% endif %}
   {% if not cat and (editing and can_budget or not editing) %}
-  <div class="stack" data-budget-fields {{ "hidden" if not can_budget }}>
+  <div class="stack" data-budget-fields data-root="{{ root_name }}" {{ "hidden" if not can_budget }}>
   <input type="hidden" name="budget_choice" value="1">
   <label class="check">
     <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
     <span>Part of the budget <span class="hint">Money you assign to categories</span></span>
   </label>
-  <label data-payment-category {{ "hidden" if on_budget }}>Payments budgeted under
+  <label class="check" data-saving {{ "hidden" if on_budget or root_name != "Assets" }}>
+    <input type="checkbox" name="saving" value="1" {{ "checked" if saving }}>
+    <span>Plan for saving <span class="hint">Shows in Budget › Save</span></span>
+  </label>
+  <label data-payment-category {{ "hidden" if on_budget or saving }}>Payments budgeted under
     <select name="payment_category">
       <option value="">No category</option>
       {% for aid, path in category_options %}<option value="{{ aid }}" {{ "selected" if aid == payment_category_id }}>{{ path }}</option>{% endfor %}

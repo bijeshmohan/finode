@@ -66,3 +66,7 @@ Home shows one number, *Left to spend in <month>*, with a thin bar: the total le
 ## If numbers disagree
 
 The **Budget**, the **Categories** page and the overview all count a loan payment the same way: as spending in the loan's payment category. They differ only in what the Budget leaves out on purpose: it counts what your budget accounts paid, so interest a lender adds to a loan (which no budget account paid) shows up as an expense in the reports but not in the Budget.
+
+## Saving
+
+Money you move into something you keep (a mutual fund, a deposit) is not spending. Open that asset account (it must not be part of the budget) and switch on **Plan for saving** on its edit page. On the Budget page the **Save** chip then lists it: tap it to assign what you plan to move in this month, exactly as you give a category money. Assigning takes the money out of *Ready to assign*; when you then transfer it into the account, the line shows it as *moved* and nothing else changes. These transfers never count as spending anywhere (Home, Categories, the reports), and a target (Advanced) works on a Save line too. If the account had a payment category, switching it on removes it: saving into the account is no longer an expense.

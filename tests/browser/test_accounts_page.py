@@ -178,3 +178,30 @@ def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Pag
         box.uncheck()
         expect(box).not_to_be_checked()
         expect(page.locator("[data-payment-category]")).to_be_visible()
+
+
+def test_plan_for_saving_shows_only_for_an_asset_outside_the_budget(page: Page, api, books):
+    page.goto("/accounts/new?root=assets")
+    box = page.locator('input[name="on_budget"]')
+    saving = page.locator('input[name="saving"]')
+    row = page.locator("[data-saving]")
+    expect(row).to_be_hidden()  # an asset starts in the budget
+    box.uncheck()
+    expect(row).to_be_visible()
+    expect(page.locator("[data-payment-category]")).to_be_visible()
+    saving.check()
+    expect(page.locator("[data-payment-category]")).to_be_hidden()  # saving into it is not spending
+    box.check()
+    expect(row).to_be_hidden()
+    expect(saving).not_to_be_checked()
+    page.goto("/accounts/new")
+    page.locator('select[name="parent_id"]').select_option(label="Liabilities")
+    expect(row).to_be_hidden()
+    page.locator('select[name="parent_id"]').select_option(label="Assets")
+    page.locator('input[name="name"]').fill("Mutual Funds")
+    box.uncheck()
+    saving.check()
+    page.get_by_role("button", name="Add account").click()
+    page.wait_for_url("**/accounts/*")
+    made = next(a for a in api.get("/accounts/") if a["name"] == "Mutual Funds")
+    assert made["saving"] is True and made["on_budget"] is False

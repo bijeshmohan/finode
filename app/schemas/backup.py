@@ -38,6 +38,7 @@ class BackupAccount(BaseModel):
     # Version 1 only: what the account held. Read to check it is the profile's currency, never written.
     commodity: str | None = Field(default=None, exclude=True)
     on_budget: bool = False
+    saving: bool = False
     closed_on: Day | None = None
     payment_category_id: UUID | None = None
     # Older backups: accounts could be pinned. Read, never written.
