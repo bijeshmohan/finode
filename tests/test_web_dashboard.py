@@ -16,6 +16,11 @@ def test_dashboard_empty_state(client: TestClient):
     assert 'href="/transactions/new"' in response.text
 
 
+def _words(html: str) -> str:
+    """The text of a piece of page, tags gone and spaces tidied."""
+    return " ".join(re.sub(r"<[^>]+>", " ", html).split())
+
+
 def test_dashboard_shows_summary_and_recent_transactions(
     client: TestClient,
     root_accounts: dict[str, str],
@@ -46,9 +51,10 @@ def test_dashboard_shows_summary_and_recent_transactions(
         assert response.status_code == 201
 
     text = client.get("/").text
-    assert "Spent in" in text and "120.50" in text  # no budget yet: what was spent this month
-    assert "Income 2,500.00" in " ".join(text.split())
-    assert 'href="/budget"' in text and "Set up your budget" in text
+    assert ">Spent<" in text and "120.50" in text  # no budget yet: what was spent this month
+    strip = _words(text[text.index('class="box-strip"'):])
+    assert "Earned ₹2,500.00" in strip and "Assigned ₹0.00" in strip and "Spent ₹120.50" in strip
+    assert 'href="/budget?month=' in text and "Set up your budget" in text
     assert "Employer" in text and "Supermarket" in text
     assert plain(svc.reports.summary())["net_worth"] == "3379.50"  # 1000 + 2500 - 120.50
 
@@ -64,7 +70,7 @@ def test_dashboard_shows_what_is_left_to_spend_once_there_is_a_budget(
         {"account": expense_account["aid"], "side": "debit", "amount": "100"},
         {"account": bank["aid"], "side": "credit", "amount": "100"}]})
     text = " ".join(client.get("/").text.split())
-    assert "Left to spend in" in text and "300.00" in text
+    assert "Left to spend" in text and "300.00" in text
     assert "Spent 100.00 of 400.00" in text
     assert 'style="width: 25%"' in text
 
@@ -80,7 +86,7 @@ def test_dashboard_says_over_budget_when_a_category_is_overspent(
         {"account": expense_account["aid"], "side": "debit", "amount": "80"},
         {"account": bank["aid"], "side": "credit", "amount": "80"}]})
     text = " ".join(client.get("/").text.split())
-    assert "Over budget in" in text and '&minus;<span class="cur">&#8377;</span>30.00' in text and 'style="width: 100%"' in text
+    assert "Over budget" in text and '&minus;<span class="cur">&#8377;</span>30.00' in text and 'style="width: 100%"' in text
 
 
 def test_dashboard_limits_recent_transactions(
@@ -190,7 +196,7 @@ def test_the_i_on_home_shows_the_sum_with_the_persons_own_numbers(
     ]
 
 
-def test_home_shows_four_tiles_and_a_warning_for_an_overspent_category(
+def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_overspent_category(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict, income_account: dict
 ):
     bank = client.post(
@@ -203,12 +209,11 @@ def test_home_shows_four_tiles_and_a_warning_for_an_overspent_category(
             {"account": credit["aid"], "side": "credit", "amount": amount}]})
     page = client.get("/").text
     text = " ".join(page.split())
-    tiles = page[page.index('class="home-tiles"'):]
-    assert "Balance" in tiles and "Earned" in tiles and "Spent" in tiles
-    assert "Ready to assign" in tiles, "no card: that tile shows what is ready to assign instead"
-    assert "₹500.00" in " ".join(tiles.split()) and "₹80.00" in " ".join(tiles.split())
+    strip = _words(page[page.index('class="box-strip"'):])
+    assert "Earned ₹500.00" in strip and "Assigned ₹50.00" in strip and "Spent ₹80.00" in strip
+    assert "home-tile" not in page and "Balance" not in page.split("<h2>Transactions</h2>")[0] and "Owed" not in page
     assert 'class="home-alert"' in page and f"<b>{expense_account['name']}</b> is over by ₹30.00" in text
-    assert page.index('class="home-alert"') < page.index('class="home-tiles"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"
+    assert page.index('home-box"') < page.index('class="box-strip"') < page.index('class="home-alert"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"
 
 
 def test_home_has_no_warning_when_nothing_is_overspent(client: TestClient, root_accounts: dict[str, str], expense_account: dict):
@@ -220,17 +225,24 @@ def test_home_has_no_warning_when_nothing_is_overspent(client: TestClient, root_
     assert 'class="home-alert"' not in client.get("/").text
 
 
-def test_home_compares_the_month_so_far_with_the_same_days_of_last_month(
+def test_the_month_pill_in_the_box_shows_another_month_and_never_a_future_one(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict
 ):
     bank = client.post(
         "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
     ).json()
     today = date.today()
-    last = (today.replace(day=1) - timedelta(days=1)).replace(day=1)  # the 1st of last month
+    last = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     for when, amount in ((last, "300"), (today, "100")):
         client.post("/api/transactions/", json={"date": when.isoformat(), "payee": "x", "postings": [
             {"account": expense_account["aid"], "side": "debit", "amount": amount},
             {"account": bank["aid"], "side": "credit", "amount": amount}]})
-    text = " ".join(client.get("/").text.split())
-    assert f"₹200.00 less than {last:%b} so far" in text
+    now_html = client.get("/").text
+    now = _words(now_html)
+    assert 'class="month-input"' in now_html and f'max="{today:%Y-%m}"' in now_html
+    assert "Spent ₹100.00" in now
+    before_html = client.get("/", params={"month": f"{last:%Y-%m}"}).text
+    before = _words(before_html)
+    assert "Spent ₹300.00" in before and f"{last:%b} {last:%Y}" in before and 'class="pace"' not in before_html
+    ahead = _words(client.get("/", params={"month": "2999-01"}).text)
+    assert "Spent ₹100.00" in ahead, "a month that has not started opens this month"
