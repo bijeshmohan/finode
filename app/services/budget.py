@@ -9,7 +9,8 @@ from ..models.account import Account
 from ..models.budget import BudgetTarget
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, TransactionRepository
-from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetSaving, BudgetTargetRead, BudgetWeek
+from ..config import settings
+from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetEarning, BudgetLeftOut, BudgetLine, BudgetRead, BudgetSaving, BudgetTargetRead, BudgetWeek
 from ..schemas.account import AccountUpdate
 from .account import AccountService
 from .lock import locked_through
@@ -144,11 +145,22 @@ class BudgetService:
 
     def _savings(self, accounts: list[Account], by_id: dict[UUID, Account], parents: set) -> dict[UUID, Account]:
         """Assets outside the budget that the person plans to save into (the Save section's lines)."""
+        if not settings.plan_enabled:
+            return {}
         return {
             a.aid: a
             for a in accounts
             if a.saving and not a.on_budget and a.parent_id is not None and a.aid not in parents
             and AccountService.root_name(a, by_id) == "Assets"
+        }
+
+    def _earnings(self, accounts: list[Account], by_id: dict[UUID, Account]) -> dict[UUID, Account]:
+        """Income accounts a month's expected income can be set for (the Earn section's lines): every account below
+        Income, groups included (a group's own account can be posted to)."""
+        if not settings.plan_enabled:
+            return {}
+        return {
+            a.aid: a for a in accounts if a.parent_id is not None and AccountService.root_name(a, by_id) == "Income"
         }
 
     def _path(self, account: Account, by_id: dict[UUID, Account]) -> list[str]:
@@ -180,6 +192,7 @@ class BudgetService:
         # Assets outside the budget that the person plans to save into: lines of the Save section.
         savings = self._savings(accounts, by_id, parents)
         planned = set(categories) | set(savings)
+        earning = self._earnings(accounts, by_id)
 
         in_budget: set[UUID] = set()
         candidates: dict[UUID, Account] = {}  # could be in the budget but are not: assets/liabilities that could be
@@ -225,7 +238,12 @@ class BudgetService:
             if p.transaction in outside and p.account in candidates:
                 outside[p.transaction][1].add(p.account)
 
-        every_row = self.br.list()
+        all_rows = self.br.list()
+        # Only Spend and Save plans count here: expected income (Earn) is informational, and with the plan switched off
+        # (settings.plan_enabled) Save and Earn rows are ignored, so the budget reads as it did before them.
+        every_row = [row for row in all_rows if row.account_id in planned]
+        expected = {row.account_id: row.amount for row in all_rows if row.month == month and row.account_id in earning}
+        received: dict[UUID, Decimal] = {aid: ZERO for aid in earning}
         allocations = [row for row in every_row if row.month <= month]
         # Money assigned to later months is out of what can be assigned now.
         later = sum((row.amount for row in every_row if row.month > month and row.account_id in planned), ZERO)
@@ -258,6 +276,8 @@ class BudgetService:
         by_category: dict[UUID, dict[date, list[Decimal]]] = {}
         saving_balance: dict[UUID, Decimal] = {aid: ZERO for aid in savings}
         for p in postings:
+            if p.account in earning and first_of_month(transactions[p.transaction].date) == month:
+                received[p.account] += p.amount if p.side == PostingSide.CREDIT else -p.amount
             if p.account in savings:
                 saving_balance[p.account] += p.amount if p.side == PostingSide.DEBIT else -p.amount
             if p.account in in_budget:
@@ -336,6 +356,7 @@ class BudgetService:
 
         lines = self._lines(categories, by_id, parents, own, targets, needs)
         saving_lines = self._saving_lines(savings, by_id, own_saving, targets, needs, saving_balance, month)
+        earning_lines = self._earning_lines(earning, by_id, parents, expected, received)
         today = local_today()
         for line in lines:
             target = targets.get(line.aid)
@@ -364,6 +385,9 @@ class BudgetService:
             available=total_available,
             overspent_last_month=total_overspent,
             underfunded=total_underfunded,
+            earning=earning_lines,
+            earning_expected=sum((line.expected for line in earning_lines), ZERO),
+            earning_received=sum((line.received for line in earning_lines), ZERO),
             saving=saving_lines,
             saving_assigned=saving_assigned,
             saving_activity=saving_activity,
@@ -428,6 +452,25 @@ class BudgetService:
                 )
             )
         return sorted(lines, key=lambda line: (-line.assigned, line.path))
+
+    def _earning_lines(self, earning, by_id, parents, expected, received) -> list[BudgetEarning]:
+        """The Earn section: every open Income account without sub-accounts, a group's own account and a closed
+        account only while something is expected from it or came in."""
+        lines = []
+        for aid, account in earning.items():
+            planned, came = expected.get(aid, ZERO), received[aid]
+            group = aid in parents
+            if (group or account.closed_on is not None) and not (planned or came):
+                continue
+            path = self._path(account, by_id)
+            lines.append(
+                BudgetEarning(
+                    aid=aid, name=f"{account.name} (other)" if group else account.name,
+                    path=":".join(path[:-1] + [path[-1] + " (other)"] if group else path),
+                    expected=planned, received=came, closed=account.closed_on is not None, note=account.details,
+                )
+            )
+        return sorted(lines, key=lambda line: (-line.expected, -line.received, line.path))
 
     def _path_with_root(self, account: Account, by_id: dict[UUID, Account]) -> list[str]:
         names = self._path(account, by_id)
@@ -503,11 +546,20 @@ class BudgetService:
             raise BudgetError("category not found!")
         everything = self.accounts.ar.list()
         by_id = {a.aid: a for a in everything}
-        if aid not in self._categories(everything) and aid not in self._savings(everything, by_id, {a.parent_id for a in everything}):
+        if (
+            aid not in self._categories(everything)
+            and aid not in self._savings(everything, by_id, {a.parent_id for a in everything})
+            and aid not in self._earnings(everything, by_id)
+        ):
             raise BudgetError(
-                f"'{account.name}' is not an expense account or an account planned for saving: only those can be budgeted!"
+                f"'{account.name}' is not an expense account, an account planned for saving or an income account: "
+                "only those can be planned!"
             )
         return account
+
+    def _is_earning(self, aid: UUID) -> bool:
+        everything = self.accounts.ar.list()
+        return aid in self._earnings(everything, {a.aid: a for a in everything})
 
     def _check_amount(self, amount: Decimal) -> None:
         currency = self.accounts.currency()
@@ -527,6 +579,8 @@ class BudgetService:
     ) -> BudgetRead:
         """Say what a category should be funded with (replaces its target)."""
         account = self._category(aid)
+        if self._is_earning(aid):
+            raise BudgetError("an income account has no target: set what you expect each month instead!")
         if kind not in TARGET_KINDS:
             raise BudgetError(f"the target must be one of: {', '.join(TARGET_KINDS)}!")
         if amount <= 0:
@@ -564,6 +618,8 @@ class BudgetService:
 
     def clear_target(self, aid: UUID) -> BudgetRead:
         self._category(aid)
+        if self._is_earning(aid):
+            raise BudgetError("an income account has no target!")
         self.br.clear_target(aid)
         self.br.db.commit()
         return self.view(None)
@@ -605,6 +661,14 @@ class BudgetService:
         month = month_start(month)
         self._check_open(month)
         self._category(aid)
+        if self._is_earning(aid):
+            # Expected income: a plain amount for the month, nothing carries over and nothing is "available".
+            if amount < 0:
+                raise BudgetError("the income you expect cannot be negative!")
+            self._check_amount(amount)
+            self.br.set(month, aid, amount)
+            self.br.db.commit()
+            return self.view(month)
         if amount < 0:
             # A month's amount may be negative to take back what an earlier month left in the category (that is what
             # Move money writes too), but never more than the category has left: past that it would show as overspent
@@ -653,6 +717,7 @@ class BudgetService:
         by_id = {a.aid: a for a in everything}
         parents = {a.parent_id for a in everything}
         categories.update(self._savings(everything, by_id, parents))  # accounts planned for saving are lines of the plan too
+        categories.update(self._earnings(everything, by_id))  # and so is the income expected
         rows = self.br.list(up_to=month)
         have = {row.account_id for row in rows if row.month == month}
         wanted = [
@@ -678,6 +743,8 @@ class BudgetService:
         if from_aid == to_aid:
             raise BudgetError("choose two different categories!")
         source, target = self._category(from_aid), self._category(to_aid)
+        if self._is_earning(from_aid) or self._is_earning(to_aid):
+            raise BudgetError("expected income cannot be moved: only money in categories and saving lines can!")
         self._check_amount(amount)
         if amount <= 0:
             raise BudgetError("the amount must be positive!")

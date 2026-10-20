@@ -802,6 +802,17 @@ form.copy-last button { margin: 0; }
 
 .test-notice { font-size: .9rem; }
 
+/* ---------- The Plan: the month in one line (Earn) ---------- */
+.plan-sum { margin: 0 0 .9rem; padding: .8rem .9rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); }
+.plan-sum-title { margin: 0 0 .5rem; font-size: .75rem; color: var(--muted); }
+.plan-eq { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr; align-items: start; gap: .3rem; font-variant-numeric: tabular-nums; }
+.plan-eq span { display: flex; flex-direction: column; min-width: 0; }
+.plan-eq b { font-size: .92rem; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
+.plan-eq small { font-size: .72rem; color: var(--muted); }
+.plan-eq i { font-style: normal; color: var(--muted); padding-top: .05rem; }
+.plan-eq .over b { color: var(--danger); }
+.plan-sum-note { margin: .55rem 0 0; font-size: .78rem; }
+
 /* ---------- Pinned and recent accounts ---------- */
 .note-card { margin-top: 1rem; }
 

@@ -462,6 +462,8 @@ class AccountService:
 
     def _check_saving(self, node: Account | None, accounts_by_id: dict, in_budget: bool, payment_category: UUID | None) -> None:
         """Only an asset outside the budget, with no payment category, can be planned for saving."""
+        if not settings.plan_enabled:
+            raise ValueError("planning for saving is switched off (FINODE_PLAN_ENABLED)!")
         if node is None or self._get_root_name(node, accounts_by_id) != "Assets":
             raise ValueError("only asset accounts can be planned for saving!")
         if in_budget:

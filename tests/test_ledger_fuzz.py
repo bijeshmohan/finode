@@ -208,7 +208,9 @@ def budget_checks(session, s, label: str) -> None:
             - view.assigned_to_later_months
         ), (label, month, "Ready to assign must be what is in the accounts minus what already has a job")
         assert view.saving_available == sum((line.available for line in view.saving), Decimal(0)), (label, month)
-        assert view.assigned_to_later_months == sum((r.amount for r in rows if r.month > month), Decimal(0)), (label, month)
+        earn = {line.aid for line in view.earning}
+        assert view.earning_expected == sum((r.amount for r in rows if r.month == month and r.account_id in earn), Decimal(0)), (label, month, "expected income is this month's plan rows only")
+        assert view.assigned_to_later_months == sum((r.amount for r in rows if r.month > month and r.account_id not in earn), Decimal(0)), (label, month)
 
 
 def run_budget(session, seed: int, steps: int) -> int:
@@ -225,7 +227,7 @@ def run_budget(session, seed: int, steps: int) -> int:
     for step in range(steps):
         s = services(session)
         month = month_of(local_today() + timedelta(days=31 * rng.randint(-2, 2)))
-        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy", "fund", "target"] + ["assign_save", "save", "save", "withdraw"])
+        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy", "fund", "target"] + ["assign_save", "save", "save", "withdraw", "assign_earn"])
         label = f"budget seed {seed} step {step} {op}"
         try:
             if op == "assign":
@@ -235,6 +237,8 @@ def run_budget(session, seed: int, steps: int) -> int:
                 view = s.budget.assign(month, cat.aid, amount)
                 after = {l.name: l.available for l in view.lines}[cat.name]
                 assert amount >= 0 or after >= 0 or before < 0, (label, "taking money out never leaves a category overspent")
+            elif op == "assign_earn":
+                s.budget.assign(month, salary.aid, money(rng))
             elif op == "assign_save":
                 s.budget.assign(month, fund.aid, money(rng) * rng.choice([1, 1, -1]))
             elif op in ("save", "withdraw"):

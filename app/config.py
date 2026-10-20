@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     attempt_window_minutes: int = Field(default=15, ge=1)
     # The time zone "today" is read in (an IANA name such as Asia/Kolkata); the server's own clock when empty.
     timezone: str | None = None
+    # The Plan's Save and Earn sections. Switching it off (FINODE_PLAN_ENABLED=false, then restart) puts the app back to
+    # the budget-only behaviour at once: Save and Earn lines are ignored and hidden, and nothing stored is touched, so
+    # switching it on again brings everything back (see docs/developer/plan-design.md, "Rolling back").
+    plan_enabled: bool = True
     # Interactive API docs (/docs, /redoc, /openapi.json) are public when on; off unless you are developing.
     api_docs: bool = False
     # "Forgot password": needs email sending set up in Supabase (custom SMTP) and its recovery email

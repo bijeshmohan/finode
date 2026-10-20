@@ -41,7 +41,7 @@ def rich(client, root_accounts):
     food = acct(client, "Food", root_accounts["Expenses"])
     groceries = acct(client, "Groceries", food["aid"])
     emi = acct(client, "EMI", root_accounts["Expenses"])
-    acct(client, "Mutual Funds", root_accounts["Assets"], on_budget=False, saving=True)
+    fund = acct(client, "Mutual Funds", root_accounts["Assets"], on_budget=False, saving=True)
     salary = acct(client, "Salary", root_accounts["Income"])
     client.patch(f"/api/accounts/{loan['aid']}", json={"payment_category_id": emi["aid"]})
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
@@ -65,6 +65,7 @@ def rich(client, root_accounts):
     assert client.post(f"/api/recurring/{rid}/skip").status_code == 200  # a skipped occurrence is part of the rule's state
     client.put(f"/api/budget/categories/{groceries['aid']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}", json={"month": "2026-09-01", "amount": "15000"})
+    client.put(f"/api/budget/categories/{fund['aid']}", json={"month": "2026-09-01", "amount": "5000"})  # a Save line's plan
     client.put(f"/api/budget/categories/{groceries['aid']}/target", json={"kind": "monthly", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}/target", json={"kind": "weekly", "amount": "250", "weekday": 2})
     client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "yearly", "amount": "1200", "target_date": "2019-09-01"})
@@ -124,7 +125,7 @@ def test_the_backup_has_everything(client, rich):
     assert any(a["on_budget"] for a in doc["accounts"]) and any(a["saving"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
-    assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 3
+    assert len(doc["allocations"]) == 3 and len(doc["targets"]) == 3
     assert set(doc) == {"format", "version", "exported_at", "profile", "accounts", "transactions", "recurring", "allocations", "targets"}, "no tokens or connected apps"
     assert not any("commodity" in a for a in doc["accounts"]) and not any("value" in p for t in doc["transactions"] for p in t["postings"])
 

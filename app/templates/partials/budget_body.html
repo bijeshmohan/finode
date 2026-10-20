@@ -1,6 +1,6 @@
 {#- The budget for one month; htmx swaps this whole block after every change. -#}
 {% from "partials/icons.html" import icon %}
-{% from "partials/budget_rows.html" import row %}
+{% from "partials/budget_rows.html" import row, earn_row %}
 {% from "partials/money.html" import figure %}
 {% from "partials/calc_info.html" import calc_button, calc_panel %}
 
@@ -69,7 +69,27 @@
   <p class="card muted">No account is part of the budget yet. Open an asset account (or a credit card) and switch on <strong>Part of the budget</strong> in its edit page.</p>
   {% endif %}
 
-  {% if tab == "save" %}
+  {% if tab == "earn" %}
+  <div class="plan-sum" data-plan-sum>
+    <p class="plan-sum-title">The month in one line</p>
+    <div class="plan-eq">
+      <span><b>{{ budget.earning_expected|money|replace(".00", "") }}</b><small>Expected</small></span><i aria-hidden="true">−</i>
+      <span><b>{{ budget.saving_assigned|money|replace(".00", "") }}</b><small>Saving</small></span><i aria-hidden="true">−</i>
+      <span><b>{{ budget.assigned|money|replace(".00", "") }}</b><small>Spending</small></span><i aria-hidden="true">=</i>
+      <span class="{{ 'over' if unplanned < 0 }}"><b>{{ (unplanned if unplanned >= 0 else -unplanned)|money|replace(".00", "") }}</b><small>{{ "Over-planned" if unplanned < 0 else "Unplanned" }}</small></span>
+    </div>
+    <p class="muted plan-sum-note">Received so far: {{ budget.earning_received|money|amount(budget.currency) }}. Only money that has arrived can be assigned; this line is a forecast.</p>
+  </div>
+  {% if earning_rows %}
+  <div class="budget-list tile" data-budget-earning>
+    {% for line in earning_rows %}
+    <div class="top">{{ earn_row(line, month_key) }}</div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="card muted">There are no income accounts yet. <a href="/categories/new?root=income">Add one</a> under Income, like Salary.</p>
+  {% endif %}
+  {% elif tab == "save" %}
   {% if saving_rows %}
   <div class="budget-list tile" data-budget-saving>
     {% for item in saving_rows %}
