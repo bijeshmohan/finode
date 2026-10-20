@@ -61,6 +61,19 @@
   <span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span>
 </a>
 {% endif %}
+{% if cards %}
+<details class="home-cards">
+  <summary><span>Cards to pay</span><span class="hc-amt">{{ cards_owed|money|amount(currency) }}</span><span class="hc-caret" aria-hidden="true">{{ icon("back") }}</span></summary>
+  <div class="tile cards-list">
+    {% for card in cards %}
+    <div class="r budget-card">
+      <div class="l1"><span>{{ card.path.split(":")[-1] }}</span><span class="{{ 'positive' if card.owed }}" title="Set aside for the next bill">{{ card.owed|money }}</span></div>
+      <div class="cap">{% if card.charged or card.paid %}Charged {{ card.charged|money }} · paid {{ card.paid|money }} in {{ mname }}{% else %}Nothing charged or paid in {{ mname }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
 <div class="section-head">
   <h2>Transactions</h2>
   <a href="/transactions?month={{ month_key }}">View all</a>

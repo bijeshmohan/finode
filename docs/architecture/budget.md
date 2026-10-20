@@ -63,7 +63,7 @@ Reports agree: Categories, the Month summary, the breakdown and the overview cou
 
 Spending on an unflagged card is not counted in a category; it is reported as `left_out` and the page offers "Add to budget" for that account.
 
-Credit cards need no assigning. The "Cards to pay" block shows what is owed at the month's end (`BudgetCard.owed`), with the month's charged and paid; it is the same arithmetic, made visible.
+Credit cards need no assigning. The collapsible "Cards to pay" row on Home shows what is owed at the month's end (`BudgetCard.owed`), with the month's charged and paid; it is the same arithmetic, made visible.
 
 ## Groups
 

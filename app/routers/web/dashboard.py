@@ -106,6 +106,8 @@ def dashboard(
             **_month_context(when, is_current),
             "glance": glance,
             "warning": warning,
+            "cards": month.cards,
+            "cards_owed": month.reserved_for_cards,
             "has_recorded": has_recorded,
             "recent": recent,
             "steps": steps if not all(step["done"] for step in steps) else None,
