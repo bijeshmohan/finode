@@ -61,7 +61,7 @@ With **Settings › Advanced** on, each category's target page lets you say what
 
 ## Home vs Budget
 
-Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. It sits in one box with a month picker at its top right (any past month; never a future one) and, along its bottom, what you *Earned*, *Assigned* and *Spent* in that month. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. Under it Home shows, once you have recorded something: a line under the box when a category is overspent, and last your latest transactions. The Budget page is for *deciding*, Home is for *glancing*.
+Home shows one number, *Left to spend in <month>*, with a thin bar: the total left across your categories. A month picker sits at the top right (any past month; never a future one), and under the bar three columns show what you *Earned*, *Assigned* and *Spent* in that month; tap them for that month's Summary. Before you have assigned anything it shows what you have spent this month and a link to set up the budget. Under it Home shows, once you have recorded something: a line when a category is overspent, and last your latest transactions. The Budget page is for *deciding*, Home is for *glancing*.
 
 ## If numbers disagree
 

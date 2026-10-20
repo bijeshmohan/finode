@@ -30,7 +30,7 @@
   {% endif %}
 </section>
 {% else %}
-<section class="glance home-box">
+<section class="glance">
   <div class="box-top">
     {% if glance.has_budget %}<div class="calc-row"><p class="glance-label">{{ "Over budget" if glance.left < 0 else "Left to spend" }}</p>{{ calc_button("what is left to spend") }}</div>
     {% else %}<p class="glance-label">Spent</p>{% endif %}
@@ -39,17 +39,17 @@
   {% if glance.has_budget %}
   <p class="glance-figure {{ 'over' if glance.left < 0 }}">{{ figure(glance.left, currency) }}</p>
   <div class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent{% if glance.pace is not none %}, and {{ glance.pace }}% of the month has passed{% endif %}"><i style="width: {{ glance.percent }}%"></i>{% if glance.pace is not none %}<b class="pace" style="left: {{ glance.pace }}%"></b>{% endif %}</div>
-  <p class="glance-note">Spent {{ glance.spent|money }} of {{ glance.of|money }} · <a href="/summary?month={{ month_key }}">Details</a></p>
   {{ calc_panel([("Carried in from earlier months", glance.carried, ""), ("Assigned in " ~ mname, glance.assigned, "+"), ("Spent so far" if is_current else "Spent", glance.spent, "−")], "Left to spend", glance.left, currency, "Each category's leftover, plus what you assigned this month, minus what you spent.") }}
   {% else %}
   <p class="glance-figure">{{ figure(summary.expenses, currency) }}</p>
-  <p class="glance-note"><a href="/budget?month={{ month_key }}">Set up your budget</a> to see what is left to spend · <a href="/summary?month={{ month_key }}">Details</a></p>
+  <p class="glance-note"><a href="/budget?month={{ month_key }}">Set up your budget</a> to see what is left to spend</p>
   {% endif %}
-  <div class="box-strip">
-    <div><p class="k">Earned</p><p class="v">{{ summary.income|money|amount(currency) }}</p></div>
-    <div><p class="k">Assigned</p><p class="v">{{ glance.assigned|money|amount(currency) }}</p></div>
-    <div><p class="k">Spent</p><p class="v">{{ summary.expenses|money|amount(currency) }}</p></div>
-  </div>
+  <a class="home-strip" href="/summary?month={{ month_key }}" aria-label="Details of the month">
+    <span><span class="k">Earned</span><span class="v">{{ summary.income|money|amount(currency) }}</span></span>
+    <span><span class="k">Assigned</span><span class="v">{{ glance.assigned|money|amount(currency) }}</span></span>
+    <span><span class="k">Spent</span><span class="v">{{ summary.expenses|money|amount(currency) }}</span></span>
+    <span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span>
+  </a>
 </section>
 {% endif %}
 
