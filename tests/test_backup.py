@@ -41,6 +41,7 @@ def rich(client, root_accounts):
     food = acct(client, "Food", root_accounts["Expenses"])
     groceries = acct(client, "Groceries", food["aid"])
     emi = acct(client, "EMI", root_accounts["Expenses"])
+    acct(client, "Mutual Funds", root_accounts["Assets"], on_budget=False, saving=True)
     salary = acct(client, "Salary", root_accounts["Income"])
     client.patch(f"/api/accounts/{loan['aid']}", json={"payment_category_id": emi["aid"]})
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
@@ -91,7 +92,7 @@ def canonical(doc: dict) -> dict:
     return {
         "profile": doc["profile"],
         "accounts": sorted(
-            (paths[a["id"]], a["details"], a["on_budget"], a["closed_on"] is not None,
+            (paths[a["id"]], a["details"], a["on_budget"], a["saving"], a["closed_on"] is not None,
              paths.get(a["payment_category_id"]), a["position"])
             for a in doc["accounts"]
         ),
@@ -120,7 +121,7 @@ def test_the_backup_has_everything(client, rich):
     names = {a["name"] for a in doc["accounts"]}
     assert {"Banks", "HDFC", "Old Savings", "Visa", "Home Loan", "Groceries", "EMI", "Opening Balances", "Assets"} <= names
     assert any(a["closed_on"] for a in doc["accounts"]) and any(a["payment_category_id"] for a in doc["accounts"])
-    assert any(a["on_budget"] for a in doc["accounts"])
+    assert any(a["on_budget"] for a in doc["accounts"]) and any(a["saving"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
     assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 3

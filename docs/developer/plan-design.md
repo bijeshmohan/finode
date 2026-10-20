@@ -1,6 +1,6 @@
 # Plan: design proposal
 
-**Status: design agreed 2026-10-20 (page arrangement P2, the five decisions below as recommended); building phase by phase.** Written at the owner's request. The feature freeze (since 2026-10-14) is lifted for this feature only; everything else stays frozen. The scope below is introduced in phases, one merge at a time, and each phase is shown to the owner (mock-ups, then real screenshots) before it is merged.
+**Status: design agreed 2026-10-20 (page arrangement P2, the five decisions below as recommended); building phase by phase (phase 1, Save, built on branch `feature/plan-save`).** Written at the owner's request. The feature freeze (since 2026-10-14) is lifted for this feature only; everything else stays frozen. The scope below is introduced in phases, one merge at a time, and each phase is shown to the owner (mock-ups, then real screenshots) before it is merged.
 
 ## The idea
 
@@ -34,7 +34,7 @@ The budget's identity is the contract (`tests/test_ledger_fuzz.py` checks it):
 
 `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − assigned_to_later_months`
 
-**Spend** is unchanged.
+**Spend** is unchanged. (Phase 1 added one term to keep Home's *Left to spend* Spend-only: `− saving_available`, the Save lines' available money.)
 
 **Save behaves, in arithmetic, exactly like a Spend line.** Take a Save line with 5,000 assigned. When 5,000 is moved from a budget account to the fund, cash falls by 5,000 and the line's *activity* is 5,000, so its *available* is `assigned − activity = 0`. Ready to assign does not move, which is right: the money had a job and did it. Before the transfer, assigning 5,000 to the line lowers Ready to assign by 5,000, which is also right: that money is spoken for. So the identity needs **no change**, only a second source of "activity": debits into the Save account in transactions that touch a budget account. That is precisely the rule the payment category already uses for loans (`AccountService.payments_into_loans`), applied to the account itself instead of a category. This keeps phase 1 small and keeps the fuzz identity valid.
 

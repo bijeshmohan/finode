@@ -114,3 +114,15 @@ def test_accounts_and_categories_have_their_own_page(client, books):
     for place in ("transactions", "accounts", "categories"):
         assert 'href="/transactions/deleted"' in client.get(f"/{place}/deleted").text, "the three pages link to each other"
 
+
+
+def test_a_deleted_account_planned_for_saving_comes_back_planned_for_saving(client, books, svc):
+    fund = books["make"]("Fund", books["roots"]["Assets"], on_budget=False, saving=True)
+    client.put(f"/api/budget/categories/{fund}", json={"month": THIS_MONTH.isoformat(), "amount": "900"})
+    assert client.delete(f"/api/accounts/{fund}").status_code == 204
+    [gone] = deleted(svc)
+    assert came_back(restore(client, gone["did"]))
+    back = client.get(f"/api/accounts/{fund}").json()
+    assert back["saving"] is True and back["on_budget"] is False
+    saving = client.get("/api/budget/").json()["saving"]
+    assert [(s["name"], s["assigned"]) for s in saving] == [("Fund", "900.00")]

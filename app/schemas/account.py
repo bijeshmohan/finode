@@ -39,6 +39,8 @@ class AccountCreate(AccountBase):
     )
     # Whether the account's money is part of the budget. Default: yes for a new asset account.
     on_budget: bool | None = None
+    # For an asset outside the budget: plan to save into it (a line of the plan's Save section).
+    saving: bool = False
     # For an account outside the budget: the expense category that payments into it are budgeted under.
     payment_category_id: UUID | None = None
 
@@ -48,6 +50,8 @@ class AccountRead(AccountBase):
     balance: Decimal  # a sum: no digit limits, see schemas/budget.py
     # True when the account's money is part of the budget.
     on_budget: bool = False
+    # An asset outside the budget that is planned for in the Save section.
+    saving: bool = False
     # An account outside the budget: the expense category that payments into it are budgeted under.
     payment_category_id: UUID | None = None
     # The day it was closed (no more postings; its history stays), or null while it is open.
@@ -68,6 +72,7 @@ class AccountUpdate(BaseModel):
         max_digits=24,
     )
     on_budget: bool | None = None
+    saving: bool | None = None
     # Send null to remove it; leave it out to keep it.
     payment_category_id: UUID | None = None
 

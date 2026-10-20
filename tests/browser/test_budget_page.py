@@ -1,5 +1,6 @@
 """The budget page in a browser: assigning in place, copying last month, what is ready to assign."""
 
+import re
 from datetime import date, timedelta
 
 from playwright.sync_api import Page, expect
@@ -295,3 +296,30 @@ def test_save_works_after_the_keyboard_is_put_away_with_its_own_button(page: Pag
     assert page.request.get("/api/budget/").ok
     page.evaluate("window.__keyboard(0)")
     page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})
+
+
+def test_the_save_chip_plans_for_an_account_you_save_into(page: Page, books, api: Api):
+    fund = api.post("/accounts/", name="Mutual Funds", parent_id=books["roots"]["Assets"], on_budget=False, saving=True)
+    page.goto("/budget")
+    chips = page.locator(".cat-chips .chip")
+    expect(chips).to_have_text(["Spend", "Save"])
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Spend")
+    expect(page.locator("a.catrow", has_text="Mutual Funds")).to_have_count(0)
+    page.locator(".cat-chips .chip", has_text="Save").click()
+    page.wait_for_url(re.compile(r"tab=save"))
+    row = page.locator("[data-budget-saving] a.catrow", has_text="Mutual Funds")
+    expect(row).to_be_visible()
+    row.click()
+    box = page.locator('#cat-sheet input[aria-label="Assigned to Mutual Funds"]')
+    expect(box).to_be_visible()
+    box.fill("1500")
+    page.locator("#cat-sheet").get_by_role("button", name="Save").click()
+    expect(page.locator("#cat-sheet")).not_to_be_visible()
+    assert ready(page) == "₹3,500.00", "assigned: taken out of what is ready"
+    expect(page.locator("[data-budget-saving]")).to_be_visible()  # still on Save after the swap
+    expect(page.locator("[data-budget-tree]")).to_have_count(0)
+    api.post("/transactions/", postings=[
+        {"account": fund["aid"], "side": "debit", "amount": "1500"},
+        {"account": books["checking"]["aid"], "side": "credit", "amount": "1500"}])
+    page.reload()
+    assert ready(page) == "₹3,500.00", "moving it in does the job and changes nothing else"

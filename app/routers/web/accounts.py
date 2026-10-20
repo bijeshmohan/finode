@@ -290,9 +290,11 @@ def create_account(
     details: Annotated[str, Form()] = "",
     balance: Annotated[str, Form()] = "",
     on_budget: Annotated[str | None, Form()] = None,
+    saving: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
     payment_category: Annotated[str, Form()] = "",
 ):
+    plan_saving = saving is not None and on_budget is None
     try:
         if not parent_id:
             raise ValueError("choose where the account belongs!")
@@ -303,7 +305,8 @@ def create_account(
             balance=parse_amount(balance, Decimal("0.00")),
             # The form asked (budget_choice): its box says yes or no. Without it the default applies (an asset: yes).
             on_budget=None if budget_choice is None else on_budget is not None,
-            payment_category_id=None if on_budget is not None or not payment_category.strip() else UUID(payment_category.strip()),
+            saving=plan_saving and budget_choice is not None,
+            payment_category_id=None if on_budget is not None or plan_saving or not payment_category.strip() else UUID(payment_category.strip()),
         )
         created = accounts.create(data)
     except ValidationError as e:
@@ -487,6 +490,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "root_name": root.account.name,
             "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
             "on_budget": node.account.on_budget,
+            "saving": node.account.saving,
             "payment_category_id": node.account.payment_category_id,
             "category_options": _category_options(roots),
             "parent_options": [
@@ -507,6 +511,7 @@ def update_account(
     details: Annotated[str, Form()] = "",
     balance: Annotated[str | None, Form()] = None,
     on_budget: Annotated[str | None, Form()] = None,
+    saving: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
     payment_category: Annotated[str, Form()] = "",
 ):
@@ -529,9 +534,12 @@ def update_account(
         if budget_choice is not None and (on_budget is not None) != current.on_budget:
             changes["on_budget"] = on_budget is not None
         if budget_choice is not None:
-            wanted = None if on_budget is not None or not payment_category.strip() else UUID(payment_category.strip())
+            plan_saving = saving is not None and on_budget is None
+            wanted = None if on_budget is not None or plan_saving or not payment_category.strip() else UUID(payment_category.strip())
             if wanted != current.payment_category_id:
                 changes["payment_category_id"] = wanted
+            if plan_saving != current.saving:
+                changes["saving"] = plan_saving
         if changes:
             accounts.update(aid, AccountUpdate(**changes))
     except ValidationError as e:

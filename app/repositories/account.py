@@ -59,11 +59,12 @@ class AccountRepository:
         data: AccountUpdate,
         on_budget: bool | None = None,
         payment_category: UUID | None | type(...) = ...,
+        saving: bool | None = None,
     ) -> Account | None:
         account = self.read(aid)
         if not account:
             return None
-        values = data.model_dump(exclude_unset=True, exclude={"balance", "on_budget", "payment_category_id"})
+        values = data.model_dump(exclude_unset=True, exclude={"balance", "on_budget", "payment_category_id", "saving"})
         if "parent_id" in values and values["parent_id"] != account.parent_id:
             account.position = None  # in a new group it starts alphabetically, after the ones placed by hand
         for key, value in values.items():
@@ -72,6 +73,8 @@ class AccountRepository:
             account.on_budget = on_budget
         if payment_category is not ...:
             account.payment_category_id = payment_category
+        if saving is not None:
+            account.saving = saving
         self.db.add(account)
         self.db.flush()
         return account
