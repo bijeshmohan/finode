@@ -168,3 +168,13 @@ def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Pa
     page.wait_for_url("**/accounts/*")
     loan = next(a for a in api.get("/accounts/") if a["name"] == "Car loan")
     assert loan["on_budget"] is False and loan["payment_category_id"] == books["rent"]["aid"]
+
+
+def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Page, api, books):
+    for url in ("/accounts/new?root=assets", f"/accounts/new?parent={books['checking']['aid']}"):
+        page.goto(url)
+        box = page.locator('input[name="on_budget"]')
+        expect(box).to_be_checked()
+        box.uncheck()
+        expect(box).not_to_be_checked()
+        expect(page.locator("[data-payment-category]")).to_be_visible()

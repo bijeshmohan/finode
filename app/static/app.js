@@ -693,7 +693,8 @@ document.body.addEventListener("change", (event) => {
     if (event.target.matches && event.target.matches('form select[name="parent_id"]')) apply(event.target);
   });
   const first = document.querySelector('[data-budget-fields]');
-  const select = first && first.form && first.form.querySelector('select[name="parent_id"]');
+  const formOf = first && first.closest("form");
+  const select = formOf && formOf.querySelector('select[name="parent_id"]');
   if (select && select.value) {
     // The parent is already chosen (from an account's page): the server drew the right state; only disable what is hidden.
     first.querySelectorAll("input, select").forEach((el) => { el.disabled = first.hidden; });
