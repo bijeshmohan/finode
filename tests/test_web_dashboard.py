@@ -172,7 +172,7 @@ def test_the_latest_entries_on_home_sit_under_a_transactions_heading(
         {"account": account["aid"], "side": "credit", "amount": "5"}]})
     page = client.get("/").text
     assert "<h2>Transactions</h2>" in page and "<h2>Recent</h2>" not in page
-    assert 'href="/transactions">View all</a>' in page
+    assert 'href="/transactions?month=' + date.today().strftime('%Y-%m') + '">View all</a>' in page
 
 
 def test_the_i_on_home_shows_the_sum_with_the_persons_own_numbers(
@@ -245,5 +245,10 @@ def test_the_month_pill_in_the_box_shows_another_month_and_never_a_future_one(
     before_html = client.get("/", params={"month": f"{last:%Y-%m}"}).text
     before = _words(before_html)
     assert "Spent ₹300.00" in before and f"{last:%b} {last:%Y}" in before and 'class="pace"' not in before_html
+    rows = before_html[before_html.index("<h2>Transactions</h2>"):]
+    assert "300.00" in rows and "100.00" not in rows, "an older month lists its own entries, not the latest ones"
+    empty = client.get("/", params={"month": f"{(last - timedelta(days=40)):%Y-%m}"}).text
+    assert "Nothing was recorded in" in empty and "Nothing recorded yet" not in empty, "an empty month keeps the box and the page"
+    assert f'href="/transactions?month={last:%Y-%m}"' in before_html
     ahead = _words(client.get("/", params={"month": "2999-01"}).text)
     assert "Spent ₹100.00" in ahead, "a month that has not started opens this month"
