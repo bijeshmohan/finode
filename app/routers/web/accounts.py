@@ -87,6 +87,9 @@ def _find(roots: list[Node], aid: UUID) -> Node | None:
     return next((n for root in roots for n in root.walk() if n.account.aid == aid), None)
 
 
+CATEGORY_TABS = {"expense": "Expenses", "income": "Income"}
+
+
 def _parent_options(
     roots: list[Node],
     exclude: Node | None = None,
@@ -193,9 +196,9 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
     everything = build_tree(accounts.list())
     roots = [r for r in everything if r.account.name in allowed]
     root_of = {n.account.aid: r.account.name for r in roots for n in r.walk()}
-    only = ACCOUNT_TABS.get(root.lower()) if kind == "account" else None
+    only = (ACCOUNT_TABS if kind == "account" else CATEGORY_TABS).get(root.lower())
     if only:
-        # Opened from a type's tab on the Accounts page: only that type's accounts can be made.
+        # Opened from a type's tab on the Accounts or Categories page: only that type's accounts can be made.
         parent_roots = [r for r in roots if r.account.name == only]
         if parent is None or root_of.get(parent) != only:
             parent = parent_roots[0].account.aid if parent_roots else None
