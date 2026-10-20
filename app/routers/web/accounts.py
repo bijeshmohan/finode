@@ -87,19 +87,6 @@ def _find(roots: list[Node], aid: UUID) -> Node | None:
     return next((n for root in roots for n in root.walk() if n.account.aid == aid), None)
 
 
-# What the new-account form offers instead of a list of parents: the type picks the root, whether the account starts in
-# the budget, and (when a group of the person's own has a matching word in its name) the group. Presentation only.
-ACCOUNT_TYPES = [
-    {"key": "bank", "label": "Bank", "root": "Assets", "budget": True, "match": "bank"},
-    {"key": "cash", "label": "Cash", "root": "Assets", "budget": True, "match": "cash,wallet"},
-    {"key": "credit", "label": "Credit", "root": "Liabilities", "budget": True, "match": "credit,card"},
-    {"key": "loan", "label": "Loan", "root": "Liabilities", "budget": False, "match": "loan"},
-    {"key": "investment", "label": "Investment", "root": "Assets", "budget": False, "match": "invest"},
-    {"key": "property", "label": "Property", "root": "Assets", "budget": False, "match": "propert,vehicle"},
-    {"key": "other", "label": "Other", "root": "Assets", "budget": False, "match": ""},
-]
-
-
 def _parent_options(
     roots: list[Node],
     exclude: Node | None = None,
@@ -206,14 +193,6 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
     everything = build_tree(accounts.list())
     roots = [r for r in everything if r.account.name in allowed]
     root_of = {n.account.aid: r.account.name for r in roots for n in r.walk()}
-    account_type = None
-    if kind == "account":
-        # Without a parent the form starts as a bank account: Assets, in the budget. A parent given (from a group's
-        # page) picks the first type of its root and keeps the group.
-        by_name = {r.account.name: r.account.aid for r in roots}
-        if parent is None or root_of.get(parent) not in ("Assets", "Liabilities"):
-            parent = by_name.get("Assets")
-        account_type = next(t["key"] for t in ACCOUNT_TYPES if t["root"] == root_of.get(parent, "Assets"))
     return templates.TemplateResponse(
         request,
         "account_form.html",
@@ -221,8 +200,6 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "active": "categories" if kind == "category" else "accounts",
             "kind": kind,
             "hide_fab": True,
-            "account_types": ACCOUNT_TYPES,
-            "account_type": account_type,
             "node": None,
             "parent_id": parent,
             "parent_options": _parent_options(roots),
@@ -230,7 +207,7 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "root_name": root_of.get(parent),
             "root_of": root_of,
             "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
-            "on_budget": next((t["budget"] for t in ACCOUNT_TYPES if t["key"] == account_type), False),  # the type's default
+            "on_budget": root_of.get(parent) == "Assets",  # an asset starts in the budget; a card or loan, outside it
             "category_options": _category_options(everything),
         },
     )
