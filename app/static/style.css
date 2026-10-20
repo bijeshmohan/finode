@@ -789,14 +789,8 @@ form.copy-last button { margin: 0; }
 .segmented.kinds { flex-wrap: nowrap; }
 .segmented.kinds button { flex: 1 1 0; min-width: 0; padding-left: .25rem; padding-right: .25rem; }
 .muted.calc { font-size: .82rem; margin: .25rem 0 .75rem; font-variant-numeric: tabular-nums; }
-.cards-list { margin-bottom: .25rem; }
-/* Home's collapsible "Cards to pay" row: the name, what is owed in all, a caret; opened, one row per card. */
-.home-cards { margin: 0 0 .75rem; }
-.home-cards > summary { display: flex; align-items: center; gap: .6rem; min-height: 3rem; padding: 0 1rem; cursor: pointer; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 16px; font-weight: 500; }
-.home-cards[open] > summary { margin-bottom: .5rem; }
-.home-cards .hc-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
-.home-cards .hc-caret { display: inline-flex; color: var(--faint); transform: rotate(-90deg); transition: transform .15s; }
-.home-cards[open] .hc-caret { transform: rotate(90deg); }
+/* Home's credit row is the upcoming card's look (.upcoming) with one line per credit account. */
+.home-credit { margin: 0 0 .75rem; }
 
 /* ---------- Sign-in and sign-up ---------- */
 .login-notice { color: var(--positive); background: var(--accent-soft); border-radius: var(--radius-sm); padding: .6rem .75rem; margin: .5rem 0; }
