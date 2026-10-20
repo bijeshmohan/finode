@@ -63,8 +63,12 @@
 {% endif %}
 <div class="section-head">
   <h2>Transactions</h2>
-  <a href="/transactions">View all</a>
+  <a href="/transactions?month={{ month_key }}">View all</a>
 </div>
+{% if recent %}
 {% with rows=recent %}{% include "partials/transaction_list.html" %}{% endwith %}
+{% else %}
+<p class="muted">Nothing was recorded in {{ mname }}.</p>
+{% endif %}
 {% endif %}
 {% endblock %}

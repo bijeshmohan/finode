@@ -42,7 +42,12 @@ def dashboard(
     summary = reports.summary() if is_current else reports.summary(when, when.replace(day=calendar.monthrange(when.year, when.month)[1]))
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts)
-    recent = [to_row(t, index) for t in transactions.list(date_to=local_today(), limit=RECENT_LIMIT)]  # entries dated ahead are not recent
+    latest = [to_row(t, index) for t in transactions.list(date_to=local_today(), limit=RECENT_LIMIT)]  # entries dated ahead are not recent
+    # An older month lists its own entries, newest first; this month lists the latest ones.
+    recent = latest if is_current else [
+        to_row(t, index)
+        for t in transactions.list(date_from=when, date_to=when.replace(day=calendar.monthrange(when.year, when.month)[1]), limit=RECENT_LIMIT)
+    ]
 
     roots = {a.name: a.aid for a in all_accounts if a.parent_id is None}
     system_ids = {a.aid for a in all_accounts if AccountService.is_opening_balances(a, all_accounts)}
@@ -51,7 +56,7 @@ def dashboard(
     }
     # Opening balances are bookkeeping, not a transaction the user recorded.
     has_recorded = any(
-        not any(p.account in system_ids for p in row.transaction.postings) for row in recent
+        not any(p.account in system_ids for p in row.transaction.postings) for row in latest
     )
     steps = [
         {
