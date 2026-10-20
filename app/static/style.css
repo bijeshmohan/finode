@@ -893,15 +893,19 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .glance-bar { margin-top: .9rem; height: var(--bar-h); border-radius: calc(var(--bar-h) / 2); background: var(--border); overflow: hidden; }
 .glance-bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .glance-note { margin: .5rem 0 0; font-size: .8125rem; color: var(--muted); }
-/* Home under the figure: an overspent warning, four tiles */
+/* Home: the bento box around the figure (month pill, bar, Earned / Assigned / Spent) and an overspent warning */
 .home-alert { display: flex; align-items: center; gap: .65rem; margin: .25rem 0 .75rem; padding: .7rem .9rem; background: var(--warn-soft); border: 1px solid var(--tile-border); border-radius: 14px; color: var(--text); text-decoration: none; font-size: .9375rem; }
 .home-alert .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--warn); flex: none; }
 .home-alert > span:nth-child(2) { flex: 1; min-width: 0; }
-.home-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-top: .25rem; }
-.home-tile { min-width: 0; padding: .9rem 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 16px; }
-.home-tile .k { margin: 0; font-size: .8125rem; color: var(--muted); }
-.home-tile .v { margin: .2rem 0 0; font-size: 1.25rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.home-tile .v small { display: block; margin-top: .15rem; font-size: .75rem; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+.home-box { margin: .25rem 0 .75rem; padding: .9rem 1rem 0; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 18px; overflow: hidden; }
+.home-box .box-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+.home-box .box-top .month-pill { flex: none; margin-top: -.35rem; margin-right: -.25rem; }
+.home-box .glance-note { margin-bottom: 1rem; }
+.box-strip { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0 -1rem; border-top: 1px solid var(--tile-border); }
+.box-strip > div { min-width: 0; padding: .7rem .75rem .8rem 1rem; border-left: 1px solid var(--tile-border); }
+.box-strip > div:first-child { border-left: 0; }
+.box-strip .k { margin: 0; font-size: .75rem; color: var(--muted); }
+.box-strip .v { margin: .1rem 0 0; font-size: .9375rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .home-empty { padding: .5rem 0 1rem; }
 .home-headline { margin: .25rem 0 .5rem; font-size: 1.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
 .section-label { margin: 2rem 0 .25rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
