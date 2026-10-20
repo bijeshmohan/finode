@@ -1,6 +1,6 @@
 # Plan: design proposal
 
-**Status: proposal, nothing built.** Written 2026-10-20 at the owner's request. The feature freeze (since 2026-10-14) is lifted for this feature only; everything else stays frozen. The scope below is introduced in phases, one merge at a time, and each phase is shown to the owner (mock-ups, then real screenshots) before it is merged.
+**Status: design agreed 2026-10-20 (page arrangement P2, the five decisions below as recommended); building phase by phase.** Written at the owner's request. The feature freeze (since 2026-10-14) is lifted for this feature only; everything else stays frozen. The scope below is introduced in phases, one merge at a time, and each phase is shown to the owner (mock-ups, then real screenshots) before it is merged.
 
 ## The idea
 
@@ -61,13 +61,13 @@ Today a SIP is made to look like spending by giving the fund a payment category 
 
 ## The page
 
-`/plan` replaces `/budget` (the old path redirects). The tab and the sidebar say **Plan**. The page keeps what the Budget has (Ready to assign hero, month pill, the "Needs you" badge, the ranked list, group pages, sheets), and gains the Save and Earn sections and the overview sentence. Mock-ups show three arrangements. The JSON API stays at `/api/budget` in phase 1 and the assistants' tools keep their names; new tools come with the phases (`get_plan`).
+**Arrangement P2 (chosen by the owner so the page is built like Accounts and Categories):** a title row with the month pill at the right, then one row of chips **Spend · Save · Earn** (Spend is the default, `?tab=spend|save|earn`), then Ready to assign and the one-line sum, then the chosen section's list. The hero and the sum stay on top whichever chip is chosen. Earn's chip is only there when Advanced is on. `/plan` replaces `/budget` in phase 3 (the old path redirects); until then the page is still `/budget` and still titled Budget, and the chips appear as the sections arrive: **Save in phase 1**, Earn in phase 2. The JSON API stays at `/api/budget` and the assistants' tools keep their names; new tools come with the phases (`get_plan`).
 
 ## Phases
 
 Every phase ends with: unit and browser tests green (Chromium and WebKit), the docs (`CLAUDE.md`, guide, architecture) updated, mock-ups then screenshots shown, and "Merge and deploy" from the owner.
 
-1. **Save.** `accounts.saving`, Save lines in the plan (assign, activity, targets), reports exclude them from spending, backup, the conversion step for the two existing accounts, tests (the fuzz identity includes Save lines). No page rename yet: Save appears as a section on the Budget page.
+1. **Save.** `accounts.saving`, Save lines in the plan (assign, activity, targets), reports exclude them from spending, backup, the conversion step for the two existing accounts, tests (the fuzz identity includes Save lines). No page rename yet: the Budget page gets the chips (Spend, Save) and Save is the second chip.
 2. **Earn.** Allocations on Income accounts, expected versus received, behind **Advanced** (the owner said "optionally"). The overview sentence.
 3. **Plan.** The rename (page, tab, route redirect, docs, tools), the overview, copy last month for all three sections.
 
@@ -82,10 +82,11 @@ Each phase is shippable on its own; stopping after phase 1 still fixes the compl
 - **Isolation, backup and erase.** `accounts.saving` is a column on a table that is already user-scoped, backed up and erased; `tests/test_backup.py` and `tests/test_isolation.py` cover it.
 - **Scope creep.** Goals with photos, interest calculations, projections and a savings rate are **not** part of this. Targets reuse the ones that exist.
 
-## Decisions for the owner
+## Decisions (owner, 2026-10-20)
 
-1. **Earn behind Advanced?** Recommended: yes ("optionally").
-2. **Does Earn ever feed Ready to assign?** Recommended: no (expected is not money).
-3. **How are the two existing links converted?** Recommended: switch the account to Save, clear its payment category, keep the old category and its history (it just stops receiving new amounts).
-4. **Should an off-budget asset become a Save line automatically?** Recommended: no; it is a switch on the account ("Plan for saving"), because most off-budget assets (a house, a car) are not saved into every month.
-5. **Rename the Budget tab to Plan in phase 3 or earlier?** Recommended: phase 3, when the page really holds three sections.
+1. **Page arrangement:** P2, chips Spend · Save · Earn.
+2. **Earn behind Advanced:** yes.
+3. **Earn never feeds Ready to assign:** agreed.
+4. **Existing links** (Mutual Funds, Recurring): switched to Save by a conversion step, payment category cleared, old categories keep their history.
+5. **Saving is a switch on the account, never automatic.**
+6. **The tab is renamed to Plan in phase 3.**
