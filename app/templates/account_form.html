@@ -14,41 +14,73 @@
     <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
            placeholder="{{ 'e.g. Groceries' if cat else 'e.g. HDFC Savings' }}" {{ "autofocus" if not editing }}>
   </label>
-  <label>Belongs under
+  {% set typed = not editing and not cat %}
+  {% set parent_field %}
+  <label>{{ "Group" if typed else "Belongs under" }}
     <select name="parent_id" required>
       {% if not editing %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
-      <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}{% if root_of and not cat %} data-root="{{ root_of[n.account.aid] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
+      <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}{% if root_of and not cat %} data-root="{{ root_of[n.account.aid] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
       {% endfor %}
     </select>
-    <span class="hint">{% if cat %}Expenses: what you spend on · Income: where money comes from{% else %}Assets: bank, cash, wallets · Liabilities: cards, loans{% endif %}</span>
+    {% if not typed %}<span class="hint">{% if cat %}Expenses: what you spend on · Income: where money comes from{% else %}Assets: what you own · Liabilities: what you owe{% endif %}</span>{% endif %}
   </label>
-  {% if not cat and (not editing or node.is_leaf) %}
-  <label>{{ "Balance" if editing else "Current balance" }}
-    <input type="text" name="balance" inputmode="decimal" placeholder="0.00"
-           value="{{ node.account.balance if editing else '' }}">
-    <span class="hint">{{ "Changing this records an adjustment against Opening Balances." if editing else "Optional. Recorded as an opening balance." }}</span>
-  </label>
-  {% endif %}
+  {% endset %}
+  {% set budget_fields %}
   {% if not cat and (editing and can_budget or not editing) %}
   <div class="stack" data-budget-fields {{ "hidden" if not can_budget }}>
   <input type="hidden" name="budget_choice" value="1">
   <label class="check">
     <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
-    <span>Part of the budget <span class="hint">Its money is what you assign to categories{{ " (a card counts as money you owe)" if root_name == "Liabilities" }}. Leave off for savings you don't budget, loans or investments.</span></span>
+    <span>Part of the budget <span class="hint">Its money is what you assign to categories{{ " (a card counts as money you owe)" if root_name == "Liabilities" }}.</span></span>
   </label>
-  <label data-payment-category {{ "hidden" if on_budget }}>Budget payments to this account under
+  <label data-payment-category {{ "hidden" if on_budget }}>Payments to this account count under
     <select name="payment_category">
       <option value="">No category</option>
       {% for aid, path in category_options %}<option value="{{ aid }}" {{ "selected" if aid == payment_category_id }}>{{ path }}</option>{% endfor %}
     </select>
-    <span class="hint">For a loan: paying its EMI then spends this category, so assign the EMI to it each month. Interest the lender charges stays outside the budget.</span>
+    <span class="hint">For a loan: paying its EMI spends this category.</span>
   </label>
   </div>
   {% endif %}
+  {% endset %}
+  {% set notes_field %}
   <label>Notes
     <input type="text" name="details" maxlength="200" value="{{ (node.account.details or '') if editing else '' }}">
   </label>
+  {% endset %}
+  {% if typed %}
+  <div class="type-field" role="radiogroup" aria-label="Type">
+    <span>Type</span>
+    <div class="chips type-chips" data-account-types>
+      {% for t in account_types %}
+      <label class="type-chip"><input type="radio" name="account_type" value="{{ t.key }}" data-root="{{ t.root }}" data-match="{{ t.match }}" data-budget="{{ 1 if t.budget else 0 }}" {{ "checked" if t.key == account_type }}><span>{{ t.label }}</span></label>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  {{ parent_field }}
+  {% endif %}
+  {% if not cat and (not editing or node.is_leaf) %}
+  <label>{{ "Balance" if editing else "Current balance" }}
+    <input type="text" name="balance" inputmode="decimal" placeholder="0.00"
+           value="{{ node.account.balance if editing else '' }}">
+    {% if editing %}<span class="hint">Changing this records an adjustment against Opening Balances.</span>{% endif %}
+  </label>
+  {% endif %}
+  {% if typed %}
+  <details class="more">
+    <summary>More options</summary>
+    <div class="stack">
+      {{ parent_field }}
+      {{ budget_fields }}
+      {{ notes_field }}
+    </div>
+  </details>
+  {% else %}
+  {{ budget_fields }}
+  {{ notes_field }}
+  {% endif %}
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions">
     <button type="submit">{{ "Save changes" if editing else "Add " ~ noun }}</button>
