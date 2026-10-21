@@ -33,6 +33,7 @@ def advanced_features_on(monkeypatch: pytest.MonkeyPatch):
     from app.repositories import profile
 
     monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", True)
+    monkeypatch.setattr(profile, "NEW_PROFILE_PLAN_EARN", True)
 
 
 @pytest.fixture(autouse=True)

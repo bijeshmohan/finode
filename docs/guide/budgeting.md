@@ -1,6 +1,6 @@
 # Budgeting and the Plan
 
-The tab is called **Plan** (it was the Budget tab; `/budget` addresses still arrive there). Its first chip, **Spend**, is the budget described below; **Build** (it was Save) and **Earn** are at the end of this page.
+The tab is called **Plan** (it was the Budget tab; `/budget` addresses still arrive there). The round **sliders** button beside the chips lists the sections you use (Spend is always on; switch **Build** and **Earn** on or off, and pick which accounts are in Build) and a hidden section keeps its amounts. Its first chip, **Spend**, is the budget described below; **Build** (it was Save) and **Earn** are at the end of this page.
 
 finode uses **envelope budgeting**: you give every rupee in your budget accounts a job (a category), and you spend from the category. When a category is empty you either move money in from another one or you overspend, and the app shows it.
 
@@ -73,6 +73,6 @@ The **Plan**, the **Categories** page and the overview all count a loan payment 
 
 Money you move into something you keep (a mutual fund, a deposit), or use to pay down a loan, is not spending. Open that account (an asset or a loan; it must not be part of the budget) and switch on **Plan under Build** on its edit page. On the Plan page the **Build** chip then lists it: tap it to assign what you plan to move in this month, exactly as you give a category money. Assigning takes the money out of *Ready to assign*; when you then transfer it into the account, the line shows it as *moved* and nothing else changes. These transfers never count as spending anywhere (Home, Categories, the reports), and a target (Advanced) works on a Build line too. For a loan the row reads *paid down* and shows what is still owed. Record the EMI as two rows of one entry (principal to the loan, interest to an Interest expense) so only the interest counts as spending. If the account had a payment category, switching it on removes it: paying into the account is no longer an expense. A loan can still be budgeted the old way (a payment category, as Spend) if you leave Build off.
 
-## Earn (Advanced)
+## Earn
 
-With **Advanced** on, the Plan page has a third chip, **Earn**. It lists your income accounts: tap one to say what you expect from it this month (a salary, interest). The page shows what has arrived so far, and above the list **the month in one line**: what you expect, minus what you assigned to saving, minus what you budgeted to spend, is what is left unplanned (or "Over-planned" when it is negative). Expected income is a forecast: it never adds to *Ready to assign*; only money that has actually arrived does. "Copy last month's amounts" copies what you expected too.
+When you switch **Earn** on (the sliders button), the Plan page has a third chip, **Earn**. It lists your income accounts: tap one to say what you expect from it this month (a salary, interest). The page shows what has arrived so far, and above the list **the month in one line**: what you expect, minus what you assigned to saving, minus what you budgeted to spend, is what is left unplanned (or "Over-planned" when it is negative). Expected income is a forecast: it never adds to *Ready to assign*; only money that has actually arrived does. "Copy last month's amounts" copies what you expected too.

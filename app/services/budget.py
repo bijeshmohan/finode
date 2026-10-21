@@ -155,6 +155,34 @@ class BudgetService:
             and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
         }
 
+    def build_choices(self) -> list[dict]:
+        """Every open asset or loan outside the budget that could be a Build line, with whether it is one: what the
+        Plan's configure sheet lists."""
+        accounts = self.accounts.ar.list()
+        by_id = {a.aid: a for a in accounts}
+        parents = {a.parent_id for a in accounts}
+        choices = [
+            {
+                "aid": a.aid, "name": a.name, "path": ":".join(self._path(a, by_id)), "saving": a.saving,
+                "debt": AccountService.root_name(a, by_id) == "Liabilities", "has_payment_category": a.payment_category_id is not None,
+            }
+            for a in accounts
+            if a.parent_id is not None and not a.on_budget and a.closed_on is None and a.aid not in parents
+            and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
+        ]
+        return sorted(choices, key=lambda c: (not c["saving"], c["path"]))
+
+    def set_build(self, chosen: set[UUID]) -> None:
+        """Make exactly `chosen` the accounts planned under Build (among those build_choices lists); the others keep
+        their amounts, as when the switch on an account's own page is turned off."""
+        choices = self.build_choices()
+        if not chosen <= {c["aid"] for c in choices}:
+            raise BudgetError("only an open asset or debt that is not part of the budget can be planned under Build!")
+        for choice in choices:
+            wanted = choice["aid"] in chosen
+            if wanted != choice["saving"]:
+                self.accounts.update(choice["aid"], AccountUpdate(saving=wanted))
+
     def _earnings(self, accounts: list[Account], by_id: dict[UUID, Account]) -> dict[UUID, Account]:
         """Income accounts a month's expected income can be set for (the Earn section's lines): every account below
         Income, groups included (a group's own account can be posted to)."""

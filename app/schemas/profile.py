@@ -19,6 +19,9 @@ class ProfileUpdate(BaseModel):
     # Close the books up to and including this day (a day before today at the latest); null opens them again.
     locked_through: Day | None = None
     advanced: bool | None = None
+    # Show the Build and Earn sections of the Plan.
+    plan_build: bool | None = None
+    plan_earn: bool | None = None
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -38,5 +41,7 @@ class ProfileRead(BaseModel):
     default_currency: str | None = None
     locked_through: date | None = None
     advanced: bool = False
+    plan_build: bool = True
+    plan_earn: bool = False
     created: datetime
     updated: datetime
