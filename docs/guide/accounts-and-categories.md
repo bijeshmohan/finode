@@ -9,6 +9,12 @@ Money is always *somewhere* and always *for something*. finode keeps both as acc
 
 Every transaction moves an amount *from* one place *to* another, and the books stay balanced because both sides are recorded. You never have to think about debits and credits to use it.
 
+## The built-in groups
+
+If you signed up recently, your accounts start in five groups that are **built in**: under Assets, **Bank Accounts**, **Cash** and **Investments**; under Liabilities, **Credit Cards** and **Loans**. A group appears on the Accounts page once it has an account in it; until then the page shows an **Add account** button. You cannot rename, move, close or delete the groups, but you can add as many accounts as you like inside each (from that button or the round **+** at the top of the page, which starts on the first group), and you can still make groups of your own beside them.
+
+The group tells finode what an account is, so you do not have to answer the budget questions: an account in Bank Accounts, Cash or Credit Cards starts **part of the budget**; one in Investments or Loans starts **outside the budget, planned under Build**. The first account under Investments or Loans also switches the Build chip on in Plan. You can change either choice for one account under *Budget options* on its form. Accounts you made before this existed are not moved or renamed. If you had an account before the groups existed, **Settings › Standard groups** adds them: it shows what will be added first, uses a group of yours that already has exactly that name (for example your own *Investments*), skips one that an account of yours is in the way of (rename your account first, then add it) and moves nothing. Then change **Under** on an account's edit page to move it into a group.
+
 ## Accounts page
 
 **Accounts** has three chips, **Assets**, **Liabilities** and **Equity**, in that order, like Expense and Income on Categories. The chosen one shows its total as a large figure, then its accounts: each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts share one tile. Things to know:

@@ -86,7 +86,7 @@ class BackupService:
                 BackupAccount(
                     id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details,
                     on_budget=a.on_budget, saving=a.saving, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
-                    position=a.position,
+                    position=a.position, system_key=a.system_key,
                 )
                 for a in accounts
             ],
@@ -135,7 +135,7 @@ class BackupService:
         accounts = self.accounts.ensure_roots()
         own = [
             a for a in accounts
-            if a.parent_id is not None and not self.accounts.is_opening_balances(a, accounts)
+            if a.parent_id is not None and a.system_key is None and not self.accounts.is_opening_balances(a, accounts)
         ]
         return not own and not self.tr.account_ids_with_postings() and not self.rr.list() and not self.br.list()
 
@@ -294,9 +294,25 @@ class BackupService:
             for a in file.accounts:
                 if a.parent_id is None:
                     ids[a.id] = roots[a.name].aid
+            # The built-in groups: the ones a file carries (by key) map onto the person's own. An empty built-in group whose
+            # name the file uses for an account of its own (a plain "Cash" under Assets) steps aside for it.
+            fixed = {a.system_key: a for a in self.accounts.ensure_roots() if a.system_key is not None}
+            by_id_now = {a.aid: a for a in self.accounts.ensure_roots()}
+            kept: set[UUID] = set()
+            for a in file.accounts:
+                if a.system_key in fixed:
+                    ids[a.id] = fixed[a.system_key].aid
+                    kept.add(a.id)
+            taken = {
+                (by_old[a.parent_id].name, a.name) for a in file.accounts
+                if a.parent_id is not None and a.id not in kept and by_old[a.parent_id].parent_id is None
+            }
+            self.accounts.release_fixed_parents([
+                f.aid for f in fixed.values() if (by_id_now[f.parent_id].name, f.name) in taken and f.aid not in ids.values()
+            ])
             opening = None
             for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old)):
-                if a.parent_id is None:
+                if a.parent_id is None or a.id in kept:
                     continue
                 if a.name == OPENING_BALANCES_ACCOUNT_NAME and by_old[a.parent_id].name == "Equity" and by_old[a.parent_id].parent_id is None:
                     opening = opening or self.accounts.opening_balances_account()
@@ -308,7 +324,7 @@ class BackupService:
                 )
                 ids[a.id] = created.aid
             for a in file.accounts:
-                if a.parent_id is None or ids[a.id] == (opening.aid if opening else None):
+                if a.parent_id is None or a.id in kept or ids[a.id] == (opening.aid if opening else None):
                     continue
                 account = self.ar.read(ids[a.id])
                 account.closed_on = a.closed_on

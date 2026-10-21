@@ -117,7 +117,7 @@
 </div>
 {% endif %}
 
-{% if not category and node.children %}
+{% if not category and (node.children or node.kind == "fixed") %}
 {% set subs = node.children|rejectattr("account.closed_on")|list %}
 <div class="section-head">
   <h2>Sub-accounts</h2>
@@ -129,6 +129,8 @@
     <span class="crow-main"><span class="crow-name">{{ c.account.name }}</span></span>
     <span class="crow-amt"><span class="{{ 'negative' if c.account.balance < 0 }}">{{ c.account.balance|money }}</span></span>
   </a>
+  {% else %}
+  <p class="muted sub-empty">Nothing here yet. Tap + to add one.</p>
   {% endfor %}
 </div>
 {% else %}

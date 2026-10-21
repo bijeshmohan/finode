@@ -372,7 +372,7 @@ function applyKind(form, kind) {
 // The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
   const id = event.target && event.target.id;
-  if (id !== "txn-sheet-body" && id !== "cat-sheet-body" && id !== "plan-sheet-body") return;
+  if (id !== "txn-sheet-body" && id !== "cat-sheet-body" && id !== "plan-sheet-body" && id !== "groups-sheet-body") return;
   const dialog = document.getElementById(id.replace("-body", ""));
   if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");
@@ -708,6 +708,13 @@ document.body.addEventListener("click", (event) => {
     if (!asked) return;
     const box = fields.querySelector('input[name="on_budget"]');
     box.checked = root === "Assets";
+    // Under a built-in group (Bank Accounts, Investments, Loans...) the account starts as that group says.
+    const start = select.selectedOptions[0].dataset.start;
+    const saving = fields.querySelector('input[name="saving"]');
+    if (start) {
+      box.checked = start === "budget";
+      if (saving) saving.checked = start === "build";
+    }
     sync(fields);
   };
   document.body.addEventListener("change", (event) => {

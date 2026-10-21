@@ -58,6 +58,8 @@ class AccountRead(AccountBase):
     closed_on: Date | None = None
     # The place among its siblings when ordered by hand (0 first); null while they are in alphabetical order.
     position: int | None = None
+    # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); they cannot be changed or removed.
+    system_key: str | None = None
     created: datetime
     updated: datetime
 

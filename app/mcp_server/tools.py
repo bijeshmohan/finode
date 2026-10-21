@@ -32,6 +32,10 @@ finode is the user's personal double-entry ledger.
   Expenses. Refer to an account by its path with ':' between names (Assets:Bank:HDFC,
   Expenses:Food) or by the end of the path when that is unique (HDFC, Food). Call list_accounts
   when unsure; never invent an account: ask the user, or create it with create_account if they agree.
+  New users start with built-in groups under Assets (Bank Accounts, Cash, Investments) and Liabilities
+  (Credit Cards, Loans); they cannot be changed or removed. Put a bank under Bank Accounts and a card under
+  Credit Cards (they start as part of the budget), a fund under Investments and a loan under Loans (they
+  start under Build, outside the budget).
 - Money moves from one account to another. Spending is from an asset or liability (a bank, a
   card) to an expense; a salary is from Income to an asset. Use record_transaction for these, and
   record_split only when more than two accounts are involved.

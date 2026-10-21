@@ -1,0 +1,30 @@
+{#- The sheet behind Settings › Standard groups: what will be added. Expects plan (fixed_parents_plan) and will_add. -#}
+<div class="sheet-grab" aria-hidden="true"></div>
+<div class="sheet-title">
+  <div>
+    <h2>Add the standard groups</h2>
+    <p class="muted">Groups you can move accounts into: change <b>Under</b> on an account's edit page. Accounts you made are not changed, moved or renamed.</p>
+  </div>
+</div>
+<ul class="groups-plan">
+  {% for e in plan %}
+  <li class="{{ e.action }}">
+    <span class="gp-mark" aria-hidden="true">{{ "✕" if e.action == "skip" else "✓" }}</span>
+    <span class="gp-text">
+      <b>{{ e.name }}</b>
+      <small class="muted">{% if e.action == "skip" %}Skipped: {{ e.reason }}
+        {%- elif e.action == "have" %}Already there
+        {%- elif e.action == "adopt" %}Your {{ e.name }} becomes this group, with everything in it
+        {%- elif e.start == "budget" %}Accounts in it start part of the budget
+        {%- else %}Accounts in it start outside the budget, planned under Build{% endif %}</small>
+    </span>
+  </li>
+  {% endfor %}
+</ul>
+<form class="stack" hx-post="/settings/groups" hx-swap="none" hx-sync="this:replace">
+  <p id="groups-sheet-error" class="error" role="alert"></p>
+  <div class="sheet-actions">
+    {% if will_add %}<button type="submit">Add {{ will_add }} group{{ "" if will_add == 1 else "s" }}</button>{% endif %}
+    <button type="button" class="secondary" onclick="this.closest('dialog').close()">{{ "Cancel" if will_add else "Close" }}</button>
+  </div>
+</form>

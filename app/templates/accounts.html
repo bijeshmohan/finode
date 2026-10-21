@@ -48,12 +48,10 @@
 </div>
 
 <div data-accounts>
-  {% if root.children %}
+  {% if blocks %}
   {{ blocks_of(root) }}
   {% else %}
-  <a class="card add-first" href="/accounts/new?root={{ tab }}">
-    {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan"}[root.account.name] or "an account" }}
-  </a>
+  <p class="add-pill"><a class="button" href="/accounts/new?root={{ tab }}">{{ icon("plus") }}Add account</a></p>
   {% endif %}
 
   {% if closed %}
