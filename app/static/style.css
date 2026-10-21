@@ -1196,6 +1196,9 @@ dd.auto, dd.auto a { color: var(--auto); }
 .budget-list .top + .top, .budget-list > .crow + .crow { border-top: 1px solid var(--surface-2); }
 .budget-list .crow { padding: .85rem 0; width: 100%; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 .budget-list .crow-main { flex: 1; }
+/* A row with a bar: the name and hint at the left, the amounts at the right, and the bar across the whole row beneath them. */
+.crow.has-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 1rem; row-gap: 0; align-items: start; }
+.crow.has-bar > .bar { grid-column: 1 / -1; margin-top: .55rem; }
 .crow .bar { display: block; position: relative; height: var(--bar-h); margin: .55rem 0 0; border-radius: calc(var(--bar-h) / 2); background: var(--surface-2); overflow: visible; }
 .crow .bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .crow .bar.over i { background: var(--danger); }

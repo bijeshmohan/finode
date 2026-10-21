@@ -189,6 +189,22 @@ def test_the_month_tick_also_shows_in_full_on_a_group_row(page: Page, books, api
     assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible"
 
 
+def test_every_bar_runs_the_full_width_of_its_row(page: Page, books, api: Api):
+    """A bar shorter than its row reads as "partly full" even when it is complete, so it spans the whole row, at phone and desktop width."""
+    dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
+    api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
+    api.put(f"/budget/categories/{books['rent']['aid']}", amount="900")
+    for width in (390, 1100):
+        page.set_viewport_size({"width": width, "height": 800})
+        page.goto("/plan")
+        sizes = page.eval_on_selector_all(
+            "a.crow.has-bar",
+            "els => els.map(e => [Math.round(e.getBoundingClientRect().width), Math.round(e.querySelector('.bar').getBoundingClientRect().width)])",
+        )
+        assert len(sizes) >= 3, sizes
+        assert all(row == bar for row, bar in sizes), f"at {width}px: {sizes}"
+
+
 def test_budget_names_and_amounts_line_up(page: Page, books, api: Api):
     delivery = api.post("/accounts/", name="Delivery", parent_id=books["food"]["aid"])
     api.put(f"/budget/categories/{books['rent']['aid']}", amount="900")
