@@ -17,7 +17,7 @@ Budgets are **monthly**. (Weekly and yearly *targets* exist behind the Advanced 
 | **Left** (available) | What you can still spend: last month's leftover (if any) + assigned − spent. |
 | **Ready to assign** | Money in budget accounts that has no job yet. |
 
-The page's main figure is **Ready to assign in <month>**. Your aim is to bring it to zero: *every ₹ has a job*.
+Each chip of the page has its own head, a figure and a full-width bar: **Left to spend** on Spend (the bar is what you have spent of what there was, with a tick for today), **Left to build** on Build and **Still to come** on Earn. **Ready to assign** is a quiet line under the head on Spend and Build (tap the **i** beside it for the sum). Your aim is to bring it to zero: *every ₹ has a job*.
 
 Tap the **i** beside the figure (on the Plan page and on Home's *Left to spend*) to see how it is worked out with your own numbers: for example, money in your accounts, minus what is set aside for card bills, minus what is left in your categories, minus what you assigned to later months.
 

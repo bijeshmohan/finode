@@ -21,9 +21,9 @@ def setup(client, root_accounts):
 
 def test_the_page_shows_what_is_left_to_assign(client, setup):
     page = client.get("/plan").text
-    assert "Ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00")
-    assert "Left to spend in" not in page, "that figure is Home's; Budget leads with what is left to assign"
-    assert 'class="ready zero budget-hero ready-hero"' in page
+    assert "ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00"), "the pool is a quiet line under the head"
+    assert "Left to spend in" not in page, "Home's wording; the Plans head says Left to spend"
+    assert 'class="ready zero budget-hero ready-hero plan-head"' in page and "Left to spend" in page
     assert "Food" in page and "Rent" in page and THIS_MONTH.strftime("%b %Y") in page, "the pill says which month"
     assert 'href="/plan?month=' in page
 
@@ -350,7 +350,13 @@ def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
     page = client.get("/plan").text
     assert 'aria-label="How what is ready to assign is worked out"' in page
     sums = re.findall(r'<p class="calc-row-line([^"]*)"><span>([^<]*)</span><b>([^<]*)</b>', page)
-    assert [(c.strip(), label, amount) for c, label, amount in sums] == [
+    assert [(c.strip(), label, amount) for c, label, amount in sums[:4]] == [
+        ("", "Carried in from earlier months", "₹0.00"),
+        ("plus", "Assigned in " + THIS_MONTH.strftime("%B"), "₹300.00"),
+        ("minus", "Spent so far", "₹0.00"),
+        ("total", "Left to spend", "₹300.00"),
+    ], "the head's own sum, the one Home shows"
+    assert [(c.strip(), label, amount) for c, label, amount in sums[4:]] == [
         ("", "In your accounts", "₹1,000.00"),
         ("minus", "Set aside for card bills", "₹0.00"),
         ("minus", "Left in your categories", "₹300.00"),

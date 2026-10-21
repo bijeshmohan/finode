@@ -1248,7 +1248,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 .ready .calc-row > .muted { font-size: .8125rem; }
 .hero-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .calc-panel { display: none; margin-top: .9rem; padding: .9rem 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius-sm); }
-.glance:has(.calc-info[open]) .calc-panel, .ready-hero:has(.calc-info[open]) .calc-panel { display: block; }
+.glance:has(.calc-info[open]) .calc-panel, .ready-hero:has(.calc-info[open]) .calc-panel, .rta-line:has(.calc-info[open]) .calc-panel { display: block; }
 .calc-panel h3 { margin: 0 0 .5rem; font-size: 1rem; font-weight: 600; }
 .calc-row-line { display: flex; justify-content: space-between; gap: 1rem; margin: 0; padding: .4rem 0; border-top: 1px solid var(--surface-2); font-size: .9375rem; color: var(--text); }
 .calc-panel h3 + .calc-row-line { border-top: 0; }
@@ -1319,3 +1319,12 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .groups-plan .gp-text { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
 .groups-plan small { font-size: .8rem; }
 .setting-sub { display: block; font-size: .78rem; margin-top: .1rem; font-weight: 400; }
+
+/* The head of each Plans chip: its own figure and bar; Ready to assign is a quiet line under it. */
+.plan-head .figure.above { color: var(--positive); }
+.plan-head .figure.over { color: var(--negative); }
+.glance-bar.over i { background: var(--danger); }
+.rta-line { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .25rem; margin: .1rem 0 .75rem; font-size: .875rem; color: var(--muted); }
+.rta-line b { color: var(--text); font-weight: 600; }
+.rta-line .info-button { margin: -.25rem 0; }
+.rta-line .calc-panel { flex: 1 0 100%; }
