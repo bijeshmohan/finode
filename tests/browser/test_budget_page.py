@@ -378,3 +378,27 @@ def test_the_sliders_button_chooses_the_sections_and_lines_up_the_rows(page: Pag
     page.wait_for_url(re.compile(r"tab=spend"))
     expect(page.locator(".cat-chips .chip")).to_have_count(0)  # only Spend: no chips, the button stays
     expect(page.get_by_role("link", name="Choose what to plan")).to_be_visible()
+
+
+def test_a_group_of_accounts_is_one_row_in_build_and_opens_its_page(page: Page, books, api: Api):
+    inv = api.post("/accounts/", name="Investments", parent_id=books["roots"]["Assets"], on_budget=False)
+    api.post("/accounts/", name="Mutual Funds", parent_id=inv["aid"], on_budget=False, saving=True)
+    api.post("/accounts/", name="PPF", parent_id=inv["aid"], on_budget=False, saving=True)
+    api.post("/accounts/", name="Gold ETF", parent_id=inv["aid"], on_budget=False)
+    page.goto("/plan?tab=build")
+    expect(page.locator("[data-budget-saving] a.crow")).to_have_count(1)  # one row for the group, not two for its accounts
+    page.locator("[data-budget-saving] a.crow", has_text="Investments").click()
+    page.wait_for_url(re.compile(r"/plan/group/"))
+    expect(page.locator("h1.group-title")).to_have_text("Investments")
+    expect(page.locator(".budget-hero")).not_to_have_class(re.compile("tappable"))  # its figure is read-only
+    expect(page.locator(".group-leftovers")).to_contain_text("Gold ETF")
+    page.locator("a.catrow", has_text="Mutual Funds").click()
+    box = page.locator('#cat-sheet input[aria-label="Assigned to Mutual Funds"]')
+    expect(box).to_be_visible()
+    box.fill("2500")
+    page.locator("#cat-sheet").get_by_role("button", name="Save").click()
+    expect(page.locator("#cat-sheet")).not_to_be_visible()
+    expect(page.locator("h1.group-title")).to_have_text("Investments")  # still on the group's page after the swap
+    expect(page.locator(".budget-hero")).to_contain_text("2,500")
+    page.locator("a.back").click()
+    page.wait_for_url(re.compile(r"tab=build"))

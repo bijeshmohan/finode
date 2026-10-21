@@ -176,6 +176,44 @@ def _saving_hint(line: BudgetLine, saving: BudgetSaving, advanced: bool, style: 
     return " · ".join(parts)
 
 
+def _build_rows(data, advanced: bool, style: str) -> tuple[list[dict], list[dict], dict[UUID, dict]]:
+    """The Build section: the flat rows of its accounts (what the sheets look up), the list the page shows (an account
+    directly under a root is a row, the accounts of a group are one row for the group, as in Spend) and the groups."""
+    whole = lambda value: money(value, style).replace(".00", "")
+    flat = [
+        {"node": SimpleNamespace(line=_saving_line(s), is_group=False), "hint": _saving_hint(_saving_line(s), s, advanced, style), "calm": not advanced}
+        for s in data.saving
+    ]
+    by_group: dict[UUID, list[dict]] = {}
+    for s, row in zip(data.saving, flat):
+        if s.group_id is not None:
+            by_group.setdefault(s.group_id, []).append(row)
+    groups: dict[UUID, dict] = {}
+    for gid, kids in by_group.items():
+        lines = [k["node"].line for k in kids]
+        first = next(s for s in data.saving if s.group_id == gid)
+        debt = first.debt
+        owed = sum((s.balance for s in data.saving if s.group_id == gid), Decimal("0.00"))
+        total = lambda attr: sum((getattr(l, attr) for l in lines), Decimal("0.00"))
+        line = BudgetLine(
+            aid=gid, name=first.group_name, path=":".join(first.path.split(":")[:-1]), depth=1, group=True,
+            assigned=total("assigned"), activity=total("activity"), available=total("available"),
+            overspent_last_month=Decimal("0.00"), needed=total("needed"), underfunded=total("underfunded"),
+        )
+        ranked = sorted(kids, key=lambda k: (-k["node"].line.assigned, k["node"].line.name.lower()))
+        names = [k["node"].line.name for k in ranked]
+        hint = " · ".join(names[:3] + ([f"+{len(names) - 3}"] if len(names) > 3 else []))
+        if debt and line.activity:
+            hint = f"paid {whole(line.activity)} · {hint}"
+        groups[gid] = {
+            "line": line, "kids": ranked, "debt": debt, "owed": owed,
+            "row": {"node": SimpleNamespace(line=line, is_group=True), "hint": hint, "calm": not advanced},
+        }
+    shown = [row for row, s in zip(flat, data.saving) if s.group_id is None] + [g["row"] for g in groups.values()]
+    shown.sort(key=lambda r: (-r["node"].line.assigned, r["node"].line.name.lower()))
+    return flat, shown, groups
+
+
 def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     data = budget.view(month)
     advanced = ProfileRepository(budget.br.db, budget.br.uid).advanced()
@@ -190,8 +228,8 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         k: v for k, v in TABS.items()
         if k == "spend" or (settings.plan_enabled and (build_on if k == "build" else earn_on))
     }
-    saving_lines = [_saving_line(s) for s in data.saving]
     debts = {s.aid: s for s in data.saving if s.debt}
+    saving_rows, build_rows, build_groups = _build_rows(data, advanced, style)
     return {
         "budget": data,
         "tab": tab if tab in tabs else "spend",
@@ -201,10 +239,9 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "earning_rows": list(data.earning),
         # What the month's plan leaves over: what is expected, less what is assigned to saving and to spending.
         "unplanned": data.earning_expected - data.saving_assigned - data.assigned,
-        "saving_rows": [
-            {"node": SimpleNamespace(line=line, is_group=False), "hint": _saving_hint(line, saving, advanced, style), "calm": not advanced}
-            for line, saving in zip(saving_lines, data.saving)
-        ],
+        "saving_rows": saving_rows,
+        "build_rows": build_rows,
+        "build_groups": build_groups,
         "tree": tree,
         "rows": [{"node": n, "hint": _hint(n, advanced, grouping_for(data.currency))} for n in _by_assigned(tree)],
         "unused_ids": {n.line.aid for n in unused},
@@ -237,7 +274,13 @@ def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
     context = _context(budget, month)
     node = next((n for n in context["tree"] if n.line.aid == aid and n.is_group), None)
     if node is None:
-        raise HTTPException(status_code=404, detail="category not found")
+        built = context["build_groups"].get(aid)
+        if built is None:
+            raise HTTPException(status_code=404, detail="category not found")
+        return {
+            **context, "group": SimpleNamespace(line=built["line"]), "kids": built["kids"], "edit_url": "", "glance": _glance(built["line"]),
+            "build": True, "debt": built["debt"], "owed": built["owed"], "leftovers": budget.build_leftovers(aid), "tab": "build",
+        }
     advanced = context["advanced"]
     return {
         **context,
@@ -259,6 +302,8 @@ def group_sheet(request: Request, budget: Budget, aid: UUID, month: str = ""):
     """A group's own budget in the sheet over its page: it starts at what its subcategories add up to."""
     when = parse_month(month)
     context = _group_context(budget, when, aid)
+    if context.get("build"):
+        raise HTTPException(status_code=404, detail="a group of accounts has no budget of its own")
     return templates.TemplateResponse(
         request, "partials/budget_group_sheet.html", {**context, "minimum": budget.group_minimum(when, aid, context["budget"])}
     )
