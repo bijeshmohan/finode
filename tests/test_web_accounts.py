@@ -462,3 +462,20 @@ def test_the_new_account_page_goes_back_to_its_chip(client: TestClient, root_acc
     assert 'class="back" href="/accounts?tab=liabilities"' in text
     income = client.get("/categories/new?root=income").text
     assert 'class="back" href="/categories?tab=income"' in income
+
+
+def test_accounts_without_a_group_are_listed_together_after_all_the_groups(client: TestClient, root_accounts: dict[str, str]):
+    """Alphabetically Apple, Banks and Cash interleave; the page puts the plain ones (Apple, Cash) last, together."""
+    def make(name, parent):
+        return client.post("/api/accounts/", json={"name": name, "parent_id": parent, "balance": "10"}).json()
+    assets = root_accounts["Assets"]
+    make("Apple", assets)
+    banks = client.post("/api/accounts/", json={"name": "Banks", "parent_id": assets}).json()
+    make("HDFC", banks["aid"])
+    make("Cash", assets)
+    zoo = client.post("/api/accounts/", json={"name": "Zoo", "parent_id": assets}).json()
+    make("Lion", zoo["aid"])
+    text = client.get("/accounts").text
+    order = [text.index(f'data-path="assets › {p}') for p in ("banks › hdfc", "zoo › lion", "apple", "cash")]
+    assert order == sorted(order), "the groups come first, then Apple and Cash"
+    assert text.count('class="acc-block') == 3, "two groups and one block of plain accounts"

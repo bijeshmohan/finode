@@ -171,18 +171,18 @@ def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
 
 
 def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
-    """A type's accounts as the page lists them: each group is a heading with its accounts under it, and the plain
-    accounts that sit directly under the type share one block without a heading. Accounts only go two levels deep."""
+    """A type's accounts as the page lists them: each group is a heading with its accounts under it, then **all** the plain
+    accounts that sit directly under the type together in one block without a heading, at the end. Accounts only go two
+    levels deep. A built-in group with nothing in it is not shown (the page offers "Add account" instead)."""
     blocks: list[tuple[Node | None, list[Node]]] = []
+    plain: list[Node] = []
     for child in root.children:
-        if child.kind == "fixed" and not child.children:
-            continue  # a built-in group with nothing in it is not shown: the page offers "Add account" instead
         if child.children:
             blocks.append((child, child.children))
-        elif blocks and blocks[-1][0] is None:
-            blocks[-1][1].append(child)
-        else:
-            blocks.append((None, [child]))
+        elif child.kind != "fixed":
+            plain.append(child)
+    if plain:
+        blocks.append((None, plain))
     return blocks
 
 
