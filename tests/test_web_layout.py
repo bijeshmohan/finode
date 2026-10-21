@@ -64,3 +64,12 @@ def test_every_page_has_the_banner_and_the_loading_bar_but_the_banner_starts_hid
     page = client.get("/").text
     assert '<div id="net-banner" class="net-banner" role="status" aria-live="polite" hidden></div>' in page
     assert 'class="loadbar"' in page
+
+
+def test_the_sidebar_lists_home_plan_accounts_categories_then_transactions(client: TestClient):
+    page = client.get("/accounts").text
+    side = page[page.index('class="sidenav"'):page.index("sidebar-foot")]
+    order = [side.index(f'href="{path}"') for path in ("/", "/plan", "/accounts", "/categories", "/transactions")]
+    assert order == sorted(order), "Home, Plan, Accounts, Categories, Transactions"
+    bar = page[page.index('class="tabbar"'):page.index("</nav>", page.index('class="tabbar"'))]
+    assert "/transactions" not in bar, "phones keep their four tabs"
