@@ -70,6 +70,6 @@ def test_the_sidebar_lists_home_plan_accounts_categories_then_transactions(clien
     page = client.get("/accounts").text
     side = page[page.index('class="sidenav"'):page.index("sidebar-foot")]
     order = [side.index(f'href="{path}"') for path in ("/", "/plan", "/accounts", "/categories", "/transactions")]
-    assert order == sorted(order), "Home, Plan, Accounts, Categories, Transactions"
+    assert order == sorted(order), "Home, Plans, Accounts, Categories, Transactions"
     bar = page[page.index('class="tabbar"'):page.index("</nav>", page.index('class="tabbar"'))]
     assert "/transactions" not in bar, "phones keep their four tabs"

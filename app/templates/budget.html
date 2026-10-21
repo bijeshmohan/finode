@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
 {% from "partials/month_pill.html" import month_pill %}
-{% block title %}Plan · finode{% endblock %}
+{% block title %}Plans · finode{% endblock %}
 {% block content %}
 <div class="page-head tall">
-  <h1>Plan</h1>
+  <h1>Plans</h1>
   {{ month_pill("/plan?month={month}", month_name, month_key, previous, next) }}
 </div>
 {% if plan_enabled %}

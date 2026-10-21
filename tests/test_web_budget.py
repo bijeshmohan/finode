@@ -340,7 +340,7 @@ def test_no_warning_when_nothing_is_over(client, setup):
 
 def test_the_heading_is_a_title_and_a_pill_with_both_arrows(client, setup):
     page = client.get("/plan").text
-    assert "<h1>Plan</h1>" in page and 'class="month-pill"' in page
+    assert "<h1>Plans</h1>" in page and 'class="month-pill"' in page
     assert 'title="Previous month"' in page and 'title="Next month"' in page, "the budget can look ahead"
     assert "Needs you" not in page, "nothing needs a decision yet"
 
@@ -384,7 +384,7 @@ def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_
 def test_the_month_pill_is_in_the_title_row_and_needs_you_is_beside_ready_to_assign(client, root_accounts, setup):
     page = client.get("/plan").text
     head = page.split('<div class="page-head tall">', 1)[1].split('<div id="budget">', 1)[0]
-    assert "<h1>Plan</h1>" in head and 'class="month-pill"' in head and 'href="/plan?month=' in head
+    assert "<h1>Plans</h1>" in head and 'class="month-pill"' in head and 'href="/plan?month=' in head
     body = page.split('<div id="budget">', 1)[1]
     assert 'class="month-pill"' not in body and "bud-bar" not in body, "the second row is gone"
     assert "data-toggle-attn" not in page, "nothing needs a decision yet"

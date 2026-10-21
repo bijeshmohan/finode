@@ -161,7 +161,7 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(pa
     expect(page.locator("#cat-sheet")).not_to_be_visible()
     expect(page.locator(".budget-hero .figure")).to_have_text("\u20b9700.00")  # the group's page block was replaced, still on the group page
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
-    page.get_by_role("link", name="Plan", exact=True).first.click()
+    page.get_by_role("link", name="Plans", exact=True).first.click()
     expect(page.locator(".ready-hero .figure")).to_have_text("\u20b94,300.00")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 

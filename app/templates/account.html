@@ -49,7 +49,7 @@
       <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
-        {% if category and root.account.name == "Expenses" %}<a href="/plan">{{ icon("budget") }}See in the Plan</a>{% endif %}
+        {% if category and root.account.name == "Expenses" %}<a href="/plan">{{ icon("budget") }}See in Plans</a>{% endif %}
         {% if can_add_child and not account.closed_on %}
         <a href="{{ '/categories/new' if category else '/accounts/new' }}?parent={{ account.aid }}">{{ icon("plus") }}{{ "Add subcategory" if category else "Add sub-account" }}</a>
         {% endif %}

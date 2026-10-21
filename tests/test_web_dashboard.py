@@ -266,6 +266,6 @@ def test_the_checklist_stays_on_home_after_the_first_entry_until_the_plan_is_use
     client.patch("/api/profile/", json={"advanced": False})
     text = client.get("/").text
     assert "Get started · 2 of 3" in text and "Give your money a job</a>" in text
-    assert "Open Plan and set aside rent and food" in text
+    assert "Open Plans and set aside rent and food" in text
     client.put(f"/api/budget/categories/{food['aid']}", json={"month": date.today().replace(day=1).isoformat(), "amount": "50"})
     assert "Get started" not in client.get("/").text
