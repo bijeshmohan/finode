@@ -37,23 +37,26 @@ def test_every_group_is_open_under_its_heading_and_nothing_folds(page: Page, api
     shown = visible(page)
     assert "assets › banks › hdfc" in shown and "assets › savings › rainy" in shown and "assets › checking" in shown
     assert page.locator("details").count() == 0, "nothing folds, not even Equity"
-    assert "equity › opening balances" not in shown, "Equity has its own chip"
+    assert "equity › opening balances" not in shown, "Equity is not listed on the other chips"
 
 
-def test_the_chips_switch_between_assets_liabilities_and_equity(page: Page, api, books):
+def test_the_chips_switch_between_assets_and_liabilities_and_equity_is_neither(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
     chips = page.locator(".cat-chips .chip")
-    assert chips.all_inner_texts() == ["Assets", "Liabilities", "Equity"]
+    assert chips.all_inner_texts() == ["Assets", "Liabilities"], "Equity has no chip"
     expect(chips.nth(0)).to_have_attribute("aria-pressed", "true")
     page.get_by_role("link", name="Liabilities").click()
     page.wait_for_url("**/accounts?tab=liabilities")
     shown = visible(page)
     assert shown == ["liabilities › visa"], shown
     expect(page.locator(".cat-chips .chip").nth(1)).to_have_attribute("aria-pressed", "true")
-    page.get_by_role("link", name="Equity").click()
+    page.get_by_role("link", name="Liabilities").click()  # tapping the chosen chip again leaves neither chosen: that is Equity
     page.wait_for_url("**/accounts?tab=equity")
     assert visible(page) == ["equity › opening balances"]
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_count(0)
+    page.get_by_role("link", name="Assets").click()
+    page.wait_for_url("**/accounts?tab=assets")
 
 
 def test_a_groups_heading_goes_to_its_page(page: Page, api, books):

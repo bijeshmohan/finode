@@ -4,7 +4,7 @@
 
 Money is always *somewhere* and always *for something*. finode keeps both as accounts in one tree:
 
-- **Accounts** are where money is: Assets (bank, cash, wallet, investments) and Liabilities (credit cards, loans). Equity holds the system's *Opening Balances* and is folded away.
+- **Accounts** are where money is: Assets (bank, cash, wallet, investments) and Liabilities (credit cards, loans). Equity holds the system's *Opening Balances*; it has no chip, because almost nobody needs it (tap the chosen chip again, so that neither is chosen, to see it).
 - **Categories** are what money is for: Expenses (Food, Rent) and Income (Salary).
 
 Every transaction moves an amount *from* one place *to* another, and the books stay balanced because both sides are recorded. You never have to think about debits and credits to use it.
@@ -17,7 +17,7 @@ The group tells finode what an account is, so you do not have to answer the budg
 
 ## Accounts page
 
-**Accounts** has three chips, **Assets**, **Liabilities** and **Equity**, in that order, like Expense and Income on Categories. The chosen one shows its total as a large figure, then its accounts: each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts (the ones not in any group) share one tile at the end, after all the groups. Things to know:
+**Accounts** has two chips, **Assets** and **Liabilities**, in that order, like Expense and Income on Categories. **Equity** has no chip: tap the chosen chip again, so that neither is chosen, and the page lists Equity. The chosen one shows its total as a large figure, then its accounts: each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts (the ones not in any group) share one tile at the end, after all the groups. Things to know:
 
 - Every open account is listed, used or not. Closed ones are tucked behind one **Load more** button at the bottom (they carry a *closed* badge).
 - Accounts go **two levels** deep, at most: a group and the accounts in it.

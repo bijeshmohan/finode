@@ -34,7 +34,8 @@
 
 <div class="cat-bar">
   <div class="chips cat-chips" role="group" aria-label="What to show">
-    {% for key, name in tabs.items() %}<a class="chip" href="/accounts?tab={{ key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
+    {#- Equity has no chip: almost nobody needs it. Tapping the chosen chip again leaves neither chosen, and that is the page of Equity. -#}
+    {% for key, name in tabs.items() if key != "equity" %}<a class="chip" href="/accounts?tab={{ 'equity' if tab == key else key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
   </div>
   <span class="head-icons">
     <a class="icon-button" href="/accounts/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>

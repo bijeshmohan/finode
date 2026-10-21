@@ -26,7 +26,7 @@ def test_accounts_page_groups_accounts_under_roots_in_order(
     response = client.get("/accounts")
     assert response.status_code == 200
     text = response.text
-    assert text.index(">Assets<") < text.index(">Liabilities<") < text.index(">Equity<")
+    assert text.index(">Assets<") < text.index(">Liabilities<") and ">Equity<" not in text, "Equity has no chip"
     assert ">Expenses<" not in text and ">Income<" not in text, "those are on the Categories page"
     assert f'href="/accounts/{account["aid"]}"' in text
     assert "checking" in text
@@ -479,3 +479,16 @@ def test_accounts_without_a_group_are_listed_together_after_all_the_groups(clien
     order = [text.index(f'data-path="assets › {p}') for p in ("banks › hdfc", "zoo › lion", "apple", "cash")]
     assert order == sorted(order), "the groups come first, then Apple and Cash"
     assert text.count('class="acc-block') == 3, "two groups and one block of plain accounts"
+
+
+def test_equity_is_the_page_you_get_when_neither_chip_is_chosen(client: TestClient, root_accounts: dict[str, str]):
+    _bank(client, root_accounts)
+    assets = client.get("/accounts").text
+    assert 'href="/accounts?tab=equity"' in assets and 'aria-pressed="true"' in assets, "tapping the chosen chip again leaves none chosen"
+    assert 'href="/accounts?tab=liabilities"' in assets
+    equity = client.get("/accounts?tab=equity").text
+    assert 'aria-pressed="true"' not in equity, "neither chip is chosen"
+    assert 'href="/accounts?tab=assets"' in equity and 'href="/accounts?tab=liabilities"' in equity
+    assert "Opening Balances" in equity and "Equity" in equity
+    liabilities = client.get("/accounts?tab=liabilities").text
+    assert 'href="/accounts?tab=equity"' in liabilities and 'href="/accounts?tab=assets"' in liabilities
