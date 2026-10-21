@@ -13,7 +13,7 @@
   {% if tab == "earn" %}
     {% set label = "Above expected" if h.left < 0 else "Still to come" %}
     {% set shown = -h.left if h.left < 0 else h.left %}
-    {% set tone = "above" %}
+    {% set tone = "above" if h.left < 0 else "" %}
     {% set note = ("Received " ~ (h.used|money|amount(cur)) ~ " of " ~ (h.had|money|amount(cur)) ~ " expected") if h.planned else "Nothing expected yet" %}
     {% set rows_ = [("Expected", h.had, ""), ("Received", h.used, "−")] %}
     {% set total_label = "Still to come" %}
