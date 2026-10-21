@@ -1271,10 +1271,6 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .cfg > .cfg-row:first-child { border-top: 0; }
 .cfg .cfg-row > span { display: flex; flex-direction: column; min-width: 0; gap: .1rem; flex: 1; text-align: left; }
 .cfg-row small { font-size: .8125rem; }
-.cfg-list { margin: 0 0 .25rem; padding-left: .9rem; border-top: 1px dashed var(--surface-2); }
-.cfg .cfg-row.sub { font-size: .95rem; padding: .6rem 0; border-top: 1px dashed var(--surface-2); font-size: .95rem; }
-.cfg-row.sub:first-child { border-top: 0; }
-.cfg-empty { margin: .6rem 0; font-size: .875rem; }
 .cfg input.toggle { appearance: none; -webkit-appearance: none; flex: none; width: 2.6rem; min-width: 2.6rem; height: 1.5rem; min-height: 0; padding: 0; margin: 0; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--field-border); position: relative; cursor: pointer; transition: background .15s; }
 .cfg input.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: var(--muted); transition: transform .15s; }
 .cfg input.toggle:checked { background: var(--accent); border-color: var(--accent); }

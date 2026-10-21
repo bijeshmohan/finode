@@ -1,4 +1,4 @@
-{#- The sheet behind the sliders button: which sections the Plan has and which accounts are in Build. Expects build_on, earn_on, choices, chosen, month_key, tab. -#}
+{#- The sheet behind the sliders button: which sections the Plan has and which accounts are in Build. Expects build_on, earn_on, month_key, tab. -#}
 <div class="sheet-grab" aria-hidden="true"></div>
 <div class="sheet-title">
   <div>
@@ -9,7 +9,6 @@
 <form class="stack" hx-post="/plan/configure" hx-swap="none" hx-sync="this:replace">
   <input type="hidden" name="month" value="{{ month_key }}">
   <input type="hidden" name="tab" value="{{ tab }}">
-  <input type="hidden" name="sent" value="1">
   <div class="cfg">
     <div class="cfg-row">
       <span><b>Spend</b><small class="muted">Budget for what you spend · always on</small></span>
@@ -19,16 +18,6 @@
       <span><b>Build</b><small class="muted">Funds, deposits and loan paydown</small></span>
       <input type="checkbox" class="toggle" name="build" value="1" {{ "checked" if build_on }}>
     </label>
-    <div class="cfg-list" data-build-list {{ "hidden" if not build_on }}>
-      {% for c in choices %}
-      <label class="cfg-row sub">
-        <span>{{ c.name }}<small class="muted">{{ "debt" if c.debt else "asset" }}{% if c.has_payment_category and not c.saving %} · replaces its payment category{% endif %}</small></span>
-        <input type="checkbox" class="toggle" name="saving" value="{{ c.aid }}" {{ "checked" if c.saving }} aria-label="{{ c.name }} in Build">
-      </label>
-      {% else %}
-      <p class="muted cfg-empty">No account outside the budget yet. Add a fund, a deposit or a loan under Accounts, with <strong>Part of the budget</strong> off.</p>
-      {% endfor %}
-    </div>
     <label class="cfg-row">
       <span><b>Earn</b><small class="muted">What you expect to earn each month</small></span>
       <input type="checkbox" class="toggle" name="earn" value="1" {{ "checked" if earn_on }}>

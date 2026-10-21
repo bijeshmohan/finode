@@ -1,6 +1,6 @@
 # Budgeting and the Plan
 
-The tab is called **Plan** (it was the Budget tab; `/budget` addresses still arrive there). The round **sliders** button beside the chips lists the sections you use (Spend is always on; switch **Build** and **Earn** on or off, and pick which accounts are in Build) and a hidden section keeps its amounts. Its first chip, **Spend**, is the budget described below; **Build** (it was Save) and **Earn** are at the end of this page.
+The tab is called **Plan** (it was the Budget tab; `/budget` addresses still arrive there). The round **sliders** button beside the chips lists the sections you use (Spend is always on; switch **Build** and **Earn** on or off; which accounts are in Build is chosen on each account's own page) and a hidden section keeps its amounts. Its first chip, **Spend**, is the budget described below; **Build** (it was Save) and **Earn** are at the end of this page.
 
 finode uses **envelope budgeting**: you give every rupee in your budget accounts a job (a category), and you spend from the category. When a category is empty you either move money in from another one or you overspend, and the app shows it.
 
