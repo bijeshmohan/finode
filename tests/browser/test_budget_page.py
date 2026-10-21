@@ -361,6 +361,7 @@ def test_the_sliders_button_chooses_the_sections_and_lines_up_the_rows(page: Pag
     page.get_by_role("link", name="Choose what to plan").click()
     sheet = page.locator("#plan-sheet")
     expect(sheet).to_be_visible()
+    assert not page.evaluate("document.activeElement && document.activeElement.matches('#plan-sheet input')"), "no switch starts with a focus ring"
     expect(sheet.get_by_text("Mutual Funds")).to_have_count(0)  # only the three sections, no accounts
     expect(sheet.locator("input.toggle")).to_have_count(3)
     sheet.locator('input[name="build"]').uncheck()

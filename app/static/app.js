@@ -377,6 +377,8 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
+  // The plan sheet has nothing to type in: the browser would focus its first switch and draw a ring round it.
+  if (id === "plan-sheet-body" && !first && dialog && dialog.contains(document.activeElement)) document.activeElement.blur();
 });
 // A tap that starts on a sheet's Save counts as Save even when the sheet moves under the finger before it ends (the keyboard
 // opening or closing shifts it): the browser then sends the click to whatever is under the finger, which closed the sheet
