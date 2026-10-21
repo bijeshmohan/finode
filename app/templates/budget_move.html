@@ -2,7 +2,7 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Move money · finode{% endblock %}
 {% block content %}
-<a class="back" href="/plan?month={{ month_key }}">{{ icon("back") }}Plan</a>
+<a class="back" href="/plan?month={{ month_key }}">{{ icon("back") }}Plans</a>
 <h1>Move money</h1>
 <p class="muted">{{ month_name }} · from one category's available money to another. Ready to assign stays the same.</p>
 <form class="card stack form-narrow" hx-post="/plan/move">

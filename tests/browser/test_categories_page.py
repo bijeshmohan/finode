@@ -77,7 +77,7 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(pag
     expect(page.locator(".hero-balance")).to_have_text("₹900.00")
     expect(page.get_by_role("link", name="Add transaction")).to_have_attribute("href", f"/transactions/new?account={books['rent']['aid']}&back=/categories/{books['rent']['aid']}")
     page.get_by_label("More actions").click()
-    expect(page.get_by_role("link", name="See in the Plan")).to_be_visible()
+    expect(page.get_by_role("link", name="See in Plans")).to_be_visible()
 
 
 def test_there_is_room_between_the_figure_and_the_first_row(page: Page, books, api: Api):

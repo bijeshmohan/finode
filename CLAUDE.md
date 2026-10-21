@@ -152,7 +152,7 @@ finode keeps one currency, so the parser reads an amount with an optional label 
 
 ### The Plan (was the Budget page)
 
-**Phase 3 of the Plan (2026-10-21): the Budget page is now the Plan.** The tab, the sidebar and the page say **Plan**; the web address is `/plan` (the router is still `routers/web/budget.py` with `prefix="/plan"`, the templates are still `budget*.html`, the nav key is `plan`) and every old `/budget...` GET address answers 301 to the same place under `/plan` (`budget.legacy`, classified PUBLIC in the isolation audit). The JSON API stays at `/api/budget`, the assistants' tools keep their names (`get_budget`, `assign_to_category`...) and "budget" stays the word for the Spend section's envelopes ("Part of the budget", "budget accounts"). Below, "the budget page" means the Plan page's Spend chip.
+**Phase 3 of the Plan (2026-10-21): the Budget page is now the Plan.** The tab, the sidebar and the page say **Plans** (renamed from "Plan" the same day at the owner's request; the address, the code, the nav key and "Plan under Build" keep the singular); the web address is `/plan` (the router is still `routers/web/budget.py` with `prefix="/plan"`, the templates are still `budget*.html`, the nav key is `plan`) and every old `/budget...` GET address answers 301 to the same place under `/plan` (`budget.legacy`, classified PUBLIC in the isolation audit). The JSON API stays at `/api/budget`, the assistants' tools keep their names (`get_budget`, `assign_to_category`...) and "budget" stays the word for the Spend section's envelopes ("Part of the budget", "budget accounts"). Below, "the budget page" means the Plan page's Spend chip.
 
 ### The budget page's look
 
