@@ -56,7 +56,10 @@ def test_an_account_in_the_way_is_skipped_with_the_reason(client, mine):
 def test_a_group_of_theirs_with_exactly_that_name_becomes_the_built_in_one(client, mine):
     inv = account(client, mine["roots"], "Investments", "Assets")
     fund = client.post("/api/accounts/", json={"name": "Mutual Funds", "parent_id": inv["aid"], "on_budget": False, "saving": True}).json()
-    assert "becomes this group" in sheet(client)
+    text = sheet(client)
+    assert "Uses the Investments you already have" in text and "Your group" in text, "told apart from a group made new"
+    assert "1 of your own" in text and "4 new" in text and "becomes this group" not in text
+    assert "Set up 5 groups" in text and "Add 5 groups" not in text
     client.post("/settings/groups")
     found = keyed(client)
     assert found["assets.investments"]["aid"] == inv["aid"], "the same account, now built in"

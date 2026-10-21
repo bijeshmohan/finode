@@ -1310,6 +1310,8 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .groups-plan li:first-child { border-top: 0; }
 .groups-plan .gp-mark { color: var(--positive); font-weight: 700; flex: none; width: 1rem; }
 .groups-plan li.skip .gp-mark { color: var(--negative); }
+.groups-plan li.adopt .gp-mark { color: var(--muted); font-size: .7rem; padding-top: .25rem; }
+.gp-summary { margin: 0 0 .5rem; font-size: .85rem; }
 .groups-plan li.have { opacity: .6; }
 .groups-plan .gp-text { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
 .groups-plan small { font-size: .8rem; }
