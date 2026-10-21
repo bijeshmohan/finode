@@ -13,12 +13,15 @@ def with_groups(monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
 
 
-def test_the_plus_on_a_group_opens_the_form_on_that_group(page: Page):
+def test_groups_have_no_plus_of_their_own_and_the_group_page_adds_inside_it(page: Page):
     page.goto("/accounts")
-    expect(page.locator(".acc-gh.fixed")).to_have_count(3)
-    page.get_by_role("link", name="Add to Investments").click()
+    expect(page.locator(".acc-gh")).to_have_count(3)
+    expect(page.locator(".acc-gh .circ-button")).to_have_count(0)
+    page.locator(".acc-gh", has_text="Investments").click()
+    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
+    page.locator(".section-head .circ-button").click()
     page.wait_for_url("**/accounts/new?parent=*")
-    expect(page.locator('select[name="parent_id"] option:checked')).to_have_text("Investments")
+    expect(page.locator('select[name="parent_id"] option:checked')).to_have_text(re.compile("Investments"))
     expect(page.locator("[data-budget-summary]")).to_have_text("Planned under Build")
 
 

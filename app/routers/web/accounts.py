@@ -346,7 +346,7 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
     root = _root_of(roots, node)
     today = local_today()
     page = None
-    if entries is None and node.children:
+    if entries is None and (node.children or node.kind == "fixed"):
         # An account with sub-accounts cannot be posted to: its page lists the sub-accounts, whose entries are on their own pages.
         history, ahead, has_any = [], [], False
     elif entries is None:

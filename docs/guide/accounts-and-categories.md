@@ -11,7 +11,7 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 ## The built-in groups
 
-If you signed up recently, your accounts start in five groups that are **built in**: under Assets, **Bank Accounts**, **Cash** and **Investments**; under Liabilities, **Credit Cards** and **Loans**. They show a small lock. You cannot rename, move, close or delete them, but you can add as many accounts as you like inside each (the round **+** on each heading does that), and you can still make groups of your own beside them.
+If you signed up recently, your accounts start in five groups that are **built in**: under Assets, **Bank Accounts**, **Cash** and **Investments**; under Liabilities, **Credit Cards** and **Loans**. They show a small lock. You cannot rename, move, close or delete them, but you can add as many accounts as you like inside each (from the round **+** at the top of the page, which starts on the first group, or from the group's own page), and you can still make groups of your own beside them.
 
 The group tells finode what an account is, so you do not have to answer the budget questions: an account in Bank Accounts, Cash or Credit Cards starts **part of the budget**; one in Investments or Loans starts **outside the budget, planned under Build**. The first account under Investments or Loans also switches the Build chip on in Plan. You can change either choice for one account under *Budget options* on its form. Accounts you made before this existed are not moved or renamed.
 

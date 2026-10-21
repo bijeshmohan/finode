@@ -1175,8 +1175,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 /* ---------- Accounts page: recently used as cards, every group open under its heading ---------- */
 .acc-block { margin-top: .35rem; }
 .acc-gh { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .45rem .25rem .3rem; font-size: .8125rem; font-weight: 600; color: var(--muted); text-decoration: none; font-variant-numeric: tabular-nums; }
-.acc-gh.fixed { align-items: center; padding: .3rem 0 .3rem .25rem; }
-.acc-gh.fixed > a:first-child { flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; color: inherit; text-decoration: none; }
 .acc-gh .lock { display: inline-flex; vertical-align: -.1em; margin-left: .3rem; color: var(--faint); }
 .acc-gh .lock .icon, h1 .lock .icon { width: .85rem; height: .85rem; }
 h1 .lock { display: inline-flex; margin-left: .4rem; color: var(--faint); vertical-align: middle; }
@@ -1306,3 +1304,5 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .intro { background: var(--surface-2); border-radius: var(--radius); padding: .8rem 1rem; margin: .75rem 0 1rem; display: flex; flex-direction: column; gap: .2rem; }
 .intro p { margin: 0; color: var(--muted); font-size: .9rem; }
 .intro .intro-step { font-weight: 600; font-size: .9rem; text-decoration: none; }
+
+.sub-empty { margin: 0; padding: .9rem 1rem; font-size: .9rem; }

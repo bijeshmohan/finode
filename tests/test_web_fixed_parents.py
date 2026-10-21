@@ -17,11 +17,12 @@ def new_person(monkeypatch):
     monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", False)
 
 
-def test_the_accounts_page_lists_every_group_with_a_plus_even_when_empty(client):
+def test_the_accounts_page_lists_every_group_even_when_empty_without_a_plus_on_each(client):
     text = client.get("/accounts").text
     for name in ("Bank Accounts", "Cash", "Investments"):
-        assert name in text and f"Add to {name}" in text, name
-        assert f'/accounts/new?parent={group(client, name)["aid"]}' in text
+        assert name in text and f'href="/accounts/{group(client, name)["aid"]}"' in text, name
+        assert f"Add to {name}" not in text and f'/accounts/new?parent={group(client, name)["aid"]}' not in text
+    assert text.count("circ-button") == 1, "only the round + at the top of the page"
     assert text.count("Nothing here yet.") == 3
     liabilities = client.get("/accounts?tab=liabilities").text
     assert "Credit Cards" in liabilities and "Loans" in liabilities and liabilities.count("Nothing here yet.") == 2
@@ -76,3 +77,10 @@ def test_the_empty_groups_are_not_offered_to_post_to(client):
     form = client.get("/transactions/new").text
     assert "HDFC" in form
     assert ">Investments<" not in form and ">Loans<" not in form
+
+
+def test_an_empty_groups_page_is_about_adding_accounts_not_transactions(client):
+    page = client.get(f"/accounts/{group(client, 'Investments')['aid']}").text
+    assert "Sub-accounts" in page and "Nothing here yet" in page
+    assert "<h2>Transactions</h2>" not in page and "No transactions yet" not in page
+    assert f'/accounts/new?parent={group(client, "Investments")["aid"]}' in page
