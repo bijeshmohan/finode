@@ -6,19 +6,59 @@
 
 <div id="budget">
   {% set rta = budget.ready_to_assign %}
-  <div class="ready zero budget-hero ready-hero">
+  {% set h = heads[tab] if tab in heads else heads["spend"] %}
+  {% set cur = budget.currency %}
+  {% set mname = month_name.split(" ")[0] %}
+  {#- The head answers the chip's own question with one figure and a full-width bar: what is left to spend, to build, or to come. -#}
+  {% if tab == "earn" %}
+    {% set label = "Above expected" if h.left < 0 else "Still to come" %}
+    {% set shown = -h.left if h.left < 0 else h.left %}
+    {% set tone = "above" %}
+    {% set note = ("Received " ~ (h.used|money|amount(cur)) ~ " of " ~ (h.had|money|amount(cur)) ~ " expected") if h.planned else "Nothing expected yet" %}
+    {% set rows_ = [("Expected", h.had, ""), ("Received", h.used, "−")] %}
+    {% set total_label = "Still to come" %}
+    {% set what = "what is still to come" %}
+    {% set explain = "What you expect to earn this month, less what has come in." %}
+  {% elif tab == "build" %}
+    {% set label = "Above plan" if h.left < 0 else "Left to build" %}
+    {% set shown = -h.left if h.left < 0 else h.left %}
+    {% set tone = "above" if h.left < 0 else "" %}
+    {% set note = ("Moved " ~ (h.used|money|amount(cur)) ~ " of " ~ (h.had|money|amount(cur)) ~ " planned") if h.planned else "Nothing planned yet" %}
+    {% set rows_ = [("Carried in from earlier months", h.carried, ""), ("Planned in " ~ mname, h.assigned, "+"), ("Moved in so far" if is_current else "Moved in", h.used, "−")] %}
+    {% set total_label = "Left to build" %}
+    {% set what = "what is left to build" %}
+    {% set explain = "What was left to build, plus what you planned this month, minus what you moved in." %}
+  {% else %}
+    {% set label = "Over budget" if h.left < 0 else "Left to spend" %}
+    {% set shown = h.left %}
+    {% set tone = "over" if h.left < 0 else "" %}
+    {% set note = ("Spent " ~ (h.used|money|amount(cur)) ~ " of " ~ (h.had|money|amount(cur))) if h.planned else "Nothing assigned yet" %}
+    {% set rows_ = [("Carried in from earlier months", h.carried, ""), ("Assigned in " ~ mname, h.assigned, "+"), ("Spent so far" if is_current else "Spent", h.used, "−")] %}
+    {% set total_label = "Left to spend" %}
+    {% set what = "what is left to spend" %}
+    {% set explain = "Each category's leftover, plus what you assigned this month, minus what you spent." %}
+  {% endif %}
+  <div class="ready zero budget-hero ready-hero plan-head" data-plan-head="{{ tab }}">
     <div class="hero-top">
-      <div class="calc-row"><span class="muted">Ready to assign</span>{{ calc_button("what is ready to assign") }}</div>
-      {% if attention %}<button type="button" class="need" data-toggle-attn aria-expanded="false" aria-controls="attn-panel">Needs you <i>{{ attention }}</i></button>{% endif %}
+      <div class="calc-row"><span class="muted">{{ label }}</span>{{ calc_button(what) }}</div>
+      {% if attention and tab != "earn" %}<button type="button" class="need" data-toggle-attn aria-expanded="false" aria-controls="attn-panel">Needs you <i>{{ attention }}</i></button>{% endif %}
     </div>
-    <span class="figure">{{ figure(rta if rta > 0 else 0, budget.currency) }}</span>
-    {% if rta > 0 and not (show_intro and tab == "spend") %}<span class="glance-note">Tap {{ "an account" if tab == "build" else "a category" }} to give it a job.</span>
-    {% elif rta == 0 and (budget.lines or budget.saving) %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
-    {% set sum_rows = [("In your accounts", budget.money_in_accounts, ""), ("Set aside for card bills", budget.reserved_for_cards, "−"), ("Left in your categories", budget.available, "−")] %}
-    {% if budget.saving %}{% set sum_rows = sum_rows + [("Left to build", budget.saving_available, "−")] %}{% endif %}
-    {% set sum_rows = sum_rows + [("Assigned to later months", budget.assigned_to_later_months, "−")] %}
-    {{ calc_panel(sum_rows, "Ready to assign", rta, budget.currency, "Money in your accounts that has no job yet.") }}
+    <span class="figure {{ tone }}">{{ figure(shown, cur) }}</span>
+    <span class="glance-bar {{ tone }}" role="img" aria-label="{{ h.percent }}% used{% if pace is not none %}, and {{ pace }}% of the month has passed{% endif %}"><i style="width: {{ h.percent }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
+    <span class="glance-note hero-note"><span>{{ note }}</span></span>
+    {{ calc_panel(rows_, total_label, h.left, cur, explain) }}
   </div>
+  {% if tab != "earn" %}
+  {% set sum_rows = [("In your accounts", budget.money_in_accounts, ""), ("Set aside for card bills", budget.reserved_for_cards, "−"), ("Left in your categories", budget.available, "−")] %}
+  {% if budget.saving %}{% set sum_rows = sum_rows + [("Left to build", budget.saving_available, "−")] %}{% endif %}
+  {% set sum_rows = sum_rows + [("Assigned to later months", budget.assigned_to_later_months, "−")] %}
+  {#- Ready to assign: the same on every chip, so a quiet line under the head, with its sum behind the i. -#}
+  <div class="rta-line" data-ready-to-assign>
+    <span class="rta-text">{% if rta > 0 %}<b>{{ rta|money|amount(cur) }}</b> ready to assign{% elif rta == 0 and (budget.lines or budget.saving) %}Every {{ cur|symbol }} has a job{% else %}<b>{{ 0|money|amount(cur) }}</b> ready to assign{% endif %}{% if tab == "build" and h.owed > 0 %} · {{ h.owed|money|amount(cur) }} still owed on loans{% endif %}</span>
+    {{ calc_button("what is ready to assign") }}
+    {{ calc_panel(sum_rows, "Ready to assign", rta, cur, "Money in your accounts that has no job yet.") }}
+  </div>
+  {% endif %}
   {% if show_intro and tab == "spend" %}
   <div class="intro" data-plan-intro>
     <b>Give every {{ budget.currency|symbol }} a job</b>

@@ -214,6 +214,36 @@ def _build_rows(data, advanced: bool, style: str) -> tuple[list[dict], list[dict
     return flat, shown, groups
 
 
+def _heads(data) -> dict:
+    """The figures behind the head of each chip (Spend, Build, Earn): one figure that answers that chip's question, and the
+    bar of how much of it is used. `carried` is what earlier months left (what was available, less what this month assigned,
+    plus what was spent), the same sum Home shows for Spend."""
+    def share(used: Decimal, had: Decimal) -> int:
+        return int(min(max(used / had, Decimal(0)), Decimal(1)) * 100) if had > 0 else 0
+
+    spend_had = data.activity + max(data.available, Decimal(0))
+    build_had = data.saving_activity + max(data.saving_available, Decimal(0))
+    expected, received = data.earning_expected, data.earning_received
+    return {
+        "spend": {
+            "left": data.available, "used": data.activity, "had": spend_had, "assigned": data.assigned,
+            "carried": data.available - data.assigned + data.activity, "percent": share(data.activity, spend_had),
+            "planned": data.assigned > 0 or data.available > 0,
+        },
+        "build": {
+            "left": data.saving_available, "used": data.saving_activity, "had": build_had, "assigned": data.saving_assigned,
+            "carried": data.saving_available - data.saving_assigned + data.saving_activity,
+            "percent": share(data.saving_activity, build_had),
+            "planned": data.saving_assigned > 0 or data.saving_available > 0,
+            "owed": sum((x.balance for x in data.saving if x.debt), Decimal(0)),
+        },
+        "earn": {
+            "left": expected - received, "used": received, "had": expected, "percent": share(received, expected),
+            "planned": expected > 0,
+        },
+    }
+
+
 def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     data = budget.view(month)
     advanced = ProfileRepository(budget.br.db, budget.br.uid).advanced()
@@ -264,6 +294,7 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "advanced": advanced,
         # Only the current month has a "today": the tick on the bars shows how far through it we are.
         "pace": month_progress() if data.month == month_start(None) else None,
+        "heads": _heads(data),
     }
 
 
