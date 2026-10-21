@@ -155,6 +155,17 @@ class BudgetService:
             and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
         }
 
+    def build_leftovers(self, group_id: UUID) -> list[str]:
+        """The open accounts of a group that could be planned under Build but are not (a group's page names them)."""
+        accounts = self.accounts.ar.list()
+        by_id = {a.aid: a for a in accounts}
+        parents = {a.parent_id for a in accounts}
+        return sorted(
+            a.name for a in accounts
+            if a.parent_id == group_id and not a.saving and not a.on_budget and a.closed_on is None and a.aid not in parents
+            and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
+        )
+
     def _earnings(self, accounts: list[Account], by_id: dict[UUID, Account]) -> dict[UUID, Account]:
         """Income accounts a month's expected income can be set for (the Earn section's lines): every account below
         Income, groups included (a group's own account can be posted to)."""
@@ -440,11 +451,14 @@ class BudgetService:
             target = targets.get(aid)
             needed, missing = needs.get(aid, (ZERO, ZERO))
             debt = AccountService.root_name(account, by_id) == "Liabilities"
+            home = by_id.get(account.parent_id)
+            group = home if home is not None and home.parent_id is not None else None
             lines.append(
                 BudgetSaving(
                     aid=aid, name=account.name, path=":".join(self._path(account, by_id)),
                     assigned=assigned, activity=moved, available=available,
                     balance=-balances[aid] if debt else balances[aid], debt=debt,
+                    group_id=group.aid if group else None, group_name=group.name if group else None,
                     closed=account.closed_on is not None,
                     target=None if target is None else BudgetTargetRead(
                         kind=target.kind, amount=target.amount, target_date=target.target_date, weekday=target.weekday

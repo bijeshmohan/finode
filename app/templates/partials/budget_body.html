@@ -90,9 +90,9 @@
   <p class="card muted">There are no income accounts yet. <a href="/categories/new?root=income">Add one</a> under Income, like Salary.</p>
   {% endif %}
   {% elif tab == "build" %}
-  {% if saving_rows %}
+  {% if build_rows %}
   <div class="budget-list tile" data-budget-saving>
-    {% for item in saving_rows %}
+    {% for item in build_rows %}
     <div class="top">{{ row(item, month_key, pace) }}</div>
     {% endfor %}
   </div>

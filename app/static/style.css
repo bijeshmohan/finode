@@ -1280,3 +1280,7 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 
 /* The Plan's chips row is as tall as Categories' and Accounts' (whose bin is a full tap target), so the figure below lines up. */
 .plan-bar { min-height: var(--tap); }
+
+/* A Build group's page: what is still owed (a loan group) and the accounts of the group that are not in Build. */
+.group-owed { margin: -.25rem 0 .75rem; font-size: .875rem; }
+.group-leftovers { margin: .75rem 0 0; font-size: .875rem; }

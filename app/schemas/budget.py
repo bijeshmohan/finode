@@ -111,6 +111,9 @@ class BudgetSaving(BaseModel):
     # What the account holds at the end of the month; for a loan (`debt`) what is still owed.
     balance: Decimal = Money
     debt: bool = False
+    # The group it sits in (Assets › Investments › Mutual Funds is in "Investments"), when it is not directly under a root.
+    group_id: UUID | None = None
+    group_name: str | None = None
     closed: bool = False
     # Its target (the same kinds as a category's), what it needs from this month's assigning and what is still missing.
     target: BudgetTargetRead | None = None
