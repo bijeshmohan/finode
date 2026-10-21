@@ -353,7 +353,6 @@ def test_the_earn_chip_plans_expected_income(page: Page, books, api: Api):
 
 def test_the_sliders_button_chooses_the_sections_and_lines_up_the_rows(page: Page, books, api: Api):
     api.post("/accounts/", name="Mutual Funds", parent_id=books["roots"]["Assets"], on_budget=False, saving=True)
-    api.post("/accounts/", name="Home Loan", parent_id=books["roots"]["Liabilities"], on_budget=False)
     page.goto("/plan")
     bar = page.locator(".cat-bar").bounding_box()
     page.goto("/categories")
@@ -362,17 +361,15 @@ def test_the_sliders_button_chooses_the_sections_and_lines_up_the_rows(page: Pag
     page.get_by_role("link", name="Choose what to plan").click()
     sheet = page.locator("#plan-sheet")
     expect(sheet).to_be_visible()
-    expect(sheet.get_by_text("Mutual Funds")).to_be_visible()
-    expect(sheet.get_by_text("Home Loan")).to_be_visible()
-    sheet.locator('input[aria-label="Home Loan in Build"]').check()
+    expect(sheet.get_by_text("Mutual Funds")).to_have_count(0)  # only the three sections, no accounts
+    expect(sheet.locator("input.toggle")).to_have_count(3)
     sheet.locator('input[name="build"]').uncheck()
-    expect(sheet.locator("[data-build-list]")).to_be_hidden()  # the accounts go with the section
     sheet.locator('input[name="build"]').check()
     sheet.get_by_role("button", name="Done").click()
     page.wait_for_url(re.compile(r"/plan"))
     expect(page.locator(".cat-chips .chip")).to_have_text(["Spend", "Build", "Earn"])
     page.locator(".cat-chips .chip", has_text="Build").click()
-    expect(page.locator("[data-budget-saving] a.catrow", has_text="Home Loan")).to_be_visible()
+    expect(page.locator("[data-budget-saving] a.catrow", has_text="Mutual Funds")).to_be_visible()
     page.get_by_role("link", name="Choose what to plan").click()
     page.locator('#plan-sheet input[name="earn"]').uncheck()
     page.locator('#plan-sheet input[name="build"]').uncheck()

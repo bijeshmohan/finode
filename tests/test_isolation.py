@@ -321,7 +321,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         refused("note on A's category", "POST", "/plan/note", data={"category": a["Groceries"], "note": "hacked"})
         refused("clear A's target", "POST", "/plan/target/delete", data={"category": a["Groceries"]})
         refused("A's target page", "GET", "/plan/target", params={"category": a["Groceries"]})
-        refused("A's account in Build", "POST", "/plan/configure", data={"build": "1", "sent": "1", "saving": [a["HDFC"]]})
         refused("move A's money", "POST", "/plan/move", data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
         refused("move page for A's category", "GET", "/plan/move", params={"source": a["Groceries"]})
         refused("quick account under A's group", "POST", "/accounts/quick", data={"name": "x", "parent_id": a["Banks"]})

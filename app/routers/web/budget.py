@@ -457,15 +457,13 @@ def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()
 
 @router.get("/configure")
 def configure_sheet(request: Request, budget: Budget, month: str = "", tab: str = "spend"):
-    """The sheet behind the sliders button: which sections the Plan has, and which accounts are in Build."""
+    """The sheet behind the sliders button: which sections the Plan has."""
     if not settings.plan_enabled:
         raise HTTPException(status_code=404, detail="not found")
     build_on, earn_on = ProfileRepository(budget.br.db, budget.br.uid).plan_sections()
-    choices = budget.build_choices()
     return templates.TemplateResponse(
         request, "partials/plan_configure.html",
-        {"build_on": build_on, "earn_on": earn_on, "choices": choices, "chosen": sum(1 for c in choices if c["saving"]),
-         "month_key": parse_month(month).strftime("%Y-%m"), "tab": tab},
+        {"build_on": build_on, "earn_on": earn_on, "month_key": parse_month(month).strftime("%Y-%m"), "tab": tab},
     )
 
 
@@ -476,17 +474,10 @@ def configure(
     tab: Annotated[str, Form()] = "spend",
     build: Annotated[str, Form()] = "",
     earn: Annotated[str, Form()] = "",
-    saving: Annotated[list[str], Form()] = [],
-    sent: Annotated[str, Form()] = "",
 ):
     if not settings.plan_enabled:
         raise HTTPException(status_code=404, detail="not found")
     build_on, earn_on = build.strip() == "1", earn.strip() == "1"
-    try:
-        if build_on and sent == "1":
-            budget.set_build({UUID(a) for a in saving})
-    except (ValueError, BudgetError) as e:
-        return htmx_error(str(e).capitalize(), "#plan-sheet-error")
     ProfileRepository(budget.br.db, budget.br.uid).update(ProfileUpdate(plan_build=build_on, plan_earn=earn_on))
     shown = {"build": build_on, "earn": earn_on, "spend": True}.get(tab, True)
     return htmx_redirect(f"/plan?month={parse_month(month).strftime('%Y-%m')}&tab={tab if shown else 'spend'}")
