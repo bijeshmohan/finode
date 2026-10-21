@@ -67,6 +67,11 @@
 
   <h2 class="settings-label">More</h2>
   <div class="tile">
+  {% if groups_missing %}
+  <a class="setting setting-link" id="groups" href="/settings" hx-get="/settings/groups" hx-target="#groups-sheet-body" hx-swap="innerHTML">
+    <span class="setting-title">Standard groups<small class="muted setting-sub">Bank Accounts, Cash, Investments, Credit Cards, Loans</small></span><span class="setting-value">Add</span>{{ icon("chevron-right") }}
+  </a>
+  {% endif %}
   <a class="setting setting-link" id="advanced" href="/settings/advanced">
     <span class="setting-title">Advanced</span><span class="setting-value">{{ "On" if profile.advanced else "Off" }}</span>{{ icon("chevron-right") }}
   </a>
@@ -82,6 +87,10 @@
   {% endif %}
   </div>
 </div>
+
+<dialog id="groups-sheet" class="sheet sheet-bottom" aria-label="Standard groups">
+  <div id="groups-sheet-body" class="sheet-body"></div>
+</dialog>
 
 <form method="post" action="/logout" class="form-narrow signout">
   <button type="submit" class="danger">{{ icon("logout") }}Sign out</button>

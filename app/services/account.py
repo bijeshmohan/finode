@@ -173,6 +173,72 @@ class AccountService:
             if aid in empty:
                 self.ar.delete(aid)
 
+    def fixed_parents_plan(self) -> list[dict]:
+        """What adding the standard groups to a ledger that already exists would do, group by group, without doing it.
+
+        Each entry has `key`, `name`, `root`, `start` and an `action`: "add" (made new), "adopt" (an account of the person's
+        with exactly that name, open, that is a group or an empty account nothing refers to, becomes the built-in group
+        without being renamed or moved), "have" (already there) or "skip" (an account of theirs in the way, with a `reason`)."""
+        all_accounts = self._ensure_roots()
+        roots = {a.name: a for a in all_accounts if a.parent_id is None}
+        keyed = {a.system_key for a in all_accounts if a.system_key}
+        budget = BudgetRepository(self.ar.db, self.ar.uid)
+        has_children = {a.parent_id for a in all_accounts}
+        plan = []
+        for root, name, key, start in FIXED_PARENTS:
+            entry = {"key": key, "name": name, "root": root, "start": start, "action": "add", "aid": None, "reason": ""}
+            plan.append(entry)
+            if key in keyed:
+                entry["action"] = "have"
+                continue
+            clash = next(
+                (a for a in all_accounts if a.parent_id == roots[root].aid and a.name.casefold() == name.casefold()), None
+            )
+            if clash is None:
+                continue
+            entry["aid"] = clash.aid
+            usable = (
+                clash.name == name
+                and clash.system_key is None
+                and clash.closed_on is None
+                and (
+                    clash.aid in has_children
+                    or not (
+                        self.tr.postings_for_account(clash.aid)
+                        or RecurringRepository.uses_account(self.ar.db, clash.aid)
+                        or budget.uses_account(clash.aid)
+                        or clash.payment_category_id is not None
+                    )
+                )
+            )
+            if usable:
+                entry["action"] = "adopt"
+            else:
+                entry["action"] = "skip"
+                entry["reason"] = f"you already have an account called {clash.name} under {root}. Rename it first to add this group."
+        return plan
+
+    def add_fixed_parents(self) -> list[dict]:
+        """Add the standard groups to a ledger that already exists (nothing is moved, renamed or hidden); returns the plan as done."""
+        plan = self.fixed_parents_plan()
+        all_accounts = self._ensure_roots()
+        roots = {a.name: a for a in all_accounts if a.parent_id is None}
+        for entry in plan:
+            if entry["action"] == "add":
+                self.ar.db.add(Account(name=entry["name"], parent_id=roots[entry["root"]].aid, user=self.ar.uid, system_key=entry["key"]))
+            elif entry["action"] == "adopt":
+                account = self.ar.read(entry["aid"])
+                account.system_key = entry["key"]
+                if not any(a.parent_id == account.aid for a in all_accounts):  # an empty account becomes a group: flags mean nothing
+                    account.on_budget, account.saving, account.payment_category_id = False, False, None
+                self.ar.db.add(account)
+        try:
+            self.ar.db.commit()
+        except IntegrityError:
+            self.ar.db.rollback()
+            raise ValueError("the groups were added a moment ago: reload the page!")
+        return plan
+
     def _show_build(self) -> None:
         """An account planned under Build is no use while the Plan hides Build, so the first one switches it on."""
         if settings.plan_enabled and not self.pr.plan_sections()[0]:

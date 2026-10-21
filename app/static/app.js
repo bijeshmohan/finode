@@ -372,7 +372,7 @@ function applyKind(form, kind) {
 // The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
   const id = event.target && event.target.id;
-  if (id !== "txn-sheet-body" && id !== "cat-sheet-body" && id !== "plan-sheet-body") return;
+  if (id !== "txn-sheet-body" && id !== "cat-sheet-body" && id !== "plan-sheet-body" && id !== "groups-sheet-body") return;
   const dialog = document.getElementById(id.replace("-body", ""));
   if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");

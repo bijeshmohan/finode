@@ -58,7 +58,7 @@ LISTS = {
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"),
     ("GET", "/backup"), ("GET", "/plan"), ("GET", "/plan/move"), ("GET", "/plan/configure"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
-    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
+    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/settings/groups"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
 }
 
 # Routes that take A's ids or names inside the request: refused (see `test_b_cannot_use_a_s_things_in_requests`).
@@ -70,7 +70,7 @@ REFERENCES = {
     ("POST", "/plan/target/delete"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
     ("POST", "/recurring"), ("POST", "/restore"), ("POST", "/restore/preview"), ("POST", "/settings/currency"),
-    ("POST", "/settings/advanced"), ("POST", "/settings/lock"), ("POST", "/transactions/split"),
+    ("POST", "/settings/advanced"), ("POST", "/settings/groups"), ("POST", "/settings/lock"), ("POST", "/transactions/split"),
 }
 
 
