@@ -479,6 +479,8 @@ def test_accounts_without_a_group_are_listed_together_after_all_the_groups(clien
     order = [text.index(f'data-path="assets › {p}') for p in ("banks › hdfc", "zoo › lion", "apple", "cash")]
     assert order == sorted(order), "the groups come first, then Apple and Cash"
     assert text.count('class="acc-block') == 3, "two groups and one block of plain accounts"
+    assert "data-others" in text and text.index("data-others") > text.index('data-path="assets › zoo › lion"')
+    assert "<span>Others</span><span>20.00</span>" in text, "Apple and Cash, 10 each"
 
 
 def test_equity_is_the_page_you_get_when_neither_chip_is_chosen(client: TestClient, root_accounts: dict[str, str]):
@@ -492,3 +494,9 @@ def test_equity_is_the_page_you_get_when_neither_chip_is_chosen(client: TestClie
     assert "Opening Balances" in equity and "Equity" in equity
     liabilities = client.get("/accounts?tab=liabilities").text
     assert 'href="/accounts?tab=equity"' in liabilities and 'href="/accounts?tab=assets"' in liabilities
+
+
+def test_others_is_not_shown_when_there_are_no_groups_or_for_equity(client: TestClient, root_accounts: dict[str, str]):
+    client.post("/api/accounts/", json={"name": "Apple", "parent_id": root_accounts["Assets"], "balance": "10"})
+    assert "data-others" not in client.get("/accounts").text, "nothing to tell apart from"
+    assert "data-others" not in client.get("/accounts?tab=equity").text
