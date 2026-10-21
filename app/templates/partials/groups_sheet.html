@@ -9,22 +9,24 @@
 <ul class="groups-plan">
   {% for e in plan %}
   <li class="{{ e.action }}">
-    <span class="gp-mark" aria-hidden="true">{{ "✕" if e.action == "skip" else "✓" }}</span>
+    <span class="gp-mark" aria-hidden="true">{{ "✕" if e.action == "skip" else "●" if e.action == "adopt" else "✓" }}</span>
     <span class="gp-text">
-      <b>{{ e.name }}</b>
+      <b>{{ e.name }}{% if e.action == "adopt" %} <span class="badge">Your group</span>{% endif %}</b>
       <small class="muted">{% if e.action == "skip" %}Skipped: {{ e.reason }}
         {%- elif e.action == "have" %}Already there
-        {%- elif e.action == "adopt" %}Your {{ e.name }} becomes this group, with everything in it
+        {%- elif e.action == "adopt" %}Uses the {{ e.name }} you already have. Everything in it stays where it is; from now on it can't be renamed, moved or deleted
         {%- elif e.start == "budget" %}Accounts in it start part of the budget
         {%- else %}Accounts in it start outside the budget, planned under Build{% endif %}</small>
     </span>
   </li>
   {% endfor %}
 </ul>
+{% set adopted = plan|selectattr("action", "equalto", "adopt")|list|length %}
+{% if adopted %}<p class="muted gp-summary">{{ will_add - adopted }} new, {{ adopted }} of your own. Nothing is renamed or moved.</p>{% endif %}
 <form class="stack" hx-post="/settings/groups" hx-swap="none" hx-sync="this:replace">
   <p id="groups-sheet-error" class="error" role="alert"></p>
   <div class="sheet-actions">
-    {% if will_add %}<button type="submit">Add {{ will_add }} group{{ "" if will_add == 1 else "s" }}</button>{% endif %}
+    {% if will_add %}<button type="submit">{{ "Set up" if adopted else "Add" }} {{ will_add }} group{{ "" if will_add == 1 else "s" }}</button>{% endif %}
     <button type="button" class="secondary" onclick="this.closest('dialog').close()">{{ "Cancel" if will_add else "Close" }}</button>
   </div>
 </form>
