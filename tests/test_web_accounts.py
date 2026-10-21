@@ -37,7 +37,7 @@ def test_accounts_page_suggests_first_account_for_empty_roots(
 ):
     text = client.get("/accounts?tab=liabilities").text
     assert ('href="/accounts/new?root=liabilities"') in text
-    assert "Add a credit card or loan" in text
+    assert 'class="button"' in text and "Add account" in text, "an empty type offers an Add account pill"
 
 
 def test_accounts_page_marks_system_account(client: TestClient, root_accounts: dict[str, str]):
