@@ -22,6 +22,8 @@ class ProfileService:
             default_currency=profile.currency,
             locked_through=profile.locked_through,
             advanced=profile.advanced,
+            plan_build=profile.plan_build,
+            plan_earn=profile.plan_earn,
             created=profile.created,
             updated=profile.updated,
         )

@@ -1,7 +1,7 @@
 from datetime import date as Date
 from uuid import UUID
 
-from sqlalchemy import false
+from sqlalchemy import false, true
 from sqlmodel import Field
 
 from .utils import TimestampMixin
@@ -20,3 +20,6 @@ class Profile(TimestampMixin, table=True):
     locked_through: Date | None = Field(default=None)
     # Show the rarely used features (targets, lock, pinning, closing...). Off hides them, never the data.
     advanced: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    # Which sections of the Plan the person uses besides Spend (the chips on the Plan page). Off hides a section, never its data.
+    plan_build: bool = Field(default=True, sa_column_kwargs={"server_default": true()})
+    plan_earn: bool = Field(default=False, sa_column_kwargs={"server_default": false()})

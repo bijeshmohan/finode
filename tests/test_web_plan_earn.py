@@ -1,4 +1,4 @@
-"""The Earn chip: shown only with Advanced on, the month in one line, rows and their sheet."""
+"""The Earn chip: shown when the person chose it, the month in one line, rows and their sheet."""
 
 from datetime import date
 
@@ -16,14 +16,17 @@ def advanced(client, on: bool):
     assert client.patch("/api/profile/", json={"advanced": on}).status_code == 200
 
 
-def test_the_earn_chip_is_there_only_with_advanced_on(client, books):
+def test_the_earn_chip_is_there_only_when_the_person_chose_it(client, books):
     text = page(client)
     assert ">Earn<" in text and "&tab=earn" in text
-    advanced(client, False)
+    assert client.patch("/api/profile/", json={"plan_earn": False}).status_code == 200
     off = page(client)
-    assert ">Earn<" not in off and ">Build<" in off, "Build stays: it is not an advanced feature"
+    assert ">Earn<" not in off and ">Build<" in off, "Build stays until it is switched off"
     asked = page(client, "earn")
-    assert "data-budget-earning" not in asked and "data-budget-tree" in asked, "no Earn without Advanced: Spend shows"
+    assert "data-budget-earning" not in asked and "data-budget-tree" in asked, "no Earn section: Spend shows"
+    advanced(client, False)
+    assert client.patch("/api/profile/", json={"plan_earn": True}).status_code == 200
+    assert ">Earn<" in page(client), "it no longer depends on Advanced"
 
 
 def test_the_earn_list_shows_expected_and_received_with_the_month_in_one_line(client, books):
@@ -52,8 +55,8 @@ def test_the_sheet_sets_what_is_expected_and_stays_on_earn(client, books):
     answered = client.post("/plan/assign", data={"category": books["salary"]["aid"], "amount": "5000", "sheet": "1", "tab": "earn"})
     assert answered.status_code == 200 and "data-budget-earning" in answered.text
     assert next(l for l in budget(client)["earning"] if l["name"] == "Salary")["expected"] == "5000.00"
-    advanced(client, False)
-    assert client.get(f"/plan/category/{books['salary']['aid']}/sheet").status_code == 404, "Earn is Advanced only"
+    client.patch("/api/profile/", json={"plan_earn": False})
+    assert client.get(f"/plan/category/{books['salary']['aid']}/sheet").status_code == 404, "no Earn section: no Earn sheet"
 
 
 def test_without_income_accounts_the_tab_invites_one(client, root_accounts):

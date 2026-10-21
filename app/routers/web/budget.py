@@ -13,6 +13,7 @@ from ...config import settings
 from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, month_start
+from ...schemas.profile import ProfileUpdate
 from ...schemas.budget import TARGET_KINDS, BudgetLine, BudgetSaving
 from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount
@@ -31,8 +32,8 @@ def budget_moved(request: Request, rest: str = ""):
     query = request.url.query
     return RedirectResponse(f"/plan{'/' + rest if rest else ''}{'?' + query if query else ''}", status_code=301)
 
-# The sections of the page, as chips: Build and Earn only while the Plan is on (settings.plan_enabled), Earn also only with
-# Advanced on (its data stays when it is off).
+# The sections of the page, as chips: Build and Earn only while the Plan is on (settings.plan_enabled) and the person chose them
+# (profiles.plan_build / plan_earn, in the sheet behind the sliders button; their data stays when they are off).
 TABS = {"spend": "Spend", "build": "Build", "earn": "Earn"}
 
 
@@ -184,7 +185,11 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     unused = [n for n in tree if n.is_group and not n.used] if any(n.used for n in tree) else []
     style = grouping_for(data.currency)
     tab = "build" if tab == "save" else tab  # the older address of the chip
-    tabs = {k: v for k, v in TABS.items() if k == "spend" or (settings.plan_enabled and (k != "earn" or advanced))}
+    build_on, earn_on = ProfileRepository(budget.br.db, budget.br.uid).plan_sections()
+    tabs = {
+        k: v for k, v in TABS.items()
+        if k == "spend" or (settings.plan_enabled and (build_on if k == "build" else earn_on))
+    }
     saving_lines = [_saving_line(s) for s in data.saving]
     debts = {s.aid: s for s in data.saving if s.debt}
     return {
@@ -448,3 +453,40 @@ def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()
     except BudgetError as e:
         return htmx_error(str(e), "#budget-error")
     return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
+
+
+@router.get("/configure")
+def configure_sheet(request: Request, budget: Budget, month: str = "", tab: str = "spend"):
+    """The sheet behind the sliders button: which sections the Plan has, and which accounts are in Build."""
+    if not settings.plan_enabled:
+        raise HTTPException(status_code=404, detail="not found")
+    build_on, earn_on = ProfileRepository(budget.br.db, budget.br.uid).plan_sections()
+    choices = budget.build_choices()
+    return templates.TemplateResponse(
+        request, "partials/plan_configure.html",
+        {"build_on": build_on, "earn_on": earn_on, "choices": choices, "chosen": sum(1 for c in choices if c["saving"]),
+         "month_key": parse_month(month).strftime("%Y-%m"), "tab": tab},
+    )
+
+
+@router.post("/configure")
+def configure(
+    budget: Budget,
+    month: Annotated[str, Form()] = "",
+    tab: Annotated[str, Form()] = "spend",
+    build: Annotated[str, Form()] = "",
+    earn: Annotated[str, Form()] = "",
+    saving: Annotated[list[str], Form()] = [],
+    sent: Annotated[str, Form()] = "",
+):
+    if not settings.plan_enabled:
+        raise HTTPException(status_code=404, detail="not found")
+    build_on, earn_on = build.strip() == "1", earn.strip() == "1"
+    try:
+        if build_on and sent == "1":
+            budget.set_build({UUID(a) for a in saving})
+    except (ValueError, BudgetError) as e:
+        return htmx_error(str(e).capitalize(), "#plan-sheet-error")
+    ProfileRepository(budget.br.db, budget.br.uid).update(ProfileUpdate(plan_build=build_on, plan_earn=earn_on))
+    shown = {"build": build_on, "earn": earn_on, "spend": True}.get(tab, True)
+    return htmx_redirect(f"/plan?month={parse_month(month).strftime('%Y-%m')}&tab={tab if shown else 'spend'}")

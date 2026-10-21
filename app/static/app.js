@@ -372,11 +372,17 @@ function applyKind(form, kind) {
 // The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
   const id = event.target && event.target.id;
-  if (id !== "txn-sheet-body" && id !== "cat-sheet-body") return;
+  if (id !== "txn-sheet-body" && id !== "cat-sheet-body" && id !== "plan-sheet-body") return;
   const dialog = document.getElementById(id.replace("-body", ""));
   if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
+});
+// The Plan's configure sheet: the Build switch shows or hides the list of accounts under it.
+document.addEventListener("change", (event) => {
+  const box = event.target.closest && event.target.closest('#plan-sheet input[name="build"]');
+  if (!box) return;
+  box.closest("form").querySelectorAll("[data-build-list]").forEach((el) => { el.hidden = !box.checked; });
 });
 // A tap that starts on a sheet's Save counts as Save even when the sheet moves under the finger before it ends (the keyboard
 // opening or closing shifts it): the browser then sends the click to whatever is under the finger, which closed the sheet

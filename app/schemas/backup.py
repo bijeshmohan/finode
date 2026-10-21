@@ -28,6 +28,9 @@ class BackupProfile(BaseModel):
     max_depth_expenses: int = Field(default=0, exclude=True)
     locked_through: Day | None = None
     advanced: bool = False
+    plan_build: bool = True
+    # Files from before the Plan sections were chosen: Earn followed the Advanced switch.
+    plan_earn: bool | None = None
 
 
 class BackupAccount(BaseModel):
