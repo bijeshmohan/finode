@@ -10,7 +10,7 @@
   {% endif %}
   <p id="budget-error" class="error" role="alert"></p>
   <div class="budget-list tile" data-budget-tree>
-    {% for item in kids %}{{ row(item, month_key, pace, group_id=group.line.aid) }}{% endfor %}
+    {% for item in kids %}{{ row(item, month_key, pace, group_id=group.line.aid, build=build) }}{% endfor %}
   </div>
   {% if build and leftovers %}<p class="muted group-leftovers">Not in Build here: <strong>{{ leftovers|join(", ") }}</strong>. Switch it on in the account's edit page.</p>{% endif %}
   <dialog id="cat-sheet" class="sheet sheet-bottom" aria-label="Category">

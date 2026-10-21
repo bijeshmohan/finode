@@ -62,4 +62,5 @@ def test_the_web_page_words_a_loan_as_paid_down(client, books):
     text = " ".join(client.get("/plan?tab=build").text.split())
     assert "Home Loan" in text and "paid 8,000 " in text and "owed 9,92,000" in text
     sheet = client.get(f"/plan/category/{books['loan']['aid']}/sheet").text
-    assert "Paid down" in sheet and "Still owed" in sheet and "to pay down" in sheet and "Moved in" not in sheet
+    assert "Paid down" in sheet and "Still owed" in sheet and "Moved in" not in sheet
+    assert "above plan" in sheet, "paid with nothing planned is past the plan, which is good news in Build"

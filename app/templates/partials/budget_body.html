@@ -27,9 +27,10 @@
     {% else %}<a class="intro-step" href="/categories/new?root=expense">Start with your first category →</a>{% endif %}
   </div>
   {% endif %}
-  {% if overspent > 0 or rta < 0 %}
+  {% set spend_over = overspent > 0 and tab == "spend" %}{#- overspending belongs to Spend; it would sit oddly over Build's green -#}
+  {% if spend_over or rta < 0 %}
   <div class="ready-warns">
-    {% if overspent > 0 %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
+    {% if spend_over %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
     {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
   </div>
   {% endif %}
@@ -101,7 +102,7 @@
   {% if build_rows %}
   <div class="budget-list tile" data-budget-saving>
     {% for item in build_rows %}
-    <div class="top">{{ row(item, month_key, pace) }}</div>
+    <div class="top">{{ row(item, month_key, pace, build=True) }}</div>
     {% endfor %}
   </div>
   {% else %}
