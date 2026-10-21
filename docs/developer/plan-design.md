@@ -104,3 +104,5 @@ What a person who used Save sees after level 1 or 2: the fund account is an ordi
 ## Phase 4: Save becomes Build (2026-10-21)
 
 The owner did not want loan principal treated as an expense and "Save" was the wrong word for paying a debt down, so the chip is **Build** (money leaving what you can spend for your net worth: an asset going up, a debt going down). `accounts.saving` stays the flag (no migration); it is now allowed on a liability outside the budget as well as an asset. A loan's Build line counts the principal paid in (debits to it in a transaction that touches a budget account), shows what is still owed (`BudgetSaving.debt`, `balance`) and says "paid down". An EMI is recorded as two rows (principal to the loan, interest to an expense) so only the interest is spending. The payment category stays for people who prefer a loan as Spend; switching Build on clears it. Rolling back is the same switch (`FINODE_PLAN_ENABLED=false`).
+
+The chips were later put in the order **Earn · Build · Spend** (Spend still the default), at the owner's request (2026-10-21).
