@@ -34,7 +34,7 @@ def budget_moved(request: Request, rest: str = ""):
 
 # The sections of the page, as chips: Build and Earn only while the Plan is on (settings.plan_enabled) and the person chose them
 # (profiles.plan_build / plan_earn, in the sheet behind the sliders button; their data stays when they are off).
-TABS = {"spend": "Spend", "build": "Build", "earn": "Earn"}
+TABS = {"earn": "Earn", "build": "Build", "spend": "Spend"}
 
 
 def parse_month(value: str) -> date:

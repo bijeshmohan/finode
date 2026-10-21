@@ -302,7 +302,7 @@ def test_the_save_chip_plans_for_an_account_you_save_into(page: Page, books, api
     fund = api.post("/accounts/", name="Mutual Funds", parent_id=books["roots"]["Assets"], on_budget=False, saving=True)
     page.goto("/plan")
     chips = page.locator(".cat-chips .chip")
-    expect(chips).to_have_text(["Spend", "Build", "Earn"])
+    expect(chips).to_have_text(["Earn", "Build", "Spend"])
     expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Spend")
     expect(page.locator("a.catrow", has_text="Mutual Funds")).to_have_count(0)
     page.locator(".cat-chips .chip", has_text="Build").click()
@@ -327,7 +327,7 @@ def test_the_save_chip_plans_for_an_account_you_save_into(page: Page, books, api
 
 def test_the_earn_chip_plans_expected_income(page: Page, books, api: Api):
     page.goto("/plan")
-    expect(page.locator(".cat-chips .chip")).to_have_text(["Spend", "Build", "Earn"])
+    expect(page.locator(".cat-chips .chip")).to_have_text(["Earn", "Build", "Spend"])
     page.locator(".cat-chips .chip", has_text="Earn").click()
     page.wait_for_url(re.compile(r"tab=earn"))
     expect(page.locator("[data-plan-sum]")).to_be_visible()
@@ -368,7 +368,7 @@ def test_the_sliders_button_chooses_the_sections_and_lines_up_the_rows(page: Pag
     sheet.locator('input[name="build"]').check()
     sheet.get_by_role("button", name="Done").click()
     page.wait_for_url(re.compile(r"/plan"))
-    expect(page.locator(".cat-chips .chip")).to_have_text(["Spend", "Build", "Earn"])
+    expect(page.locator(".cat-chips .chip")).to_have_text(["Earn", "Build", "Spend"])
     page.locator(".cat-chips .chip", has_text="Build").click()
     expect(page.locator("[data-budget-saving] a.catrow", has_text="Mutual Funds")).to_be_visible()
     page.get_by_role("link", name="Choose what to plan").click()
