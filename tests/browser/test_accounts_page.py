@@ -17,6 +17,11 @@ def visible(page: Page) -> list[str]:
     )
 
 
+def open_options(page: Page) -> None:
+    """The budget choices are folded away on the form; open them (the details element works even while its parent is hidden)."""
+    page.evaluate("document.querySelectorAll('details.budget-options').forEach(d => d.open = true)")
+
+
 def nested(api: Api, books):
     banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
     api.post("/accounts/", name="HDFC", parent_id=banks["aid"], balance="100")
@@ -146,6 +151,7 @@ def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api)
 
 def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Page, api, books):
     page.goto("/accounts/new")
+    open_options(page)
     fields = page.locator("[data-budget-fields]")
     expect(fields).to_be_hidden()  # nothing chosen yet
     parent = page.locator('select[name="parent_id"]')
@@ -173,6 +179,7 @@ def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Pa
 def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Page, api, books):
     for url in ("/accounts/new?root=assets", f"/accounts/new?parent={books['checking']['aid']}"):
         page.goto(url)
+        open_options(page)
         box = page.locator('input[name="on_budget"]')
         expect(box).to_be_checked()
         box.uncheck()
@@ -182,6 +189,7 @@ def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Pag
 
 def test_plan_under_build_shows_only_for_an_account_outside_the_budget(page: Page, api, books):
     page.goto("/accounts/new?root=assets")
+    open_options(page)
     box = page.locator('input[name="on_budget"]')
     saving = page.locator('input[name="saving"]')
     row = page.locator("[data-saving]")
@@ -195,6 +203,7 @@ def test_plan_under_build_shows_only_for_an_account_outside_the_budget(page: Pag
     expect(row).to_be_hidden()
     expect(saving).not_to_be_checked()
     page.goto("/accounts/new")
+    open_options(page)
     page.locator('select[name="parent_id"]').select_option(label="Liabilities")
     expect(row).to_be_visible()  # a loan starts outside the budget and can be paid down under Build
     page.locator('select[name="parent_id"]').select_option(label="Assets")
@@ -218,3 +227,16 @@ def test_going_back_from_an_account_keeps_the_chip(page: Page, api, books):
     page.locator("a.back").click()
     page.wait_for_url("**/accounts?tab=liabilities")
     expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Liabilities")
+
+
+def test_budget_options_are_folded_and_say_where_the_account_stands(page: Page, api, books):
+    page.goto("/accounts/new?root=assets")
+    details = page.locator("details.budget-options")
+    expect(details).to_be_visible()
+    assert details.get_attribute("open") is None, "folded away at first"
+    expect(page.locator("[data-budget-summary]")).to_have_text("Part of the budget")
+    page.locator("details.budget-options summary").click()
+    page.locator('input[name="on_budget"]').uncheck()
+    expect(page.locator("[data-budget-summary]")).to_have_text("Outside the budget")
+    page.locator('input[name="saving"]').check()
+    expect(page.locator("[data-budget-summary]")).to_have_text("Planned under Build")

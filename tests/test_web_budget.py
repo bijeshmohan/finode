@@ -118,7 +118,7 @@ def test_the_account_page_can_switch_the_budget_on_and_off(client, root_accounts
 
 def test_the_budget_tab_is_in_the_navigation(client, setup):
     page = client.get("/").text
-    assert page.count('href="/plan"') == 2
+    assert page.count('href="/plan"') == 3  # the tab bar, the sidebar and the "Give your money a job" step
 
 
 def test_the_inline_amount_also_saves_on_the_return_key(client, setup):

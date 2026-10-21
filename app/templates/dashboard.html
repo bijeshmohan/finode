@@ -15,17 +15,7 @@
   <p class="muted">Add your first transaction and this page starts to fill in.</p>
   {% if steps %}
   <p class="section-label">Get started · {{ steps_done }} of {{ steps_total }}</p>
-  <ol class="steps">
-    {% for step in steps %}
-    <li class="{{ 'done' if step.done }}">
-      {% if step.done %}
-      <span class="step-mark" aria-hidden="true">✓</span><span>{{ step.title }}</span>
-      {% else %}
-      <span class="step-mark" aria-hidden="true">{{ loop.index }}</span><a href="{{ step.href }}">{{ step.title }}</a>
-      {% endif %}
-    </li>
-    {% endfor %}
-  </ol>
+  {% include "partials/get_started.html" %}
   <p class="muted small-print">Amounts are in <strong>{{ currency }}</strong>. Using another currency? Change it in <a href="/settings#currency">Settings</a> before you add accounts. Already keep a ledger file? <a href="/profile/data">Import it</a>. Keep a backup safe from time to time: <a href="/profile/data#backup">Profile › Your data</a>.</p>
   {% endif %}
 </section>
@@ -53,6 +43,12 @@
 {% endif %}
 
 {% if has_recorded %}
+{% if steps and show_steps_card %}
+<section class="tile get-started">
+  <p class="section-label">Get started · {{ steps_done }} of {{ steps_total }}</p>
+  {% include "partials/get_started.html" %}
+</section>
+{% endif %}
 {% if warning %}
 <a class="home-alert" href="/plan">
   <span class="dot" aria-hidden="true"></span>

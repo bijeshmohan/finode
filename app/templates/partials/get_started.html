@@ -1,0 +1,11 @@
+<ol class="steps">
+  {% for step in steps %}
+  <li class="{{ 'done' if step.done }}">
+    {% if step.done %}
+    <span class="step-mark" aria-hidden="true">✓</span><span>{{ step.title }}</span>
+    {% else %}
+    <span class="step-mark" aria-hidden="true">{{ loop.index }}</span><span><a href="{{ step.href }}">{{ step.title }}</a>{% if step.hint %}<small class="step-hint">{{ step.hint }}</small>{% endif %}</span>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ol>

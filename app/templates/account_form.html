@@ -32,6 +32,9 @@
   {% if not cat and (editing and can_budget or not editing) %}
   <div class="stack" data-budget-fields data-root="{{ root_name }}" {{ "hidden" if not can_budget }}>
   <input type="hidden" name="budget_choice" value="1">
+  <details class="budget-options">
+  <summary><span>Budget options</span><span class="bo-now" data-budget-summary>{% if on_budget %}Part of the budget{% elif saving %}Planned under Build{% elif payment_category_id %}Outside the budget · payments are spending{% else %}Outside the budget{% endif %}</span></summary>
+  <div class="stack">
   <label class="check">
     <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
     <span>Part of the budget <span class="hint">Money you assign to categories</span></span>
@@ -49,6 +52,8 @@
     </select>
     <span class="hint">For loans, like an EMI</span>
   </label>
+  </div>
+  </details>
   </div>
   {% endif %}
   {% set note = (node.account.details or '') if editing else '' %}

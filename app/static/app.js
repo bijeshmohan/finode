@@ -679,6 +679,14 @@ document.body.addEventListener("click", (event) => {
     const savingRow = fields.querySelector("[data-saving]");
     if (!box) return;
     const out = !box.checked;
+    const now = fields.querySelector("[data-budget-summary]");
+    if (now) {
+      const choice = payment && payment.querySelector("select");
+      now.textContent = !out ? "Part of the budget"
+        : saving && saving.checked ? "Planned under Build"
+        : choice && choice.value ? "Outside the budget · payments are spending"
+        : "Outside the budget";
+    }
     if (savingRow) {
       savingRow.hidden = !out;
       if (savingRow.hidden && saving) saving.checked = false;
@@ -705,7 +713,7 @@ document.body.addEventListener("click", (event) => {
   document.body.addEventListener("change", (event) => {
     if (!event.target.matches) return;
     if (event.target.matches('form select[name="parent_id"]')) apply(event.target);
-    if (event.target.matches('input[name="on_budget"], input[name="saving"]')) {
+    if (event.target.matches('input[name="on_budget"], input[name="saving"], select[name="payment_category"]')) {
       const fields = event.target.closest("[data-budget-fields]");
       if (fields) sync(fields);
     }
