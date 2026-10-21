@@ -18,7 +18,7 @@
     <select name="parent_id" required>
       {% if not editing %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
-      <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}{% if root_of and not cat %} data-root="{{ root_of[n.account.aid] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
+      <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}{% if root_of and not cat %} data-root="{{ root_of[n.account.aid] }}"{% endif %}{% if starts and n.account.aid in starts %} data-start="{{ starts[n.account.aid] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
       {% endfor %}
     </select>
   </label>

@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from ...config import settings
 from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
-from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService, RegisterPage
+from ...services.account import FIXED_DEFAULTS, GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService, RegisterPage
 from ...templating import templates
 from .utils import UpcomingItem, htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 from ...clock import local_day, local_today
@@ -58,10 +58,12 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
             parent.children.append(node)
             if AccountService.is_opening_balances(node.account, accounts):
                 node.kind = "system"
+            elif node.account.system_key:
+                node.kind = "fixed"  # a built-in group (Bank Accounts, Cash, Investments, Credit Cards, Loans)
 
     def finish(node: Node, depth: int, parent_path: str = "", root_name: str = "") -> None:
         node.depth = depth
-        node.postable = node.kind != "root" and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
+        node.postable = node.kind not in ("root", "fixed") and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
         node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
         node.children.sort(key=lambda n: (n.account.position is None, n.account.position or 0, n.account.name.lower()))
         for child in node.children:
@@ -108,6 +110,11 @@ def _parent_options(
         and n.account.aid not in excluded
         and (n.depth + 1 + below <= MAX_ACCOUNT_DEPTH or n.account.aid == keep)
     ]
+
+
+def _starts(roots: list[Node]) -> dict[UUID, str]:
+    """For each built-in group, how an account made under it starts: "budget" (part of the budget) or "build" (planned under Build)."""
+    return {n.account.aid: FIXED_DEFAULTS[n.account.system_key] for r in roots for n in r.walk() if n.account.system_key in FIXED_DEFAULTS}
 
 
 def _load(accounts: AccountService, aid: UUID) -> tuple[list[Node], Node]:
@@ -168,7 +175,7 @@ def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
     accounts that sit directly under the type share one block without a heading. Accounts only go two levels deep."""
     blocks: list[tuple[Node | None, list[Node]]] = []
     for child in root.children:
-        if child.children:
+        if child.children or child.kind == "fixed":  # a built-in group always has its heading, empty or not
             blocks.append((child, child.children))
         elif blocks and blocks[-1][0] is None:
             blocks[-1][1].append(child)
@@ -203,8 +210,12 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
         parent_roots = [r for r in roots if r.account.name == only]
         if parent is None or root_of.get(parent) != only:
             parent = parent_roots[0].account.aid if parent_roots else None
+            first_group = next((c for c in parent_roots[0].children if c.kind == "fixed"), None) if parent_roots else None
+            if first_group is not None:
+                parent = first_group.account.aid  # the "+" on a type starts on its first built-in group (Bank Accounts, Credit Cards)
     else:
         parent_roots = roots
+    starts = _starts(everything)
     return templates.TemplateResponse(
         request,
         "account_form.html",
@@ -212,7 +223,10 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "active": "categories" if kind == "category" else "accounts",
             "kind": kind,
             "hide_fab": True,
-            "plan_enabled": settings.plan_enabled and profiles.pr.plan_sections()[0],  # Build is off until the person switches it on
+            # Build is off until the person switches it on, but the row must be there when a built-in group starts accounts under it.
+            "plan_enabled": settings.plan_enabled and (profiles.pr.plan_sections()[0] or bool(starts)),
+            "starts": starts,
+            "saving": starts.get(parent) == "build" and settings.plan_enabled,
             "node": None,
             "parent_id": parent,
             "parent_options": _parent_options(parent_roots),
@@ -221,7 +235,8 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "root_of": root_of,
             "back_list": _list_for_root(root_of.get(parent)),
             "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
-            "on_budget": root_of.get(parent) == "Assets",  # an asset starts in the budget; a card or loan, outside it
+            # an asset starts in the budget; a card or loan, outside it; under a built-in group, as that group says
+            "on_budget": (starts.get(parent) == "budget") if parent in starts else root_of.get(parent) == "Assets",
             "category_options": _category_options(everything),
         },
     )
@@ -509,6 +524,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "saving": node.account.saving,
             "plan_enabled": settings.plan_enabled and (node.account.saving or profiles.pr.plan_sections()[0]),
             "payment_category_id": node.account.payment_category_id,
+            "starts": _starts(roots),
             "category_options": _category_options(roots),
             "parent_options": [
                 n

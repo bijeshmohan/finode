@@ -21,7 +21,7 @@
   <div class="acct-title">
     <div class="acct-names">
       <div class="acct-name-row">
-        <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
+        <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.kind == "fixed" %} <span class="lock" title="Built in">{{ icon("lock") }}<span class="sr-only">Built in</span></span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
         {% if account.details %}
         {# The description is behind an "i" beside the name: it is read once and would only take room on every visit. #}
         <details class="note-info">

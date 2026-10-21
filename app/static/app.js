@@ -708,6 +708,13 @@ document.body.addEventListener("click", (event) => {
     if (!asked) return;
     const box = fields.querySelector('input[name="on_budget"]');
     box.checked = root === "Assets";
+    // Under a built-in group (Bank Accounts, Investments, Loans...) the account starts as that group says.
+    const start = select.selectedOptions[0].dataset.start;
+    const saving = fields.querySelector('input[name="saving"]');
+    if (start) {
+      box.checked = start === "budget";
+      if (saving) saving.checked = start === "build";
+    }
     sync(fields);
   };
   document.body.addEventListener("change", (event) => {

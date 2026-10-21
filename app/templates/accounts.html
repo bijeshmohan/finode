@@ -19,10 +19,17 @@
   {% for head, items in blocks %}
   {#- A block with nothing left to show (a closed group, or plain accounts that all are closed) hides whole, so no empty tile is left. -#}
   <div class="acc-block{{ ' closed-hidden' if (head and head.closed) or (not head and items|selectattr("closed")|list|length == items|length) }}">
-    {% if head %}
+    {% if head and head.kind == "fixed" %}
+    {#- A built-in group: its heading, what is in it, and a round + that adds an account right here. -#}
+    <div class="acc-gh fixed">
+      <a href="/accounts/{{ head.account.aid }}" title="Open {{ head.account.name }}"><span class="acc-gh-name">{{ head.account.name }}<span class="lock" title="Built in">{{ icon("lock") }}<span class="sr-only">Built in</span></span></span><span class="acc-gh-sum">{{ head.account.balance|money }}</span></a>
+      <a class="circ-button" href="/accounts/new?parent={{ head.account.aid }}" title="Add to {{ head.account.name }}">{{ icon("plus") }}<span class="sr-only">Add to {{ head.account.name }}</span></a>
+    </div>
+    {% elif head %}
     <a class="acc-gh" href="/accounts/{{ head.account.aid }}" title="Open {{ head.account.name }}"><span>{{ head.account.name }}</span><span>{{ head.account.balance|money }}</span></a>
     {% endif %}
-    <ul class="tile list">{% for node in items %}{{ entry(node) }}{% endfor %}</ul>
+    {% if items %}<ul class="tile list">{% for node in items %}{{ entry(node) }}{% endfor %}</ul>
+    {% else %}<p class="acc-empty muted">Nothing here yet.</p>{% endif %}
   </div>
   {% endfor %}
 {% endmacro %}
@@ -48,7 +55,7 @@
 </div>
 
 <div data-accounts>
-  {% if root.children %}
+  {% if blocks %}
   {{ blocks_of(root) }}
   {% else %}
   <a class="card add-first" href="/accounts/new?root={{ tab }}">
