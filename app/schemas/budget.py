@@ -96,7 +96,8 @@ class BudgetLine(BaseModel):
 
 
 class BudgetSaving(BaseModel):
-    """A line of the plan's Save section: an asset outside the budget that the person plans to save into."""
+    """A line of the plan's Build section: an asset outside the budget that the person plans to move money into (a fund)
+    or a liability outside it that they plan to pay down (a loan)."""
 
     aid: UUID
     name: str
@@ -107,8 +108,9 @@ class BudgetSaving(BaseModel):
     assigned: Decimal = Money
     activity: Decimal = Money
     available: Decimal = Money
-    # What the account holds at the end of the month.
+    # What the account holds at the end of the month; for a loan (`debt`) what is still owed.
     balance: Decimal = Money
+    debt: bool = False
     closed: bool = False
     # Its target (the same kinds as a category's), what it needs from this month's assigning and what is still missing.
     target: BudgetTargetRead | None = None

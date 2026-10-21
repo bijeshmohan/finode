@@ -12,10 +12,10 @@
       {% if attention %}<button type="button" class="need" data-toggle-attn aria-expanded="false" aria-controls="attn-panel">Needs you <i>{{ attention }}</i></button>{% endif %}
     </div>
     <span class="figure">{{ figure(rta if rta > 0 else 0, budget.currency) }}</span>
-    {% if rta > 0 %}<span class="glance-note">Tap {{ "an account" if tab == "save" else "a category" }} to give it a job.</span>
+    {% if rta > 0 %}<span class="glance-note">Tap {{ "an account" if tab == "build" else "a category" }} to give it a job.</span>
     {% elif rta == 0 and (budget.lines or budget.saving) %}<span class="glance-note">Every {{ budget.currency|symbol }} has a job.</span>{% endif %}
     {% set sum_rows = [("In your accounts", budget.money_in_accounts, ""), ("Set aside for card bills", budget.reserved_for_cards, "−"), ("Left in your categories", budget.available, "−")] %}
-    {% if budget.saving %}{% set sum_rows = sum_rows + [("Left to move into saving", budget.saving_available, "−")] %}{% endif %}
+    {% if budget.saving %}{% set sum_rows = sum_rows + [("Left to build", budget.saving_available, "−")] %}{% endif %}
     {% set sum_rows = sum_rows + [("Assigned to later months", budget.assigned_to_later_months, "−")] %}
     {{ calc_panel(sum_rows, "Ready to assign", rta, budget.currency, "Money in your accounts that has no job yet.") }}
   </div>
@@ -74,7 +74,7 @@
     <p class="plan-sum-title">The month in one line</p>
     <div class="plan-eq">
       <span><b>{{ budget.earning_expected|money|replace(".00", "") }}</b><small>Expected</small></span><i aria-hidden="true">−</i>
-      <span><b>{{ budget.saving_assigned|money|replace(".00", "") }}</b><small>Saving</small></span><i aria-hidden="true">−</i>
+      <span><b>{{ budget.saving_assigned|money|replace(".00", "") }}</b><small>Build</small></span><i aria-hidden="true">−</i>
       <span><b>{{ budget.assigned|money|replace(".00", "") }}</b><small>Spending</small></span><i aria-hidden="true">=</i>
       <span class="{{ 'over' if unplanned < 0 }}"><b>{{ (unplanned if unplanned >= 0 else -unplanned)|money|replace(".00", "") }}</b><small>{{ "Over-planned" if unplanned < 0 else "Unplanned" }}</small></span>
     </div>
@@ -89,7 +89,7 @@
   {% else %}
   <p class="card muted">There are no income accounts yet. <a href="/categories/new?root=income">Add one</a> under Income, like Salary.</p>
   {% endif %}
-  {% elif tab == "save" %}
+  {% elif tab == "build" %}
   {% if saving_rows %}
   <div class="budget-list tile" data-budget-saving>
     {% for item in saving_rows %}
@@ -97,7 +97,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="card muted">No account is planned for saving yet. Open an asset account that is not part of the budget (a fund, a deposit) and switch on <strong>Plan for saving</strong> in its edit page.</p>
+  <p class="card muted">Nothing is planned under Build yet. Open an account that is not part of the budget (a fund, a deposit, a loan) and switch on <strong>Plan under Build</strong> in its edit page.</p>
   {% endif %}
   {% elif tree %}
   <div class="budget-list tile" data-budget-tree>
@@ -119,7 +119,7 @@
   <details class="how">
     <summary>How this works</summary>
     {% if budget.cards or budget.saving %}
-    <p class="muted calc">Money in your accounts {{ budget.money_in_accounts|money }}{% if budget.cards %} − set aside for card bills {{ budget.reserved_for_cards|money }}{% endif %} − in categories {{ budget.available|money }}{% if budget.saving %} − left to move into saving {{ budget.saving_available|money }}{% endif %}{% if budget.assigned_to_later_months %} − assigned to later months {{ budget.assigned_to_later_months|money }}{% endif %} = ready to assign.</p>
+    <p class="muted calc">Money in your accounts {{ budget.money_in_accounts|money }}{% if budget.cards %} − set aside for card bills {{ budget.reserved_for_cards|money }}{% endif %} − in categories {{ budget.available|money }}{% if budget.saving %} − left to build {{ budget.saving_available|money }}{% endif %}{% if budget.assigned_to_later_months %} − assigned to later months {{ budget.assigned_to_later_months|money }}{% endif %} = ready to assign.</p>
     {% endif %}
     {% if budget.cards %}<p class="muted calc">What you owe on a card is set aside automatically.</p>{% endif %}
     {% if budget.assigned_to_later_months %}

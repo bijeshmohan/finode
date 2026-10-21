@@ -223,11 +223,13 @@ def run_budget(session, seed: int, steps: int) -> int:
     cats = [s.accounts.create(AccountCreate(name=n, parent_id=roots["Expenses"])) for n in ("Rent", "Food", "Fun", "Bills")]
     fund = s.accounts.create(AccountCreate(name="Fund", parent_id=roots["Assets"], saving=True))
     assert not fund.on_budget and fund.saving, "an account planned for saving starts outside the budget"
+    loan = s.accounts.create(AccountCreate(name="Loan", parent_id=roots["Liabilities"], saving=True, balance=Decimal(50000)))
+    assert not loan.on_budget and loan.saving, "a loan paid down under Build starts outside the budget"
     done = 0
     for step in range(steps):
         s = services(session)
         month = month_of(local_today() + timedelta(days=31 * rng.randint(-2, 2)))
-        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy", "fund", "target"] + ["assign_save", "save", "save", "withdraw", "assign_earn"])
+        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy", "fund", "target"] + ["assign_save", "save", "save", "withdraw", "assign_earn", "assign_loan", "paydown"])
         label = f"budget seed {seed} step {step} {op}"
         try:
             if op == "assign":
@@ -241,6 +243,13 @@ def run_budget(session, seed: int, steps: int) -> int:
                 s.budget.assign(month, salary.aid, money(rng))
             elif op == "assign_save":
                 s.budget.assign(month, fund.aid, money(rng) * rng.choice([1, 1, -1]))
+            elif op == "assign_loan":
+                s.budget.assign(month, loan.aid, money(rng) * rng.choice([1, 1, -1]))
+            elif op == "paydown":
+                amount = money(rng) / 5
+                s.transactions.create(TransactionCreate(date=month + timedelta(days=rng.randint(0, 27)), postings=[
+                    PostingCreate(account=loan.aid, side=PostingSide.DEBIT, amount=amount),
+                    PostingCreate(account=bank.aid, side=PostingSide.CREDIT, amount=amount)]))
             elif op in ("save", "withdraw"):
                 amount = money(rng) / 5
                 into, out = (fund, bank) if op == "save" else (bank, fund)

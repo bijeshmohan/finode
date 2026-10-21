@@ -100,9 +100,9 @@ def test_joining_the_budget_takes_it_out_of_save_and_it_cannot_be_both(client, b
     assert refused.status_code == 400 and "part of the budget" in refused.text
 
 
-def test_only_an_asset_without_sub_accounts_can_be_planned_for_saving(client, books):
-    loan = account(client, books["roots"], "Loan", "Liabilities", on_budget=False)
-    assert client.patch(f"/api/accounts/{loan['aid']}", json={"saving": True}).status_code == 400
+def test_only_an_asset_or_loan_without_sub_accounts_can_be_planned_under_build(client, books):
+    cat = account(client, books["roots"], "Rent", "Expenses")
+    assert client.patch(f"/api/accounts/{cat['aid']}", json={"saving": True}).status_code == 400, "a category is not an asset or a loan"
     group = account(client, books["roots"], "Investments", "Assets", on_budget=False)
     account(client, books["roots"], "Inner", "Assets")  # an ordinary sibling
     made = client.post("/api/accounts/", json={"name": "Stocks", "parent_id": group["aid"], "on_budget": False})

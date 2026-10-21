@@ -31,9 +31,9 @@ def budget_moved(request: Request, rest: str = ""):
     query = request.url.query
     return RedirectResponse(f"/plan{'/' + rest if rest else ''}{'?' + query if query else ''}", status_code=301)
 
-# The sections of the page, as chips: Save and Earn only while the Plan is on (settings.plan_enabled), Earn also only with
+# The sections of the page, as chips: Build and Earn only while the Plan is on (settings.plan_enabled), Earn also only with
 # Advanced on (its data stays when it is off).
-TABS = {"spend": "Spend", "save": "Save", "earn": "Earn"}
+TABS = {"spend": "Spend", "build": "Build", "earn": "Earn"}
 
 
 def parse_month(value: str) -> date:
@@ -152,7 +152,7 @@ def _glance(data) -> dict:
 
 
 def _saving_line(saving: BudgetSaving) -> BudgetLine:
-    """A Save line shown with the same rows and sheet as a category (they share the figures)."""
+    """A Build line shown with the same rows and sheet as a category (they share the figures)."""
     return BudgetLine(
         aid=saving.aid, name=saving.name, path=saving.path, depth=1, assigned=saving.assigned, activity=saving.activity,
         available=saving.available, overspent_last_month=Decimal("0.00"), target=saving.target, needed=saving.needed, underfunded=saving.underfunded,
@@ -160,11 +160,16 @@ def _saving_line(saving: BudgetSaving) -> BudgetLine:
     )
 
 
-def _saving_hint(line: BudgetLine, advanced: bool, style: str) -> str:
+def _saving_hint(line: BudgetLine, saving: BudgetSaving, advanced: bool, style: str) -> str:
     parts = []
     if advanced and line.underfunded:
         parts.append(("overdue, " if line.overdue else "") + f"needs {money(line.underfunded, style)} more")
-    parts.append(f"moved {money(line.activity, style)} this month" if line.activity else "nothing moved yet")
+    if saving.debt:
+        whole = lambda value: money(value, style).replace(".00", "")  # a loan's figures are long: whole rupees fit a phone
+        parts.append(f"paid {whole(line.activity)}" if line.activity else "nothing paid yet")
+        parts.append(f"owed {whole(saving.balance)}")
+    else:
+        parts.append(f"moved {money(line.activity, style)} this month" if line.activity else "nothing moved yet")
     if line.note:
         parts.append(line.note)
     return " · ".join(parts)
@@ -178,19 +183,22 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     # plain top-level categories always show, so there is always something to tap and assign to.
     unused = [n for n in tree if n.is_group and not n.used] if any(n.used for n in tree) else []
     style = grouping_for(data.currency)
+    tab = "build" if tab == "save" else tab  # the older address of the chip
     tabs = {k: v for k, v in TABS.items() if k == "spend" or (settings.plan_enabled and (k != "earn" or advanced))}
     saving_lines = [_saving_line(s) for s in data.saving]
+    debts = {s.aid: s for s in data.saving if s.debt}
     return {
         "budget": data,
         "tab": tab if tab in tabs else "spend",
         "tabs": tabs,
         "plan_enabled": settings.plan_enabled,
+        "debts": debts,
         "earning_rows": list(data.earning),
         # What the month's plan leaves over: what is expected, less what is assigned to saving and to spending.
         "unplanned": data.earning_expected - data.saving_assigned - data.assigned,
         "saving_rows": [
-            {"node": SimpleNamespace(line=line, is_group=False), "hint": _saving_hint(line, advanced, style), "calm": not advanced}
-            for line in saving_lines
+            {"node": SimpleNamespace(line=line, is_group=False), "hint": _saving_hint(line, saving, advanced, style), "calm": not advanced}
+            for line, saving in zip(saving_lines, data.saving)
         ],
         "tree": tree,
         "rows": [{"node": n, "hint": _hint(n, advanced, grouping_for(data.currency))} for n in _by_assigned(tree)],
@@ -281,7 +289,7 @@ def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "",
         raise HTTPException(status_code=404, detail="category not found")
     return templates.TemplateResponse(
         request, "partials/budget_sheet.html",
-        {**context, "line": line, "group_id": group, "saving": saving, "earn": earn, "tab": "earn" if earn else "save" if saving else "spend"},
+        {**context, "line": line, "group_id": group, "saving": saving, "earn": earn, "tab": "earn" if earn else "build" if saving else "spend"},
     )
 
 
