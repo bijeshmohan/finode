@@ -14,7 +14,7 @@
   {{ month_pill("/categories/" ~ account.aid ~ "?month={month}", month_name, month_key, previous, next, this_month) }}
 </div>
 {% else %}
-<a class="back" href="/accounts">{{ icon("back") }}Accounts</a>
+<a class="back" href="/accounts?tab={{ root.account.name|lower }}">{{ icon("back") }}Accounts</a>
 {% endif %}
 
 <header class="account-hero">
