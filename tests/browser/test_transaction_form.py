@@ -241,7 +241,7 @@ def test_pasting_a_messy_amount_keeps_the_good_part_and_the_cursor(page: Page, b
 
 
 def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, books):
-    page.goto("/budget/move")
+    page.goto("/plan/move")
     field = page.locator('input[name="amount"]')
     field.click()
     page.keyboard.type("9..9.9")

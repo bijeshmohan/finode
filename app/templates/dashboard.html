@@ -42,7 +42,7 @@
   {{ calc_panel([("Carried in from earlier months", glance.carried, ""), ("Assigned in " ~ mname, glance.assigned, "+"), ("Spent so far" if is_current else "Spent", glance.spent, "−")], "Left to spend", glance.left, currency, "Each category's leftover, plus what you assigned this month, minus what you spent.") }}
   {% else %}
   <p class="glance-figure">{{ figure(summary.expenses, currency) }}</p>
-  <p class="glance-note"><a href="/budget?month={{ month_key }}">Set up your budget</a> to see what is left to spend</p>
+  <p class="glance-note"><a href="/plan?month={{ month_key }}">Set up your budget</a> to see what is left to spend</p>
   {% endif %}
   <div class="home-strip">
     <span><span class="k">Earned</span><span class="v">{{ summary.income|money|amount(currency) }}</span></span>
@@ -54,7 +54,7 @@
 
 {% if has_recorded %}
 {% if warning %}
-<a class="home-alert" href="/budget">
+<a class="home-alert" href="/plan">
   <span class="dot" aria-hidden="true"></span>
   <span>{% if warning.n == 1 %}<b>{{ warning.name }}</b> is over by {{ warning.over|money|amount(currency) }}{% else %}<b>{{ warning.n }} categories</b> are overspent · {{ warning.over|money|amount(currency) }} in all{% endif %}</span>
   <span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span>

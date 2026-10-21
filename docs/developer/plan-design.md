@@ -1,6 +1,6 @@
 # Plan: design proposal
 
-**Status: design agreed 2026-10-20 (page arrangement P2, the five decisions below as recommended); building phase by phase: phase 1 Save is live (`3b59f4c`); phase 2 Earn is on branch `feature/plan-earn`.** Written at the owner's request. The feature freeze (since 2026-10-14) is lifted for this feature only; everything else stays frozen. The scope below is introduced in phases, one merge at a time, and each phase is shown to the owner (mock-ups, then real screenshots) before it is merged.
+**Status: design agreed 2026-10-20 (page arrangement P2, the five decisions below as recommended); building phase by phase: phase 1 Save and phase 2 Earn are live; phase 3, the rename to Plan, is on branch `feature/plan-rename`.** Written at the owner's request. The feature freeze (since 2026-10-14) is lifted for this feature only; everything else stays frozen. The scope below is introduced in phases, one merge at a time, and each phase is shown to the owner (mock-ups, then real screenshots) before it is merged.
 
 ## The idea
 
@@ -61,13 +61,13 @@ Today a SIP is made to look like spending by giving the fund a payment category 
 
 ## The page
 
-**Arrangement P2 (chosen by the owner so the page is built like Accounts and Categories):** a title row with the month pill at the right, then one row of chips **Spend · Save · Earn** (Spend is the default, `?tab=spend|save|earn`), then Ready to assign and the one-line sum, then the chosen section's list. The hero and the sum stay on top whichever chip is chosen. Earn's chip is only there when Advanced is on. `/plan` replaces `/budget` in phase 3 (the old path redirects); until then the page is still `/budget` and still titled Budget, and the chips appear as the sections arrive: **Save in phase 1**, Earn in phase 2. The JSON API stays at `/api/budget` and the assistants' tools keep their names; new tools come with the phases (`get_plan`).
+**Arrangement P2 (chosen by the owner so the page is built like Accounts and Categories):** a title row with the month pill at the right, then one row of chips **Spend · Save · Earn** (Spend is the default, `?tab=spend|save|earn`), then Ready to assign and the one-line sum, then the chosen section's list. The hero and the sum stay on top whichever chip is chosen. Earn's chip is only there when Advanced is on. `/plan` replaces `/plan` in phase 3 (the old path redirects); until then the page is still `/plan` and still titled Budget, and the chips appear as the sections arrive: **Save in phase 1**, Earn in phase 2. The JSON API stays at `/api/budget` and the assistants' tools keep their names; new tools come with the phases (`get_plan`).
 
 ## Phases
 
 Every phase ends with: unit and browser tests green (Chromium and WebKit), the docs (`CLAUDE.md`, guide, architecture) updated, mock-ups then screenshots shown, and "Merge and deploy" from the owner.
 
-1. **Save.** `accounts.saving`, Save lines in the plan (assign, activity, targets), reports exclude them from spending, backup, the conversion step for the two existing accounts, tests (the fuzz identity includes Save lines). No page rename yet: the Budget page gets the chips (Spend, Save) and Save is the second chip.
+1. **Save.** `accounts.saving`, Save lines in the plan (assign, activity, targets), reports exclude them from spending, backup, the conversion step for the two existing accounts, tests (the fuzz identity includes Save lines). No page rename yet: the Plan page gets the chips (Spend, Save) and Save is the second chip.
 2. **Earn.** Allocations on Income accounts, expected versus received, behind **Advanced** (the owner said "optionally"). The overview sentence.
 3. **Plan.** The rename (page, tab, route redirect, docs, tools), the overview, copy last month for all three sections.
 

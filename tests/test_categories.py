@@ -115,7 +115,7 @@ def test_a_category_page_shows_its_month_and_its_transactions(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     entry(client, books["groceries"], books["bank"], "70", LAST_MONTH.replace(day=3))
     page = client.get(f"/categories/{books['groceries']['aid']}").text
-    assert "300.00" in page and "Add transaction" in page and "/budget" in page
+    assert "300.00" in page and "Add transaction" in page and "/plan" in page
     assert page.count('class="tx"') == 1, "only this month's"
     assert "Add subcategory" not in page, "a subcategory is as deep as it gets"
     assert "Add subcategory" in client.get(f"/categories/{books['food']['aid']}").text

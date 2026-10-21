@@ -37,7 +37,7 @@
         {% for a in budget.left_out_accounts %}
         <li>
           <span>{{ a.path }} <span class="muted">· {{ a.entries }} {{ "entry" if a.entries == 1 else "entries" }}, {{ a.spent|money }}</span></span>
-          <button class="secondary" hx-post="/budget/accounts/{{ a.aid }}/include" hx-vals='{"month": "{{ month_key }}", "tab": "{{ tab }}"}' hx-target="#budget" hx-swap="outerHTML">Add to budget</button>
+          <button class="secondary" hx-post="/plan/accounts/{{ a.aid }}/include" hx-vals='{"month": "{{ month_key }}", "tab": "{{ tab }}"}' hx-target="#budget" hx-swap="outerHTML">Add to budget</button>
         </li>
         {% endfor %}
       </ul>
@@ -47,7 +47,7 @@
     <p class="attn-item">{{ budget.overspent_last_month|money|amount(budget.currency) }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
     {% endif %}
     {% if advanced and budget.underfunded %}
-    <form class="attn-item fund" hx-post="/budget/fund" hx-target="#budget" hx-swap="outerHTML">
+    <form class="attn-item fund" hx-post="/plan/fund" hx-target="#budget" hx-swap="outerHTML">
       <span>Your targets still need {{ budget.underfunded|money|amount(budget.currency) }} this month.</span>
       <input type="hidden" name="month" value="{{ month_key }}">
       <input type="hidden" name="tab" value="{{ tab }}">
@@ -55,7 +55,7 @@
     </form>
     {% endif %}
     {% if budget.copyable %}
-    <form class="attn-item copy-last" hx-post="/budget/copy" hx-target="#budget" hx-swap="outerHTML">
+    <form class="attn-item copy-last" hx-post="/plan/copy" hx-target="#budget" hx-swap="outerHTML">
       <input type="hidden" name="month" value="{{ month_key }}">
       <input type="hidden" name="tab" value="{{ tab }}">
       <button type="submit" class="secondary">Copy last month's amounts · {{ budget.copyable|money }}</button>

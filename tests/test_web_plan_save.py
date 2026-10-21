@@ -5,7 +5,7 @@ from .test_plan_save import books, saving  # noqa: F401  (the fixture)
 
 
 def page(client, tab=""):
-    return client.get(f"/budget{'?tab=' + tab if tab else ''}").text
+    return client.get(f"/plan{'?tab=' + tab if tab else ''}").text
 
 
 def test_the_page_has_spend_and_save_chips_and_spend_is_the_default(client, books):
@@ -32,17 +32,17 @@ def test_a_book_without_saving_shows_no_extra_row_and_an_invitation(client, root
 
 
 def test_the_sheet_over_a_save_line_assigns_and_stays_on_save(client, books):
-    sheet = client.get(f"/budget/category/{books['fund']['aid']}/sheet").text
+    sheet = client.get(f"/plan/category/{books['fund']['aid']}/sheet").text
     assert "Moved in" in sheet and "to move" in sheet and 'name="tab" value="save"' in sheet
-    answered = client.post("/budget/assign", data={"category": books["fund"]["aid"], "amount": "300", "sheet": "1", "tab": "save"})
+    answered = client.post("/plan/assign", data={"category": books["fund"]["aid"], "amount": "300", "sheet": "1", "tab": "save"})
     assert answered.status_code == 200 and "data-budget-saving" in answered.text and "data-budget-tree" not in answered.text
     assert saving(client.get("/api/budget/").json())["assigned"] == "300.00"
-    spend = client.post("/budget/assign", data={"category": books["food"]["aid"], "amount": "100", "sheet": "1"})
+    spend = client.post("/plan/assign", data={"category": books["food"]["aid"], "amount": "100", "sheet": "1"})
     assert "data-budget-tree" in spend.text, "the default is still Spend"
 
 
 def test_the_move_page_offers_save_lines(client, books):
-    text = client.get("/budget/move").text
+    text = client.get("/plan/move").text
     assert "Mutual Funds" in text and "Food" in text
 
 

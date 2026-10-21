@@ -56,11 +56,11 @@ class Done:
 
 
 def press(client, route, month=None, **form):
-    """Post a budget form the way the page does (/budget/move, /budget/copy, /budget/fund)."""
+    """Post a budget form the way the page does (/plan/move, /plan/copy, /plan/fund)."""
     data = {k: v for k, v in form.items() if v is not None}
     if month is not None:
         data["month"] = month.isoformat() if hasattr(month, "isoformat") else month
-    return Done(client, client.post(f"/budget/{route}", data=data), month)
+    return Done(client, client.post(f"/plan/{route}", data=data), month)
 
 
 def move_budget(client, source, target, amount, month=None):

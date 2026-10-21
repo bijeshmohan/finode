@@ -102,7 +102,7 @@ A budget line reports `target`, `needed` and `underfunded`; `BudgetService.fund(
 
 ## Where it surfaces
 
-- **Web:** `/budget` (Ready to assign, categories ranked by size, sheets for assigning), a group's page, the target page, `/budget/move`.
+- **Web:** `/plan` (Ready to assign, categories ranked by size, sheets for assigning), a group's page, the target page, `/plan/move`.
 - **Home:** one number, *Left to spend*, taken from the same `view()`.
 - **API:** `GET /api/budget/`, `PUT /api/budget/categories/{aid}` and targets.
 - **MCP:** `get_budget`, `assign_to_category`, `move_budget_money`, `set_budget_target`, `fund_budget_targets`, `copy_budget_from_previous_month`.

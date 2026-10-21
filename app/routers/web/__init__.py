@@ -7,6 +7,7 @@ from . import accounts, auth, budget, categories, dashboard, data, oauth, profil
 
 router = APIRouter(include_in_schema=False)
 router.include_router(auth.router)
+router.include_router(budget.legacy)
 
 protected = APIRouter(dependencies=[Depends(web_login_required), Depends(load_currency)])
 protected.include_router(dashboard.router)
