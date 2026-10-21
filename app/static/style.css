@@ -1198,6 +1198,9 @@ dd.auto, dd.auto a { color: var(--auto); }
 .crow .bar { display: block; position: relative; height: var(--bar-h); margin: .55rem 0 0; border-radius: calc(var(--bar-h) / 2); background: var(--surface-2); overflow: visible; }
 .crow .bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .crow .bar.over i { background: var(--danger); }
+/* Build: more than planned is good news, so green. */
+.crow .bar.above i, .glance-bar.above i { background: var(--positive); }
+.ready .figure.above { color: var(--positive); }
 .crow-amt .negative { color: var(--negative); }
 .budget-list .crow-amt { min-width: 7.5rem; }
 .crow-sub.short { color: var(--negative); }
