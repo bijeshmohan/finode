@@ -29,7 +29,7 @@ On a phone, the bottom bar has four tabs and a floating **+**:
 | Tab | What it is for |
 |---|---|
 | **Home** | one number (what is left to spend this month) and your recent transactions |
-| **Budget** | give every rupee a job; see what is Ready to assign |
+| **Plan** | give every rupee a job (Spend), plan what you save (Save) and what you expect to earn (Earn); see what is Ready to assign |
 | **Accounts** | where your money is: banks, cash, cards, loans |
 | **Categories** | what you spend on and earn from, and how much, month by month |
 | **+** | add a transaction |

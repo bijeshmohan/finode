@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
 
 from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
 from ...config import settings
@@ -17,7 +18,18 @@ from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount
 
 
-router = APIRouter(prefix="/budget")
+router = APIRouter(prefix="/plan")
+
+# The page was called Budget (/budget) before it became the Plan: old links and bookmarks still arrive (GET only; the page
+# itself and its forms live under /plan).
+legacy = APIRouter()
+
+
+@legacy.get("/budget")
+@legacy.get("/budget/{rest:path}")
+def budget_moved(request: Request, rest: str = ""):
+    query = request.url.query
+    return RedirectResponse(f"/plan{'/' + rest if rest else ''}{'?' + query if query else ''}", status_code=301)
 
 # The sections of the page, as chips: Save and Earn only while the Plan is on (settings.plan_enabled), Earn also only with
 # Advanced on (its data stays when it is off).
@@ -196,7 +208,7 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "previous": shift(data.month, -1).strftime("%Y-%m"),
         "next": shift(data.month, 1).strftime("%Y-%m"),
         "is_current": data.month == month_start(None),
-        "active": "budget",
+        "active": "plan",
         "advanced": advanced,
         # Only the current month has a "today": the tick on the bars shows how far through it we are.
         "pace": month_progress() if data.month == month_start(None) else None,
@@ -218,7 +230,7 @@ def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
         **context,
         "group": node,
         "kids": [{"node": c, "hint": _hint(c, advanced, grouping_for(context["budget"].currency))} for c in _by_assigned(node.children)],
-        "edit_url": f"/budget/group/{aid}/sheet?month={month:%Y-%m}",
+        "edit_url": f"/plan/group/{aid}/sheet?month={month:%Y-%m}",
         "glance": _glance(node.line),
     }
 
@@ -307,7 +319,7 @@ def move_page(request: Request, budget: Budget, month: str = "", source: UUID | 
     return templates.TemplateResponse(
         request,
         "budget_move.html",
-        {**_context(budget, when), "lines": lines, "source": source, "active": "budget"},
+        {**_context(budget, when), "lines": lines, "source": source, "active": "plan"},
     )
 
 
@@ -324,7 +336,7 @@ def move(
         budget.move(when, from_category, to_category, parse_amount(amount))
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-moved")
+    return htmx_redirect(f"/plan?month={when:%Y-%m}", flash="budget-moved")
 
 
 @router.post("/fund")
@@ -382,7 +394,7 @@ def set_target(
         budget.set_target(category, kind, parse_amount(amount), day, day_of_week)
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target")
+    return htmx_redirect(f"/plan?month={when:%Y-%m}", flash="budget-target")
 
 
 @router.post("/note")
@@ -397,7 +409,7 @@ def set_note(
         budget.set_note(category, note)
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#note-error")
-    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-note")
+    return htmx_redirect(f"/plan?month={when:%Y-%m}", flash="budget-note")
 
 
 @router.post("/target/delete")
@@ -407,7 +419,7 @@ def clear_target(budget: Budget, category: Annotated[UUID, Form()], month: Annot
         budget.clear_target(category)
     except BudgetError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target-cleared")
+    return htmx_redirect(f"/plan?month={when:%Y-%m}", flash="budget-target-cleared")
 
 
 @router.post("/accounts/{aid}/include")

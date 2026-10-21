@@ -67,7 +67,7 @@ def test_a_target_works_on_a_save_line(client, books):
     assert response.status_code == 200, response.text
     data = budget(client)
     assert saving(data)["target"]["kind"] == "monthly" and saving(data)["underfunded"] == "5000.00" and data["underfunded"] == "5000.00"
-    funded = client.post("/budget/fund", data={"month": date.today().isoformat()[:7]}, follow_redirects=False)
+    funded = client.post("/plan/fund", data={"month": date.today().isoformat()[:7]}, follow_redirects=False)
     assert funded.status_code in (200, 303), funded.text
     data = budget(client)
     assert saving(data)["assigned"] == "5000.00" and saving(data)["underfunded"] == "0.00", "Assign what is needed reaches Save lines too"
@@ -75,7 +75,7 @@ def test_a_target_works_on_a_save_line(client, books):
 
 def test_money_can_be_moved_between_a_spend_line_and_a_save_line(client, books):
     assign(client, books["food"], "3000")
-    response = client.post("/budget/move", data={"from_category": books["food"]["aid"], "to_category": books["fund"]["aid"], "amount": "1000"}, follow_redirects=False)
+    response = client.post("/plan/move", data={"from_category": books["food"]["aid"], "to_category": books["fund"]["aid"], "amount": "1000"}, follow_redirects=False)
     assert response.status_code in (200, 303), response.text
     data = budget(client)
     assert saving(data)["assigned"] == "1000.00" and data["lines"][0]["assigned"] == "2000.00" and data["ready_to_assign"] == "97000.00"
@@ -135,7 +135,7 @@ def test_copying_last_month_includes_save_lines(client, books):
     this = date.today().replace(day=1)
     last = (this - timedelta(days=1)).replace(day=1)
     assign(client, books["fund"], "700", month=last)
-    copied = client.post("/budget/copy", data={"month": this.isoformat()[:7]}, follow_redirects=False)
+    copied = client.post("/plan/copy", data={"month": this.isoformat()[:7]}, follow_redirects=False)
     assert copied.status_code in (200, 303), copied.text
     assert saving(budget(client))["assigned"] == "700.00"
 

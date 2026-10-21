@@ -77,7 +77,7 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(pag
     expect(page.locator(".hero-balance")).to_have_text("₹900.00")
     expect(page.get_by_role("link", name="Add transaction")).to_have_attribute("href", f"/transactions/new?account={books['rent']['aid']}&back=/categories/{books['rent']['aid']}")
     page.get_by_label("More actions").click()
-    expect(page.get_by_role("link", name="See in the Budget")).to_be_visible()
+    expect(page.get_by_role("link", name="See in the Plan")).to_be_visible()
 
 
 def test_there_is_room_between_the_figure_and_the_first_row(page: Page, books, api: Api):
@@ -92,7 +92,7 @@ def test_there_is_room_between_the_figure_and_the_first_row(page: Page, books, a
 def test_the_month_pill_sits_in_the_title_row_as_on_budget_and_transactions(page: Page, books, api: Api):
     spend(api, books, books["rent"], "900")
     spots = {}
-    for path in ("/budget", "/categories", "/transactions"):
+    for path in ("/plan", "/categories", "/transactions"):
         page.goto(path)
         title, pill = (page.locator(s).first.bounding_box() for s in (".page-head h1", ".page-head .month-pill"))
         assert abs((title["y"] + title["height"] / 2) - (pill["y"] + pill["height"] / 2)) < 14, f"{path}: pill beside the title"

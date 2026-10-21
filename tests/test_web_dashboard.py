@@ -54,7 +54,7 @@ def test_dashboard_shows_summary_and_recent_transactions(
     assert ">Spent<" in text and "120.50" in text  # no budget yet: what was spent this month
     strip = _words(text[text.index('class="home-strip"'):])
     assert "Earned ₹2,500.00" in strip and "Assigned ₹0.00" in strip and "Spent ₹120.50" in strip
-    assert 'href="/budget?month=' in text and "Set up your budget" in text
+    assert 'href="/plan?month=' in text and "Set up your budget" in text
     assert "Employer" in text and "Supermarket" in text
     assert plain(svc.reports.summary())["net_worth"] == "3379.50"  # 1000 + 2500 - 120.50
 

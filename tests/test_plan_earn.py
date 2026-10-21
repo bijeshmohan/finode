@@ -78,7 +78,7 @@ def test_the_plan_for_income_never_starts_the_budget_or_counts_as_assigned_ahead
 def test_income_cannot_be_negative_moved_or_given_a_target(client, books):
     assert client.put(f"/api/budget/categories/{books['salary']['aid']}", json={"amount": "-5"}).status_code == 400
     assign(client, books["food"], "100")
-    refused = client.post("/budget/move", data={"from_category": books["food"]["aid"], "to_category": books["salary"]["aid"], "amount": "10"})
+    refused = client.post("/plan/move", data={"from_category": books["food"]["aid"], "to_category": books["salary"]["aid"], "amount": "10"})
     assert refused.status_code == 400 and "cannot be moved" in refused.text
     target = client.put(f"/api/budget/categories/{books['salary']['aid']}/target", json={"kind": "monthly", "amount": "10"})
     assert target.status_code == 400
@@ -96,7 +96,7 @@ def test_a_group_is_a_line_only_while_something_is_planned_or_received(client, b
 
 def test_copy_last_month_copies_expected_income_too(client, books):
     assign(client, books["salary"], "80000", month=LAST)
-    copied = client.post("/budget/copy", data={"month": THIS.isoformat()[:7]})
+    copied = client.post("/plan/copy", data={"month": THIS.isoformat()[:7]})
     assert copied.status_code == 200, copied.text
     assert earn(budget(client), "Salary")["expected"] == "80000.00"
 

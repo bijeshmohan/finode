@@ -26,7 +26,7 @@ class Saved:
 
 def put_note(client, category, note):
     """Save a note the way the category's page does."""
-    return Saved(client, client.post("/budget/note", data={"category": category["aid"], "note": note or ""}))
+    return Saved(client, client.post("/plan/note", data={"category": category["aid"], "note": note or ""}))
 
 
 def test_a_note_shows_on_the_category(client, setup):
@@ -70,24 +70,24 @@ def test_validation(client, setup):
 
 def test_the_page_shows_the_note_and_the_form_saves_it(client, setup):
     rent = setup["rent"]["aid"]
-    form = client.get(f"/budget/target?category={rent}").text
-    assert 'hx-post="/budget/note"' in form and "<textarea" in form
-    saved = client.post("/budget/note", data={"category": rent, "note": "Due on the 5th"})
-    assert saved.status_code == 200 and saved.headers["HX-Redirect"].startswith("/budget?month=")
+    form = client.get(f"/plan/target?category={rent}").text
+    assert 'hx-post="/plan/note"' in form and "<textarea" in form
+    saved = client.post("/plan/note", data={"category": rent, "note": "Due on the 5th"})
+    assert saved.status_code == 200 and saved.headers["HX-Redirect"].startswith("/plan?month=")
     assert "budget-note" in saved.headers["set-cookie"]
-    assert "Due on the 5th" in client.get("/budget").text, "the note is the row's caption"
-    assert "Due on the 5th" in client.get(f"/budget/category/{rent}/sheet").text
-    assert "Due on the 5th</textarea>" in client.get(f"/budget/target?category={rent}").text
+    assert "Due on the 5th" in client.get("/plan").text, "the note is the row's caption"
+    assert "Due on the 5th" in client.get(f"/plan/category/{rent}/sheet").text
+    assert "Due on the 5th</textarea>" in client.get(f"/plan/target?category={rent}").text
 
 
 def test_the_form_reports_problems_in_place(client, setup):
-    bad = client.post("/budget/note", data={"category": setup["rent"]["aid"], "note": "x" * 300})
+    bad = client.post("/plan/note", data={"category": setup["rent"]["aid"], "note": "x" * 300})
     assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#note-error" and "at most 200" in bad.text
-    bad = client.post("/budget/note", data={"category": setup["bank"]["aid"], "note": "x"})
+    bad = client.post("/plan/note", data={"category": setup["bank"]["aid"], "note": "x"})
     assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#note-error"
 
 
 def test_notes_are_escaped(client, setup):
     put_note(client, setup["rent"], "<script>alert(1)</script>")
-    page = client.get("/budget").text
+    page = client.get("/plan").text
     assert "<script>alert(1)</script>" not in page and "&lt;script&gt;" in page

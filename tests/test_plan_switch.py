@@ -53,7 +53,7 @@ def test_switched_off_nothing_can_be_planned_for_saving_or_expected(client, plan
 
 def test_switched_off_the_page_has_no_chips_and_the_forms_no_saving_switch(client, planned, monkeypatch):
     monkeypatch.setattr(settings, "plan_enabled", False)
-    text = client.get("/budget?tab=save").text
+    text = client.get("/plan?tab=save").text
     assert "cat-chips" not in text and "data-budget-saving" not in text and "data-budget-tree" in text
     assert "Plan for saving" not in client.get(f"/accounts/{planned['fund']['aid']}/edit").text
     assert "Plan for saving" not in client.get("/accounts/new?root=assets").text

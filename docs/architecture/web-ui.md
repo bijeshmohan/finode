@@ -22,8 +22,8 @@ The web app is **server-rendered HTML** (Jinja2) with a little vendored **htmx**
 flowchart LR
     Home["/ Home"] --> Tx["/transactions"]
     Home --> New["/transactions/new"]
-    Budget["/budget"] --> Grp["/budget/group/{id}"]
-    Budget --> Tgt["/budget/target"]
+    Budget["/plan"] --> Grp["/plan/group/{id}"]
+    Budget --> Tgt["/plan/target"]
     Accounts["/accounts"] --> Acc["/accounts/{id}"]
     Cats["/categories"] --> Cat["/categories/{id}"]
     Settings["/settings"] --> Rec["/recurring"]

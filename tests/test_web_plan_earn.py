@@ -9,7 +9,7 @@ THIS_KEY = date.today().strftime("%Y-%m")
 
 
 def page(client, tab=""):
-    return client.get(f"/budget{'?tab=' + tab if tab else ''}").text
+    return client.get(f"/plan{'?tab=' + tab if tab else ''}").text
 
 
 def advanced(client, on: bool):
@@ -46,14 +46,14 @@ def test_when_more_is_planned_than_expected_it_says_over_planned(client, books):
 
 
 def test_the_sheet_sets_what_is_expected_and_stays_on_earn(client, books):
-    sheet = client.get(f"/budget/category/{books['salary']['aid']}/sheet").text
+    sheet = client.get(f"/plan/category/{books['salary']['aid']}/sheet").text
     assert "Expected this month" in sheet and "Received so far" in sheet and "Still to come" in sheet
     assert 'name="tab" value="earn"' in sheet and "Move money" not in sheet and "Ready to assign" in sheet
-    answered = client.post("/budget/assign", data={"category": books["salary"]["aid"], "amount": "5000", "sheet": "1", "tab": "earn"})
+    answered = client.post("/plan/assign", data={"category": books["salary"]["aid"], "amount": "5000", "sheet": "1", "tab": "earn"})
     assert answered.status_code == 200 and "data-budget-earning" in answered.text
     assert next(l for l in budget(client)["earning"] if l["name"] == "Salary")["expected"] == "5000.00"
     advanced(client, False)
-    assert client.get(f"/budget/category/{books['salary']['aid']}/sheet").status_code == 404, "Earn is Advanced only"
+    assert client.get(f"/plan/category/{books['salary']['aid']}/sheet").status_code == 404, "Earn is Advanced only"
 
 
 def test_without_income_accounts_the_tab_invites_one(client, root_accounts):
