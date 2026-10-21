@@ -45,7 +45,7 @@ The budget's identity is the contract (`tests/test_ledger_fuzz.py` checks it):
 | Need | Stored as | Migration |
 |---|---|---|
 | The amounts | `budget_allocations` as today, now also for Save and Earn accounts | none (the table already fits; relax the Expenses-only check) |
-| Which off-budget assets are Save lines | **one new column** `accounts.saving` (bool, default false), set on the account's edit page ("Plan for saving") | yes, additive, and the backup carries it |
+| Which off-budget assets are Save lines | **one new column** `accounts.saving` (bool, default false), set on the account's edit page ("Plan under Build") | yes, additive, and the backup carries it |
 | Targets on Save lines ("₹5 lakh by March", "₹5,000 a month") | `budget_targets` as today (kinds `monthly`, `by_date`, `yearly` already fit) | none |
 | Earn lines | allocations on Income accounts | none |
 
@@ -77,7 +77,7 @@ Each phase is shippable on its own; stopping after phase 1 still fixes the compl
 
 The owner's requirement: the Plan must be reversible to the budget-only app. Nothing in the Plan destroys or rewrites data, so there are three levels, from the lightest:
 
-1. **The switch (seconds, no deploy):** set `FINODE_PLAN_ENABLED=false` in `.env` and restart the app (`docker compose up -d`). The Save and Earn sections are ignored and hidden: the budget page has no chips, the account forms have no "Plan for saving" switch, `get_budget` lists neither, Save and Earn plan rows are left out of every figure (including "where budgeting starts"), and nothing can be planned for saving or expected. `ready_to_assign` then reads exactly as the budget-only app computes it (a test compares them). Everything stored stays: switch it back on and the Save and Earn plans return.
+1. **The switch (seconds, no deploy):** set `FINODE_PLAN_ENABLED=false` in `.env` and restart the app (`docker compose up -d`). The Save and Earn sections are ignored and hidden: the budget page has no chips, the account forms have no "Plan under Build" switch, `get_budget` lists neither, Save and Earn plan rows are left out of every figure (including "where budgeting starts"), and nothing can be planned for saving or expected. `ready_to_assign` then reads exactly as the budget-only app computes it (a test compares them). Everything stored stays: switch it back on and the Save and Earn plans return.
 2. **Revert the code:** `git revert` the Plan merges (phase 1 `3b59f4c`, then each later phase) and redeploy. The extra column `accounts.saving` and the plan rows on Income and Save accounts are harmless to the older code: it ignores a column it does not know and only reads plan rows of Expenses accounts. Money assigned to a Save line is then simply no longer set aside (Ready to assign is larger by that amount, as with the switch).
 3. **Undo the schema (only if ever needed):** `alembic downgrade -1` drops `accounts.saving` (`d1e3f5a7b9c2`); it holds only the switch, so nothing else is lost. Restoring the pre-deploy dump (`backups/`) is the last resort.
 
@@ -100,3 +100,7 @@ What a person who used Save sees after level 1 or 2: the fund account is an ordi
 4. **Existing links** (Mutual Funds, Recurring): switched to Save by a conversion step, payment category cleared, old categories keep their history.
 5. **Saving is a switch on the account, never automatic.**
 6. **The tab is renamed to Plan in phase 3.**
+
+## Phase 4: Save becomes Build (2026-10-21)
+
+The owner did not want loan principal treated as an expense and "Save" was the wrong word for paying a debt down, so the chip is **Build** (money leaving what you can spend for your net worth: an asset going up, a debt going down). `accounts.saving` stays the flag (no migration); it is now allowed on a liability outside the budget as well as an asset. A loan's Build line counts the principal paid in (debits to it in a transaction that touches a budget account), shows what is still owed (`BudgetSaving.debt`, `balance`) and says "paid down". An EMI is recorded as two rows (principal to the loan, interest to an expense) so only the interest is spending. The payment category stays for people who prefer a loan as Spend; switching Build on clears it. Rolling back is the same switch (`FINODE_PLAN_ENABLED=false`).

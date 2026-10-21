@@ -461,15 +461,15 @@ class AccountService:
             raise ValueError("only asset and liability accounts can be part of the budget!")
 
     def _check_saving(self, node: Account | None, accounts_by_id: dict, in_budget: bool, payment_category: UUID | None) -> None:
-        """Only an asset outside the budget, with no payment category, can be planned for saving."""
+        """Only an asset or liability outside the budget, with no payment category, can be planned under Build."""
         if not settings.plan_enabled:
-            raise ValueError("planning for saving is switched off (FINODE_PLAN_ENABLED)!")
-        if node is None or self._get_root_name(node, accounts_by_id) != "Assets":
-            raise ValueError("only asset accounts can be planned for saving!")
+            raise ValueError("planning under Build is switched off (FINODE_PLAN_ENABLED)!")
+        if node is None or self._get_root_name(node, accounts_by_id) not in ("Assets", "Liabilities"):
+            raise ValueError("only asset and liability accounts can be planned under Build!")
         if in_budget:
-            raise ValueError("an account that is part of the budget cannot be planned for saving: switch off 'Part of the budget' first!")
+            raise ValueError("an account that is part of the budget cannot be planned under Build: switch off 'Part of the budget' first!")
         if payment_category is not None:
-            raise ValueError("an account planned for saving has no payment category: saving into it is not spending!")
+            raise ValueError("an account planned under Build has no payment category: paying into it is not spending!")
 
     def _detect_cycle(self, account_id: UUID, proposed_parent_id: UUID | None) -> bool:
         if proposed_parent_id is None:
@@ -803,7 +803,7 @@ class AccountService:
                 if on_budget if on_budget is not None else account.on_budget:
                     raise ValueError("an account that is part of the budget doesn't need one: its money is already budgeted!")
                 if data.saving if data.saving is not None else account.saving:
-                    raise ValueError("an account planned for saving has no payment category: saving into it is not spending!")
+                    raise ValueError("an account planned under Build has no payment category: paying into it is not spending!")
         elif on_budget and account.payment_category_id is not None:
             payment_category = None  # now part of the budget itself
 
@@ -811,7 +811,7 @@ class AccountService:
         if data.saving:
             accounts_by_id = {a.aid: a for a in all_accounts}
             if self.ar.has_children(aid):
-                raise ValueError("an account with sub-accounts cannot be planned for saving: use its sub-accounts!")
+                raise ValueError("an account with sub-accounts cannot be planned under Build: use its sub-accounts!")
             if payment_category is ... and account.payment_category_id is not None:
                 payment_category = None  # saving into it is not spending: the payment category goes
             self._check_saving(account, accounts_by_id, on_budget if on_budget is not None else account.on_budget,

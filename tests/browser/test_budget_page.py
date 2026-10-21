@@ -302,11 +302,11 @@ def test_the_save_chip_plans_for_an_account_you_save_into(page: Page, books, api
     fund = api.post("/accounts/", name="Mutual Funds", parent_id=books["roots"]["Assets"], on_budget=False, saving=True)
     page.goto("/plan")
     chips = page.locator(".cat-chips .chip")
-    expect(chips).to_have_text(["Spend", "Save", "Earn"])
+    expect(chips).to_have_text(["Spend", "Build", "Earn"])
     expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Spend")
     expect(page.locator("a.catrow", has_text="Mutual Funds")).to_have_count(0)
-    page.locator(".cat-chips .chip", has_text="Save").click()
-    page.wait_for_url(re.compile(r"tab=save"))
+    page.locator(".cat-chips .chip", has_text="Build").click()
+    page.wait_for_url(re.compile(r"tab=build"))
     row = page.locator("[data-budget-saving] a.catrow", has_text="Mutual Funds")
     expect(row).to_be_visible()
     row.click()
@@ -316,7 +316,7 @@ def test_the_save_chip_plans_for_an_account_you_save_into(page: Page, books, api
     page.locator("#cat-sheet").get_by_role("button", name="Save").click()
     expect(page.locator("#cat-sheet")).not_to_be_visible()
     assert ready(page) == "₹3,500.00", "assigned: taken out of what is ready"
-    expect(page.locator("[data-budget-saving]")).to_be_visible()  # still on Save after the swap
+    expect(page.locator("[data-budget-saving]")).to_be_visible()  # still on Build after the swap
     expect(page.locator("[data-budget-tree]")).to_have_count(0)
     api.post("/transactions/", postings=[
         {"account": fund["aid"], "side": "debit", "amount": "1500"},
@@ -327,7 +327,7 @@ def test_the_save_chip_plans_for_an_account_you_save_into(page: Page, books, api
 
 def test_the_earn_chip_plans_expected_income(page: Page, books, api: Api):
     page.goto("/plan")
-    expect(page.locator(".cat-chips .chip")).to_have_text(["Spend", "Save", "Earn"])
+    expect(page.locator(".cat-chips .chip")).to_have_text(["Spend", "Build", "Earn"])
     page.locator(".cat-chips .chip", has_text="Earn").click()
     page.wait_for_url(re.compile(r"tab=earn"))
     expect(page.locator("[data-plan-sum]")).to_be_visible()

@@ -666,7 +666,7 @@ document.body.addEventListener("click", (event) => {
   }
 });
 
-// Account form: outside the budget an asset can be planned for saving, and a payment category goes only with an account that is
+// Account form: outside the budget an asset or liability can be planned under Build, and a payment category goes only with an account that is
 // neither in the budget nor planned for saving. A new account asks only under Assets and Liabilities (the options carry their root in
 // `data-root`): an asset starts in the budget, a card or loan outside it. Hidden fields are disabled so they are not sent.
 (function budgetChoice() {
@@ -678,7 +678,7 @@ document.body.addEventListener("click", (event) => {
     if (!box) return;
     const out = !box.checked;
     if (savingRow) {
-      savingRow.hidden = !(out && fields.dataset.root === "Assets");
+      savingRow.hidden = !out;
       if (savingRow.hidden && saving) saving.checked = false;
     }
     if (payment) payment.hidden = !out || (saving && saving.checked);

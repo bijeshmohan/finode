@@ -144,14 +144,15 @@ class BudgetService:
         }
 
     def _savings(self, accounts: list[Account], by_id: dict[UUID, Account], parents: set) -> dict[UUID, Account]:
-        """Assets outside the budget that the person plans to save into (the Save section's lines)."""
+        """Assets and liabilities outside the budget that the person plans to build into: a fund or deposit to move money
+        into, a loan to pay down (the Build section's lines)."""
         if not settings.plan_enabled:
             return {}
         return {
             a.aid: a
             for a in accounts
             if a.saving and not a.on_budget and a.parent_id is not None and a.aid not in parents
-            and AccountService.root_name(a, by_id) == "Assets"
+            and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
         }
 
     def _earnings(self, accounts: list[Account], by_id: dict[UUID, Account]) -> dict[UUID, Account]:
@@ -430,7 +431,7 @@ class BudgetService:
         )
 
     def _saving_lines(self, savings, by_id, own_saving, targets, needs, balances, month) -> list[BudgetSaving]:
-        """The Save section: every open account planned for saving, and a closed one while it still has plan left."""
+        """The Build section: every open account planned for it, and a closed one while it still has plan left."""
         lines = []
         for aid, account in savings.items():
             assigned, moved, available, _ = own_saving[aid]
@@ -438,10 +439,12 @@ class BudgetService:
                 continue
             target = targets.get(aid)
             needed, missing = needs.get(aid, (ZERO, ZERO))
+            debt = AccountService.root_name(account, by_id) == "Liabilities"
             lines.append(
                 BudgetSaving(
                     aid=aid, name=account.name, path=":".join(self._path(account, by_id)),
-                    assigned=assigned, activity=moved, available=available, balance=balances[aid],
+                    assigned=assigned, activity=moved, available=available,
+                    balance=-balances[aid] if debt else balances[aid], debt=debt,
                     closed=account.closed_on is not None,
                     target=None if target is None else BudgetTargetRead(
                         kind=target.kind, amount=target.amount, target_date=target.target_date, weekday=target.weekday

@@ -37,9 +37,9 @@
     <span>Part of the budget <span class="hint">Money you assign to categories</span></span>
   </label>
   {% if plan_enabled %}
-  <label class="check" data-saving {{ "hidden" if on_budget or root_name != "Assets" }}>
+  <label class="check" data-saving {{ "hidden" if on_budget }}>
     <input type="checkbox" name="saving" value="1" {{ "checked" if saving }}>
-    <span>Plan for saving <span class="hint">Shows in Plan › Save</span></span>
+    <span>Plan under Build <span class="hint">Money into a fund, or paid off a loan; shows in Plan › Build</span></span>
   </label>
   {% endif %}
   <label data-payment-category {{ "hidden" if on_budget or saving }}>Payments budgeted under

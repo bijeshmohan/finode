@@ -46,7 +46,7 @@ finode is the user's personal double-entry ledger.
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
   expense category's assigned, spent and available amounts; assign_to_category plans a month's money and
-  move_budget_money shifts it between categories (an asset the user plans to save into counts as a line too: its `saving` entry in get_budget; assign_to_category on an income account says what the user expects to earn there, informational only: it never changes ready_to_assign); set_budget_target records what a category should get and
+  move_budget_money shifts it between categories (an asset the user plans to move money into, or a loan to pay down, counts as a line too: its `saving` entry in get_budget; assign_to_category on an income account says what the user expects to earn there, informational only: it never changes ready_to_assign); set_budget_target records what a category should get and
   get_budget then reports what is underfunded (fund_budget_targets assigns it, only when asked). These only change the plan, never the ledger, and the
   user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
 - check_books confirms that debits equal credits in every transaction and overall; use it when the
@@ -590,11 +590,11 @@ def _month(value: str | None) -> date | None:
 def _category(index: AccountIndex, text: str):
     entry = index.find(text)
     if (entry.root != "Expenses" or entry.account.parent_id is None) and not (
-        (entry.account.saving and entry.root == "Assets") or (entry.root == "Income" and entry.account.parent_id is not None)
+        (entry.account.saving and entry.root in ("Assets", "Liabilities")) or (entry.root == "Income" and entry.account.parent_id is not None)
     ):
         raise ToolError(
             f"'{entry.path}' is not an expense account: budget categories are expense accounts "
-            "(or an asset the user plans for saving, or an income account to say what is expected)!"
+            "(or an asset or loan the user plans under Build, or an income account to say what is expected)!"
         )
     return entry
 
@@ -646,6 +646,7 @@ def _budget(data) -> dict[str, Any]:
                         "moved_in": text(s.activity),
                         "left_to_move": text(s.available),
                         "balance": text(s.balance),
+                        **({"loan": True, "owed": text(s.balance)} if s.debt else {}),
                         **({"target": {"kind": s.target.kind, "amount": text(s.target.amount)}} if s.target else {}),
                         **({"underfunded": text(s.underfunded)} if s.underfunded else {}),
                     }

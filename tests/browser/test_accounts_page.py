@@ -180,7 +180,7 @@ def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Pag
         expect(page.locator("[data-payment-category]")).to_be_visible()
 
 
-def test_plan_for_saving_shows_only_for_an_asset_outside_the_budget(page: Page, api, books):
+def test_plan_under_build_shows_only_for_an_account_outside_the_budget(page: Page, api, books):
     page.goto("/accounts/new?root=assets")
     box = page.locator('input[name="on_budget"]')
     saving = page.locator('input[name="saving"]')
@@ -196,7 +196,7 @@ def test_plan_for_saving_shows_only_for_an_asset_outside_the_budget(page: Page, 
     expect(saving).not_to_be_checked()
     page.goto("/accounts/new")
     page.locator('select[name="parent_id"]').select_option(label="Liabilities")
-    expect(row).to_be_hidden()
+    expect(row).to_be_visible()  # a loan starts outside the budget and can be paid down under Build
     page.locator('select[name="parent_id"]').select_option(label="Assets")
     page.locator('input[name="name"]').fill("Mutual Funds")
     box.uncheck()

@@ -21,7 +21,7 @@ def test_the_earn_chip_is_there_only_with_advanced_on(client, books):
     assert ">Earn<" in text and "&tab=earn" in text
     advanced(client, False)
     off = page(client)
-    assert ">Earn<" not in off and ">Save<" in off, "Save stays: it is not an advanced feature"
+    assert ">Earn<" not in off and ">Build<" in off, "Build stays: it is not an advanced feature"
     asked = page(client, "earn")
     assert "data-budget-earning" not in asked and "data-budget-tree" in asked, "no Earn without Advanced: Spend shows"
 
