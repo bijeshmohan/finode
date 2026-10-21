@@ -66,7 +66,7 @@ def test_earn_head_is_what_is_still_to_come_without_the_pool_or_the_badge(client
         {"account": books["salary"]["aid"], "side": "credit", "amount": "62000"}]})
     text, page = head(client, "earn")
     assert "Still to come" in text and "23,000.00" in text and "Received" in text and "62,000.00" in text and "85,000.00" in text
-    assert 'class="glance-bar above"' in text, "money in is green"
+    assert 'class="glance-bar "' in text and 'class="figure "' in text, "dark until more came in than was expected"
     assert "data-ready-to-assign" not in page, "Earn never touches the pool"
     assert "Needs you" not in text
 
@@ -81,3 +81,17 @@ def test_every_rupee_has_a_job_replaces_the_pool_line_at_zero(client, books):
     assign(client, books["food"], "100000")
     _, page = head(client, "spend")
     assert "has a job" in page.split("data-ready-to-assign", 1)[1][:900]
+
+
+def test_earn_head_turns_green_only_when_more_came_in_than_was_expected(client, books):
+    assign(client, books["salary"], "50000")
+    def receive(amount):
+        client.post("/api/transactions/", json={"postings": [
+            {"account": books["bank"]["aid"], "side": "debit", "amount": amount},
+            {"account": books["salary"]["aid"], "side": "credit", "amount": amount}]})
+    receive("50000")  # exactly what was expected: not above
+    text, _ = head(client, "earn")
+    assert 'class="glance-bar "' in text and "Still to come" in text
+    receive("5000")
+    text, _ = head(client, "earn")
+    assert "Above expected" in text and 'class="glance-bar above"' in text and 'class="figure above"' in text and "5,000.00" in text
