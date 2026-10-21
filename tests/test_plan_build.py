@@ -60,6 +60,6 @@ def test_a_loan_cannot_have_a_payment_category_and_build_together(client, books)
 def test_the_web_page_words_a_loan_as_paid_down(client, books):
     move(client, books["bank"], books["loan"], "8000")
     text = " ".join(client.get("/plan?tab=build").text.split())
-    assert "Home Loan" in text and "paid 8,000 " in text and "owed 9,92,000 " in text
+    assert "Home Loan" in text and "paid 8,000 " in text and "owed 9,92,000" in text
     sheet = client.get(f"/plan/category/{books['loan']['aid']}/sheet").text
     assert "Paid down" in sheet and "Still owed" in sheet and "to pay down" in sheet and "Moved in" not in sheet
