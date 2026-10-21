@@ -205,3 +205,16 @@ def test_plan_under_build_shows_only_for_an_account_outside_the_budget(page: Pag
     page.wait_for_url("**/accounts/*")
     made = next(a for a in api.get("/accounts/") if a["name"] == "Mutual Funds")
     assert made["saving"] is True and made["on_budget"] is False
+
+
+def test_going_back_from_an_account_keeps_the_chip(page: Page, api, books):
+    cards = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
+    api.post("/accounts/", name="Visa", parent_id=cards["aid"], balance="50")
+    page.goto("/accounts")
+    page.locator(".cat-chips .chip", has_text="Liabilities").click()
+    page.wait_for_url("**/accounts?tab=liabilities")
+    page.get_by_role("link", name="Cards").first.click()
+    page.wait_for_url(f"**/accounts/{cards['aid']}")
+    page.locator("a.back").click()
+    page.wait_for_url("**/accounts?tab=liabilities")
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Liabilities")

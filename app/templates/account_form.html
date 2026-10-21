@@ -6,7 +6,7 @@
 {% set noun = "category" if cat else "account" %}
 {% block title %}{{ "Edit " ~ node.account.name if editing else "Add " ~ noun }} · finode{% endblock %}
 {% block content %}
-<a class="back" href="{{ (area ~ '/' ~ node.account.aid) if editing else area }}">{{ icon("back") }}{{ node.account.name if editing else ("Categories" if cat else "Accounts") }}</a>
+<a class="back" href="{{ (area ~ '/' ~ node.account.aid) if editing else (back_list or area) }}">{{ icon("back") }}{{ node.account.name if editing else ("Categories" if cat else "Accounts") }}</a>
 <h1>{{ ("Edit " if editing else "Add ") ~ noun }}</h1>
 
 <form class="card stack form-narrow" hx-post="{{ '/accounts/' ~ node.account.aid ~ '/edit' if editing else '/accounts' }}">

@@ -219,6 +219,7 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "currency": accounts.currency().code,
             "root_name": root_of.get(parent),
             "root_of": root_of,
+            "back_list": _list_for_root(root_of.get(parent)),
             "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
             "on_budget": root_of.get(parent) == "Assets",  # an asset starts in the budget; a card or loan, outside it
             "category_options": _category_options(everything),
@@ -427,9 +428,22 @@ def area_of(accounts: AccountService, aid: UUID) -> str:
     return "/categories" if node is not None and _root_of(roots, node).account.name in CATEGORY_ROOTS else "/accounts"
 
 
+def _list_for_root(root: str | None) -> str:
+    """The list a root's accounts are on, on the chip they are under (so going back lands where the person came from)."""
+    if root in CATEGORY_ROOTS:
+        return "/categories" + ("?tab=income" if root == "Income" else "")
+    return f"/accounts?tab={root.lower()}" if root in ACCOUNT_TABS.values() else "/accounts"
+
+
+def list_url(accounts: AccountService, aid: UUID) -> str:
+    roots = build_tree(accounts.list())
+    node = _find(roots, aid)
+    return _list_for_root(_root_of(roots, node).account.name if node is not None else None)
+
+
 @router.post("/{aid}/close")
 def close_account(aid: UUID, accounts: Accounts):
-    area = area_of(accounts, aid)
+    area = list_url(accounts, aid)
     try:
         accounts.close(aid)
     except ValueError as e:
@@ -555,6 +569,7 @@ def update_account(
 @router.post("/{aid}/delete")
 def delete_account(aid: UUID, accounts: Accounts):
     area = area_of(accounts, aid)
+    where = list_url(accounts, aid)
     try:
         accounts.delete(aid)
     except ValueError as e:
@@ -566,4 +581,4 @@ def delete_account(aid: UUID, accounts: Accounts):
             accounts.close(aid)
         except ValueError as closing:
             return htmx_error(str(closing), "#page-error")
-    return htmx_redirect(area, flash="category-deleted" if area == "/categories" else "account-deleted")
+    return htmx_redirect(where, flash="category-deleted" if area == "/categories" else "account-deleted")
