@@ -81,7 +81,7 @@ def test_closing_an_account_from_its_page(page: Page, api, books):
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_label("More actions").click()
     page.get_by_role("button", name="Close account").click()
-    page.wait_for_url("**/accounts")
+    page.wait_for_url("**/accounts?tab=assets")
     assert "assets › cash" not in visible(page)
     page.get_by_role("button", name="Load more").click()
     assert "assets › cash" in visible(page)
