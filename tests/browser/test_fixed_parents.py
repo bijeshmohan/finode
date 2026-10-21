@@ -13,12 +13,23 @@ def with_groups(monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
 
 
-def test_groups_have_no_plus_of_their_own_and_the_group_page_adds_inside_it(page: Page):
+def test_an_empty_page_offers_an_add_account_pill_and_shows_no_groups(page: Page):
     page.goto("/accounts")
-    expect(page.locator(".acc-gh")).to_have_count(3)
-    expect(page.locator(".acc-gh .circ-button")).to_have_count(0)
-    page.locator(".acc-gh", has_text="Investments").click()
+    expect(page.locator(".acc-gh")).to_have_count(0)
+    page.get_by_role("link", name="Add account").last.click()
+    page.wait_for_url("**/accounts/new?root=assets")
+    expect(page.locator('select[name="parent_id"] option:checked')).to_have_text(re.compile("Bank Accounts"))
+    page.locator('input[name="name"]').fill("HDFC")
+    page.get_by_role("button", name="Add account").click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
+    page.goto("/accounts")
+    expect(page.locator(".acc-gh")).to_have_count(1)
+    expect(page.locator(".acc-gh")).to_contain_text("Bank Accounts")
+
+
+def test_a_groups_own_page_adds_inside_it(page: Page, api):
+    group = next(a for a in api.get("/accounts/") if a["name"] == "Investments")
+    page.goto(f"/accounts/{group['aid']}")
     page.locator(".section-head .circ-button").click()
     page.wait_for_url("**/accounts/new?parent=*")
     expect(page.locator('select[name="parent_id"] option:checked')).to_have_text(re.compile("Investments"))

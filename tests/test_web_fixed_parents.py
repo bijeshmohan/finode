@@ -17,22 +17,24 @@ def new_person(monkeypatch):
     monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", False)
 
 
-def test_the_accounts_page_lists_every_group_even_when_empty_without_a_plus_on_each(client):
-    text = client.get("/accounts").text
-    for name in ("Bank Accounts", "Cash", "Investments"):
-        assert name in text and f'href="/accounts/{group(client, name)["aid"]}"' in text, name
-        assert f"Add to {name}" not in text and f'/accounts/new?parent={group(client, name)["aid"]}' not in text
-    assert text.count("circ-button") == 1, "only the round + at the top of the page"
-    assert text.count("Nothing here yet.") == 3
-    liabilities = client.get("/accounts?tab=liabilities").text
-    assert "Credit Cards" in liabilities and "Loans" in liabilities and liabilities.count("Nothing here yet.") == 2
-    assert "Built in" in text
+def test_with_no_accounts_the_page_shows_an_add_account_pill_and_no_groups(client):
+    for tab, target in (("assets", "Bank Accounts"), ("liabilities", "Credit Cards")):
+        text = client.get(f"/accounts?tab={tab}").text
+        shown = text[text.index("data-accounts"):]
+        assert "Add account" in shown and f"/accounts/new?root={tab}" in shown
+        for name in ("Bank Accounts", "Cash", "Investments", "Credit Cards", "Loans"):
+            assert f">{name}<" not in shown, name
+        assert "acc-gh" not in shown and "Built in" not in text and "lock" not in shown.lower()
 
 
-def test_an_account_appears_under_its_group_and_the_empty_note_goes(client):
+def test_only_groups_with_accounts_are_shown(client):
     make(client, "HDFC", "Bank Accounts", balance="500")
     text = client.get("/accounts").text
-    assert "HDFC" in text and text.count("Nothing here yet.") == 2
+    shown = text[text.index("data-accounts"):]
+    assert "Bank Accounts" in shown and "HDFC" in shown and "add-pill" not in shown
+    for name in ("Cash", "Investments"):
+        assert f">{name}<" not in shown, name
+    assert "Nothing here yet" not in text
 
 
 def test_the_plus_on_a_type_starts_on_its_first_group(client):
@@ -66,7 +68,7 @@ def test_creating_a_loan_from_the_form_goes_under_build(client):
 
 def test_a_groups_page_has_no_edit_or_menu_but_can_add_an_account(client):
     page = client.get(f"/accounts/{group(client, 'Cash')['aid']}").text
-    assert "Built in" in page and "/edit" not in page
+    assert "/edit" not in page
     assert "Close account" not in page and "Delete" not in page
     assert "Add sub-account" in page
     assert client.get(f"/accounts/{group(client, 'Cash')['aid']}/edit").status_code == 404

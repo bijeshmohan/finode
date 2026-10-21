@@ -175,7 +175,9 @@ def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
     accounts that sit directly under the type share one block without a heading. Accounts only go two levels deep."""
     blocks: list[tuple[Node | None, list[Node]]] = []
     for child in root.children:
-        if child.children or child.kind == "fixed":  # a built-in group always has its heading, empty or not
+        if child.kind == "fixed" and not child.children:
+            continue  # a built-in group with nothing in it is not shown: the page offers "Add account" instead
+        if child.children:
             blocks.append((child, child.children))
         elif blocks and blocks[-1][0] is None:
             blocks[-1][1].append(child)
