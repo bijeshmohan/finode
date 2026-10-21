@@ -137,7 +137,7 @@ def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, roo
     assert 'class="grp"' not in page and "gsum" not in page, "nothing folds"
     assert page.index(">Rent<") < page.index(">Food<"), "biggest budget first"
     assert f'href="/plan/group/{setup["food"]["aid"]}?month=' in page and "Groceries" in page, "Food opens its page; its hint names what is inside"
-    assert 'class="r crow catrow"' in page and 'name="amount"' not in page, "no input boxes on the page: assigning happens in the sheet"
+    assert 'class="r crow has-bar catrow"' in page and 'name="amount"' not in page, "no input boxes on the page: assigning happens in the sheet"
     assert 'aria-label="Category"' in page and page.count('class="bar') == 2
 
 
