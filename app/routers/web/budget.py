@@ -235,6 +235,8 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "tab": tab if tab in tabs else "spend",
         "tabs": tabs,
         "plan_enabled": settings.plan_enabled,
+        # A short welcome until the first amount is assigned (not for people on Advanced, who know their way around).
+        "show_intro": not advanced and not budget.br.list(),
         "debts": debts,
         "earning_rows": list(data.earning),
         # What the month's plan leaves over: what is expected, less what is assigned to saving and to spending.

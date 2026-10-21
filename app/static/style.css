@@ -587,7 +587,11 @@ ol.steps a:hover { text-decoration: underline; }
   color: var(--accent);
   background: var(--accent-soft);
 }
-ol.steps li.done { color: var(--muted); text-decoration: line-through; }
+ol.steps .step-hint { display: block; color: var(--muted); font-weight: 400; font-size: .8rem; }
+.tile.get-started { padding: .9rem 1rem; margin-top: 1rem; }
+.get-started .section-label { margin-top: 0; }
+ol.steps li.done { color: var(--muted); }
+ol.steps li.done > span:last-child { text-decoration: line-through; }
 ol.steps li.done .step-mark { color: var(--on-accent); background: var(--positive); text-decoration: none; }
 
 /* ---------- Quick-add sheet ---------- */
@@ -626,6 +630,10 @@ input[type="file"] { padding: .5rem; }
 
 /* Optional fields tucked away until needed */
 details.add-note > summary { cursor: pointer; color: var(--muted); min-height: var(--tap); display: flex; align-items: center; font-size: .9rem; }
+details.budget-options { border: 1px solid var(--field-border); border-radius: 12px; background: var(--surface); }
+details.budget-options > summary { cursor: pointer; min-height: var(--tap); padding: .4rem .9rem; display: flex; justify-content: space-between; align-items: center; gap: .75rem; font-weight: 600; }
+details.budget-options .bo-now { color: var(--muted); font-weight: 400; font-size: .85rem; text-align: right; }
+details.budget-options > .stack { padding: .25rem .9rem .9rem; }
 details.add-note[open] > summary { min-height: 0; margin-bottom: .3rem; font-size: .875rem; font-weight: 500; }
 details.more { border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 0 .75rem; }
 details.more[open] { padding-bottom: .75rem; }
@@ -1284,3 +1292,8 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 /* A Build group's page: what is still owed (a loan group) and the accounts of the group that are not in Build. */
 .group-owed { margin: -.25rem 0 .75rem; font-size: .875rem; }
 .group-leftovers { margin: .75rem 0 0; font-size: .875rem; }
+
+/* A short welcome on the Plan until the first amount is assigned. */
+.intro { background: var(--surface-2); border-radius: var(--radius); padding: .8rem 1rem; margin: .75rem 0 1rem; display: flex; flex-direction: column; gap: .2rem; }
+.intro p { margin: 0; color: var(--muted); font-size: .9rem; }
+.intro .intro-step { font-weight: 600; font-size: .9rem; text-decoration: none; }
