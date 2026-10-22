@@ -2,7 +2,7 @@
 
 import pytest
 
-from .test_budget import account, budget, line, move  # noqa: F401
+from .test_budget import account, budget, line  # noqa: F401
 
 
 @pytest.fixture

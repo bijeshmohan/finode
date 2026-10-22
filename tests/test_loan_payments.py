@@ -1,6 +1,5 @@
 """Paying a loan that is outside the budget: the EMI spends the category the loan points at."""
 
-from datetime import date
 
 import pytest
 

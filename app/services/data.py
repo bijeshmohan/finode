@@ -3,7 +3,6 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
