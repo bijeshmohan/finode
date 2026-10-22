@@ -1,7 +1,5 @@
 """Connecting assistants with OAuth: Supabase issues the tokens, finode keeps what each app may do."""
 
-import json
-import re
 from uuid import UUID
 
 import httpx

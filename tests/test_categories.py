@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from .test_budget import account, move
+from .test_budget import account
 
 THIS_MONTH = date.today().replace(day=1)
 LAST_MONTH = (THIS_MONTH - timedelta(days=1)).replace(day=1)
