@@ -52,7 +52,7 @@ flowchart LR
 
 ## What the Plan is not
 
-The Plan page was once three sections, Spend, Build (money moved into funds and loans paid down) and Earn (expected income). Build and Earn were removed on 2026-10-22: moving money between accounts does not change net worth, only income does, and the envelopes already covered the rest. Migration `c4e6a8b0d2f4` dropped `accounts.saving` and the profile's section switches and deleted the plan rows of funds, loans and income accounts (the ledger was not touched). A fund or loan payment is budgeted as spending through the account's **payment category**. A savings goal is an Expenses account with a by-date target.
+The Plan page was once three sections, Spend, Build (money moved into funds and loans paid down) and Earn (expected income). Build and Earn were removed on 2026-10-22: moving money between accounts does not change net worth, only income does, and the envelopes already covered the rest. Migration `c4e6a8b0d2f4` dropped `accounts.saving` and the profile's section switches and deleted the plan rows of funds, loans and income accounts (the ledger was not touched). A fund or loan payment is budgeted as spending through the account's **payment category**. A savings goal is an Expenses account with a by-date target, made in one step by the **New goal** form (`BudgetService.create_goal`; the monthly share is `funding()` for a by-date target, so the form and the target agree).
 
 ## Budget accounts, tracking accounts and liabilities
 

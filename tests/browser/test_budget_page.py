@@ -312,3 +312,24 @@ def test_save_works_after_the_keyboard_is_put_away_with_its_own_button(page: Pag
     assert page.request.get("/api/budget/").ok
     page.evaluate("window.__keyboard(0)")
     page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})
+
+
+def test_a_new_goal_is_made_from_plans_and_shows_its_share_as_you_type(page: Page, books):
+    index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
+    by = f"{index // 12}-{index % 12 + 1:02d}"
+    page.goto("/plan")
+    page.get_by_role("link", name="New goal").click()
+    page.wait_for_url(re.compile(r"/plan/goal$"))
+    expect(page.locator("#goal-calc")).to_contain_text("—")
+    page.locator('input[name="name"]').fill("Goa trip")
+    page.locator('input[name="amount"]').fill("1,00,000")
+    page.locator('input[name="by"]').fill(by)
+    expect(page.locator("#goal-calc")).to_contain_text("16,666.67 a month")
+    expect(page.locator("#goal-calc")).to_contain_text("6 months")
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
+    page.get_by_role("button", name="Create goal").click()
+    page.wait_for_url(re.compile(r"/plan$"))
+    row = page.locator("a.catrow", has_text="Goa trip")
+    expect(row).to_be_visible()
+    expect(row).to_contain_text("16,666.67")
+    expect(page.locator(".toast")).to_contain_text("Goal created")

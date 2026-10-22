@@ -410,3 +410,66 @@ def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()
     except BudgetError as e:
         return htmx_error(str(e), "#budget-error")
     return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
+
+
+def _sentence(message: str) -> str:
+    return message[:1].upper() + message[1:]
+
+
+def _goal_input(amount: str, by: str) -> tuple[Decimal, date]:
+    """The goal form's amount and month ('2027-03'), or an explanation of what is missing."""
+    if not amount.strip():
+        raise ValueError("say how much you need!")
+    try:
+        month = date.fromisoformat(by.strip() + "-01") if len(by.strip()) == 7 else None
+    except ValueError:
+        month = None
+    if month is None:
+        raise ValueError("choose the month you need it by!")
+    return parse_amount(amount), month
+
+
+@router.get("/goal")
+def goal_page(request: Request, budget: Budget):
+    """The form for a new goal: what it is for, how much, and by when."""
+    this_month = month_start(None)
+    return templates.TemplateResponse(
+        request, "budget_goal.html",
+        {"active": "plan", "hide_fab": True, "currency": budget.accounts.currency().code, "earliest": shift(this_month, 1).strftime("%Y-%m")},
+    )
+
+
+@router.get("/goal/preview")
+def goal_preview(request: Request, budget: Budget, amount: str = "", by: str = ""):
+    """What the goal would ask each month, as the form is filled in (nothing is saved)."""
+    share = months = last = None
+    error = ""
+    if amount.strip() and by.strip():
+        try:
+            value, due = _goal_input(amount, by)
+            share, months = budget.goal_share(value, due)
+            last = due
+        except (BudgetError, ValueError) as e:
+            error = _sentence(str(e))
+    return templates.TemplateResponse(
+        request, "partials/goal_preview.html",
+        {"share": share, "months": months, "first": month_start(None), "last": last, "error": error, "currency": budget.accounts.currency().code},
+    )
+
+
+@router.post("/goal")
+def create_goal(
+    budget: Budget,
+    name: Annotated[str, Form()] = "",
+    amount: Annotated[str, Form()] = "",
+    by: Annotated[str, Form()] = "",
+    assign_now: Annotated[str | None, Form()] = None,
+):
+    try:
+        if not name.strip():
+            raise ValueError("say what the goal is for!")
+        value, due = _goal_input(amount, by)
+        budget.create_goal(name.strip(), value, due, assign_now is not None)
+    except (BudgetError, ValueError) as e:
+        return htmx_error(_sentence(str(e)), "#form-error")
+    return htmx_redirect("/plan", flash="goal-created")

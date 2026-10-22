@@ -56,7 +56,7 @@ LISTS = {
     ("GET", "/api/export"), ("GET", "/api/profile/"),
     ("GET", "/api/recurring/"), 
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"),
-    ("GET", "/backup"), ("GET", "/plan"), ("GET", "/plan/move"), ("GET", "/export"),
+    ("GET", "/backup"), ("GET", "/plan"), ("GET", "/plan/goal"), ("GET", "/plan/goal/preview"), ("GET", "/plan/move"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
     ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/settings/groups"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
 }
@@ -65,7 +65,7 @@ LISTS = {
 REFERENCES = {
     ("POST", "/accounts"), ("POST", "/accounts/quick"), ("POST", "/api/accounts/"),
     ("POST", "/api/import"), ("PATCH", "/api/profile/"), ("POST", "/api/recurring/"),
-    ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/plan/assign"), ("POST", "/plan/copy"),
+    ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/plan/assign"), ("POST", "/plan/copy"), ("POST", "/plan/goal"),
     ("POST", "/plan/fund"), ("POST", "/plan/move"), ("POST", "/plan/note"), ("GET", "/plan/target"), ("POST", "/plan/target"),
     ("POST", "/plan/target/delete"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
@@ -328,6 +328,17 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
     assert len(refusals) >= 20
     assert books_of(client, TEST_USER_ID) == before_a, "A's books were changed"
     assert books_of(client, B_USER) == before_b, "a refused request still changed B's books"
+
+
+def test_a_goal_is_made_in_the_callers_own_books(client: TestClient, world: World):
+    """B may call a goal what A calls a category (names are per person); it lands in B's Expenses and A's books stay as they were."""
+    before = books_of(client, TEST_USER_ID)
+    with signed_in_as(B_USER):
+        done = client.post("/plan/goal", data={"name": "Groceries", "amount": "1000", "by": "2999-12", "assign_now": "1"})
+        assert done.status_code == 200, done.text
+        made = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Groceries")
+        assert made["parent_id"] == world.b_roots["Expenses"]
+    assert books_of(client, TEST_USER_ID) == before
 
 
 def test_a_backup_is_only_ever_the_callers_own(client: TestClient, world: World):
