@@ -30,8 +30,9 @@ def category(client, name):
     return next((a for a in client.get("/api/accounts/").json() if a["name"] == name), None)
 
 
-def test_plans_links_to_the_form_and_the_form_asks_three_things(client, books):
-    assert 'href="/plan/goal"' in client.get("/plan").text
+def test_the_goals_chip_links_to_the_form_and_the_form_asks_three_things(client, books):
+    assert 'href="/plan/goal"' in client.get("/plan?tab=goals").text
+    assert 'href="/plan/goal"' not in client.get("/plan").text, "the Budgets chip is about spending"
     page = client.get("/plan/goal").text
     assert "New goal" in page and 'name="name"' in page and 'name="amount"' in page and 'name="by"' in page
     assert f'min="{months_ahead(1)}"' in page, "a month after this one"
@@ -45,7 +46,7 @@ def test_creating_a_goal_makes_the_category_the_target_and_this_months_share(cli
     roots = {a["aid"]: a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
     assert roots[made["parent_id"]] == "Expenses"
     data = client.get("/api/budget/").json()
-    line = next(l for l in data["lines"] if l["name"] == "Goa trip")
+    line = next(l for l in data["goals"] if l["name"] == "Goa trip")
     assert line["target"]["kind"] == "by_date" and line["target"]["amount"] == "100000.00"
     assert line["target"]["target_date"] == f"{months_ahead(5)}-01"
     assert line["assigned"] == "16666.67", "100000 over this month and the 5 after it, rounded up"
@@ -54,7 +55,7 @@ def test_creating_a_goal_makes_the_category_the_target_and_this_months_share(cli
 
 def test_unticking_the_share_leaves_nothing_assigned(client, books):
     assert goal(client, assign_now=None).status_code == 200
-    line = next(l for l in client.get("/api/budget/").json()["lines"] if l["name"] == "Goa trip")
+    line = next(l for l in client.get("/api/budget/").json()["goals"] if l["name"] == "Goa trip")
     assert line["assigned"] == "0.00" and line["underfunded"] == "16666.67" and line["target"]["kind"] == "by_date"
 
 

@@ -1300,3 +1300,11 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .goal-calc { display: flex; flex-direction: column; gap: .15rem; padding: .8rem .9rem; background: var(--surface-2); border-radius: var(--radius-sm); }
 .goal-calc b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 .goal-calc.bad { background: none; padding: 0; }
+/* A goal's row: what this month asks, under its bar. */
+.goal-status { grid-column: 1 / -1; margin-top: .45rem; font-size: .8125rem; color: var(--muted); }
+.goal-status.short, .goal-status.overdue { color: var(--warn); }
+.goal-status.done, .goal-status.reached { color: var(--positive); }
+.goal-status:empty { display: none; }
+.sheet-body > .bar { display: block; height: var(--bar-h); margin: .25rem 0 .75rem; border-radius: calc(var(--bar-h) / 2); background: var(--surface-2); }
+.sheet-body > .bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
+.sheet-more .danger-text { color: var(--danger); }

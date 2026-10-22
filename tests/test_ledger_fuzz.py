@@ -204,7 +204,7 @@ def budget_checks(session, s, label: str) -> None:
         month = month_of(today + timedelta(days=31 * offset))
         view = s.budget.view(month)
         assert view.ready_to_assign == (
-            view.money_in_accounts - view.reserved_for_cards - view.available - view.assigned_to_later_months
+            view.money_in_accounts - view.reserved_for_cards - view.available - view.goal_available - view.assigned_to_later_months
         ), (label, month, "Ready to assign must be what is in the accounts minus what already has a job")
         assert view.assigned_to_later_months == sum((r.amount for r in rows if r.month > month), Decimal(0)), (label, month)
 
@@ -226,10 +226,11 @@ def run_budget(session, seed: int, steps: int) -> int:
         try:
             if op == "assign":
                 cat = rng.choice(cats)
-                before = {l.name: l.available for l in s.budget.view(month).lines}[cat.name]
+                seen = s.budget.view(month)
+                before = {l.name: l.available for l in seen.lines + seen.goals}[cat.name]
                 amount = money(rng) * rng.choice([1, 1, 1, -1])
                 view = s.budget.assign(month, cat.aid, amount)
-                after = {l.name: l.available for l in view.lines}[cat.name]
+                after = {l.name: l.available for l in view.lines + view.goals}[cat.name]
                 assert amount >= 0 or after >= 0 or before < 0, (label, "taking money out never leaves a category overspent")
             elif op == "move":
                 a, b = rng.sample(cats, 2)

@@ -17,6 +17,8 @@ MESSAGES = {
     "account-closed": "Account closed",
     "groups-added": "Standard groups added",
     "goal-created": "Goal created",
+    "goal-saved": "Goal saved",
+    "goal-deleted": "Goal deleted",
     "account-moved": "Moved",
     "account-order-reset": "Back in alphabetical order",
     "account-reopened": "Account reopened",

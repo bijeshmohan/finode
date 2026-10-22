@@ -149,4 +149,4 @@ def test_overdue_is_shown_on_the_page(client, setup):
     rent = setup["rent"]["aid"]
     client.post("/plan/target", data={"category": rent, "kind": "by_date", "amount": "500", "target_date": THIS_MONTH.strftime("%Y-%m")})
     nxt = add_months(THIS_MONTH, 1)
-    assert "overdue, needs 500.00 more" in client.get(f"/plan?month={nxt:%Y-%m}").text.replace("\n", " ").replace("  ", " ")
+    assert "Past its month · 500.00 short" in client.get(f"/plan?tab=goals&month={nxt:%Y-%m}").text.replace("\n", " ").replace("  ", " ")
