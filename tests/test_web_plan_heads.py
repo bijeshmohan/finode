@@ -1,5 +1,6 @@
 """The head of Plans: one figure (what is left to spend) and a full-width bar, with Ready to assign as a quiet line under it."""
 
+import re
 from datetime import date
 
 import pytest
@@ -50,7 +51,9 @@ def test_every_rupee_has_a_job_replaces_the_pool_line_at_zero(client, books):
     assert "has a job" in page.split("data-ready-to-assign", 1)[1][:900]
 
 
-def test_the_page_has_no_chips_and_no_other_sections(client, books):
+def test_the_page_has_two_chips_budgets_and_goals_and_budgets_is_chosen(client, books):
     page = client.get(f"/plan?month={MONTH}").text
-    assert 'aria-label="What to plan"' not in page and "/plan/configure" not in page
+    assert 'aria-label="What to plan"' in page
+    assert re.search(r'aria-pressed="true">Budgets</a>', page) and re.search(r'aria-pressed="false">Goals</a>', page)
+    assert "/plan/configure" not in page
     assert client.get("/plan/configure").status_code == 404

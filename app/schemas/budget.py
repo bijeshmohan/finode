@@ -113,12 +113,20 @@ class BudgetRead(BaseModel):
     assigned_to_later_months: Decimal = Money
     # What copying last month's assignments would assign here (categories with nothing assigned this month yet).
     copyable: Decimal = Money
+    # Goals: categories with a "by a month" target that have no subcategories. They are set aside for something and are not
+    # money to spend, so `assigned`, `activity`, `available`, `lines` and Home's Left to spend leave them out; these are their sums.
+    goals: list[BudgetLine] = []
+    goal_assigned: Decimal = Money
+    goal_activity: Decimal = Money
+    goal_available: Decimal = Money
+    # What the goals' targets still need this month.
+    goal_underfunded: Decimal = Money
     # Money in the budget's asset accounts and what is reserved for the cards' bills (sums of the cards' `owed`).
-    # ready_to_assign = money_in_accounts - reserved_for_cards - available - assigned_to_later_months.
+    # ready_to_assign = money_in_accounts - reserved_for_cards - available - goal_available - assigned_to_later_months.
     money_in_accounts: Decimal = Money
     reserved_for_cards: Decimal = Money
     cards: list[BudgetCard] = []
-    # What the targets still need this month, all categories.
+    # What the targets still need this month, all categories (goals included).
     underfunded: Decimal = Money
     # Spending this month that is not counted in the categories because it was paid from accounts outside the
     # budget (a credit card that was never switched on, for example), and those accounts.

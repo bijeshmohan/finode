@@ -314,10 +314,13 @@ def test_save_works_after_the_keyboard_is_put_away_with_its_own_button(page: Pag
     page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})
 
 
-def test_a_new_goal_is_made_from_plans_and_shows_its_share_as_you_type(page: Page, books):
+def test_a_new_goal_is_made_from_the_goals_chip_and_shows_its_share_as_you_type(page: Page, books):
     index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
     by = f"{index // 12}-{index % 12 + 1:02d}"
     page.goto("/plan")
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Budgets")
+    page.locator(".cat-chips .chip", has_text="Goals").click()
+    page.wait_for_url(re.compile(r"tab=goals"))
     page.get_by_role("link", name="New goal").click()
     page.wait_for_url(re.compile(r"/plan/goal$"))
     expect(page.locator("#goal-calc")).to_contain_text("—")
@@ -328,8 +331,30 @@ def test_a_new_goal_is_made_from_plans_and_shows_its_share_as_you_type(page: Pag
     expect(page.locator("#goal-calc")).to_contain_text("6 months")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
     page.get_by_role("button", name="Create goal").click()
-    page.wait_for_url(re.compile(r"/plan$"))
-    row = page.locator("a.catrow", has_text="Goa trip")
+    page.wait_for_url(re.compile(r"/plan\?tab=goals$"))
+    row = page.locator("a.goalrow", has_text="Goa trip")
     expect(row).to_be_visible()
     expect(row).to_contain_text("16,666.67")
+    expect(row).to_contain_text("This month done")
     expect(page.locator(".toast")).to_contain_text("Goal created")
+    expect(page.locator("[data-plan-head='goals']")).to_contain_text("16,666.67")
+
+
+def test_a_goals_sheet_sets_money_aside_and_deletes_the_goal(page: Page, books, api: Api):
+    index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
+    page.request.post("/plan/goal", form={"name": "Bike", "amount": "60000", "by": f"{index // 12}-{index % 12 + 1:02d}"})
+    page.goto("/plan?tab=goals")
+    expect(page.locator("a.goalrow", has_text="Bike")).to_contain_text("10,000.00 to go this month")
+    page.locator("a.goalrow", has_text="Bike").click()
+    sheet = page.locator("#cat-sheet")
+    expect(sheet).to_be_visible()
+    sheet.get_by_role("button", name=re.compile(r"Set aside .*10,000.00 this month")).click()
+    expect(sheet).not_to_be_visible()
+    expect(page.locator("a.goalrow", has_text="Bike")).to_contain_text("This month done")
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Goals")
+    page.locator("a.goalrow", has_text="Bike").click()
+    page.on("dialog", lambda d: d.accept())
+    sheet.get_by_role("button", name="Delete goal").click()
+    page.wait_for_url(re.compile(r"/plan\?tab=goals$"))
+    expect(page.locator("a.goalrow")).to_have_count(0)
+    expect(page.locator(".toast")).to_contain_text("Goal deleted")

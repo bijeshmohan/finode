@@ -49,7 +49,8 @@ finode is the user's personal double-entry ledger.
 - Dates are YYYY-MM-DD; today's date is used when you leave the date out. Balances count entries
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
-  expense category's assigned, spent and available amounts; assign_to_category plans a month's money and
+  expense category's assigned, spent and available amounts (a category with a "by" target and nothing inside it is a goal:
+  listed under `goals`, not in `categories`, and not counted in assigned/spent/available_total); assign_to_category plans a month's money and
   move_budget_money shifts it between categories; set_budget_target records what a category should get and
   get_budget then reports what is underfunded (fund_budget_targets assigns it, only when asked). These only change the plan, never the ledger, and the
   user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
@@ -622,6 +623,24 @@ def _budget(data) -> dict[str, Any]:
         ),
         "overspent_last_month": text(data.overspent_last_month),
         "budget_accounts": data.budget_accounts,
+        **(
+            {
+                "saved_for_goals": text(data.goal_available),
+                "goals": [
+                    {
+                        "goal": g.path,
+                        "saved": text(g.available),
+                        "target": text(g.target.amount),
+                        "by": g.target.target_date.isoformat(),
+                        "assigned_this_month": text(g.assigned),
+                        **({"needs_this_month": text(g.underfunded)} if g.underfunded else {}),
+                    }
+                    for g in data.goals
+                ],
+            }
+            if data.goals
+            else {}
+        ),
         "categories": [
             {
                 "category": line.path,

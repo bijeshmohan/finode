@@ -25,7 +25,7 @@ def test_the_page_shows_what_is_left_to_assign(client, setup):
     assert "Left to spend in" not in page, "Home's wording; the Plans head says Left to spend"
     assert 'class="ready zero budget-hero ready-hero plan-head"' in page and "Left to spend" in page
     assert "Food" in page and "Rent" in page and THIS_MONTH.strftime("%b %Y") in page, "the pill says which month"
-    assert 'href="/plan?month=' in page
+    assert 'href="/plan?tab=budgets&amp;month=' in page
 
 
 def test_an_empty_budget_says_how_to_start(client, root_accounts):
@@ -360,6 +360,7 @@ def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
         ("", "In your accounts", "₹1,000.00"),
         ("minus", "Set aside for card bills", "₹0.00"),
         ("minus", "Left in your categories", "₹300.00"),
+        ("minus", "Set aside for goals", "₹0.00"),
         ("minus", "Assigned to later months", "₹0.00"),
         ("total", "Ready to assign", "₹700.00"),
     ]
@@ -390,7 +391,7 @@ def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_
 def test_the_month_pill_is_in_the_title_row_and_needs_you_is_beside_ready_to_assign(client, root_accounts, setup):
     page = client.get("/plan").text
     head = page.split('<div class="page-head tall">', 1)[1].split('<div id="budget">', 1)[0]
-    assert "<h1>Plans</h1>" in head and 'class="month-pill"' in head and 'href="/plan?month=' in head
+    assert "<h1>Plans</h1>" in head and 'class="month-pill"' in head and 'href="/plan?tab=budgets&amp;month=' in head
     body = page.split('<div id="budget">', 1)[1]
     assert 'class="month-pill"' not in body and "bud-bar" not in body, "the second row is gone"
     assert "data-toggle-attn" not in page, "nothing needs a decision yet"
