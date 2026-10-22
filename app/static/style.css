@@ -347,9 +347,9 @@ select {
 }
 
 /* iOS renders date fields centred and shorter than other inputs */
-input[type="date"] { display: block; min-height: var(--tap); line-height: 1.5; text-align: left; }
-input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
-input[type="date"]::-webkit-calendar-picker-indicator { opacity: .6; }
+input[type="date"], input[type="month"] { display: block; min-height: var(--tap); line-height: 1.5; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value, input[type="month"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+input[type="date"]::-webkit-calendar-picker-indicator, input[type="month"]::-webkit-calendar-picker-indicator { opacity: .6; }
 
 input::placeholder { color: var(--muted); opacity: .7; }
 
@@ -1293,3 +1293,10 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .rta-line b { color: var(--text); font-weight: 600; }
 .rta-line .info-button { margin: -.25rem 0; }
 .rta-line .calc-panel { flex: 1 0 100%; }
+
+/* New goal: a quiet link under the categories, and the monthly share under the form. */
+.goal-add { display: flex; align-items: center; justify-content: center; gap: .4rem; margin: .9rem 0 0; min-height: var(--tap); border: 1px dashed var(--field-border); border-radius: var(--radius); color: var(--muted); font-weight: 600; text-decoration: none; }
+.goal-add .icon { width: 1.1rem; height: 1.1rem; }
+.goal-calc { display: flex; flex-direction: column; gap: .15rem; padding: .8rem .9rem; background: var(--surface-2); border-radius: var(--radius-sm); }
+.goal-calc b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.goal-calc.bad { background: none; padding: 0; }

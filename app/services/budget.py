@@ -5,15 +5,18 @@ from datetime import date, timedelta
 from decimal import ROUND_CEILING, Decimal
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from ..models.account import Account
 from ..models.budget import BudgetTarget
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, TransactionRepository
 from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead, BudgetWeek
-from ..schemas.account import AccountUpdate
+from ..schemas.account import AccountCreate, AccountUpdate
 from .account import AccountService
 from .lock import locked_through
 from .transaction import decimal_places
+from .validation import validation_message
 from ..clock import FIRST_DAY, LAST_DAY, local_today
 
 
@@ -494,6 +497,34 @@ class BudgetService:
         self.br.set_target(account.aid, kind, amount, target_date, weekday)
         self.br.db.commit()
         return self.view(None)
+
+    def goal_share(self, amount: Decimal, by: date) -> tuple[Decimal, int]:
+        """What a goal of `amount` needed by the month `by` asks of each month if it starts now: (the share, the months it
+        is spread over, this one included). The same rule as a by-date target, so what the form promises is what the
+        target will ask."""
+        if amount <= 0:
+            raise BudgetError("the goal amount must be positive!")
+        self._check_amount(amount)
+        month, due = month_start(None), month_start(by)
+        if due <= month:
+            raise BudgetError("choose a month after this one!")
+        target = BudgetTarget(kind="by_date", amount=amount, target_date=due)
+        share, _ = funding(target, ZERO, ZERO, month, self.accounts.currency().decimals)
+        return share, months_between(month, due) + 1
+
+    def create_goal(self, name: str, amount: Decimal, by: date, assign_now: bool) -> BudgetRead:
+        """A goal is an Expenses category with a by-date target: made in one step, and this month's share assigned when asked."""
+        share, _ = self.goal_share(amount, by)
+        month = month_start(None)
+        expenses = next(a for a in self.accounts.ensure_roots() if a.parent_id is None and a.name == "Expenses")
+        try:
+            created = self.accounts.create(AccountCreate(name=name, parent_id=expenses.aid))
+        except ValidationError as e:
+            raise BudgetError(validation_message(e)) from e
+        except ValueError as e:
+            raise BudgetError(str(e)) from e
+        self.set_target(created.aid, "by_date", amount, month_start(by))
+        return self.assign(month, created.aid, share) if assign_now else self.view(month)
 
     def set_note(self, aid: UUID, note: str | None) -> BudgetRead:
         """A short note on a category (kept as the account's details, so it is in backups and on the account's page)."""

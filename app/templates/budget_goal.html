@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}New goal · finode{% endblock %}
+{% block content %}
+<a class="back" href="/plan">{{ icon("back") }}Plans</a>
+<h1>New goal</h1>
+<p class="muted">Money to put aside for something, by a month. It becomes a category with a target.</p>
+<form class="card stack form-narrow" hx-post="/plan/goal">
+  {#- The monthly share is worked out by the server as the fields change (its own request, so the form's Create stays a plain post). -#}
+  <div class="stack" hx-get="/plan/goal/preview" hx-trigger="input delay:300ms, change" hx-target="#goal-calc" hx-swap="outerHTML" hx-include="closest form">
+  <label>What is it for?
+    <input type="text" name="name" placeholder="e.g. Goa trip" required autocomplete="off" maxlength="80" data-autofocus>
+  </label>
+  <label>How much do you need? ({{ currency }})
+    <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off">
+  </label>
+  <label>Needed by
+    <input type="month" name="by" min="{{ earliest }}" placeholder="YYYY-MM" required>
+  </label>
+  </div>
+  {% include "partials/goal_preview.html" %}
+  <label class="check">
+    <input type="checkbox" name="assign_now" value="1" checked>
+    <span>Set aside this month's share now <span class="hint">Takes it out of Ready to assign for this month</span></span>
+  </label>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions">
+    <button type="submit">Create goal</button>
+    <a class="button secondary" href="/plan">Cancel</a>
+  </div>
+</form>
+{% endblock %}
