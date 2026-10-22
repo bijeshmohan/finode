@@ -36,7 +36,6 @@ Read in this order:
 - [Code map](developer/code-map.md): where everything lives and where to start reading
 - [Conventions and how-tos](developer/conventions.md): the rules, adding a page, a tool, a migration, a setting
 - [Why it is built this way](developer/decisions.md): the decisions that look odd until you know the reason
-- [Plan: design proposal](developer/plan-design.md): Spend, Save and Earn on top of the budget (proposal, not built)
 
 ## About these docs
 

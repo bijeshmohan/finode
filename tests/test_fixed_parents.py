@@ -5,7 +5,6 @@ import json
 
 import pytest
 
-from app.repositories import profile
 from app.services import account as account_service
 
 from .test_backup import OTHER, as_user, restore_as_other
@@ -19,9 +18,8 @@ NAMES = {
 
 @pytest.fixture(autouse=True)
 def new_person(monkeypatch):
-    """A brand-new profile: the built-in groups exist, Advanced is off and the Plan starts with Spend only."""
+    """A brand-new profile: the built-in groups exist."""
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
-    monkeypatch.setattr(profile, "NEW_PROFILE_PLAN_BUILD", False)
 
 
 def accounts(client):
@@ -61,36 +59,19 @@ def test_the_groups_cannot_be_renamed_moved_closed_or_deleted(client, root_accou
 
 def test_what_is_made_under_a_group_starts_as_the_group_says(client):
     expected = {
-        ("HDFC", "Bank Accounts"): (True, False),
-        ("Wallet", "Cash"): (True, False),
-        ("Visa", "Credit Cards"): (True, False),
-        ("Mutual Funds", "Investments"): (False, True),
-        ("Home Loan", "Loans"): (False, True),
+        ("HDFC", "Bank Accounts"): True,
+        ("Wallet", "Cash"): True,
+        ("Visa", "Credit Cards"): True,
+        ("Mutual Funds", "Investments"): False,
+        ("Home Loan", "Loans"): False,
     }
-    for (name, parent), (on_budget, saving) in expected.items():
-        made = make(client, name, parent)
-        assert (made["on_budget"], made["saving"]) == (on_budget, saving), name
+    for (name, parent), on_budget in expected.items():
+        assert make(client, name, parent)["on_budget"] is on_budget, name
 
 
 def test_the_person_can_still_choose_otherwise(client):
     assert make(client, "Old savings", "Bank Accounts", on_budget=False)["on_budget"] is False
-    loan = make(client, "Informal loan", "Loans", on_budget=False, saving=False)
-    assert loan["saving"] is False and loan["on_budget"] is False
-
-
-def test_the_first_account_under_build_switches_the_build_chip_on(client):
-    assert ">Build<" not in client.get("/plan").text
-    make(client, "HDFC", "Bank Accounts")
-    assert ">Build<" not in client.get("/plan").text, "a bank is Spend"
-    make(client, "Mutual Funds", "Investments")
-    assert ">Build<" in client.get("/plan").text
-
-
-def test_investments_show_in_build_as_a_group(client):
-    make(client, "Mutual Funds", "Investments")
-    make(client, "PPF", "Investments")
-    text = client.get("/plan?tab=build").text
-    assert "Investments" in text and "Mutual Funds" in text
+    assert make(client, "Informal loan", "Loans", on_budget=True)["on_budget"] is True
 
 
 def test_people_with_a_ledger_of_their_own_get_none(client, monkeypatch):

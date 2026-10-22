@@ -13,7 +13,6 @@ from .test_fixed_parents import group, make
 @pytest.fixture(autouse=True)
 def new_person(monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
-    monkeypatch.setattr(profile, "NEW_PROFILE_PLAN_BUILD", False)
     monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", False)
 
 
@@ -48,22 +47,20 @@ def test_the_plus_on_a_type_starts_on_its_first_group(client):
 def test_the_form_starts_as_the_group_says(client):
     investments = group(client, "Investments")["aid"]
     page = client.get(f"/accounts/new?parent={investments}").text
-    assert 'name="saving" value="1" checked' in page and 'name="on_budget" value="1" checked' not in page
-    assert "Planned under Build" in page, "the folded summary says it"
+    assert 'name="on_budget" value="1" checked' not in page
+    assert "Outside the budget" in page, "the folded summary says it"
     bank = client.get(f"/accounts/new?parent={group(client, 'Bank Accounts')['aid']}").text
-    assert 'name="on_budget" value="1" checked' in bank and 'name="saving" value="1" checked' not in bank
-    assert f'data-start="build"' in page and 'data-start="budget"' in page, "the choice can follow the group chosen"
-    assert 'data-start="build"' in client.get(f"/accounts/new?parent={group(client, 'Loans')['aid']}").text
+    assert 'name="on_budget" value="1" checked' in bank
+    assert 'data-start="outside"' in page and 'data-start="budget"' in page, "the choice can follow the group chosen"
+    assert 'data-start="outside"' in client.get(f"/accounts/new?parent={group(client, 'Loans')['aid']}").text
 
 
-def test_creating_a_loan_from_the_form_goes_under_build(client):
+def test_creating_a_loan_from_the_form_leaves_it_outside_the_budget(client):
     loans = group(client, "Loans")["aid"]
-    done = client.post("/accounts", data={
-        "name": "Home Loan", "parent_id": loans, "balance": "1000000", "budget_choice": "1", "saving": "1"})
+    done = client.post("/accounts", data={"name": "Home Loan", "parent_id": loans, "balance": "1000000", "budget_choice": "1"})
     assert done.status_code == 200, done.text
     made = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Home Loan")
-    assert made["saving"] is True and made["on_budget"] is False
-    assert ">Build<" in client.get("/plan").text
+    assert made["on_budget"] is False
 
 
 def test_a_groups_page_has_no_edit_or_menu_but_can_add_an_account(client):

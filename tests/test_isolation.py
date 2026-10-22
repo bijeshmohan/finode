@@ -56,7 +56,7 @@ LISTS = {
     ("GET", "/api/export"), ("GET", "/api/profile/"),
     ("GET", "/api/recurring/"), 
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"),
-    ("GET", "/backup"), ("GET", "/plan"), ("GET", "/plan/move"), ("GET", "/plan/configure"), ("GET", "/export"),
+    ("GET", "/backup"), ("GET", "/plan"), ("GET", "/plan/move"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
     ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/settings/groups"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
 }
@@ -65,7 +65,7 @@ LISTS = {
 REFERENCES = {
     ("POST", "/accounts"), ("POST", "/accounts/quick"), ("POST", "/api/accounts/"),
     ("POST", "/api/import"), ("PATCH", "/api/profile/"), ("POST", "/api/recurring/"),
-    ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/plan/assign"), ("POST", "/plan/configure"), ("POST", "/plan/copy"),
+    ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/plan/assign"), ("POST", "/plan/copy"),
     ("POST", "/plan/fund"), ("POST", "/plan/move"), ("POST", "/plan/note"), ("GET", "/plan/target"), ("POST", "/plan/target"),
     ("POST", "/plan/target/delete"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),

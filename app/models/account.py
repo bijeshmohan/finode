@@ -37,9 +37,6 @@ class Account(TimestampMixin, table=True):
     parent_id: UUID | None = Field(default=None, foreign_key="accounts.aid", nullable=True)
     # Whether this asset or liability account (a bank, a credit card) is part of the budget (see services/budget.py).
     on_budget: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
-    # Whether this asset outside the budget is something the person plans to save into: it is then a line of the plan's
-    # Save section (see services/budget.py). Never together with on_budget or a payment category.
-    saving: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
     # The day the account was closed: no longer offered or posted to, history kept (see AccountService.close).
     closed_on: Date | None = Field(default=None)
     # For an asset or liability account outside the budget (a loan): the expense category its payments are

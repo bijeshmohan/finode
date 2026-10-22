@@ -12,7 +12,6 @@ from ..models import Account
 from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
-from ..schemas.profile import ProfileUpdate
 from ..schemas.transaction import TransactionCreate, PostingCreate
 from ..config import settings
 from ..limits import ensure_room
@@ -34,14 +33,15 @@ DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
 GROUP_POSTING_ROOT_NAMES = frozenset({"Income", "Expenses"})
 
 # The built-in groups every new person starts with under Assets and Liabilities: (root, name, key, what an account made
-# under it starts as). They cannot be renamed, moved, closed or deleted; what is made under them gets its budget
-# behaviour from here, so a new person does not have to decide it. Rules read the key, never the name.
+# under it starts as: "budget" or "outside" the budget). They cannot be renamed, moved, closed or deleted; what is made
+# under them gets its budget behaviour from here, so a new person does not have to decide it. Rules read the key, never
+# the name.
 FIXED_PARENTS = (
     ("Assets", "Bank Accounts", "assets.bank", "budget"),
     ("Assets", "Cash", "assets.cash", "budget"),
-    ("Assets", "Investments", "assets.investments", "build"),
+    ("Assets", "Investments", "assets.investments", "outside"),
     ("Liabilities", "Credit Cards", "liabilities.cards", "budget"),
-    ("Liabilities", "Loans", "liabilities.loans", "build"),
+    ("Liabilities", "Loans", "liabilities.loans", "outside"),
 )
 FIXED_DEFAULTS = {key: start for _, _, key, start in FIXED_PARENTS}
 # New people get the groups; tests switch this off (most of them build their own accounts) and a few switch it on.
@@ -230,7 +230,7 @@ class AccountService:
                 account = self.ar.read(entry["aid"])
                 account.system_key = entry["key"]
                 if not any(a.parent_id == account.aid for a in all_accounts):  # an empty account becomes a group: flags mean nothing
-                    account.on_budget, account.saving, account.payment_category_id = False, False, None
+                    account.on_budget, account.payment_category_id = False, None
                 self.ar.db.add(account)
         try:
             self.ar.db.commit()
@@ -238,11 +238,6 @@ class AccountService:
             self.ar.db.rollback()
             raise ValueError("the groups were added a moment ago: reload the page!")
         return plan
-
-    def _show_build(self) -> None:
-        """An account planned under Build is no use while the Plan hides Build, so the first one switches it on."""
-        if settings.plan_enabled and not self.pr.plan_sections()[0]:
-            self.pr.update(ProfileUpdate(plan_build=True))
 
     def ensure_roots(self) -> list[Account]:
         return self._ensure_roots()
@@ -405,7 +400,6 @@ class AccountService:
             parent_id=account.parent_id,
             balance=balance,
             on_budget=account.on_budget,
-            saving=account.saving,
             payment_category_id=account.payment_category_id,
             closed_on=account.closed_on,
             position=account.position,
@@ -578,17 +572,6 @@ class AccountService:
         if parent is None or self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):
             raise ValueError("only asset and liability accounts can be part of the budget!")
 
-    def _check_saving(self, node: Account | None, accounts_by_id: dict, in_budget: bool, payment_category: UUID | None) -> None:
-        """Only an asset or liability outside the budget, with no payment category, can be planned under Build."""
-        if not settings.plan_enabled:
-            raise ValueError("planning under Build is switched off (FINODE_PLAN_ENABLED)!")
-        if node is None or self._get_root_name(node, accounts_by_id) not in ("Assets", "Liabilities"):
-            raise ValueError("only asset and liability accounts can be planned under Build!")
-        if in_budget:
-            raise ValueError("an account that is part of the budget cannot be planned under Build: switch off 'Part of the budget' first!")
-        if payment_category is not None:
-            raise ValueError("an account planned under Build has no payment category: paying into it is not spending!")
-
     def _detect_cycle(self, account_id: UUID, proposed_parent_id: UUID | None) -> bool:
         if proposed_parent_id is None:
             return False
@@ -639,15 +622,12 @@ class AccountService:
         self._check_name_free(account.name, account.parent_id, all_accounts)
         accounts_by_id = {a.aid: a for a in all_accounts}
         start = FIXED_DEFAULTS.get(parent.system_key or "")
-        if start and account.on_budget is None and not account.saving and account.payment_category_id is None:
-            # Made under a built-in group without saying how: it starts as the group says (a bank in the budget, a loan under Build).
-            if start == "budget":
-                account = account.model_copy(update={"on_budget": True})
-            else:
-                account = account.model_copy(update={"on_budget": False, "saving": settings.plan_enabled})
+        if start and account.on_budget is None and account.payment_category_id is None:
+            # Made under a built-in group without saying how: it starts as the group says (a bank in the budget, a loan outside it).
+            account = account.model_copy(update={"on_budget": start == "budget"})
         in_budget = account.on_budget
-        if in_budget is None:  # money in an asset account is budgeted unless said otherwise (or planned for saving)
-            in_budget = self._get_root_name(parent, accounts_by_id) == "Assets" and not account.saving
+        if in_budget is None:  # money in an asset account is budgeted unless said otherwise
+            in_budget = self._get_root_name(parent, accounts_by_id) == "Assets"
         elif in_budget:
             self._check_budgetable(parent, accounts_by_id)
         if account.payment_category_id is not None:
@@ -658,8 +638,6 @@ class AccountService:
                 raise ValueError("only asset and liability accounts can have a payment category!")
             if in_budget:
                 raise ValueError("an account that is part of the budget doesn't need one: its money is already budgeted!")
-        if account.saving:
-            self._check_saving(parent, accounts_by_id, in_budget, account.payment_category_id)
         created = self.ar.create(account, on_budget=in_budget)
         all_accounts_with_created = all_accounts + [created]
 
@@ -675,8 +653,6 @@ class AccountService:
             self.ar.db.rollback()
             raise
         self.ar.db.commit()
-        if account.saving:
-            self._show_build()
         self.ar.db.refresh(created)
         return self._to_read(created, all_accounts_with_created)
 
@@ -931,25 +907,10 @@ class AccountService:
                     raise ValueError("an account with sub-accounts cannot have one: use its sub-accounts!")
                 if on_budget if on_budget is not None else account.on_budget:
                     raise ValueError("an account that is part of the budget doesn't need one: its money is already budgeted!")
-                if data.saving if data.saving is not None else account.saving:
-                    raise ValueError("an account planned under Build has no payment category: paying into it is not spending!")
         elif on_budget and account.payment_category_id is not None:
             payment_category = None  # now part of the budget itself
 
-        saving: bool | None = None
-        if data.saving:
-            accounts_by_id = {a.aid: a for a in all_accounts}
-            if self.ar.has_children(aid):
-                raise ValueError("an account with sub-accounts cannot be planned under Build: use its sub-accounts!")
-            if payment_category is ... and account.payment_category_id is not None:
-                payment_category = None  # saving into it is not spending: the payment category goes
-            self._check_saving(account, accounts_by_id, on_budget if on_budget is not None else account.on_budget,
-                               payment_category if payment_category is not ... else account.payment_category_id)
-            saving = True
-        elif data.saving is False or on_budget:
-            saving = False  # switched off, or the account joined the budget
-
-        updated = self.ar.update(aid, data, on_budget, payment_category, saving)
+        updated = self.ar.update(aid, data, on_budget, payment_category)
         if not updated:
             raise RuntimeError(f"failed to update account with aid '{aid}'!")
 
@@ -970,8 +931,6 @@ class AccountService:
                 raise
 
         self.ar.db.commit()
-        if saving:
-            self._show_build()
         self.ar.db.refresh(updated)
         return self._to_read(updated, all_accounts)
 
@@ -994,7 +953,6 @@ class AccountService:
             "path": self._path(account, by_id),
             "root": self._get_root_name(account, by_id),
             "on_budget": account.on_budget,
-            "saving": account.saving,
             "payment_category_id": str(account.payment_category_id) if account.payment_category_id else None,
             "position": account.position,
             "plan": [
@@ -1061,7 +1019,7 @@ class AccountService:
         payment = UUID(snap["payment_category_id"]) if snap.get("payment_category_id") else None
         restored = self.ar.restore(row.account_id, {
             "name": snap["name"], "details": snap.get("details"), "parent_id": parent.aid,
-            "on_budget": bool(snap.get("on_budget")), "saving": bool(snap.get("saving")), "position": snap.get("position"),
+            "on_budget": bool(snap.get("on_budget")), "position": snap.get("position"),
             "payment_category_id": payment if payment in by_id else None,
         })
         budget = BudgetRepository(self.ar.db, self.ar.uid)

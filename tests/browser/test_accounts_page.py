@@ -190,33 +190,20 @@ def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Pag
         expect(page.locator("[data-payment-category]")).to_be_visible()
 
 
-def test_plan_under_build_shows_only_for_an_account_outside_the_budget(page: Page, api, books):
+def test_the_payment_category_shows_only_for_an_account_outside_the_budget(page: Page, api, books):
     page.goto("/accounts/new?root=assets")
     open_options(page)
     box = page.locator('input[name="on_budget"]')
-    saving = page.locator('input[name="saving"]')
-    row = page.locator("[data-saving]")
-    expect(row).to_be_hidden()  # an asset starts in the budget
+    payment = page.locator("[data-payment-category]")
+    expect(payment).to_be_hidden()  # an asset starts in the budget
     box.uncheck()
-    expect(row).to_be_visible()
-    expect(page.locator("[data-payment-category]")).to_be_visible()
-    saving.check()
-    expect(page.locator("[data-payment-category]")).to_be_hidden()  # saving into it is not spending
+    expect(payment).to_be_visible()
     box.check()
-    expect(row).to_be_hidden()
-    expect(saving).not_to_be_checked()
+    expect(payment).to_be_hidden()
     page.goto("/accounts/new")
     open_options(page)
     page.locator('select[name="parent_id"]').select_option(label="Liabilities")
-    expect(row).to_be_visible()  # a loan starts outside the budget and can be paid down under Build
-    page.locator('select[name="parent_id"]').select_option(label="Assets")
-    page.locator('input[name="name"]').fill("Mutual Funds")
-    box.uncheck()
-    saving.check()
-    page.get_by_role("button", name="Add account").click()
-    page.wait_for_url("**/accounts/*")
-    made = next(a for a in api.get("/accounts/") if a["name"] == "Mutual Funds")
-    assert made["saving"] is True and made["on_budget"] is False
+    expect(payment).to_be_visible()  # a loan starts outside the budget
 
 
 def test_going_back_from_an_account_keeps_the_chip(page: Page, api, books):
@@ -241,5 +228,3 @@ def test_budget_options_are_folded_and_say_where_the_account_stands(page: Page, 
     page.locator("details.budget-options summary").click()
     page.locator('input[name="on_budget"]').uncheck()
     expect(page.locator("[data-budget-summary]")).to_have_text("Outside the budget")
-    page.locator('input[name="saving"]').check()
-    expect(page.locator("[data-budget-summary]")).to_have_text("Planned under Build")

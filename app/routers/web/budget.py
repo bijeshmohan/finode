@@ -1,7 +1,6 @@
 import calendar
 from datetime import date
 from decimal import Decimal
-from types import SimpleNamespace
 from typing import Annotated
 from uuid import UUID
 
@@ -9,12 +8,10 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
-from ...config import settings
 from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, month_start
-from ...schemas.profile import ProfileUpdate
-from ...schemas.budget import TARGET_KINDS, BudgetLine, BudgetSaving
+from ...schemas.budget import TARGET_KINDS, BudgetLine
 from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount
 
@@ -31,10 +28,6 @@ legacy = APIRouter()
 def budget_moved(request: Request, rest: str = ""):
     query = request.url.query
     return RedirectResponse(f"/plan{'/' + rest if rest else ''}{'?' + query if query else ''}", status_code=301)
-
-# The sections of the page, as chips: Build and Earn only while the Plan is on (settings.plan_enabled) and the person chose them
-# (profiles.plan_build / plan_earn, in the sheet behind the sliders button; their data stays when they are off).
-TABS = {"earn": "Earn", "build": "Build", "spend": "Spend"}
 
 
 def parse_month(value: str) -> date:
@@ -152,128 +145,30 @@ def _glance(data) -> dict:
     }
 
 
-def _saving_line(saving: BudgetSaving) -> BudgetLine:
-    """A Build line shown with the same rows and sheet as a category (they share the figures)."""
-    return BudgetLine(
-        aid=saving.aid, name=saving.name, path=saving.path, depth=1, assigned=saving.assigned, activity=saving.activity,
-        available=saving.available, overspent_last_month=Decimal("0.00"), target=saving.target, needed=saving.needed, underfunded=saving.underfunded,
-        overdue=saving.overdue, note=saving.note,
-    )
-
-
-def _saving_hint(line: BudgetLine, saving: BudgetSaving, advanced: bool, style: str) -> str:
-    parts = []
-    if advanced and line.underfunded:
-        parts.append(("overdue, " if line.overdue else "") + f"needs {money(line.underfunded, style)} more")
-    if saving.debt:
-        whole = lambda value: money(value, style).replace(".00", "")  # a loan's figures are long: whole rupees fit a phone
-        parts.append(f"paid {whole(line.activity)}" if line.activity else "nothing paid yet")
-        parts.append(f"owed {whole(saving.balance)}")
-    else:
-        parts.append(f"moved {money(line.activity, style)} this month" if line.activity else "nothing moved yet")
-    if line.note:
-        parts.append(line.note)
-    return " · ".join(parts)
-
-
-def _build_rows(data, advanced: bool, style: str) -> tuple[list[dict], list[dict], dict[UUID, dict]]:
-    """The Build section: the flat rows of its accounts (what the sheets look up), the list the page shows (an account
-    directly under a root is a row, the accounts of a group are one row for the group, as in Spend) and the groups."""
-    whole = lambda value: money(value, style).replace(".00", "")
-    flat = [
-        {"node": SimpleNamespace(line=_saving_line(s), is_group=False), "hint": _saving_hint(_saving_line(s), s, advanced, style), "calm": not advanced}
-        for s in data.saving
-    ]
-    by_group: dict[UUID, list[dict]] = {}
-    for s, row in zip(data.saving, flat):
-        if s.group_id is not None:
-            by_group.setdefault(s.group_id, []).append(row)
-    groups: dict[UUID, dict] = {}
-    for gid, kids in by_group.items():
-        lines = [k["node"].line for k in kids]
-        first = next(s for s in data.saving if s.group_id == gid)
-        debt = first.debt
-        owed = sum((s.balance for s in data.saving if s.group_id == gid), Decimal("0.00"))
-        total = lambda attr: sum((getattr(l, attr) for l in lines), Decimal("0.00"))
-        line = BudgetLine(
-            aid=gid, name=first.group_name, path=":".join(first.path.split(":")[:-1]), depth=1, group=True,
-            assigned=total("assigned"), activity=total("activity"), available=total("available"),
-            overspent_last_month=Decimal("0.00"), needed=total("needed"), underfunded=total("underfunded"),
-        )
-        ranked = sorted(kids, key=lambda k: (-k["node"].line.assigned, k["node"].line.name.lower()))
-        names = [k["node"].line.name for k in ranked]
-        hint = " · ".join(names[:3] + ([f"+{len(names) - 3}"] if len(names) > 3 else []))
-        if debt and line.activity:
-            hint = f"paid {whole(line.activity)} · {hint}"
-        groups[gid] = {
-            "line": line, "kids": ranked, "debt": debt, "owed": owed,
-            "row": {"node": SimpleNamespace(line=line, is_group=True), "hint": hint, "calm": not advanced},
-        }
-    shown = [row for row, s in zip(flat, data.saving) if s.group_id is None] + [g["row"] for g in groups.values()]
-    shown.sort(key=lambda r: (-r["node"].line.assigned, r["node"].line.name.lower()))
-    return flat, shown, groups
-
-
-def _heads(data) -> dict:
-    """The figures behind the head of each chip (Spend, Build, Earn): one figure that answers that chip's question, and the
-    bar of how much of it is used. `carried` is what earlier months left (what was available, less what this month assigned,
-    plus what was spent), the same sum Home shows for Spend."""
-    def share(used: Decimal, had: Decimal) -> int:
-        return int(min(max(used / had, Decimal(0)), Decimal(1)) * 100) if had > 0 else 0
-
-    spend_had = data.activity + max(data.available, Decimal(0))
-    build_had = data.saving_activity + max(data.saving_available, Decimal(0))
-    expected, received = data.earning_expected, data.earning_received
+def _head(data) -> dict:
+    """The figures behind the head of the page: what is left to spend and the bar of how much of what there was is spent.
+    `carried` is what earlier months left (what was available, less what this month assigned, plus what was spent), the
+    same sum Home shows."""
+    had = data.activity + max(data.available, Decimal(0))
     return {
-        "spend": {
-            "left": data.available, "used": data.activity, "had": spend_had, "assigned": data.assigned,
-            "carried": data.available - data.assigned + data.activity, "percent": share(data.activity, spend_had),
-            "planned": data.assigned > 0 or data.available > 0,
-        },
-        "build": {
-            "left": data.saving_available, "used": data.saving_activity, "had": build_had, "assigned": data.saving_assigned,
-            "carried": data.saving_available - data.saving_assigned + data.saving_activity,
-            "percent": share(data.saving_activity, build_had),
-            "planned": data.saving_assigned > 0 or data.saving_available > 0,
-            "owed": sum((x.balance for x in data.saving if x.debt), Decimal(0)),
-        },
-        "earn": {
-            "left": expected - received, "used": received, "had": expected, "percent": share(received, expected),
-            "planned": expected > 0,
-        },
+        "left": data.available, "used": data.activity, "had": had, "assigned": data.assigned,
+        "carried": data.available - data.assigned + data.activity,
+        "percent": int(min(max(data.activity / had, Decimal(0)), Decimal(1)) * 100) if had > 0 else 0,
+        "planned": data.assigned > 0 or data.available > 0,
     }
 
 
-def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
+def _context(budget: Budget, month: date) -> dict:
     data = budget.view(month)
     advanced = ProfileRepository(budget.br.db, budget.br.uid).advanced()
     tree = build_tree(data.lines)
     # Whole groups with nothing in them (nothing assigned, spent or planned) are tucked away once anything is in use;
     # plain top-level categories always show, so there is always something to tap and assign to.
     unused = [n for n in tree if n.is_group and not n.used] if any(n.used for n in tree) else []
-    style = grouping_for(data.currency)
-    tab = "build" if tab == "save" else tab  # the older address of the chip
-    build_on, earn_on = ProfileRepository(budget.br.db, budget.br.uid).plan_sections()
-    tabs = {
-        k: v for k, v in TABS.items()
-        if k == "spend" or (settings.plan_enabled and (build_on if k == "build" else earn_on))
-    }
-    debts = {s.aid: s for s in data.saving if s.debt}
-    saving_rows, build_rows, build_groups = _build_rows(data, advanced, style)
     return {
         "budget": data,
-        "tab": tab if tab in tabs else "spend",
-        "tabs": tabs,
-        "plan_enabled": settings.plan_enabled,
         # A short welcome until the first amount is assigned (not for people on Advanced, who know their way around).
         "show_intro": not advanced and not budget.br.list(),
-        "debts": debts,
-        "earning_rows": list(data.earning),
-        # What the month's plan leaves over: what is expected, less what is assigned to saving and to spending.
-        "unplanned": data.earning_expected - data.saving_assigned - data.assigned,
-        "saving_rows": saving_rows,
-        "build_rows": build_rows,
-        "build_groups": build_groups,
         "tree": tree,
         "rows": [{"node": n, "hint": _hint(n, advanced, grouping_for(data.currency))} for n in _by_assigned(tree)],
         "unused_ids": {n.line.aid for n in unused},
@@ -294,26 +189,20 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "advanced": advanced,
         # Only the current month has a "today": the tick on the bars shows how far through it we are.
         "pace": month_progress() if data.month == month_start(None) else None,
-        "heads": _heads(data),
+        "head": _head(data),
     }
 
 
 @router.get("")
-def budget_page(request: Request, budget: Budget, month: str = "", tab: str = "spend"):
-    return templates.TemplateResponse(request, "budget.html", _context(budget, parse_month(month), tab))
+def budget_page(request: Request, budget: Budget, month: str = ""):
+    return templates.TemplateResponse(request, "budget.html", _context(budget, parse_month(month)))
 
 
 def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
     context = _context(budget, month)
     node = next((n for n in context["tree"] if n.line.aid == aid and n.is_group), None)
     if node is None:
-        built = context["build_groups"].get(aid)
-        if built is None:
-            raise HTTPException(status_code=404, detail="category not found")
-        return {
-            **context, "group": SimpleNamespace(line=built["line"]), "kids": built["kids"], "edit_url": "", "glance": _glance(built["line"]),
-            "build": True, "debt": built["debt"], "owed": built["owed"], "leftovers": budget.build_leftovers(aid), "tab": "build",
-        }
+        raise HTTPException(status_code=404, detail="category not found")
     advanced = context["advanced"]
     return {
         **context,
@@ -335,8 +224,6 @@ def group_sheet(request: Request, budget: Budget, aid: UUID, month: str = ""):
     """A group's own budget in the sheet over its page: it starts at what its subcategories add up to."""
     when = parse_month(month)
     context = _group_context(budget, when, aid)
-    if context.get("build"):
-        raise HTTPException(status_code=404, detail="a group of accounts has no budget of its own")
     return templates.TemplateResponse(
         request, "partials/budget_group_sheet.html", {**context, "minimum": budget.group_minimum(when, aid, context["budget"])}
     )
@@ -361,18 +248,11 @@ def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "",
     context = _context(budget, when)
     lines = [l for n in context["tree"] for l in n.lines()]
     line = next((l for l in lines if l.aid == aid and not l.group), None)
-    saving = earn = False
-    if line is None:
-        line = next((row["node"].line for row in context["saving_rows"] if row["node"].line.aid == aid), None)
-        saving = line is not None
-    if line is None and "earn" in context["tabs"]:
-        line = next((l for l in context["earning_rows"] if l.aid == aid), None)
-        earn = line is not None
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
     return templates.TemplateResponse(
         request, "partials/budget_sheet.html",
-        {**context, "line": line, "group_id": group, "saving": saving, "earn": earn, "tab": "earn" if earn else "build" if saving else "spend"},
+        {**context, "line": line, "group_id": group},
     )
 
 
@@ -385,7 +265,6 @@ def assign(
     amount: Annotated[str, Form()] = "",
     sheet: Annotated[str, Form()] = "",
     group: Annotated[str, Form()] = "",
-    tab: Annotated[str, Form()] = "spend",
 ):
     when = parse_month(month)
     try:
@@ -397,14 +276,14 @@ def assign(
             return templates.TemplateResponse(request, "partials/budget_group_body.html", _group_context(budget, when, UUID(group)))
         except ValueError:
             pass
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
 
 
 @router.get("/move")
 def move_page(request: Request, budget: Budget, month: str = "", source: UUID | None = None):
     when = parse_month(month)
     data = budget.view(when)
-    lines = [line for line in data.lines if not line.group] + [_saving_line(s) for s in data.saving]
+    lines = [line for line in data.lines if not line.group]
     if source is not None and not any(line.aid == source for line in lines):
         raise HTTPException(status_code=404, detail="category not found")
     return templates.TemplateResponse(
@@ -431,18 +310,18 @@ def move(
 
 
 @router.post("/fund")
-def fund(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
+def fund(request: Request, budget: Budget, month: Annotated[str, Form()] = ""):
     when = parse_month(month)
     try:
         budget.fund(when)
     except BudgetError as e:
         return htmx_error(str(e), "#budget-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
 
 
 def _target_line(budget: Budget, month: date, category: UUID):
     data = budget.view(month)
-    line = next((l for l in [*data.lines, *map(_saving_line, data.saving)] if l.aid == category and not l.name.endswith("(other)")), None)
+    line = next((l for l in data.lines if l.aid == category and not l.name.endswith("(other)")), None)
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
     return line
@@ -514,48 +393,20 @@ def clear_target(budget: Budget, category: Annotated[UUID, Form()], month: Annot
 
 
 @router.post("/accounts/{aid}/include")
-def include_account(request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
+def include_account(request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = ""):
     when = parse_month(month)
     try:
         budget.include_account(aid)
     except BudgetError as e:
         return htmx_error(str(e), "#budget-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))
 
 
 @router.post("/copy")
-def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
+def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()] = ""):
     when = parse_month(month)
     try:
         budget.copy_previous(when)
     except BudgetError as e:
         return htmx_error(str(e), "#budget-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
-
-
-@router.get("/configure")
-def configure_sheet(request: Request, budget: Budget, month: str = "", tab: str = "spend"):
-    """The sheet behind the sliders button: which sections the Plan has."""
-    if not settings.plan_enabled:
-        raise HTTPException(status_code=404, detail="not found")
-    build_on, earn_on = ProfileRepository(budget.br.db, budget.br.uid).plan_sections()
-    return templates.TemplateResponse(
-        request, "partials/plan_configure.html",
-        {"build_on": build_on, "earn_on": earn_on, "month_key": parse_month(month).strftime("%Y-%m"), "tab": tab},
-    )
-
-
-@router.post("/configure")
-def configure(
-    budget: Budget,
-    month: Annotated[str, Form()] = "",
-    tab: Annotated[str, Form()] = "spend",
-    build: Annotated[str, Form()] = "",
-    earn: Annotated[str, Form()] = "",
-):
-    if not settings.plan_enabled:
-        raise HTTPException(status_code=404, detail="not found")
-    build_on, earn_on = build.strip() == "1", earn.strip() == "1"
-    ProfileRepository(budget.br.db, budget.br.uid).update(ProfileUpdate(plan_build=build_on, plan_earn=earn_on))
-    shown = {"build": build_on, "earn": earn_on, "spend": True}.get(tab, True)
-    return htmx_redirect(f"/plan?month={parse_month(month).strftime('%Y-%m')}&tab={tab if shown else 'spend'}")
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when))

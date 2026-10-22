@@ -1,6 +1,6 @@
 # Budgeting and Plans
 
-The tab is called **Plans** (it was the Budget tab, then Plan; the address is still `/plan`; `/budget` addresses still arrive there). The round **sliders** button beside the chips lists the sections you use (Spend is always on; switch **Build** and **Earn** on or off; which accounts are in Build is chosen on each account's own page) and a hidden section keeps its amounts. The chips read **Earn · Build · Spend** and Spend is selected when you open the page; **Spend** is the budget described below; **Build** (it was Save) and **Earn** are at the end of this page.
+The tab is called **Plans** (it was the Budget tab, then Plan; the address is still `/plan`; `/budget` addresses still arrive there).
 
 finode uses **envelope budgeting**: you give every rupee in your budget accounts a job (a category), and you spend from the category. When a category is empty you either move money in from another one or you overspend, and the app shows it.
 
@@ -17,7 +17,7 @@ Budgets are **monthly**. (Weekly and yearly *targets* exist behind the Advanced 
 | **Left** (available) | What you can still spend: last month's leftover (if any) + assigned − spent. |
 | **Ready to assign** | Money in budget accounts that has no job yet. |
 
-Each chip of the page has its own head, a figure and a full-width bar: **Left to spend** on Spend (the bar is what you have spent of what there was, with a tick for today), **Left to build** on Build and **Still to come** on Earn. **Ready to assign** is a quiet line under the head on Spend and Build (tap the **i** beside it for the sum). Your aim is to bring it to zero: *every ₹ has a job*.
+The page opens with a figure and a full-width bar: **Left to spend** (the bar is what you have spent of what there was, with a tick for today). **Ready to assign** is a quiet line under it (tap the **i** beside it for the sum). Your aim is to bring it to zero: *every ₹ has a job*.
 
 Tap the **i** beside the figure (on the Plan page and on Home's *Left to spend*) to see how it is worked out with your own numbers: for example, money in your accounts, minus what is set aside for card bills, minus what is left in your categories, minus what you assigned to later months.
 
@@ -69,10 +69,8 @@ Home shows one number, *Left to spend in <month>*, with a thin bar: the total le
 
 The **Plan**, the **Categories** page and the overview all count a loan payment the same way: as spending in the loan's payment category. They differ only in what the Budget leaves out on purpose: it counts what your budget accounts paid, so interest a lender adds to a loan (which no budget account paid) shows up as an expense in the reports but not in the Budget.
 
-## Saving
+## Saving for a goal and paying a fund or a loan
 
-Money you move into something you keep (a mutual fund, a deposit), or use to pay down a loan, is not spending. Open that account (an asset or a loan; it must not be part of the budget) and switch on **Plan under Build** on its edit page. On the Plan page the **Build** chip then lists it: tap it to assign what you plan to move in this month, exactly as you give a category money. Assigning takes the money out of *Ready to assign*; when you then transfer it into the account, the line shows it as *moved* and nothing else changes. These transfers never count as spending anywhere (Home, Categories, the reports), and a target (Advanced) works on a Build line too. If the account sits in a group (Investments, Loans), the group is one row in the Build list with the total of its accounts; tap it to open its page, where each account has its own sheet (the group itself has no amount to set). For a loan the row reads *paid down* and shows what is still owed. Record the EMI as two rows of one entry (principal to the loan, interest to an Interest expense) so only the interest counts as spending. If the account had a payment category, switching it on removes it: paying into the account is no longer an expense. A loan can still be budgeted the old way (a payment category, as Spend) if you leave Build off.
+A goal ("save ₹1,00,000 by March for a trip") is a category with a **by-date target**: make the category (say *Goa trip*) under Expenses, open it in Plans, choose *Target and note* and pick *Have an amount by a month*. Plans then shows how much to set aside each month to get there (with Advanced on, *Assign what is needed* fills it in). The money stays in your bank account; it is set aside only in the plan, and you pay the trip from the bank as an ordinary expense.
 
-## Earn
-
-When you switch **Earn** on (the sliders button), the Plan page has a third chip, **Earn**. It lists your income accounts: tap one to say what you expect from it this month (a salary, interest). The page shows what has arrived so far, and above the list **the month in one line**: what you expect, minus what you assigned to saving, minus what you budgeted to spend, is what is left unplanned (or "Over-planned" when it is negative). Expected income is a forecast: it never adds to *Ready to assign*; only money that has actually arrived does. "Copy last month's amounts" copies what you expected too.
+Money you put into a mutual fund each month, or an EMI you pay on a loan, is not an expense in the ledger, but you can still plan it. Open the fund or loan (outside the budget) and choose, under *Budget options*, **Payments budgeted under** a category such as *Investing* or *EMI*. A payment into that account then counts as spending in the category, so Ready to assign falls when you plan it and the category shows what you have paid.

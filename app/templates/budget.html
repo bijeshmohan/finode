@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "partials/icons.html" import icon %}
 {% from "partials/month_pill.html" import month_pill %}
 {% block title %}Plans · finode{% endblock %}
 {% block content %}
@@ -7,19 +6,5 @@
   <h1>Plans</h1>
   {{ month_pill("/plan?month={month}", month_name, month_key, previous, next) }}
 </div>
-{% if plan_enabled %}
-<div class="cat-bar plan-bar">
-  <div class="chips cat-chips" role="group" aria-label="What to plan">
-    {% if tabs|length > 1 %}{% for key, name in tabs.items() %}<a class="chip" href="/plan?month={{ month_key }}&tab={{ key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}{% endif %}
-  </div>
-  <span class="head-icons">
-    <a class="circ-button" href="/plan/configure?month={{ month_key }}&tab={{ tab }}" title="Choose what to plan"
-       hx-get="/plan/configure?month={{ month_key }}&tab={{ tab }}" hx-target="#plan-sheet-body" hx-swap="innerHTML">{{ icon("sliders") }}<span class="sr-only">Choose what to plan</span></a>
-  </span>
-</div>
-<dialog id="plan-sheet" class="sheet sheet-bottom" aria-label="Your plan">
-  <div id="plan-sheet-body" class="sheet-body"></div>
-</dialog>
-{% endif %}
 {% include "partials/budget_body.html" %}
 {% endblock %}

@@ -13,9 +13,6 @@ from .cache import remembered
 
 # New people start with the rarely used features hidden (tests switch this on so they see everything).
 NEW_PROFILE_ADVANCED = False
-# ...and with the Plan showing only Spend (the sliders button adds Build and Earn; tests switch both on).
-NEW_PROFILE_PLAN_BUILD = False
-NEW_PROFILE_PLAN_EARN = False
 
 
 class ProfileRepository:
@@ -33,11 +30,6 @@ class ProfileRepository:
         profile = self.read()
         return profile.advanced if profile is not None else NEW_PROFILE_ADVANCED
 
-    def plan_sections(self) -> tuple[bool, bool]:
-        """Whether the Plan shows its Build and Earn sections."""
-        profile = self.read()
-        return (profile.plan_build, profile.plan_earn) if profile is not None else (NEW_PROFILE_PLAN_BUILD, NEW_PROFILE_PLAN_EARN)
-
     def currency(self) -> str:
         """The code of the currency the ledger is kept in; a person with no profile row yet gets the default."""
         profile = self.read()
@@ -49,8 +41,7 @@ class ProfileRepository:
         if profile:
             return profile
         try:
-            profile = Profile(user=self.uid, currency=DEFAULT_CURRENCY, advanced=NEW_PROFILE_ADVANCED,
-                              plan_build=NEW_PROFILE_PLAN_BUILD, plan_earn=NEW_PROFILE_PLAN_EARN)
+            profile = Profile(user=self.uid, currency=DEFAULT_CURRENCY, advanced=NEW_PROFILE_ADVANCED)
             self.db.add(profile)
             self.db.commit()
         except IntegrityError:

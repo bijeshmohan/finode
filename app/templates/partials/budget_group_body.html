@@ -2,17 +2,11 @@
 {% from "partials/budget_rows.html" import row, glance_block %}
 
 <div id="budget" class="budget-group">
-  {% if build %}
-  {{ glance_block(glance, "Left to pay down" if debt else "Left to move in", "Over plan", budget.currency, pace, "", "", readonly=True, word="Paid down" if debt else "Moved") }}
-  {% if debt %}<p class="muted group-owed">{{ owed|money }} still owed</p>{% endif %}
-  {% else %}
   {{ glance_block(glance, "Left to spend", "Over budget", budget.currency, pace, edit_url, "/plan/group/" ~ group.line.aid ~ "?month=" ~ month_key) }}
-  {% endif %}
   <p id="budget-error" class="error" role="alert"></p>
   <div class="budget-list tile" data-budget-tree>
-    {% for item in kids %}{{ row(item, month_key, pace, group_id=group.line.aid, build=build) }}{% endfor %}
+    {% for item in kids %}{{ row(item, month_key, pace, group_id=group.line.aid) }}{% endfor %}
   </div>
-  {% if build and leftovers %}<p class="muted group-leftovers">Not in Build here: <strong>{{ leftovers|join(", ") }}</strong>. Switch it on in the account's edit page.</p>{% endif %}
   <dialog id="cat-sheet" class="sheet sheet-bottom" aria-label="Category">
     <div id="cat-sheet-body" class="sheet-body"></div>
   </dialog>

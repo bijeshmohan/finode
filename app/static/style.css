@@ -810,17 +810,6 @@ form.copy-last button { margin: 0; }
 
 .test-notice { font-size: .9rem; }
 
-/* ---------- The Plan: the month in one line (Earn) ---------- */
-.plan-sum { margin: 0 0 .9rem; padding: .8rem .9rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); }
-.plan-sum-title { margin: 0 0 .5rem; font-size: .75rem; color: var(--muted); }
-.plan-eq { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr; align-items: start; gap: .3rem; font-variant-numeric: tabular-nums; }
-.plan-eq span { display: flex; flex-direction: column; min-width: 0; }
-.plan-eq b { font-size: .92rem; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
-.plan-eq small { font-size: .72rem; color: var(--muted); }
-.plan-eq i { font-style: normal; color: var(--muted); padding-top: .05rem; }
-.plan-eq .over b { color: var(--danger); }
-.plan-sum-note { margin: .55rem 0 0; font-size: .78rem; }
-
 /* ---------- Pinned and recent accounts ---------- */
 .note-card { margin-top: 1rem; }
 
@@ -1202,9 +1191,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 .crow .bar { display: block; position: relative; height: var(--bar-h); margin: .55rem 0 0; border-radius: calc(var(--bar-h) / 2); background: var(--surface-2); overflow: visible; }
 .crow .bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .crow .bar.over i { background: var(--danger); }
-/* Build: more than planned is good news, so green. */
-.crow .bar.above i, .glance-bar.above i { background: var(--positive); }
-.ready .figure.above { color: var(--positive); }
 .crow-amt .negative { color: var(--negative); }
 .budget-list .crow-amt { min-width: 7.5rem; }
 .crow-sub.short { color: var(--negative); }
@@ -1280,26 +1266,6 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .page-head.tall { min-height: 2.75rem; }
 @media (hover: hover) { .need:hover { background: var(--surface-2); } }
 
-/* The Plan's configure sheet (the sliders button): one row per section, the accounts of Build under it. */
-.cfg { display: flex; flex-direction: column; }
-.cfg .cfg-row { color: var(--text); font-size: 1rem; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 0; border-top: 1px solid var(--surface-2); cursor: pointer; }
-.cfg > .cfg-row:first-child { border-top: 0; }
-.cfg .cfg-row > span { display: flex; flex-direction: column; min-width: 0; gap: .1rem; flex: 1; text-align: left; }
-.cfg-row small { font-size: .8125rem; }
-.cfg input.toggle { appearance: none; -webkit-appearance: none; flex: none; width: 2.6rem; min-width: 2.6rem; height: 1.5rem; min-height: 0; padding: 0; margin: 0; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--field-border); position: relative; cursor: pointer; transition: background .15s; }
-.cfg input.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: var(--muted); transition: transform .15s; }
-.cfg input.toggle:checked { background: var(--accent); border-color: var(--accent); }
-.cfg input.toggle:checked::after { transform: translateX(1.1rem); background: var(--on-accent); }
-.cfg input.toggle:disabled { opacity: .5; cursor: default; }
-.cfg input.toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-/* The Plan's chips row is as tall as Categories' and Accounts' (whose bin is a full tap target), so the figure below lines up. */
-.plan-bar { min-height: var(--tap); }
-
-/* A Build group's page: what is still owed (a loan group) and the accounts of the group that are not in Build. */
-.group-owed { margin: -.25rem 0 .75rem; font-size: .875rem; }
-.group-leftovers { margin: .75rem 0 0; font-size: .875rem; }
-
 /* A short welcome on the Plan until the first amount is assigned. */
 .intro { background: var(--surface-2); border-radius: var(--radius); padding: .8rem 1rem; margin: .75rem 0 1rem; display: flex; flex-direction: column; gap: .2rem; }
 .intro p { margin: 0; color: var(--muted); font-size: .9rem; }
@@ -1320,8 +1286,7 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .groups-plan small { font-size: .8rem; }
 .setting-sub { display: block; font-size: .78rem; margin-top: .1rem; font-weight: 400; }
 
-/* The head of each Plans chip: its own figure and bar; Ready to assign is a quiet line under it. */
-.plan-head .figure.above { color: var(--positive); }
+/* The head of Plans: what is left to spend with its bar; Ready to assign is a quiet line under it. */
 .plan-head .figure.over { color: var(--negative); }
 .glance-bar.over i { background: var(--danger); }
 .rta-line { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .25rem; margin: .1rem 0 .75rem; font-size: .875rem; color: var(--muted); }
