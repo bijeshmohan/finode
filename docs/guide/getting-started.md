@@ -22,7 +22,7 @@ A new Home screen shows **Get started** with three steps:
 
 Steps tick off as you do them, and the card disappears when all are done. It stays on Home after your first entry until the third step is done. (If you switch on **Advanced** in Settings, the card no longer stays.)
 
-The Plans page starts with **Spend** only, with a short welcome until you assign the first amount. The round sliders button next to the chips adds **Build** (investments and loans) and **Earn** (expected income) when you want them. On the new-account form the budget choices are folded into one **Budget options** line that says where the account stands.
+The Plans page has a short welcome until you assign the first amount. On the new-account form the budget choices are folded into one **Budget options** line that says where the account stands.
 
 ## 4. Find your way around
 
@@ -31,7 +31,7 @@ On a phone, the bottom bar has four tabs and a floating **+**:
 | Tab | What it is for |
 |---|---|
 | **Home** | one number (what is left to spend this month) and your recent transactions |
-| **Plans** | give every rupee a job (Spend), plan what you save (Save) and what you expect to earn (Earn); see what is Ready to assign |
+| **Plans** | give every rupee a job; see what is Ready to assign |
 | **Accounts** | where your money is: banks, cash, cards, loans |
 | **Categories** | what you spend on and earn from, and how much, month by month |
 | **+** | add a transaction |

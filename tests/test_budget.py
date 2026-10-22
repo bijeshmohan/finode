@@ -636,7 +636,7 @@ def identity(data):
     money, reserved, available, later = (
         Decimal(data[k]) for k in ("money_in_accounts", "reserved_for_cards", "available", "assigned_to_later_months")
     )
-    assert Decimal(data["ready_to_assign"]) == money - reserved - available - Decimal(data["saving_available"]) - later, data
+    assert Decimal(data["ready_to_assign"]) == money - reserved - available - later, data
 
 
 def test_a_card_shows_what_is_set_aside_for_its_bill(client, card_books):

@@ -33,24 +33,18 @@
   <div class="stack" data-budget-fields data-root="{{ root_name }}" {{ "hidden" if not can_budget }}>
   <input type="hidden" name="budget_choice" value="1">
   <details class="budget-options">
-  <summary><span>Budget options</span><span class="bo-now" data-budget-summary>{% if on_budget %}Part of the budget{% elif saving %}Planned under Build{% elif payment_category_id %}Outside the budget · payments are spending{% else %}Outside the budget{% endif %}</span></summary>
+  <summary><span>Budget options</span><span class="bo-now" data-budget-summary>{% if on_budget %}Part of the budget{% elif payment_category_id %}Outside the budget · payments are spending{% else %}Outside the budget{% endif %}</span></summary>
   <div class="stack">
   <label class="check">
     <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
     <span>Part of the budget <span class="hint">Money you assign to categories</span></span>
   </label>
-  {% if plan_enabled %}
-  <label class="check" data-saving {{ "hidden" if on_budget }}>
-    <input type="checkbox" name="saving" value="1" {{ "checked" if saving }}>
-    <span>Plan under Build <span class="hint">Money into a fund, or paid off a loan; shows in Plans › Build</span></span>
-  </label>
-  {% endif %}
-  <label data-payment-category {{ "hidden" if on_budget or saving }}>Payments budgeted under
+  <label data-payment-category {{ "hidden" if on_budget }}>Payments budgeted under
     <select name="payment_category">
       <option value="">No category</option>
       {% for aid, path in category_options %}<option value="{{ aid }}" {{ "selected" if aid == payment_category_id }}>{{ path }}</option>{% endfor %}
     </select>
-    <span class="hint">For loans, like an EMI</span>
+    <span class="hint">For a loan's EMI, or money you put into a fund each month</span>
   </label>
   </div>
   </details>

@@ -95,49 +95,6 @@ class BudgetLine(BaseModel):
     weeks: list[BudgetWeek] = []
 
 
-class BudgetSaving(BaseModel):
-    """A line of the plan's Build section: an asset outside the budget that the person plans to move money into (a fund)
-    or a liability outside it that they plan to pay down (a loan)."""
-
-    aid: UUID
-    name: str
-    # Its path below Assets, e.g. "Investments:Mutual Funds".
-    path: str
-    # What was assigned to it in the month, what was moved into it from the budget's accounts (withdrawals do not
-    # subtract) and what is left to move, counting everything assigned and moved in earlier months too.
-    assigned: Decimal = Money
-    activity: Decimal = Money
-    available: Decimal = Money
-    # What the account holds at the end of the month; for a loan (`debt`) what is still owed.
-    balance: Decimal = Money
-    debt: bool = False
-    # The group it sits in (Assets › Investments › Mutual Funds is in "Investments"), when it is not directly under a root.
-    group_id: UUID | None = None
-    group_name: str | None = None
-    closed: bool = False
-    # Its target (the same kinds as a category's), what it needs from this month's assigning and what is still missing.
-    target: BudgetTargetRead | None = None
-    needed: Decimal = Money
-    underfunded: Decimal = Money
-    overdue: bool = False
-    note: str | None = None
-
-
-class BudgetEarning(BaseModel):
-    """A line of the plan's Earn section: an Income account and what is expected from it in the month."""
-
-    aid: UUID
-    name: str
-    # Its path below Income, e.g. "Salary:Employer".
-    path: str
-    # What is expected in the month (a plan row; nothing carries over) and what has come in (credits minus debits to the
-    # account in the month, up to the month's last day).
-    expected: Decimal = Money
-    received: Decimal = Money
-    closed: bool = False
-    note: str | None = None
-
-
 class BudgetRead(BaseModel):
     # First day of the month the figures are for; they count everything up to its last day.
     month: Date
@@ -156,20 +113,8 @@ class BudgetRead(BaseModel):
     assigned_to_later_months: Decimal = Money
     # What copying last month's assignments would assign here (categories with nothing assigned this month yet).
     copyable: Decimal = Money
-    # The Save section: what was assigned to the accounts planned for saving, what was moved into them and what is
-    # still to move (their `available`), totals of the lines in `saving`. `assigned`, `activity` and `available`
-    # above are the Spend section's only.
-    saving: list[BudgetSaving] = []
-    saving_assigned: Decimal = Money
-    saving_activity: Decimal = Money
-    saving_available: Decimal = Money
-    # The Earn section: what is expected from each Income account in the month and what came in. Informational only:
-    # expected income never changes ready_to_assign (only money that has arrived does).
-    earning: list[BudgetEarning] = []
-    earning_expected: Decimal = Money
-    earning_received: Decimal = Money
     # Money in the budget's asset accounts and what is reserved for the cards' bills (sums of the cards' `owed`).
-    # ready_to_assign = money_in_accounts - reserved_for_cards - available - saving_available - assigned_to_later_months.
+    # ready_to_assign = money_in_accounts - reserved_for_cards - available - assigned_to_later_months.
     money_in_accounts: Decimal = Money
     reserved_for_cards: Decimal = Money
     cards: list[BudgetCard] = []

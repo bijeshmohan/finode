@@ -35,7 +35,7 @@ finode is the user's personal double-entry ledger.
   New users start with built-in groups under Assets (Bank Accounts, Cash, Investments) and Liabilities
   (Credit Cards, Loans); they cannot be changed or removed. Put a bank under Bank Accounts and a card under
   Credit Cards (they start as part of the budget), a fund under Investments and a loan under Loans (they
-  start under Build, outside the budget).
+  start outside the budget).
 - Money moves from one account to another. Spending is from an asset or liability (a bank, a
   card) to an expense; a salary is from Income to an asset. Use record_transaction for these, and
   record_split only when more than two accounts are involved.
@@ -50,7 +50,7 @@ finode is the user's personal double-entry ledger.
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
   expense category's assigned, spent and available amounts; assign_to_category plans a month's money and
-  move_budget_money shifts it between categories (an asset the user plans to move money into, or a loan to pay down, counts as a line too: its `saving` entry in get_budget; assign_to_category on an income account says what the user expects to earn there, informational only: it never changes ready_to_assign); set_budget_target records what a category should get and
+  move_budget_money shifts it between categories; set_budget_target records what a category should get and
   get_budget then reports what is underfunded (fund_budget_targets assigns it, only when asked). These only change the plan, never the ledger, and the
   user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
 - check_books confirms that debits equal credits in every transaction and overall; use it when the
@@ -593,13 +593,8 @@ def _month(value: str | None) -> date | None:
 
 def _category(index: AccountIndex, text: str):
     entry = index.find(text)
-    if (entry.root != "Expenses" or entry.account.parent_id is None) and not (
-        (entry.account.saving and entry.root in ("Assets", "Liabilities")) or (entry.root == "Income" and entry.account.parent_id is not None)
-    ):
-        raise ToolError(
-            f"'{entry.path}' is not an expense account: budget categories are expense accounts "
-            "(or an asset or loan the user plans under Build, or an income account to say what is expected)!"
-        )
+    if entry.root != "Expenses" or entry.account.parent_id is None:
+        raise ToolError(f"'{entry.path}' is not an expense account: budget categories are expense accounts!")
     return entry
 
 
@@ -627,39 +622,6 @@ def _budget(data) -> dict[str, Any]:
         ),
         "overspent_last_month": text(data.overspent_last_month),
         "budget_accounts": data.budget_accounts,
-        **(
-            {
-                "expected_income": text(data.earning_expected),
-                "received_income": text(data.earning_received),
-                "earning": [
-                    {"account": e.path, "expected": text(e.expected), "received": text(e.received)}
-                    for e in data.earning
-                    if e.expected or e.received
-                ],
-            }
-            if data.earning_expected or data.earning_received
-            else {}
-        ),
-        **(
-            {
-                "left_to_move_into_saving": text(data.saving_available),
-                "saving": [
-                    {
-                        "account": s.path,
-                        "assigned": text(s.assigned),
-                        "moved_in": text(s.activity),
-                        "left_to_move": text(s.available),
-                        "balance": text(s.balance),
-                        **({"loan": True, "owed": text(s.balance)} if s.debt else {}),
-                        **({"target": {"kind": s.target.kind, "amount": text(s.target.amount)}} if s.target else {}),
-                        **({"underfunded": text(s.underfunded)} if s.underfunded else {}),
-                    }
-                    for s in data.saving
-                ],
-            }
-            if data.saving
-            else {}
-        ),
         "categories": [
             {
                 "category": line.path,

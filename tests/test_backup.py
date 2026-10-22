@@ -41,7 +41,6 @@ def rich(client, root_accounts):
     food = acct(client, "Food", root_accounts["Expenses"])
     groceries = acct(client, "Groceries", food["aid"])
     emi = acct(client, "EMI", root_accounts["Expenses"])
-    fund = acct(client, "Mutual Funds", root_accounts["Assets"], on_budget=False, saving=True)
     salary = acct(client, "Salary", root_accounts["Income"])
     client.patch(f"/api/accounts/{loan['aid']}", json={"payment_category_id": emi["aid"]})
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
@@ -65,7 +64,6 @@ def rich(client, root_accounts):
     assert client.post(f"/api/recurring/{rid}/skip").status_code == 200  # a skipped occurrence is part of the rule's state
     client.put(f"/api/budget/categories/{groceries['aid']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}", json={"month": "2026-09-01", "amount": "15000"})
-    client.put(f"/api/budget/categories/{fund['aid']}", json={"month": "2026-09-01", "amount": "5000"})  # a Save line's plan
     client.put(f"/api/budget/categories/{groceries['aid']}/target", json={"kind": "monthly", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}/target", json={"kind": "weekly", "amount": "250", "weekday": 2})
     client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "yearly", "amount": "1200", "target_date": "2019-09-01"})
@@ -93,7 +91,7 @@ def canonical(doc: dict) -> dict:
     return {
         "profile": doc["profile"],
         "accounts": sorted(
-            (paths[a["id"]], a["details"], a["on_budget"], a["saving"], a["closed_on"] is not None,
+            (paths[a["id"]], a["details"], a["on_budget"], a["closed_on"] is not None,
              paths.get(a["payment_category_id"]), a["position"])
             for a in doc["accounts"]
         ),
@@ -122,10 +120,10 @@ def test_the_backup_has_everything(client, rich):
     names = {a["name"] for a in doc["accounts"]}
     assert {"Banks", "HDFC", "Old Savings", "Visa", "Home Loan", "Groceries", "EMI", "Opening Balances", "Assets"} <= names
     assert any(a["closed_on"] for a in doc["accounts"]) and any(a["payment_category_id"] for a in doc["accounts"])
-    assert any(a["on_budget"] for a in doc["accounts"]) and any(a["saving"] for a in doc["accounts"])
+    assert any(a["on_budget"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
-    assert len(doc["allocations"]) == 3 and len(doc["targets"]) == 3
+    assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 3
     assert set(doc) == {"format", "version", "exported_at", "profile", "accounts", "transactions", "recurring", "allocations", "targets"}, "no tokens or connected apps"
     assert not any("commodity" in a for a in doc["accounts"]) and not any("value" in p for t in doc["transactions"] for p in t["postings"])
 
@@ -161,6 +159,28 @@ def test_an_older_backup_with_pinned_accounts_still_restores(client, rich):
         assert not any("pinned" in a for a in client.get("/api/backup").json()["accounts"]), "read, never written"
     finally:
         as_user(TEST_USER_ID)
+
+
+def test_an_older_backup_with_build_and_earn_rows_restores_without_them(client, rich):
+    """Files from when the Plan had Build and Earn carry plan rows for a fund and for an income account: the budget keeps
+    only the expense categories' rows, and the flags the file carries are ignored."""
+    doc = client.get("/api/backup").json()
+    fund = next(a for a in doc["accounts"] if a["name"] == "Home Loan")
+    salary = next(a for a in doc["accounts"] if a["name"] == "Salary")
+    fund["saving"] = True
+    doc["profile"].update(plan_build=True, plan_earn=True)
+    for account in (fund, salary):
+        doc["allocations"].append({"month": "2026-09-01", "account_id": account["id"], "amount": "700"})
+    doc["targets"].append({"account_id": fund["id"], "kind": "monthly", "amount": "700", "target_date": None, "weekday": None})
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert done.status_code == 200, done.text
+        again = client.get("/api/backup").json()
+    finally:
+        as_user(TEST_USER_ID)
+    assert len(again["allocations"]) == 2 and len(again["targets"]) == 3
+    assert not any("saving" in a for a in again["accounts"]) and "plan_build" not in again["profile"]
 
 
 def test_a_restore_is_only_for_an_empty_ledger(client, rich):

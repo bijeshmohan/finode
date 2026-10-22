@@ -204,13 +204,9 @@ def budget_checks(session, s, label: str) -> None:
         month = month_of(today + timedelta(days=31 * offset))
         view = s.budget.view(month)
         assert view.ready_to_assign == (
-            view.money_in_accounts - view.reserved_for_cards - view.available - view.saving_available
-            - view.assigned_to_later_months
+            view.money_in_accounts - view.reserved_for_cards - view.available - view.assigned_to_later_months
         ), (label, month, "Ready to assign must be what is in the accounts minus what already has a job")
-        assert view.saving_available == sum((line.available for line in view.saving), Decimal(0)), (label, month)
-        earn = {line.aid for line in view.earning}
-        assert view.earning_expected == sum((r.amount for r in rows if r.month == month and r.account_id in earn), Decimal(0)), (label, month, "expected income is this month's plan rows only")
-        assert view.assigned_to_later_months == sum((r.amount for r in rows if r.month > month and r.account_id not in earn), Decimal(0)), (label, month)
+        assert view.assigned_to_later_months == sum((r.amount for r in rows if r.month > month), Decimal(0)), (label, month)
 
 
 def run_budget(session, seed: int, steps: int) -> int:
@@ -221,15 +217,11 @@ def run_budget(session, seed: int, steps: int) -> int:
     card = s.accounts.create(AccountCreate(name="Card", parent_id=roots["Liabilities"], on_budget=True))
     salary = s.accounts.create(AccountCreate(name="Salary", parent_id=roots["Income"]))
     cats = [s.accounts.create(AccountCreate(name=n, parent_id=roots["Expenses"])) for n in ("Rent", "Food", "Fun", "Bills")]
-    fund = s.accounts.create(AccountCreate(name="Fund", parent_id=roots["Assets"], saving=True))
-    assert not fund.on_budget and fund.saving, "an account planned for saving starts outside the budget"
-    loan = s.accounts.create(AccountCreate(name="Loan", parent_id=roots["Liabilities"], saving=True, balance=Decimal(50000)))
-    assert not loan.on_budget and loan.saving, "a loan paid down under Build starts outside the budget"
     done = 0
     for step in range(steps):
         s = services(session)
         month = month_of(local_today() + timedelta(days=31 * rng.randint(-2, 2)))
-        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy", "fund", "target"] + ["assign_save", "save", "save", "withdraw", "assign_earn", "assign_loan", "paydown"])
+        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy", "fund", "target"])
         label = f"budget seed {seed} step {step} {op}"
         try:
             if op == "assign":
@@ -239,25 +231,8 @@ def run_budget(session, seed: int, steps: int) -> int:
                 view = s.budget.assign(month, cat.aid, amount)
                 after = {l.name: l.available for l in view.lines}[cat.name]
                 assert amount >= 0 or after >= 0 or before < 0, (label, "taking money out never leaves a category overspent")
-            elif op == "assign_earn":
-                s.budget.assign(month, salary.aid, money(rng))
-            elif op == "assign_save":
-                s.budget.assign(month, fund.aid, money(rng) * rng.choice([1, 1, -1]))
-            elif op == "assign_loan":
-                s.budget.assign(month, loan.aid, money(rng) * rng.choice([1, 1, -1]))
-            elif op == "paydown":
-                amount = money(rng) / 5
-                s.transactions.create(TransactionCreate(date=month + timedelta(days=rng.randint(0, 27)), postings=[
-                    PostingCreate(account=loan.aid, side=PostingSide.DEBIT, amount=amount),
-                    PostingCreate(account=bank.aid, side=PostingSide.CREDIT, amount=amount)]))
-            elif op in ("save", "withdraw"):
-                amount = money(rng) / 5
-                into, out = (fund, bank) if op == "save" else (bank, fund)
-                s.transactions.create(TransactionCreate(date=month + timedelta(days=rng.randint(0, 27)), postings=[
-                    PostingCreate(account=into.aid, side=PostingSide.DEBIT, amount=amount),
-                    PostingCreate(account=out.aid, side=PostingSide.CREDIT, amount=amount)]))
             elif op == "move":
-                a, b = rng.sample([*cats, fund], 2)
+                a, b = rng.sample(cats, 2)
                 before = s.budget.view(month).ready_to_assign
                 s.budget.move(month, a.aid, b.aid, money(rng) / 10)
                 assert s.budget.view(month).ready_to_assign == before, (label, "moving money never changes Ready to assign")
@@ -289,4 +264,4 @@ def run_budget(session, seed: int, steps: int) -> int:
 
 @pytest.mark.parametrize("seed", [21, 22, 23, 24])
 def test_the_budget_adds_up_whatever_is_assigned_moved_or_spent(session, seed):
-    assert run_budget(session, seed, steps=70) > 20  # a share of the operations is refused on purpose
+    assert run_budget(session, seed, steps=70) > 25

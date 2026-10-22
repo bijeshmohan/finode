@@ -55,11 +55,9 @@ def advanced_features_on(monkeypatch: pytest.MonkeyPatch):
     from app.repositories import profile
 
     monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", True)
-    monkeypatch.setattr(profile, "NEW_PROFILE_PLAN_BUILD", True)
     from app.services import account as account_service
 
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", False)  # most tests build their own accounts
-    monkeypatch.setattr(profile, "NEW_PROFILE_PLAN_EARN", True)
 
 
 @pytest.fixture(autouse=True)

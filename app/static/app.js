@@ -372,13 +372,11 @@ function applyKind(form, kind) {
 // The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
   const id = event.target && event.target.id;
-  if (id !== "txn-sheet-body" && id !== "cat-sheet-body" && id !== "plan-sheet-body" && id !== "groups-sheet-body") return;
+  if (id !== "txn-sheet-body" && id !== "cat-sheet-body" && id !== "groups-sheet-body") return;
   const dialog = document.getElementById(id.replace("-body", ""));
   if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
-  // The plan sheet has nothing to type in: the browser would focus its first switch and draw a ring round it.
-  if (id === "plan-sheet-body" && !first && dialog && dialog.contains(document.activeElement)) document.activeElement.blur();
 });
 // A tap that starts on a sheet's Save counts as Save even when the sheet moves under the finger before it ends (the keyboard
 // opening or closing shifts it): the browser then sends the click to whatever is under the finger, which closed the sheet
@@ -668,34 +666,23 @@ document.body.addEventListener("click", (event) => {
   }
 });
 
-// Account form: outside the budget an asset or liability can be planned under Build, and a payment category goes only with an account that is
-// neither in the budget nor planned for saving. A new account asks only under Assets and Liabilities (the options carry their root in
-// `data-root`): an asset starts in the budget, a card or loan outside it. Hidden fields are disabled so they are not sent.
+// Account form: a payment category goes only with an account that is not part of the budget. A new account asks only under
+// Assets and Liabilities (the options carry their root in `data-root`): an asset starts in the budget, a card or loan outside
+// it. Hidden fields are disabled so they are not sent.
 (function budgetChoice() {
   const sync = (fields) => {
     const box = fields.querySelector('input[name="on_budget"]');
-    const saving = fields.querySelector('input[name="saving"]');
     const payment = fields.querySelector("[data-payment-category]");
-    const savingRow = fields.querySelector("[data-saving]");
     if (!box) return;
     const out = !box.checked;
     const now = fields.querySelector("[data-budget-summary]");
     if (now) {
       const choice = payment && payment.querySelector("select");
       now.textContent = !out ? "Part of the budget"
-        : saving && saving.checked ? "Planned under Build"
         : choice && choice.value ? "Outside the budget · payments are spending"
         : "Outside the budget";
     }
-    if (savingRow) {
-      savingRow.hidden = !out;
-      if (savingRow.hidden && saving) saving.checked = false;
-    }
-    if (payment) payment.hidden = !out || (saving && saving.checked);
-    if (payment && payment.hidden) {
-      const choice = payment.querySelector("select");
-      if (choice && saving && saving.checked) choice.value = "";
-    }
+    if (payment) payment.hidden = !out;
   };
   const apply = (select) => {
     const fields = select.form && select.form.querySelector("[data-budget-fields]");
@@ -710,17 +697,13 @@ document.body.addEventListener("click", (event) => {
     box.checked = root === "Assets";
     // Under a built-in group (Bank Accounts, Investments, Loans...) the account starts as that group says.
     const start = select.selectedOptions[0].dataset.start;
-    const saving = fields.querySelector('input[name="saving"]');
-    if (start) {
-      box.checked = start === "budget";
-      if (saving) saving.checked = start === "build";
-    }
+    if (start) box.checked = start === "budget";
     sync(fields);
   };
   document.body.addEventListener("change", (event) => {
     if (!event.target.matches) return;
     if (event.target.matches('form select[name="parent_id"]')) apply(event.target);
-    if (event.target.matches('input[name="on_budget"], input[name="saving"], select[name="payment_category"]')) {
+    if (event.target.matches('input[name="on_budget"], select[name="payment_category"]')) {
       const fields = event.target.closest("[data-budget-fields]");
       if (fields) sync(fields);
     }

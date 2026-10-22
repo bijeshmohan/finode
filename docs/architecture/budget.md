@@ -12,7 +12,6 @@ Only these things are stored:
 |---|---|
 | The plan: how much each expense category is *assigned* in each month | `budget_allocations` (user, month = first day, expense account, amount; unique per month and account) |
 | Which asset or liability accounts are part of the budget | the flag `accounts.on_budget` |
-| Which assets outside the budget are planned for saving (the Save section) | the flag `accounts.saving` |
 | Targets (a wish per category: kind, amount, date, weekday) | `budget_targets`, one per category |
 | A category's short note | the expense account's `details` column |
 
@@ -27,7 +26,7 @@ For a month and an expense category:
 - **Available** — what you can still spend:
   `max(0, last month's available) + assigned − activity`
 - **Ready to assign** — money in budget accounts that has no job yet:
-  `ready to assign = money in accounts − reserved for cards − Σ available − Σ saving available − assigned to later months`
+  `ready to assign = money in accounts − reserved for cards − Σ available − assigned to later months`
 
 `BudgetRead` always satisfies that sum, and the page and the `get_budget` tool show it.
 
@@ -51,17 +50,9 @@ flowchart LR
 - **Moving money** between categories (`move`, limited to what is available) never changes Ready to assign.
 - A month's **assigned amount may be negative** to take back what an earlier month left in the category (Move money writes the same), but not by more than the category has left. Otherwise the category would show as overspent with nothing spent and Ready to assign would exceed the money there is.
 
-## Save: planning for the money you keep
+## What the Plan is not
 
-An asset or liability outside the budget can be switched on for Build (`accounts.saving`, "Plan under Build" on its edit page; a fund to move money into, a loan to pay its principal down; never together with *Part of the budget* or a payment category: switching it on clears the payment category, joining the budget switches it off). Accounts of one group are shown as one row for the group (a sum, read-only: asset and liability groups cannot be posted to, so the group has no plan of its own). It then becomes a **Build line** (`BudgetSaving`, with `debt` and the amount still owed as `balance` for a loan): a plan row (`budget_allocations`, the same table) can be assigned to it in a month, and its *activity* is what was moved into it from the budget's accounts, that is the debits to it in transactions that touch a budget account (the rule loan payments use; withdrawals do not subtract). Its *available* rolls like a category's. In arithmetic it is a Spend line: assigning lowers Ready to assign, moving the money in does the job and changes nothing, so the identity only gained one term, `saving_available`. Spend's `assigned`, `activity` and `available` (and Home's *Left to spend*) never include Save lines (`BudgetRead.saving`, `saving_assigned`, `saving_activity`, `saving_available`). Because a Save account has no payment category, the reports never count the transfer as spending. Targets work on Save lines as on categories. Switching saving off keeps the amounts (they return if it is switched on again); a closed Save account stays listed while it still has plan left. See [Plan: design proposal](../developer/plan-design.md).
-
-## Earn: income you expect
-
-An Income account (any depth, a group's own account included) can have an **expected amount** for a month: a plan row in the same table (`budget_allocations`), never negative, nothing carrying over. `BudgetRead.earning` lists every open income account without sub-accounts (and a group, or a closed account, while something is expected or arrived) with `expected` and `received` (credits minus debits to the account in the month, up to its last day). It is **informational**: it never changes `ready_to_assign`, is not "assigned to later months", and does not start the budget (rows of other accounts than Spend and Save lines are left out of `_compute`'s plan rows). Income accounts have no targets and money cannot be moved to or from them. The web shows it as the Earn chip (when switched on in the Plan's sliders sheet) with the month in one line: `expected − saving assigned − spending assigned = unplanned`.
-
-## Switching the Plan off
-
-`FINODE_PLAN_ENABLED=false` makes `BudgetService._savings` and `_earnings` return nothing, so the budget is the budget-only one again, with the stored Save and Earn data untouched (see [Plan: design proposal](../developer/plan-design.md), "Rolling back").
+The Plan page was once three sections, Spend, Build (money moved into funds and loans paid down) and Earn (expected income). Build and Earn were removed on 2026-10-22: moving money between accounts does not change net worth, only income does, and the envelopes already covered the rest. Migration `c4e6a8b0d2f4` dropped `accounts.saving` and the profile's section switches and deleted the plan rows of funds, loans and income accounts (the ledger was not touched). A fund or loan payment is budgeted as spending through the account's **payment category**. A savings goal is an Expenses account with a by-date target.
 
 ## Budget accounts, tracking accounts and liabilities
 

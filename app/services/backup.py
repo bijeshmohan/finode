@@ -79,13 +79,11 @@ class BackupService:
                 default_currency=profile.currency,
                 locked_through=profile.locked_through,
                 advanced=profile.advanced,
-                plan_build=profile.plan_build,
-                plan_earn=profile.plan_earn,
             ),
             accounts=[
                 BackupAccount(
                     id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details,
-                    on_budget=a.on_budget, saving=a.saving, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
+                    on_budget=a.on_budget, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
                     position=a.position, system_key=a.system_key,
                 )
                 for a in accounts
@@ -172,8 +170,9 @@ class BackupService:
         summary.accounts = sum(1 for a in file.accounts if a.parent_id is not None)
         summary.transactions = len(file.transactions)
         summary.recurring = len(file.recurring)
-        summary.allocations = len(file.allocations)
-        summary.targets = len(file.targets)
+        allocations, targets = self._expense_plan(file)
+        summary.allocations = len(allocations)
+        summary.targets = len(targets)
         if file.transactions:
             summary.date_from = min(t.date for t in file.transactions)
             summary.date_to = max(t.date for t in file.transactions)
@@ -264,6 +263,21 @@ class BackupService:
                 errors.append("a budget entry refers to an account that is not in the file.")
                 break
     @staticmethod
+    def _expense_plan(file: BackupFile) -> tuple[list, list]:
+        """The plan rows and targets that belong to expense categories: a file from when the Plan had Build and Earn
+        also carries rows for funds, loans and income accounts, which the budget no longer has."""
+        by_id = {a.id: a for a in file.accounts}
+
+        def expense(aid: UUID) -> bool:
+            account, seen = by_id.get(aid), set()
+            while account is not None and account.parent_id is not None and account.id not in seen:
+                seen.add(account.id)
+                account = by_id.get(account.parent_id)
+            return account is not None and account.parent_id is None and account.name == "Expenses"
+
+        return [r for r in file.allocations if expense(r.account_id)], [t for t in file.targets if expense(t.account_id)]
+
+    @staticmethod
     def _depth(account: BackupAccount, accounts: dict[UUID, BackupAccount]) -> int | None:
         depth, current, seen = 0, account, set()
         while current.parent_id is not None:
@@ -282,8 +296,6 @@ class BackupService:
             profile.first_name, profile.last_name = fields.first_name, fields.last_name
             profile.locked_through = fields.locked_through
             profile.advanced = fields.advanced
-            profile.plan_build = fields.plan_build
-            profile.plan_earn = fields.advanced if fields.plan_earn is None else fields.plan_earn
             profile.currency = find_currency(fields.default_currency).code
             db.add(profile)
             self.accounts.reset_defaults()
@@ -329,7 +341,6 @@ class BackupService:
                 account = self.ar.read(ids[a.id])
                 account.closed_on = a.closed_on
                 account.position = a.position
-                account.saving = a.saving and not a.on_budget
                 account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)
             db.flush()
@@ -364,9 +375,10 @@ class BackupService:
                 if t.updated_via != t.created_via:
                     created.updated_via = t.updated_via
                     db.add(created)
-            for row in file.allocations:
+            allocations, targets = self._expense_plan(file)
+            for row in allocations:
                 self.br.set(row.month, ids[row.account_id], row.amount)
-            for target in file.targets:
+            for target in targets:
                 self.br.set_target(ids[target.account_id], target.kind, target.amount, target.target_date, target.weekday)
             db.commit()
         except Exception:

@@ -16,7 +16,7 @@
         {%- elif e.action == "have" %}Already there
         {%- elif e.action == "adopt" %}Uses the {{ e.name }} you already have. Everything in it stays where it is; from now on it can't be renamed, moved or deleted
         {%- elif e.start == "budget" %}Accounts in it start part of the budget
-        {%- else %}Accounts in it start outside the budget, planned under Build{% endif %}</small>
+        {%- else %}Accounts in it start outside the budget{% endif %}</small>
     </span>
   </li>
   {% endfor %}

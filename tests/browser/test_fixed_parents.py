@@ -33,7 +33,7 @@ def test_a_groups_own_page_adds_inside_it(page: Page, api):
     page.locator(".section-head .circ-button").click()
     page.wait_for_url("**/accounts/new?parent=*")
     expect(page.locator('select[name="parent_id"] option:checked')).to_have_text(re.compile("Investments"))
-    expect(page.locator("[data-budget-summary]")).to_have_text("Planned under Build")
+    expect(page.locator("[data-budget-summary]")).to_have_text("Outside the budget")
 
 
 def choose(page: Page, name: str) -> None:
@@ -47,7 +47,7 @@ def test_the_budget_line_follows_the_group_chosen(page: Page):
     summary = page.locator("[data-budget-summary]")
     expect(summary).to_have_text("Part of the budget")  # Bank Accounts
     choose(page, "Investments")
-    expect(summary).to_have_text("Planned under Build")
+    expect(summary).to_have_text("Outside the budget")
     choose(page, "Cash")
     expect(summary).to_have_text("Part of the budget")
     page.locator('input[name="name"]').fill("Wallet")

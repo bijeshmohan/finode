@@ -55,7 +55,7 @@ def test_an_account_in_the_way_is_skipped_with_the_reason(client, mine):
 
 def test_a_group_of_theirs_with_exactly_that_name_becomes_the_built_in_one(client, mine):
     inv = account(client, mine["roots"], "Investments", "Assets")
-    fund = client.post("/api/accounts/", json={"name": "Mutual Funds", "parent_id": inv["aid"], "on_budget": False, "saving": True}).json()
+    fund = client.post("/api/accounts/", json={"name": "Mutual Funds", "parent_id": inv["aid"], "on_budget": False}).json()
     text = sheet(client)
     assert "Uses the Investments you already have" in text and "Your group" in text, "told apart from a group made new"
     assert "1 of your own" in text and "4 new" in text and "becomes this group" not in text
@@ -64,7 +64,7 @@ def test_a_group_of_theirs_with_exactly_that_name_becomes_the_built_in_one(clien
     found = keyed(client)
     assert found["assets.investments"]["aid"] == inv["aid"], "the same account, now built in"
     accounts = {a["name"]: a for a in client.get("/api/accounts/").json()}
-    assert accounts["Mutual Funds"]["parent_id"] == inv["aid"] and accounts["Mutual Funds"]["saving"] is True
+    assert accounts["Mutual Funds"]["parent_id"] == inv["aid"] and accounts["Mutual Funds"]["on_budget"] is False
     assert client.patch(f"/api/accounts/{inv['aid']}", json={"name": "Funds"}).status_code == 400
 
 

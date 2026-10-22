@@ -2,13 +2,13 @@
 {% from "partials/icons.html" import icon %}
 {% from "partials/money.html" import figure %}
 
-{% macro bar(line, pace, build=False) -%}
+{% macro bar(line, pace) -%}
   {% set total = line.activity + line.available %}
-  <span class="bar {{ ('above' if build else 'over') if line.available < 0 }}" aria-hidden="true"><i style="width: {{ 100 if line.available < 0 else (((line.activity / total) * 100)|round|int if total > 0 else 0) }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
+  <span class="bar {{ 'over' if line.available < 0 }}" aria-hidden="true"><i style="width: {{ 100 if line.available < 0 else (((line.activity / total) * 100)|round|int if total > 0 else 0) }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
 {%- endmacro %}
 
 {#- One row. A group opens its own page; a category opens the sheet where its amount is set (group_id: the page it came from). -#}
-{% macro row(item, month_key, pace, group_id="", other=False, build=False) %}
+{% macro row(item, month_key, pace, group_id="", other=False) %}
 {% set line = item.node.line %}
 {% set name = "Everything else" if other else line.name %}
 <a class="r crow has-bar {{ 'grow' if item.node.is_group else 'catrow' }}"
@@ -18,34 +18,20 @@
     <span class="crow-name">{{ name }}</span>
     {% if item.hint %}<span class="crow-sub {{ 'short' if not item.node.is_group and line.underfunded and not item.calm else '' }}">{{ item.hint }}</span>{% endif %}
   </span>
-  {#- In Build, going past the plan is good news: green, and said as "above plan" rather than a minus. -#}
-  <span class="crow-amt">{% if build and line.available < 0 %}<span class="income">{{ (-line.available)|money }}</span><span class="crow-share">above plan</span>{% else %}<span class="{{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span><span class="crow-share">{% if line.assigned or line.available or line.activity %}of {{ (line.activity + line.available if line.activity + line.available > 0 else line.activity)|money }}{% else %}nothing assigned{% endif %}</span>{% endif %}</span>
+  <span class="crow-amt"><span class="{{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span><span class="crow-share">{% if line.assigned or line.available or line.activity %}of {{ (line.activity + line.available if line.activity + line.available > 0 else line.activity)|money }}{% else %}nothing assigned{% endif %}</span></span>
   {#- The bar runs the whole width of the row, under the name and the amount, so full reads as full. -#}
-  {{ bar(line, pace, build) }}
-</a>
-{% endmacro %}
-
-{#- One Earn row: an income account with what has come in this month and what is expected. It opens the sheet where the
-    expected amount is set. No bar: income is not a limit that can be overspent. -#}
-{% macro earn_row(line, month_key) %}
-<a class="r crow earnrow" href="/plan?month={{ month_key }}&tab=earn" hx-get="/plan/category/{{ line.aid }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">
-  <span class="crow-main">
-    <span class="crow-name">{{ line.name }}</span>
-    <span class="crow-sub">{% if line.received %}received {{ line.received|money }}{% else %}nothing received yet{% endif %}{% if line.note %} · {{ line.note }}{% endif %}</span>
-  </span>
-  <span class="crow-amt"><span>{{ line.expected|money if line.expected else "—" }}</span><span class="crow-share">{{ "expected" if line.expected else "nothing expected" }}</span></span>
+  {{ bar(line, pace) }}
 </a>
 {% endmacro %}
 
 {#- A group at a glance: what is left, and a bar of what is spent out of what there was. The whole block opens the group's own
     budget in the sheet (edit_url; href is the page itself, for when scripts do not run). -#}
-{% macro glance_block(glance, label, over_label, currency, pace, edit_url, href, readonly=False, word="Spent") %}
-<{{ "div" if readonly else "a" }} class="ready zero budget-hero{{ "" if readonly else " tappable" }}"{% if not readonly %} href="{{ href }}" hx-get="{{ edit_url }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false" title="Set the budget"{% endif %}>
+{% macro glance_block(glance, label, over_label, currency, pace, edit_url, href) %}
+<a class="ready zero budget-hero tappable" href="{{ href }}" hx-get="{{ edit_url }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false" title="Set the budget">
   {#- No visible label: the name above says whose figure it is. Over budget is the one thing worth saying. -#}
-  {% if glance.left < 0 %}<span class="muted">{{ "Above plan" if readonly else over_label }}</span>{% else %}<span class="sr-only">{{ label }}</span>{% endif %}
-  {#- A Build group (read-only) that went past its plan is good news: green, and the amount without a minus. -#}
-  <span class="figure {{ ('above' if readonly else 'over') if glance.left < 0 }}">{{ figure(-glance.left if readonly and glance.left < 0 else glance.left, currency) }}</span>
-  <span class="glance-bar {{ 'above' if readonly and glance.left < 0 }}" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent{% if pace is not none %}, and {{ pace }}% of the month has passed{% endif %}"><i style="width: {{ glance.percent }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
-  <span class="glance-note hero-note"><span>{% if glance.planned %}{{ word }} {{ glance.spent|money }} of {{ glance.of|money }}{% else %}Nothing assigned yet{% endif %}</span>{% if not readonly %}<span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span>{% endif %}</span>
-</{{ "div" if readonly else "a" }}>
+  {% if glance.left < 0 %}<span class="muted">{{ over_label }}</span>{% else %}<span class="sr-only">{{ label }}</span>{% endif %}
+  <span class="figure {{ 'over' if glance.left < 0 }}">{{ figure(glance.left, currency) }}</span>
+  <span class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent{% if pace is not none %}, and {{ pace }}% of the month has passed{% endif %}"><i style="width: {{ glance.percent }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
+  <span class="glance-note hero-note"><span>{% if glance.planned %}Spent {{ glance.spent|money }} of {{ glance.of|money }}{% else %}Nothing assigned yet{% endif %}</span><span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span></span>
+</a>
 {% endmacro %}

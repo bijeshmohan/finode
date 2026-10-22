@@ -4,7 +4,7 @@
 {% block title %}{{ group.line.name }} · Plans · finode{% endblock %}
 {% block content %}
 <div class="cat-bar acct-nav">
-  <a class="back" href="/plan?month={{ month_key }}{{ "&tab=build" if build }}">{{ icon("back") }}Plans</a>
+  <a class="back" href="/plan?month={{ month_key }}">{{ icon("back") }}Plans</a>
   {{ month_pill("/plan/group/" ~ group.line.aid ~ "?month={month}", month_name, month_key, previous, next) }}
 </div>
 <h1 class="group-title">{{ group.line.name }}</h1>
