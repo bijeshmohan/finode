@@ -110,6 +110,8 @@ def test_accounts_and_categories_have_their_own_page(client, books):
     wallet = books["make"]("Wallet", books["roots"]["Assets"], on_budget=False)
     client.delete(f"/api/accounts/{wallet}")
     assert "Wallet" in client.get("/accounts/deleted").text and "Wallet" not in client.get("/categories/deleted").text
-    assert 'href="/accounts/deleted"' in client.get("/accounts").text and 'href="/categories/deleted"' in client.get("/categories").text
+    assert 'href="/accounts/deleted"' in client.get("/settings").text, "Recently deleted is a row in Settings"
+    assert "/deleted" not in client.get("/accounts").text and "/deleted" not in client.get("/categories").text, "no bin in the page heads"
+    assert 'href="/settings"' in client.get("/accounts/deleted").text and 'href="/settings"' in client.get("/categories/deleted").text
     for place in ("transactions", "accounts", "categories"):
         assert 'href="/transactions/deleted"' in client.get(f"/{place}/deleted").text, "the three pages link to each other"

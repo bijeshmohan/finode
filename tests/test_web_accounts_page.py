@@ -69,7 +69,9 @@ def test_the_chips_pick_a_type_in_the_order_assets_liabilities_and_equity_has_no
     assert "Amex" in liabilities and "HDFC" not in liabilities and 'aria-pressed="true">Liabilities<' in liabilities
     assert "Opening Balances" in client.get("/accounts?tab=equity").text
     assert "data-account-search" not in page and "Recently used" not in page and "Search accounts" not in page
-    assert "Net worth" not in page and 'class="circ-button" href="/accounts/new?root=assets"' in page, "the round + adds an account"
+    assert "Net worth" not in page and 'class="add-row" href="/accounts/new?root=assets"' in page, "an Add account row ends the page"
+    assert "circ-button" not in page and "head-icons" not in page, "no round + or bin beside the switcher"
+    assert page.index('class="add-row"') > page.index('class="tile list"'), "after the accounts"
 
 
 def test_the_figure_is_the_chosen_types_total(client, tree):
@@ -99,3 +101,12 @@ def test_closed_accounts_wait_behind_load_more(client, tree, session):
 def test_the_page_has_no_note_under_its_list(client, root_accounts):
     page = client.get("/accounts").text
     assert "What it was spent on" not in page and 'class="muted budget-fine' not in page
+
+
+def test_categories_end_with_an_add_row_and_an_empty_page_keeps_its_button(client, root_accounts):
+    empty = client.get("/categories").text
+    assert "Add a category" in empty and 'class="add-row"' not in empty
+    client.post("/api/accounts/", json={"name": "Dining", "parent_id": root_accounts["Expenses"]})
+    page = client.get("/categories?tab=expense").text
+    assert 'class="add-row" href="/categories/new?root=expense"' in page and "circ-button" not in page
+    assert client.get("/categories?tab=income").text.count('class="add-row"') == 0, "nothing in Income yet: its own button"

@@ -40,10 +40,6 @@
     {#- Equity has no chip: almost nobody needs it. Tapping the chosen chip again leaves neither chosen, and that is the page of Equity. -#}
     {% for key, name in tabs.items() if key != "equity" %}<a class="chip" href="/accounts?tab={{ 'equity' if tab == key else key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
   </div>
-  <span class="head-icons">
-    <a class="icon-button" href="/accounts/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
-    <a class="circ-button" href="/accounts/new?root={{ tab }}" title="Add account">{{ icon("plus") }}<span class="sr-only">Add account</span></a>
-  </span>
 </div>
 
 <div class="ready zero cat-hero">
@@ -61,5 +57,6 @@
   {% if closed %}
   <p class="unused-toggle"><button type="button" class="link-button" data-load-more-accounts>Load more</button></p>
   {% endif %}
+  {% if blocks %}<a class="add-row" href="/accounts/new?root={{ tab }}">{{ icon("plus") }}Add account</a>{% endif %}
 </div>
 {% endblock %}

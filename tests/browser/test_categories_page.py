@@ -100,8 +100,9 @@ def test_the_month_pill_sits_in_the_title_row_as_on_budget_and_transactions(page
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
     assert len(set(spots.values())) == 1, f"the pill ends at the same edge on every page: {spots}"
     page.goto("/categories")
-    chips, icons, hero = (page.locator(s).first.bounding_box() for s in (".cat-chips", ".cat-bar .head-icons", ".cat-hero"))
-    assert abs(chips["y"] - icons["y"]) < 14 and icons["x"] > chips["x"] + chips["width"], "bin and + at the right of the chips"
+    chips, hero = (page.locator(s).first.bounding_box() for s in (".cat-chips", ".cat-hero"))
+    assert page.locator(".cat-bar .head-icons").count() == 0, "no icons beside the switcher"
+    assert chips["width"] > page.viewport_size["width"] - 60, "the switcher spans the page"
     assert hero["y"] > chips["y"] + chips["height"] - 2
 
 
@@ -130,7 +131,6 @@ def test_accounts_and_categories_share_the_same_heights(page: Page, books):
     for path in ("/accounts", "/categories"):
         page.goto(path)
         title, chips, hero = (page.locator(s).first.bounding_box() for s in (".page-head h1", ".cat-chips", ".cat-hero"))
-        icons = page.locator(".cat-bar .head-icons").first.bounding_box()
-        assert abs(chips["y"] - icons["y"]) < 14 and icons["x"] > chips["x"] + chips["width"], f"{path}: bin and + at the right of the chips"
-        spots[path] = (round(title["y"]), round(chips["y"]), round(hero["y"]), round(icons["x"] + icons["width"]))
-    assert spots["/accounts"] == spots["/categories"], f"title, chips, figure and the icons' right edge line up: {spots}"
+        assert page.locator(".cat-bar .head-icons").count() == 0, f"{path}: nothing beside the switcher"
+        spots[path] = (round(title["y"]), round(chips["y"]), round(chips["width"]), round(hero["y"]))
+    assert spots["/accounts"] == spots["/categories"], f"title, full-width switcher and figure line up: {spots}"
