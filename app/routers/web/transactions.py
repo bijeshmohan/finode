@@ -367,6 +367,7 @@ class PayeeHabit:
     from_name: str
     to_name: str
     exact: bool = False
+    amount: str = ""  # what the last one came to, for the "as last time" chip
 
 
 HABIT_HISTORY = 300  # how many recent transactions the suggestions look at
@@ -398,7 +399,7 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
         payee = (t.payee or "").strip()
         if not payee or not simple:
             continue
-        entry = seen.setdefault(payee.lower(), {"payee": payee, "count": 0, "route": (credits[0].account, debits[0].account), "order": position})
+        entry = seen.setdefault(payee.lower(), {"payee": payee, "count": 0, "route": (credits[0].account, debits[0].account), "order": position, "amount": format(debits[0].amount.normalize(), "f")})
         entry["count"] += 1  # the first one seen is the newest: its route is the one repeated
     habits = []
     for key, entry in seen.items():
@@ -412,6 +413,7 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
                 payee=entry["payee"], count=entry["count"], from_id=from_id, to_id=to_id,
                 kind=infer_kind([_P(from_id, PostingSide.CREDIT), _P(to_id, PostingSide.DEBIT)], roots),
                 from_name=index.names.get(from_id, "?"), to_name=index.names.get(to_id, "?"), exact=bool(wanted) and key == wanted,
+                amount=entry["amount"],
             ),
         ))
     habits.sort(key=lambda h: h[:3])

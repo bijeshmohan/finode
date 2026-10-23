@@ -14,6 +14,14 @@
     <span class="currency-code muted {{ 'sym' if currency == 'INR' }}">{{ currency|symbol }}</span>
   </div>
 
+  {#- Quick amounts for a new entry: the last amount for the chosen payee, and nudges (see data-amount-quick in app.js). -#}
+  {% if with_payee and not editing %}
+  <div class="amount-quick" data-amount-quick data-symbol="{{ currency|symbol }}">
+    <button type="button" class="chip" data-last-amount hidden></button>
+    {% for n in (100, 500, 1000) %}<button type="button" class="chip" data-nudge="{{ n }}">+{{ n }}</button>{% endfor %}
+  </div>
+  {% endif %}
+
   {% if with_payee %}{% include "partials/txn_payee.html" %}{% endif %}
 
   {% for side, title, hint, rows in (("credit", "From", "where the money comes from", from_rows), ("debit", "To", "where the money goes", to_rows)) %}

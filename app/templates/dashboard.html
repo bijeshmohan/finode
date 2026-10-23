@@ -8,6 +8,8 @@
 <h1 class="sr-only">Home</h1>
 {% set mname = month_name.split(" ")[0] %}
 
+<div class="home-cols">
+
 {% if not has_recorded %}
 <section class="home-empty">
   <p class="glance-label">{{ mname }}</p>
@@ -71,6 +73,7 @@
   </ul>
 </details>
 {% endif %}
+<div class="home-recent">
 <div class="section-head">
   <h2>Transactions</h2>
   <a href="/transactions?month={{ month_key }}">View all</a>
@@ -80,5 +83,7 @@
 {% else %}
 <p class="muted">Nothing was recorded in {{ mname }}.</p>
 {% endif %}
+</div>
 {% endif %}
+</div>
 {% endblock %}
