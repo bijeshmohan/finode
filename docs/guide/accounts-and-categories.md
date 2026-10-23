@@ -53,7 +53,7 @@ An account that holds a balance cannot be closed. A closed account keeps its his
 
 <img src="img/categories.png" alt="The Categories page: the month, Expense and Income, ranked categories" width="300">
 
-To add one, tap **+ Add category** at the end of the list. A category can have subcategories one level down (Food › Groceries), no further.
+Every category is listed, biggest first, including the ones with nothing in the month. To add one, tap **+ Add category** at the end of the list. A category can have subcategories one level down (Food › Groceries), no further.
 
 **Deleting a category:** if it has never been used it is removed. If it has history it is *closed* instead: it leaves your lists and pickers but stays in the months where it has amounts. **Restore category** brings it back. Both are under the **…** menu and in **Settings › Recently deleted**.
 
