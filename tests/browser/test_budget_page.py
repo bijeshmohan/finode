@@ -3,6 +3,7 @@
 import re
 from datetime import date, timedelta
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from .conftest import Api
@@ -377,3 +378,17 @@ def test_a_goal_hands_its_money_to_a_category_from_its_sheet(page: Page, books, 
     expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Save")
     page.locator(".cat-chips .chip", has_text="Spend").click()
     expect(page.locator(".crow", has_text="Rent")).to_contain_text("4,000.00")
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_the_month_pill_sits_on_the_same_line_on_home_and_the_other_pages(page: Page, books, api: Api, width):
+    api.post("/transactions/", postings=[
+        {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
+        {"account": books["checking"]["aid"], "side": "credit", "amount": "40"}])
+    page.set_viewport_size({"width": width, "height": 800})
+    tops = {}
+    for name, path in (("home", "/"), ("budget", "/budget"), ("categories", "/categories"), ("transactions", "/transactions")):
+        page.goto(path)
+        assert page.locator(".month-pill").count() == 1, f"no month pill on {name}"
+        tops[name] = page.locator(".month-pill").bounding_box()["y"]
+    assert len({round(t) for t in tops.values()}) == 1, tops
