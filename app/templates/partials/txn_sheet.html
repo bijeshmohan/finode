@@ -24,5 +24,4 @@
   <a class="button secondary" href="/transactions/new?repeat={{ t.tid }}">Add again</a>
 </div>
 <button type="button" class="sheet-delete" {{ "disabled" if locked_by }}
-        hx-post="/transactions/{{ t.tid }}/delete" hx-vals='{"sheet": "1"}'
-        hx-confirm="Delete this transaction? Account balances will change.">Delete</button>
+        hx-post="/transactions/{{ t.tid }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>

@@ -40,10 +40,10 @@ def parse_amount(value: str | None, default: Decimal | None = None) -> Decimal:
     return amount
 
 
-def htmx_redirect(location: str, flash: str | None = None) -> Response:
+def htmx_redirect(location: str, flash: str | None = None, undo: tuple[str, UUID] | None = None) -> Response:
     response = Response(status_code=200, headers={"HX-Redirect": location})
     if flash:
-        set_flash(response, flash)
+        set_flash(response, flash, undo)
     return response
 
 

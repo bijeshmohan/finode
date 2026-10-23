@@ -18,7 +18,6 @@
   <div class="ready zero budget-hero ready-hero plan-head" data-plan-head="goals">
     <div class="hero-top">
       <div class="calc-row"><span class="muted">Saved for goals</span></div>
-      {% if attention %}<button type="button" class="need" data-toggle-attn aria-expanded="false" aria-controls="attn-panel">Needs you <i>{{ attention }}</i></button>{% endif %}
     </div>
     <span class="figure">{{ figure(budget.goal_available, cur) }}</span>
     <span class="glance-note hero-note"><span>{% if goal_rows %}across {{ goal_rows|length }} goal{{ "" if goal_rows|length == 1 else "s" }}{% if budget.goal_underfunded > 0 %} · {{ budget.goal_underfunded|money|amount(cur) }} needed this month{% endif %}{% else %}No goals yet{% endif %}</span></span>
@@ -27,7 +26,6 @@
   <div class="ready zero budget-hero ready-hero plan-head" data-plan-head="budgets">
     <div class="hero-top">
       <div class="calc-row"><span class="muted">{{ label }}</span>{{ calc_button("what is left to spend") }}</div>
-      {% if attention %}<button type="button" class="need" data-toggle-attn aria-expanded="false" aria-controls="attn-panel">Needs you <i>{{ attention }}</i></button>{% endif %}
     </div>
     <span class="figure {{ tone }}">{{ figure(h.left, cur) }}</span>
     <span class="glance-bar {{ tone }}" role="img" aria-label="{{ h.percent }}% used{% if pace is not none %}, and {{ pace }}% of the month has passed{% endif %}"><i style="width: {{ h.percent }}%"></i>{% if pace is not none %}<b class="pace" style="left: {{ pace }}%"></b>{% endif %}</span>
@@ -35,29 +33,10 @@
     {{ calc_panel(rows_, "Left to spend", h.left, cur, "Each category's leftover, plus what you assigned this month, minus what you spent.") }}
   </div>
   {% endif %}
-  {% set sum_rows = [("In your accounts", budget.money_in_accounts, ""), ("Set aside for card bills", budget.reserved_for_cards, "−"), ("Left in your categories", budget.available, "−"), ("Set aside for goals", budget.goal_available, "−"), ("Assigned to later months", budget.assigned_to_later_months, "−")] %}
-  {#- Ready to assign is a quiet line under the head, with its sum behind the i. -#}
-  <div class="rta-line" data-ready-to-assign>
-    <span class="rta-text">{% if rta > 0 %}<b>{{ rta|money|amount(cur) }}</b> ready to assign{% elif rta == 0 and (budget.lines or budget.goals) %}Every {{ cur|symbol }} has a job{% else %}<b>{{ 0|money|amount(cur) }}</b> ready to assign{% endif %}{% if tab == "budgets" and budget.goal_available > 0 %} · <a href="/plan?tab=goals&month={{ month_key }}"><b>{{ budget.goal_available|money|amount(cur) }}</b> in goals ›</a>{% endif %}</span>
-    {{ calc_button("what is ready to assign") }}
-    {{ calc_panel(sum_rows, "Ready to assign", rta, cur, "Money in your accounts that has no job yet.") }}
-  </div>
-  {% if show_intro and tab == "budgets" %}
-  <div class="intro" data-plan-intro>
-    <b>Give every {{ budget.currency|symbol }} a job</b>
-    <p>Decide how much of your money goes to rent, food and the rest. What you don't spend stays there for next month.</p>
-    {% if rows %}<span class="intro-step">Tap a category below to set aside your first amount.</span>
-    {% else %}<a class="intro-step" href="/categories/new?root=expense">Start with your first category →</a>{% endif %}
-  </div>
+  {#- One slim line when something needs a decision; it opens the list in place and is closed by default. -#}
+  {% if attention %}
+  <button type="button" class="need-line" data-toggle-attn aria-expanded="false" aria-controls="attn-panel"><span>{{ attention }} thing{{ " needs" if attention == 1 else "s need" }} you</span><span class="need-more" aria-hidden="true">Show ▾</span></button>
   {% endif %}
-  {% if (overspent > 0 and tab == "budgets") or rta < 0 %}
-  <div class="ready-warns">
-    {% if overspent > 0 and tab == "budgets" %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
-    {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
-  </div>
-  {% endif %}
-
-
   {% if attention %}
   <div class="attn-panel" id="attn-panel" hidden>
     {% if budget.left_out_accounts %}
@@ -94,6 +73,29 @@
     {% endif %}
   </div>
   {% endif %}
+  {% set sum_rows = [("In your accounts", budget.money_in_accounts, ""), ("Set aside for card bills", budget.reserved_for_cards, "−"), ("Left in your categories", budget.available, "−"), ("Set aside for goals", budget.goal_available, "−"), ("Assigned to later months", budget.assigned_to_later_months, "−")] %}
+  {#- Ready to assign is a quiet line under the head, with its sum behind the i. -#}
+  <div class="rta-line" data-ready-to-assign>
+    <span class="rta-text">{% if rta > 0 %}<b>{{ rta|money|amount(cur) }}</b> ready to assign{% elif rta == 0 and (budget.lines or budget.goals) %}Every {{ cur|symbol }} has a job{% else %}<b>{{ 0|money|amount(cur) }}</b> ready to assign{% endif %}{% if tab == "budgets" and budget.goal_available > 0 %} · <a href="/plan?tab=goals&month={{ month_key }}"><b>{{ budget.goal_available|money|amount(cur) }}</b> in goals ›</a>{% endif %}</span>
+    {{ calc_button("what is ready to assign") }}
+    {{ calc_panel(sum_rows, "Ready to assign", rta, cur, "Money in your accounts that has no job yet.") }}
+  </div>
+  {% if show_intro and tab == "budgets" %}
+  <div class="intro" data-plan-intro>
+    <b>Give every {{ budget.currency|symbol }} a job</b>
+    <p>Decide how much of your money goes to rent, food and the rest. What you don't spend stays there for next month.</p>
+    {% if rows %}<span class="intro-step">Tap a category below to set aside your first amount.</span>
+    {% else %}<a class="intro-step" href="/categories/new?root=expense">Start with your first category →</a>{% endif %}
+  </div>
+  {% endif %}
+  {% if (overspent > 0 and tab == "budgets") or rta < 0 %}
+  <div class="ready-warns">
+    {% if overspent > 0 and tab == "budgets" %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
+    {% if rta < 0 %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+
   <p id="budget-error" class="error" role="alert"></p>
 
   {% if not budget.budget_accounts %}

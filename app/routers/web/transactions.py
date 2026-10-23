@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import calendar
 from datetime import date, timedelta
 from decimal import Decimal
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from uuid import UUID
 
 from typing import Annotated
@@ -243,13 +243,23 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
     )
 
 
+def _here(request: Request) -> str:
+    """The page an htmx request was made from (path and query), for returning to it after a toast's Undo."""
+    url = urlparse(request.headers.get("HX-Current-URL", ""))
+    return f"{url.path}?{url.query}" if url.query else url.path
+
+
 @router.post("/{tid}/delete")
-def delete_transaction(tid: UUID, transactions: Transactions, back: str = "", sheet: Annotated[str, Form()] = ""):
+def delete_transaction(request: Request, tid: UUID, transactions: Transactions, back: str = "", sheet: Annotated[str, Form()] = ""):
     try:
         transactions.delete(tid)
     except ValueError as e:
         return htmx_error(str(e), "#sheet-error" if sheet else "#page-error")
-    return htmx_redirect(safe_back(back), flash="transaction-deleted")
+    # The deletion's own id lets the toast offer Undo (the entry comes back with its old id).
+    gone = next((h for h in transactions.deleted() if h.transaction == tid), None)
+    return htmx_redirect(
+        safe_back(back or _here(request)), flash="transaction-deleted", undo=("restore", gone.hid) if gone else None
+    )
 
 
 @router.get("/deleted")
@@ -264,14 +274,14 @@ def deleted_page(request: Request, accounts: Accounts, transactions: Transaction
 
 
 @router.post("/deleted/{hid}/restore")
-def restore_deleted(hid: UUID, transactions: Transactions):
+def restore_deleted(request: Request, hid: UUID, transactions: Transactions):
     try:
         transactions.restore(hid)
     except LookupError:
         return htmx_error("That deleted transaction is not there any more.", "#restore-error", status_code=404)
     except ValueError as e:
         return htmx_error(str(e), "#restore-error")
-    return htmx_redirect("/transactions/deleted", flash="transaction-restored")
+    return htmx_redirect(safe_back(_here(request), "/transactions/deleted"), flash="transaction-restored")
 
 
 # Paths that are not pages of the web app.
@@ -529,7 +539,7 @@ def create_split_transaction(
     another: Annotated[str, Form()] = "",
 ):
     try:
-        transactions.create(
+        made = transactions.create(
             TransactionCreate(
                 date=date_ or local_today(),
                 payee=payee.strip() or None,
@@ -544,6 +554,7 @@ def create_split_transaction(
     return htmx_redirect(
         _after_save(back, another),
         flash="transaction-saved-next" if another else "transaction-saved",
+        undo=("delete", made.tid),
     )
 
 

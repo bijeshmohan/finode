@@ -45,7 +45,7 @@ An entry dated in the future (a loan instalment, a bill you entered ahead) is **
 
 ## Editing and deleting
 
-Open a row and tap **Edit**. The edit page also shows the entry's history. **Delete** asks for confirmation.
+Open a row and tap **Edit**. The edit page also shows the entry's history. **Delete** removes it at once and the toast offers **Undo** for a few seconds (the entry also waits in Recently deleted).
 
 If you used **Period lock** (Settings › Advanced), entries on or before the locked day cannot be added, changed or deleted.
 

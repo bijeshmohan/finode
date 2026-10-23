@@ -53,7 +53,8 @@
   </main>
 
   {% set flash = flash_message(request) %}
-  {% if flash %}<div class="toast" role="status">{{ flash }}</div>{% endif %}
+  {% set undo = flash_undo(request) %}
+  {% if flash %}<div class="toast{{ ' has-undo' if undo }}" role="status"><span>{{ flash }}</span>{% if undo %}<button type="button" class="toast-undo" hx-post="{{ undo }}" hx-swap="none">Undo</button>{% endif %}</div>{% endif %}
 
   {% block tabbar %}
   {% set plus = not hide_fab and not no_fab %}
