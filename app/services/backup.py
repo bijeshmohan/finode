@@ -28,6 +28,8 @@ from ..schemas.backup import (
     VERSION,
     BackupAccount,
     BackupAllocation,
+    BackupGoal,
+    BackupGoalMonth,
     BackupFile,
     BackupPosting,
     BackupProfile,
@@ -123,6 +125,16 @@ class BackupService:
                 )
                 for t in self.br.targets().values()
             ],
+            goals=[
+                BackupGoal(
+                    name=g.name, amount=g.amount, target_date=g.target_date,
+                    allocations=[
+                        BackupGoalMonth(month=r.month, amount=r.amount)
+                        for r in sorted(self.br.goal_allocations(), key=lambda r: r.month) if r.goal_id == g.gid
+                    ],
+                )
+                for g in sorted(self.br.goals(), key=lambda g: (g.target_date, g.name))
+            ],
         )
         return file.model_dump(mode="json")
 
@@ -135,7 +147,7 @@ class BackupService:
             a for a in accounts
             if a.parent_id is not None and a.system_key is None and not self.accounts.is_opening_balances(a, accounts)
         ]
-        return not own and not self.tr.account_ids_with_postings() and not self.rr.list() and not self.br.list()
+        return not own and not self.tr.account_ids_with_postings() and not self.rr.list() and not self.br.list() and not self.br.goals()
 
     def restore(self, raw: dict, dry_run: bool = False) -> RestoreSummary:
         summary = RestoreSummary()
@@ -173,6 +185,7 @@ class BackupService:
         allocations, targets = self._expense_plan(file)
         summary.allocations = len(allocations)
         summary.targets = len(targets)
+        summary.goals = len(file.goals)
         if file.transactions:
             summary.date_from = min(t.date for t in file.transactions)
             summary.date_to = max(t.date for t in file.transactions)
@@ -258,6 +271,19 @@ class BackupService:
                 errors.append(f"a recurring transaction ({r.payee or r.id}) converts between currencies.")
             if not r.postings and None in (r.from_account, r.to_account, r.amount):
                 errors.append(f"a recurring transaction ({r.payee or r.id}) has neither from, to and amount nor postings.")
+        names = [" ".join(g.name.split()).lower() for g in file.goals]
+        if len(set(names)) != len(names) or "" in names:
+            errors.append("a goal has no name, or two goals have the same name.")
+        for g in file.goals:
+            if g.amount <= 0 or len(g.name) > 80:
+                errors.append(f"the goal '{g.name}' has an amount that is not positive, or a name that is too long.")
+                break
+            saved = Decimal(0)
+            for r in sorted(g.allocations, key=lambda r: r.month):
+                saved += r.amount
+                if saved < 0:
+                    errors.append(f"the goal '{g.name}' would hold less than nothing in {r.month:%B %Y}.")
+                    break
         for row in [*file.allocations, *file.targets]:
             if row.account_id not in postable:
                 errors.append("a budget entry refers to an account that is not in the file.")
@@ -380,6 +406,10 @@ class BackupService:
                 self.br.set(row.month, ids[row.account_id], row.amount)
             for target in targets:
                 self.br.set_target(ids[target.account_id], target.kind, target.amount, target.target_date, target.weekday)
+            for g in file.goals:
+                goal = self.br.add_goal(g.name, g.amount, g.target_date)
+                for r in g.allocations:
+                    self.br.set_goal(r.month, goal.gid, r.amount)
             db.commit()
         except Exception:
             db.rollback()

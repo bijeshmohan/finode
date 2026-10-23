@@ -120,18 +120,18 @@ def setup(client, root_accounts):
 
 def test_the_form_and_the_page(client, setup):
     rent = setup["rent"]["aid"]
-    form = client.get(f"/plan/target?category={rent}").text
+    form = client.get(f"/budget/target?category={rent}").text
     assert 'value="weekly"' in form and 'value="yearly"' in form and "data-target-weekday" in form
-    saved = client.post("/plan/target", data={"category": rent, "kind": "weekly", "amount": "100", "weekday": "4"})
+    saved = client.post("/budget/target", data={"category": rent, "kind": "weekly", "amount": "100", "weekday": "4"})
     assert saved.status_code == 200 and "budget-target" in saved.headers["set-cookie"]
-    page = client.get(f"/plan/category/{rent}/sheet").text
+    page = client.get(f"/budget/category/{rent}/sheet").text
     assert "Weekly 100.00 on Fris" in page.replace("\n", " ").replace("  ", " ")
-    assert 'value="4" selected' in client.get(f"/plan/target?category={rent}").text
+    assert 'value="4" selected' in client.get(f"/budget/target?category={rent}").text
 
     due = add_months(THIS_MONTH, 2)
-    saved = client.post("/plan/target", data={"category": rent, "kind": "yearly", "amount": "600", "target_date": due.strftime("%Y-%m")})
+    saved = client.post("/budget/target", data={"category": rent, "kind": "yearly", "amount": "600", "target_date": due.strftime("%Y-%m")})
     assert saved.status_code == 200
-    assert f"Yearly 600.00 in {due:%b}" in client.get(f"/plan/category/{rent}/sheet").text.replace("\n", " ").replace("  ", " ")
+    assert f"Yearly 600.00 in {due:%b}" in client.get(f"/budget/category/{rent}/sheet").text.replace("\n", " ").replace("  ", " ")
 
 
 def test_form_errors(client, setup):
@@ -141,12 +141,13 @@ def test_form_errors(client, setup):
         {"kind": "weekly", "amount": "100", "weekday": "9"},
         {"kind": "yearly", "amount": "100"},
     ):
-        bad = client.post("/plan/target", data={"category": rent, **data})
+        bad = client.post("/budget/target", data={"category": rent, **data})
         assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#form-error", data
 
 
 def test_overdue_is_shown_on_the_page(client, setup):
-    rent = setup["rent"]["aid"]
-    client.post("/plan/target", data={"category": rent, "kind": "by_date", "amount": "500", "target_date": THIS_MONTH.strftime("%Y-%m")})
-    nxt = add_months(THIS_MONTH, 1)
-    assert "Past its month · 500.00 short" in client.get(f"/plan?tab=goals&month={nxt:%Y-%m}").text.replace("\n", " ").replace("  ", " ")
+    from .test_web_goal import goal, months_ahead
+
+    assert goal(client, amount="500", by=months_ahead(1), assign_now=None).status_code == 200
+    later = add_months(THIS_MONTH, 2)
+    assert "Past its month · 500.00 short" in client.get(f"/budget?tab=save&month={later:%Y-%m}").text.replace("\n", " ").replace("  ", " ")

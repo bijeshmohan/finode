@@ -36,7 +36,7 @@ def test_pages_group_rupees_in_lakhs_and_crores(client, lakhs):
     assert "12,34,567.00" in client.get("/accounts").text
     assert "1,234,567" not in client.get("/accounts").text
     assert 'data-grouping="indian"' in client.get("/").text, "the page tells the scripts which way to group"
-    assert "12,34,567.00" in client.get("/plan").text
+    assert "12,34,567.00" in client.get("/budget").text
 
 
 def test_another_currency_keeps_thousands(client, lakhs):
@@ -52,5 +52,5 @@ def test_budget_hints_follow_the_grouping(client, lakhs):
     month = date.today().replace(day=1).isoformat()
     client.put(f"/api/budget/categories/{food['aid']}", json={"month": month, "amount": "100"})
     client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "monthly", "amount": "250000"})
-    page = client.get("/plan").text
+    page = client.get("/budget").text
     assert "needs 2,49,900.00 more" in page

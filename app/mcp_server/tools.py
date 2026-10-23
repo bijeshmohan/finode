@@ -49,9 +49,10 @@ finode is the user's personal double-entry ledger.
 - Dates are YYYY-MM-DD; today's date is used when you leave the date out. Balances count entries
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
-  expense category's assigned, spent and available amounts (a category with a "by" target and nothing inside it is a goal:
-  listed under `goals`, not in `categories`, and not counted in assigned/spent/available_total); assign_to_category plans a month's money and
-  move_budget_money shifts it between categories; set_budget_target records what a category should get and
+  expense category's assigned, spent and available amounts (goals, money being saved for something by a month, are listed
+  under `goals`, not in `categories`, and are not counted in assigned/spent/available_total); assign_to_category plans a month's money and
+  move_budget_money shifts it between categories; assign_to_goal sets money aside for a goal and use_goal hands what a goal saved to a
+  category that paid for something; set_budget_target records what a category should get and
   get_budget then reports what is underfunded (fund_budget_targets assigns it, only when asked). These only change the plan, never the ledger, and the
   user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
 - check_books confirms that debits equal credits in every transaction and overall; use it when the
@@ -628,10 +629,10 @@ def _budget(data) -> dict[str, Any]:
                 "saved_for_goals": text(data.goal_available),
                 "goals": [
                     {
-                        "goal": g.path,
+                        "goal": g.name,
                         "saved": text(g.available),
-                        "target": text(g.target.amount),
-                        "by": g.target.target_date.isoformat(),
+                        "target": text(g.amount),
+                        "by": g.target_date.isoformat(),
                         "assigned_this_month": text(g.assigned),
                         **({"needs_this_month": text(g.underfunded)} if g.underfunded else {}),
                     }
@@ -714,6 +715,41 @@ def assign_to_category(
     with services() as s:
         entry = _category(_index(s), category)
         return _budget(s.budget.assign(_month(month), entry.account.aid, amount))
+
+
+def _goal(s, name: str):
+    """The goal called `name` (capitals aside), or an explanation of the ones there are."""
+    goals = s.budget.view(None).goals
+    for goal in goals:
+        if goal.name.lower() == name.strip().lower():
+            return goal
+    raise ValueError(f"no goal is called '{name}'. Goals: {', '.join(g.name for g in goals) or 'none yet'}.")
+
+
+@_tool_errors
+def assign_to_goal(
+    goal: Annotated[str, Field(description="The goal's name, e.g. Emergency fund (see `goals` in get_budget)")],
+    amount: Annotated[Decimal, Field(description="The month's total set aside for the goal (replaces it; 0 clears it; negative takes back what was saved before)")],
+    month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
+) -> dict[str, Any]:
+    """Set money aside for a goal in a month. This is a plan only; no transaction is recorded. It lowers what is
+    ready to assign, so check get_budget first."""
+    with services() as s:
+        return _budget(s.budget.assign_goal(_month(month), _goal(s, goal).gid, amount))
+
+
+@_tool_errors
+def use_goal(
+    goal: Annotated[str, Field(description="The goal whose saved money is used")],
+    category: Annotated[str, Field(description="The expense category that paid for the thing, e.g. Health:Hospital")],
+    amount: Annotated[Decimal, Field(gt=0, description="At most what is saved in the goal")],
+    month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
+) -> dict[str, Any]:
+    """Hand money a goal saved to a category, so spending recorded there is covered. It does not change what is
+    ready to assign."""
+    with services() as s:
+        entry = _category(_index(s), category)
+        return _budget(s.budget.use_goal(_month(month), _goal(s, goal).gid, entry.account.aid, amount))
 
 
 @_tool_errors
@@ -811,6 +847,8 @@ WRITE_TOOLS = [
     (stop_recurring, IDEMPOTENT_WRITE),
     (skip_recurring_occurrence, WRITE),
     (assign_to_category, IDEMPOTENT_WRITE),
+    (assign_to_goal, IDEMPOTENT_WRITE),
+    (use_goal, WRITE),
     (move_budget_money, WRITE),
     (copy_budget_from_previous_month, IDEMPOTENT_WRITE),
     (set_budget_target, IDEMPOTENT_WRITE),

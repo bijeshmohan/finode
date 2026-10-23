@@ -10,8 +10,8 @@
   {% set cur = budget.currency %}
   {% set mname = month_name.split(" ")[0] %}
   {% set sum_rows = [("In your accounts", budget.money_in_accounts, ""), ("Set aside for card bills", budget.reserved_for_cards, "−"), ("Left in your categories", budget.available, "−"), ("Set aside for goals", budget.goal_available, "−"), ("Assigned to later months", budget.assigned_to_later_months, "−")] %}
-  {% if tab == "goals" %}
-  <div class="ready zero budget-hero ready-hero plan-head" data-plan-head="goals">
+  {% if tab == "save" %}
+  <div class="ready zero budget-hero ready-hero budget-head" data-budget-head="save">
     <div class="hero-top">
       <div class="calc-row"><span class="muted">Saved for goals</span></div>
     </div>
@@ -19,12 +19,12 @@
     <span class="glance-note hero-note"><span>{% if goal_rows %}across {{ goal_rows|length }} goal{{ "" if goal_rows|length == 1 else "s" }}{% if budget.goal_underfunded > 0 %} · {{ budget.goal_underfunded|money|amount(cur) }} needed this month{% endif %}{% else %}No goals yet{% endif %}</span></span>
   </div>
   {% else %}
-  <div class="ready zero budget-hero ready-hero plan-head" data-plan-head="budgets" data-ready-to-assign>
+  <div class="ready zero budget-hero ready-hero budget-head" data-budget-head="spend" data-ready-to-assign>
     <div class="hero-top">
       <div class="calc-row"><span class="muted">Ready to assign</span>{{ calc_button("what is ready to assign") }}</div>
     </div>
     <span class="figure">{{ figure(rta if rta > 0 else 0, cur) }}</span>
-    <span class="glance-note hero-note"><span class="rta-text">{% if rta < 0 %}<span class="hero-warn">Over-assigned by {{ (-rta)|money|amount(cur) }} · take some back from a category</span>{% elif rta > 0 %}Give it a job: tap a category{% elif budget.lines or budget.goals %}Every {{ cur|symbol }} has a job{% else %}Nothing to assign yet{% endif %}{% if budget.goal_available > 0 %} · <a href="/plan?tab=goals&month={{ month_key }}"><b>{{ budget.goal_available|money|amount(cur) }}</b> in goals ›</a>{% endif %}</span></span>
+    <span class="glance-note hero-note"><span class="rta-text">{% if rta < 0 %}<span class="hero-warn">Over-assigned by {{ (-rta)|money|amount(cur) }} · take some back from a category</span>{% elif rta > 0 %}Give it a job: tap a category{% elif budget.lines or budget.goals %}Every {{ cur|symbol }} has a job{% else %}Nothing to assign yet{% endif %}{% if budget.goal_available > 0 %} · <a href="/budget?tab=save&month={{ month_key }}"><b>{{ budget.goal_available|money|amount(cur) }}</b> in goals ›</a>{% endif %}</span></span>
     {{ calc_panel(sum_rows, "Ready to assign", rta, cur, "Money in your accounts that has no job yet.") }}
   </div>
   {% endif %}
@@ -42,7 +42,7 @@
         {% for a in budget.left_out_accounts %}
         <li>
           <span>{{ a.path }} <span class="muted">· {{ a.entries }} {{ "entry" if a.entries == 1 else "entries" }}, {{ a.spent|money }}</span></span>
-          <button class="secondary" hx-post="/plan/accounts/{{ a.aid }}/include" hx-vals='{"month": "{{ month_key }}", "tab": "{{ tab }}"}' hx-target="#budget" hx-swap="outerHTML">Add to budget</button>
+          <button class="secondary" hx-post="/budget/accounts/{{ a.aid }}/include" hx-vals='{"month": "{{ month_key }}", "tab": "{{ tab }}"}' hx-target="#budget" hx-swap="outerHTML">Add to budget</button>
         </li>
         {% endfor %}
       </ul>
@@ -52,7 +52,7 @@
     <p class="attn-item">{{ budget.overspent_last_month|money|amount(budget.currency) }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
     {% endif %}
     {% if advanced and budget.underfunded %}
-    <form class="attn-item fund" hx-post="/plan/fund" hx-target="#budget" hx-swap="outerHTML">
+    <form class="attn-item fund" hx-post="/budget/fund" hx-target="#budget" hx-swap="outerHTML">
       <span>Your targets still need {{ budget.underfunded|money|amount(budget.currency) }} this month.</span>
       <input type="hidden" name="month" value="{{ month_key }}">
       <input type="hidden" name="tab" value="{{ tab }}">
@@ -60,7 +60,7 @@
     </form>
     {% endif %}
     {% if budget.copyable %}
-    <form class="attn-item copy-last" hx-post="/plan/copy" hx-target="#budget" hx-swap="outerHTML">
+    <form class="attn-item copy-last" hx-post="/budget/copy" hx-target="#budget" hx-swap="outerHTML">
       <input type="hidden" name="month" value="{{ month_key }}">
       <input type="hidden" name="tab" value="{{ tab }}">
       <button type="submit" class="secondary">Copy last month's amounts · {{ budget.copyable|money }}</button>
@@ -68,7 +68,7 @@
     {% endif %}
   </div>
   {% endif %}
-  {% if show_intro and tab == "budgets" %}
+  {% if show_intro and tab == "spend" %}
   <div class="intro" data-plan-intro>
     <b>Give every {{ budget.currency|symbol }} a job</b>
     <p>Decide how much of your money goes to rent, food and the rest. What you don't spend stays there for next month.</p>
@@ -76,10 +76,10 @@
     {% else %}<a class="intro-step" href="/categories/new?root=expense">Start with your first category →</a>{% endif %}
   </div>
   {% endif %}
-  {% if (overspent > 0 and tab == "budgets") or (rta < 0 and tab == "goals") %}
+  {% if (overspent > 0 and tab == "spend") or (rta < 0 and tab == "save") %}
   <div class="ready-warns">
-    {% if overspent > 0 and tab == "budgets" %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
-    {% if rta < 0 and tab == "goals" %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
+    {% if overspent > 0 and tab == "spend" %}<p class="ready-warn over" role="alert">Overspent by {{ overspent|money|amount(budget.currency) }}</p>{% endif %}
+    {% if rta < 0 and tab == "save" %}<p class="ready-warn assigned" role="alert">Over-assigned by {{ (-rta)|money|amount(budget.currency) }}</p>{% endif %}
   </div>
   {% endif %}
 
@@ -90,7 +90,7 @@
   <div class="empty-state"><p>No account is part of the budget yet. Open an asset account (or a credit card) and switch on <strong>Part of the budget</strong> in its edit page.</p></div>
   {% endif %}
 
-  {% if tab == "goals" %}
+  {% if tab == "save" %}
   {% if goal_rows %}
   <div class="budget-list tile" data-budget-goals>
     {% for item in goal_rows %}
@@ -98,9 +98,9 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="empty-state"><p>Save for something by a month: a trip, a bike, an emergency fund.</p><a class="button" href="/plan/goal">{{ icon("plus") }}New goal</a></div>
+  <div class="empty-state"><p>Save for something by a month: a trip, a bike, an emergency fund.</p><a class="button" href="/budget/goal">{{ icon("plus") }}New goal</a></div>
   {% endif %}
-  {% if goal_rows %}<a class="goal-add" href="/plan/goal">{{ icon("plus") }}New goal</a>{% endif %}
+  {% if goal_rows %}<a class="goal-add" href="/budget/goal">{{ icon("plus") }}New goal</a>{% endif %}
   {% elif tree %}
   <div class="budget-list tile" data-budget-tree>
     {% for item in rows %}

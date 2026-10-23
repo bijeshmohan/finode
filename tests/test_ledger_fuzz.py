@@ -196,10 +196,11 @@ def month_of(day):
 
 
 def budget_checks(session, s, label: str) -> None:
-    from app.models.budget import BudgetAllocation
+    from app.models.budget import BudgetAllocation, GoalAllocation
 
     today = month_of(local_today())
-    rows = session.exec(select(BudgetAllocation).where(BudgetAllocation.user == TEST_USER_ID)).all()
+    rows = list(session.exec(select(BudgetAllocation).where(BudgetAllocation.user == TEST_USER_ID)).all())
+    rows += session.exec(select(GoalAllocation).where(GoalAllocation.user == TEST_USER_ID)).all()
     for offset in (-2, -1, 0, 1, 2):
         month = month_of(today + timedelta(days=31 * offset))
         view = s.budget.view(month)
@@ -221,7 +222,7 @@ def run_budget(session, seed: int, steps: int) -> int:
     for step in range(steps):
         s = services(session)
         month = month_of(local_today() + timedelta(days=31 * rng.randint(-2, 2)))
-        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy", "fund", "target"])
+        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy", "fund", "target"] + ["goal", "gassign", "gassign", "guse", "guse", "gdelete"])
         label = f"budget seed {seed} step {step} {op}"
         try:
             if op == "assign":
@@ -249,6 +250,22 @@ def run_budget(session, seed: int, steps: int) -> int:
                 s.transactions.create(TransactionCreate(date=month + timedelta(days=rng.randint(0, 27)), postings=[
                     PostingCreate(account=bank.aid, side=PostingSide.DEBIT, amount=amount),
                     PostingCreate(account=salary.aid, side=PostingSide.CREDIT, amount=amount)]))
+            elif op == "goal":
+                s.budget.create_goal(rng.choice(["Trip", "Bike", "Laptop", "Fund"]), money(rng) * 10, local_today() + timedelta(days=31 * rng.randint(1, 8)), rng.random() < 0.5)
+            elif op in ("gassign", "guse", "gdelete"):
+                goals = s.budget.view(month).goals
+                if not goals:
+                    raise ValueError("no goal yet")
+                goal = rng.choice(goals)
+                if op == "gassign":
+                    view = s.budget.assign_goal(month, goal.gid, money(rng) * rng.choice([1, 1, -1]))
+                    assert all(g.available >= 0 for g in view.goals), (label, "a goal never holds less than nothing")
+                elif op == "guse":
+                    before = s.budget.view(month).ready_to_assign
+                    s.budget.use_goal(month, goal.gid, rng.choice(cats).aid, money(rng) / 10)
+                    assert s.budget.view(month).ready_to_assign == before, (label, "handing a goal's money to a category never changes Ready to assign")
+                else:
+                    s.budget.delete_goal(goal.gid)
             elif op == "copy":
                 s.budget.copy_previous(month)
             elif op == "fund":

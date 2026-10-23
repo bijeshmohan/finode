@@ -2,7 +2,7 @@
 {% from "partials/budget_rows.html" import row, glance_block %}
 
 <div id="budget" class="budget-group">
-  {{ glance_block(glance, "Left to spend", "Over budget", budget.currency, pace, edit_url, "/plan/group/" ~ group.line.aid ~ "?month=" ~ month_key) }}
+  {{ glance_block(glance, "Left to spend", "Over budget", budget.currency, pace, edit_url, "/budget/group/" ~ group.line.aid ~ "?month=" ~ month_key) }}
   <p id="budget-error" class="error" role="alert"></p>
   <div class="budget-list tile" data-budget-tree>
     {% for item in kids %}{{ row(item, month_key, pace, group_id=group.line.aid) }}{% endfor %}
