@@ -1,7 +1,7 @@
 /* ---------- Design tokens ---------- */
 /* Calm and minimal: one ink colour for actions, warm neutral greys, green and red only where money is in or out. */
 :root {
-  --bar-h: 6px; /* every progress bar: Home, Budget, Categories */
+  --bar-h: 3px; /* every progress bar: Home, Budget, Categories */
   --bg: #fafaf8;
   --surface: #ffffff;
   --surface-2: #f1f0ec;
