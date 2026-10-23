@@ -14,10 +14,6 @@
   <div class="chips seg tx-kinds" role="group" aria-label="Show">
     {% for c in chips %}<a class="chip" href="{{ c.href }}" aria-pressed="{{ 'true' if kind == c.value else 'false' }}">{{ c.label }}</a>{% endfor %}
   </div>
-  <span class="head-icons">
-    <a class="icon-button" href="/transactions/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
-    <a class="icon-button" href="/recurring" title="Recurring transactions">{{ icon("repeat") }}<span class="sr-only">Recurring transactions</span></a>
-  </span>
 </div>
 
 <details class="filters" {{ "open" if active_filters or error }}>

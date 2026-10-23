@@ -33,7 +33,7 @@ Open a transaction and tap **Add again** to start a new one pre-filled with the 
 **View all** on Home (or the sidebar) opens the full list, grouped by day.
 
 - The **month pill** at the top right (the same place as on Budgets and Categories) picks the month: the arrows go back or forward, and tapping the month opens a month and year picker. Entries dated ahead wait in the *upcoming* card on the current month.
-- **Kind chips** (Expense, Income, Transfer) filter the list; tap the chosen one again to show everything. The bin (recently deleted) and the repeat icon (recurring) sit at the right of the chips. **More filters** adds an account filter.
+- **Kind chips** (Expense, Income, Transfer) filter the list; tap the chosen one again to show everything. Recurring transactions and Recently deleted are in Settings › Your data. **More filters** adds an account filter.
 - **Tap a row** to see its details in a sheet: the accounts (*Paid from* and *Spent on* for an expense), the note, who added it (*By the app* for what you entered, or *Recurring* or the assistant's name), and the buttons **Edit**, **Add again** and **Delete**.
 
 <img src="img/transaction-sheet.png" alt="A transaction's details sheet with Edit, Add again and Delete" width="300">
@@ -51,7 +51,7 @@ If you used **Period lock** (Settings › Advanced), entries on or before the lo
 
 ### Recently deleted
 
-Deleted by accident? On the Transactions page, tap the **bin** icon: **Recently deleted** lists what was deleted, newest first, each with **Restore**. A restored entry comes back with its old details (it is checked again, so a locked period or a closed account will stop it, and tell you why). Only the latest deletion of an entry can be restored, and a restored entry is no longer linked to the recurring rule that made it.
+Deleted by accident? Open **Settings › Your data › Recently deleted** (it also lists accounts and categories): it lists what was deleted, newest first, each with **Restore**. A restored entry comes back with its old details (it is checked again, so a locked period or a closed account will stop it, and tell you why). Only the latest deletion of an entry can be restored, and a restored entry is no longer linked to the recurring rule that made it.
 
 ## How amounts look
 

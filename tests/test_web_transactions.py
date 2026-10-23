@@ -132,13 +132,12 @@ def test_filters_open_with_count_only_when_active(client: TestClient, account: d
     assert "Nothing matches." in opened
 
 
-def test_recurring_is_an_icon_at_the_right_of_the_chips(client):
+def test_nothing_sits_beside_the_kind_chips_recurring_and_deleted_are_in_settings(client):
     page = client.get("/transactions").text
     head = page[page.index('<div class="cat-bar tx-bar">'):page.index("</details>")]
-    assert head.index("tx-kinds") < head.index('href="/recurring"')
-    assert "<svg" in head and 'title="Recurring transactions"' in head
-    assert 'class="sr-only">Recurring transactions' in head, "named for screen readers"
-    assert '<p class="muted"><a href="/recurring">' not in page, "no visible text link any more"
+    assert "head-icons" not in head and 'href="/recurring"' not in page and 'href="/transactions/deleted"' not in page
+    settings = client.get("/settings").text
+    assert 'href="/recurring"' in settings and 'href="/accounts/deleted"' in settings
 
 
 def test_the_month_pill_lists_one_month_and_has_no_search_box(client: TestClient, account: dict, expense_account: dict):

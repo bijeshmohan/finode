@@ -269,7 +269,7 @@ def deleted_page(request: Request, accounts: Accounts, transactions: Transaction
     return templates.TemplateResponse(
         request,
         "transactions_deleted.html",
-        {"active": "transactions", "entries": entries, "currency": accounts.currency().code},
+        {"active": "settings", "entries": entries, "currency": accounts.currency().code},
     )
 
 

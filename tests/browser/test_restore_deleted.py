@@ -10,8 +10,9 @@ def test_restore_puts_the_entry_back_and_it_leaves_the_list(page: Page, books, a
         {"account": books["food"]["aid"], "side": "debit", "amount": "120"},
         {"account": books["checking"]["aid"], "side": "credit", "amount": "120"},
     ])
-    page.goto("/transactions")
+    page.goto("/settings")
     page.get_by_role("link", name="Recently deleted").click()
+    page.locator(".chips .chip", has_text="Transactions").click()
     expect(page.get_by_text("Nothing deleted")).to_be_visible()
     api.delete(f"/transactions/{entry['tid']}")
     page.reload()
