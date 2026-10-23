@@ -109,8 +109,10 @@ def test_a_locked_period_blocks_the_restore(client, ledger, svc):
     assert restore(client, hid_of(svc, tid)).status_code == 400
 
 
-def test_the_transactions_page_links_to_the_deleted_page(client):
-    assert 'href="/transactions/deleted"' in client.get("/transactions").text
+def test_the_deleted_page_is_reached_from_settings_and_leads_back_there(client):
+    assert 'href="/accounts/deleted"' in client.get("/settings").text
+    page = client.get("/transactions/deleted").text
+    assert 'href="/settings"' in page and 'class="back" href="/transactions"' not in page
 
 
 def test_nothing_deleted_says_so(client):

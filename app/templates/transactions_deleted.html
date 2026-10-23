@@ -2,7 +2,7 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Recently deleted · finode{% endblock %}
 {% block content %}
-<a class="back" href="/transactions">{{ icon("back") }}Transactions</a>
+<a class="back" href="/settings">{{ icon("back") }}Settings</a>
 <h1>Recently deleted</h1>
 {% set current = "transactions" %}{% include "partials/deleted_tabs.html" %}
 <p class="muted form-narrow">Restoring puts an entry back exactly as it was, on its own date. It stays here until you restore it.</p>
@@ -27,6 +27,6 @@
   {% endfor %}
 </ul>
 {% else %}
-<div class="card empty-state"><p>Nothing deleted.</p><a class="button secondary" href="/transactions">Back to transactions</a></div>
+<div class="card empty-state"><p>Nothing deleted.</p><a class="button secondary" href="/settings">Back</a></div>
 {% endif %}
 {% endblock %}

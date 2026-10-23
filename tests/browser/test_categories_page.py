@@ -124,6 +124,13 @@ def test_the_month_in_the_pill_is_a_picker_that_goes_straight_to_that_month(page
     assert "month=2026-02" in page.url, "a month the page never shows is not taken"
 
 
+def test_the_transactions_switcher_spans_the_page_with_nothing_beside_it(page: Page, books):
+    page.goto("/transactions")
+    chips = page.locator(".tx-kinds").bounding_box()
+    assert chips["width"] > page.viewport_size["width"] - 60, "the kinds switcher spans the page"
+    assert page.locator(".tx-bar .head-icons").count() == 0 and page.locator(".tx-bar a[href='/recurring']").count() == 0
+
+
 def test_accounts_and_categories_share_the_same_heights(page: Page, books):
     spots = {}
     for path in ("/accounts", "/categories"):
