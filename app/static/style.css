@@ -1066,7 +1066,9 @@ details.menu, details.note-info { position: static; }
 .acct-name-row h1 { min-width: 0; overflow-wrap: anywhere; }
 .info-button { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; color: var(--muted); cursor: pointer; flex: none; list-style: none; }
 details.note-info > summary::-webkit-details-marker { display: none; }
-details[open].note-info > summary, .info-button:hover { color: var(--text); background: var(--surface-2); }
+details[open].note-info > summary, details[open].calc-info > summary { color: var(--text); background: var(--surface-2); }
+/* Only where there is a real pointer: on a phone a tap leaves :hover stuck on the button. */
+@media (hover: hover) { .info-button:hover { color: var(--text); background: var(--surface-2); } }
 .info-button .icon { width: 1.125rem; height: 1.125rem; }
 .note-info .menu-panel { padding: .75rem 1rem; }
 .note-info .menu-note { margin: 0; padding: 0; border-top: 0; font-size: .9375rem; color: var(--text); overflow-wrap: anywhere; }
@@ -1338,7 +1340,8 @@ main:has(.glance) .section-head { margin-top: 2.5rem; }
 
 /* The "i" beside the figures is faint until it is used (2026-10-23) */
 .calc-info .info-button { color: var(--faint); }
-.calc-info .info-button:hover, .calc-info[open] .info-button { color: var(--text); }
+@media (hover: hover) { .calc-info .info-button:hover { color: var(--text); } }
+.calc-info[open] .info-button { color: var(--text); }
 
 /* ---------- Sheets slide up from the bottom (a small rise and fade on wide screens), the dim area fades ---------- */
 dialog.sheet {
