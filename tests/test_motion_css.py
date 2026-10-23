@@ -33,3 +33,8 @@ def test_bars_fill_once_folds_ease_and_presses_answer():
 def test_a_sheets_content_fades_over_its_placeholders_and_the_saved_row_settles():
     assert "#txn-sheet-body > *, #cat-sheet-body > *, #groups-sheet-body > * { animation: fade-in" in CSS
     assert "a.tx.tx-new { animation: tx-new" in CSS
+
+
+def test_the_info_button_is_only_highlighted_while_open_or_hovered_with_a_real_pointer():
+    assert "@media (hover: hover) { .info-button:hover" in CSS, "a tap on a phone must not leave the button grey"
+    assert "details[open].calc-info > summary" in CSS
