@@ -95,6 +95,20 @@ def test_a_sheet_opens_at_once_with_placeholders_and_closes_if_the_content_never
     expect(page.locator("#txn-sheet")).to_be_hidden()
 
 
+def test_a_sheet_closed_while_loading_stays_closed(page: Page, books, api: Api):
+    add(api, books, "Swiggy", "food", "card")
+    page.goto("/transactions")
+    held = []
+    page.route("**/transactions/*/sheet", lambda route: held.append(route))
+    page.locator("a.tx", has_text="Swiggy").click()
+    expect(page.locator("#txn-sheet .skeleton")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#txn-sheet")).to_be_hidden()
+    held[0].continue_()
+    page.wait_for_timeout(500)
+    expect(page.locator("#txn-sheet")).to_be_hidden()
+
+
 def test_undo_in_the_toast_brings_a_deleted_entry_back(page: Page, books, api: Api):
     add(api, books, "Swiggy", "food", "card")
     page.goto("/transactions")

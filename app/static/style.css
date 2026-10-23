@@ -1142,7 +1142,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 /* Room between the Expense / Income chips and the first row of the list */
 .cat-chips { min-height: 0; }
 .cat-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .75rem; margin: 0 0 .75rem; }
-.month-pill { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; padding: 0 .15rem; min-height: 2.5rem; font-weight: 600; font-size: .9375rem; }
+.month-pill { display: inline-flex; align-items: center; margin-right: -.5rem; padding: 0 .15rem; min-height: 2.5rem; font-weight: 600; font-size: .9375rem; } /* plain text: no box around the month (2026-10-23); the name stays the class's historical "pill" */
 .month-pill .mp-arrow { display: grid; place-items: center; width: 2.5rem; height: 2.25rem; color: var(--muted); border-radius: 999px; }
 .month-pill .mp-arrow.off { opacity: .3; }
 .month-pill a.mp-arrow:hover { background: var(--surface-2); }
