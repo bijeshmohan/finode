@@ -16,22 +16,24 @@ from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount
 
 
-router = APIRouter(prefix="/plan")
+router = APIRouter(prefix="/budget")
 
-# The page was called Budget (/budget) before it became the Plan: old links and bookmarks still arrive (GET only; the page
-# itself and its forms live under /plan).
+# The page was called Plans (/plan) for a while, and Budget before that: old links and bookmarks still arrive (GET only; the
+# page itself and its forms live under /budget).
 legacy = APIRouter()
 
 
-@legacy.get("/budget")
-@legacy.get("/budget/{rest:path}")
-def budget_moved(request: Request, rest: str = ""):
+@legacy.get("/plan")
+@legacy.get("/plan/{rest:path}")
+def plan_moved(request: Request, rest: str = ""):
     query = request.url.query
-    return RedirectResponse(f"/plan{'/' + rest if rest else ''}{'?' + query if query else ''}", status_code=301)
+    return RedirectResponse(f"/budget{'/' + rest if rest else ''}{'?' + query if query else ''}", status_code=301)
 
 
 # The two chips of the page.
-TABS = {"budgets": "Budgets", "goals": "Goals"}
+TABS = {"spend": "Spend", "save": "Save"}
+# The chips were called Budgets and Goals: an old link's tab still lands on the right one.
+OLD_TABS = {"budgets": "spend", "goals": "save"}
 
 
 def parse_month(value: str) -> date:
@@ -150,7 +152,7 @@ def _glance(data) -> dict:
 
 
 def _goal_rows(data) -> list[dict]:
-    """The Goals chip's rows: each goal with how far it is, and what this month asks of it."""
+    """The Save chip's rows: each goal with how far it is, and what this month asks of it."""
     rows = []
     for goal in data.goals:
         due = first_of_month(goal.target_date)
@@ -165,7 +167,7 @@ def _goal_rows(data) -> list[dict]:
     return rows
 
 
-def _context(budget: Budget, month: date, tab: str = "budgets") -> dict:
+def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     data = budget.view(month)
     advanced = ProfileRepository(budget.br.db, budget.br.uid).advanced()
     tree = build_tree(data.lines)
@@ -174,7 +176,7 @@ def _context(budget: Budget, month: date, tab: str = "budgets") -> dict:
     unused = [n for n in tree if n.is_group and not n.used] if any(n.used for n in tree) else []
     return {
         "budget": data,
-        "tab": tab if tab in TABS else "budgets",
+        "tab": OLD_TABS.get(tab, tab) if OLD_TABS.get(tab, tab) in TABS else "spend",
         "tabs": TABS,
         "goal_rows": _goal_rows(data),
         # A short welcome until the first amount is assigned (not for people on Advanced, who know their way around).
@@ -195,7 +197,7 @@ def _context(budget: Budget, month: date, tab: str = "budgets") -> dict:
         "previous": shift(data.month, -1).strftime("%Y-%m"),
         "next": shift(data.month, 1).strftime("%Y-%m"),
         "is_current": data.month == month_start(None),
-        "active": "plan",
+        "active": "budget",
         "advanced": advanced,
         # Only the current month has a "today": the tick on the bars shows how far through it we are.
         "pace": month_progress() if data.month == month_start(None) else None,
@@ -203,7 +205,7 @@ def _context(budget: Budget, month: date, tab: str = "budgets") -> dict:
 
 
 @router.get("")
-def budget_page(request: Request, budget: Budget, month: str = "", tab: str = "budgets"):
+def budget_page(request: Request, budget: Budget, month: str = "", tab: str = "spend"):
     return templates.TemplateResponse(request, "budget.html", _context(budget, parse_month(month), tab))
 
 
@@ -217,7 +219,7 @@ def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
         **context,
         "group": node,
         "kids": [{"node": c, "hint": _hint(c, advanced, grouping_for(context["budget"].currency))} for c in _by_assigned(node.children)],
-        "edit_url": f"/plan/group/{aid}/sheet?month={month:%Y-%m}",
+        "edit_url": f"/budget/group/{aid}/sheet?month={month:%Y-%m}",
         "glance": _glance(node.line),
     }
 
@@ -274,7 +276,7 @@ def assign(
     amount: Annotated[str, Form()] = "",
     sheet: Annotated[str, Form()] = "",
     group: Annotated[str, Form()] = "",
-    tab: Annotated[str, Form()] = "budgets",
+    tab: Annotated[str, Form()] = "spend",
 ):
     when = parse_month(month)
     try:
@@ -299,7 +301,7 @@ def move_page(request: Request, budget: Budget, month: str = "", source: UUID | 
     return templates.TemplateResponse(
         request,
         "budget_move.html",
-        {**_context(budget, when), "lines": lines, "source": source, "active": "plan"},
+        {**_context(budget, when), "lines": lines, "source": source, "active": "budget"},
     )
 
 
@@ -316,11 +318,11 @@ def move(
         budget.move(when, from_category, to_category, parse_amount(amount))
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/plan?month={when:%Y-%m}", flash="budget-moved")
+    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-moved")
 
 
 @router.post("/fund")
-def fund(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "budgets"):
+def fund(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
     when = parse_month(month)
     try:
         budget.fund(when)
@@ -374,7 +376,7 @@ def set_target(
         budget.set_target(category, kind, parse_amount(amount), day, day_of_week)
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/plan?month={when:%Y-%m}", flash="budget-target")
+    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target")
 
 
 @router.post("/note")
@@ -389,7 +391,7 @@ def set_note(
         budget.set_note(category, note)
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#note-error")
-    return htmx_redirect(f"/plan?month={when:%Y-%m}", flash="budget-note")
+    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-note")
 
 
 @router.post("/target/delete")
@@ -399,11 +401,11 @@ def clear_target(budget: Budget, category: Annotated[UUID, Form()], month: Annot
         budget.clear_target(category)
     except BudgetError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/plan?month={when:%Y-%m}", flash="budget-target-cleared")
+    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target-cleared")
 
 
 @router.post("/accounts/{aid}/include")
-def include_account(request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "budgets"):
+def include_account(request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
     when = parse_month(month)
     try:
         budget.include_account(aid)
@@ -413,7 +415,7 @@ def include_account(request: Request, budget: Budget, aid: UUID, month: Annotate
 
 
 @router.post("/copy")
-def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "budgets"):
+def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
     when = parse_month(month)
     try:
         budget.copy_previous(when)
@@ -444,7 +446,7 @@ def _goal_form(request: Request, budget: Budget, goal=None):
     return templates.TemplateResponse(
         request, "budget_goal.html",
         {
-            "active": "plan", "hide_fab": True, "currency": budget.accounts.currency().code,
+            "active": "budget", "hide_fab": True, "currency": budget.accounts.currency().code,
             "earliest": shift(this_month, 1).strftime("%Y-%m"), "goal": goal,
         },
     )
@@ -488,9 +490,9 @@ def goal_preview(request: Request, budget: Budget, amount: str = "", by: str = "
 
 @router.get("/goal/{goal_id}/sheet")
 def goal_sheet(request: Request, budget: Budget, goal_id: UUID, month: str = ""):
-    """One goal in the sheet over the Goals chip: how far it is, and the things to do with it."""
+    """One goal in the sheet over the Save chip: how far it is, and the things to do with it."""
     when = parse_month(month)
-    context = _context(budget, when, "goals")
+    context = _context(budget, when, "save")
     row = next((r for r in context["goal_rows"] if r["line"].gid == goal_id), None)
     if row is None:
         raise HTTPException(status_code=404, detail="goal not found")
@@ -501,7 +503,7 @@ def goal_sheet(request: Request, budget: Budget, goal_id: UUID, month: str = "")
 def goal_use_sheet(request: Request, budget: Budget, goal_id: UUID, month: str = ""):
     """The second step of a goal's sheet: which category the goal's money goes to, and how much."""
     when = parse_month(month)
-    context = _context(budget, when, "goals")
+    context = _context(budget, when, "save")
     row = next((r for r in context["goal_rows"] if r["line"].gid == goal_id), None)
     if row is None:
         raise HTTPException(status_code=404, detail="goal not found")
@@ -529,7 +531,7 @@ def goal_use(
         budget.use_goal(when, goal_id, category, parse_amount(amount, default=parse_amount("0")))
     except (BudgetError, ValueError) as e:
         return htmx_error(_sentence(str(e)), "#cat-sheet-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, "goals"))
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, "save"))
 
 
 @router.post("/goal/{goal_id}/assign")
@@ -545,7 +547,7 @@ def goal_assign(
         budget.assign_goal(when, goal_id, parse_amount(amount, default=parse_amount("0")))
     except (BudgetError, ValueError) as e:
         return htmx_error(_sentence(str(e)), "#cat-sheet-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, "goals"))
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, "save"))
 
 
 @router.post("/goal")
@@ -563,7 +565,7 @@ def create_goal(
         budget.create_goal(name.strip(), value, due, assign_now is not None)
     except (BudgetError, ValueError) as e:
         return htmx_error(_sentence(str(e)), "#form-error")
-    return htmx_redirect("/plan?tab=goals", flash="goal-created")
+    return htmx_redirect("/budget?tab=save", flash="goal-created")
 
 
 @router.post("/goal/{goal_id}")
@@ -581,7 +583,7 @@ def update_goal(
         budget.update_goal(goal_id, name.strip(), value, due)
     except (BudgetError, ValueError) as e:
         return htmx_error(_sentence(str(e)), "#form-error")
-    return htmx_redirect("/plan?tab=goals", flash="goal-saved")
+    return htmx_redirect("/budget?tab=save", flash="goal-saved")
 
 
 @router.post("/goal/{goal_id}/delete")
@@ -590,4 +592,4 @@ def delete_goal(budget: Budget, goal_id: UUID):
         budget.delete_goal(goal_id)
     except (BudgetError, ValueError) as e:
         return htmx_error(_sentence(str(e)), "#cat-sheet-error")
-    return htmx_redirect("/plan?tab=goals", flash="goal-deleted")
+    return htmx_redirect("/budget?tab=save", flash="goal-deleted")

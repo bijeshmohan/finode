@@ -23,7 +23,7 @@ def books(client, root_accounts):
 
 def goal(client, **form):
     data = {"name": "Goa trip", "amount": "100000", "by": months_ahead(5), "assign_now": "1", **form}
-    return client.post("/plan/goal", data={k: v for k, v in data.items() if v is not None})
+    return client.post("/budget/goal", data={k: v for k, v in data.items() if v is not None})
 
 
 def category(client, name):
@@ -31,9 +31,9 @@ def category(client, name):
 
 
 def test_the_goals_chip_links_to_the_form_and_the_form_asks_three_things(client, books):
-    assert 'href="/plan/goal"' in client.get("/plan?tab=goals").text
-    assert 'href="/plan/goal"' not in client.get("/plan").text, "the Budgets chip is about spending"
-    page = client.get("/plan/goal").text
+    assert 'href="/budget/goal"' in client.get("/budget?tab=save").text
+    assert 'href="/budget/goal"' not in client.get("/budget").text, "the Budgets chip is about spending"
+    page = client.get("/budget/goal").text
     assert "New goal" in page and 'name="name"' in page and 'name="amount"' in page and 'name="by"' in page
     assert f'min="{months_ahead(1)}"' in page, "a month after this one"
     assert 'name="assign_now" value="1" checked' in page, "this month's share is set aside unless unticked"
@@ -61,10 +61,10 @@ def test_unticking_the_share_leaves_nothing_assigned(client, books):
 
 
 def test_the_preview_says_what_a_month_takes(client, books):
-    page = client.get("/plan/goal/preview", params={"amount": "100000", "by": months_ahead(5)}).text
+    page = client.get("/budget/goal/preview", params={"amount": "100000", "by": months_ahead(5)}).text
     assert "16,666.67 a month" in page.replace("₹", "") and "for 6 months" in page
-    assert "—" in client.get("/plan/goal/preview").text, "nothing to work out yet"
-    assert "after this one" in client.get("/plan/goal/preview", params={"amount": "100", "by": months_ahead(0)}).text
+    assert "—" in client.get("/budget/goal/preview").text, "nothing to work out yet"
+    assert "after this one" in client.get("/budget/goal/preview", params={"amount": "100", "by": months_ahead(0)}).text
 
 
 @pytest.mark.parametrize("form,message", [

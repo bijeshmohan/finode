@@ -16,19 +16,19 @@
 <p id="cat-sheet-error" class="error" role="alert"></p>
 <div class="stack sheet-stack">
   {% if line.underfunded > 0 %}
-  <form hx-post="/plan/goal/{{ line.gid }}/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
+  <form hx-post="/budget/goal/{{ line.gid }}/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
     <input type="hidden" name="month" value="{{ month_key }}">
     <input type="hidden" name="amount" value="{{ line.needed|money }}">
     <button type="submit">Set aside {{ line.needed|money }} this month</button>
   </form>
   {% endif %}
   {% if line.available > 0 %}
-  <button type="button" class="button secondary" hx-get="/plan/goal/{{ line.gid }}/use?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">Use it for…</button>
+  <button type="button" class="button secondary" hx-get="/budget/goal/{{ line.gid }}/use?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">Use it for…</button>
   {% endif %}
   <p class="sheet-more">
-    <a href="/plan/goal/{{ line.gid }}/edit">Change amount or month</a>
+    <a href="/budget/goal/{{ line.gid }}/edit">Change amount or month</a>
     ·
-    <button type="button" class="link-button danger-text" hx-post="/plan/goal/{{ line.gid }}/delete"
+    <button type="button" class="link-button danger-text" hx-post="/budget/goal/{{ line.gid }}/delete"
             hx-confirm="Delete {{ line.name }}? {% if line.available > 0 %}The {{ line.available|money }} saved in it goes back to Ready to assign.{% else %}Nothing is saved in it.{% endif %}">Delete goal</button>
   </p>
 </div>

@@ -75,8 +75,8 @@ def dashboard(
         {
             "done": planned,
             "title": "Give your money a job",
-            "href": "/plan",
-            "hint": "Open Plans and set aside rent and food",
+            "href": "/budget",
+            "hint": "Open Budgets and set aside rent and food",
         },
     ]
     month = budget.view(when)

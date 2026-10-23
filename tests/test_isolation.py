@@ -46,7 +46,7 @@ PUBLIC = {
     ("GET", "/.well-known/oauth-protected-resource"), ("GET", "/.well-known/oauth-protected-resource/mcp"),
     ("DELETE", "/mcp"), ("GET", "/mcp"), ("HEAD", "/mcp"), ("POST", "/mcp"),  # bearer tokens, tested below
     ("GET", "/oauth/consent"), ("POST", "/oauth/consent"),  # a Supabase authorization id of the signed-in user
-    ("GET", "/budget"), ("GET", "/budget/{rest:path}"),  # the old address of the Plan: only redirects (301), shows nothing
+    ("GET", "/plan"), ("GET", "/plan/{rest:path}"),  # the old address of the Budgets page: only redirects (301), shows nothing
 }
 
 # Routes without an id in the path: what they list is scoped to whoever asks.
@@ -56,7 +56,7 @@ LISTS = {
     ("GET", "/api/export"), ("GET", "/api/profile/"),
     ("GET", "/api/recurring/"), 
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"),
-    ("GET", "/backup"), ("GET", "/plan"), ("GET", "/plan/goal"), ("GET", "/plan/goal/preview"), ("GET", "/plan/move"), ("GET", "/export"),
+    ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/goal"), ("GET", "/budget/goal/preview"), ("GET", "/budget/move"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
     ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/settings/groups"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/new"),
 }
@@ -65,9 +65,9 @@ LISTS = {
 REFERENCES = {
     ("POST", "/accounts"), ("POST", "/accounts/quick"), ("POST", "/api/accounts/"),
     ("POST", "/api/import"), ("PATCH", "/api/profile/"), ("POST", "/api/recurring/"),
-    ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/plan/assign"), ("POST", "/plan/copy"), ("POST", "/plan/goal"),
-    ("POST", "/plan/fund"), ("POST", "/plan/move"), ("POST", "/plan/note"), ("GET", "/plan/target"), ("POST", "/plan/target"),
-    ("POST", "/plan/target/delete"),
+    ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/budget/assign"), ("POST", "/budget/copy"), ("POST", "/budget/goal"),
+    ("POST", "/budget/fund"), ("POST", "/budget/move"), ("POST", "/budget/note"), ("GET", "/budget/target"), ("POST", "/budget/target"),
+    ("POST", "/budget/target/delete"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
     ("POST", "/recurring"), ("POST", "/restore"), ("POST", "/restore/preview"), ("POST", "/settings/currency"),
     ("POST", "/settings/advanced"), ("POST", "/settings/groups"), ("POST", "/settings/lock"), ("POST", "/transactions/split"),
@@ -144,7 +144,7 @@ def world(client: TestClient, session, rich) -> World:  # noqa: F811
     shelf = client.post("/api/accounts/", json={"name": "Spare shelf", "parent_id": assets}).json()["aid"]
     client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
     w.dids = [str(d["did"]) for d in services(session).accounts.restorable()]
-    client.post("/plan/goal", data={"name": "Isolated holiday", "amount": "5000", "by": "2999-12", "assign_now": "1"})
+    client.post("/budget/goal", data={"name": "Isolated holiday", "amount": "5000", "by": "2999-12", "assign_now": "1"})
     w.goal_ids = [g["gid"] for g in client.get("/api/budget/").json()["goals"]]
     doc = client.get("/api/backup").json()
     w.backup = doc
@@ -219,9 +219,9 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("POST", "/accounts/{aid}/edit"): {"data": {"name": "hacked"}},
         ("POST", "/transactions/{tid}/edit"): {"data": rows},
         ("POST", "/recurring/{rid}/edit"): {"data": {**rows, "frequency": "monthly", "every": "1", "start": "2999-01-01"}},
-        ("POST", "/plan/goal/{goal_id}"): {"data": {"name": "hacked", "amount": "5", "by": "2999-12"}},
-        ("POST", "/plan/goal/{goal_id}/use"): {"data": {"category": bills, "amount": "1"}},
-        ("POST", "/plan/goal/{goal_id}/assign"): {"data": {"amount": "5"}},
+        ("POST", "/budget/goal/{goal_id}"): {"data": {"name": "hacked", "amount": "5", "by": "2999-12"}},
+        ("POST", "/budget/goal/{goal_id}/use"): {"data": {"category": bills, "amount": "1"}},
+        ("POST", "/budget/goal/{goal_id}/assign"): {"data": {"amount": "5"}},
         ("POST", "/oauth/apps/{gid}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{tkid}/access"): {"data": {"scope": "read"}},
     }
@@ -314,7 +314,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         refused("recurring split with A's", "POST", "/api/recurring/", json={"start_date": "2999-01-01", "postings": [
             line({"aid": a["Groceries"]}, "debit", "5"), line({"aid": mine}, "credit", "5")]})
         refused("budget A's category", "PUT", f"/api/budget/categories/{a['Groceries']}", json={"amount": "5"})
-        refused("budget move A's", "POST", "/plan/move", data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
+        refused("budget move A's", "POST", "/budget/move", data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
         refused("restore into a used ledger", "POST", "/api/restore", files={"file": ("b.json", json.dumps(world.backup), "application/json")})
         # the web forms
         refused("form tx with A's account", "POST", "/transactions/split", data={
@@ -322,13 +322,13 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         refused("form recurring with A's", "POST", "/recurring", data={
             "account": [a["Groceries"], mine], "side": ["debit", "credit"], "amount": ["5", "5"],
             "frequency": "monthly", "every": "1", "start": "2999-01-01"})
-        refused("assign A's category", "POST", "/plan/assign", data={"category": a["Groceries"], "amount": "5"})
-        refused("A's target", "POST", "/plan/target", data={"category": a["Groceries"], "kind": "monthly", "amount": "5"})
-        refused("note on A's category", "POST", "/plan/note", data={"category": a["Groceries"], "note": "hacked"})
-        refused("clear A's target", "POST", "/plan/target/delete", data={"category": a["Groceries"]})
-        refused("A's target page", "GET", "/plan/target", params={"category": a["Groceries"]})
-        refused("move A's money", "POST", "/plan/move", data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
-        refused("move page for A's category", "GET", "/plan/move", params={"source": a["Groceries"]})
+        refused("assign A's category", "POST", "/budget/assign", data={"category": a["Groceries"], "amount": "5"})
+        refused("A's target", "POST", "/budget/target", data={"category": a["Groceries"], "kind": "monthly", "amount": "5"})
+        refused("note on A's category", "POST", "/budget/note", data={"category": a["Groceries"], "note": "hacked"})
+        refused("clear A's target", "POST", "/budget/target/delete", data={"category": a["Groceries"]})
+        refused("A's target page", "GET", "/budget/target", params={"category": a["Groceries"]})
+        refused("move A's money", "POST", "/budget/move", data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
+        refused("move page for A's category", "GET", "/budget/move", params={"source": a["Groceries"]})
         refused("quick account under A's group", "POST", "/accounts/quick", data={"name": "x", "parent_id": a["Banks"]})
         refused("account form under A's group", "POST", "/accounts", data={"name": "x", "parent_id": a["Banks"]})
     assert len(refusals) >= 20
@@ -341,7 +341,7 @@ def test_a_goal_is_made_in_the_callers_own_books(client: TestClient, world: Worl
     before = books_of(client, TEST_USER_ID)
     with signed_in_as(B_USER):
         assert client.get("/api/budget/").json()["goals"] == [], "A's goal is not B's"
-        done = client.post("/plan/goal", data={"name": "Isolated holiday", "amount": "1000", "by": "2999-12", "assign_now": "1"})
+        done = client.post("/budget/goal", data={"name": "Isolated holiday", "amount": "1000", "by": "2999-12", "assign_now": "1"})
         assert done.status_code == 200, done.text
         mine = client.get("/api/budget/").json()["goals"]
         assert [g["name"] for g in mine] == ["Isolated holiday"] and mine[0]["gid"] not in world.goal_ids

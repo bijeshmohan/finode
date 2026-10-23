@@ -1,4 +1,4 @@
-"""The head of Plans: Ready to assign as the one figure, with a quiet note under it (Left to spend lives on Home)."""
+"""The head of Budgets: Ready to assign as the one figure, with a quiet note under it (Left to spend lives on Home)."""
 
 import re
 from datetime import date
@@ -18,8 +18,8 @@ def books(client, root_accounts):
 
 
 def head(client):
-    page = client.get(f"/plan?month={MONTH}").text
-    start = page.index("data-plan-head")
+    page = client.get(f"/budget?month={MONTH}").text
+    start = page.index("data-budget-head")
     return page[start: start + 3000], page
 
 
@@ -54,13 +54,13 @@ def test_the_head_says_when_over_assigned_and_the_figure_stays_at_zero(client, b
 
 
 def test_with_nothing_to_assign_and_nothing_planned_the_head_says_so(client, root_accounts):
-    page = client.get(f"/plan?month={MONTH}").text
+    page = client.get(f"/budget?month={MONTH}").text
     assert "Nothing to assign yet" in page
 
 
-def test_the_page_has_two_chips_budgets_and_goals_and_budgets_is_chosen(client, books):
-    page = client.get(f"/plan?month={MONTH}").text
+def test_the_page_has_two_chips_spend_and_save_and_spend_is_chosen(client, books):
+    page = client.get(f"/budget?month={MONTH}").text
     assert 'aria-label="What to plan"' in page
-    assert re.search(r'aria-pressed="true">Budgets</a>', page) and re.search(r'aria-pressed="false">Goals</a>', page)
-    assert "/plan/configure" not in page
-    assert client.get("/plan/configure").status_code == 404
+    assert re.search(r'aria-pressed="true">Spend</a>', page) and re.search(r'aria-pressed="false">Save</a>', page)
+    assert "/budget/configure" not in page
+    assert client.get("/budget/configure").status_code == 404

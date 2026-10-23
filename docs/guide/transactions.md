@@ -32,7 +32,7 @@ Open a transaction and tap **Add again** to start a new one pre-filled with the 
 
 **View all** on Home (or the sidebar) opens the full list, grouped by day.
 
-- The **month pill** at the top right (the same place as on Plan and Categories) picks the month: the arrows go back or forward, and tapping the month opens a month and year picker. Entries dated ahead wait in the *upcoming* card on the current month.
+- The **month pill** at the top right (the same place as on Budgets and Categories) picks the month: the arrows go back or forward, and tapping the month opens a month and year picker. Entries dated ahead wait in the *upcoming* card on the current month.
 - **Kind chips** (Expense, Income, Transfer) filter the list; tap the chosen one again to show everything. The bin (recently deleted) and the repeat icon (recurring) sit at the right of the chips. **More filters** adds an account filter.
 - **Tap a row** to see its details in a sheet: the accounts (*Paid from* and *Spent on* for an expense), the note, who added it (*By the app* for what you entered, or *Recurring* or the assistant's name), and the buttons **Edit**, **Add again** and **Delete**.
 

@@ -1,8 +1,8 @@
 {#- A goal on the Goals chip: the name, what is saved of what is needed, a bar across the row, and what this month asks. -#}
 {% macro goal_row(item, month_key, pace) %}
 {% set line = item.line %}
-<a class="r crow has-bar catrow goalrow" href="/plan/goal/{{ line.gid }}/edit"
-   hx-get="/plan/goal/{{ line.gid }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+<a class="r crow has-bar catrow goalrow" href="/budget/goal/{{ line.gid }}/edit"
+   hx-get="/budget/goal/{{ line.gid }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">
   <span class="crow-main">
     <span class="crow-name">{{ line.name }}</span>
     <span class="crow-sub">of {{ line.amount|money }} · by {{ line.target_date.strftime("%b %Y") }}</span>
