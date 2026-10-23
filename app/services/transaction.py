@@ -270,6 +270,17 @@ class TransactionService:
                 to_visit.append(child)
         return subtree
 
+    def _args(self, account, kind, also):
+        account_ids = self._account_subtree(account) if account else None
+        also_ids = self._account_subtree(also) if also else None
+        if kind not in (None, "", "expense", "income", "transfer"):
+            raise ValueError("the kind must be expense, income or transfer!")
+        kind_accounts = None
+        if kind:
+            roots = {a.name: a.aid for a in self.ar.list() if a.parent_id is None}
+            kind_accounts = tuple(self._account_subtree(roots[name]) if name in roots else [] for name in ("Expenses", "Income"))
+        return account_ids, kind_accounts, also_ids
+
     def list(
         self,
         account: UUID | None = None,
@@ -282,20 +293,48 @@ class TransactionService:
         also: UUID | None = None,
         payee: str | None = None,
     ) -> list[TransactionRead]:
-        account_ids = self._account_subtree(account) if account else None
-        also_ids = self._account_subtree(also) if also else None
-        if kind not in (None, "", "expense", "income", "transfer"):
-            raise ValueError("the kind must be expense, income or transfer!")
-        kind_accounts = None
-        if kind:
-            roots = {a.name: a.aid for a in self.ar.list() if a.parent_id is None}
-            kind_accounts = tuple(self._account_subtree(roots[name]) if name in roots else [] for name in ("Expenses", "Income"))
+        account_ids, kind_accounts, also_ids = self._args(account, kind, also)
         transactions = self.tr.list(
             account_ids, date_from, date_to, limit, offset, (text or "").strip() or None, kind or None, kind_accounts,
             also_ids, (payee or "").strip() or None,
         )
         postings = self.tr.postings_for_transactions([t.tid for t in transactions])  # one query, not one per row
         return [self._to_read(transaction, postings.get(transaction.tid, [])) for transaction in transactions]
+
+    def page(
+        self,
+        offset: int,
+        size: int,
+        account: UUID | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        text: str | None = None,
+        kind: str | None = None,
+        also: UUID | None = None,
+        payee: str | None = None,
+    ) -> tuple[list[TransactionRead], int]:
+        """A chunk of the list for "Show more" and how many entries match in all. A day is never split between two
+        chunks: the chunk runs on to the end of the day its last entry falls on."""
+        account_ids, kind_accounts, also_ids = self._args(account, kind, also)
+        text, payee = (text or "").strip() or None, (payee or "").strip() or None
+
+        def read(first, last, limit, start):
+            return self.tr.list(account_ids, first, last, limit, start, text, kind or None, kind_accounts, also_ids, payee)
+
+        found = read(date_from, date_to, size + 1, offset)
+        more_exist = len(found) > size
+        if more_exist and found[size].date == found[size - 1].date:
+            day = found[size - 1].date  # the day goes on: take all of it
+            found = [t for t in found[:size] if t.date != day] + read(max(day, date_from) if date_from else day, day, None, 0)
+        else:
+            found = found[:size]
+        if more_exist:
+            total = self.tr.count_matching(account_ids, date_from, date_to, text, kind or None, kind_accounts, also_ids, payee)
+        else:
+            total = offset + len(found)  # nothing is left, so there is no need to count
+        postings = self.tr.postings_for_transactions([t.tid for t in found])  # one query, not one per row
+        found = [self._to_read(t, postings.get(t.tid, [])) for t in found]
+        return found, total
 
     def payees(self) -> list[tuple[str, int]]:
         """Who you have paid or been paid by, most used first, for the transactions filter."""

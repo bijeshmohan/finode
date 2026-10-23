@@ -12,8 +12,9 @@ PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/ca
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
 # Home asks 13 since goals became their own table: the budget reads them (with what is set aside) in one more query.
+# /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
 CEILING = {
-    "/transactions/new": 6, "/transactions": 8, "/": 13, "/accounts": 9, "/budget": 7,
+    "/transactions/new": 6, "/transactions": 10, "/": 15, "/accounts": 9, "/budget": 7,
     "/categories": 5, "/categories?tab=income": 5,
 }
 

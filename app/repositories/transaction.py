@@ -117,21 +117,18 @@ class TransactionRepository:
         rows = self.db.exec(select(Transaction).where(Transaction.tid.in_(list(tids)), Transaction.user == self.uid)).all()
         return {t.tid: t for t in rows}
 
-    def list(
+    def _matching(
         self,
         account_ids: list[UUID] | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
-        limit: int | None = None,
-        offset: int = 0,
         text: str | None = None,
         kind: str | None = None,
         kind_accounts: tuple[list[UUID], list[UUID]] | None = None,
         also_ids: list[UUID] | None = None,
         payee: str | None = None,
-    ) -> list[Transaction]:
-        """Transactions, newest first. `text` matches the payee, the note or the name of an account used; `kind`
-        (expense, income or transfer) is told by `kind_accounts`, the ids under Expenses and under Income."""
+    ):
+        """The transactions that match, unordered (what `list` pages through and `count` counts)."""
         statement = select(Transaction).where(Transaction.user == self.uid)
         if text:
             text = without_nul(text)
@@ -175,6 +172,29 @@ class TransactionRepository:
             statement = statement.where(Transaction.date >= date_from)
         if date_to is not None:
             statement = statement.where(Transaction.date <= date_to)
+        return statement
+
+    def count_matching(self, *args, **kwargs) -> int:
+        """How many transactions match (the same filters as `list`, which has no paging here)."""
+        statement = self._matching(*args, **kwargs)
+        return self.db.exec(select(func.count()).select_from(statement.subquery())).one()
+
+    def list(
+        self,
+        account_ids: list[UUID] | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+        text: str | None = None,
+        kind: str | None = None,
+        kind_accounts: tuple[list[UUID], list[UUID]] | None = None,
+        also_ids: list[UUID] | None = None,
+        payee: str | None = None,
+    ) -> list[Transaction]:
+        """Transactions, newest first. `text` matches the payee, the note or the name of an account used; `kind`
+        (expense, income or transfer) is told by `kind_accounts`, the ids under Expenses and under Income."""
+        statement = self._matching(account_ids, date_from, date_to, text, kind, kind_accounts, also_ids, payee)
         statement = statement.order_by(
             Transaction.date.desc(),
             Transaction.created.desc(),

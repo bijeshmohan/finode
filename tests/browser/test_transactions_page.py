@@ -186,3 +186,34 @@ def test_the_filter_sheet_opens_with_nothing_in_it_focused(page: Page, books):
     page.get_by_role("button", name="Filter").click()
     expect(page.locator("#tx-filter")).to_be_visible()
     assert page.evaluate("document.activeElement.closest('.filter-row') === null"), "no row takes the focus ring when the sheet opens"
+
+
+def test_show_more_loads_the_rest_of_the_month_in_place(page: Page, books, api: Api):
+    for i in range(30):
+        api.post("/transactions/", payee=f"Shop {i:02d}", date=f"2026-01-{i % 28 + 1:02d}", postings=[
+            {"account": books["food"]["aid"], "side": "debit", "amount": "10"},
+            {"account": books["checking"]["aid"], "side": "credit", "amount": "10"}])
+    page.goto("/transactions?month=2026-01")
+    expect(page.locator("a.tx")).to_have_count(25)
+    more = page.get_by_role("button", name=re.compile("Show"))
+    expect(more).to_contain_text("Show 5 more")
+    expect(more).to_contain_text("5 left")
+    more.click()
+    expect(page.locator("a.tx")).to_have_count(30)
+    expect(page.locator(".tx-end")).to_have_text("That is all of January · 30 transactions")
+    expect(page.get_by_role("button", name=re.compile("Show"))).to_have_count(0)
+    assert page.url.endswith("month=2026-01"), "the address did not change"
+
+
+def test_home_starts_short_and_show_more_finishes_the_month(page: Page, books, api: Api):
+    for i in range(14):
+        api.post("/transactions/", payee=f"Shop {i:02d}", date=f"2026-01-{i + 1:02d}", postings=[
+            {"account": books["food"]["aid"], "side": "debit", "amount": "10"},
+            {"account": books["checking"]["aid"], "side": "credit", "amount": "10"}])
+    page.goto("/?month=2026-01")
+    expect(page.locator("a.tx")).to_have_count(8)
+    page.get_by_role("button", name=re.compile("Show 6 more")).click()
+    expect(page.locator("a.tx")).to_have_count(14)
+    expect(page.locator(".tx-end")).to_contain_text("That is all of January")
+    page.locator("a.tx").first.click()  # rows that arrived later open the details sheet too
+    expect(page.locator("#txn-sheet")).to_be_visible()

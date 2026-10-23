@@ -69,7 +69,7 @@ def test_later_pages_have_no_upcoming_row(client, ledger):
     bank, loan = ledger
     record(client, bank, loan, "EMI later", local_today() + timedelta(days=20))
     assert '<details class="upcoming"' in client.get("/transactions").text
-    assert '<details class="upcoming"' not in client.get("/transactions?page=2").text
+    assert '<details class="upcoming"' not in client.get("/transactions/more?offset=25").text
 
 
 def test_the_header_says_what_the_schedule_comes_to(client, ledger):

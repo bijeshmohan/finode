@@ -1,0 +1,26 @@
+{#- The day sections of a list of rows (TransactionRow, newest first): shared by the list and by "Show more". -#}
+{% from "partials/icons.html" import icon %}
+  {% for day, items in rows|groupby("transaction.date")|reverse %}
+  <section class="tx-day{{ " tx-more-in" if more_in }}">
+    {#- What was spent that day (expenses only), quietly at the right of the date, only on a day with more than one entry (one entry would just repeat its row). -#}
+    {% set spent = items|selectattr("kind", "equalto", "expense")|sum(attribute="amount") %}
+    <h3 class="tx-day-head"><span>{{ day|friendly_date }}</span>{% if spent and items|length > 1 %}<span class="tx-day-total">Spent {{ spent|money }}</span>{% endif %}</h3>
+    <ul class="card list">
+      {% for row in items %}
+      {% set t = row.transaction %}
+      <li>
+        <a class="tx" href="/transactions/{{ t.tid }}/edit" hx-get="/transactions/{{ t.tid }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+          <span class="tx-main">
+            {#- No payee: the row leads with where the money went and says where it came from. -#}
+            <span class="tx-title">{{ t.payee or row.debits|join(", ") }}</span>
+            <span class="tx-sub">{% if t.payee %}{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% else %}{{ row.credits|join(", ") }}{% endif %}{% if t.comment %} · {{ t.comment }}{% endif %}</span>
+            {% if t.recurring_id or t.created_via == "recurring" %}<span class="tx-via">{{ icon("repeat") }}Recurring</span>{% endif %}
+            {% if (t.created_via or "").startswith("mcp:") or (t.updated_via or "").startswith("mcp:") %}<span class="tx-via">{{ icon("spark") }}{{ "Added" if (t.created_via or "").startswith("mcp:") else "Changed" }} by {{ ((t.created_via if (t.created_via or "").startswith("mcp:") else t.updated_via))[4:] }}</span>{% endif %}
+          </span>
+          <span class="tx-amount {{ row.kind }}">{{ "+" if row.kind == "income" }}{{ row.amount|money }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}

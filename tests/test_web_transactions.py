@@ -64,18 +64,27 @@ def test_transactions_page_invalid_filter_shows_error(client: TestClient):
     assert "Invalid filter" in response.text
 
 
-def test_transactions_page_paginates(client: TestClient, account: dict, expense_account: dict):
+def test_transactions_page_shows_more_until_the_month_is_done(client: TestClient, account: dict, expense_account: dict):
     for i in range(27):
-        _post(client, expense_account, account, "1.00", "2026-01-01", f"tx-{i:02d}")
+        _post(client, expense_account, account, "1.00", f"2026-01-{i + 1:02d}", f"tx-{i:02d}")
 
-    first = client.get("/transactions", params={"date_from": "2026-01-01"})
-    assert "Older" in first.text and "Newer" not in first.text
-    assert first.text.count('class="tx"') == 25
+    first = client.get("/transactions", params={"month": "2026-01"}).text
+    assert "Older" not in first and "Newer" not in first, "no pager"
+    assert listed(first).count('class="tx"') == 25 and "Show 2 more" in first and "2 left" in first
+    url = re.search(r'hx-get="(/transactions/more[^"]*)"', first).group(1).replace("&amp;", "&")
+    more = client.get(url).text
+    assert more.count('class="tx"') == 2 and "That is all of January · 27 transactions" in more and "Show" not in more
 
-    second = client.get("/transactions", params={"page": 2, "date_from": "2026-01-01"})
-    assert second.text.count('class="tx"') == 2
-    assert "Newer" in second.text and "Older" not in second.text
 
+def test_more_keeps_the_filters_and_the_month(client: TestClient, account: dict, other_account: dict, expense_account: dict):
+    for i in range(30):
+        _post(client, expense_account, account, "1.00", f"2026-01-{i % 28 + 1:02d}", f"a-{i:02d}")
+    _post(client, expense_account, other_account, "1.00", "2026-01-03", "elsewhere")
+    first = client.get("/transactions", params={"month": "2026-01", "account": account["aid"]}).text
+    url = re.search(r'hx-get="(/transactions/more[^"]*)"', first).group(1).replace("&amp;", "&")
+    assert "account=" in url and "month=2026-01" in url
+    more = client.get(url).text
+    assert "elsewhere" not in more and more.count('class="tx"') + listed(first).count('class="tx"') == 30
 
 def test_delete_transaction_from_ui(client: TestClient, account: dict, expense_account: dict):
     tx = _post(client, expense_account, account, "5.00", "2026-01-01", "oops")
