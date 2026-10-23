@@ -369,10 +369,32 @@ function applyKind(form, kind) {
   recomputeTxn(form);
 }
 
+// A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
+// if it never does (an error, no connection) the sheet closes again.
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "groups-sheet-body"];
+const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
+document.body.addEventListener("htmx:beforeRequest", (event) => {
+  const body = event.detail && event.detail.target;
+  if (!body || !SHEET_BODIES.includes(body.id)) return;
+  const dialog = document.getElementById(body.id.replace("-body", ""));
+  if (!dialog) return;
+  body.innerHTML = SHEET_SKELETON;
+  if (!dialog.open) dialog.showModal();
+});
+["htmx:responseError", "htmx:sendError", "htmx:timeout"].forEach((name) => {
+  document.body.addEventListener(name, (event) => {
+    const body = event.detail && event.detail.target;
+    if (!body || !SHEET_BODIES.includes(body.id) || !body.querySelector(".skeleton")) return;
+    body.innerHTML = "";
+    const dialog = document.getElementById(body.id.replace("-body", ""));
+    if (dialog && dialog.open) dialog.close();
+  });
+});
+
 // The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
   const id = event.target && event.target.id;
-  if (id !== "txn-sheet-body" && id !== "cat-sheet-body" && id !== "groups-sheet-body") return;
+  if (!SHEET_BODIES.includes(id)) return;
   const dialog = document.getElementById(id.replace("-body", ""));
   if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");
@@ -458,6 +480,31 @@ document.body.addEventListener("click", (event) => {
   });
 })();
 
+// "₹597 as last time" under the amount, once a payee you know is chosen; one tap puts it in. +100 / +500 / +1000 add to
+// whatever is there. Both go through the amount's own input handling, so the rows below follow.
+function showLastAmount(form, amount) {
+  const quick = form.querySelector("[data-amount-quick]");
+  const last = quick && quick.querySelector("[data-last-amount]");
+  if (!last) return;
+  const value = amount ? parseDec(amount) : null;
+  last.hidden = value === null;
+  if (value === null) return;
+  const [whole, fraction] = formatDec(value).split(".");
+  last.dataset.amount = amount;
+  last.textContent = `${quick.dataset.symbol}${groupDigits(whole)}${fraction === "00" ? "" : "." + fraction} as last time`;
+}
+
+document.body.addEventListener("click", (event) => {
+  const button = event.target.closest && event.target.closest("[data-last-amount], [data-nudge]");
+  if (!button) return;
+  const form = button.closest("form[data-txn-form]");
+  const total = form && form.querySelector("#total");
+  if (!total) return;
+  const base = button.hasAttribute("data-nudge") ? parseDec(total.value) || 0n : 0n;
+  total.value = formatDec(base + parseDec(button.dataset.amount || button.dataset.nudge));
+  total.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
 function applySuggestion(form, chip, focus = true) {
   const payee = form.querySelector("#payee");
@@ -470,6 +517,7 @@ function applySuggestion(form, chip, focus = true) {
     select.dataset.previous = select.value;
   });
   form.querySelectorAll("[data-suggest]").forEach((c) => c.setAttribute("aria-pressed", c === chip ? "true" : "false"));
+  showLastAmount(form, chip.dataset.amount);
   recomputeTxn(form);
   if (!focus) return;
   const total = form.querySelector("#total");
