@@ -21,9 +21,9 @@ def setup(client, root_accounts):
 
 def test_the_page_shows_what_is_left_to_assign(client, setup):
     page = client.get("/plan").text
-    assert "ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00"), "the pool is a quiet line under the head"
-    assert "Left to spend in" not in page, "Home's wording; the Plans head says Left to spend"
-    assert 'class="ready zero budget-hero ready-hero plan-head"' in page and "Left to spend" in page
+    assert "Ready to assign" in page and "1,000.00" in page.replace("1000.00", "1,000.00"), "the pool is the head"
+    assert "Left to spend" not in page, "Home has it; the Plans head is Ready to assign"
+    assert 'class="ready zero budget-hero ready-hero plan-head"' in page
     assert "Food" in page and "Rent" in page and THIS_MONTH.strftime("%b %Y") in page, "the pill says which month"
     assert 'href="/plan?tab=budgets&amp;month=' in page
 
@@ -67,7 +67,7 @@ def test_other_months_are_reachable(client, setup):
 def test_overspending_and_overassigning_are_called_out(client, setup):
     assign(client, setup["food"], "1500")
     page = client.get("/plan").text
-    assert 'class="ready-warn assigned"' in page and "Over-assigned by" in page
+    assert 'class="hero-warn"' in page and "Over-assigned by" in page
     assert "ready-warn over" not in page, "nothing was spent beyond a category"
     assert "Ready to assign" in page and "0.00" in page
 
@@ -327,10 +327,10 @@ def test_one_overspent_category_is_not_a_warning_but_overspending_overall_is(cli
     move(client, setup["bank"], setup["food"], "600")  # now more is spent than was assigned in all
     page = client.get("/plan").text
     assert 'class="ready-warn over"' in page and "Overspent by" in page and "150.00" in page.replace("₹", "")
-    assert "ready-warn assigned" not in page, "ready to assign is still positive"
+    assert "hero-warn" not in page, "ready to assign is still positive"
     assign(client, setup["rent"], "5000")  # more than there is
     page = client.get("/plan").text
-    assert "ready-warn assigned" in page
+    assert "hero-warn" in page
 
 
 def test_no_warning_when_nothing_is_over(client, setup):
@@ -350,13 +350,7 @@ def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
     page = client.get("/plan").text
     assert 'aria-label="How what is ready to assign is worked out"' in page
     sums = re.findall(r'<p class="calc-row-line([^"]*)"><span>([^<]*)</span><b>([^<]*)</b>', page)
-    assert [(c.strip(), label, amount) for c, label, amount in sums[:4]] == [
-        ("", "Carried in from earlier months", "₹0.00"),
-        ("plus", "Assigned in " + THIS_MONTH.strftime("%B"), "₹300.00"),
-        ("minus", "Spent so far", "₹0.00"),
-        ("total", "Left to spend", "₹300.00"),
-    ], "the head's own sum, the one Home shows"
-    assert [(c.strip(), label, amount) for c, label, amount in sums[4:]] == [
+    assert [(c.strip(), label, amount) for c, label, amount in sums] == [
         ("", "In your accounts", "₹1,000.00"),
         ("minus", "Set aside for card bills", "₹0.00"),
         ("minus", "Left in your categories", "₹300.00"),

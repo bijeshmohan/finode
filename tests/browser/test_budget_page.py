@@ -12,7 +12,7 @@ LAST_MONTH = (THIS_MONTH - timedelta(days=1)).replace(day=1)
 
 
 def ready(page: Page) -> str:
-    return page.locator(".rta-text b").inner_text()
+    return page.locator("[data-plan-head='budgets'] .figure").inner_text()
 
 
 def assign_in_sheet(page: Page, name: str, amount: str) -> None:
@@ -29,7 +29,7 @@ def test_assigning_changes_ready_to_assign_without_a_reload(page: Page, books):
     page.goto("/plan")
     assert ready(page) == "\u20b95,000.00"
     assign_in_sheet(page, "Groceries", "1200")
-    expect(page.locator(".rta-text b")).to_have_text("\u20b93,800.00")
+    expect(page.locator("[data-plan-head='budgets'] .figure")).to_have_text("\u20b93,800.00")
     page.locator("a.catrow", has_text="Groceries").first.click()
     assert page.locator('#cat-sheet input[aria-label="Assigned to Groceries"]').input_value() == "1,200.00"
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
@@ -55,7 +55,7 @@ def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, 
     page.locator("button.need-line").click()
     page.get_by_role("button", name="Assign what is needed").click()
     expect(page.locator("a.catrow .crow-sub.short")).to_have_count(0)
-    expect(page.locator(".rta-text b")).to_have_text("\u20b94,200.00")
+    expect(page.locator("[data-plan-head='budgets'] .figure")).to_have_text("\u20b94,200.00")
 
 
 def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Page, books, api: Api):
@@ -77,7 +77,7 @@ def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Pag
     expect(page.locator(".calc").first).to_contain_text("set aside for card bills 120.00")
     # Assigning money to a category changes ready to assign, and the explanation follows it.
     assign_in_sheet(page, "Rent", "500")
-    expect(page.locator(".rta-text b")).to_have_text("\u20b94,500.00")
+    expect(page.locator("[data-plan-head='budgets'] .figure")).to_have_text("\u20b94,500.00")
     expect(page.locator(".calc").first).to_contain_text("in categories 380.00")
 
 
@@ -162,7 +162,7 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(pa
     expect(page.locator(".budget-hero .figure")).to_have_text("\u20b9700.00")  # the group's page block was replaced, still on the group page
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
     page.get_by_role("link", name="Plans", exact=True).first.click()
-    expect(page.locator(".rta-text b")).to_have_text("\u20b94,300.00")
+    expect(page.locator("[data-plan-head='budgets'] .figure")).to_have_text("\u20b94,300.00")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
@@ -219,7 +219,7 @@ def test_budget_names_and_amounts_line_up(page: Page, books, api: Api):
 
 def test_the_i_opens_the_sum_behind_ready_to_assign_and_survives_assigning(page: Page, books):
     page.goto("/plan")
-    panel = page.locator(".rta-line .calc-panel")
+    panel = page.locator(".plan-head .calc-panel")
     expect(panel).not_to_be_visible()
     page.get_by_label("How what is ready to assign is worked out").click()
     expect(panel).to_be_visible()
@@ -242,7 +242,7 @@ def test_save_works_on_the_first_tap_even_when_the_sheet_moves_under_the_finger(
     page.evaluate("document.querySelector('#cat-sheet').style.transform = 'translateY(-160px)'")  # the sheet moves away
     page.mouse.up()
     expect(page.locator("#cat-sheet")).not_to_be_visible()
-    expect(page.locator(".rta-text b")).to_have_text("₹3,800.00")  # 5,000 - 1,200: it saved
+    expect(page.locator("[data-plan-head='budgets'] .figure")).to_have_text("₹3,800.00")  # 5,000 - 1,200: it saved
 
 
 FAKE_KEYBOARD = """
@@ -279,7 +279,7 @@ def test_save_is_above_the_keyboard_and_tappable_on_a_phone_and_a_small_phone(pa
         assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).closest('button')?.textContent.trim()", [x, y]) == "Save"
         page.mouse.click(x, y)
         expect(page.locator("#cat-sheet")).not_to_be_visible()
-        expect(page.locator(".rta-text b")).to_have_text("₹3,800.00")  # it saved on the first tap
+        expect(page.locator("[data-plan-head='budgets'] .figure")).to_have_text("₹3,800.00")  # it saved on the first tap
         page.evaluate("window.__keyboard(0)")
         api_reset = page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})
         assert api_reset.ok

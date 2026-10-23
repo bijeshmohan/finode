@@ -149,19 +149,6 @@ def _glance(data) -> dict:
     }
 
 
-def _head(data) -> dict:
-    """The figures behind the head of the page: what is left to spend and the bar of how much of what there was is spent.
-    `carried` is what earlier months left (what was available, less what this month assigned, plus what was spent), the
-    same sum Home shows."""
-    had = data.activity + max(data.available, Decimal(0))
-    return {
-        "left": data.available, "used": data.activity, "had": had, "assigned": data.assigned,
-        "carried": data.available - data.assigned + data.activity,
-        "percent": int(min(max(data.activity / had, Decimal(0)), Decimal(1)) * 100) if had > 0 else 0,
-        "planned": data.assigned > 0 or data.available > 0,
-    }
-
-
 def _goal_rows(data) -> list[dict]:
     """The Goals chip's rows: each goal with how far it is, and what this month asks of it."""
     rows = []
@@ -213,7 +200,6 @@ def _context(budget: Budget, month: date, tab: str = "budgets") -> dict:
         "advanced": advanced,
         # Only the current month has a "today": the tick on the bars shows how far through it we are.
         "pace": month_progress() if data.month == month_start(None) else None,
-        "head": _head(data),
     }
 
 
