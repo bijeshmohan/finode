@@ -14,7 +14,7 @@
   {{ month_pill("/categories/" ~ account.aid ~ "?month={month}", month_name, month_key, previous, next, this_month) }}
 </div>
 {% else %}
-<a class="back" href="/accounts">{{ icon("back") }}Accounts</a>
+<a class="back" href="/accounts?tab={{ root.account.name|lower }}">{{ icon("back") }}Accounts</a>
 {% endif %}
 
 <header class="account-hero">
@@ -49,7 +49,7 @@
       <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
-        {% if category and root.account.name == "Expenses" %}<a href="/budget">{{ icon("budget") }}See in the Budget</a>{% endif %}
+        {% if category and root.account.name == "Expenses" %}<a href="/plan">{{ icon("budget") }}See in Plans</a>{% endif %}
         {% if can_add_child and not account.closed_on %}
         <a href="{{ '/categories/new' if category else '/accounts/new' }}?parent={{ account.aid }}">{{ icon("plus") }}{{ "Add subcategory" if category else "Add sub-account" }}</a>
         {% endif %}
@@ -117,7 +117,7 @@
 </div>
 {% endif %}
 
-{% if not category and node.children %}
+{% if not category and (node.children or node.kind == "fixed") %}
 {% set subs = node.children|rejectattr("account.closed_on")|list %}
 <div class="section-head">
   <h2>Sub-accounts</h2>
@@ -129,6 +129,8 @@
     <span class="crow-main"><span class="crow-name">{{ c.account.name }}</span></span>
     <span class="crow-amt"><span class="{{ 'negative' if c.account.balance < 0 }}">{{ c.account.balance|money }}</span></span>
   </a>
+  {% else %}
+  <p class="muted sub-empty">Nothing here yet. Tap + to add one.</p>
   {% endfor %}
 </div>
 {% else %}

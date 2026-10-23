@@ -18,7 +18,7 @@ Tap **+** (phone) or **New transaction** (wide screen).
 
 ### Payee chips
 
-Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly.
+Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly. Under the amount, a chip such as **₹597 as last time** puts that payee's last amount in with one tap, and **+100 / +500 / +1000** add to whatever is there.
 
 ### Splitting across accounts
 
@@ -32,7 +32,7 @@ Open a transaction and tap **Add again** to start a new one pre-filled with the 
 
 **View all** on Home (or the sidebar) opens the full list, grouped by day.
 
-- The **month pill** at the top right (the same place as on Budget and Categories) picks the month: the arrows go back or forward, and tapping the month opens a month and year picker. Entries dated ahead wait in the *upcoming* card on the current month.
+- The **month pill** at the top right (the same place as on Plan and Categories) picks the month: the arrows go back or forward, and tapping the month opens a month and year picker. Entries dated ahead wait in the *upcoming* card on the current month.
 - **Kind chips** (Expense, Income, Transfer) filter the list; tap the chosen one again to show everything. The bin (recently deleted) and the repeat icon (recurring) sit at the right of the chips. **More filters** adds an account filter.
 - **Tap a row** to see its details in a sheet: the accounts (*Paid from* and *Spent on* for an expense), the note, who added it (*By the app* for what you entered, or *Recurring* or the assistant's name), and the buttons **Edit**, **Add again** and **Delete**.
 
@@ -45,7 +45,7 @@ An entry dated in the future (a loan instalment, a bill you entered ahead) is **
 
 ## Editing and deleting
 
-Open a row and tap **Edit**. The edit page also shows the entry's history. **Delete** asks for confirmation.
+Open a row and tap **Edit**. The edit page also shows the entry's history. **Delete** removes it at once and the toast offers **Undo** for a few seconds (the entry also waits in Recently deleted).
 
 If you used **Period lock** (Settings › Advanced), entries on or before the locked day cannot be added, changed or deleted.
 

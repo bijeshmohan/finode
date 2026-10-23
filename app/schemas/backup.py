@@ -43,6 +43,8 @@ class BackupAccount(BaseModel):
     # Older backups: accounts could be pinned. Read, never written.
     pinned: bool = Field(default=False, exclude=True)
     position: int | None = None
+    # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); a restore maps them onto the person's own.
+    system_key: str | None = None
 
 
 class BackupPosting(BaseModel):

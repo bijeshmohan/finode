@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -10,7 +9,7 @@ from pydantic import ValidationError
 
 from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
-from ...services.account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService, RegisterPage
+from ...services.account import FIXED_DEFAULTS, GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService, RegisterPage
 from ...templating import templates
 from .utils import UpcomingItem, htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 from ...clock import local_day, local_today
@@ -57,10 +56,12 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
             parent.children.append(node)
             if AccountService.is_opening_balances(node.account, accounts):
                 node.kind = "system"
+            elif node.account.system_key:
+                node.kind = "fixed"  # a built-in group (Bank Accounts, Cash, Investments, Credit Cards, Loans)
 
     def finish(node: Node, depth: int, parent_path: str = "", root_name: str = "") -> None:
         node.depth = depth
-        node.postable = node.kind != "root" and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
+        node.postable = node.kind not in ("root", "fixed") and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
         node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
         node.children.sort(key=lambda n: (n.account.position is None, n.account.position or 0, n.account.name.lower()))
         for child in node.children:
@@ -87,6 +88,9 @@ def _find(roots: list[Node], aid: UUID) -> Node | None:
     return next((n for root in roots for n in root.walk() if n.account.aid == aid), None)
 
 
+CATEGORY_TABS = {"expense": "Expenses", "income": "Income"}
+
+
 def _parent_options(
     roots: list[Node],
     exclude: Node | None = None,
@@ -104,6 +108,11 @@ def _parent_options(
         and n.account.aid not in excluded
         and (n.depth + 1 + below <= MAX_ACCOUNT_DEPTH or n.account.aid == keep)
     ]
+
+
+def _starts(roots: list[Node]) -> dict[UUID, str]:
+    """For each built-in group, how an account made under it starts: "budget" (part of the budget) or "outside" it."""
+    return {n.account.aid: FIXED_DEFAULTS[n.account.system_key] for r in roots for n in r.walk() if n.account.system_key in FIXED_DEFAULTS}
 
 
 def _load(accounts: AccountService, aid: UUID) -> tuple[list[Node], Node]:
@@ -160,16 +169,18 @@ def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
 
 
 def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
-    """A type's accounts as the page lists them: each group is a heading with its accounts under it, and the plain
-    accounts that sit directly under the type share one block without a heading. Accounts only go two levels deep."""
+    """A type's accounts as the page lists them: each group is a heading with its accounts under it, then **all** the plain
+    accounts that sit directly under the type together in one block without a heading, at the end. Accounts only go two
+    levels deep. A built-in group with nothing in it is not shown (the page offers "Add account" instead)."""
     blocks: list[tuple[Node | None, list[Node]]] = []
+    plain: list[Node] = []
     for child in root.children:
         if child.children:
             blocks.append((child, child.children))
-        elif blocks and blocks[-1][0] is None:
-            blocks[-1][1].append(child)
-        else:
-            blocks.append((None, [child]))
+        elif child.kind != "fixed":
+            plain.append(child)
+    if plain:
+        blocks.append((None, plain))
     return blocks
 
 
@@ -193,14 +204,18 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
     everything = build_tree(accounts.list())
     roots = [r for r in everything if r.account.name in allowed]
     root_of = {n.account.aid: r.account.name for r in roots for n in r.walk()}
-    only = ACCOUNT_TABS.get(root.lower()) if kind == "account" else None
+    only = (ACCOUNT_TABS if kind == "account" else CATEGORY_TABS).get(root.lower())
     if only:
-        # Opened from a type's tab on the Accounts page: only that type's accounts can be made.
+        # Opened from a type's tab on the Accounts or Categories page: only that type's accounts can be made.
         parent_roots = [r for r in roots if r.account.name == only]
         if parent is None or root_of.get(parent) != only:
             parent = parent_roots[0].account.aid if parent_roots else None
+            first_group = next((c for c in parent_roots[0].children if c.kind == "fixed"), None) if parent_roots else None
+            if first_group is not None:
+                parent = first_group.account.aid  # the "+" on a type starts on its first built-in group (Bank Accounts, Credit Cards)
     else:
         parent_roots = roots
+    starts = _starts(everything)
     return templates.TemplateResponse(
         request,
         "account_form.html",
@@ -208,14 +223,17 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
             "active": "categories" if kind == "category" else "accounts",
             "kind": kind,
             "hide_fab": True,
+            "starts": starts,
             "node": None,
             "parent_id": parent,
             "parent_options": _parent_options(parent_roots),
             "currency": accounts.currency().code,
             "root_name": root_of.get(parent),
             "root_of": root_of,
+            "back_list": _list_for_root(root_of.get(parent)),
             "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
-            "on_budget": root_of.get(parent) == "Assets",  # an asset starts in the budget; a card or loan, outside it
+            # an asset starts in the budget; a card or loan, outside it; under a built-in group, as that group says
+            "on_budget": (starts.get(parent) == "budget") if parent in starts else root_of.get(parent) == "Assets",
             "category_options": _category_options(everything),
         },
     )
@@ -322,7 +340,7 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
     root = _root_of(roots, node)
     today = local_today()
     page = None
-    if entries is None and node.children:
+    if entries is None and (node.children or node.kind == "fixed"):
         # An account with sub-accounts cannot be posted to: its page lists the sub-accounts, whose entries are on their own pages.
         history, ahead, has_any = [], [], False
     elif entries is None:
@@ -335,7 +353,7 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
         has_any = bool(entries)
     # What is dated ahead is not history: it waits in its own card, soonest first, and out of the running list.
     upcoming = [
-        UpcomingItem(e.tid, e.date, e.payee or "No payee", ", ".join(e.counter_accounts) + (f" \u00b7 {e.comment}" if e.comment else ""), abs(e.change), _is_inflow(root.account.name, e.change))
+        UpcomingItem(e.tid, e.date, e.payee or ", ".join(e.counter_accounts), (", ".join(e.counter_accounts) if e.payee else "") + (f" \u00b7 {e.comment}" if e.comment and e.payee else e.comment or ""), abs(e.change), _is_inflow(root.account.name, e.change))
         for e in ahead
     ]
     signs = {e.change > 0 for e in ahead}
@@ -419,9 +437,22 @@ def area_of(accounts: AccountService, aid: UUID) -> str:
     return "/categories" if node is not None and _root_of(roots, node).account.name in CATEGORY_ROOTS else "/accounts"
 
 
+def _list_for_root(root: str | None) -> str:
+    """The list a root's accounts are on, on the chip they are under (so going back lands where the person came from)."""
+    if root in CATEGORY_ROOTS:
+        return "/categories" + ("?tab=income" if root == "Income" else "")
+    return f"/accounts?tab={root.lower()}" if root in ACCOUNT_TABS.values() else "/accounts"
+
+
+def list_url(accounts: AccountService, aid: UUID) -> str:
+    roots = build_tree(accounts.list())
+    node = _find(roots, aid)
+    return _list_for_root(_root_of(roots, node).account.name if node is not None else None)
+
+
 @router.post("/{aid}/close")
 def close_account(aid: UUID, accounts: Accounts):
-    area = area_of(accounts, aid)
+    area = list_url(accounts, aid)
     try:
         accounts.close(aid)
     except ValueError as e:
@@ -485,6 +516,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
             "on_budget": node.account.on_budget,
             "payment_category_id": node.account.payment_category_id,
+            "starts": _starts(roots),
             "category_options": _category_options(roots),
             "parent_options": [
                 n
@@ -541,6 +573,7 @@ def update_account(
 @router.post("/{aid}/delete")
 def delete_account(aid: UUID, accounts: Accounts):
     area = area_of(accounts, aid)
+    where = list_url(accounts, aid)
     try:
         accounts.delete(aid)
     except ValueError as e:
@@ -552,4 +585,4 @@ def delete_account(aid: UUID, accounts: Accounts):
             accounts.close(aid)
         except ValueError as closing:
             return htmx_error(str(closing), "#page-error")
-    return htmx_redirect(area, flash="category-deleted" if area == "/categories" else "account-deleted")
+    return htmx_redirect(where, flash="category-deleted" if area == "/categories" else "account-deleted")

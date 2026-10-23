@@ -1,6 +1,6 @@
 """Recurring transactions: validating a rule, recording every occurrence that is due, skipping one, pausing and resuming."""
 
-from datetime import date, timedelta
+from datetime import date
 from uuid import UUID
 
 from pydantic import ValidationError

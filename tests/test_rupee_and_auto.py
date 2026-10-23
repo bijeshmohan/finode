@@ -17,8 +17,9 @@ def test_the_big_figures_use_the_sign_and_the_font_carries_it(client, root_accou
     bank = account(client, root_accounts, "Bank", "Assets", balance="1000")
     food = account(client, root_accounts, "Food", "Expenses")
     assign(client, food, "100")
-    budget = client.get("/budget").text
-    assert '<span class="figure"><span class="cur">&#8377;</span>900.00</span>' in budget, "ready to assign: 1000 in the bank, 100 assigned"
+    budget = client.get("/plan").text
+    assert '<span class="figure "><span class="cur">&#8377;</span>100.00</span>' in budget, "the head: 100 assigned, nothing spent"
+    assert "<b>&#8377;900.00</b> ready to assign" in budget.replace("₹", "&#8377;"), "ready to assign: 1000 in the bank, 100 assigned"
     assert "INR</span>" not in budget.split('class="ready')[1].split("</div>")[0]
     from .test_budget import move
 

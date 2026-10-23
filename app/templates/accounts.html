@@ -21,6 +21,9 @@
   <div class="acc-block{{ ' closed-hidden' if (head and head.closed) or (not head and items|selectattr("closed")|list|length == items|length) }}">
     {% if head %}
     <a class="acc-gh" href="/accounts/{{ head.account.aid }}" title="Open {{ head.account.name }}"><span>{{ head.account.name }}</span><span>{{ head.account.balance|money }}</span></a>
+    {% elif blocks|length > 1 %}
+    {#- The accounts that sit directly under the type, with no group of their own: a label with their total, not a page. -#}
+    <div class="acc-gh" data-others><span>Others</span><span>{{ items|sum(attribute="account.balance")|money }}</span></div>
     {% endif %}
     <ul class="tile list">{% for node in items %}{{ entry(node) }}{% endfor %}</ul>
   </div>
@@ -33,8 +36,9 @@
 </div>
 
 <div class="cat-bar">
-  <div class="chips cat-chips" role="group" aria-label="What to show">
-    {% for key, name in tabs.items() %}<a class="chip" href="/accounts?tab={{ key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
+  <div class="chips seg cat-chips" role="group" aria-label="What to show">
+    {#- Equity has no chip: almost nobody needs it. Tapping the chosen chip again leaves neither chosen, and that is the page of Equity. -#}
+    {% for key, name in tabs.items() if key != "equity" %}<a class="chip" href="/accounts?tab={{ 'equity' if tab == key else key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
   </div>
   <span class="head-icons">
     <a class="icon-button" href="/accounts/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
@@ -48,12 +52,10 @@
 </div>
 
 <div data-accounts>
-  {% if root.children %}
+  {% if blocks %}
   {{ blocks_of(root) }}
   {% else %}
-  <a class="card add-first" href="/accounts/new?root={{ tab }}">
-    {{ icon("plus") }}Add {{ {"Assets": "a bank account or wallet", "Liabilities": "a credit card or loan"}[root.account.name] or "an account" }}
-  </a>
+  <p class="add-pill"><a class="button" href="/accounts/new?root={{ tab }}">{{ icon("plus") }}Add account</a></p>
   {% endif %}
 
   {% if closed %}

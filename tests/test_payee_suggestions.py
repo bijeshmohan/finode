@@ -47,6 +47,18 @@ def test_chips_carry_the_accounts_used_the_last_time(client, books):
     assert (from_id, to_id) == (books["card"]["aid"], books["delivery"]["aid"])
 
 
+def test_chips_carry_the_last_amount_for_the_as_last_time_chip(client, books):
+    pay(client, "Swiggy", books["hdfc"], books["delivery"], "480")
+    pay(client, "Swiggy", books["card"], books["delivery"], "597.50")  # the newest is the one repeated
+    pay(client, "Rent", books["hdfc"], books["groceries"], "600")
+    html = client.get("/transactions/suggest").text
+    assert 'data-payee="Swiggy"' in html and 'data-amount="597.5"' in html
+    assert 'data-amount="600"' in html, "no exponent form for round numbers"
+    form = client.get("/transactions/new").text
+    assert "data-amount-quick" in form and 'data-nudge="500"' in form and "data-last-amount" in form
+    assert "data-amount-quick" not in client.get("/recurring/new").text, "only the new-entry form has them"
+
+
 def test_often_paid_people_come_first_and_typing_narrows(client, books):
     for _ in range(3):
         pay(client, "DMart", books["hdfc"], books["groceries"])

@@ -3,11 +3,10 @@
 from datetime import date
 from uuid import UUID
 
-from sqlmodel import Session, func, or_, select
+from sqlmodel import Session, func, select
 
 from ..models.account import Account
 from ..models.account_deletion import AccountDeletion
-from ..models.transaction import Posting, Transaction
 from ..schemas.account import AccountCreate, AccountUpdate
 from .cache import remembered
 

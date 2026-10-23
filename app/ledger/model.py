@@ -1,7 +1,6 @@
 """Plain data classes for a parsed journal: account declarations, transactions and their postings."""
 
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
 
 

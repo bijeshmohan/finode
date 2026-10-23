@@ -76,12 +76,34 @@ def test_deleting_from_the_sheet(page: Page, books, api: Api):
     add(api, books, "DMart", "food", "checking")
     page.goto("/transactions")
     page.locator("a.tx", has_text="Swiggy").click()
-    page.once("dialog", lambda dialog: dialog.accept())
     page.locator("#txn-sheet").get_by_role("button", name="Delete").click()
     page.wait_for_url("**/transactions")
     expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(0)
     expect(page.locator("a.tx", has_text="DMart")).to_have_count(1)
     assert [t["payee"] for t in api.get("/transactions/") if t["payee"] and t["payee"] != "Opening balance"] == ["DMart"]
+
+
+def test_a_sheet_opens_at_once_with_placeholders_and_closes_if_the_content_never_comes(page: Page, books, api: Api):
+    add(api, books, "Swiggy", "food", "card")
+    page.goto("/transactions")
+    held = []
+    page.route("**/transactions/*/sheet", lambda route: held.append(route))
+    page.locator("a.tx", has_text="Swiggy").click()
+    expect(page.locator("#txn-sheet")).to_be_visible()
+    expect(page.locator("#txn-sheet .skeleton")).to_be_visible()
+    held[0].abort()
+    expect(page.locator("#txn-sheet")).to_be_hidden()
+
+
+def test_undo_in_the_toast_brings_a_deleted_entry_back(page: Page, books, api: Api):
+    add(api, books, "Swiggy", "food", "card")
+    page.goto("/transactions")
+    page.locator("a.tx", has_text="Swiggy").click()
+    page.locator("#txn-sheet").get_by_role("button", name="Delete").click()
+    expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(0)
+    page.locator(".toast .toast-undo").click()
+    expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(1)
+    assert any(t["payee"] == "Swiggy" for t in api.get("/transactions/"))
 
 
 def test_the_kind_chips_filter(page: Page, books, api: Api):

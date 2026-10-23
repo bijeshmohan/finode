@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import calendar
 from datetime import date, timedelta
 from decimal import Decimal
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from uuid import UUID
 
 from typing import Annotated
@@ -168,7 +168,7 @@ def transactions_page(
             for t in sorted(ahead, key=lambda t: (t.date, t.created)):
                 r = to_row(t, index)
                 upcoming.append(UpcomingItem(
-                    t.tid, t.date, t.payee or "No payee", f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}",
+                    t.tid, t.date, t.payee or ", ".join(r.debits), f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}" if t.payee else ", ".join(r.credits),
                     r.amount, r.kind == "income",
                 ))
     except ValueError as e:
@@ -243,13 +243,23 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
     )
 
 
+def _here(request: Request) -> str:
+    """The page an htmx request was made from (path and query), for returning to it after a toast's Undo."""
+    url = urlparse(request.headers.get("HX-Current-URL", ""))
+    return f"{url.path}?{url.query}" if url.query else url.path
+
+
 @router.post("/{tid}/delete")
-def delete_transaction(tid: UUID, transactions: Transactions, back: str = "", sheet: Annotated[str, Form()] = ""):
+def delete_transaction(request: Request, tid: UUID, transactions: Transactions, back: str = "", sheet: Annotated[str, Form()] = ""):
     try:
         transactions.delete(tid)
     except ValueError as e:
         return htmx_error(str(e), "#sheet-error" if sheet else "#page-error")
-    return htmx_redirect(safe_back(back), flash="transaction-deleted")
+    # The deletion's own id lets the toast offer Undo (the entry comes back with its old id).
+    gone = next((h for h in transactions.deleted() if h.transaction == tid), None)
+    return htmx_redirect(
+        safe_back(back or _here(request)), flash="transaction-deleted", undo=("restore", gone.hid) if gone else None
+    )
 
 
 @router.get("/deleted")
@@ -264,14 +274,14 @@ def deleted_page(request: Request, accounts: Accounts, transactions: Transaction
 
 
 @router.post("/deleted/{hid}/restore")
-def restore_deleted(hid: UUID, transactions: Transactions):
+def restore_deleted(request: Request, hid: UUID, transactions: Transactions):
     try:
         transactions.restore(hid)
     except LookupError:
         return htmx_error("That deleted transaction is not there any more.", "#restore-error", status_code=404)
     except ValueError as e:
         return htmx_error(str(e), "#restore-error")
-    return htmx_redirect("/transactions/deleted", flash="transaction-restored")
+    return htmx_redirect(safe_back(_here(request), "/transactions/deleted"), flash="transaction-restored")
 
 
 # Paths that are not pages of the web app.
@@ -357,6 +367,7 @@ class PayeeHabit:
     from_name: str
     to_name: str
     exact: bool = False
+    amount: str = ""  # what the last one came to, for the "as last time" chip
 
 
 HABIT_HISTORY = 300  # how many recent transactions the suggestions look at
@@ -388,7 +399,7 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
         payee = (t.payee or "").strip()
         if not payee or not simple:
             continue
-        entry = seen.setdefault(payee.lower(), {"payee": payee, "count": 0, "route": (credits[0].account, debits[0].account), "order": position})
+        entry = seen.setdefault(payee.lower(), {"payee": payee, "count": 0, "route": (credits[0].account, debits[0].account), "order": position, "amount": format(debits[0].amount.normalize(), "f")})
         entry["count"] += 1  # the first one seen is the newest: its route is the one repeated
     habits = []
     for key, entry in seen.items():
@@ -402,6 +413,7 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
                 payee=entry["payee"], count=entry["count"], from_id=from_id, to_id=to_id,
                 kind=infer_kind([_P(from_id, PostingSide.CREDIT), _P(to_id, PostingSide.DEBIT)], roots),
                 from_name=index.names.get(from_id, "?"), to_name=index.names.get(to_id, "?"), exact=bool(wanted) and key == wanted,
+                amount=entry["amount"],
             ),
         ))
     habits.sort(key=lambda h: h[:3])
@@ -529,7 +541,7 @@ def create_split_transaction(
     another: Annotated[str, Form()] = "",
 ):
     try:
-        transactions.create(
+        made = transactions.create(
             TransactionCreate(
                 date=date_ or local_today(),
                 payee=payee.strip() or None,
@@ -544,6 +556,7 @@ def create_split_transaction(
     return htmx_redirect(
         _after_save(back, another),
         flash="transaction-saved-next" if another else "transaction-saved",
+        undo=("delete", made.tid),
     )
 
 

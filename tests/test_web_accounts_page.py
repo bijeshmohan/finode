@@ -47,24 +47,26 @@ def test_a_group_is_a_heading_with_its_accounts_under_it_and_nothing_folds(clien
     assert f'href="/accounts/{tree["food"]}" title="Open Food"' in page, "the heading opens the group's own page"
     assert f'href="/accounts/{tree["hdfc"]}"' in page
     assert "<details" not in page
-    assert page.count('class="acc-gh"') == 2, "Banks and Food"
+    assert page.count('<a class="acc-gh"') == 2, "Banks and Food"
     assert 'class="mono" aria-hidden="true">H<' in page, "each account has its initial"
 
 
-def test_plain_accounts_under_a_type_share_one_block_without_a_heading(client, tree):
+def test_plain_accounts_under_a_type_share_one_block_under_others(client, tree):
     page = client.get("/accounts").text
-    assert page.count('<div class="acc-block') == 3, "Banks, Food and Rent (no heading)"
-    assert page.count('class="acc-gh"') == 2, "Rent has no heading of its own"
+    assert page.count('<div class="acc-block') == 3, "Banks, Food and the plain ones"
+    assert page.count('<a class="acc-gh"') == 2, "the two groups open pages"
+    assert page.count("data-others") == 1 and ">Others</span>" in page, "the plain ones sit under Others, a label and not a link"
 
 
-def test_the_chips_pick_a_type_in_the_order_assets_liabilities_equity(client, tree):
+def test_the_chips_pick_a_type_in_the_order_assets_liabilities_and_equity_has_none(client, tree):
     page = client.get("/accounts").text
     chips = re.findall(r'<a class="chip" href="/accounts\?tab=(\w+)" aria-pressed="(\w+)">(\w+)</a>', page)
-    assert chips == [("assets", "true", "Assets"), ("liabilities", "false", "Liabilities"), ("equity", "false", "Equity")]
-    assert client.get("/accounts?tab=nonsense").text.count('aria-pressed="true"') == 1 and 'tab=assets" aria-pressed="true"' in client.get("/accounts?tab=nonsense").text
+    # The chosen chip links to Equity (tapping it again leaves neither chosen); the other one links to itself.
+    assert chips == [("equity", "true", "Assets"), ("liabilities", "false", "Liabilities")]
+    assert client.get("/accounts?tab=nonsense").text.count('aria-pressed="true"') == 1 and client.get("/accounts?tab=nonsense").text.split('aria-pressed="true">')[1].startswith("Assets<")
     assert "Amex" not in page and "Opening Balances" not in page, "only the chosen type is listed"
     liabilities = client.get("/accounts?tab=liabilities").text
-    assert "Amex" in liabilities and "HDFC" not in liabilities and 'tab=liabilities" aria-pressed="true"' in liabilities
+    assert "Amex" in liabilities and "HDFC" not in liabilities and 'aria-pressed="true">Liabilities<' in liabilities
     assert "Opening Balances" in client.get("/accounts?tab=equity").text
     assert "data-account-search" not in page and "Recently used" not in page and "Search accounts" not in page
     assert "Net worth" not in page and 'class="circ-button" href="/accounts/new?root=assets"' in page, "the round + adds an account"

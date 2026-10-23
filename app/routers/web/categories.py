@@ -121,9 +121,9 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
 
 
 @router.get("/new")
-def new_category_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None):
+def new_category_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None, root: str = ""):
     """The form for a new category is the account form, set to categories (see accounts.new_account_page)."""
-    return new_account_page(request, accounts, profiles, parent=parent, kind="category")
+    return new_account_page(request, accounts, profiles, parent=parent, kind="category", root=root)
 
 
 @router.get("/deleted")

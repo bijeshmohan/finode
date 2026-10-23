@@ -4,12 +4,10 @@ from datetime import date, timedelta
 from uuid import UUID
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 
-from app.models.transaction import Posting, PostingSide, Transaction
+from app.models.transaction import Posting, PostingSide
 
-from .conftest import TEST_USER_ID
 from .svc import plain
 
 

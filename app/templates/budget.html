@@ -1,11 +1,15 @@
 {% extends "base.html" %}
-{% from "partials/icons.html" import icon %}
 {% from "partials/month_pill.html" import month_pill %}
-{% block title %}Budget · finode{% endblock %}
+{% block title %}Plans · finode{% endblock %}
 {% block content %}
 <div class="page-head tall">
-  <h1>Budget</h1>
-  {{ month_pill("/budget?month={month}", month_name, month_key, previous, next) }}
+  <h1>Plans</h1>
+  {{ month_pill("/plan?tab=" ~ tab ~ "&month={month}", month_name, month_key, previous, next) }}
+</div>
+<div class="cat-bar plan-bar">
+  <div class="chips seg cat-chips" role="group" aria-label="What to plan">
+    {% for key, name in tabs.items() %}<a class="chip" href="/plan?tab={{ key }}&month={{ month_key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
+  </div>
 </div>
 {% include "partials/budget_body.html" %}
 {% endblock %}

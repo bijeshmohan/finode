@@ -84,9 +84,9 @@ def test_the_settings_page_changes_the_currency(client):
 
 def test_amounts_wear_the_chosen_currency(client, root_accounts):
     client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "250"})
-    assert '<span class="cur">&#8377;</span>' in client.get("/budget").text
+    assert '<span class="cur">&#8377;</span>' in client.get("/plan").text
     client.patch("/api/profile/", json={"default_currency": "USD"})
-    page = client.get("/budget").text
+    page = client.get("/plan").text
     assert '<span class="cur">&#8377;</span>' not in page and "<small>USD</small>" in page
 
 

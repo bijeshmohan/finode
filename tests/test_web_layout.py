@@ -4,13 +4,13 @@ from fastapi.testclient import TestClient
 def test_app_shell_has_desktop_sidebar_mobile_tabbar_and_new_button(client: TestClient):
     page = client.get("/accounts").text
     assert 'class="sidebar"' in page
-    assert 'class="tabbar"' in page
+    assert 'class="tabbar has-plus"' in page
     assert 'class="fab" href="/transactions/new"' in page
     assert 'class="button secondary sidebar-new" href="/transactions/new"' in page
     assert 'href="/accounts" aria-current="page"' in page
 
 
-def test_home_has_the_normal_floating_button_and_no_chat_style_bar(client: TestClient):
+def test_home_has_the_docked_plus_and_no_chat_style_bar(client: TestClient):
     page = client.get("/").text
     assert 'class="fab" href="/transactions/new"' in page and "composer" not in page
     assert 'href="/" aria-current="page"' in page
@@ -64,3 +64,12 @@ def test_every_page_has_the_banner_and_the_loading_bar_but_the_banner_starts_hid
     page = client.get("/").text
     assert '<div id="net-banner" class="net-banner" role="status" aria-live="polite" hidden></div>' in page
     assert 'class="loadbar"' in page
+
+
+def test_the_sidebar_lists_home_plan_accounts_categories_then_transactions(client: TestClient):
+    page = client.get("/accounts").text
+    side = page[page.index('class="sidenav"'):page.index("sidebar-foot")]
+    order = [side.index(f'href="{path}"') for path in ("/", "/plan", "/accounts", "/categories", "/transactions")]
+    assert order == sorted(order), "Home, Plans, Accounts, Categories, Transactions"
+    bar = page[page.index('class="tabbar'):page.index("</nav>", page.index('class="tabbar'))]
+    assert 'href="/transactions"' not in bar, "phones keep their four tabs (and the docked +)"

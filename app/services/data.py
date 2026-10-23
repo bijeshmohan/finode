@@ -3,7 +3,6 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -51,6 +50,7 @@ class _Planned:
 
 @dataclass
 class _Plan:
+    release: list[UUID] = field(default_factory=list)  # empty built-in groups the file does not use: they step aside
     summary: ImportSummary = field(default_factory=ImportSummary)
     new_accounts: list[tuple[Key, str | None]] = field(default_factory=list)  # key, note
     transactions: list[_Planned] = field(default_factory=list)
@@ -219,6 +219,15 @@ class DataService:
                         f"{currency.code}: finode keeps one currency (you can change it in Settings before importing)"
                     )
 
+        # An empty built-in group the file wants as a plain account (a posting to "Assets:Cash") steps aside for it; the groups
+        # it builds on ("Assets:Bank Accounts:HDFC") and the ones it does not mention stay.
+        parents_wanted = {key[:depth] for key in (*declared, *used) for depth in range(2, len(key))}
+        for account in self.accounts.empty_fixed_parents():
+            key = next((k for k, aid in existing.items() if aid == account.aid), None)
+            if key is not None and key in {*declared, *used} and key not in parents_wanted:
+                existing.pop(key)
+                plan.release.append(account.aid)
+
         known: set[Key] = set(existing) | set(declared) | set(used)
         for key in list(known):
             for depth in range(2, len(key)):
@@ -353,6 +362,8 @@ class DataService:
             raise ImportRejected(plan.summary)
         ids = self._existing_keys()
         try:
+            self.accounts.release_fixed_parents(plan.release)
+            ids = {k: v for k, v in ids.items() if v not in plan.release}
             for key, note in plan.new_accounts:
                 created = self.ar.create(AccountCreate(name=key[-1], details=note, parent_id=ids[key[:-1]]))
                 ids[key] = created.aid

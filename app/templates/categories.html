@@ -19,13 +19,13 @@
 </div>
 
 <div class="cat-bar">
-  <div class="chips cat-chips" role="group" aria-label="What to show">
+  <div class="chips seg cat-chips" role="group" aria-label="What to show">
     <a class="chip" href="/categories?month={{ month_key }}&tab=expense" aria-pressed="{{ 'true' if tab == 'expense' else 'false' }}">Expense</a>
     <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
   </div>
   <span class="head-icons">
     <a class="icon-button" href="/categories/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
-    <a class="circ-button" href="/categories/new" title="Add category">{{ icon("plus") }}<span class="sr-only">Add category</span></a>
+    <a class="circ-button" href="/categories/new?root={{ tab }}" title="Add category">{{ icon("plus") }}<span class="sr-only">Add category</span></a>
   </span>
 </div>
 
@@ -47,7 +47,7 @@
 {% else %}
 <div class="empty-state card">
   <p>No {{ "expense" if tab == "expense" else "income" }} categories yet.</p>
-  <a class="button" href="/categories/new">Add a category</a>
+  <a class="button" href="/categories/new?root={{ tab }}">Add a category</a>
 </div>
 {% endif %}
 </div>

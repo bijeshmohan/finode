@@ -22,8 +22,8 @@ The web app is **server-rendered HTML** (Jinja2) with a little vendored **htmx**
 flowchart LR
     Home["/ Home"] --> Tx["/transactions"]
     Home --> New["/transactions/new"]
-    Budget["/budget"] --> Grp["/budget/group/{id}"]
-    Budget --> Tgt["/budget/target"]
+    Budget["/plan"] --> Grp["/plan/group/{id}"]
+    Budget --> Tgt["/plan/target"]
     Accounts["/accounts"] --> Acc["/accounts/{id}"]
     Cats["/categories"] --> Cat["/categories/{id}"]
     Settings["/settings"] --> Rec["/recurring"]
@@ -34,7 +34,7 @@ flowchart LR
     Tx --> Del["/transactions/deleted"]
 ```
 
-The bottom tab bar on phones is Home, Budget, Accounts and Categories; from 60rem up a fixed sidebar replaces the bar. Transactions has no tab: it is reached from "View all" on Home and from the sidebar.
+The bottom tab bar on phones is Home, Plans, Accounts and Categories with the "+" docked in the middle (nothing floats over the page); from 60rem up a fixed sidebar replaces the bar. Transactions has no tab: it is reached from "View all" on Home and from the sidebar.
 
 ## How a page updates
 

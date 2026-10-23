@@ -26,7 +26,7 @@ def test_accounts_page_groups_accounts_under_roots_in_order(
     response = client.get("/accounts")
     assert response.status_code == 200
     text = response.text
-    assert text.index(">Assets<") < text.index(">Liabilities<") < text.index(">Equity<")
+    assert text.index(">Assets<") < text.index(">Liabilities<") and ">Equity<" not in text, "Equity has no chip"
     assert ">Expenses<" not in text and ">Income<" not in text, "those are on the Categories page"
     assert f'href="/accounts/{account["aid"]}"' in text
     assert "checking" in text
@@ -37,7 +37,7 @@ def test_accounts_page_suggests_first_account_for_empty_roots(
 ):
     text = client.get("/accounts?tab=liabilities").text
     assert ('href="/accounts/new?root=liabilities"') in text
-    assert "Add a credit card or loan" in text
+    assert 'class="button"' in text and "Add account" in text, "an empty type offers an Add account pill"
 
 
 def test_accounts_page_marks_system_account(client: TestClient, root_accounts: dict[str, str]):
@@ -230,7 +230,7 @@ def test_update_missing_account_is_404(client: TestClient, root_accounts: dict[s
 def test_delete_account_from_ui(client: TestClient, account: dict):
     response = client.post(f"/accounts/{account['aid']}/delete")
     assert response.status_code == 200
-    assert response.headers["HX-Redirect"] == "/accounts"
+    assert response.headers["HX-Redirect"] == "/accounts?tab=assets"
     assert client.get(f"/api/accounts/{account['aid']}").status_code == 404
 
 
@@ -431,3 +431,72 @@ def test_the_plus_on_a_type_tab_offers_only_that_type(client: TestClient, root_a
     assert 'data-root="Assets"' in client.get("/accounts/new?root=assets").text
     assert 'data-root="Liabilities"' not in client.get("/accounts/new?root=assets").text
     assert 'data-root="Liabilities"' in client.get("/accounts/new").text, "no tab: everything, as before"
+
+
+# --- going back keeps the chip ---------------------------------------------
+
+
+def _under(client, root_accounts, root, name, **extra):
+    return client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra}).json()
+
+
+def test_the_back_link_goes_to_the_chip_the_account_is_under(client: TestClient, root_accounts: dict[str, str]):
+    card = _under(client, root_accounts, "Liabilities", "Cards")
+    inner = client.post("/api/accounts/", json={"name": "Visa", "parent_id": card["aid"]}).json()
+    equity = _under(client, root_accounts, "Equity", "Capital")
+    bank = _under(client, root_accounts, "Assets", "Bank")
+    for account, tab in ((card, "liabilities"), (inner, "liabilities"), (equity, "equity"), (bank, "assets")):
+        text = client.get(f"/accounts/{account['aid']}").text
+        assert f'class="back" href="/accounts?tab={tab}"' in text, (account["name"], tab)
+
+
+def test_after_closing_or_deleting_you_land_on_the_chip_it_was_under(client: TestClient, root_accounts: dict[str, str]):
+    card = _under(client, root_accounts, "Liabilities", "Visa")
+    gone = _under(client, root_accounts, "Liabilities", "Old loan")
+    assert client.post(f"/accounts/{card['aid']}/close").headers["HX-Redirect"] == "/accounts?tab=liabilities"
+    assert client.post(f"/accounts/{gone['aid']}/delete").headers["HX-Redirect"] == "/accounts?tab=liabilities"
+
+
+def test_the_new_account_page_goes_back_to_its_chip(client: TestClient, root_accounts: dict[str, str]):
+    text = client.get("/accounts/new?root=liabilities").text
+    assert 'class="back" href="/accounts?tab=liabilities"' in text
+    income = client.get("/categories/new?root=income").text
+    assert 'class="back" href="/categories?tab=income"' in income
+
+
+def test_accounts_without_a_group_are_listed_together_after_all_the_groups(client: TestClient, root_accounts: dict[str, str]):
+    """Alphabetically Apple, Banks and Cash interleave; the page puts the plain ones (Apple, Cash) last, together."""
+    def make(name, parent):
+        return client.post("/api/accounts/", json={"name": name, "parent_id": parent, "balance": "10"}).json()
+    assets = root_accounts["Assets"]
+    make("Apple", assets)
+    banks = client.post("/api/accounts/", json={"name": "Banks", "parent_id": assets}).json()
+    make("HDFC", banks["aid"])
+    make("Cash", assets)
+    zoo = client.post("/api/accounts/", json={"name": "Zoo", "parent_id": assets}).json()
+    make("Lion", zoo["aid"])
+    text = client.get("/accounts").text
+    order = [text.index(f'data-path="assets › {p}') for p in ("banks › hdfc", "zoo › lion", "apple", "cash")]
+    assert order == sorted(order), "the groups come first, then Apple and Cash"
+    assert text.count('class="acc-block') == 3, "two groups and one block of plain accounts"
+    assert "data-others" in text and text.index("data-others") > text.index('data-path="assets › zoo › lion"')
+    assert "<span>Others</span><span>20.00</span>" in text, "Apple and Cash, 10 each"
+
+
+def test_equity_is_the_page_you_get_when_neither_chip_is_chosen(client: TestClient, root_accounts: dict[str, str]):
+    _bank(client, root_accounts)
+    assets = client.get("/accounts").text
+    assert 'href="/accounts?tab=equity"' in assets and 'aria-pressed="true"' in assets, "tapping the chosen chip again leaves none chosen"
+    assert 'href="/accounts?tab=liabilities"' in assets
+    equity = client.get("/accounts?tab=equity").text
+    assert 'aria-pressed="true"' not in equity, "neither chip is chosen"
+    assert 'href="/accounts?tab=assets"' in equity and 'href="/accounts?tab=liabilities"' in equity
+    assert "Opening Balances" in equity and "Equity" in equity
+    liabilities = client.get("/accounts?tab=liabilities").text
+    assert 'href="/accounts?tab=equity"' in liabilities and 'href="/accounts?tab=assets"' in liabilities
+
+
+def test_others_is_not_shown_when_there_are_no_groups_or_for_equity(client: TestClient, root_accounts: dict[str, str]):
+    client.post("/api/accounts/", json={"name": "Apple", "parent_id": root_accounts["Assets"], "balance": "10"})
+    assert "data-others" not in client.get("/accounts").text, "nothing to tell apart from"
+    assert "data-others" not in client.get("/accounts?tab=equity").text

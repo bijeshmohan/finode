@@ -160,7 +160,7 @@ def test_the_close_and_reopen_pages_work(client, books):
     refused = client.post(f"/accounts/{books['hdfc']['aid']}/close")
     assert refused.status_code == 400 and refused.headers["HX-Retarget"] == "#page-error"
     done = client.post(f"/accounts/{books['old']['aid']}/close")
-    assert done.headers["HX-Redirect"] == "/accounts" and "account-closed" in done.headers["set-cookie"]
+    assert done.headers["HX-Redirect"] == "/accounts?tab=assets" and "account-closed" in done.headers["set-cookie"]
     back = client.post(f"/accounts/{books['old']['aid']}/reopen")
     assert back.headers["HX-Redirect"] == f"/accounts/{books['old']['aid']}"
 

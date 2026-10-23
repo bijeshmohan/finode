@@ -1,0 +1,12 @@
+{#- What the goal asks each month, under the new-goal form. Expects share, months, first, last, error and currency. -#}
+<div class="goal-calc{{ " bad" if error }}" id="goal-calc" aria-live="polite">
+  {% if error %}<p class="error">{{ error }}</p>
+  {% elif share %}
+  <span class="muted">Set aside</span>
+  <b>{{ share|money|amount(currency) }} a month</b>
+  <span class="muted">for {{ months }} month{{ "" if months == 1 else "s" }}, {{ first.strftime("%b %Y") }} to {{ last.strftime("%b %Y") }}</span>
+  {% else %}
+  <span class="muted">Set aside</span>
+  <b>—</b>
+  {% endif %}
+</div>

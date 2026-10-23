@@ -39,7 +39,7 @@ Settings is about how the application works (your name and your data are on Prof
 
 ## Profile and your data
 
-**Profile** (reached from Settings) holds your name, **AI assistants** (see [the MCP guide](mcp.md)), **Your data**, and sign out.
+There is no separate Profile page: the header of Settings is you (tap it to change your name), and the same page holds **AI assistants** (see [the MCP guide](mcp.md)), **Your data** and sign out.
 
 ### Your data
 

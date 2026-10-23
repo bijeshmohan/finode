@@ -17,19 +17,21 @@ Everything in finode is in **one currency**, INR (₹) unless you change it in *
 A new Home screen shows **Get started** with three steps:
 
 1. **Add a bank account, cash or card.** Give it a name and today's balance. The balance is recorded as an *Opening balance* entry, which you will see in the Transactions list on Home and on the Transactions page.
-2. **Add an expense category**, like Groceries.
-3. **Record your first transaction.**
+2. **Record your first spend.** Pick the account you paid from and the category (you can make one on the spot).
+3. **Give your money a job.** Open Plans and set aside an amount for rent, food and the rest.
 
-Steps tick off as you do them, and the card disappears when all are done.
+Steps tick off as you do them, and the card disappears when all are done. It stays on Home after your first entry until the third step is done. (If you switch on **Advanced** in Settings, the card no longer stays.)
+
+The Plans page has a short welcome until you assign the first amount. On the new-account form the budget choices are folded into one **Budget options** line that says where the account stands.
 
 ## 4. Find your way around
 
-On a phone, the bottom bar has four tabs and a floating **+**:
+On a phone, the bottom bar has four tabs with a **+** in the middle:
 
 | Tab | What it is for |
 |---|---|
 | **Home** | one number (what is left to spend this month) and your recent transactions |
-| **Budget** | give every rupee a job; see what is Ready to assign |
+| **Plans** | give every rupee a job (Budgets), save for a trip or a bike (Goals); see what is Ready to assign |
 | **Accounts** | where your money is: banks, cash, cards, loans |
 | **Categories** | what you spend on and earn from, and how much, month by month |
 | **+** | add a transaction |

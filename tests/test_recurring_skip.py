@@ -2,10 +2,6 @@
 
 from datetime import date, timedelta
 
-import pytest
-from sqlmodel import select
-
-from app.models.transaction import Transaction
 from app.recurring_runner import run_once
 
 from .test_recurring import accounts, rule, transactions  # noqa: F401  (fixtures and helpers)

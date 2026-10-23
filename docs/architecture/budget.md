@@ -26,7 +26,7 @@ For a month and an expense category:
 - **Available** — what you can still spend:
   `max(0, last month's available) + assigned − activity`
 - **Ready to assign** — money in budget accounts that has no job yet:
-  `ready to assign = money in accounts − reserved for cards − Σ available − assigned to later months`
+  `ready to assign = money in accounts − reserved for cards − Σ available − Σ goal available − assigned to later months`
 
 `BudgetRead` always satisfies that sum, and the page and the `get_budget` tool show it.
 
@@ -49,6 +49,10 @@ flowchart LR
 - Money assigned to **later months** is subtracted from Ready to assign in every earlier month, so assigning ahead uses up what is ready now, and the same money reads the same from either month.
 - **Moving money** between categories (`move`, limited to what is available) never changes Ready to assign.
 - A month's **assigned amount may be negative** to take back what an earlier month left in the category (Move money writes the same), but not by more than the category has left. Otherwise the category would show as overspent with nothing spent and Ready to assign would exceed the money there is.
+
+## What the Plan is not
+
+The Plan page was once three sections, Spend, Build (money moved into funds and loans paid down) and Earn (expected income). Build and Earn were removed on 2026-10-22: moving money between accounts does not change net worth, only income does, and the envelopes already covered the rest. Migration `c4e6a8b0d2f4` dropped `accounts.saving` and the profile's section switches and deleted the plan rows of funds, loans and income accounts (the ledger was not touched). A fund or loan payment is budgeted as spending through the account's **payment category**. A savings goal is an Expenses account with a by-date target and nothing inside it. It has its own chip (**Goals**) and is kept out of the Budgets figures: `BudgetRead.goals`, `goal_assigned`, `goal_activity`, `goal_available`, with the identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − Σ goal available − assigned to later months`. It is made in one step by the **New goal** form (`BudgetService.create_goal`; the monthly share is `funding()` for a by-date target, so the form and the target agree).
 
 ## Budget accounts, tracking accounts and liabilities
 
@@ -89,7 +93,7 @@ A budget line reports `target`, `needed` and `underfunded`; `BudgetService.fund(
 
 ## Where it surfaces
 
-- **Web:** `/budget` (Ready to assign, categories ranked by size, sheets for assigning), a group's page, the target page, `/budget/move`.
+- **Web:** `/plan` (Ready to assign, categories ranked by size, sheets for assigning), a group's page, the target page, `/plan/move`.
 - **Home:** one number, *Left to spend*, taken from the same `view()`.
 - **API:** `GET /api/budget/`, `PUT /api/budget/categories/{aid}` and targets.
 - **MCP:** `get_budget`, `assign_to_category`, `move_budget_money`, `set_budget_target`, `fund_budget_targets`, `copy_budget_from_previous_month`.

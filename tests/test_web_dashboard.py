@@ -51,10 +51,9 @@ def test_dashboard_shows_summary_and_recent_transactions(
         assert response.status_code == 201
 
     text = client.get("/").text
-    assert ">Spent<" in text and "120.50" in text  # no budget yet: what was spent this month
-    strip = _words(text[text.index('class="home-strip"'):])
-    assert "Earned ₹2,500.00" in strip and "Assigned ₹0.00" in strip and "Spent ₹120.50" in strip
-    assert 'href="/budget?month=' in text and "Set up your budget" in text
+    assert "120.50" in text  # no budget yet: what was spent this month
+    assert "home-strip" not in text, "no Earned / Assigned / Spent columns"
+    assert 'href="/plan?month=' in text and "Set up your budget" in text
     assert "Employer" in text and "Supermarket" in text
     assert plain(svc.reports.summary())["net_worth"] == "3379.50"  # 1000 + 2500 - 120.50
 
@@ -124,8 +123,8 @@ def test_onboarding_checklist_for_new_users(client: TestClient, root_accounts: d
     text = client.get("/").text
     assert "Get started" in text
     assert f'href="/accounts/new?parent={root_accounts["Assets"]}"' in text
-    assert f'href="/accounts/new?parent={root_accounts["Expenses"]}"' in text
-    assert 'href="/transactions/new">Record your first transaction' in text
+    assert 'href="/transactions/new">Record your first spend' in text
+    assert 'href="/plan">Give your money a job' in text
 
 
 def test_onboarding_ticks_off_steps_and_ignores_opening_balances(
@@ -137,7 +136,7 @@ def test_onboarding_ticks_off_steps_and_ignores_opening_balances(
     ).json()
     text = client.get("/").text
     assert '<li class="done">' in text
-    assert "Record your first transaction</a>" in text  # opening balance is not a recorded transaction
+    assert "Record your first spend</a>" in text  # opening balance is not a recorded transaction
 
     food = client.post(
         "/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}
@@ -209,12 +208,11 @@ def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_
             {"account": credit["aid"], "side": "credit", "amount": amount}]})
     page = client.get("/").text
     text = " ".join(page.split())
-    strip = _words(page[page.index('class="home-strip"'):])
-    assert "Earned ₹500.00" in strip and "Assigned ₹50.00" in strip and "Spent ₹80.00" in strip
+    assert "home-strip" not in page
     assert 'href="/summary' not in page, "the Summary page is gone"
     assert "home-tile" not in page and "Balance" not in page.split("<h2>Transactions</h2>")[0] and "Owed" not in page
     assert 'class="home-alert"' in page and f"<b>{expense_account['name']}</b> is over by ₹30.00" in text
-    assert page.index('class="glance"') < page.index('class="home-strip"') < page.index('class="home-alert"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"
+    assert page.index('class="glance"') < page.index('class="home-alert"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"
 
 
 def test_home_has_no_warning_when_nothing_is_overspent(client: TestClient, root_accounts: dict[str, str], expense_account: dict):
@@ -241,14 +239,31 @@ def test_the_month_pill_in_the_box_shows_another_month_and_never_a_future_one(
     now_html = client.get("/").text
     now = _words(now_html)
     assert 'class="month-input"' in now_html and f'max="{today:%Y-%m}"' in now_html
-    assert "Spent ₹100.00" in now
+    assert "₹100.00" in now
     before_html = client.get("/", params={"month": f"{last:%Y-%m}"}).text
     before = _words(before_html)
-    assert "Spent ₹300.00" in before and f"{last:%b} {last:%Y}" in before and 'class="pace"' not in before_html
+    assert "₹300.00" in before and f"{last:%b} {last:%Y}" in before and 'class="pace"' not in before_html
     rows = before_html[before_html.index("<h2>Transactions</h2>"):]
     assert "300.00" in rows and "100.00" not in rows, "an older month lists its own entries, not the latest ones"
     empty = client.get("/", params={"month": f"{(last - timedelta(days=40)):%Y-%m}"}).text
     assert "Nothing was recorded in" in empty and "Nothing recorded yet" not in empty, "an empty month keeps the box and the page"
     assert f'href="/transactions?month={last:%Y-%m}"' in before_html
     ahead = _words(client.get("/", params={"month": "2999-01"}).text)
-    assert "Spent ₹100.00" in ahead, "a month that has not started opens this month"
+    assert "₹100.00" in ahead, "a month that has not started opens this month"
+
+
+def test_the_checklist_stays_on_home_after_the_first_entry_until_the_plan_is_used(client: TestClient, root_accounts, monkeypatch):
+    """New profiles (Advanced off) keep seeing the card until all three steps are done; people on Advanced never do."""
+    from app.repositories import profile
+
+    bank = client.post("/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
+    food = client.post("/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}).json()
+    client.post("/api/transactions/", json={"postings": [
+        {"account": food["aid"], "side": "debit", "amount": "5"}, {"account": bank["aid"], "side": "credit", "amount": "5"}]})
+    assert "Get started" not in client.get("/").text  # Advanced is on in the tests
+    client.patch("/api/profile/", json={"advanced": False})
+    text = client.get("/").text
+    assert "Get started · 2 of 3" in text and "Give your money a job</a>" in text
+    assert "Open Plans and set aside rent and food" in text
+    client.put(f"/api/budget/categories/{food['aid']}", json={"month": date.today().replace(day=1).isoformat(), "amount": "50"})
+    assert "Get started" not in client.get("/").text

@@ -1,4 +1,4 @@
 {#- The chips under the payee field: people you pay, each carrying the accounts used last time (see applySuggestion in app.js). -#}
 {% for h in habits %}
-<button type="button" class="chip" data-suggest data-payee="{{ h.payee }}" data-suggest-kind="{{ h.kind }}" data-from="{{ h.from_id }}" data-to="{{ h.to_id }}" {{ "data-exact" if h.exact }} title="{{ h.from_name }} → {{ h.to_name }}">{{ h.payee }}</button>
+<button type="button" class="chip" data-suggest data-payee="{{ h.payee }}" data-suggest-kind="{{ h.kind }}" data-from="{{ h.from_id }}" data-to="{{ h.to_id }}" {{ "data-exact" if h.exact }} data-amount="{{ h.amount }}" title="{{ h.from_name }} → {{ h.to_name }}">{{ h.payee }}</button>
 {% endfor %}

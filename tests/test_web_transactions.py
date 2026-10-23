@@ -97,6 +97,16 @@ def test_transactions_are_grouped_by_friendly_day_and_link_to_edit(
     assert f'href="/transactions/{tx["tid"]}/edit"' in text
 
 
+def test_a_day_with_several_entries_shows_what_was_spent_that_day(client: TestClient, account: dict, expense_account: dict):
+    _post(client, expense_account, account, "5.00", "2020-02-03", "coffee")
+    _post(client, expense_account, account, "7.50", "2020-02-03", "snack")
+    _post(client, expense_account, account, "2.00", "2020-02-04", "tea")
+
+    text = client.get("/transactions", params={"date_from": "2020-01-01"}).text
+    assert '<span class="tx-day-total">Spent 12.50</span>' in text
+    assert '<span class="tx-day-total">Spent 2.00</span>' not in text, "one entry would only repeat its row"
+
+
 def test_transaction_amounts_use_colour_not_a_minus_sign(
     client: TestClient, account: dict, other_account: dict, expense_account: dict, income_account: dict
 ):

@@ -54,13 +54,13 @@ def test_off_hides_the_lock_but_explains_it(client):
 
 def test_off_hides_targets_on_the_budget_and_keeps_the_money(client, books):
     food = books["food"]["aid"]
-    on = client.get("/budget").text
+    on = client.get("/plan").text
     assert "needs 300.00 more" in on and "Assign what is needed" in on
-    assert "Monthly 300.00" in client.get(f"/budget/category/{food}/sheet").text
+    assert "Monthly 300.00" in client.get(f"/plan/category/{food}/sheet").text
     switch(client, False)
-    off = client.get("/budget").text
+    off = client.get("/plan").text
     assert "needs 300.00 more" not in off and "Assign what is needed" not in off
-    sheet = client.get(f"/budget/category/{food}/sheet").text
+    sheet = client.get(f"/plan/category/{food}/sheet").text
     assert "Monthly 300.00" not in sheet and "Target and note" not in sheet and f'aria-label="Assigned to Food"' in sheet, "assigning stays"
     assert client.get("/api/budget/").json()["underfunded"] == "300.00", "the data is untouched"
 

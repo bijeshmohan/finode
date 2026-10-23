@@ -437,7 +437,7 @@ async def test_assistants_can_create_split_recurring_transactions_and_skip_one(s
 @pytest.mark.anyio
 async def test_get_budget_shows_category_notes(session, books, client, secret):
     rent = client.post("/api/accounts/", json={"name": "Rent", "parent_id": books["food"]["parent_id"]}).json()
-    client.post("/budget/note", data={"category": rent["aid"], "note": "Due on the 5th"})
+    client.post("/plan/note", data={"category": rent["aid"], "note": "Due on the 5th"})
     async with running_app(session), mcp_client(secret) as c:
         data = payload(await c.call_tool("get_budget", {}))
         mine = next(l for l in data["categories"] if l["category"].endswith("Rent"))
@@ -455,3 +455,14 @@ async def test_get_budget_lists_the_weeks_of_a_weekly_target(session, books, cli
         assert mine["weeks"] and all({"from", "to", "spent"} <= set(w) for w in mine["weeks"])
         assert all(w["allowance"] == "100.00" for w in mine["weeks"] if "allowance" in w)
         assert all("weeks" not in l for l in data["categories"] if not l["category"].endswith("Pocket money"))
+
+
+@pytest.mark.anyio
+async def test_only_expense_categories_can_be_planned(session, root_accounts, client):
+    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    client.post("/api/accounts/", json={"name": "Fund", "parent_id": root_accounts["Assets"], "on_budget": False})
+    client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+        for name in ("Bank", "Fund", "Salary"):
+            with pytest.raises(ToolFailed, match="not an expense account"):
+                payload(await c.call_tool("assign_to_category", {"category": name, "amount": "5"}))

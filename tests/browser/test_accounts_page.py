@@ -17,6 +17,11 @@ def visible(page: Page) -> list[str]:
     )
 
 
+def open_options(page: Page) -> None:
+    """The budget choices are folded away on the form; open them (the details element works even while its parent is hidden)."""
+    page.evaluate("document.querySelectorAll('details.budget-options').forEach(d => d.open = true)")
+
+
 def nested(api: Api, books):
     banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
     api.post("/accounts/", name="HDFC", parent_id=banks["aid"], balance="100")
@@ -32,23 +37,26 @@ def test_every_group_is_open_under_its_heading_and_nothing_folds(page: Page, api
     shown = visible(page)
     assert "assets › banks › hdfc" in shown and "assets › savings › rainy" in shown and "assets › checking" in shown
     assert page.locator("details").count() == 0, "nothing folds, not even Equity"
-    assert "equity › opening balances" not in shown, "Equity has its own chip"
+    assert "equity › opening balances" not in shown, "Equity is not listed on the other chips"
 
 
-def test_the_chips_switch_between_assets_liabilities_and_equity(page: Page, api, books):
+def test_the_chips_switch_between_assets_and_liabilities_and_equity_is_neither(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
     chips = page.locator(".cat-chips .chip")
-    assert chips.all_inner_texts() == ["Assets", "Liabilities", "Equity"]
+    assert chips.all_inner_texts() == ["Assets", "Liabilities"], "Equity has no chip"
     expect(chips.nth(0)).to_have_attribute("aria-pressed", "true")
     page.get_by_role("link", name="Liabilities").click()
     page.wait_for_url("**/accounts?tab=liabilities")
     shown = visible(page)
     assert shown == ["liabilities › visa"], shown
     expect(page.locator(".cat-chips .chip").nth(1)).to_have_attribute("aria-pressed", "true")
-    page.get_by_role("link", name="Equity").click()
+    page.get_by_role("link", name="Liabilities").click()  # tapping the chosen chip again leaves neither chosen: that is Equity
     page.wait_for_url("**/accounts?tab=equity")
     assert visible(page) == ["equity › opening balances"]
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_count(0)
+    page.get_by_role("link", name="Assets").click()
+    page.wait_for_url("**/accounts?tab=assets")
 
 
 def test_a_groups_heading_goes_to_its_page(page: Page, api, books):
@@ -81,7 +89,7 @@ def test_closing_an_account_from_its_page(page: Page, api, books):
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_label("More actions").click()
     page.get_by_role("button", name="Close account").click()
-    page.wait_for_url("**/accounts")
+    page.wait_for_url("**/accounts?tab=assets")
     assert "assets › cash" not in visible(page)
     page.get_by_role("button", name="Load more").click()
     assert "assets › cash" in visible(page)
@@ -146,6 +154,7 @@ def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api)
 
 def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Page, api, books):
     page.goto("/accounts/new")
+    open_options(page)
     fields = page.locator("[data-budget-fields]")
     expect(fields).to_be_hidden()  # nothing chosen yet
     parent = page.locator('select[name="parent_id"]')
@@ -173,8 +182,49 @@ def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Pa
 def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Page, api, books):
     for url in ("/accounts/new?root=assets", f"/accounts/new?parent={books['checking']['aid']}"):
         page.goto(url)
+        open_options(page)
         box = page.locator('input[name="on_budget"]')
         expect(box).to_be_checked()
         box.uncheck()
         expect(box).not_to_be_checked()
         expect(page.locator("[data-payment-category]")).to_be_visible()
+
+
+def test_the_payment_category_shows_only_for_an_account_outside_the_budget(page: Page, api, books):
+    page.goto("/accounts/new?root=assets")
+    open_options(page)
+    box = page.locator('input[name="on_budget"]')
+    payment = page.locator("[data-payment-category]")
+    expect(payment).to_be_hidden()  # an asset starts in the budget
+    box.uncheck()
+    expect(payment).to_be_visible()
+    box.check()
+    expect(payment).to_be_hidden()
+    page.goto("/accounts/new")
+    open_options(page)
+    page.locator('select[name="parent_id"]').select_option(label="Liabilities")
+    expect(payment).to_be_visible()  # a loan starts outside the budget
+
+
+def test_going_back_from_an_account_keeps_the_chip(page: Page, api, books):
+    cards = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
+    api.post("/accounts/", name="Visa", parent_id=cards["aid"], balance="50")
+    page.goto("/accounts")
+    page.locator(".cat-chips .chip", has_text="Liabilities").click()
+    page.wait_for_url("**/accounts?tab=liabilities")
+    page.get_by_role("link", name="Cards").first.click()
+    page.wait_for_url(f"**/accounts/{cards['aid']}")
+    page.locator("a.back").click()
+    page.wait_for_url("**/accounts?tab=liabilities")
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Liabilities")
+
+
+def test_budget_options_are_folded_and_say_where_the_account_stands(page: Page, api, books):
+    page.goto("/accounts/new?root=assets")
+    details = page.locator("details.budget-options")
+    expect(details).to_be_visible()
+    assert details.get_attribute("open") is None, "folded away at first"
+    expect(page.locator("[data-budget-summary]")).to_have_text("Part of the budget")
+    page.locator("details.budget-options summary").click()
+    page.locator('input[name="on_budget"]').uncheck()
+    expect(page.locator("[data-budget-summary]")).to_have_text("Outside the budget")

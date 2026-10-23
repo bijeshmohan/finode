@@ -27,12 +27,37 @@ def deployment_settings_off(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(settings, name, value)
 
 
+@pytest.fixture(scope="session")
+def _scratch_engine():
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    with engine.connect() as connection:
+        connection.exec_driver_sql("ATTACH DATABASE ':memory:' AS auth")
+        connection.commit()
+    SQLModel.metadata.create_all(engine)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def never_the_real_database(monkeypatch: pytest.MonkeyPatch, _scratch_engine):
+    """The app's own engine points at the database in .env (production, on the owner's machine). A test that reaches a door
+    nobody overrode (the assistants' /mcp without a token, say) must find an empty scratch database, never the real one."""
+    from app import dependencies
+    from app.mcp_server import context
+
+    monkeypatch.setattr(dependencies, "engine", _scratch_engine)
+    monkeypatch.setattr(context, "session_factory", lambda: Session(_scratch_engine))
+
+
 @pytest.fixture(autouse=True)
 def advanced_features_on(monkeypatch: pytest.MonkeyPatch):
     """New profiles start with the advanced features hidden; most tests exercise them, so they start with them shown."""
     from app.repositories import profile
 
     monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", True)
+    from app.services import account as account_service
+
+    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", False)  # most tests build their own accounts
 
 
 @pytest.fixture(autouse=True)

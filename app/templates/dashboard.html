@@ -8,6 +8,8 @@
 <h1 class="sr-only">Home</h1>
 {% set mname = month_name.split(" ")[0] %}
 
+<div class="home-cols">
+
 {% if not has_recorded %}
 <section class="home-empty">
   <p class="glance-label">{{ mname }}</p>
@@ -15,17 +17,7 @@
   <p class="muted">Add your first transaction and this page starts to fill in.</p>
   {% if steps %}
   <p class="section-label">Get started · {{ steps_done }} of {{ steps_total }}</p>
-  <ol class="steps">
-    {% for step in steps %}
-    <li class="{{ 'done' if step.done }}">
-      {% if step.done %}
-      <span class="step-mark" aria-hidden="true">✓</span><span>{{ step.title }}</span>
-      {% else %}
-      <span class="step-mark" aria-hidden="true">{{ loop.index }}</span><a href="{{ step.href }}">{{ step.title }}</a>
-      {% endif %}
-    </li>
-    {% endfor %}
-  </ol>
+  {% include "partials/get_started.html" %}
   <p class="muted small-print">Amounts are in <strong>{{ currency }}</strong>. Using another currency? Change it in <a href="/settings#currency">Settings</a> before you add accounts. Already keep a ledger file? <a href="/profile/data">Import it</a>. Keep a backup safe from time to time: <a href="/profile/data#backup">Profile › Your data</a>.</p>
   {% endif %}
 </section>
@@ -42,19 +34,20 @@
   {{ calc_panel([("Carried in from earlier months", glance.carried, ""), ("Assigned in " ~ mname, glance.assigned, "+"), ("Spent so far" if is_current else "Spent", glance.spent, "−")], "Left to spend", glance.left, currency, "Each category's leftover, plus what you assigned this month, minus what you spent.") }}
   {% else %}
   <p class="glance-figure">{{ figure(summary.expenses, currency) }}</p>
-  <p class="glance-note"><a href="/budget?month={{ month_key }}">Set up your budget</a> to see what is left to spend</p>
+  <p class="glance-note"><a href="/plan?month={{ month_key }}">Set up your budget</a> to see what is left to spend</p>
   {% endif %}
-  <div class="home-strip">
-    <span><span class="k">Earned</span><span class="v">{{ summary.income|money|amount(currency) }}</span></span>
-    <span><span class="k">Assigned</span><span class="v">{{ glance.assigned|money|amount(currency) }}</span></span>
-    <span><span class="k">Spent</span><span class="v">{{ summary.expenses|money|amount(currency) }}</span></span>
-  </div>
 </section>
 {% endif %}
 
 {% if has_recorded %}
+{% if steps and show_steps_card %}
+<section class="tile get-started">
+  <p class="section-label">Get started · {{ steps_done }} of {{ steps_total }}</p>
+  {% include "partials/get_started.html" %}
+</section>
+{% endif %}
 {% if warning %}
-<a class="home-alert" href="/budget">
+<a class="home-alert" href="/plan">
   <span class="dot" aria-hidden="true"></span>
   <span>{% if warning.n == 1 %}<b>{{ warning.name }}</b> is over by {{ warning.over|money|amount(currency) }}{% else %}<b>{{ warning.n }} categories</b> are overspent · {{ warning.over|money|amount(currency) }} in all{% endif %}</span>
   <span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span>
@@ -75,6 +68,7 @@
   </ul>
 </details>
 {% endif %}
+<div class="home-recent">
 <div class="section-head">
   <h2>Transactions</h2>
   <a href="/transactions?month={{ month_key }}">View all</a>
@@ -84,5 +78,7 @@
 {% else %}
 <p class="muted">Nothing was recorded in {{ mname }}.</p>
 {% endif %}
+</div>
 {% endif %}
+</div>
 {% endblock %}

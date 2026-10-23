@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Request
 
-from ...dependencies import Accounts, Budget, Recurring, Reports, Transactions
+from ...dependencies import Accounts, Budget, Profiles, Recurring, Reports, Transactions
 from ...services.account import AccountService
 from ...clock import local_today, month_progress
 from ...templating import templates
@@ -33,6 +33,7 @@ def dashboard(
     transactions: Transactions,
     recurring: Recurring,
     budget: Budget,
+    profiles: Profiles,
     month: str = "",
 ):
     _catch_up(recurring)
@@ -58,6 +59,7 @@ def dashboard(
     has_recorded = any(
         not any(p.account in system_ids for p in row.transaction.postings) for row in latest
     )
+    planned = bool(budget.br.list())  # anything ever assigned in the Plan
     steps = [
         {
             "done": bool(used_roots & {"Assets", "Liabilities"}),
@@ -65,14 +67,16 @@ def dashboard(
             "href": f"/accounts/new?parent={roots['Assets']}",
         },
         {
-            "done": "Expenses" in used_roots,
-            "title": "Add an expense category, like Groceries",
-            "href": f"/accounts/new?parent={roots['Expenses']}",
+            "done": has_recorded,
+            "title": "Record your first spend",
+            "href": "/transactions/new",
+            "hint": "Takes about ten seconds",
         },
         {
-            "done": has_recorded,
-            "title": "Record your first transaction",
-            "href": "/transactions/new",
+            "done": planned,
+            "title": "Give your money a job",
+            "href": "/plan",
+            "hint": "Open Plans and set aside rent and food",
         },
     ]
     month = budget.view(when)
@@ -111,6 +115,7 @@ def dashboard(
             "has_recorded": has_recorded,
             "recent": recent,
             "steps": steps if not all(step["done"] for step in steps) else None,
+            "show_steps_card": not profiles.pr.advanced(),  # people on Advanced know their way around; the card is for new profiles
             "steps_done": sum(1 for step in steps if step["done"]),
             "steps_total": len(steps),
         },

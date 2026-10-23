@@ -32,6 +32,21 @@ DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
 # Assets and liabilities are real holdings and stay leaf-only.
 GROUP_POSTING_ROOT_NAMES = frozenset({"Income", "Expenses"})
 
+# The built-in groups every new person starts with under Assets and Liabilities: (root, name, key, what an account made
+# under it starts as: "budget" or "outside" the budget). They cannot be renamed, moved, closed or deleted; what is made
+# under them gets its budget behaviour from here, so a new person does not have to decide it. Rules read the key, never
+# the name.
+FIXED_PARENTS = (
+    ("Assets", "Bank Accounts", "assets.bank", "budget"),
+    ("Assets", "Cash", "assets.cash", "budget"),
+    ("Assets", "Investments", "assets.investments", "outside"),
+    ("Liabilities", "Credit Cards", "liabilities.cards", "budget"),
+    ("Liabilities", "Loans", "liabilities.loans", "outside"),
+)
+FIXED_DEFAULTS = {key: start for _, _, key, start in FIXED_PARENTS}
+# New people get the groups; tests switch this off (most of them build their own accounts) and a few switch it on.
+NEW_PROFILE_FIXED_PARENTS = True
+
 
 @dataclass
 class RegisterPage:
@@ -58,6 +73,10 @@ class SystemAccountError(ValueError):
 
 
 class RootAccountError(SystemAccountError):
+    ...
+
+
+class FixedParentError(SystemAccountError):
     ...
 
 
@@ -136,6 +155,90 @@ class AccountService:
                 "accounts can be at most two levels deep (a category and a subcategory, like Expenses › Food › Groceries)!"
             )
 
+    @staticmethod
+    def _refuse_fixed(account: Account, what: str) -> None:
+        if account.system_key is not None:
+            raise FixedParentError(f"'{account.name}' is built in and can't be {what}!")
+
+    def empty_fixed_parents(self) -> list[Account]:
+        """The built-in groups nothing has been made under yet (what a restore or an import may replace with its own)."""
+        all_accounts = self._ensure_roots()
+        used = {a.parent_id for a in all_accounts}
+        return [a for a in all_accounts if a.system_key is not None and a.aid not in used]
+
+    def release_fixed_parents(self, aids: list[UUID]) -> None:
+        """Remove empty built-in groups so a restore or an import can bring its own structure (the caller commits)."""
+        empty = {a.aid for a in self.empty_fixed_parents()}
+        for aid in aids:
+            if aid in empty:
+                self.ar.delete(aid)
+
+    def fixed_parents_plan(self) -> list[dict]:
+        """What adding the standard groups to a ledger that already exists would do, group by group, without doing it.
+
+        Each entry has `key`, `name`, `root`, `start` and an `action`: "add" (made new), "adopt" (an account of the person's
+        with exactly that name, open, that is a group or an empty account nothing refers to, becomes the built-in group
+        without being renamed or moved), "have" (already there) or "skip" (an account of theirs in the way, with a `reason`)."""
+        all_accounts = self._ensure_roots()
+        roots = {a.name: a for a in all_accounts if a.parent_id is None}
+        keyed = {a.system_key for a in all_accounts if a.system_key}
+        budget = BudgetRepository(self.ar.db, self.ar.uid)
+        has_children = {a.parent_id for a in all_accounts}
+        plan = []
+        for root, name, key, start in FIXED_PARENTS:
+            entry = {"key": key, "name": name, "root": root, "start": start, "action": "add", "aid": None, "reason": ""}
+            plan.append(entry)
+            if key in keyed:
+                entry["action"] = "have"
+                continue
+            clash = next(
+                (a for a in all_accounts if a.parent_id == roots[root].aid and a.name.casefold() == name.casefold()), None
+            )
+            if clash is None:
+                continue
+            entry["aid"] = clash.aid
+            usable = (
+                clash.name == name
+                and clash.system_key is None
+                and clash.closed_on is None
+                and (
+                    clash.aid in has_children
+                    or not (
+                        self.tr.postings_for_account(clash.aid)
+                        or RecurringRepository.uses_account(self.ar.db, clash.aid)
+                        or budget.uses_account(clash.aid)
+                        or clash.payment_category_id is not None
+                    )
+                )
+            )
+            if usable:
+                entry["action"] = "adopt"
+            else:
+                entry["action"] = "skip"
+                entry["reason"] = f"you already have an account called {clash.name} under {root}. Rename it first to add this group."
+        return plan
+
+    def add_fixed_parents(self) -> list[dict]:
+        """Add the standard groups to a ledger that already exists (nothing is moved, renamed or hidden); returns the plan as done."""
+        plan = self.fixed_parents_plan()
+        all_accounts = self._ensure_roots()
+        roots = {a.name: a for a in all_accounts if a.parent_id is None}
+        for entry in plan:
+            if entry["action"] == "add":
+                self.ar.db.add(Account(name=entry["name"], parent_id=roots[entry["root"]].aid, user=self.ar.uid, system_key=entry["key"]))
+            elif entry["action"] == "adopt":
+                account = self.ar.read(entry["aid"])
+                account.system_key = entry["key"]
+                if not any(a.parent_id == account.aid for a in all_accounts):  # an empty account becomes a group: flags mean nothing
+                    account.on_budget, account.payment_category_id = False, None
+                self.ar.db.add(account)
+        try:
+            self.ar.db.commit()
+        except IntegrityError:
+            self.ar.db.rollback()
+            raise ValueError("the groups were added a moment ago: reload the page!")
+        return plan
+
     def ensure_roots(self) -> list[Account]:
         return self._ensure_roots()
 
@@ -152,15 +255,22 @@ class AccountService:
         if not missing:
             return all_accounts
 
+        new_roots: dict[str, Account] = {}
         for name in missing:
-            self.ar.db.add(
-                Account(
-                    name=name,
-                    details=f"System root account for {name}",
-                    parent_id=None,
-                    user=self.ar.uid,
-                )
+            new_roots[name] = Account(
+                name=name,
+                details=f"System root account for {name}",
+                parent_id=None,
+                user=self.ar.uid,
             )
+            self.ar.db.add(new_roots[name])
+        if len(missing) == len(ROOT_ACCOUNT_NAMES) and NEW_PROFILE_FIXED_PARENTS:
+            # A brand-new person: the built-in groups come with the roots (same transaction, so a lost race makes none twice).
+            for place, (root, name, key, _) in enumerate(FIXED_PARENTS):
+                self.ar.db.add(Account(
+                    name=name, parent_id=new_roots[root].aid, user=self.ar.uid, system_key=key,
+                    position=sum(1 for r, *_ in FIXED_PARENTS[:place] if r == root),
+                ))
         try:
             self.ar.db.commit()
         except IntegrityError:
@@ -293,6 +403,7 @@ class AccountService:
             payment_category_id=account.payment_category_id,
             closed_on=account.closed_on,
             position=account.position,
+            system_key=account.system_key,
             created=account.created,
             updated=account.updated,
         )
@@ -376,6 +487,7 @@ class AccountService:
             raise RootAccountError("cannot close system root accounts!")
         if self.is_opening_balances(account, all_accounts):
             raise SystemAccountError(f"cannot close system account '{account.name}'!")
+        self._refuse_fixed(account, "closed")
         subtree = self._subtree(aid, all_accounts)
         by_id = {a.aid: a for a in all_accounts}
         if self._get_root_name(account, by_id) in GROUP_POSTING_ROOT_NAMES:
@@ -410,6 +522,7 @@ class AccountService:
             raise ValueError("account not found!")
         if self._is_root(account) or self.is_opening_balances(account, all_accounts):
             raise SystemAccountError("only accounts you made yourself can be placed!")
+        self._refuse_fixed(account, "moved")
         return account, all_accounts
 
     @staticmethod
@@ -508,6 +621,10 @@ class AccountService:
 
         self._check_name_free(account.name, account.parent_id, all_accounts)
         accounts_by_id = {a.aid: a for a in all_accounts}
+        start = FIXED_DEFAULTS.get(parent.system_key or "")
+        if start and account.on_budget is None and account.payment_category_id is None:
+            # Made under a built-in group without saying how: it starts as the group says (a bank in the budget, a loan outside it).
+            account = account.model_copy(update={"on_budget": start == "budget"})
         in_budget = account.on_budget
         if in_budget is None:  # money in an asset account is budgeted unless said otherwise
             in_budget = self._get_root_name(parent, accounts_by_id) == "Assets"
@@ -695,6 +812,8 @@ class AccountService:
 
         is_system_root = self._is_root(account)
         is_opening = self.is_opening_balances(account, all_accounts)
+        if data.model_fields_set:
+            self._refuse_fixed(account, "changed")
 
         if is_opening:
             if "name" in data.model_fields_set and data.name != account.name:
@@ -931,6 +1050,7 @@ class AccountService:
 
         if self.is_opening_balances(account, all_accounts):
             raise SystemAccountError(f"cannot delete system account '{account.name}'!")
+        self._refuse_fixed(account, "deleted")
 
         if self.ar.has_children(aid):
             raise AccountInUseError("account has sub-accounts")

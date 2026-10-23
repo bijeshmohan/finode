@@ -154,6 +154,22 @@ def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(p
         (books["card"]["aid"], "credit"), (books["food"]["aid"], "debit")}
 
 
+def test_the_last_amount_and_the_nudges_fill_the_amount(page: Page, books, api: Api):
+    history(api, books)
+    page.goto("/transactions/new")
+    last = page.locator("[data-last-amount]")
+    expect(last).to_be_hidden()
+    page.locator("#payee-chips .chip", has_text="Swiggy").click()
+    expect(last).to_be_visible()
+    expect(last).to_contain_text("as last time")
+    last.click()
+    amount = page.input_value("#total")
+    assert float(amount) > 0
+    page.locator('[data-nudge="100"]').click()
+    assert float(page.input_value("#total")) == float(amount) + 100
+    assert page.input_value('[data-rows="debit"] [name="amount"]').startswith(page.input_value("#total").split(".")[0]), "the rows follow the amount"
+
+
 def test_a_chip_still_lets_you_split_the_amount_afterwards(page: Page, books, api: Api):
     history(api, books)
     page.goto("/transactions/new")
@@ -241,7 +257,7 @@ def test_pasting_a_messy_amount_keeps_the_good_part_and_the_cursor(page: Page, b
 
 
 def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, books):
-    page.goto("/budget/move")
+    page.goto("/plan/move")
     field = page.locator('input[name="amount"]')
     field.click()
     page.keyboard.type("9..9.9")

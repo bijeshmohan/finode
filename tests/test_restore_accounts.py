@@ -113,4 +113,3 @@ def test_accounts_and_categories_have_their_own_page(client, books):
     assert 'href="/accounts/deleted"' in client.get("/accounts").text and 'href="/categories/deleted"' in client.get("/categories").text
     for place in ("transactions", "accounts", "categories"):
         assert 'href="/transactions/deleted"' in client.get(f"/{place}/deleted").text, "the three pages link to each other"
-

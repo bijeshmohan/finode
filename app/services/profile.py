@@ -3,7 +3,6 @@
 from datetime import timedelta
 
 from ..clock import local_today
-from ..config import settings
 from ..currencies import find as find_currency
 from ..repositories import ProfileRepository
 from ..schemas.profile import ProfileRead, ProfileUpdate

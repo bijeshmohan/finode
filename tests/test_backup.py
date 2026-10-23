@@ -161,6 +161,28 @@ def test_an_older_backup_with_pinned_accounts_still_restores(client, rich):
         as_user(TEST_USER_ID)
 
 
+def test_an_older_backup_with_build_and_earn_rows_restores_without_them(client, rich):
+    """Files from when the Plan had Build and Earn carry plan rows for a fund and for an income account: the budget keeps
+    only the expense categories' rows, and the flags the file carries are ignored."""
+    doc = client.get("/api/backup").json()
+    fund = next(a for a in doc["accounts"] if a["name"] == "Home Loan")
+    salary = next(a for a in doc["accounts"] if a["name"] == "Salary")
+    fund["saving"] = True
+    doc["profile"].update(plan_build=True, plan_earn=True)
+    for account in (fund, salary):
+        doc["allocations"].append({"month": "2026-09-01", "account_id": account["id"], "amount": "700"})
+    doc["targets"].append({"account_id": fund["id"], "kind": "monthly", "amount": "700", "target_date": None, "weekday": None})
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert done.status_code == 200, done.text
+        again = client.get("/api/backup").json()
+    finally:
+        as_user(TEST_USER_ID)
+    assert len(again["allocations"]) == 2 and len(again["targets"]) == 3
+    assert not any("saving" in a for a in again["accounts"]) and "plan_build" not in again["profile"]
+
+
 def test_a_restore_is_only_for_an_empty_ledger(client, rich):
     doc = client.get("/api/backup").json()
     refused = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})

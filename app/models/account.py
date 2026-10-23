@@ -19,6 +19,15 @@ class Account(TimestampMixin, table=True):
             sqlite_where=text("parent_id IS NULL"),
             postgresql_where=text("parent_id IS NULL"),
         ),
+        # One built-in group of each kind per person (see services/account.py FIXED_PARENTS).
+        Index(
+            "uq_accounts_user_system_key",
+            "user",
+            "system_key",
+            unique=True,
+            sqlite_where=text("system_key IS NOT NULL"),
+            postgresql_where=text("system_key IS NOT NULL"),
+        ),
     )
 
     aid: UUID = Field(default_factory=uuid4, primary_key=True)
@@ -35,6 +44,9 @@ class Account(TimestampMixin, table=True):
     payment_category_id: UUID | None = Field(default=None, foreign_key="accounts.aid", nullable=True)
     # The place among its siblings when the user ordered them by hand; empty means alphabetical, after the placed ones.
     position: int | None = Field(default=None)
+    # Set on the built-in groups under Assets and Liabilities (Bank Accounts, Cash, Investments, Credit Cards, Loans):
+    # they cannot be renamed, moved, closed or deleted, and what is made under them starts as the key says.
+    system_key: str | None = Field(default=None, max_length=40)
 
     @field_validator("name")
     @classmethod

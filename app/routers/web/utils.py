@@ -1,13 +1,11 @@
 import json
 from dataclasses import dataclass
-from datetime import date
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 from html import escape
 
 from fastapi import Response
 from fastapi.responses import HTMLResponse
-from pydantic import ValidationError
 
 from ...flash import set_flash
 
@@ -42,10 +40,10 @@ def parse_amount(value: str | None, default: Decimal | None = None) -> Decimal:
     return amount
 
 
-def htmx_redirect(location: str, flash: str | None = None) -> Response:
+def htmx_redirect(location: str, flash: str | None = None, undo: tuple[str, UUID] | None = None) -> Response:
     response = Response(status_code=200, headers={"HX-Redirect": location})
     if flash:
-        set_flash(response, flash)
+        set_flash(response, flash, undo)
     return response
 
 

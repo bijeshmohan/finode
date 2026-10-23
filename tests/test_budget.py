@@ -56,11 +56,11 @@ class Done:
 
 
 def press(client, route, month=None, **form):
-    """Post a budget form the way the page does (/budget/move, /budget/copy, /budget/fund)."""
+    """Post a budget form the way the page does (/plan/move, /plan/copy, /plan/fund)."""
     data = {k: v for k, v in form.items() if v is not None}
     if month is not None:
         data["month"] = month.isoformat() if hasattr(month, "isoformat") else month
-    return Done(client, client.post(f"/budget/{route}", data=data), month)
+    return Done(client, client.post(f"/plan/{route}", data=data), month)
 
 
 def move_budget(client, source, target, amount, month=None):
@@ -68,7 +68,7 @@ def move_budget(client, source, target, amount, month=None):
 
 
 def line(data, name):
-    return next(l for l in data["lines"] if l["name"] == name)
+    return next(l for l in [*data["lines"], *data["goals"]] if l["name"] == name)
 
 
 @pytest.fixture
@@ -415,7 +415,7 @@ def target(client, category, kind, amount, **extra):
 
 
 def line(data, name):
-    return next(l for l in data["lines"] if l["name"] == name)
+    return next(l for l in [*data["lines"], *data["goals"]] if l["name"] == name)
 
 
 def test_monthly_target_is_underfunded_until_assigned(client, root_accounts):
@@ -633,10 +633,10 @@ def card_books(client, root_accounts):
 
 def identity(data):
     """Ready to assign is always what is in the accounts, minus the card bills, minus the categories."""
-    money, reserved, available, later = (
-        Decimal(data[k]) for k in ("money_in_accounts", "reserved_for_cards", "available", "assigned_to_later_months")
+    money, reserved, available, saved, later = (
+        Decimal(data[k]) for k in ("money_in_accounts", "reserved_for_cards", "available", "goal_available", "assigned_to_later_months")
     )
-    assert Decimal(data["ready_to_assign"]) == money - reserved - available - later, data
+    assert Decimal(data["ready_to_assign"]) == money - reserved - available - saved - later, data
 
 
 def test_a_card_shows_what_is_set_aside_for_its_bill(client, card_books):

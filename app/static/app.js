@@ -369,10 +369,32 @@ function applyKind(form, kind) {
   recomputeTxn(form);
 }
 
+// A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
+// if it never does (an error, no connection) the sheet closes again.
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "groups-sheet-body"];
+const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
+document.body.addEventListener("htmx:beforeRequest", (event) => {
+  const body = event.detail && event.detail.target;
+  if (!body || !SHEET_BODIES.includes(body.id)) return;
+  const dialog = document.getElementById(body.id.replace("-body", ""));
+  if (!dialog) return;
+  body.innerHTML = SHEET_SKELETON;
+  if (!dialog.open) dialog.showModal();
+});
+["htmx:responseError", "htmx:sendError", "htmx:timeout"].forEach((name) => {
+  document.body.addEventListener(name, (event) => {
+    const body = event.detail && event.detail.target;
+    if (!body || !SHEET_BODIES.includes(body.id) || !body.querySelector(".skeleton")) return;
+    body.innerHTML = "";
+    const dialog = document.getElementById(body.id.replace("-body", ""));
+    if (dialog && dialog.open) dialog.close();
+  });
+});
+
 // The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
   const id = event.target && event.target.id;
-  if (id !== "txn-sheet-body" && id !== "cat-sheet-body") return;
+  if (!SHEET_BODIES.includes(id)) return;
   const dialog = document.getElementById(id.replace("-body", ""));
   if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");
@@ -458,6 +480,31 @@ document.body.addEventListener("click", (event) => {
   });
 })();
 
+// "₹597 as last time" under the amount, once a payee you know is chosen; one tap puts it in. +100 / +500 / +1000 add to
+// whatever is there. Both go through the amount's own input handling, so the rows below follow.
+function showLastAmount(form, amount) {
+  const quick = form.querySelector("[data-amount-quick]");
+  const last = quick && quick.querySelector("[data-last-amount]");
+  if (!last) return;
+  const value = amount ? parseDec(amount) : null;
+  last.hidden = value === null;
+  if (value === null) return;
+  const [whole, fraction] = formatDec(value).split(".");
+  last.dataset.amount = amount;
+  last.textContent = `${quick.dataset.symbol}${groupDigits(whole)}${fraction === "00" ? "" : "." + fraction} as last time`;
+}
+
+document.body.addEventListener("click", (event) => {
+  const button = event.target.closest && event.target.closest("[data-last-amount], [data-nudge]");
+  if (!button) return;
+  const form = button.closest("form[data-txn-form]");
+  const total = form && form.querySelector("#total");
+  if (!total) return;
+  const base = button.hasAttribute("data-nudge") ? parseDec(total.value) || 0n : 0n;
+  total.value = formatDec(base + parseDec(button.dataset.amount || button.dataset.nudge));
+  total.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
 function applySuggestion(form, chip, focus = true) {
   const payee = form.querySelector("#payee");
@@ -470,6 +517,7 @@ function applySuggestion(form, chip, focus = true) {
     select.dataset.previous = select.value;
   });
   form.querySelectorAll("[data-suggest]").forEach((c) => c.setAttribute("aria-pressed", c === chip ? "true" : "false"));
+  showLastAmount(form, chip.dataset.amount);
   recomputeTxn(form);
   if (!focus) return;
   const total = form.querySelector("#total");
@@ -666,37 +714,54 @@ document.body.addEventListener("click", (event) => {
   }
 });
 
-// Account form: a payment category only applies to an account outside the budget.
-document.body.addEventListener("change", (event) => {
-  const box = event.target.closest && event.target.closest('input[name="on_budget"]');
-  if (!box) return;
-  const field = box.closest("form").querySelector("[data-payment-category]");
-  if (field) field.hidden = box.checked;
-});
-// A new account asks about the budget only under Assets and Liabilities (the options carry their root in `data-root`): an
-// asset starts in the budget, a card or loan outside it. Hidden fields are disabled so they are not sent.
+// Account form: a payment category goes only with an account that is not part of the budget. A new account asks only under
+// Assets and Liabilities (the options carry their root in `data-root`): an asset starts in the budget, a card or loan outside
+// it. Hidden fields are disabled so they are not sent.
 (function budgetChoice() {
+  const sync = (fields) => {
+    const box = fields.querySelector('input[name="on_budget"]');
+    const payment = fields.querySelector("[data-payment-category]");
+    if (!box) return;
+    const out = !box.checked;
+    const now = fields.querySelector("[data-budget-summary]");
+    if (now) {
+      const choice = payment && payment.querySelector("select");
+      now.textContent = !out ? "Part of the budget"
+        : choice && choice.value ? "Outside the budget · payments are spending"
+        : "Outside the budget";
+    }
+    if (payment) payment.hidden = !out;
+  };
   const apply = (select) => {
     const fields = select.form && select.form.querySelector("[data-budget-fields]");
     if (!fields || !select.options.length || !select.selectedOptions[0] || !("root" in select.selectedOptions[0].dataset)) return;
     const root = select.selectedOptions[0].dataset.root;
     const asked = root === "Assets" || root === "Liabilities";
     fields.hidden = !asked;
+    fields.dataset.root = root;
     fields.querySelectorAll("input, select").forEach((el) => { el.disabled = !asked; });
     if (!asked) return;
     const box = fields.querySelector('input[name="on_budget"]');
     box.checked = root === "Assets";
-    const payment = fields.querySelector("[data-payment-category]");
-    if (payment) payment.hidden = box.checked;
+    // Under a built-in group (Bank Accounts, Investments, Loans...) the account starts as that group says.
+    const start = select.selectedOptions[0].dataset.start;
+    if (start) box.checked = start === "budget";
+    sync(fields);
   };
   document.body.addEventListener("change", (event) => {
-    if (event.target.matches && event.target.matches('form select[name="parent_id"]')) apply(event.target);
+    if (!event.target.matches) return;
+    if (event.target.matches('form select[name="parent_id"]')) apply(event.target);
+    if (event.target.matches('input[name="on_budget"], select[name="payment_category"]')) {
+      const fields = event.target.closest("[data-budget-fields]");
+      if (fields) sync(fields);
+    }
   });
   const first = document.querySelector('[data-budget-fields]');
-  const formOf = first && first.closest("form");
-  const select = formOf && formOf.querySelector('select[name="parent_id"]');
+  const form = first && first.closest("form");
+  const select = form && form.querySelector('select[name="parent_id"]');
   if (select && select.value) {
-    // The parent is already chosen (from an account's page): the server drew the right state; only disable what is hidden.
+    // The parent is already chosen (from a type's tab, an account's page or the edit page): the server drew the right state;
+    // only disable what is hidden.
     first.querySelectorAll("input, select").forEach((el) => { el.disabled = first.hidden; });
   } else if (first) {
     first.querySelectorAll("input, select").forEach((el) => { el.disabled = true; });
@@ -771,7 +836,7 @@ document.body.addEventListener("change", (event) => {
 })();
 
 // ---- Budget: unused groups can be shown ----
-// The "Needs you" badge on the budget page opens and closes the list of what needs a decision.
+// The "N things need you" line on the budget page opens and closes the list of what needs a decision.
 (() => {
   document.body.addEventListener("click", (event) => {
     const badge = event.target.closest && event.target.closest("[data-toggle-attn]");
@@ -780,6 +845,8 @@ document.body.addEventListener("change", (event) => {
     if (!panel) return;
     panel.hidden = !panel.hidden;
     badge.setAttribute("aria-expanded", String(!panel.hidden));
+    const more = badge.querySelector(".need-more");
+    if (more) more.textContent = panel.hidden ? "Show ▾" : "Hide ▴";
   });
 })();
 

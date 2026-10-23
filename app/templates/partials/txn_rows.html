@@ -1,4 +1,11 @@
 {#- The total, then rows on each side, until both add up (see recomputeTxn in app.js). Shared by the transaction and recurring forms. -#}
+  <div class="segmented kinds" role="group" aria-label="What kind of entry (tap the selected one again to offer every account)">
+    <input type="hidden" name="kind" value="{{ kind }}" data-kind-input>
+    {% for value, label in (("expense", "Expense"), ("income", "Income"), ("transfer", "Transfer")) %}
+    <button type="button" class="secondary" data-kind="{{ value }}" aria-pressed="{{ 'true' if kind == value else 'false' }}">{{ label }}</button>
+    {% endfor %}
+  </div>
+
   <div class="total-field">
     <label class="amount-field">Amount
       <input type="text" name="total" id="total" inputmode="decimal" placeholder="0.00" required autocomplete="off"
@@ -7,14 +14,15 @@
     <span class="currency-code muted {{ 'sym' if currency == 'INR' }}">{{ currency|symbol }}</span>
   </div>
 
-  {% if with_payee %}{% include "partials/txn_payee.html" %}{% endif %}
-
-  <div class="segmented kinds" role="group" aria-label="What kind of entry (tap the selected one again to offer every account)">
-    <input type="hidden" name="kind" value="{{ kind }}" data-kind-input>
-    {% for value, label in (("expense", "Expense"), ("income", "Income"), ("transfer", "Transfer")) %}
-    <button type="button" class="secondary" data-kind="{{ value }}" aria-pressed="{{ 'true' if kind == value else 'false' }}">{{ label }}</button>
-    {% endfor %}
+  {#- Quick amounts for a new entry: the last amount for the chosen payee, and nudges (see data-amount-quick in app.js). -#}
+  {% if with_payee and not editing %}
+  <div class="amount-quick" data-amount-quick data-symbol="{{ currency|symbol }}">
+    <button type="button" class="chip" data-last-amount hidden></button>
+    {% for n in (100, 500, 1000) %}<button type="button" class="chip" data-nudge="{{ n }}">+{{ n }}</button>{% endfor %}
   </div>
+  {% endif %}
+
+  {% if with_payee %}{% include "partials/txn_payee.html" %}{% endif %}
 
   {% for side, title, hint, rows in (("credit", "From", "where the money comes from", from_rows), ("debit", "To", "where the money goes", to_rows)) %}
   <section class="txn-side" data-side-section="{{ side }}">

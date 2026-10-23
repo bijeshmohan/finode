@@ -84,7 +84,7 @@ class BackupService:
                 BackupAccount(
                     id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details,
                     on_budget=a.on_budget, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
-                    position=a.position,
+                    position=a.position, system_key=a.system_key,
                 )
                 for a in accounts
             ],
@@ -133,7 +133,7 @@ class BackupService:
         accounts = self.accounts.ensure_roots()
         own = [
             a for a in accounts
-            if a.parent_id is not None and not self.accounts.is_opening_balances(a, accounts)
+            if a.parent_id is not None and a.system_key is None and not self.accounts.is_opening_balances(a, accounts)
         ]
         return not own and not self.tr.account_ids_with_postings() and not self.rr.list() and not self.br.list()
 
@@ -170,8 +170,9 @@ class BackupService:
         summary.accounts = sum(1 for a in file.accounts if a.parent_id is not None)
         summary.transactions = len(file.transactions)
         summary.recurring = len(file.recurring)
-        summary.allocations = len(file.allocations)
-        summary.targets = len(file.targets)
+        allocations, targets = self._expense_plan(file)
+        summary.allocations = len(allocations)
+        summary.targets = len(targets)
         if file.transactions:
             summary.date_from = min(t.date for t in file.transactions)
             summary.date_to = max(t.date for t in file.transactions)
@@ -262,6 +263,21 @@ class BackupService:
                 errors.append("a budget entry refers to an account that is not in the file.")
                 break
     @staticmethod
+    def _expense_plan(file: BackupFile) -> tuple[list, list]:
+        """The plan rows and targets that belong to expense categories: a file from when the Plan had Build and Earn
+        also carries rows for funds, loans and income accounts, which the budget no longer has."""
+        by_id = {a.id: a for a in file.accounts}
+
+        def expense(aid: UUID) -> bool:
+            account, seen = by_id.get(aid), set()
+            while account is not None and account.parent_id is not None and account.id not in seen:
+                seen.add(account.id)
+                account = by_id.get(account.parent_id)
+            return account is not None and account.parent_id is None and account.name == "Expenses"
+
+        return [r for r in file.allocations if expense(r.account_id)], [t for t in file.targets if expense(t.account_id)]
+
+    @staticmethod
     def _depth(account: BackupAccount, accounts: dict[UUID, BackupAccount]) -> int | None:
         depth, current, seen = 0, account, set()
         while current.parent_id is not None:
@@ -290,9 +306,25 @@ class BackupService:
             for a in file.accounts:
                 if a.parent_id is None:
                     ids[a.id] = roots[a.name].aid
+            # The built-in groups: the ones a file carries (by key) map onto the person's own. An empty built-in group whose
+            # name the file uses for an account of its own (a plain "Cash" under Assets) steps aside for it.
+            fixed = {a.system_key: a for a in self.accounts.ensure_roots() if a.system_key is not None}
+            by_id_now = {a.aid: a for a in self.accounts.ensure_roots()}
+            kept: set[UUID] = set()
+            for a in file.accounts:
+                if a.system_key in fixed:
+                    ids[a.id] = fixed[a.system_key].aid
+                    kept.add(a.id)
+            taken = {
+                (by_old[a.parent_id].name, a.name) for a in file.accounts
+                if a.parent_id is not None and a.id not in kept and by_old[a.parent_id].parent_id is None
+            }
+            self.accounts.release_fixed_parents([
+                f.aid for f in fixed.values() if (by_id_now[f.parent_id].name, f.name) in taken and f.aid not in ids.values()
+            ])
             opening = None
             for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old)):
-                if a.parent_id is None:
+                if a.parent_id is None or a.id in kept:
                     continue
                 if a.name == OPENING_BALANCES_ACCOUNT_NAME and by_old[a.parent_id].name == "Equity" and by_old[a.parent_id].parent_id is None:
                     opening = opening or self.accounts.opening_balances_account()
@@ -304,7 +336,7 @@ class BackupService:
                 )
                 ids[a.id] = created.aid
             for a in file.accounts:
-                if a.parent_id is None or ids[a.id] == (opening.aid if opening else None):
+                if a.parent_id is None or a.id in kept or ids[a.id] == (opening.aid if opening else None):
                     continue
                 account = self.ar.read(ids[a.id])
                 account.closed_on = a.closed_on
@@ -343,9 +375,10 @@ class BackupService:
                 if t.updated_via != t.created_via:
                     created.updated_via = t.updated_via
                     db.add(created)
-            for row in file.allocations:
+            allocations, targets = self._expense_plan(file)
+            for row in allocations:
                 self.br.set(row.month, ids[row.account_id], row.amount)
-            for target in file.targets:
+            for target in targets:
                 self.br.set_target(ids[target.account_id], target.kind, target.amount, target.target_date, target.weekday)
             db.commit()
         except Exception:
