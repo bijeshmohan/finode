@@ -1362,3 +1362,26 @@ dialog.sheet[open]::backdrop { opacity: 1; }
   dialog.sheet, dialog.sheet::backdrop { transition: none; }
   .toast, .toast.has-undo { animation: toast-out 0s var(--toast-life) forwards; }
 }
+
+/* ---------- More motion: bars fill on load, folding rows open smoothly, pressed rows answer ---------- */
+:root { interpolate-size: allow-keywords; }
+/* Bars grow from zero once, when a page loads (app.js sets data-live a moment later, so a bar swapped in by assigning does not replay). */
+@keyframes bar-fill { from { width: 0; } }
+html:not([data-live]) .glance-bar i, html:not([data-live]) .crow .bar i { animation: bar-fill .5s cubic-bezier(.3, .7, .2, 1) both; }
+html:not([data-live]) .crow:nth-child(2) .bar i { animation-delay: .05s; }
+html:not([data-live]) .crow:nth-child(3) .bar i { animation-delay: .1s; }
+html:not([data-live]) .crow:nth-child(n+4) .bar i { animation-delay: .15s; }
+/* Folding rows: the height eases (where the browser can) and the content comes in just behind. */
+details.upcoming::details-content, details.how::details-content { block-size: 0; overflow: clip; transition: block-size .26s cubic-bezier(.3, .7, .2, 1), content-visibility .26s allow-discrete; }
+details.upcoming[open]::details-content, details.how[open]::details-content { block-size: auto; }
+details.upcoming[open] > :not(summary), details.how[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: rise-in .22s ease-out; }
+/* A row or button that is being pressed dims a little, at once, and eases back when let go. */
+a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button, .need-line { transition: opacity .15s ease, transform .15s ease; }
+a.tx:active, a.crow:active, a.up-row:active, a.setting-link:active, a.add-row:active, a.intro-step:active, .need-line:active { opacity: .55; transition-duration: 0s; }
+a.button:active, button:not(.switch):not(.chip):active { transform: scale(.98); opacity: .8; transition-duration: 0s; }
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-live]) .glance-bar i, html:not([data-live]) .crow .bar i { animation: none; }
+  details.upcoming::details-content, details.how::details-content, a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button, .need-line { transition: none; }
+  details.upcoming[open] > :not(summary), details.how[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: none; }
+  a.button:active, button:not(.switch):not(.chip):active { transform: none; }
+}
