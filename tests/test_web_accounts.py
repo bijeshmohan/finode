@@ -26,7 +26,7 @@ def test_accounts_page_groups_accounts_under_roots_in_order(
     response = client.get("/accounts")
     assert response.status_code == 200
     text = response.text
-    assert text.index(">Assets<") < text.index(">Liabilities<") and ">Equity<" not in text, "Equity has no chip"
+    assert text.index(">Asset<") < text.index(">Liability<") and ">Equity<" not in text, "Equity has no chip"
     assert ">Expenses<" not in text and ">Income<" not in text, "those are on the Categories page"
     assert f'href="/accounts/{account["aid"]}"' in text
     assert "checking" in text

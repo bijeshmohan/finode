@@ -145,6 +145,8 @@ CATEGORY_ROOTS = ("Expenses", "Income")
 
 # The chips on the accounts page, in this order (?tab=): each shows one type of account.
 ACCOUNT_TABS = {"assets": "Assets", "liabilities": "Liabilities", "equity": "Equity"}
+# What the chips say: one kind of account, in the singular (the roots themselves keep their names).
+ACCOUNT_CHIP_NAMES = {"assets": "Asset", "liabilities": "Liability", "equity": "Equity"}
 
 
 @router.get("")
@@ -160,10 +162,13 @@ def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
             "active": "accounts",
             "tab": tab,
             "tabs": ACCOUNT_TABS,
+            "chip_names": ACCOUNT_CHIP_NAMES,
             "root": root,
             "blocks": page_blocks(root),
             "currency": accounts.currency().code,
             "closed": closed_count([root]),
+            # What the quiet line under the figure counts: the open accounts of the type (groups are only headings).
+            "account_count": sum(1 for n in root.walk() if n.account.closed_on is None and n.depth > 0 and not n.children),
         },
     )
 

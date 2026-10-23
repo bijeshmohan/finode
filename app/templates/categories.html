@@ -25,9 +25,10 @@
   </div>
 </div>
 
-<div class="ready zero cat-hero">
-  <span class="sr-only">{{ "Spent" if tab == "expense" else "Earned" }} {% if is_current %}so far{% else %}in {{ month_name.split(" ")[0] }}{% endif %}</span>
+<div class="ready zero budget-hero ready-hero cat-hero">
+  <div class="hero-top"><div class="calc-row"><span class="muted">{{ "Spent" if tab == "expense" else "Earned" }} {% if is_current %}so far{% else %}in {{ month_name.split(" ")[0] }}{% endif %}</span></div></div>
   <span class="figure">{{ figure(grand, currency) }}</span>
+  <span class="glance-note hero-note"><span>{% if rows %}{{ rows|length }} categor{{ "y" if rows|length == 1 else "ies" }}{% else %}No categories yet{% endif %}</span></span>
 </div>
 
 <div data-categories>
