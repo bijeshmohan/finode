@@ -11,7 +11,7 @@
 <p id="page-error" class="error" role="alert">{{ error or "" }}</p>
 
 <div class="cat-bar tx-bar">
-  <div class="chips tx-kinds" role="group" aria-label="Show">
+  <div class="chips seg tx-kinds" role="group" aria-label="Show">
     {% for c in chips %}<a class="chip" href="{{ c.href }}" aria-pressed="{{ 'true' if kind == c.value else 'false' }}">{{ c.label }}</a>{% endfor %}
   </div>
   <span class="head-icons">

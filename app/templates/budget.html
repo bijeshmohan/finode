@@ -7,7 +7,7 @@
   {{ month_pill("/plan?tab=" ~ tab ~ "&month={month}", month_name, month_key, previous, next) }}
 </div>
 <div class="cat-bar plan-bar">
-  <div class="chips cat-chips" role="group" aria-label="What to plan">
+  <div class="chips seg cat-chips" role="group" aria-label="What to plan">
     {% for key, name in tabs.items() %}<a class="chip" href="/plan?tab={{ key }}&month={{ month_key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
   </div>
 </div>

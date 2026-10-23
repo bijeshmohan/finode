@@ -26,7 +26,7 @@ The Plans page has a short welcome until you assign the first amount. On the new
 
 ## 4. Find your way around
 
-On a phone, the bottom bar has four tabs and a floating **+**:
+On a phone, the bottom bar has four tabs with a **+** in the middle:
 
 | Tab | What it is for |
 |---|---|

@@ -34,7 +34,7 @@ flowchart LR
     Tx --> Del["/transactions/deleted"]
 ```
 
-The bottom tab bar on phones is Home, Budget, Accounts and Categories; from 60rem up a fixed sidebar replaces the bar. Transactions has no tab: it is reached from "View all" on Home and from the sidebar.
+The bottom tab bar on phones is Home, Plans, Accounts and Categories with the "+" docked in the middle (nothing floats over the page); from 60rem up a fixed sidebar replaces the bar. Transactions has no tab: it is reached from "View all" on Home and from the sidebar.
 
 ## How a page updates
 

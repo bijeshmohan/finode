@@ -196,28 +196,26 @@ main {
 .tabbar a[aria-current="page"] { color: var(--text); }
 .tabbar .icon { width: 1.4rem; height: 1.4rem; }
 
-.fab {
-  position: fixed;
-  right: max(1.25rem, env(safe-area-inset-right));
-  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 1rem);
-  z-index: 21;
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
+/* The "+" is docked in the middle of the tab bar, so it never covers what is on the page. */
+.tabbar.has-plus { grid-template-columns: repeat(5, 1fr); }
+.tabbar a.fab {
+  width: 3rem;
+  height: 3rem;
+  margin: -1rem auto 0;
+  flex: none;
   border-radius: 50%;
   color: var(--on-accent);
   background: var(--accent);
   box-shadow: var(--shadow-lg);
 }
-.fab .icon { width: 24px; height: 24px; }
+.tabbar a.fab .icon { width: 24px; height: 24px; }
 
 main {
   max-width: 44rem;
   margin: 0 auto;
   padding: 1rem 1.25rem 3rem;
 }
-body.app main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 5.5rem); }
+body.app main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 2rem); }
 
 /* Wide screens: a sidebar replaces the top bar and the tab bar, and the page is one calm column. */
 @media (min-width: 60rem) {
@@ -393,6 +391,8 @@ button.small, a.button.small { min-height: 34px; padding: .25rem .7rem; font-siz
 }
 .grid-form .error { grid-column: 1 / -1; margin: 0; }
 .actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+/* A form page ends in one full-width primary button; the back link is its cancel. */
+form.card > .actions > button[type="submit"]:only-child { width: 100%; min-height: 3rem; font-size: 1rem; }
 
 details.card { margin-bottom: 1rem; }
 summary { list-style: none; }
@@ -807,8 +807,8 @@ form.copy-last button { margin: 0; }
 .weeks li .figures em { font-style: normal; color: var(--muted); }
 
 /* ---------- Add a transaction: the amount first, then who, then the accounts ---------- */
-.txn-form { max-width: 30rem; margin: 0 auto; gap: 1.25rem; }
-.total-field { justify-content: center; align-items: flex-end; gap: .5rem; padding-top: .5rem; }
+.txn-form { max-width: 30rem; margin: 0 auto; gap: 1rem; }
+.total-field { justify-content: center; align-items: flex-end; gap: .5rem; padding-top: 0; }
 .total-field .amount-field { flex: 0 1 15rem; align-items: center; font-size: 0; }
 .total-field .amount-field input {
   font-size: 3.5rem; font-weight: 600; letter-spacing: -.03em; text-align: center; line-height: 1.1;
@@ -821,11 +821,7 @@ form.copy-last button { margin: 0; }
 
 .payee-field { display: flex; flex-direction: column; gap: .75rem; }
 .payee-label { font-size: 0; }
-.payee-label input {
-  font-size: 1.125rem; font-weight: 500; padding: .5rem 0; border: 0; border-bottom: 1px solid var(--border);
-  border-radius: 0; background: transparent; box-shadow: none;
-}
-.payee-label input:focus { border-bottom-color: var(--text); box-shadow: none; }
+.payee-label input { font-size: 1rem; font-weight: 500; }
 .chips { display: flex; flex-wrap: wrap; gap: .5rem; min-height: 2.25rem; }
 button.chip {
   min-height: 2.25rem; padding: 0 .875rem; border-radius: 999px; font-size: .875rem; font-weight: 500;
@@ -842,6 +838,8 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .segmented.kinds button:hover { background: transparent; color: var(--text); }
 .segmented.kinds button[aria-pressed="true"] { color: var(--text); font-weight: 600; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 10%); }
 
+/* From and To are tiles, like every other group on the page. */
+.txn-side { background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); padding: .75rem 1rem .9rem; }
 .txn-side-head h2 { font-size: .8125rem; font-weight: 500; color: var(--muted); margin: 0; }
 .txn-side-head .hint { font-weight: 400; color: var(--faint); }
 .txn-row { grid-template-columns: minmax(0, 1fr) 7rem var(--tap); gap: .25rem .5rem; }
@@ -870,7 +868,7 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .glance-bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .glance-note { margin: .5rem 0 0; font-size: .8125rem; color: var(--muted); }
 /* Home: the figure with the month pill, and an overspent warning */
-.home-alert { display: flex; align-items: center; gap: .65rem; margin: .25rem 0 .75rem; padding: .7rem .9rem; background: var(--warn-soft); border: 1px solid var(--tile-border); border-radius: 14px; color: var(--text); text-decoration: none; font-size: .9375rem; }
+.home-alert { display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem; padding: 0; color: var(--text); text-decoration: none; font-size: .875rem; }
 .home-alert .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--warn); flex: none; }
 .home-alert > span:nth-child(2) { flex: 1; min-width: 0; }
 .glance .box-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
@@ -897,11 +895,13 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .tx-bar { margin-bottom: .5rem; flex-wrap: nowrap; }
 .tx-bar .head-icons { gap: 0; flex: none; }
 .tx-bar .icon-button { width: 2.375rem; height: 2.375rem; }
+/* One switcher for every "which list": a segmented control (also Expense / Income / Transfer on the Add screen). */
+.chips.seg { display: flex; flex-wrap: nowrap; flex: 1 1 auto; min-width: 0; gap: 2px; padding: 3px; min-height: 0; background: var(--surface-2); border-radius: var(--radius-sm); }
 a.chip {
-  display: inline-flex; align-items: center; min-height: 2rem; padding: 0 .875rem; border-radius: 999px;
-  font-size: .84rem; font-weight: 500; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; min-height: 2.125rem; padding: 0 .75rem; border-radius: 9px;
+  font-size: .84rem; font-weight: 500; color: var(--muted); background: transparent; text-decoration: none; white-space: nowrap;
 }
-a.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+a.chip[aria-pressed="true"] { color: var(--text); background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
 details.filters { margin: 0 0 .5rem; padding: 0; }
 details.filters summary { display: inline-flex; align-items: center; gap: .4rem; min-height: 2rem; padding: 0; font-size: .84rem; font-weight: 500; color: var(--muted); cursor: pointer; }
 details.filters[open] summary { margin-bottom: .75rem; }
@@ -1055,7 +1055,7 @@ ul.tile.list > li + li { border-top-color: var(--surface-2); }
 .cat-bar.acct-nav .back { margin: 0 0 0 -.35rem; }
 .acct-nav + .account-hero .hero-balance { margin-top: .5rem; }
 .section-head:has(> .circ-button) { align-items: center; }
-.acct-add { display: flex; width: 100%; min-height: 2.75rem; margin-top: .25rem; }
+.acct-add { display: inline-flex; width: auto; min-height: 2.5rem; margin-top: .25rem; padding: 0 1.1rem; border-radius: 999px; }
 details.menu, details.note-info { position: static; }
 .acct-name-row { display: flex; align-items: center; gap: .35rem; min-width: 0; }
 .acct-name-row h1 { min-width: 0; overflow-wrap: anywhere; }
@@ -1121,6 +1121,8 @@ dd.auto, dd.auto a { color: var(--auto); }
 .crow-sub { color: var(--muted); font-size: .8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .crow-amt { display: flex; flex-direction: column; align-items: flex-end; flex: none; font-weight: 500; font-variant-numeric: tabular-nums; }
 .crow-amt .income { color: var(--positive); }
+.crow-top { display: flex; align-items: baseline; gap: .5rem; min-width: 0; }
+.crow-of { color: var(--muted); font-size: .8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .crow-share { color: var(--muted); font-size: .8125rem; font-weight: 400; }
 /* Every category row is two lines tall, used or not: the name sits on the first line beside the amount. */
 [data-cat-tree] .crow { align-items: stretch; }
