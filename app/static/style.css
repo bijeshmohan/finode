@@ -1332,3 +1332,6 @@ main:has(.glance) .section-head { margin-top: 2.5rem; }
 .home-recent .section-head { margin-top: 0; }
 .home-credit { margin: 1.6rem 0 0; }
 .home-alert + .home-credit { margin-top: 1.1rem; }
+
+/* Plans rows: a little more room under each bar so the notch clears the divider (2026-10-23) */
+.budget-list .crow.has-bar { padding: .9rem 0 1.15rem; }
