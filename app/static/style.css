@@ -1335,3 +1335,7 @@ main:has(.glance) .section-head { margin-top: 2.5rem; }
 
 /* Plans rows: a little more room under each bar so the notch clears the divider (2026-10-23) */
 .budget-list .crow.has-bar { padding: .9rem 0 1.15rem; }
+
+/* The "i" beside the figures is faint until it is used (2026-10-23) */
+.calc-info .info-button { color: var(--faint); }
+.calc-info .info-button:hover, .calc-info[open] .info-button { color: var(--text); }
