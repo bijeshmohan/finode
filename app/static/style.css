@@ -529,19 +529,17 @@ details.filters .count {
   box-shadow: var(--shadow-lg);
   font-weight: 500;
   transform: translateX(-50%);
-  animation: toast 3.2s ease forwards;
+  --toast-life: 2.9s;
+  animation: toast-in .25s ease-out, toast-out .3s ease-in var(--toast-life) forwards;
   pointer-events: none;
 }
 @media (min-width: 48rem) {
   .toast { bottom: 2rem; }
 }
-@keyframes toast {
-  0% { opacity: 0; transform: translate(-50%, .5rem); }
-  8%, 85% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, 0); visibility: hidden; }
-}
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, .75rem); } }
+@keyframes toast-out { to { opacity: 0; transform: translate(-50%, .25rem); visibility: hidden; } }
 /* A toast with Undo stays long enough to be tapped. */
-.toast.has-undo { display: flex; align-items: center; gap: 1rem; animation-duration: 7s; pointer-events: auto; }
+.toast.has-undo { display: flex; align-items: center; gap: 1rem; --toast-life: 6.7s; pointer-events: auto; }
 .toast-undo { min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font-weight: 600; text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
@@ -1343,3 +1341,24 @@ main:has(.glance) .section-head { margin-top: 2.5rem; }
 /* The "i" beside the figures is faint until it is used (2026-10-23) */
 .calc-info .info-button { color: var(--faint); }
 .calc-info .info-button:hover, .calc-info[open] .info-button { color: var(--text); }
+
+/* ---------- Sheets slide up from the bottom (a small rise and fade on wide screens), the dim area fades ---------- */
+dialog.sheet {
+  outline: none;
+  opacity: 0; transform: translateY(.75rem);
+  transition: opacity .2s ease, transform .25s cubic-bezier(.3, .7, .2, 1), overlay .25s allow-discrete, display .25s allow-discrete;
+}
+dialog.sheet[open] { opacity: 1; transform: none; }
+@starting-style { dialog.sheet[open] { opacity: 0; transform: translateY(.75rem); } }
+dialog.sheet::backdrop { opacity: 0; transition: opacity .25s ease, overlay .25s allow-discrete, display .25s allow-discrete; }
+dialog.sheet[open]::backdrop { opacity: 1; }
+@starting-style { dialog.sheet[open]::backdrop { opacity: 0; } }
+@media (max-width: 40rem) {
+  dialog.sheet.sheet-bottom { opacity: 1; transform: translateY(100%); }
+  dialog.sheet.sheet-bottom[open] { transform: none; }
+  @starting-style { dialog.sheet.sheet-bottom[open] { transform: translateY(100%); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.sheet, dialog.sheet::backdrop { transition: none; }
+  .toast, .toast.has-undo { animation: toast-out 0s var(--toast-life) forwards; }
+}
