@@ -28,3 +28,8 @@ def test_bars_fill_once_folds_ease_and_presses_answer():
     assert "details.upcoming::details-content" in CSS and "interpolate-size: allow-keywords" in CSS
     assert "a.tx:active" in CSS and "a.crow:active" in CSS
     assert 'dataset.live = "1"' in (Path(__file__).resolve().parent.parent / "app" / "static" / "app.js").read_text()
+
+
+def test_a_sheets_content_fades_over_its_placeholders_and_the_saved_row_settles():
+    assert "#txn-sheet-body > *, #cat-sheet-body > *, #groups-sheet-body > * { animation: fade-in" in CSS
+    assert "a.tx.tx-new { animation: tx-new" in CSS
