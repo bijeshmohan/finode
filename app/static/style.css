@@ -1330,3 +1330,5 @@ main { animation: page-in .14s ease-out; }
 .home-alert { margin: 1.6rem 0 0; }
 main:has(.glance) .section-head { margin-top: 2.5rem; }
 .home-recent .section-head { margin-top: 0; }
+.home-credit { margin: 1.6rem 0 0; }
+.home-alert + .home-credit { margin-top: 1.1rem; }
