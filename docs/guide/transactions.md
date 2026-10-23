@@ -37,7 +37,7 @@ Open a transaction and tap **Add again** to start a new one pre-filled with the 
 - **Tap a row** to see its details in a sheet: the accounts (*Paid from* and *Spent on* for an expense), the note, who added it (*By the app* for what you entered, or *Recurring* or the assistant's name), and the buttons **Edit**, **Add again** and **Delete**.
 
 <img src="img/transaction-sheet.png" alt="A transaction's details sheet with Edit, Add again and Delete" width="300">
-- A month shows 25 entries a page; use *Older →* and *← Newer* at the bottom to move between pages.
+- A month starts with its newest 25 entries (a day is never cut in two); **Show 25 more** at the bottom of the list adds the next ones in place, with how many are left beside it, until the whole month is on the page. **Home** does the same, starting with the newest 8 and adding 10 at a time.
 
 ### Upcoming entries
 

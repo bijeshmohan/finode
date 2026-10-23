@@ -1,0 +1,4 @@
+{#- The answer to GET /transactions/more: the next days and the row that fetches the ones after them. -#}
+{% set more_in = true %}
+{% include "partials/transaction_days.html" %}
+{% include "partials/transaction_more_row.html" %}

@@ -1419,3 +1419,13 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 
 /* The sheet opens with focus on its title, not on the first row (iOS drew the focus ring round it, a light box in dark mode). */
 .filter-title:focus { outline: none; }
+
+/* ---------- Show more: a quiet row at the bottom of a list, one small line when the month is done ---------- */
+.tx-more { margin: .25rem 0 1rem; }
+.more-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 3rem; margin: 0; padding: 0 .25rem; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font-size: .875rem; font-weight: 600; text-align: left; }
+.more-row small { font-size: .8125rem; font-weight: 400; color: var(--muted); }
+.more-row.htmx-request { color: var(--muted); }
+.tx-end { margin: .5rem 0 1rem; text-align: center; font-size: .8125rem; color: var(--muted); }
+@keyframes more-in { from { opacity: 0; transform: translateY(6px); } }
+.tx-more-in { animation: more-in .3s ease-out; }
+@media (prefers-reduced-motion: reduce) { .tx-more-in { animation: none; } }
