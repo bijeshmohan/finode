@@ -76,9 +76,15 @@ def test_the_chips_pick_a_type_in_the_order_assets_liabilities_and_equity_has_no
 
 def test_the_figure_is_the_chosen_types_total(client, tree):
     page = client.get("/accounts").text
-    assert '<span class="sr-only">What you own</span>' in page and "5,000.00" in page.split('class="ready zero cat-hero"', 1)[1].split("</div>", 1)[0]
+    assert '<span class="muted">What you own</span>' in page and "5,000.00" in page.split('cat-hero"', 1)[1].split("</span>\n</div>", 1)[0]
     owed = client.get("/accounts?tab=liabilities").text
-    assert "What you owe" in owed and "300.00" in owed.split('class="ready zero cat-hero"', 1)[1].split("</div>", 1)[0]
+    assert "What you owe" in owed and "300.00" in owed.split('cat-hero"', 1)[1].split("</span>\n</div>", 1)[0]
+
+
+def test_the_quiet_line_counts_the_open_accounts_of_the_type(client, tree):
+    page = client.get("/accounts").text
+    line = page.split('hero-note"><span>', 1)[1].split("</span>", 1)[0]
+    assert line.endswith(" accounts") or line.endswith(" account"), line
 
 
 def test_every_open_account_shows_even_with_no_entries_and_no_balance(client, tree, session):

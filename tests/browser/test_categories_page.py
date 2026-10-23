@@ -132,3 +132,13 @@ def test_accounts_and_categories_share_the_same_heights(page: Page, books):
         assert page.locator(".cat-bar .head-icons").count() == 0, f"{path}: nothing beside the switcher"
         spots[path] = (round(title["y"]), round(chips["y"]), round(chips["width"]), round(hero["y"]))
     assert spots["/accounts"] == spots["/categories"], f"title, full-width switcher and figure line up: {spots}"
+
+
+def test_the_head_is_the_same_on_accounts_categories_and_budgets(page: Page, books):
+    spots = {}
+    for path in ("/accounts", "/categories", "/budget"):
+        page.goto(path)
+        title, chips, label, figure = (page.locator(s).first.bounding_box() for s in (".page-head h1", ".cat-chips", ".ready-hero .hero-top", ".ready-hero .figure"))
+        spots[path] = (round(title["y"]), round(chips["y"]), round(label["y"]), round(figure["y"]), round(figure["height"]))
+        expect(page.locator(".ready-hero .hero-top .muted").first).to_be_visible()
+    assert len(set(spots.values())) == 1, f"title, switcher, label and figure line up on all three pages: {spots}"
