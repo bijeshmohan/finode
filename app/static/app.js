@@ -931,3 +931,6 @@ document.addEventListener("click", (event) => {
     try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
   }
 });
+
+// Bars fill from zero once, when a page loads; after that (an amount assigned, a sheet saved) they are only replaced.
+setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);

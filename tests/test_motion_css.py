@@ -21,3 +21,10 @@ def test_sheets_slide_up_and_the_toast_comes_and_goes():
     assert "dialog.sheet.sheet-bottom { opacity: 1; transform: translateY(100%); }" in CSS
     assert "animation: toast-in .25s ease-out, toast-out .3s ease-in var(--toast-life) forwards" in CSS
     assert "dialog.sheet, dialog.sheet::backdrop { transition: none; }" in CSS
+
+
+def test_bars_fill_once_folds_ease_and_presses_answer():
+    assert "html:not([data-live]) .glance-bar i" in CSS and "@keyframes bar-fill" in CSS
+    assert "details.upcoming::details-content" in CSS and "interpolate-size: allow-keywords" in CSS
+    assert "a.tx:active" in CSS and "a.crow:active" in CSS
+    assert 'dataset.live = "1"' in (Path(__file__).resolve().parent.parent / "app" / "static" / "app.js").read_text()
