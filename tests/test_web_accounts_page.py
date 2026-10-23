@@ -62,11 +62,11 @@ def test_the_chips_pick_a_type_in_the_order_assets_liabilities_and_equity_has_no
     page = client.get("/accounts").text
     chips = re.findall(r'<a class="chip" href="/accounts\?tab=(\w+)" aria-pressed="(\w+)">(\w+)</a>', page)
     # The chosen chip links to Equity (tapping it again leaves neither chosen); the other one links to itself.
-    assert chips == [("equity", "true", "Assets"), ("liabilities", "false", "Liabilities")]
-    assert client.get("/accounts?tab=nonsense").text.count('aria-pressed="true"') == 1 and client.get("/accounts?tab=nonsense").text.split('aria-pressed="true">')[1].startswith("Assets<")
+    assert chips == [("equity", "true", "Asset"), ("liabilities", "false", "Liability")]
+    assert client.get("/accounts?tab=nonsense").text.count('aria-pressed="true"') == 1 and client.get("/accounts?tab=nonsense").text.split('aria-pressed="true">')[1].startswith("Asset<")
     assert "Amex" not in page and "Opening Balances" not in page, "only the chosen type is listed"
     liabilities = client.get("/accounts?tab=liabilities").text
-    assert "Amex" in liabilities and "HDFC" not in liabilities and 'aria-pressed="true">Liabilities<' in liabilities
+    assert "Amex" in liabilities and "HDFC" not in liabilities and 'aria-pressed="true">Liability<' in liabilities
     assert "Opening Balances" in client.get("/accounts?tab=equity").text
     assert "data-account-search" not in page and "Recently used" not in page and "Search accounts" not in page
     assert "Net worth" not in page and 'class="add-row" href="/accounts/new?root=assets"' in page, "an Add account row ends the page"
