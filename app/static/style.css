@@ -1320,3 +1320,13 @@ main { animation: page-in .14s ease-out; }
   .home-cols > .home-recent { grid-column: 2; grid-row: 1 / span 8; }
   .home-recent .section-head { margin-top: 0; }
 }
+
+/* Home's head with room to breathe (2026-10-23): looser gaps between label row, figure, bar, warning and the list */
+.glance { padding-top: 1rem; padding-bottom: .5rem; }
+.glance .box-top { margin-bottom: .6rem; }
+.glance .glance-figure { margin-top: .5rem; }
+.glance > .glance-bar { margin-top: 1.5rem; }
+.glance > .glance-note { margin-top: 1rem; }
+.home-alert { margin: 1.6rem 0 0; }
+main:has(.glance) .section-head { margin-top: 2.5rem; }
+.home-recent .section-head { margin-top: 0; }

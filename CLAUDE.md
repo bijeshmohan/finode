@@ -312,3 +312,5 @@ Every page is made of the same parts, so none looks like it came from another ap
 
 
 **Pace notch (2026-10-23).** The month marker on every bar (`.pace`) is a small triangle *under* the bar, not a vertical line across it (the owner disliked the `|`); same markup and rules as before.
+
+**Home's head has room to breathe (2026-10-23).** Looser gaps between the label row, figure, bar, warning and the Transactions heading (a block at the end of `style.css`, scoped to `.glance` and Home's `.section-head`); no parts changed.
