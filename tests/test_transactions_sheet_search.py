@@ -122,6 +122,14 @@ def test_the_sheet_shows_the_entry(client, books, ledger):
     assert "Note None" in text and "Added By the API" in text
 
 
+def test_a_date_is_not_said_twice(client, books, ledger):
+    from app.clock import local_today
+
+    day = local_today().strftime("%d %b %Y")
+    text = flat(sheet(client, ledger["swiggy"]))  # dated today and recorded today
+    assert text.count(day) == 1 and "Today · " + day in text and "Added By the API" in text and "Added By the API," not in text
+
+
 def test_the_labels_follow_the_kind(client, books, ledger):
     assert "From Salary Received in HDFC" in flat(sheet(client, ledger["pay"]))
     assert "+5,000.00" in flat(sheet(client, ledger["pay"]))
