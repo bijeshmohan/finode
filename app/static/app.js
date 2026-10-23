@@ -934,3 +934,13 @@ document.addEventListener("click", (event) => {
 
 // Bars fill from zero once, when a page loads; after that (an amount assigned, a sheet saved) they are only replaced.
 setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
+
+// After saving an entry the toast carries Undo for it; the saved entry's row, when the page lists it, settles in with a short tint.
+(() => {
+  const undo = document.querySelector('.toast [hx-post^="/transactions/"][hx-post$="/delete"]');
+  const tid = undo && undo.getAttribute("hx-post").split("/")[2];
+  if (!tid) return;
+  document.querySelectorAll("a.tx").forEach((row) => {
+    if ((row.getAttribute("href") || "").startsWith(`/transactions/${tid}/`)) row.classList.add("tx-new");
+  });
+})();
