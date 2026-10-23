@@ -38,9 +38,43 @@ UPCOMING_LIMIT = 100
 KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer", "spending": "expense", "transfers": "transfer"}
 
 
-def _chip_url(base: dict, value: str) -> str:
-    params = {**base, **({"kind": value} if value else {})}
-    return "/transactions" + (f"?{urlencode(params)}" if params else "")
+def _applied(filters: dict, index: "AccountIndex", rest: dict) -> list[dict]:
+    """What is filtered, each with the page's own address without it (the ✕ beside it)."""
+    out = []
+    for key, label in (("account", "Account"), ("category", "Category"), ("merchant", "Merchant")):
+        value = filters.get(key)
+        if not value:
+            continue
+        try:
+            name = index.names.get(UUID(value), "?") if key != "merchant" else value
+        except ValueError:
+            name = "?"
+        keep = {**rest, **{k: v for k, v in filters.items() if v and k != key}}
+        out.append({"key": key, "label": label, "name": name, "remove": "/transactions?" + urlencode(keep)})
+    return out
+
+
+def _summary(found: list, index: "AccountIndex") -> dict:
+    """How many entries match and, when they all go one way, what they come to."""
+    rows = [to_row(t, index) for t in found]
+    kinds = {r.kind for r in rows}
+    word = {"expense": "spent", "income": "earned"}.get(next(iter(kinds)), "") if len(kinds) == 1 else ""
+    return {"count": len(rows), "total": sum((r.amount for r in rows), Decimal(0)) if word else None, "word": word}
+
+
+def _filter_options(all_accounts, transactions) -> dict:
+    """The choices behind the Filter sheet: accounts (assets, liabilities, equity), categories (expenses, income), payees."""
+    accounts, categories = [], []
+    for root in build_tree(all_accounts):
+        target = categories if root.account.name in ("Expenses", "Income") else accounts
+        parents: dict[int, str] = {}
+        for node in root.walk():
+            parents[node.depth] = node.account.name
+            if node.depth == 0:
+                continue
+            sub = parents.get(node.depth - 1) if node.depth > 1 else ""
+            target.append({"aid": str(node.account.aid), "name": node.account.name, "sub": sub})
+    return {"accounts": accounts, "categories": categories, "merchants": [name for name, _ in transactions.payees()]}
 
 
 @dataclass
@@ -114,6 +148,8 @@ def transactions_page(
     transactions: Transactions,
     recurring: Recurring,
     account: str = "",
+    category: str = "",
+    merchant: str = "",
     date_from: str = "",
     date_to: str = "",
     q: str = "",
@@ -146,7 +182,13 @@ def transactions_page(
             # the current month also lists what is dated ahead (the "upcoming" card); a past month ends with its last day
             last = None if is_current else when.replace(day=calendar.monthrange(when.year, when.month)[1])
         # What is dated ahead is not history: it waits in its own row ("N upcoming"), soonest first, on the first page.
-        found = transactions.list(
+        also = UUID(category) if category else None
+        who = merchant.strip() or None
+        # With a filter set the whole match is read (it is one month), so the line above the list can say what it comes to.
+        everything = transactions.list(
+            UUID(account) if account else None, first, min(last, today) if last else today, None, 0, q, KIND_FILTERS.get(kind), also, who,
+        ) if (account or category or who) else None
+        found = everything[(page - 1) * PAGE_SIZE:page * PAGE_SIZE + 1] if everything is not None else transactions.list(
             UUID(account) if account else None,
             first,
             min(last, today) if last else today,
@@ -164,6 +206,8 @@ def transactions_page(
                 0,
                 q,
                 KIND_FILTERS.get(kind),
+                also,
+                who,
             )
             for t in sorted(ahead, key=lambda t: (t.date, t.created)):
                 r = to_row(t, index)
@@ -174,11 +218,14 @@ def transactions_page(
     except ValueError as e:
         error = f"Invalid filter: {e}"
         found = []
+        everything = None
     rows = [to_row(t, index) for t in found[:PAGE_SIZE]]
     has_next = len(found) > PAGE_SIZE
 
-    filters = {"account": account, "date_from": date_from, "date_to": date_to}
+    filters = {"account": account, "category": category, "merchant": merchant.strip(), "date_from": date_from, "date_to": date_to}
     query = {k: v for k, v in filters.items() if v}
+    summary = _summary(everything, index) if everything is not None else None
+    options = _filter_options(all_accounts, transactions)
     # The month, the filters and the chosen chip also travel with the page links.
     base = {"month": when.strftime("%Y-%m"), **query, **({"q": q.strip()} if q.strip() else {})}
     shown = {**base, **({"kind": kind} if kind else {})}
@@ -197,13 +244,11 @@ def transactions_page(
             "error": error,
             "filters": filters,
             "active_filters": len(query),
+            "summary": summary,
+            "applied": _applied(filters, index, {"month": when.strftime("%Y-%m"), **({"q": q.strip()} if q.strip() else {}), **({"kind": kind} if kind else {})}),
+            "options": options,
             "q": q.strip(),
             "kind": kind,
-            "chips": [
-                # tapping the chosen chip again shows everything
-                {"label": label, "value": value, "href": _chip_url(base, "" if value == kind else value)}
-                for label, value in (("Expense", "expense"), ("Income", "income"), ("Transfer", "transfer"))
-            ],
             "searching": bool(q.strip() or kind or query),
             "roots": build_tree(all_accounts),
             "page": page,

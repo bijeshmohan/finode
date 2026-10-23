@@ -279,8 +279,11 @@ class TransactionService:
         offset: int = 0,
         text: str | None = None,
         kind: str | None = None,
+        also: UUID | None = None,
+        payee: str | None = None,
     ) -> list[TransactionRead]:
         account_ids = self._account_subtree(account) if account else None
+        also_ids = self._account_subtree(also) if also else None
         if kind not in (None, "", "expense", "income", "transfer"):
             raise ValueError("the kind must be expense, income or transfer!")
         kind_accounts = None
@@ -288,10 +291,15 @@ class TransactionService:
             roots = {a.name: a.aid for a in self.ar.list() if a.parent_id is None}
             kind_accounts = tuple(self._account_subtree(roots[name]) if name in roots else [] for name in ("Expenses", "Income"))
         transactions = self.tr.list(
-            account_ids, date_from, date_to, limit, offset, (text or "").strip() or None, kind or None, kind_accounts
+            account_ids, date_from, date_to, limit, offset, (text or "").strip() or None, kind or None, kind_accounts,
+            also_ids, (payee or "").strip() or None,
         )
         postings = self.tr.postings_for_transactions([t.tid for t in transactions])  # one query, not one per row
         return [self._to_read(transaction, postings.get(transaction.tid, [])) for transaction in transactions]
+
+    def payees(self) -> list[tuple[str, int]]:
+        """Who you have paid or been paid by, most used first, for the transactions filter."""
+        return self.tr.payees()
 
     def update(
         self,

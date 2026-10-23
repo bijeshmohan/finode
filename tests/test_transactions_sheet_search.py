@@ -87,19 +87,46 @@ def test_chips_filter_by_what_kind_of_entry_it_is(client, books, ledger):
     assert len(titles(page(client, kind="nonsense"))) == 5, "an unknown chip is ignored"
 
 
-def test_the_chosen_chip_is_marked_and_chips_keep_the_search(client, books, ledger):
-    html = page(client, kind="expense", q="swig")
-    chips = {href.replace("&amp;", "&"): state for href, state in re.findall(r'<a class="chip" href="([^"]*)" aria-pressed="(\w+)">', html)}
-    month = date.today().strftime("%Y-%m")
-    assert [k for k, v in chips.items() if v == "true"] == [f"/transactions?month={month}&q=swig"], "the chosen chip clears itself and keeps the search"
-    assert f"/transactions?month={month}&q=swig&kind=income" in chips
-    plain = [h.replace("&amp;", "&") for h in re.findall(r'<a class="chip" href="([^"]*)"', page(client))]
-    assert plain == [f"/transactions?month={month}&kind={k}" for k in ("expense", "income", "transfer")]
-
-
 def test_search_and_kind_combine_and_page(client, books, ledger):
     assert titles(page(client, kind="expense", q="swig")) == ["Swiggy"]
     assert titles(page(client, kind="income", q="swig")) == []
+
+
+# ---- the Filter sheet: account, category, merchant ------------------------------------------------------------
+
+
+def test_the_category_and_the_merchant_narrow_the_list_together_with_the_account(client, books, ledger):
+    post(client, "dmart", books["groceries"], books["cash"], "310")  # the same shop, another account and spelling
+    assert set(titles(page(client, category=books["groceries"]["aid"]))) == {"DMart", "dmart"}
+    assert set(titles(page(client, merchant="DMART"))) == {"DMart", "dmart"}, "the payee, capitals aside"
+    assert titles(page(client, merchant="DMart", account=books["cash"]["aid"])) == ["dmart"], "account and merchant both"
+    assert titles(page(client, category=books["delivery"]["aid"], merchant="DMart")) == [], "nothing is both"
+
+
+def test_a_filter_says_how_many_match_and_what_they_come_to(client, books, ledger):
+    html = page(client, category=books["groceries"]["aid"])
+    assert "<b>1</b> transaction" in html and "1,286.00 spent" in html
+    assert "All transactions" in page(client) and "transactions ·" not in page(client)
+    income = page(client, category=books["salary"]["aid"])
+    assert "earned" in income
+
+
+def test_each_filter_shows_its_value_with_a_way_to_remove_it(client, books, ledger):
+    html = page(client, category=books["groceries"]["aid"], merchant="DMart")
+    applied = html[html.index('class="tx-applied"'):].split("</p>")[0]
+    assert "Groceries" in applied and "DMart" in applied and "Filter · 2" in html
+    removal = re.findall(r'href="([^"]*)"', applied)
+    assert any("merchant" not in h and "category" in h for h in removal) and any("category" not in h and "merchant" in h for h in removal)
+
+
+def test_the_sheet_lists_the_choices(client, books, ledger):
+    html = page(client)
+    sheet = html[html.index('id="tx-filter"'):html.index("</dialog>")]
+    assert 'data-filter-list="account"' in sheet and "HDFC" in sheet and "Regalia Gold" in sheet
+    assert 'data-filter-list="category"' in sheet and "Groceries" in sheet and "Salary" in sheet
+    assert 'data-filter-list="merchant"' in sheet and "Swiggy" in sheet and "DMart" in sheet
+    accounts = sheet[sheet.index('data-filter-list="account"'):sheet.index('data-filter-list="category"')]
+    assert "Groceries" not in accounts, "categories are not accounts here"
 
 
 # ---- the details sheet ----------------------------------------------------------------------------------------
@@ -205,8 +232,8 @@ def test_add_again_of_a_missing_entry(client, books):
     assert client.get("/transactions/new", params={"repeat": "00000000-0000-4000-8000-0000000000aa"}).status_code == 404
 
 
-def test_the_older_chip_spellings_still_work_and_show_the_new_chip(client, books):
+def test_the_older_kind_spellings_still_work_in_links(client, books, ledger):
     assert set(titles(page(client, kind="spending"))) == set(titles(page(client, kind="expense")))
     assert set(titles(page(client, kind="transfers"))) == set(titles(page(client, kind="transfer")))
     html = page(client, kind="spending")
-    assert ">Expense<" in html and ">Transfer<" in html and ">Spending<" not in html and ">Transfers<" not in html
+    assert 'class="chip"' not in html, "the kinds switcher is gone"

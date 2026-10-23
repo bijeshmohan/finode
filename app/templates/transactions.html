@@ -10,30 +10,42 @@
 </div>
 <p id="page-error" class="error" role="alert">{{ error or "" }}</p>
 
-<div class="cat-bar tx-bar">
-  <div class="chips seg tx-kinds" role="group" aria-label="Show">
-    {% for c in chips %}<a class="chip" href="{{ c.href }}" aria-pressed="{{ 'true' if kind == c.value else 'false' }}">{{ c.label }}</a>{% endfor %}
-  </div>
+<div class="tx-filterbar">
+  <span class="tx-summary">{% if summary %}<b>{{ summary.count }}</b> transaction{{ "" if summary.count == 1 else "s" }}{% if summary.total is not none %} · {{ summary.total|money }} {{ summary.word }}{% endif %}{% else %}All transactions{% endif %}</span>
+  <button type="button" class="tx-filter-open" data-open-filter>{{ icon("filter") }}Filter{% if applied %} · {{ applied|length }}{% endif %}</button>
 </div>
+{% if applied %}
+<p class="tx-applied">{% for a in applied %}<a href="{{ a.remove }}" aria-label="Remove the {{ a.label|lower }} filter"><b>{{ a.name }}</b> <span aria-hidden="true">✕</span></a>{% endfor %}</p>
+{% endif %}
 
-<details class="filters" {{ "open" if active_filters or error }}>
-  <summary>{{ icon("filter") }}More filters{% if active_filters %}<span class="count">{{ active_filters }}</span>{% endif %}</summary>
-  <form method="get" action="/transactions" class="grid-form">
-    <label>Account
-      <select name="account">
-        <option value="">All accounts</option>
-        {% for root in roots %}{% for n in root.walk() %}
-        <option value="{{ n.account.aid }}" {{ "selected" if filters.account == n.account.aid|string }}>{{ "  " * n.depth }}{{ n.account.name }}</option>
-        {% endfor %}{% endfor %}
-      </select>
-    </label>
+<dialog class="sheet sheet-bottom" id="tx-filter" aria-label="Filter">
+  <form method="get" action="/transactions" class="sheet-body" data-filter-form>
+    <div class="sheet-grab" aria-hidden="true"></div>
     <input type="hidden" name="month" value="{{ month_key }}">{% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}{% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
-    <div class="actions">
-      <button type="submit">Apply</button>
-      {% if active_filters %}<a class="button secondary" href="/transactions?month={{ month_key }}">Clear</a>{% endif %}
+    <div data-filter-main>
+      <h2 class="filter-title">Filter</h2>
+      {% for key, label, any in (("account", "Account", "Any"), ("category", "Category", "Any"), ("merchant", "Merchant", "Any")) %}
+      <input type="hidden" name="{{ key }}" value="{{ filters[key] }}" data-filter-value="{{ key }}">
+      <button type="button" class="filter-row" data-pick="{{ key }}"><span>{{ label }}</span><span class="filter-current{{ ' set' if filters[key] }}" data-filter-label="{{ key }}" data-any="{{ any }}">{% for a in applied if a.key == key %}{{ a.name }}{% else %}{{ any }}{% endfor %}</span>{{ icon("caret") }}</button>
+      {% endfor %}
+      <div class="sheet-actions"><button type="submit">Show transactions</button></div>
+      {% if active_filters %}<a class="filter-clear" href="/transactions?month={{ month_key }}">Clear all</a>{% endif %}
     </div>
+    {% for key, label, items in (("account", "Account", options.accounts), ("category", "Category", options.categories), ("merchant", "Merchant", options.merchants)) %}
+    <div data-filter-list="{{ key }}" hidden>
+      <div class="filter-head"><button type="button" class="link" data-filter-back>‹ Filter</button><h2 class="filter-title">{{ label }}</h2></div>
+      <input type="search" class="filter-search" placeholder="Search {{ label|lower }}" aria-label="Search {{ label|lower }}" autocomplete="off" data-filter-search>
+      <ul class="filter-options">
+        <li><button type="button" data-value="" data-label="">Any {{ label|lower }}</button></li>
+        {% for it in items %}
+        {% if key == "merchant" %}<li><button type="button" data-value="{{ it }}" data-label="{{ it }}">{{ it }}</button></li>
+        {% else %}<li><button type="button" data-value="{{ it.aid }}" data-label="{{ it.name }}">{{ it.name }}{% if it.sub %}<small class="muted">{{ it.sub }}</small>{% endif %}</button></li>{% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
   </form>
-</details>
+</dialog>
 
 {% if upcoming %}
 {{ upcoming_card(upcoming, upcoming_total, searching and not rows, sheet=True) }}

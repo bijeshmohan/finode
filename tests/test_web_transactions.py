@@ -1,3 +1,4 @@
+import re
 from datetime import date
 
 from fastapi.testclient import TestClient
@@ -38,6 +39,11 @@ def test_transactions_page_lists_newest_first(
     assert "checking" in text and "groceries" in text
 
 
+def listed(html: str) -> str:
+    """The page without the Filter sheet, whose lists name every account and payee."""
+    return re.sub(r'<dialog class="sheet sheet-bottom" id="tx-filter".*?</dialog>', "", html, flags=re.S)
+
+
 def test_transactions_page_filters(
     client: TestClient, account: dict, other_account: dict, expense_account: dict
 ):
@@ -45,9 +51,10 @@ def test_transactions_page_filters(
     _post(client, expense_account, other_account, "1.00", "2026-03-01", "from-savings")
 
     by_account = client.get("/transactions", params={"account": account["aid"], "date_from": "2026-01-01"}).text
+    by_account = listed(by_account)
     assert "from-checking" in by_account and "from-savings" not in by_account
 
-    by_date = client.get("/transactions", params={"date_from": "2026-02-01"}).text
+    by_date = listed(client.get("/transactions", params={"date_from": "2026-02-01"}).text)
     assert "from-savings" in by_date and "from-checking" not in by_date
 
 
@@ -121,20 +128,17 @@ def test_transaction_amounts_use_colour_not_a_minus_sign(
     assert 'tx-amount transfer">20.00' in text
 
 
-def test_filters_open_with_count_only_when_active(client: TestClient, account: dict):
+def test_the_filter_word_counts_what_is_set(client: TestClient, account: dict):
     closed = client.get("/transactions").text
-    assert '<details class="filters" >' in closed
-    opened = client.get(
-        "/transactions", params={"account": account["aid"], "date_from": "2026-01-01"}
-    ).text
-    assert '<details class="filters" open>' in opened
-    assert '<span class="count">2</span>' in opened
-    assert "Nothing matches." in opened
+    assert "data-open-filter" in closed and "All transactions" in closed and 'class="tx-applied"' not in closed
+    opened = client.get("/transactions", params={"account": account["aid"], "date_from": "2026-01-01"}).text
+    assert "Filter · 1" in opened and 'class="tx-applied"' in opened
+    assert "Nothing matches." in listed(opened)
 
 
 def test_nothing_sits_beside_the_kind_chips_recurring_and_deleted_are_in_settings(client):
     page = client.get("/transactions").text
-    head = page[page.index('<div class="cat-bar tx-bar">'):page.index("</details>")]
+    head = page[page.index('<div class="tx-filterbar">'):page.index("</dialog>")]
     assert "head-icons" not in head and 'href="/recurring"' not in page and 'href="/transactions/deleted"' not in page
     settings = client.get("/settings").text
     assert 'href="/recurring"' in settings and 'href="/accounts/deleted"' in settings
@@ -144,11 +148,11 @@ def test_the_month_pill_lists_one_month_and_has_no_search_box(client: TestClient
     today = date.today()
     _post(client, expense_account, account, "10", today.isoformat(), "ThisMonth")
     _post(client, expense_account, account, "20", "2026-01-15", "InJanuary")
-    now = client.get("/transactions").text
+    now = listed(client.get("/transactions").text)
     assert "ThisMonth" in now and "InJanuary" not in now
     assert 'class="month-input"' in now and 'type="search"' not in now
-    january = client.get("/transactions", params={"month": "2026-01"}).text
+    january = listed(client.get("/transactions", params={"month": "2026-01"}).text)
     assert "InJanuary" in january and "ThisMonth" not in january
     assert "Jan 2026" in january
-    ahead = client.get("/transactions", params={"month": "2999-01"}).text
+    ahead = listed(client.get("/transactions", params={"month": "2999-01"}).text)
     assert "ThisMonth" in ahead, "a month that has not started opens this month"

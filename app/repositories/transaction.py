@@ -22,6 +22,10 @@ def _comparable(snapshot: dict) -> dict:
     }
 
 
+# What the application writes itself (an opening balance, an adjustment): not a merchant to filter by.
+SYSTEM_PAYEES = ("Opening balance", "Balance adjustment")
+
+
 class TransactionRepository:
     def __init__(self, db: Session, uid: UUID):
         self.db = db
@@ -123,6 +127,8 @@ class TransactionRepository:
         text: str | None = None,
         kind: str | None = None,
         kind_accounts: tuple[list[UUID], list[UUID]] | None = None,
+        also_ids: list[UUID] | None = None,
+        payee: str | None = None,
     ) -> list[Transaction]:
         """Transactions, newest first. `text` matches the payee, the note or the name of an account used; `kind`
         (expense, income or transfer) is told by `kind_accounts`, the ids under Expenses and under Income."""
@@ -160,6 +166,11 @@ class TransactionRepository:
                     )
                 )
             )
+        if also_ids is not None:  # a second account the entry must touch as well (the web filter's category)
+            statement = statement.where(Transaction.tid.in_(
+                select(Posting.transaction).where(Posting.account.in_(also_ids), Posting.user == self.uid)))
+        if payee:  # exactly this payee, capitals aside
+            statement = statement.where(func.lower(Transaction.payee) == without_nul(payee).strip().lower())
         if date_from is not None:
             statement = statement.where(Transaction.date >= date_from)
         if date_to is not None:
@@ -172,6 +183,17 @@ class TransactionRepository:
             statement = statement.limit(limit)
         transactions = self.db.exec(statement).all()
         return transactions
+
+    def payees(self, limit: int = 300) -> list[tuple[str, int]]:
+        """The payees used, the most used first (one spelling each: the newest entry's)."""
+        rows = self.db.exec(
+            select(func.lower(Transaction.payee), func.max(Transaction.payee), func.count())
+            .where(Transaction.user == self.uid, Transaction.payee.is_not(None), Transaction.payee.not_in(SYSTEM_PAYEES))
+            .group_by(func.lower(Transaction.payee))
+            .order_by(func.count().desc(), func.lower(Transaction.payee))
+            .limit(limit)
+        ).all()
+        return [(name, count) for _, name, count in rows if name]
 
     def postings(self, tid: UUID) -> list[Posting]:
         statement = select(Posting).where(
