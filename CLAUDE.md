@@ -316,3 +316,5 @@ Every page is made of the same parts, so none looks like it came from another ap
 **Home's head has room to breathe (2026-10-23).** Looser gaps between the label row, figure, bar, warning and the Transactions heading (a block at the end of `style.css`, scoped to `.glance` and Home's `.section-head`); no parts changed.
 
 **The month selector has no box (2026-10-23).** `.month-pill` is plain text (arrows and the month, no border or fill) on every page that uses the macro; the tap targets and the native picker are unchanged.
+
+**Faint ⓘ (2026-10-23).** The round `i` beside Left to spend and Ready to assign is `--faint` until hovered or opened (`.calc-info .info-button`); the account note's "i" is unchanged.
