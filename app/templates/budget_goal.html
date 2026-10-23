@@ -4,18 +4,18 @@
 {% block content %}
 <a class="back" href="/plan?tab=goals">{{ icon("back") }}Plans</a>
 <h1>{{ "Change goal" if goal else "New goal" }}</h1>
-<p class="muted">{% if goal %}Its name, how much you need and the month. What is saved stays as it is.{% else %}Money to put aside for something, by a month. It becomes a category with a target.{% endif %}</p>
-<form class="card stack form-narrow" hx-post="{{ '/plan/goal/' ~ goal.aid if goal else '/plan/goal' }}">
+<p class="muted">{% if goal %}Its name, how much you need and the month. What is saved stays as it is.{% else %}Money to put aside for something, by a month.{% endif %}</p>
+<form class="card stack form-narrow" hx-post="{{ '/plan/goal/' ~ goal.gid if goal else '/plan/goal' }}">
   {#- The monthly share is worked out by the server as the fields change (its own request, so the form's Create stays a plain post). -#}
   <div class="stack" hx-get="/plan/goal/preview" hx-trigger="input delay:300ms, change" hx-target="#goal-calc" hx-swap="outerHTML" hx-include="closest form">
   <label>What is it for?
     <input type="text" name="name" placeholder="e.g. Goa trip" required autocomplete="off" maxlength="80" value="{{ goal.name if goal }}" {{ "" if goal else "data-autofocus" }}>
   </label>
   <label>How much do you need? ({{ currency }})
-    <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" value="{{ goal.target.amount|money if goal }}">
+    <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" value="{{ goal.amount|money if goal }}">
   </label>
   <label>Needed by
-    <input type="month" name="by" min="{{ earliest }}" placeholder="YYYY-MM" required value="{{ goal.target.target_date.strftime('%Y-%m') if goal }}">
+    <input type="month" name="by" min="{{ earliest }}" placeholder="YYYY-MM" required value="{{ goal.target_date.strftime('%Y-%m') if goal }}">
   </label>
   </div>
   {% include "partials/goal_preview.html" %}

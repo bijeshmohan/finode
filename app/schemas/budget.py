@@ -95,6 +95,25 @@ class BudgetLine(BaseModel):
     weeks: list[BudgetWeek] = []
 
 
+class GoalLine(BaseModel):
+    """A goal: money set aside for something by a month. Not a category; nothing is spent from it directly (it hands its
+    money to a category with `use_goal`)."""
+
+    gid: UUID
+    name: str
+    # How much is needed, and the month it is needed by (the first day of it).
+    amount: Decimal = Money
+    target_date: Date
+    # What was set aside (or taken back, or handed to a category, if negative) in the month, and what is saved in all, up to the month's end.
+    assigned: Decimal = Money
+    available: Decimal = Money
+    # What this month asks of it (the by-date rule), what of that is still missing, and whether its month has passed with
+    # money still short.
+    needed: Decimal = Money
+    underfunded: Decimal = Money
+    overdue: bool = False
+
+
 class BudgetRead(BaseModel):
     # First day of the month the figures are for; they count everything up to its last day.
     month: Date
@@ -113,11 +132,10 @@ class BudgetRead(BaseModel):
     assigned_to_later_months: Decimal = Money
     # What copying last month's assignments would assign here (categories with nothing assigned this month yet).
     copyable: Decimal = Money
-    # Goals: categories with a "by a month" target that have no subcategories. They are set aside for something and are not
-    # money to spend, so `assigned`, `activity`, `available`, `lines` and Home's Left to spend leave them out; these are their sums.
-    goals: list[BudgetLine] = []
+    # Goals are set aside for something and are not money to spend, so `assigned`, `activity`, `available`, `lines` and
+    # Home's Left to spend leave them out; these are the goals and their sums.
+    goals: list[GoalLine] = []
     goal_assigned: Decimal = Money
-    goal_activity: Decimal = Money
     goal_available: Decimal = Money
     # What the goals' targets still need this month.
     goal_underfunded: Decimal = Money

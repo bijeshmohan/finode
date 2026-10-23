@@ -11,7 +11,7 @@ from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
 from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, first_of_month, month_start, months_between
-from ...schemas.budget import TARGET_KINDS, BudgetLine
+from ...schemas.budget import TARGET_KINDS, BudgetLine, GoalLine
 from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount
 
@@ -153,12 +153,11 @@ def _goal_rows(data) -> list[dict]:
     """The Goals chip's rows: each goal with how far it is, and what this month asks of it."""
     rows = []
     for goal in data.goals:
-        target = goal.target
-        due = first_of_month(target.target_date)
-        reached = goal.available >= target.amount
+        due = first_of_month(goal.target_date)
+        reached = goal.available >= goal.amount
         rows.append({
             "line": goal,
-            "percent": int(min(max(goal.available / target.amount, Decimal(0)), Decimal(1)) * 100) if target.amount > 0 else 0,
+            "percent": int(min(max(goal.available / goal.amount, Decimal(0)), Decimal(1)) * 100) if goal.amount > 0 else 0,
             "reached": reached,
             "months_left": max(0, months_between(data.month, due) + 1),
             "status": "reached" if reached else "overdue" if goal.overdue else "short" if goal.underfunded > 0 else "done" if goal.needed > 0 else "",
@@ -332,7 +331,7 @@ def fund(request: Request, budget: Budget, month: Annotated[str, Form()] = "", t
 
 def _target_line(budget: Budget, month: date, category: UUID):
     data = budget.view(month)
-    line = next((l for l in [*data.lines, *data.goals] if l.aid == category and not l.name.endswith("(other)")), None)
+    line = next((l for l in data.lines if l.aid == category and not l.name.endswith("(other)")), None)
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
     return line
@@ -457,16 +456,16 @@ def goal_page(request: Request, budget: Budget):
     return _goal_form(request, budget)
 
 
-def _the_goal(budget: Budget, aid: UUID) -> BudgetLine:
-    goal = next((g for g in budget.view(None).goals if g.aid == aid), None)
+def _the_goal(budget: Budget, goal_id: UUID) -> GoalLine:
+    goal = next((g for g in budget.view(None).goals if g.gid == goal_id), None)
     if goal is None:
         raise HTTPException(status_code=404, detail="goal not found")
     return goal
 
 
-@router.get("/goal/{aid}/edit")
-def goal_edit_page(request: Request, budget: Budget, aid: UUID):
-    return _goal_form(request, budget, goal=_the_goal(budget, aid))
+@router.get("/goal/{goal_id}/edit")
+def goal_edit_page(request: Request, budget: Budget, goal_id: UUID):
+    return _goal_form(request, budget, goal=_the_goal(budget, goal_id))
 
 
 @router.get("/goal/preview")
@@ -487,15 +486,66 @@ def goal_preview(request: Request, budget: Budget, amount: str = "", by: str = "
     )
 
 
-@router.get("/goal/{aid}/sheet")
-def goal_sheet(request: Request, budget: Budget, aid: UUID, month: str = ""):
+@router.get("/goal/{goal_id}/sheet")
+def goal_sheet(request: Request, budget: Budget, goal_id: UUID, month: str = ""):
     """One goal in the sheet over the Goals chip: how far it is, and the things to do with it."""
     when = parse_month(month)
     context = _context(budget, when, "goals")
-    row = next((r for r in context["goal_rows"] if r["line"].aid == aid), None)
+    row = next((r for r in context["goal_rows"] if r["line"].gid == goal_id), None)
     if row is None:
         raise HTTPException(status_code=404, detail="goal not found")
     return templates.TemplateResponse(request, "partials/goal_sheet.html", {**context, **row})
+
+
+@router.get("/goal/{goal_id}/use")
+def goal_use_sheet(request: Request, budget: Budget, goal_id: UUID, month: str = ""):
+    """The second step of a goal's sheet: which category the goal's money goes to, and how much."""
+    when = parse_month(month)
+    context = _context(budget, when, "goals")
+    row = next((r for r in context["goal_rows"] if r["line"].gid == goal_id), None)
+    if row is None:
+        raise HTTPException(status_code=404, detail="goal not found")
+    saved = row["line"].available
+    lines = [l for l in context["budget"].lines if not l.group]
+    # The category that is most over what was planned comes first, with the amount that covers it (or all there is).
+    over = min((l for l in lines if l.available < 0), key=lambda l: l.available, default=None)
+    amount = min(-over.available, saved) if over is not None else saved
+    return templates.TemplateResponse(
+        request, "partials/goal_use.html", {**context, **row, "categories": lines, "picked": over.aid if over else None, "amount": amount},
+    )
+
+
+@router.post("/goal/{goal_id}/use")
+def goal_use(
+    request: Request,
+    budget: Budget,
+    goal_id: UUID,
+    category: Annotated[UUID, Form()],
+    amount: Annotated[str, Form()] = "",
+    month: Annotated[str, Form()] = "",
+):
+    when = parse_month(month)
+    try:
+        budget.use_goal(when, goal_id, category, parse_amount(amount, default=parse_amount("0")))
+    except (BudgetError, ValueError) as e:
+        return htmx_error(_sentence(str(e)), "#cat-sheet-error")
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, "goals"))
+
+
+@router.post("/goal/{goal_id}/assign")
+def goal_assign(
+    request: Request,
+    budget: Budget,
+    goal_id: UUID,
+    amount: Annotated[str, Form()] = "",
+    month: Annotated[str, Form()] = "",
+):
+    when = parse_month(month)
+    try:
+        budget.assign_goal(when, goal_id, parse_amount(amount, default=parse_amount("0")))
+    except (BudgetError, ValueError) as e:
+        return htmx_error(_sentence(str(e)), "#cat-sheet-error")
+    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, "goals"))
 
 
 @router.post("/goal")
@@ -516,10 +566,10 @@ def create_goal(
     return htmx_redirect("/plan?tab=goals", flash="goal-created")
 
 
-@router.post("/goal/{aid}")
+@router.post("/goal/{goal_id}")
 def update_goal(
     budget: Budget,
-    aid: UUID,
+    goal_id: UUID,
     name: Annotated[str, Form()] = "",
     amount: Annotated[str, Form()] = "",
     by: Annotated[str, Form()] = "",
@@ -528,16 +578,16 @@ def update_goal(
         if not name.strip():
             raise ValueError("say what the goal is for!")
         value, due = _goal_input(amount, by)
-        budget.update_goal(aid, name.strip(), value, due)
+        budget.update_goal(goal_id, name.strip(), value, due)
     except (BudgetError, ValueError) as e:
         return htmx_error(_sentence(str(e)), "#form-error")
     return htmx_redirect("/plan?tab=goals", flash="goal-saved")
 
 
-@router.post("/goal/{aid}/delete")
-def delete_goal(budget: Budget, aid: UUID):
+@router.post("/goal/{goal_id}/delete")
+def delete_goal(budget: Budget, goal_id: UUID):
     try:
-        budget.delete_goal(aid)
+        budget.delete_goal(goal_id)
     except (BudgetError, ValueError) as e:
         return htmx_error(_sentence(str(e)), "#cat-sheet-error")
     return htmx_redirect("/plan?tab=goals", flash="goal-deleted")

@@ -67,6 +67,7 @@ def rich(client, root_accounts):
     client.put(f"/api/budget/categories/{groceries['aid']}/target", json={"kind": "monthly", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}/target", json={"kind": "weekly", "amount": "250", "weekday": 2})
     client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "yearly", "amount": "1200", "target_date": "2019-09-01"})
+    assert client.post("/plan/goal", data={"name": "Emergency fund", "amount": "100000", "by": "2999-12", "assign_now": "1"}).status_code == 200
     assert client.patch("/api/profile/", json={"locked_through": "2026-08-31"}).status_code == 200  # the books are closed up to then
     return {"bank": bank, "groceries": groceries}
 
@@ -108,6 +109,9 @@ def canonical(doc: dict) -> dict:
         ),
         "allocations": sorted((a["month"], paths[a["account_id"]], a["amount"]) for a in doc["allocations"]),
         "targets": sorted((paths[t["account_id"]], t["kind"], t["amount"], t["target_date"], t["weekday"]) for t in doc["targets"]),
+        "goals": sorted(
+            (g["name"], g["amount"], g["target_date"], sorted((r["month"], r["amount"]) for r in g["allocations"])) for g in doc["goals"]
+        ),
     }
 
 
@@ -124,7 +128,8 @@ def test_the_backup_has_everything(client, rich):
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
     assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 3
-    assert set(doc) == {"format", "version", "exported_at", "profile", "accounts", "transactions", "recurring", "allocations", "targets"}, "no tokens or connected apps"
+    assert [g["name"] for g in doc["goals"]] == ["Emergency fund"] and len(doc["goals"][0]["allocations"]) == 1, "goals are their own records"
+    assert set(doc) == {"format", "version", "exported_at", "profile", "accounts", "transactions", "recurring", "allocations", "targets", "goals"}, "no tokens or connected apps"
     assert not any("commodity" in a for a in doc["accounts"]) and not any("value" in p for t in doc["transactions"] for p in t["postings"])
 
 

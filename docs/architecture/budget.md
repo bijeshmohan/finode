@@ -28,6 +28,8 @@ For a month and an expense category:
 - **Ready to assign** — money in budget accounts that has no job yet:
   `ready to assign = money in accounts − reserved for cards − Σ available − Σ goal available − assigned to later months`
 
+A **goal** is not a category: it has its own table `goals` (name, amount, month) and `goal_allocations` (what was set aside, month by month, negative when taken back or handed over), and **goal available** is the sum of its allocations up to the month's end. Nothing is posted to a goal: spending is recorded on an ordinary category, and `BudgetService.use_goal` moves the goal's money across (a negative goal allocation and an equal positive category allocation in the same month), so Ready to assign does not change. A goal never holds less than nothing in any month (`_check_saved`). The by-date rule that funds a goal is the same `funding()` function the category targets use.
+
 `BudgetRead` always satisfies that sum, and the page and the `get_budget` tool show it.
 
 ```mermaid
@@ -52,7 +54,7 @@ flowchart LR
 
 ## What the Plan is not
 
-The Plan page was once three sections, Spend, Build (money moved into funds and loans paid down) and Earn (expected income). Build and Earn were removed on 2026-10-22: moving money between accounts does not change net worth, only income does, and the envelopes already covered the rest. Migration `c4e6a8b0d2f4` dropped `accounts.saving` and the profile's section switches and deleted the plan rows of funds, loans and income accounts (the ledger was not touched). A fund or loan payment is budgeted as spending through the account's **payment category**. A savings goal is an Expenses account with a by-date target and nothing inside it. It has its own chip (**Goals**) and is kept out of the Budgets figures: `BudgetRead.goals`, `goal_assigned`, `goal_activity`, `goal_available`, with the identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − Σ goal available − assigned to later months`. It is made in one step by the **New goal** form (`BudgetService.create_goal`; the monthly share is `funding()` for a by-date target, so the form and the target agree).
+The Plan page was once three sections, Spend, Build (money moved into funds and loans paid down) and Earn (expected income). Build and Earn were removed on 2026-10-22: moving money between accounts does not change net worth, only income does, and the envelopes already covered the rest. Migration `c4e6a8b0d2f4` dropped `accounts.saving` and the profile's section switches and deleted the plan rows of funds, loans and income accounts (the ledger was not touched). A fund or loan payment is budgeted as spending through the account's **payment category**. A savings goal is its own record (the `goals` and `goal_allocations` tables, not an account). It has its own chip (**Goals**) and is kept out of the Budgets figures: `BudgetRead.goals`, `goal_assigned`, `goal_available`, with the identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − Σ goal available − assigned to later months`. It is made in one step by the **New goal** form (`BudgetService.create_goal`; the monthly share is `funding()` for a by-date target, so the form and the target agree).
 
 ## Budget accounts, tracking accounts and liabilities
 

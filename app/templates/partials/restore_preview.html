@@ -11,6 +11,7 @@
   <ul class="plain-list">
     <li>{{ summary.accounts }} account{{ "" if summary.accounts == 1 else "s" }}, {{ summary.transactions }} transaction{{ "" if summary.transactions == 1 else "s" }}{% if summary.date_from %} from {{ summary.date_from.strftime("%-d %b %Y") }} to {{ summary.date_to.strftime("%-d %b %Y") }}{% endif %}</li>
     {% if summary.recurring %}<li>{{ summary.recurring }} recurring transaction{{ "" if summary.recurring == 1 else "s" }}</li>{% endif %}
+    {% if summary.goals %}<li>{{ summary.goals }} goal{{ "" if summary.goals == 1 else "s" }}</li>{% endif %}
     {% if summary.allocations or summary.targets %}<li>Budget: {{ summary.allocations }} assigned amount{{ "" if summary.allocations == 1 else "s" }}, {{ summary.targets }} target{{ "" if summary.targets == 1 else "s" }}</li>{% endif %}
   </ul>
   <div class="actions">

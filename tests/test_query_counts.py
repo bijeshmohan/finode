@@ -11,8 +11,9 @@ import pytest
 PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/plan", "/categories", "/categories?tab=income"]
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
+# Home asks 13 since goals became their own table: the budget reads them (with what is set aside) in one more query.
 CEILING = {
-    "/transactions/new": 6, "/transactions": 8, "/": 12, "/accounts": 9, "/plan": 7,
+    "/transactions/new": 6, "/transactions": 8, "/": 13, "/accounts": 9, "/plan": 7,
     "/categories": 5, "/categories?tab=income": 5,
 }
 

@@ -146,7 +146,8 @@ def test_form_errors(client, setup):
 
 
 def test_overdue_is_shown_on_the_page(client, setup):
-    rent = setup["rent"]["aid"]
-    client.post("/plan/target", data={"category": rent, "kind": "by_date", "amount": "500", "target_date": THIS_MONTH.strftime("%Y-%m")})
-    nxt = add_months(THIS_MONTH, 1)
-    assert "Past its month · 500.00 short" in client.get(f"/plan?tab=goals&month={nxt:%Y-%m}").text.replace("\n", " ").replace("  ", " ")
+    from .test_web_goal import goal, months_ahead
+
+    assert goal(client, amount="500", by=months_ahead(1), assign_now=None).status_code == 200
+    later = add_months(THIS_MONTH, 2)
+    assert "Past its month · 500.00 short" in client.get(f"/plan?tab=goals&month={later:%Y-%m}").text.replace("\n", " ").replace("  ", " ")

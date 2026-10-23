@@ -5,18 +5,15 @@ from datetime import date, timedelta
 from decimal import ROUND_CEILING, Decimal
 from uuid import UUID
 
-from pydantic import ValidationError
-
 from ..models.account import Account
-from ..models.budget import BudgetTarget
+from ..models.budget import BudgetTarget, Goal
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, TransactionRepository
-from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead, BudgetWeek
-from ..schemas.account import AccountCreate, AccountUpdate
-from .account import AccountInUseError, AccountService
+from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead, BudgetWeek, GoalLine
+from ..schemas.account import AccountUpdate
+from .account import AccountService
 from .lock import locked_through
 from .transaction import decimal_places
-from .validation import validation_message
 from ..clock import FIRST_DAY, LAST_DAY, local_today
 
 
@@ -214,10 +211,13 @@ class BudgetService:
             if p.transaction in outside and p.account in candidates:
                 outside[p.transaction][1].add(p.account)
 
+        goal_names = {g.gid: g for g in self.br.goals()}
         every_row = self.br.list()
         allocations = [row for row in every_row if row.month <= month]
         # Money assigned to later months is out of what can be assigned now.
+        every_goal_row = [r for r in self.br.goal_allocations() if r.goal_id in goal_names]
         later = sum((row.amount for row in every_row if row.month > month and row.account_id in categories), ZERO)
+        later += sum((row.amount for row in every_goal_row if row.month > month), ZERO)
         previous_month = first_of_month(month - timedelta(days=1))
         assigned_here = {row.account_id for row in allocations if row.month == month}
         copyable = sum(
@@ -229,9 +229,14 @@ class BudgetService:
             ),
             ZERO,
         )
+        goal_here = {row.goal_id for row in every_goal_row if row.month == month}
+        copyable += sum(
+            (row.amount for row in every_goal_row if row.month == previous_month and row.amount > 0 and row.goal_id not in goal_here),
+            ZERO,
+        )
         # Budgeting starts with the first month anything was assigned: earlier spending already left the
         # accounts that cash is counted from, and must not show up as overspending.
-        start = min((row.month for row in allocations), default=month)
+        start = min([row.month for row in allocations] + [row.month for row in every_goal_row if row.month <= month], default=month)
 
         liabilities = {
             aid for aid in in_budget if AccountService.root_name(by_id[aid], by_id) == "Liabilities"
@@ -274,18 +279,15 @@ class BudgetService:
         for aid in categories:
             own[aid] = self._roll(by_category.get(aid, {}), month, previous)
         targets = self.br.targets()
-        # A goal is a category with a "by a month" target and nothing inside it: money set aside for something, so it is not
-        # part of what is left to spend. Its money still counts in ready_to_assign (see goal_available below).
-        goal_ids = {aid for aid, t in targets.items() if t.kind == "by_date" and aid in categories and aid not in parents}
-        spend = {aid: v for aid, v in own.items() if aid not in goal_ids}
-        saved = {aid: v for aid, v in own.items() if aid in goal_ids}
-        total_assigned = sum((v[0] for v in spend.values()), ZERO)
-        total_activity = sum((v[1] for v in spend.values()), ZERO)
-        total_available = sum((v[2] for v in spend.values()), ZERO)
-        total_overspent = sum((v[3] for v in spend.values()), ZERO)
-        goal_assigned = sum((v[0] for v in saved.values()), ZERO)
-        goal_activity = sum((v[1] for v in saved.values()), ZERO)
-        goal_available = sum((v[2] for v in saved.values()), ZERO)
+        total_assigned = sum((v[0] for v in own.values()), ZERO)
+        total_activity = sum((v[1] for v in own.values()), ZERO)
+        total_available = sum((v[2] for v in own.values()), ZERO)
+        total_overspent = sum((v[3] for v in own.values()), ZERO)
+        # Goals are money set aside for something, not money to spend: they are out of Left to spend, and what is saved in
+        # them still counts against ready_to_assign.
+        goals = self._goal_lines(list(goal_names.values()), every_goal_row, month, currency.decimals)
+        goal_assigned = sum((g.assigned for g in goals), ZERO)
+        goal_available = sum((g.available for g in goals), ZERO)
 
         left: dict[UUID, list] = {}
         for value, payers in outside.values():
@@ -321,8 +323,7 @@ class BudgetService:
                 needs[aid] = funding(target, assigned, available - assigned + spent, month, currency.decimals)
         total_underfunded = sum((v[1] for v in needs.values()), ZERO)
 
-        lines = self._lines({aid: a for aid, a in categories.items() if aid not in goal_ids}, by_id, parents, own, targets, needs)
-        goals = self._goal_lines(goal_ids, categories, by_id, own, targets, needs, month)
+        lines = self._lines(categories, by_id, parents, own, targets, needs)
         today = local_today()
         for line in lines:
             target = targets.get(line.aid)
@@ -350,10 +351,9 @@ class BudgetService:
             activity=total_activity,
             available=total_available,
             overspent_last_month=total_overspent,
-            underfunded=total_underfunded,
+            underfunded=total_underfunded + sum((g.underfunded for g in goals), ZERO),
             goals=goals,
             goal_assigned=goal_assigned,
-            goal_activity=goal_activity,
             goal_available=goal_available,
             goal_underfunded=sum((g.underfunded for g in goals), ZERO),
             money_in_accounts=cash + reserved,
@@ -367,25 +367,28 @@ class BudgetService:
         )
         return read, own
 
-    def _goal_lines(self, goal_ids, categories, by_id, own, targets, needs, month) -> list[BudgetLine]:
-        """The goals, the soonest due first: a closed one only while something is left in it for the month."""
+    @staticmethod
+    def _wish(goal: Goal) -> BudgetTarget:
+        """A goal's wish as the by-date target it is, so it is funded by the one rule (`funding`)."""
+        return BudgetTarget(kind="by_date", amount=goal.amount, target_date=goal.target_date)
+
+    def _goal_lines(self, goals: list[Goal], rows, month: date, decimals: int) -> list[GoalLine]:
+        """The goals, the soonest due first, with what is saved up to the month's end and what the month asks of each."""
         lines = []
-        for aid in goal_ids:
-            account, figures = categories[aid], own[aid]
-            if account.closed_on is not None and not any(figures):
-                continue
-            target = targets[aid]
-            assigned, spent, available, overspent = figures
-            needed, missing = needs.get(aid, (ZERO, ZERO))
+        for goal in goals:
+            mine = [r for r in rows if r.goal_id == goal.gid and r.month <= month]
+            assigned = sum((r.amount for r in mine if r.month == month), ZERO)
+            saved = sum((r.amount for r in mine), ZERO)
+            wish = self._wish(goal)
+            needed, missing = funding(wish, assigned, saved - assigned, month, decimals)
             lines.append(
-                BudgetLine(
-                    aid=aid, name=account.name, path=":".join(self._path(account, by_id)), depth=1,
-                    assigned=assigned, activity=spent, available=available, overspent_last_month=overspent,
-                    target=BudgetTargetRead(kind=target.kind, amount=target.amount, target_date=target.target_date, weekday=target.weekday),
-                    needed=needed, underfunded=missing, overdue=is_overdue(target, month, missing), note=account.details,
+                GoalLine(
+                    gid=goal.gid, name=goal.name, amount=goal.amount, target_date=goal.target_date,
+                    assigned=assigned, available=saved, needed=needed, underfunded=missing,
+                    overdue=is_overdue(wish, month, missing),
                 )
             )
-        return sorted(lines, key=lambda g: (g.target.target_date, g.name.lower()))
+        return sorted(lines, key=lambda g: (g.target_date, g.name.lower()))
 
     @staticmethod
     def _roll(
@@ -546,48 +549,99 @@ class BudgetService:
         share, _ = funding(target, ZERO, ZERO, month, self.accounts.currency().decimals)
         return share, months_between(month, due) + 1
 
+    def _goal_name(self, name: str, own: UUID | None = None) -> str:
+        name = " ".join((name or "").split())
+        if not name:
+            raise BudgetError("say what the goal is for!")
+        if len(name) > 80:
+            raise BudgetError("a goal's name can be at most 80 characters!")
+        if any(g.name.lower() == name.lower() and g.gid != own for g in self.br.goals()):
+            raise BudgetError(f"you already have a goal called '{name}'!")
+        return name
+
     def create_goal(self, name: str, amount: Decimal, by: date, assign_now: bool) -> BudgetRead:
-        """A goal is an Expenses category with a by-date target: made in one step, and this month's share assigned when asked."""
+        """A goal is money to save by a month: made in one step, and this month's share set aside when asked."""
         share, _ = self.goal_share(amount, by)
+        name = self._goal_name(name)
         month = month_start(None)
-        expenses = next(a for a in self.accounts.ensure_roots() if a.parent_id is None and a.name == "Expenses")
-        try:
-            created = self.accounts.create(AccountCreate(name=name, parent_id=expenses.aid))
-        except ValidationError as e:
-            raise BudgetError(validation_message(e)) from e
-        except ValueError as e:
-            raise BudgetError(str(e)) from e
-        self.set_target(created.aid, "by_date", amount, month_start(by))
-        return self.assign(month, created.aid, share) if assign_now else self.view(month)
+        if assign_now:
+            self._check_open(month)
+        goal = self.br.add_goal(name, amount, month_start(by))
+        if assign_now:
+            self.br.set_goal(month, goal.gid, share)
+        self.br.db.commit()
+        return self.view(month)
 
-    def _goal(self, aid: UUID) -> Account:
-        """The account of a goal (a category with a "by a month" target and nothing inside it), or an explanation."""
-        account = self._category(aid)
-        target = self.br.targets().get(aid)
-        if target is None or target.kind != "by_date" or any(a.parent_id == aid for a in self.accounts.ar.list()):
-            raise BudgetError(f"'{account.name}' is not a goal!")
-        return account
+    def _goal(self, gid: UUID) -> Goal:
+        goal = self.br.goal(gid)
+        if goal is None:
+            raise BudgetError("goal not found!")
+        return goal
 
-    def update_goal(self, aid: UUID, name: str, amount: Decimal, by: date) -> BudgetRead:
+    def update_goal(self, gid: UUID, name: str, amount: Decimal, by: date) -> BudgetRead:
         """Change a goal's name, amount or month."""
-        account = self._goal(aid)
+        goal = self._goal(gid)
         self.goal_share(amount, by)
-        if name != account.name:
-            try:
-                self.accounts.update(aid, AccountUpdate(name=name))
-            except ValidationError as e:
-                raise BudgetError(validation_message(e)) from e
-            except ValueError as e:
-                raise BudgetError(str(e)) from e
-        return self.set_target(aid, "by_date", amount, month_start(by))
+        goal.name = self._goal_name(name, own=gid)
+        goal.amount = amount
+        goal.target_date = month_start(by)
+        self.br.save_goal(goal)
+        self.br.db.commit()
+        return self.view(None)
 
-    def delete_goal(self, aid: UUID) -> None:
-        """Remove a goal for good, or close it when it has spending (its history stays in the reports)."""
-        self._goal(aid)
-        try:
-            self.accounts.delete(aid)
-        except AccountInUseError:
-            self.accounts.close(aid)
+    def delete_goal(self, gid: UUID) -> None:
+        """Remove a goal for good: what was saved in it goes back to Ready to assign."""
+        self._goal(gid)
+        for row in self.br.goal_allocations():
+            if row.goal_id == gid:
+                self._check_open(row.month)
+        self.br.delete_goal(gid)
+        self.br.db.commit()
+
+    def _check_saved(self, goal: Goal, month: date, new_amount: Decimal) -> None:
+        """A goal never holds less than nothing: with `new_amount` as the month's figure, what is saved must stay at or above
+        zero at the end of every month."""
+        rows = {r.month: r.amount for r in self.br.goal_allocations() if r.goal_id == goal.gid}
+        rows[month] = new_amount
+        saved = ZERO
+        for when in sorted(rows):
+            saved += rows[when]
+            if saved < 0:
+                before = saved - rows[when]
+                raise BudgetError(
+                    f"only {max(before, ZERO):f} is saved in '{goal.name}' to take out by the end of {when:%B %Y}!"
+                )
+
+    def assign_goal(self, month: date | None, gid: UUID, amount: Decimal) -> BudgetRead:
+        """Set what is set aside for a goal in a month (zero removes it; negative takes back what was saved before)."""
+        month = month_start(month)
+        self._check_open(month)
+        goal = self._goal(gid)
+        self._check_amount(amount)
+        self._check_saved(goal, month, amount)
+        self.br.set_goal(month, gid, amount)
+        self.br.db.commit()
+        return self.view(month)
+
+    def use_goal(self, month: date | None, gid: UUID, aid: UUID, amount: Decimal) -> BudgetRead:
+        """Hand money a goal saved to a category, in a month: the goal's money becomes that category's available money.
+        Spending is recorded on the category as always; this is how the goal pays for it."""
+        month = month_start(month)
+        self._check_open(month)
+        goal = self._goal(gid)
+        self._category(aid)
+        self._check_amount(amount)
+        if amount <= 0:
+            raise BudgetError("the amount must be positive!")
+        saved = sum((r.amount for r in self.br.goal_allocations() if r.goal_id == gid and r.month <= month_end(month)), ZERO)
+        if amount > saved:
+            raise BudgetError(f"only {max(saved, ZERO):f} is saved in '{goal.name}'!")
+        taken = self.br.goal_assigned(month, gid) - amount
+        self._check_saved(goal, month, taken)
+        self.br.set_goal(month, gid, taken)
+        self.br.set(month, aid, self.assigned(month, aid) + amount)
+        self.br.db.commit()
+        return self.view(month)
 
     def set_note(self, aid: UUID, note: str | None) -> BudgetRead:
         """A short note on a category (kept as the account's details, so it is in backups and on the account's page)."""
@@ -615,11 +669,17 @@ class BudgetService:
         if data.ready_to_assign <= 0:
             raise BudgetError("there is nothing ready to assign: add income or lower another category first!")
         left = data.ready_to_assign
-        for line in [*data.lines, *data.goals]:
+        for line in data.lines:
             if line.group or line.underfunded <= 0 or left <= 0:
                 continue
             add = min(line.underfunded, left)
             self.br.set(month, line.aid, self.assigned(month, line.aid) + add)
+            left -= add
+        for goal in data.goals:
+            if goal.underfunded <= 0 or left <= 0:
+                continue
+            add = min(goal.underfunded, left)
+            self.br.set_goal(month, goal.gid, goal.assigned + add)
             left -= add
         self.br.db.commit()
         return self.view(month)
@@ -693,14 +753,19 @@ class BudgetService:
             if row.month == previous and row.account_id in categories and row.account_id not in have
             and categories[row.account_id].closed_on is None
         ]
-        if not wanted:
+        goal_rows = [r for r in self.br.goal_allocations(up_to=month) if r.goal_id in {g.gid for g in self.br.goals()}]
+        goal_have = {r.goal_id for r in goal_rows if r.month == month}
+        goal_wanted = [r for r in goal_rows if r.month == previous and r.amount > 0 and r.goal_id not in goal_have]
+        if not wanted and not goal_wanted:
             raise BudgetError(
                 "last month has nothing assigned to copy!"
-                if not any(row.month == previous for row in rows)
+                if not any(row.month == previous for row in [*rows, *goal_rows])
                 else "everything last month had is already assigned this month!"
             )
         for row in wanted:
             self.br.set(month, row.account_id, row.amount)
+        for row in goal_wanted:
+            self.br.set_goal(month, row.goal_id, row.amount)
         self.br.db.commit()
         return self.view(month)
 

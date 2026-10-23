@@ -358,3 +358,22 @@ def test_a_goals_sheet_sets_money_aside_and_deletes_the_goal(page: Page, books, 
     page.wait_for_url(re.compile(r"/plan\?tab=goals$"))
     expect(page.locator("a.goalrow")).to_have_count(0)
     expect(page.locator(".toast")).to_contain_text("Goal deleted")
+
+
+def test_a_goal_hands_its_money_to_a_category_from_its_sheet(page: Page, books, api: Api):
+    index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
+    page.request.post("/plan/goal", form={"name": "Bike", "amount": "60000", "by": f"{index // 12}-{index % 12 + 1:02d}", "assign_now": "1"})
+    page.goto("/plan?tab=goals")
+    page.locator("a.goalrow", has_text="Bike").click()
+    sheet = page.locator("#cat-sheet")
+    expect(sheet).to_be_visible()
+    sheet.get_by_role("button", name="Use it for…").click()
+    expect(sheet.locator("h2")).to_have_text("Use Bike for…")
+    sheet.locator("select[name=category]").select_option(books["rent"]["aid"])
+    sheet.locator("input[name=amount]").fill("4,000")
+    sheet.get_by_role("button", name="Use it").click()
+    expect(sheet).not_to_be_visible()
+    expect(page.locator("a.goalrow", has_text="Bike")).to_contain_text("6,000.00")
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Goals")
+    page.locator(".cat-chips .chip", has_text="Budgets").click()
+    expect(page.locator(".crow", has_text="Rent")).to_contain_text("4,000.00")

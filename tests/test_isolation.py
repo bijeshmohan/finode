@@ -144,6 +144,8 @@ def world(client: TestClient, session, rich) -> World:  # noqa: F811
     shelf = client.post("/api/accounts/", json={"name": "Spare shelf", "parent_id": assets}).json()["aid"]
     client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
     w.dids = [str(d["did"]) for d in services(session).accounts.restorable()]
+    client.post("/plan/goal", data={"name": "Isolated holiday", "amount": "5000", "by": "2999-12", "assign_now": "1"})
+    w.goal_ids = [g["gid"] for g in client.get("/api/budget/").json()["goals"]]
     doc = client.get("/api/backup").json()
     w.backup = doc
     w.accounts = {a["name"]: a["id"] for a in doc["accounts"]}
@@ -153,7 +155,7 @@ def world(client: TestClient, session, rich) -> World:  # noqa: F811
     w.hids = [str(d.hid) for d in services(session).transactions.deleted()]
     w.tkid, w.gid = str(w.token.tkid), str(w.grant.gid)
     w.markers = A_WORDS + [str(i) for i in (
-        *w.accounts.values(), *w.tids, *w.rids, *w.hids, *w.dids, w.tkid, w.gid)]
+        *w.accounts.values(), *w.tids, *w.rids, *w.hids, *w.dids, w.tkid, w.gid, *w.goal_ids)] + ["Isolated holiday"]
     # B has a small ledger of their own (and none of A's names).
     with signed_in_as(B_USER):
         roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
@@ -199,6 +201,7 @@ def candidates(world: World, name: str) -> list[str]:
         "rid": world.rids,
         "tkid": [world.tkid],
         "gid": [world.gid],
+        "goal_id": world.goal_ids,
     }[name]
 
 
@@ -216,6 +219,9 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("POST", "/accounts/{aid}/edit"): {"data": {"name": "hacked"}},
         ("POST", "/transactions/{tid}/edit"): {"data": rows},
         ("POST", "/recurring/{rid}/edit"): {"data": {**rows, "frequency": "monthly", "every": "1", "start": "2999-01-01"}},
+        ("POST", "/plan/goal/{goal_id}"): {"data": {"name": "hacked", "amount": "5", "by": "2999-12"}},
+        ("POST", "/plan/goal/{goal_id}/use"): {"data": {"category": bills, "amount": "1"}},
+        ("POST", "/plan/goal/{goal_id}/assign"): {"data": {"amount": "5"}},
         ("POST", "/oauth/apps/{gid}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{tkid}/access"): {"data": {"scope": "read"}},
     }
@@ -331,13 +337,14 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
 
 
 def test_a_goal_is_made_in_the_callers_own_books(client: TestClient, world: World):
-    """B may call a goal what A calls a category (names are per person); it lands in B's Expenses and A's books stay as they were."""
+    """B may call a goal what A calls theirs (names are per person); it lands in B's books and A's stay as they were."""
     before = books_of(client, TEST_USER_ID)
     with signed_in_as(B_USER):
-        done = client.post("/plan/goal", data={"name": "Groceries", "amount": "1000", "by": "2999-12", "assign_now": "1"})
+        assert client.get("/api/budget/").json()["goals"] == [], "A's goal is not B's"
+        done = client.post("/plan/goal", data={"name": "Isolated holiday", "amount": "1000", "by": "2999-12", "assign_now": "1"})
         assert done.status_code == 200, done.text
-        made = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Groceries")
-        assert made["parent_id"] == world.b_roots["Expenses"]
+        mine = client.get("/api/budget/").json()["goals"]
+        assert [g["name"] for g in mine] == ["Isolated holiday"] and mine[0]["gid"] not in world.goal_ids
     assert books_of(client, TEST_USER_ID) == before
 
 
@@ -434,7 +441,7 @@ def test_nothing_answers_without_a_sign_in(session, world: World):
                 if (method, template) in PUBLIC or method == "HEAD":
                     continue
                 url = template
-                for name in ("aid", "tid", "rid", "hid", "did", "tkid", "gid"):
+                for name in ("aid", "tid", "rid", "hid", "did", "tkid", "gid", "goal_id"):
                     url = url.replace("{" + name + "}", str(world.tids[0]))
                 response = anonymous.request(method, url, json={} if url.startswith("/api/") else None, data=None if url.startswith("/api/") else {})
                 checked += 1

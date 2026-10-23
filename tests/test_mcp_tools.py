@@ -363,6 +363,23 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
 
 
 @pytest.mark.anyio
+async def test_assistants_can_set_money_aside_for_a_goal_and_hand_it_to_a_category(session, root_accounts, client):
+    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    client.post("/api/accounts/", json={"name": "Hospital", "parent_id": root_accounts["Expenses"]})
+    client.post("/plan/goal", data={"name": "Emergency fund", "amount": "600", "by": "2999-12"})
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
+        data = payload(await c.call_tool("assign_to_goal", {"goal": "emergency FUND", "amount": "300"}))
+        assert data["saved_for_goals"] == "300.00" and data["goals"][0]["goal"] == "Emergency fund" and data["ready_to_assign"] == "700.00"
+        used = payload(await c.call_tool("use_goal", {"goal": "Emergency fund", "category": "Hospital", "amount": "120"}))
+        assert used["goals"][0]["saved"] == "180.00" and used["ready_to_assign"] == "700.00"
+        assert used["categories"][0]["category"] == "Hospital" and used["categories"][0]["available"] == "120.00"
+        with pytest.raises(ToolFailed, match="no goal is called 'Bike'.*Emergency fund"):
+            payload(await c.call_tool("assign_to_goal", {"goal": "Bike", "amount": "5"}))
+        with pytest.raises(ToolFailed, match="only 180"):
+            payload(await c.call_tool("use_goal", {"goal": "Emergency fund", "category": "Hospital", "amount": "500"}))
+
+
+@pytest.mark.anyio
 async def test_assistants_can_set_targets_and_fund_them(session, root_accounts, client):
     client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
     client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})

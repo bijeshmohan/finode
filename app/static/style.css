@@ -922,6 +922,7 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
 .sheet-facts dt { color: var(--muted); flex: none; }
 .sheet-facts dd { margin: 0; text-align: right; font-weight: 500; display: flex; flex-direction: column; align-items: flex-end; gap: .15rem; }
 .sheet-actions { display: flex; gap: .625rem; margin-top: 1.1rem; }
+.sheet-stack { margin-top: 1.1rem; }
 .sheet-actions .button { flex: 1; min-height: 3.125rem; }
 .sheet-actions .button[aria-disabled="true"] { opacity: .45; }
 .sheet-delete { display: block; width: 100%; margin-top: .4rem; min-height: 3rem; color: var(--danger); background: transparent; border: 0; font-weight: 500; }
