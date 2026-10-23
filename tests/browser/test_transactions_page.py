@@ -179,3 +179,10 @@ def test_filtering_leaves_the_upcoming_row_closed_when_something_matches(page: P
     page.wait_for_url(re.compile(r"category="))
     expect(page.locator("details.upcoming")).not_to_have_attribute("open", "")
     expect(page.locator("a.tx", has_text="Lunch")).to_be_visible()
+
+
+def test_the_filter_sheet_opens_with_nothing_in_it_focused(page: Page, books):
+    page.goto("/transactions")
+    page.get_by_role("button", name="Filter").click()
+    expect(page.locator("#tx-filter")).to_be_visible()
+    assert page.evaluate("document.activeElement.closest('.filter-row') === null"), "no row takes the focus ring when the sheet opens"

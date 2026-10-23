@@ -23,7 +23,7 @@
     <div class="sheet-grab" aria-hidden="true"></div>
     <input type="hidden" name="month" value="{{ month_key }}">{% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}{% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
     <div data-filter-main>
-      <h2 class="filter-title">Filter</h2>
+      <h2 class="filter-title" tabindex="-1" autofocus>Filter</h2>
       {% for key, label, any in (("account", "Account", "Any"), ("category", "Category", "Any"), ("merchant", "Merchant", "Any")) %}
       <input type="hidden" name="{{ key }}" value="{{ filters[key] }}" data-filter-value="{{ key }}">
       <button type="button" class="filter-row" data-pick="{{ key }}"><span>{{ label }}</span><span class="filter-current{{ ' set' if filters[key] }}" data-filter-label="{{ key }}" data-any="{{ any }}">{% for a in applied if a.key == key %}{{ a.name }}{% else %}{{ any }}{% endfor %}</span>{{ icon("caret") }}</button>
