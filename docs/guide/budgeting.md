@@ -17,9 +17,9 @@ Budgets are **monthly**. (Weekly and yearly *targets* exist behind the Advanced 
 | **Left** (available) | What you can still spend: last month's leftover (if any) + assigned − spent. |
 | **Ready to assign** | Money in budget accounts that has no job yet. |
 
-The page opens with a figure and a full-width bar: **Left to spend** (the bar is what you have spent of what there was, with a tick for today). **Ready to assign** is a quiet line under it (tap the **i** beside it for the sum). Your aim is to bring it to zero: *every ₹ has a job*.
+The page opens with one figure: **Ready to assign** (tap the **i** beside it for the sum). Your aim is to bring it to zero: *every ₹ has a job*. *Left to spend* and its bar are on Home, not here.
 
-Tap the **i** beside the figure (on the Plan page and on Home's *Left to spend*) to see how it is worked out with your own numbers: for example, money in your accounts, minus what is set aside for card bills, minus what is left in your categories, minus what you assigned to later months.
+Tap the **i** beside the figure (on the Plan page, and on Home's *Left to spend*) to see how it is worked out with your own numbers: for example, money in your accounts, minus what is set aside for card bills, minus what is left in your categories, minus what you assigned to later months.
 
 <img src="img/budget.png" alt="The Plan page: Ready to assign, and the categories ranked with a bar and a tick for today" width="300">
 
@@ -34,7 +34,7 @@ You have ₹50,000 in your bank account, and no budget yet.
 
 ## The warnings
 
-- **Amber "Over-assigned by X"**: you assigned more than you have. Ready to assign shows ₹0.00. Lower an assignment.
+- **Amber "Over-assigned by X"** (under the figure): you assigned more than you have. Ready to assign shows ₹0.00. Lower an assignment.
 - **Red "Overspent by X"**: you spent more than there was to spend across *all* categories together. A single overspent category is not a warning; its own bar shows it in red.
 - **Overspending carries a cost**: an overspent category starts next month at zero and the deficit is taken out of Ready to assign from then on. Cover it by moving money from another category.
 

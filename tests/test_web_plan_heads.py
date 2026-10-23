@@ -1,4 +1,4 @@
-"""The head of Plans: one figure (what is left to spend) and a full-width bar, with Ready to assign as a quiet line under it."""
+"""The head of Plans: Ready to assign as the one figure, with a quiet note under it (Left to spend lives on Home)."""
 
 import re
 from datetime import date
@@ -20,35 +20,42 @@ def books(client, root_accounts):
 def head(client):
     page = client.get(f"/plan?month={MONTH}").text
     start = page.index("data-plan-head")
-    end = page.find("data-ready-to-assign", start)
-    return page[start: end if end > 0 else start + 3000], page
+    return page[start: start + 3000], page
 
 
-def test_the_head_says_what_is_left_to_spend_and_how_much_is_spent(client, books):
+def test_the_head_is_ready_to_assign_and_left_to_spend_is_not_on_the_page(client, books):
     assign(client, books["food"], "5000")
     move(client, books["bank"], books["food"], "1200")
     text, page = head(client)
-    assert "Left to spend" in text and "3,800.00" in text and "Spent" in text and "1,200.00" in text and "5,000.00" in text
-    assert 'class="glance-bar "' in text and "width: 24%" in text, "1,200 of 5,000, drawn across the whole head"
-    assert "ready to assign" in page and 'data-ready-to-assign' in page
+    assert "Ready to assign" in text and "95,000.00" in text, "100,000 in the account less 5,000 in a category"
+    assert "Give it a job: tap a category" in text
+    assert "Left to spend" not in page.split("<h2")[0] and "glance-bar" not in text, "Home has the figure and the bar"
+    assert "Spent" not in text and "ready-warn assigned" not in page
 
 
-def test_the_head_turns_red_when_over_budget(client, books):
-    assign(client, books["food"], "1000")
-    move(client, books["bank"], books["food"], "1500")
-    text, _ = head(client)
-    assert "Over budget" in text and 'class="figure over"' in text and 'class="glance-bar over"' in text
-
-
-def test_the_head_says_when_nothing_is_set_yet(client, books):
-    text, _ = head(client)
-    assert "Nothing assigned yet" in text
-
-
-def test_every_rupee_has_a_job_replaces_the_pool_line_at_zero(client, books):
-    assign(client, books["food"], "100000")
+def test_the_head_says_what_it_is_made_of_in_the_i(client, books):
     _, page = head(client)
-    assert "has a job" in page.split("data-ready-to-assign", 1)[1][:900]
+    for label in ("In your accounts", "Set aside for card bills", "Left in your categories", "Assigned to later months"):
+        assert label in page
+
+
+def test_the_head_at_zero_says_every_rupee_has_a_job(client, books):
+    assign(client, books["food"], "100000")
+    text, _ = head(client)
+    assert "has a job" in text and "Give it a job" not in text
+
+
+def test_the_head_says_when_over_assigned_and_the_figure_stays_at_zero(client, books):
+    assign(client, books["food"], "150000")
+    text, page = head(client)
+    assert 'class="hero-warn"' in text and "Over-assigned by" in text and "50,000.00" in text
+    assert re.search(r'<span class="figure">[^\n]*</span>0\.00</span>', text), "the figure never goes below zero"
+    assert "ready-warn assigned" not in page
+
+
+def test_with_nothing_to_assign_and_nothing_planned_the_head_says_so(client, root_accounts):
+    page = client.get(f"/plan?month={MONTH}").text
+    assert "Nothing to assign yet" in page
 
 
 def test_the_page_has_two_chips_budgets_and_goals_and_budgets_is_chosen(client, books):
