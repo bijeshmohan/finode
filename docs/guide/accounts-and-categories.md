@@ -17,7 +17,7 @@ The group tells finode what an account is, so you do not have to answer the budg
 
 ## Accounts page
 
-**Accounts** has two chips, **Assets** and **Liabilities**, in that order, like Expense and Income on Categories. **Equity** has no chip: tap the chosen chip again, so that neither is chosen, and the page lists Equity. The chosen one shows its total as a large figure, then its accounts: each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts (the ones not in any group) share one tile at the end, after all the groups, under the heading **Others** with their total (shown when the page also has a group). Things to know:
+**Accounts** has two chips, **Asset** and **Liability**, in that order, like Expense and Income on Categories. **Equity** has no chip: tap the chosen chip again, so that neither is chosen, and the page lists Equity. The chosen one shows its total as a large figure, then its accounts: each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts (the ones not in any group) share one tile at the end, after all the groups, under the heading **Others** with their total (shown when the page also has a group). Things to know:
 
 - Every open account is listed, used or not. Closed ones are tucked behind one **Load more** button at the bottom (they carry a *closed* badge).
 - Accounts go **two levels** deep, at most: a group and the accounts in it.

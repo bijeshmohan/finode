@@ -44,18 +44,18 @@ def test_the_chips_switch_between_assets_and_liabilities_and_equity_is_neither(p
     nested(api, books)
     page.goto("/accounts")
     chips = page.locator(".cat-chips .chip")
-    assert chips.all_inner_texts() == ["Assets", "Liabilities"], "Equity has no chip"
+    assert chips.all_inner_texts() == ["Asset", "Liability"], "Equity has no chip"
     expect(chips.nth(0)).to_have_attribute("aria-pressed", "true")
-    page.get_by_role("link", name="Liabilities").click()
+    page.get_by_role("link", name="Liability").click()
     page.wait_for_url("**/accounts?tab=liabilities")
     shown = visible(page)
     assert shown == ["liabilities › visa"], shown
     expect(page.locator(".cat-chips .chip").nth(1)).to_have_attribute("aria-pressed", "true")
-    page.get_by_role("link", name="Liabilities").click()  # tapping the chosen chip again leaves neither chosen: that is Equity
+    page.get_by_role("link", name="Liability").click()  # tapping the chosen chip again leaves neither chosen: that is Equity
     page.wait_for_url("**/accounts?tab=equity")
     assert visible(page) == ["equity › opening balances"]
     expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_count(0)
-    page.get_by_role("link", name="Assets").click()
+    page.get_by_role("link", name="Asset", exact=True).click()
     page.wait_for_url("**/accounts?tab=assets")
 
 
@@ -210,13 +210,13 @@ def test_going_back_from_an_account_keeps_the_chip(page: Page, api, books):
     cards = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
     api.post("/accounts/", name="Visa", parent_id=cards["aid"], balance="50")
     page.goto("/accounts")
-    page.locator(".cat-chips .chip", has_text="Liabilities").click()
+    page.locator(".cat-chips .chip", has_text="Liability").click()
     page.wait_for_url("**/accounts?tab=liabilities")
     page.get_by_role("link", name="Cards").first.click()
     page.wait_for_url(f"**/accounts/{cards['aid']}")
     page.locator("a.back").click()
     page.wait_for_url("**/accounts?tab=liabilities")
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Liabilities")
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Liability")
 
 
 def test_budget_options_are_folded_and_say_where_the_account_stands(page: Page, api, books):
