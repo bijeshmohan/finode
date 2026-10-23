@@ -1297,15 +1297,22 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .sheet-more .danger-text { color: var(--danger); }
 
 /* ---------- Loading that feels instant: a short fade-in, and grey placeholders in sheets ---------- */
-@keyframes page-in { from { opacity: 0; } }
-main { animation: page-in .14s ease-out; }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
+/* The title row and the switcher stay still; what is under them fades in with a small rise. */
+main > :not(.page-head):not(.cat-bar) { animation: rise-in .22s ease-out; }
+/* Page changes use the browser's own transitions: the chosen chip glides to its new place, the rest is the rise above. */
+@view-transition { navigation: auto; }
+.chips.seg a.chip[aria-pressed="true"] { view-transition-name: switch-pill; }
+::view-transition-group(root) { animation-duration: 0s; }
+::view-transition-old(root) { display: none; }
+::view-transition-group(switch-pill) { animation-duration: .28s; animation-timing-function: cubic-bezier(.3, .7, .2, 1); }
 .skeleton { display: flex; flex-direction: column; gap: .75rem; padding: .25rem 0 1rem; }
 .sk { display: block; border-radius: var(--radius-sm); background: var(--surface-2); animation: sk-pulse 1.1s ease-in-out infinite alternate; }
 .sk-title { width: 45%; height: 1.4rem; }
 .sk-figure { width: 65%; height: 2.5rem; }
 .sk-row { height: 3rem; }
 @keyframes sk-pulse { from { opacity: .55; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { main { animation: none; } .sk { animation: none; } }
+@media (prefers-reduced-motion: reduce) { main > * { animation: none !important; } .sk { animation: none; } @view-transition { navigation: none; } }
 
 /* ---------- Wide screens: Home in two columns (the figure and bars, then the transactions) ---------- */
 @media (min-width: 60rem) {

@@ -88,7 +88,7 @@ def live_server(session) -> Generator[str, None, None]:
 
 @pytest.fixture
 def page(browser: "Browser", live_server: str) -> Generator["Page", None, None]:
-    context = browser.new_context(viewport={"width": 390, "height": 844}, base_url=live_server)
+    context = browser.new_context(viewport={"width": 390, "height": 844}, base_url=live_server, reduced_motion="reduce")  # measured positions must not catch a page mid-rise
     page = context.new_page()
     page.set_default_timeout(8000)
     errors: list[str] = []
