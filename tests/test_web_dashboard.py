@@ -88,22 +88,30 @@ def test_dashboard_says_over_budget_when_a_category_is_overspent(
     assert "Over budget" in text and '&minus;<span class="cur">&#8377;</span>30.00' in text and 'style="width: 100%"' in text
 
 
-def test_dashboard_limits_recent_transactions(
-    client: TestClient, account: dict, expense_account: dict
-):
+def _spend(client, expense_account, account, payee, day):
+    response = client.post("/api/transactions/", json={"payee": payee, "date": day, "postings": [
+        {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
+        {"account": account["aid"], "side": "credit", "amount": "1.00"}]})
+    assert response.status_code == 201, response.text
+
+
+def test_home_shows_a_few_and_show_more_brings_the_rest_of_the_month(client: TestClient, account: dict, expense_account: dict):
+    for i in range(1, 13):
+        _spend(client, expense_account, account, f"tx-{i}", f"2026-01-{i:02d}")
+    text = client.get("/", params={"month": "2026-01"}).text
+    assert text.count('class="tx"') == 8 and "Show 4 more" in text and "4 left" in text
+    url = re.search(r'hx-get="(/transactions/more[^"]*)"', text).group(1).replace("&amp;", "&")
+    more = client.get(url).text
+    assert more.count('class="tx"') == 4 and "Show" not in more.replace("Show more", "") and "That is all of January · 12 transactions" in more
+    assert "tx-12" not in more and "tx-1<" in more.replace("tx-1</", "tx-1<"), "the older ones come next"
+
+
+def test_a_day_is_never_split_between_two_chunks(client: TestClient, account: dict, expense_account: dict):
     for i in range(10):
-        client.post(
-            "/api/transactions/",
-            json={
-                "payee": f"tx-{i}",
-                "postings": [
-                    {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                    {"account": account["aid"], "side": "credit", "amount": "1.00"},
-                ],
-            },
-        )
-    text = client.get("/").text
-    assert text.count('class="tx"') == 8
+        _spend(client, expense_account, account, f"same-{i}", "2026-01-05")  # ten entries on one day
+    _spend(client, expense_account, account, "older", "2026-01-02")
+    text = client.get("/", params={"month": "2026-01"}).text
+    assert text.count('class="tx"') == 10 and "Show 1 more" in text, "the first chunk runs on to the end of its day"
 
 
 def test_friendly_date_filter():

@@ -61,6 +61,7 @@ def test_a_date_range_in_the_future_lists_what_falls_in_it(client, ledger):
     record(client, bank, loan, "EMI far", local_today() + timedelta(days=90))
     start, end = local_today() + timedelta(days=1), local_today() + timedelta(days=30)
     page = client.get(f"/transactions?date_from={start}&date_to={end}").text
+    page = page[:page.index('id="tx-filter"')] + page[page.index("</dialog>", page.index('id="tx-filter"')):]  # the Filter sheet names every payee
     assert "EMI soon" in page and "EMI far" not in page and "1 upcoming" in page
 
 
@@ -68,7 +69,7 @@ def test_later_pages_have_no_upcoming_row(client, ledger):
     bank, loan = ledger
     record(client, bank, loan, "EMI later", local_today() + timedelta(days=20))
     assert '<details class="upcoming"' in client.get("/transactions").text
-    assert '<details class="upcoming"' not in client.get("/transactions?page=2").text
+    assert '<details class="upcoming"' not in client.get("/transactions/more?offset=25").text
 
 
 def test_the_header_says_what_the_schedule_comes_to(client, ledger):

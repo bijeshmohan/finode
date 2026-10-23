@@ -33,11 +33,11 @@ Open a transaction and tap **Add again** to start a new one pre-filled with the 
 **View all** on Home (or the sidebar) opens the full list, grouped by day.
 
 - The **month pill** at the top right (the same place as on Budgets and Categories) picks the month: the arrows go back or forward, and tapping the month opens a month and year picker. Entries dated ahead wait in the *upcoming* card on the current month.
-- **Kind chips** (Expense, Income, Transfer) filter the list; tap the chosen one again to show everything. Recurring transactions and Recently deleted are in Settings › Your data. **More filters** adds an account filter.
+- **Filter** (the word at the right of the line under the title): opens a sheet with **Account**, **Category** and **Merchant**; each opens a searchable list, **Show transactions** applies them (a field left on Any is not sent). What is set shows under the line with a ✕ to remove it, and the line says how many entries match and what they come to when they all go one way ("3 transactions · ₹2,338 spent"). The filters apply to the month in the pill. Recurring transactions and Recently deleted are in Settings › Your data.
 - **Tap a row** to see its details in a sheet: the accounts (*Paid from* and *Spent on* for an expense), the note, who added it (*By the app* for what you entered, or *Recurring* or the assistant's name), and the buttons **Edit**, **Add again** and **Delete**.
 
 <img src="img/transaction-sheet.png" alt="A transaction's details sheet with Edit, Add again and Delete" width="300">
-- A month shows 25 entries a page; use *Older →* and *← Newer* at the bottom to move between pages.
+- A month starts with its newest 25 entries (a day is never cut in two); **Show 25 more** at the bottom of the list adds the next ones in place, with how many are left beside it, until the whole month is on the page. **Home** does the same, starting with the newest 8 and adding 10 at a time.
 
 ### Upcoming entries
 

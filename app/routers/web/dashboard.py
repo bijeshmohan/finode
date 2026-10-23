@@ -9,7 +9,7 @@ from ...clock import local_today, month_progress
 from ...templating import templates
 from .budget import parse_month
 from .categories import _month_context
-from .transactions import AccountIndex, to_row
+from .transactions import HOME_FIRST, HOME_MORE, AccountIndex, _more, to_row
 
 
 router = APIRouter()
@@ -43,22 +43,23 @@ def dashboard(
     summary = reports.summary() if is_current else reports.summary(when, when.replace(day=calendar.monthrange(when.year, when.month)[1]))
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts)
-    latest = [to_row(t, index) for t in transactions.list(date_to=local_today(), limit=RECENT_LIMIT)]  # entries dated ahead are not recent
-    # An older month lists its own entries, newest first; this month lists the latest ones.
-    recent = latest if is_current else [
-        to_row(t, index)
-        for t in transactions.list(date_from=when, date_to=when.replace(day=calendar.monthrange(when.year, when.month)[1]), limit=RECENT_LIMIT)
-    ]
-
+    # The chosen month's own entries, newest first (this month up to today), a few at first and "Show more" for the rest.
+    month_end = when.replace(day=calendar.monthrange(when.year, when.month)[1])
+    chunk, month_total = transactions.page(0, HOME_FIRST, date_from=when, date_to=min(month_end, local_today()))
+    recent = [to_row(t, index) for t in chunk]
+    more = _more({"scope": "home", "month": when.strftime("%Y-%m")}, len(recent), month_total, HOME_MORE, HOME_MORE)
     roots = {a.name: a.aid for a in all_accounts if a.parent_id is None}
     system_ids = {a.aid for a in all_accounts if AccountService.is_opening_balances(a, all_accounts)}
     used_roots = {
         index.roots[a.aid] for a in all_accounts if a.parent_id is not None and a.aid not in system_ids
     }
     # Opening balances are bookkeeping, not a transaction the user recorded.
-    has_recorded = any(
-        not any(p.account in system_ids for p in row.transaction.postings) for row in latest
-    )
+    def recorded(rows):
+        return any(not any(p.account in system_ids for p in row.transaction.postings) for row in rows)
+
+    has_recorded = recorded(recent)
+    if not has_recorded:  # a month with nothing yet: look at the latest entries of any month (dated ahead is not recent)
+        has_recorded = recorded([to_row(t, index) for t in transactions.list(date_to=local_today(), limit=RECENT_LIMIT)])
     planned = bool(budget.br.list())  # anything ever assigned in the Plan
     steps = [
         {
@@ -114,6 +115,7 @@ def dashboard(
             "cards_owed": month.reserved_for_cards,
             "has_recorded": has_recorded,
             "recent": recent,
+            "more": more,
             "steps": steps if not all(step["done"] for step in steps) else None,
             "show_steps_card": not profiles.pr.advanced(),  # people on Advanced know their way around; the card is for new profiles
             "steps_done": sum(1 for step in steps if step["done"]),

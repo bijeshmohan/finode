@@ -1,0 +1,6 @@
+{#- The quiet row that fetches the next chunk of the list and replaces itself with it; when the month is done, one small line. -#}
+{% if more %}
+<div class="tx-more"><button type="button" class="more-row" hx-get="{{ more.url }}" hx-target="closest .tx-more" hx-swap="outerHTML" hx-push-url="false"><span>Show {{ more.n }} more</span><small>{{ more.left }} left</small></button></div>
+{% elif end %}
+<p class="tx-end">That is all of {{ end.month }} · {{ end.total }} transaction{{ "" if end.total == 1 else "s" }}</p>
+{% endif %}

@@ -944,3 +944,48 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
     if ((row.getAttribute("href") || "").startsWith(`/transactions/${tid}/`)) row.classList.add("tx-new");
   });
 })();
+
+// ---- The Transactions filter sheet: three fields, each opens a searchable list ----
+(() => {
+  const dialog = document.getElementById("tx-filter");
+  if (!dialog) return;
+  const form = dialog.querySelector("[data-filter-form]");
+  const main = form.querySelector("[data-filter-main]");
+  const lists = form.querySelectorAll("[data-filter-list]");
+  const show = (view) => {
+    main.hidden = view !== main;
+    lists.forEach((list) => { list.hidden = list !== view; });
+  };
+  document.querySelectorAll("[data-open-filter]").forEach((button) => button.addEventListener("click", () => { show(main); dialog.showModal(); }));
+  form.addEventListener("click", (event) => {
+    const pick = event.target.closest("[data-pick]");
+    if (pick) {
+      const list = form.querySelector(`[data-filter-list="${pick.dataset.pick}"]`);
+      show(list);
+      const search = list.querySelector("[data-filter-search]");
+      search.value = "";
+      list.querySelectorAll("li").forEach((li) => { li.hidden = false; });
+      if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) search.focus();
+      return;
+    }
+    if (event.target.closest("[data-filter-back]")) { show(main); return; }
+    const option = event.target.closest("[data-filter-list] [data-value]");
+    if (!option) return;
+    const key = option.closest("[data-filter-list]").dataset.filterList;
+    form.querySelector(`[data-filter-value="${key}"]`).value = option.dataset.value;
+    const label = form.querySelector(`[data-filter-label="${key}"]`);
+    label.textContent = option.dataset.label || label.dataset.any;
+    label.classList.toggle("set", !!option.dataset.value);
+    show(main);
+  });
+  form.addEventListener("input", (event) => {
+    if (!event.target.matches("[data-filter-search]")) return;
+    const text = event.target.value.trim().toLowerCase();
+    event.target.closest("[data-filter-list]").querySelectorAll("li").forEach((li) => {
+      li.hidden = !!text && !li.textContent.toLowerCase().includes(text);
+    });
+  });
+  form.addEventListener("submit", () => {
+    form.querySelectorAll("[data-filter-value]").forEach((input) => { if (!input.value) input.disabled = true; });
+  });
+})();
