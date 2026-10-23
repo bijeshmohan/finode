@@ -882,10 +882,6 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .glance .box-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 2.75rem; }
 .glance .box-top .month-pill { flex: none; }
 /* Earned, Assigned and Spent: three plain columns that are one link to the month's Summary. */
-.home-strip { display: flex; align-items: center; gap: .5rem; margin-top: 1.1rem; }
-.home-strip > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.home-strip .k { font-size: .75rem; color: var(--muted); }
-.home-strip .v { margin-top: .1rem; font-size: 1rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .home-empty { padding: .5rem 0 1rem; }
 .home-headline { margin: .25rem 0 .5rem; font-size: 1.875rem; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
 .section-label { margin: 2rem 0 .25rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
@@ -1112,8 +1108,7 @@ details.how { margin: 1.25rem 0 0; }
 /* Where today falls in the month, on the bars of the current month: a tick. A fill ahead of the tick is spending faster than the month passes. */
 .glance-bar, .bar { position: relative; overflow: visible; }
 .glance-bar i, .bar i { max-width: 100%; }
-.pace { position: absolute; top: 50%; left: 0; width: 3px; height: calc(var(--bar-h) + 9px); border-radius: 2px; background: var(--text); box-shadow: 0 0 0 1.5px var(--surface); transform: translate(-50%, -50%); pointer-events: none; }
-.glance-bar .pace { box-shadow: 0 0 0 1.5px var(--bg); }
+.pace { position: absolute; top: 100%; left: 0; width: 0; height: 0; margin-top: 3px; border: 4px solid transparent; border-top: 0; border-bottom: 5px solid var(--muted); transform: translateX(-50%); pointer-events: none; } /* a small notch under the bar: today */
 
 dd.auto, dd.auto a { color: var(--auto); }
 /* The rupee sign: in front of a large figure, smaller and lighter than the digits; in front of the amount on the Add screen. */

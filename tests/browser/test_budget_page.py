@@ -166,17 +166,17 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(pa
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
-def test_the_month_tick_on_a_budget_bar_is_a_vertical_line_not_a_clipped_dot(page: Page, books):
+def test_the_month_notch_on_a_budget_bar_is_small_and_not_clipped(page: Page, books):
     page.goto("/plan")
     tick = page.locator("a.catrow .pace").first
     expect(tick).to_be_visible()
     box = tick.bounding_box()
-    assert box["height"] >= 10 and box["width"] <= 4, f"a tall thin line, not a dot: {box}"
+    assert box["height"] <= 8 and box["width"] <= 10, f"a small notch under the bar: {box}"
     bar = page.locator("a.catrow .bar").first
-    assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible", "the bar must not clip the tick"
+    assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible", "the bar must not clip the notch"
 
 
-def test_the_month_tick_also_shows_in_full_on_a_group_row(page: Page, books, api: Api):
+def test_the_month_notch_also_shows_in_full_on_a_group_row(page: Page, books, api: Api):
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
     api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
     api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
@@ -184,7 +184,7 @@ def test_the_month_tick_also_shows_in_full_on_a_group_row(page: Page, books, api
     tick = page.locator("a.grow .pace").first
     expect(tick).to_be_visible()
     box = tick.bounding_box()
-    assert box["height"] >= 10 and box["width"] <= 4, f"a tall thin line on a group's bar too: {box}"
+    assert box["height"] <= 8 and box["width"] <= 10, f"a small notch on a group's bar too: {box}"
     bar = page.locator("a.grow .bar").first
     assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible"
 

@@ -36,11 +36,6 @@
   <p class="glance-figure">{{ figure(summary.expenses, currency) }}</p>
   <p class="glance-note"><a href="/plan?month={{ month_key }}">Set up your budget</a> to see what is left to spend</p>
   {% endif %}
-  <div class="home-strip">
-    <span><span class="k">Earned</span><span class="v">{{ summary.income|money|amount(currency) }}</span></span>
-    <span><span class="k">Assigned</span><span class="v">{{ glance.assigned|money|amount(currency) }}</span></span>
-    <span><span class="k">Spent</span><span class="v">{{ summary.expenses|money|amount(currency) }}</span></span>
-  </div>
 </section>
 {% endif %}
 
