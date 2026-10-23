@@ -2,7 +2,7 @@
 
 ## Recurring transactions
 
-A recurring transaction is a rule that records itself on a schedule: rent, a salary, a subscription. Open it from **Settings › Your data › Recurring transactions**, or from the repeat icon at the top of the Transactions page.
+A recurring transaction is a rule that records itself on a schedule: rent, a salary, a subscription. Open it from **Settings › Your data › Recurring transactions**.
 
 A rule has:
 

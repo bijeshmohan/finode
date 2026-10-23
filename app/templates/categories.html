@@ -23,10 +23,6 @@
     <a class="chip" href="/categories?month={{ month_key }}&tab=expense" aria-pressed="{{ 'true' if tab == 'expense' else 'false' }}">Expense</a>
     <a class="chip" href="/categories?month={{ month_key }}&tab=income" aria-pressed="{{ 'true' if tab == 'income' else 'false' }}">Income</a>
   </div>
-  <span class="head-icons">
-    <a class="icon-button" href="/categories/deleted" title="Recently deleted">{{ icon("trash") }}<span class="sr-only">Recently deleted</span></a>
-    <a class="circ-button" href="/categories/new?root={{ tab }}" title="Add category">{{ icon("plus") }}<span class="sr-only">Add category</span></a>
-  </span>
 </div>
 
 <div class="ready zero cat-hero">
@@ -38,12 +34,10 @@
 {% if rows %}
 <div class="tile" data-cat-tree>
   {% for r in rows %}
-  <div class="top {{ 'unused-hidden' if r.node.account.aid in quiet_ids }}">{{ row(r.node, r.total, r.hint, r.share) }}</div>
+  <div class="top">{{ row(r.node, r.total, r.hint, r.share) }}</div>
   {% endfor %}
 </div>
-{% if quiet_count %}
-<p class="unused-toggle"><button type="button" class="link-button" data-toggle-cat-quiet>Load more</button></p>
-{% endif %}
+<a class="add-row" href="/categories/new?root={{ tab }}">{{ icon("plus") }}Add category</a>
 {% else %}
 <div class="empty-state card">
   <p>No {{ "expense" if tab == "expense" else "income" }} categories yet.</p>

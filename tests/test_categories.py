@@ -104,11 +104,12 @@ def test_income_is_its_own_tab_with_a_plus_free_green_list(client, books):
     assert 'aria-pressed="true">Income<' in page
 
 
-def test_categories_with_nothing_this_month_are_tucked_away_once_something_has_something(client, books):
-    assert "unused-hidden" not in client.get("/categories").text, "nothing yet: everything shows"
+def test_every_category_shows_even_with_nothing_in_the_month(client, books):
     entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
     page = client.get("/categories").text
-    assert page.count('class="top unused-hidden"') == 2 and ">Load more</button>" in page and "with nothing in" not in page
+    assert "Travel" in page and "Rent" in page and "Food" in page, "a category with nothing this month is listed too"
+    assert "unused-hidden" not in page and "Load more" not in page, "nothing is tucked away"
+    assert page.index("Rent") < page.index("Travel"), "biggest first, the empty ones after"
 
 
 def test_a_category_page_shows_its_month_and_its_transactions(client, books):
@@ -229,9 +230,9 @@ def test_every_row_has_a_share_the_unused_ones_say_0_percent(client, books):
     rows = page.split('data-cat-tree>', 1)[1].split("</main>", 1)[0].split('<div class="top')[1:]
     assert len(rows) == 3
     assert all('class="crow-share"' in row for row in rows), "no row is left without a share"
-    used = [r for r in rows if "unused-hidden" not in r.split(">", 1)[0]]
-    quiet = [r for r in rows if "unused-hidden" in r.split(">", 1)[0]]
-    assert len(used) == 1 and ">100%<" in used[0] and all(">0%<" in r for r in quiet)
+    used = [r for r in rows if ">100%<" in r]
+    quiet = [r for r in rows if ">0%<" in r]
+    assert len(used) == 1 and len(quiet) == 2, "one row has everything, the others say 0%"
 
 
 def test_with_nothing_in_the_month_every_row_reads_0_percent_and_still_has_one(client, books):

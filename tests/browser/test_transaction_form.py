@@ -55,6 +55,8 @@ def test_saving_an_expense(page: Page, books, api: Api):
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     expect(page.get_by_text("DMart")).to_be_visible()
+    expect(page.locator("a.tx.tx-new")).to_have_count(1)  # the saved entry's row settles in; only that one
+    expect(page.locator("a.tx.tx-new")).to_contain_text("DMart")
     [entry] = [t for t in api.get("/transactions/") if t["payee"] == "DMart"]
     assert {(p["side"], p["amount"]) for p in entry["postings"]} == {("debit", "250.00"), ("credit", "250.00")}
     assert api.get(f"/accounts/{books['food']['aid']}")["balance"] == "250.00"

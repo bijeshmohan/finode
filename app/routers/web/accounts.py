@@ -400,7 +400,7 @@ def deleted_page(request: Request, accounts: Accounts, area: str):
     return templates.TemplateResponse(
         request,
         "accounts_deleted.html",
-        {"active": "categories" if area == "categories" else "accounts", "area": area, "entries": entries},
+        {"active": "settings", "area": area, "entries": entries},
     )
 
 

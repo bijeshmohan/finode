@@ -24,7 +24,7 @@ The group tells finode what an account is, so you do not have to answer the budg
 
 ### Add an account
 
-Tap the round **+** (*Add account*) on the Accounts page. The form asks for a **Name**, **Under** (Assets for banks, cash and wallets; Liabilities for cards and loans; or a group you already made), an optional **Current balance** and an optional note (behind *+ Add a note*). The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
+Tap **+ Add account**, the dashed row at the end of the Accounts page. The form asks for a **Name**, **Under** (Assets for banks, cash and wallets; Liabilities for cards and loans; or a group you already made), an optional **Current balance** and an optional note (behind *+ Add a note*). The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
 
 <img src="img/accounts.png" alt="The Accounts page: groups with subtotals, accounts in tiles" width="300">
 
@@ -45,17 +45,17 @@ A card or loan is a **liability**: its balance is what you owe. Paying the bill 
 
 ### Closing and deleting
 
-An account that holds a balance cannot be closed. A closed account keeps its history but disappears from pickers; **Reopen** it any time. Closing is under **Advanced** (see [Settings](recurring-and-settings.md)). An unused account can be deleted for good. Both can be brought back from **Recently deleted** (the bin icon on the Accounts page).
+An account that holds a balance cannot be closed. A closed account keeps its history but disappears from pickers; **Reopen** it any time. Closing is under **Advanced** (see [Settings](recurring-and-settings.md)). An unused account can be deleted for good. Both can be brought back from **Settings › Recently deleted**.
 
 ## Categories page
 
-**Categories** shows one month at a time (never a future one; the month pill sits at the right of the title, as on Budgets: the arrows go back or forward, and tapping the month lets you pick any past month and year). Pick **Expense** or **Income** (the bin and the round **+** are at the right of the chips). The big figure is the month's total up to today (the whole month for a past one); it has no label, the Expense and Income chips say which it is. Below it is a ranked list, biggest first, each row with its three biggest subcategories and its share of the month (0% for one with nothing in it; every row is the same height). Tap a row to see the category's page: its subcategories and the month's transactions that were posted to that category itself (a subcategory's transactions are on its own page; the big figure still counts everything inside). On a category's page the month pill sits beside the back link; the round **+** on the *Subcategories* heading adds a subcategory and the one on *Transactions* adds a transaction in this category (a category with no subcategories has no such heading: use **…** › *Add subcategory*). Use the arrows on the month pill to move between months.
+**Categories** shows one month at a time (never a future one; the month pill sits at the right of the title, as on Budgets: the arrows go back or forward, and tapping the month lets you pick any past month and year). Pick **Expense** or **Income** (**Add category** is the dashed row at the end of the list; deleted categories are under Settings › Recently deleted). The big figure is the month's total up to today (the whole month for a past one); it has no label, the Expense and Income chips say which it is. Below it is a ranked list, biggest first, each row with its three biggest subcategories and its share of the month (0% for one with nothing in it; every row is the same height). Tap a row to see the category's page: its subcategories and the month's transactions that were posted to that category itself (a subcategory's transactions are on its own page; the big figure still counts everything inside). On a category's page the month pill sits beside the back link; the round **+** on the *Subcategories* heading adds a subcategory and the one on *Transactions* adds a transaction in this category (a category with no subcategories has no such heading: use **…** › *Add subcategory*). Use the arrows on the month pill to move between months.
 
 <img src="img/categories.png" alt="The Categories page: the month, Expense and Income, ranked categories" width="300">
 
-To add one, tap the round **+**. A category can have subcategories one level down (Food › Groceries), no further.
+Every category is listed, biggest first, including the ones with nothing in the month. To add one, tap **+ Add category** at the end of the list. A category can have subcategories one level down (Food › Groceries), no further.
 
-**Deleting a category:** if it has never been used it is removed. If it has history it is *closed* instead: it leaves your lists and pickers but stays in the months where it has amounts. **Restore category** brings it back. Both are under the **…** menu and in **Recently deleted** (the bin icon).
+**Deleting a category:** if it has never been used it is removed. If it has history it is *closed* instead: it leaves your lists and pickers but stays in the months where it has amounts. **Restore category** brings it back. Both are under the **…** menu and in **Settings › Recently deleted**.
 
 ## Notes
 

@@ -258,7 +258,6 @@ def test_the_list_page_shows_rules_and_an_empty_state(client, accounts):
 
 def test_settings_and_transactions_pages_link_to_it(client):
     assert 'href="/recurring"' in client.get("/settings").text
-    assert 'href="/recurring"' in client.get("/transactions").text
 
 
 def form(accounts, amount="1500", **extra):

@@ -529,19 +529,17 @@ details.filters .count {
   box-shadow: var(--shadow-lg);
   font-weight: 500;
   transform: translateX(-50%);
-  animation: toast 3.2s ease forwards;
+  --toast-life: 2.9s;
+  animation: toast-in .25s ease-out, toast-out .3s ease-in var(--toast-life) forwards;
   pointer-events: none;
 }
 @media (min-width: 48rem) {
   .toast { bottom: 2rem; }
 }
-@keyframes toast {
-  0% { opacity: 0; transform: translate(-50%, .5rem); }
-  8%, 85% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, 0); visibility: hidden; }
-}
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, .75rem); } }
+@keyframes toast-out { to { opacity: 0; transform: translate(-50%, .25rem); visibility: hidden; } }
 /* A toast with Undo stays long enough to be tapped. */
-.toast.has-undo { display: flex; align-items: center; gap: 1rem; animation-duration: 7s; pointer-events: auto; }
+.toast.has-undo { display: flex; align-items: center; gap: 1rem; --toast-life: 6.7s; pointer-events: auto; }
 .toast-undo { min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font-weight: 600; text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
@@ -897,8 +895,6 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 /* ---------- Transactions: kind chips and the details sheet ---------- */
 .tx-kinds { margin-bottom: 0; min-height: 0; }
 .tx-bar { margin-bottom: .5rem; flex-wrap: nowrap; }
-.tx-bar .head-icons { gap: 0; flex: none; }
-.tx-bar .icon-button { width: 2.375rem; height: 2.375rem; }
 /* One switcher for every "which list": a segmented control (also Expense / Income / Transfer on the Add screen). */
 .chips.seg { display: flex; flex-wrap: nowrap; flex: 1 1 auto; min-width: 0; gap: 2px; padding: 3px; min-height: 0; background: var(--surface-2); border-radius: var(--radius-sm); }
 a.chip {
@@ -1123,7 +1119,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 /* Categories */
 .ready.zero.cat-hero { padding-top: .75rem; padding-bottom: 1.75rem; }
 
-.show-quiet .unused-hidden { display: block; }
 /* Categories: one row per category, biggest first; a second line says what is inside; the amount has its share under it. */
 .crow { display: flex; justify-content: space-between; align-items: center; gap: 1rem; color: inherit; text-decoration: none; }
 .crow-main { display: flex; flex-direction: column; min-width: 0; }
@@ -1212,7 +1207,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 .del-side { display: flex; flex-direction: column; align-items: flex-end; gap: .35rem; flex: none; }
 .del-amount { font-variant-numeric: tabular-nums; }
 .del-side button { margin: 0; min-height: 2rem; padding: .25rem .9rem; font-size: .875rem; }
-.head-icons { display: flex; align-items: center; gap: .25rem; }
 
 /* The "Needs you" badge beside the month on the budget page. */
 .need-line { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 1rem; min-height: 2.75rem; margin: 0 0 .75rem; padding: 0 1rem; font: inherit; font-size: .875rem; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; cursor: pointer; box-shadow: none; }
@@ -1286,8 +1280,8 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .glance-bar.over i { background: var(--danger); }
 
 /* New goal: a quiet link under the categories, and the monthly share under the form. */
-.goal-add { display: flex; align-items: center; justify-content: center; gap: .4rem; margin: .9rem 0 0; min-height: var(--tap); border: 1px dashed var(--field-border); border-radius: var(--radius); color: var(--muted); font-weight: 600; text-decoration: none; }
-.goal-add .icon { width: 1.1rem; height: 1.1rem; }
+.add-row { display: flex; align-items: center; justify-content: center; gap: .4rem; margin: .9rem 0 0; min-height: var(--tap); border: 1px dashed var(--field-border); border-radius: var(--radius); color: var(--muted); font-weight: 600; text-decoration: none; }
+.add-row .icon { width: 1.1rem; height: 1.1rem; }
 .goal-calc { display: flex; flex-direction: column; gap: .15rem; padding: .8rem .9rem; background: var(--surface-2); border-radius: var(--radius-sm); }
 .goal-calc b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 .goal-calc.bad { background: none; padding: 0; }
@@ -1301,15 +1295,22 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .sheet-more .danger-text { color: var(--danger); }
 
 /* ---------- Loading that feels instant: a short fade-in, and grey placeholders in sheets ---------- */
-@keyframes page-in { from { opacity: 0; } }
-main { animation: page-in .14s ease-out; }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
+/* The title row and the switcher stay still; what is under them fades in with a small rise. */
+main > :not(.page-head):not(.cat-bar) { animation: rise-in .22s ease-out; }
+/* Page changes use the browser's own transitions: the chosen chip glides to its new place, the rest is the rise above. */
+@view-transition { navigation: auto; }
+.chips.seg a.chip[aria-pressed="true"] { view-transition-name: switch-pill; }
+::view-transition-group(root) { animation-duration: 0s; }
+::view-transition-old(root) { display: none; }
+::view-transition-group(switch-pill) { animation-duration: .28s; animation-timing-function: cubic-bezier(.3, .7, .2, 1); }
 .skeleton { display: flex; flex-direction: column; gap: .75rem; padding: .25rem 0 1rem; }
 .sk { display: block; border-radius: var(--radius-sm); background: var(--surface-2); animation: sk-pulse 1.1s ease-in-out infinite alternate; }
 .sk-title { width: 45%; height: 1.4rem; }
 .sk-figure { width: 65%; height: 2.5rem; }
 .sk-row { height: 3rem; }
 @keyframes sk-pulse { from { opacity: .55; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { main { animation: none; } .sk { animation: none; } }
+@media (prefers-reduced-motion: reduce) { main > * { animation: none !important; } .sk { animation: none; } @view-transition { navigation: none; } }
 
 /* ---------- Wide screens: Home in two columns (the figure and bars, then the transactions) ---------- */
 @media (min-width: 60rem) {
@@ -1340,3 +1341,57 @@ main:has(.glance) .section-head { margin-top: 2.5rem; }
 /* The "i" beside the figures is faint until it is used (2026-10-23) */
 .calc-info .info-button { color: var(--faint); }
 .calc-info .info-button:hover, .calc-info[open] .info-button { color: var(--text); }
+
+/* ---------- Sheets slide up from the bottom (a small rise and fade on wide screens), the dim area fades ---------- */
+dialog.sheet {
+  outline: none;
+  opacity: 0; transform: translateY(.75rem);
+  transition: opacity .2s ease, transform .25s cubic-bezier(.3, .7, .2, 1), overlay .25s allow-discrete, display .25s allow-discrete;
+}
+dialog.sheet[open] { opacity: 1; transform: none; }
+@starting-style { dialog.sheet[open] { opacity: 0; transform: translateY(.75rem); } }
+dialog.sheet::backdrop { opacity: 0; transition: opacity .25s ease, overlay .25s allow-discrete, display .25s allow-discrete; }
+dialog.sheet[open]::backdrop { opacity: 1; }
+@starting-style { dialog.sheet[open]::backdrop { opacity: 0; } }
+@media (max-width: 40rem) {
+  dialog.sheet.sheet-bottom { opacity: 1; transform: translateY(100%); }
+  dialog.sheet.sheet-bottom[open] { transform: none; }
+  @starting-style { dialog.sheet.sheet-bottom[open] { transform: translateY(100%); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.sheet, dialog.sheet::backdrop { transition: none; }
+  .toast, .toast.has-undo { animation: toast-out 0s var(--toast-life) forwards; }
+}
+
+/* ---------- More motion: bars fill on load, folding rows open smoothly, pressed rows answer ---------- */
+:root { interpolate-size: allow-keywords; }
+/* Bars grow from zero once, when a page loads (app.js sets data-live a moment later, so a bar swapped in by assigning does not replay). */
+@keyframes bar-fill { from { width: 0; } }
+html:not([data-live]) .glance-bar i, html:not([data-live]) .crow .bar i { animation: bar-fill .5s cubic-bezier(.3, .7, .2, 1) both; }
+html:not([data-live]) .crow:nth-child(2) .bar i { animation-delay: .05s; }
+html:not([data-live]) .crow:nth-child(3) .bar i { animation-delay: .1s; }
+html:not([data-live]) .crow:nth-child(n+4) .bar i { animation-delay: .15s; }
+/* Folding rows: the height eases (where the browser can) and the content comes in just behind. */
+details.upcoming::details-content, details.how::details-content { block-size: 0; overflow: clip; transition: block-size .26s cubic-bezier(.3, .7, .2, 1), content-visibility .26s allow-discrete; }
+details.upcoming[open]::details-content, details.how[open]::details-content { block-size: auto; }
+details.upcoming[open] > :not(summary), details.how[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: rise-in .22s ease-out; }
+/* A row or button that is being pressed dims a little, at once, and eases back when let go. */
+a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button, .need-line { transition: opacity .15s ease, transform .15s ease; }
+a.tx:active, a.crow:active, a.up-row:active, a.setting-link:active, a.add-row:active, a.intro-step:active, .need-line:active { opacity: .55; transition-duration: 0s; }
+a.button:active, button:not(.switch):not(.chip):active { transform: scale(.98); opacity: .8; transition-duration: 0s; }
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-live]) .glance-bar i, html:not([data-live]) .crow .bar i { animation: none; }
+  details.upcoming::details-content, details.how::details-content, a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button, .need-line { transition: none; }
+  details.upcoming[open] > :not(summary), details.how[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: none; }
+  a.button:active, button:not(.switch):not(.chip):active { transform: none; }
+}
+
+/* ---------- Small motion: a sheet's content fades in over its placeholders; the entry just saved settles into the list ---------- */
+@keyframes fade-in { from { opacity: 0; } }
+#txn-sheet-body > *, #cat-sheet-body > *, #groups-sheet-body > * { animation: fade-in .18s ease-out; }
+#txn-sheet-body > .skeleton, #cat-sheet-body > .skeleton, #groups-sheet-body > .skeleton { animation: none; }
+@keyframes tx-new { from { opacity: 0; transform: translateY(-6px); background: var(--surface-2); } 60% { background: var(--surface-2); } to { background: transparent; } }
+a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; }
+@media (prefers-reduced-motion: reduce) {
+  #txn-sheet-body > *, #cat-sheet-body > *, #groups-sheet-body > *, a.tx.tx-new { animation: none; }
+}

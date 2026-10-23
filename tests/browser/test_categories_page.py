@@ -60,13 +60,11 @@ def test_the_month_total_and_the_income_tab(page: Page, books, api: Api):
     expect(page.locator("a.crow", has_text="Salary")).to_be_visible()
 
 
-def test_quiet_categories_hide_behind_a_link(page: Page, books, api: Api):
+def test_every_category_is_listed_even_with_nothing_in_the_month(page: Page, books, api: Api):
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
-    expect(page.locator("a.crow", has_text="Groceries")).to_be_hidden()
-    page.get_by_role("button", name="Load more").click()
     expect(page.locator("a.crow", has_text="Groceries")).to_be_visible()
-    expect(page.get_by_role("button", name="Load more")).to_have_count(0)  # it loaded everything: nothing left to load
+    expect(page.get_by_role("button", name="Load more")).to_have_count(0)
 
 
 def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(page: Page, books, api: Api):
@@ -100,8 +98,9 @@ def test_the_month_pill_sits_in_the_title_row_as_on_budget_and_transactions(page
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
     assert len(set(spots.values())) == 1, f"the pill ends at the same edge on every page: {spots}"
     page.goto("/categories")
-    chips, icons, hero = (page.locator(s).first.bounding_box() for s in (".cat-chips", ".cat-bar .head-icons", ".cat-hero"))
-    assert abs(chips["y"] - icons["y"]) < 14 and icons["x"] > chips["x"] + chips["width"], "bin and + at the right of the chips"
+    chips, hero = (page.locator(s).first.bounding_box() for s in (".cat-chips", ".cat-hero"))
+    assert page.locator(".cat-bar .head-icons").count() == 0, "no icons beside the switcher"
+    assert chips["width"] > page.viewport_size["width"] - 60, "the switcher spans the page"
     assert hero["y"] > chips["y"] + chips["height"] - 2
 
 
@@ -125,12 +124,18 @@ def test_the_month_in_the_pill_is_a_picker_that_goes_straight_to_that_month(page
     assert "month=2026-02" in page.url, "a month the page never shows is not taken"
 
 
+def test_the_transactions_switcher_spans_the_page_with_nothing_beside_it(page: Page, books):
+    page.goto("/transactions")
+    chips = page.locator(".tx-kinds").bounding_box()
+    assert chips["width"] > page.viewport_size["width"] - 60, "the kinds switcher spans the page"
+    assert page.locator(".tx-bar .head-icons").count() == 0 and page.locator(".tx-bar a[href='/recurring']").count() == 0
+
+
 def test_accounts_and_categories_share_the_same_heights(page: Page, books):
     spots = {}
     for path in ("/accounts", "/categories"):
         page.goto(path)
         title, chips, hero = (page.locator(s).first.bounding_box() for s in (".page-head h1", ".cat-chips", ".cat-hero"))
-        icons = page.locator(".cat-bar .head-icons").first.bounding_box()
-        assert abs(chips["y"] - icons["y"]) < 14 and icons["x"] > chips["x"] + chips["width"], f"{path}: bin and + at the right of the chips"
-        spots[path] = (round(title["y"]), round(chips["y"]), round(hero["y"]), round(icons["x"] + icons["width"]))
-    assert spots["/accounts"] == spots["/categories"], f"title, chips, figure and the icons' right edge line up: {spots}"
+        assert page.locator(".cat-bar .head-icons").count() == 0, f"{path}: nothing beside the switcher"
+        spots[path] = (round(title["y"]), round(chips["y"]), round(chips["width"]), round(hero["y"]))
+    assert spots["/accounts"] == spots["/categories"], f"title, full-width switcher and figure line up: {spots}"
