@@ -3,7 +3,9 @@
 <div class="tx-list">
   {% for day, items in rows|groupby("transaction.date")|reverse %}
   <section class="tx-day">
-    <h3 class="tx-day-head">{{ day|friendly_date }}</h3>
+    {#- What was spent that day (expenses only), quietly at the right of the date. -#}
+    {% set spent = items|selectattr("kind", "equalto", "expense")|sum(attribute="amount") %}
+    <h3 class="tx-day-head"><span>{{ day|friendly_date }}</span>{% if spent %}<span class="tx-day-total">Spent {{ spent|money }}</span>{% endif %}</h3>
     <ul class="card list">
       {% for row in items %}
       {% set t = row.transaction %}
