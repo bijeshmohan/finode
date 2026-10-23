@@ -100,7 +100,7 @@ def test_it_is_one_month_at_a_time_and_never_the_future(client, books):
 def test_income_is_its_own_tab_with_a_plus_free_green_list(client, books):
     entry(client, books["bank"], books["salary"], "5000", THIS_MONTH)
     page = client.get("/categories?tab=income").text
-    assert '<span class="sr-only">Earned so far</span>' in page and "5,000.00" in page and "Salary" in page and "Rent" not in page
+    assert '<span class="muted">Earned so far</span>' in page and "5,000.00" in page and "Salary" in page and "Rent" not in page
     assert 'aria-pressed="true">Income<' in page
 
 
@@ -208,15 +208,15 @@ def test_a_category_page_says_delete_where_an_account_says_close(client, books):
     assert "removed for good" in form and "Delete category" in form
 
 
-def test_the_figure_has_no_visible_label_only_one_for_screen_readers(client, books):
+def test_the_figure_says_what_it_is_above_and_how_many_categories_below(client, books):
     entry(client, books["bank"], books["rent"], "40", THIS_MONTH)
     page = client.get("/categories").text
-    hero = page.split('class="ready zero cat-hero"', 1)[1].split("</div>", 1)[0]
-    assert '<span class="sr-only">Spent so far</span>' in hero and 'class="muted"' not in hero
+    hero = page.split('cat-hero"', 1)[1].split("</span>\n</div>", 1)[0]
+    assert '<span class="muted">Spent so far</span>' in hero and "categor" in hero.split("hero-note")[1]
     last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
     entry(client, books["bank"], books["rent"], "60", last)
     past = client.get(f"/categories?month={last.strftime('%Y-%m')}").text
-    assert f'<span class="sr-only">Spent in {last.strftime("%B")}</span>' in past and "so far" not in past
+    assert f'<span class="muted">Spent in {last.strftime("%B")}</span>' in past and "so far" not in past
 
 
 def test_the_page_ends_with_its_list_not_with_a_hint(client, books):

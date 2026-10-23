@@ -1117,7 +1117,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 .total-field .amount-field input { width: calc(var(--n, 4) * 1ch + .12em); max-width: 100%; }
 
 /* Categories */
-.ready.zero.cat-hero { padding-top: .75rem; padding-bottom: 1.75rem; }
 
 /* Categories: one row per category, biggest first; a second line says what is inside; the amount has its share under it. */
 .crow { display: flex; justify-content: space-between; align-items: center; gap: 1rem; color: inherit; text-decoration: none; }
@@ -1432,3 +1431,6 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 @keyframes more-in { from { opacity: 0; transform: translateY(6px); } }
 .tx-more-in { animation: more-in .3s ease-out; }
 @media (prefers-reduced-motion: reduce) { .tx-more-in { animation: none; } }
+
+/* The head of Accounts, Categories and Budgets is the same: the label row is as tall with or without the ⓘ, so the figure sits at one height. */
+.ready-hero .hero-top { min-height: 1.75rem; }

@@ -167,6 +167,8 @@ def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
             "blocks": page_blocks(root),
             "currency": accounts.currency().code,
             "closed": closed_count([root]),
+            # What the quiet line under the figure counts: the open accounts of the type (groups are only headings).
+            "account_count": sum(1 for n in root.walk() if n.account.closed_on is None and n.depth > 0 and not n.children),
         },
     )
 

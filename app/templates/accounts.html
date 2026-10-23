@@ -42,9 +42,10 @@
   </div>
 </div>
 
-<div class="ready zero cat-hero">
-  <span class="sr-only">{{ {"assets": "What you own", "liabilities": "What you owe", "equity": "Equity"}[tab] }}</span>
+<div class="ready zero budget-hero ready-hero cat-hero">
+  <div class="hero-top"><div class="calc-row"><span class="muted">{{ {"assets": "What you own", "liabilities": "What you owe", "equity": "Equity"}[tab] }}</span></div></div>
   <span class="figure">{{ figure(root.account.balance, currency) }}</span>
+  <span class="glance-note hero-note"><span>{% if account_count %}{{ account_count }} account{{ "" if account_count == 1 else "s" }}{% else %}No accounts yet{% endif %}</span></span>
 </div>
 
 <div data-accounts>
