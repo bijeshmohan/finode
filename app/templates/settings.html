@@ -3,14 +3,30 @@
 {% block title %}Settings · finode{% endblock %}
 {% block content %}
 <h1 class="sr-only">Settings</h1>
-<a class="profile-head form-narrow" href="/profile" title="Your profile">
-  <span class="avatar" aria-hidden="true">{{ initials }}</span>
-  <div>
-    <p class="profile-name">{{ display_name or "Your profile" }}</p>
-    {% if email %}<p class="muted">{{ email }}</p>{% endif %}
-  </div>
-  {{ icon("chevron-right") }}
-</a>
+{#- The profile header is the name: tap it to change it (there is no separate Profile page any more). -#}
+<details id="name" class="profile-edit form-narrow">
+  <summary class="profile-head" title="Change your name">
+    <span class="avatar" aria-hidden="true">{{ initials }}</span>
+    <div>
+      <p class="profile-name">{{ display_name or "Your profile" }}</p>
+      {% if email %}<p class="muted">{{ email }}</p>{% endif %}
+    </div>
+    {{ icon("chevron-right") }}
+  </summary>
+  <form class="stack" hx-post="/profile">
+    <div class="grid-form">
+      <label>First name
+        <input type="text" name="first_name" maxlength="40" autocomplete="given-name" value="{{ profile.first_name or '' }}">
+      </label>
+      <label>Last name
+        <input type="text" name="last_name" maxlength="40" autocomplete="family-name" value="{{ profile.last_name or '' }}">
+      </label>
+    </div>
+    {% if email %}<p class="hint muted">Your email ({{ email }}) is used to sign in and can't be changed here.</p>{% endif %}
+    <p id="form-error" class="error" role="alert"></p>
+    <div class="actions"><button type="submit">Save name</button></div>
+  </form>
+</details>
 
 <div class="settings form-narrow">
   <h2 class="settings-label">Preferences</h2>
@@ -81,9 +97,10 @@
   </a>
   {% endif %}
   {% if test_notice %}
-  <a class="setting setting-link" id="about" href="/profile#about">
-    <span class="setting-title">About this test</span>{{ icon("chevron-right") }}
-  </a>
+  <details id="about" class="setting">
+    <summary><span class="setting-title">About this test</span><span class="setting-value">Please read</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">{% include "partials/test_notice.html" %}</div>
+  </details>
   {% endif %}
   </div>
 </div>

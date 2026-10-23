@@ -1,23 +1,23 @@
 from fastapi.testclient import TestClient
 
 
-def test_profile_page_shows_form_and_email(client: TestClient):
-    response = client.get("/profile")
+def test_settings_page_shows_the_name_form_and_email(client: TestClient):
+    response = client.get("/settings")
     assert response.status_code == 200
     assert 'name="first_name"' in response.text and 'name="last_name"' in response.text
     assert "test@example.com" in response.text
 
 
-def test_profile_page_shows_saved_names(client: TestClient):
+def test_settings_page_shows_saved_names(client: TestClient):
     client.patch("/api/profile/", json={"first_name": "Bijesh", "last_name": "Mohan"})
-    text = client.get("/profile").text
+    text = client.get("/settings").text
     assert 'value="Bijesh"' in text and 'value="Mohan"' in text
 
 
 def test_saving_profile_redirects_with_flash(client: TestClient):
     response = client.post("/profile", data={"first_name": "Bijesh", "last_name": ""})
     assert response.status_code == 200
-    assert response.headers["HX-Redirect"] == "/profile"
+    assert response.headers["HX-Redirect"] == "/settings"
     profile = client.get("/api/profile/").json()
     assert profile["first_name"] == "Bijesh" and profile["last_name"] is None
 
@@ -33,9 +33,9 @@ def test_saving_too_long_name_reports_error(client: TestClient):
 def test_top_bar_leads_to_settings_and_has_no_sign_out(client: TestClient):
     text = client.get("/").text
     assert 'class="icon-button avatar-link" href="/settings"' in text
-    assert 'href="/profile"' not in text, "your profile is one tap further, from Settings"
+    assert 'href="/profile"' not in text
     assert "/logout" not in text
-    assert 'href="/profile"' in client.get("/settings").text
+    assert 'href="/profile"' not in client.get("/settings").text, "there is one page now: the name is edited on Settings"
 
 
 def test_tab_bar_has_four_tabs_and_the_docked_plus(client: TestClient):
@@ -49,26 +49,31 @@ def test_tab_bar_has_four_tabs_and_the_docked_plus(client: TestClient):
     assert 'href="/transactions"' in text, "Transactions is reached from the sidebar on wide screens (and 'View all' on Home once there is something)"
 
 
-def test_profile_page_has_sign_out(client: TestClient):
-    text = client.get("/profile").text
+def test_the_old_profile_address_lands_on_settings(client: TestClient):
+    old = client.get("/profile", follow_redirects=False)
+    assert old.status_code == 301 and old.headers["location"] == "/settings"
+
+
+def test_settings_page_has_sign_out(client: TestClient):
+    text = client.get("/settings").text
     assert 'action="/logout"' in text and "Sign out" in text
     assert text.count("test@example.com") >= 1 and "Signed in as" not in text
 
 
 def test_header_shows_initials_and_name(client: TestClient):
     client.patch("/api/profile/", json={"first_name": "Bijesh", "last_name": "Mohan"})
-    text = client.get("/profile").text
-    assert '<span class="avatar" aria-hidden="true">BM</span>' in text and "<h1>Bijesh Mohan</h1>" in text
+    text = client.get("/settings").text
+    assert '<span class="avatar" aria-hidden="true">BM</span>' in text and '<p class="profile-name">Bijesh Mohan</p>' in text
 
 
 def test_header_falls_back_to_email_initial(client: TestClient):
-    text = client.get("/profile").text
+    text = client.get("/settings").text
     assert '>T</span>' in text and "Your profile" in text
 
 
 def test_sections_are_collapsible_and_summarise_values(client: TestClient):
-    assert '<details id="name" class="setting">' in client.get("/profile").text
     text = client.get("/settings").text
+    assert '<details id="name" class="profile-edit form-narrow">' in text
     for section in ("currency", "appearance"):
         assert f'<details id="{section}" class="setting">' in text
     assert "Currency</span><span class=\"setting-value\">INR" in text
@@ -77,24 +82,20 @@ def test_sections_are_collapsible_and_summarise_values(client: TestClient):
 
 
 def test_theme_cookie_sets_data_theme(client: TestClient):
-    assert "data-theme" not in client.get("/profile").text.split("<head>")[0]
+    assert "data-theme" not in client.get("/settings").text.split("<head>")[0]
     client.cookies.set("finode_theme", "dark")
-    assert '<html lang="en" data-grouping="indian" data-theme="dark">' in client.get("/profile").text
+    assert '<html lang="en" data-grouping="indian" data-theme="dark">' in client.get("/settings").text
     client.cookies.set("finode_theme", "<script>")
-    assert "data-theme" not in client.get("/profile").text.split("<head>")[0]
+    assert "data-theme" not in client.get("/settings").text.split("<head>")[0]
 
 
 def test_settings_page_holds_application_settings_not_profile(client: TestClient):
     settings = client.get("/settings").text
     for title in ("Currency", "Appearance", "Recurring transactions", "AI assistants", "Advanced"):
         assert title in settings, title
-    for title in ("Period lock",):
-        assert title not in settings, title
-    assert "First name" not in settings and "MCP tokens" not in settings
-    profile = client.get("/profile").text
-    for title in ("Currency", "Appearance"):
-        assert title not in profile, title
-    assert "Your data" in profile and "First name" in profile
+    assert "Period lock" not in settings
+    assert "MCP tokens" not in settings
+    assert "First name" in settings and "Sign out" in settings, "the name and sign-out are on this page too"
 
 
 def test_settings_is_reached_from_the_avatar_and_the_sidebar(client: TestClient):

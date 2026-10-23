@@ -518,8 +518,9 @@ details.filters .count {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 5.5rem);
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 1.75rem);
   z-index: 30;
+  width: max-content;
   max-width: calc(100vw - 2rem);
   padding: .7rem 1.1rem;
   color: var(--bg);
@@ -539,6 +540,9 @@ details.filters .count {
   8%, 85% { opacity: 1; transform: translate(-50%, 0); }
   100% { opacity: 0; transform: translate(-50%, 0); visibility: hidden; }
 }
+/* A toast with Undo stays long enough to be tapped. */
+.toast.has-undo { display: flex; align-items: center; gap: 1rem; animation-duration: 7s; pointer-events: auto; }
+.toast-undo { min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font-weight: 600; text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
 }
@@ -949,10 +953,15 @@ ul.list > li + li { border-top-color: var(--border); }
 .account-hero h1 { font-size: 1.25rem; }
 
 /* ---------- Settings, the calm version ---------- */
-a.profile-head { display: flex; align-items: center; gap: .9rem; padding: .25rem 0 1.1rem; margin-bottom: .5rem; border-bottom: 1px solid var(--surface-2); color: inherit; text-decoration: none; }
-a.profile-head > div { flex: 1; min-width: 0; }
-a.profile-head .profile-name { font-size: 1.0625rem; font-weight: 600; margin: 0; }
-a.profile-head .icon { color: var(--faint); }
+summary.profile-head { display: flex; align-items: center; gap: .9rem; padding: .25rem 0 1.1rem; margin-bottom: .5rem; border-bottom: 1px solid var(--surface-2); color: inherit; text-decoration: none; }
+summary.profile-head > div { flex: 1; min-width: 0; }
+summary.profile-head .profile-name { font-size: 1.0625rem; font-weight: 600; margin: 0; }
+summary.profile-head .icon { color: var(--faint); }
+summary.profile-head { cursor: pointer; list-style: none; }
+summary.profile-head::-webkit-details-marker { display: none; }
+.profile-edit[open] summary.profile-head { border-bottom: 0; margin-bottom: 0; }
+.profile-edit[open] summary.profile-head .icon { transform: rotate(90deg); }
+.profile-edit > form { padding: .25rem 0 1.1rem; border-bottom: 1px solid var(--surface-2); margin-bottom: .5rem; }
 .settings { background: none; border: 0; box-shadow: none; border-radius: 0; overflow: visible; }
 .settings-label { margin: 1.1rem 0 .15rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
 .setting { border-top: 0; border-bottom: 1px solid var(--surface-2); }
@@ -1206,8 +1215,10 @@ dd.auto, dd.auto a { color: var(--auto); }
 .head-icons { display: flex; align-items: center; gap: .25rem; }
 
 /* The "Needs you" badge beside the month on the budget page. */
-.need { display: inline-flex; align-items: center; gap: .45rem; min-height: 2.25rem; padding: 0 .8rem; margin: 0; font: inherit; font-size: .875rem; color: var(--text); background: var(--surface); border: 1px solid var(--tile-border); border-radius: 999px; cursor: pointer; }
-.need i { display: inline-grid; place-items: center; min-width: 1.2rem; height: 1.2rem; padding: 0 .3rem; font-style: normal; font-size: .75rem; font-weight: 600; color: var(--on-accent); background: var(--accent); border-radius: 999px; }
+.need-line { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 1rem; min-height: 2.75rem; margin: 0 0 .75rem; padding: 0 1rem; font: inherit; font-size: .875rem; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; cursor: pointer; box-shadow: none; }
+.need-line .need-more { font-weight: 400; color: var(--muted); }
+.need-line[aria-expanded="true"] { margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.need-line[aria-expanded="true"] + .attn-panel { border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 .more-entries { display: flex; justify-content: center; padding: .25rem 0 1rem; }
 .more-entries button { margin: 0; }
 /* The "i" beside a headline figure opens the sum behind it, in place (Home, Budget). */
@@ -1246,7 +1257,7 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .budget-group .budget-hero { padding-bottom: 1.5rem; }
 /* Budget's title row is as tall as the rows that carry round buttons (Accounts, Categories), so the titles line up. */
 .page-head.tall { min-height: 2.75rem; }
-@media (hover: hover) { .need:hover { background: var(--surface-2); } }
+@media (hover: hover) { .need-line:hover { background: var(--surface-2); } }
 
 /* A short welcome on the Plan until the first amount is assigned. */
 .intro { background: var(--surface-2); border-radius: var(--radius); padding: .8rem 1rem; margin: .75rem 0 1rem; display: flex; flex-direction: column; gap: .2rem; }

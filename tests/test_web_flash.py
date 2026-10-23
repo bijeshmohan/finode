@@ -15,7 +15,7 @@ def test_saving_a_transaction_sets_a_flash(client: TestClient, account: dict, ex
 def test_flash_is_shown_once_on_the_next_page(client: TestClient):
     client.cookies.set(FLASH_COOKIE, "account-created", path="/")
     first = client.get("/accounts")
-    assert '<div class="toast" role="status">Account added</div>' in first.text
+    assert '<div class="toast" role="status"><span>Account added</span></div>' in first.text
     assert f'{FLASH_COOKIE}=""' in first.headers["set-cookie"] or "Max-Age=0" in first.headers["set-cookie"]
 
     client.cookies.delete(FLASH_COOKIE, path="/")

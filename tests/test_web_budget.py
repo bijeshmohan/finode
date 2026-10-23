@@ -188,12 +188,12 @@ def test_unused_groups_are_tucked_away_once_something_is_in_use_but_plain_catego
     assert 'class="top "' in page and "Rent" in page.split("data-toggle-budget-unused")[0], "Rent is a plain category: it stays"
 
 
-def test_what_needs_you_is_a_badge_that_opens_a_panel(client, setup):
+def test_what_needs_you_is_a_slim_line_that_opens_a_panel(client, setup):
     last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
     assign(client, setup["food"], "300", last)
     page = client.get("/plan").text
-    assert "data-toggle-attn" in page and "Needs you <i>1</i>" in page and "Copy last month's amounts" in page
-    assert "things need you" not in page and "thing needs you" not in page, "no separate card any more"
+    assert "data-toggle-attn" in page and "1 thing needs you" in page and "Copy last month's amounts" in page
+    assert 'aria-expanded="false"' in page and "Show" in page, "closed until asked"
 
 
 def test_the_sheet_of_a_plain_account_is_not_offered(client, root_accounts, setup):
@@ -388,7 +388,7 @@ def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_
     assert client.get(f"/plan/group/{setup['rent']['aid']}/sheet").status_code == 404, "a plain category has no group budget"
 
 
-def test_the_month_pill_is_in_the_title_row_and_needs_you_is_beside_ready_to_assign(client, root_accounts, setup):
+def test_the_month_pill_is_in_the_title_row_and_needs_you_is_a_slim_line_under_the_head(client, root_accounts, setup):
     page = client.get("/plan").text
     head = page.split('<div class="page-head tall">', 1)[1].split('<div id="budget">', 1)[0]
     assert "<h1>Plans</h1>" in head and 'class="month-pill"' in head and 'href="/plan?tab=budgets&amp;month=' in head
@@ -401,7 +401,8 @@ def test_the_month_pill_is_in_the_title_row_and_needs_you_is_beside_ready_to_ass
         {"account": setup["food"]["aid"], "side": "debit", "amount": "5"},
         {"account": card["aid"], "side": "credit", "amount": "5"}]})
     page = client.get("/plan").text
-    assert page.index('class="hero-top"') < page.index("data-toggle-attn") < page.index('id="attn-panel"'), "the badge is in the hero, its panel below"
+    assert page.index('data-plan-head') < page.index("data-toggle-attn") < page.index('id="attn-panel"'), "the line is under the head, its panel right below"
+    assert "1 thing needs you" in page
 
 
 def test_the_old_budget_address_still_arrives_at_the_plan(client):

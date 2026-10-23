@@ -4,6 +4,7 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
 from ...auth import CurrentUser, require_authenticated_user
@@ -30,27 +31,9 @@ def _feedback_url() -> str | None:
 
 
 @router.get("")
-def profile_page(
-    request: Request,
-    profiles: Profiles,
-    user: Annotated[CurrentUser, Depends(require_authenticated_user)],
-):
-    profile = profiles.read()
-    names = [n for n in (profile.first_name, profile.last_name) if n]
-    initials = "".join(n[0] for n in names[:2]).upper() or (user.email or "?")[0].upper()
-    return templates.TemplateResponse(
-        request,
-        "profile.html",
-        {
-            "active": "profile",
-            "profile": profile,
-            "email": user.email,
-            "display_name": " ".join(names),
-            "initials": initials,
-            "test_notice": settings.test_notice,
-            "feedback_url": _feedback_url(),
-        },
-    )
+def profile_page():
+    """The profile lives on the Settings page now; the old address (and its #about) lands there."""
+    return RedirectResponse("/settings", status_code=301)
 
 
 @router.get("/data")
@@ -117,7 +100,7 @@ def update_profile(
         profiles.update(ProfileUpdate(first_name=first_name, last_name=last_name))
     except ValidationError as e:
         return htmx_error(validation_message(e), "#form-error")
-    return htmx_redirect("/profile", flash="profile-updated")
+    return htmx_redirect("/settings", flash="profile-updated")
 
 
 def mcp_url(request: Request) -> str:

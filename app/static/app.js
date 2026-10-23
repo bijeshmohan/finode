@@ -788,7 +788,7 @@ document.body.addEventListener("click", (event) => {
 })();
 
 // ---- Budget: unused groups can be shown ----
-// The "Needs you" badge on the budget page opens and closes the list of what needs a decision.
+// The "N things need you" line on the budget page opens and closes the list of what needs a decision.
 (() => {
   document.body.addEventListener("click", (event) => {
     const badge = event.target.closest && event.target.closest("[data-toggle-attn]");
@@ -797,6 +797,8 @@ document.body.addEventListener("click", (event) => {
     if (!panel) return;
     panel.hidden = !panel.hidden;
     badge.setAttribute("aria-expanded", String(!panel.hidden));
+    const more = badge.querySelector(".need-more");
+    if (more) more.textContent = panel.hidden ? "Show ▾" : "Hide ▴";
   });
 })();
 

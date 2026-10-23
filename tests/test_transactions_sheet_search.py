@@ -148,7 +148,7 @@ def test_the_sheet_offers_edit_add_again_and_delete(client, books, ledger):
     html = sheet(client, ledger["dmart"])
     assert f'href="/transactions/{ledger["dmart"]["tid"]}/edit"' in html
     assert f'href="/transactions/new?repeat={ledger["dmart"]["tid"]}"' in html
-    assert f'hx-post="/transactions/{ledger["dmart"]["tid"]}/delete"' in html and "hx-confirm" in html
+    assert f'hx-post="/transactions/{ledger["dmart"]["tid"]}/delete"' in html and "hx-confirm" not in html, "undo replaces the confirmation"
 
 
 def test_an_entry_in_a_locked_period_cannot_be_changed_from_the_sheet(client, books):

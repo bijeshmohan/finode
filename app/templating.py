@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
-from .flash import flash_message
+from .flash import flash_message, flash_undo
 from .models.utils import normalize_amount
 from .clock import local_day, local_today
 
@@ -111,6 +111,7 @@ templates.env.filters["friendly_date"] = friendly_date
 templates.env.filters["local_day"] = local_day
 templates.env.filters["origin_label"] = origin_label
 templates.env.globals["flash_message"] = flash_message
+templates.env.globals["flash_undo"] = flash_undo
 templates.env.globals["asset_url"] = asset_url
 
 
