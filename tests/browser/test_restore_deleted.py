@@ -26,8 +26,9 @@ def test_restore_puts_the_entry_back_and_it_leaves_the_list(page: Page, books, a
 def test_restoring_a_deleted_category_opens_it_again(page: Page, books, api: Api):
     snack = api.post("/accounts/", name="Snacks", parent_id=books["roots"]["Expenses"])
     api.delete(f"/accounts/{snack['aid']}")
-    page.goto("/categories")
+    page.goto("/settings")
     page.get_by_role("link", name="Recently deleted").click()
+    page.locator(".chips .chip", has_text="Categories").click()
     expect(page.locator(".del-row", has_text="Snacks")).to_be_visible()
     page.get_by_role("button", name="Restore").click()
     page.wait_for_url(f"**/categories/{snack['aid']}")

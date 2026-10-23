@@ -2,7 +2,7 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Recently deleted · finode{% endblock %}
 {% block content %}
-<a class="back" href="/{{ area }}">{{ icon("back") }}{{ "Categories" if area == "categories" else "Accounts" }}</a>
+<a class="back" href="/settings">{{ icon("back") }}Settings</a>
 <h1>Recently deleted</h1>
 {% set current = area %}{% include "partials/deleted_tabs.html" %}
 <p class="muted form-narrow">
@@ -32,6 +32,6 @@
   {% endfor %}
 </ul>
 {% else %}
-<div class="card empty-state"><p>Nothing deleted.</p><a class="button secondary" href="/{{ area }}">Back</a></div>
+<div class="card empty-state"><p>Nothing deleted.</p><a class="button secondary" href="/settings">Back</a></div>
 {% endif %}
 {% endblock %}

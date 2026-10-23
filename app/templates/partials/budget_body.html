@@ -100,7 +100,7 @@
   {% else %}
   <div class="empty-state"><p>Save for something by a month: a trip, a bike, an emergency fund.</p><a class="button" href="/budget/goal">{{ icon("plus") }}New goal</a></div>
   {% endif %}
-  {% if goal_rows %}<a class="goal-add" href="/budget/goal">{{ icon("plus") }}New goal</a>{% endif %}
+  {% if goal_rows %}<a class="add-row" href="/budget/goal">{{ icon("plus") }}New goal</a>{% endif %}
   {% elif tree %}
   <div class="budget-list tile" data-budget-tree>
     {% for item in rows %}
