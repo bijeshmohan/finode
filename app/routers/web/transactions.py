@@ -168,7 +168,7 @@ def transactions_page(
             for t in sorted(ahead, key=lambda t: (t.date, t.created)):
                 r = to_row(t, index)
                 upcoming.append(UpcomingItem(
-                    t.tid, t.date, t.payee or "No payee", f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}",
+                    t.tid, t.date, t.payee or ", ".join(r.debits), f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}" if t.payee else ", ".join(r.credits),
                     r.amount, r.kind == "income",
                 ))
     except ValueError as e:

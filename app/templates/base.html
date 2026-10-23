@@ -56,15 +56,14 @@
   {% if flash %}<div class="toast" role="status">{{ flash }}</div>{% endif %}
 
   {% block tabbar %}
-  <nav class="tabbar" aria-label="Main">
+  {% set plus = not hide_fab and not no_fab %}
+  <nav class="tabbar{{ ' has-plus' if plus }}" aria-label="Main">
     <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>
     <a href="/plan" {% if active == 'plan' %}aria-current="page"{% endif %}>{{ icon("budget") }}<span>Plans</span></a>
+    {% if plus %}<a class="fab" href="/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>{% endif %}
     <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
     <a href="/categories" {% if active == 'categories' %}aria-current="page"{% endif %}>{{ icon("tag") }}<span>Categories</span></a>
   </nav>
-  {% if not hide_fab and not no_fab %}
-  <a class="fab" href="/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>
-  {% endif %}
   {% endblock %}
 </body>
 </html>

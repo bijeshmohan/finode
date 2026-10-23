@@ -60,7 +60,6 @@
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions">
     <button type="submit">{{ "Save changes" if editing else "Add " ~ noun }}</button>
-    <a class="button secondary" href="{{ (area ~ '/' ~ node.account.aid) if editing else area }}">Cancel</a>
   </div>
 </form>
 

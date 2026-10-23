@@ -38,11 +38,11 @@ def test_top_bar_leads_to_settings_and_has_no_sign_out(client: TestClient):
     assert 'href="/profile"' in client.get("/settings").text
 
 
-def test_tab_bar_has_four_tabs(client: TestClient):
+def test_tab_bar_has_four_tabs_and_the_docked_plus(client: TestClient):
     text = client.get("/").text
-    tabbar = text[text.index('<nav class="tabbar"'):]
+    tabbar = text[text.index('<nav class="tabbar'):]
     tabbar = tabbar[: tabbar.index("</nav>")]
-    assert tabbar.count("<a ") == 4
+    assert tabbar.count("<a ") == 5 and tabbar.count('class="fab"') == 1, "four tabs and the docked +"
     assert all(name in tabbar for name in ("Home", "Plan", "Accounts", "Categories"))
     assert "Transactions" not in tabbar and "Settings" not in tabbar and "/profile" not in tabbar
     assert "search-link" not in text and "focus=search" not in text, "no search icon in the top bar"

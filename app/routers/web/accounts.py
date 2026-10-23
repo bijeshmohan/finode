@@ -353,7 +353,7 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
         has_any = bool(entries)
     # What is dated ahead is not history: it waits in its own card, soonest first, and out of the running list.
     upcoming = [
-        UpcomingItem(e.tid, e.date, e.payee or "No payee", ", ".join(e.counter_accounts) + (f" \u00b7 {e.comment}" if e.comment else ""), abs(e.change), _is_inflow(root.account.name, e.change))
+        UpcomingItem(e.tid, e.date, e.payee or ", ".join(e.counter_accounts), (", ".join(e.counter_accounts) if e.payee else "") + (f" \u00b7 {e.comment}" if e.comment and e.payee else e.comment or ""), abs(e.change), _is_inflow(root.account.name, e.change))
         for e in ahead
     ]
     signs = {e.change > 0 for e in ahead}

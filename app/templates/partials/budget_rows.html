@@ -15,10 +15,10 @@
    {% if item.node.is_group %}href="/plan/group/{{ line.aid }}?month={{ month_key }}"
    {% else %}href="/plan/target?month={{ month_key }}&category={{ line.aid }}" hx-get="/plan/category/{{ line.aid }}/sheet?month={{ month_key }}{{ '&group=' ~ group_id if group_id }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false"{% endif %}>
   <span class="crow-main">
-    <span class="crow-name">{{ name }}</span>
+    <span class="crow-top"><span class="crow-name">{{ name }}</span><span class="crow-of">{% if line.assigned or line.available or line.activity %}of {{ (line.activity + line.available if line.activity + line.available > 0 else line.activity)|money }}{% else %}nothing assigned{% endif %}</span></span>
     {% if item.hint %}<span class="crow-sub {{ 'short' if not item.node.is_group and line.underfunded and not item.calm else '' }}">{{ item.hint }}</span>{% endif %}
   </span>
-  <span class="crow-amt"><span class="{{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span><span class="crow-share">{% if line.assigned or line.available or line.activity %}of {{ (line.activity + line.available if line.activity + line.available > 0 else line.activity)|money }}{% else %}nothing assigned{% endif %}</span></span>
+  <span class="crow-amt"><span class="{{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span></span>
   {#- The bar runs the whole width of the row, under the name and the amount, so full reads as full. -#}
   {{ bar(line, pace) }}
 </a>

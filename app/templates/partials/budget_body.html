@@ -97,7 +97,7 @@
   <p id="budget-error" class="error" role="alert"></p>
 
   {% if not budget.budget_accounts %}
-  <p class="card muted">No account is part of the budget yet. Open an asset account (or a credit card) and switch on <strong>Part of the budget</strong> in its edit page.</p>
+  <div class="empty-state"><p>No account is part of the budget yet. Open an asset account (or a credit card) and switch on <strong>Part of the budget</strong> in its edit page.</p></div>
   {% endif %}
 
   {% if tab == "goals" %}
@@ -108,9 +108,9 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="card muted">Save for something by a month: a trip, a bike, an emergency fund.</p>
+  <div class="empty-state"><p>Save for something by a month: a trip, a bike, an emergency fund.</p><a class="button" href="/plan/goal">{{ icon("plus") }}New goal</a></div>
   {% endif %}
-  <a class="goal-add" href="/plan/goal">{{ icon("plus") }}New goal</a>
+  {% if goal_rows %}<a class="goal-add" href="/plan/goal">{{ icon("plus") }}New goal</a>{% endif %}
   {% elif tree %}
   <div class="budget-list tile" data-budget-tree>
     {% for item in rows %}
@@ -121,7 +121,7 @@
   <p class="unused-toggle"><button type="button" class="link-button" data-toggle-budget-unused data-count="{{ unused_count }}">{{ unused_count }} unused group{{ "" if unused_count == 1 else "s" }} hidden · Show</button></p>
   {% endif %}
   {% elif budget.budget_accounts %}
-  <p class="card muted">There are no expense categories yet. <a href="/accounts/new">Add an expense account</a> under Expenses, like Groceries.</p>
+  <div class="empty-state"><p>There are no expense categories yet.</p><a class="button" href="/categories/new?root=expense">{{ icon("plus") }}Add a category</a></div>
   {% endif %}
 
   <dialog id="cat-sheet" class="sheet sheet-bottom" aria-label="Category">
