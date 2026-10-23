@@ -290,7 +290,11 @@ def test_the_page_offers_to_copy_last_month_and_does_it(client, setup):
 def test_the_page_says_when_money_is_assigned_to_later_months(client, setup):
     nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
     assign(client, setup["food"], "120", nxt)
-    assert "\u20b9120.00 is already assigned to later months" in client.get("/budget").text
+    panel = " ".join(client.get("/budget").text.split())
+    assert "Assigned to later months" in panel and "120.00" in panel.split("Assigned to later months", 1)[1].split("</div>", 1)[0], "a row of the sum behind the i"
+    assert "is already assigned to later months" not in panel, "the explaining paragraph is gone"
+
+
 def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts):
     account(client, root_accounts, "Bank", "Assets", balance="1000")
     food = account(client, root_accounts, "Food", "Expenses")
@@ -303,11 +307,13 @@ def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts
     assert home.index('home-credit"') < home.index("<h2>Transactions</h2>"), "before the transactions"
     page = client.get("/budget").text
     assert "credit account" not in page and "Visa" not in page, "moved to Home"
-    assert "Money in your accounts 1,000.00 − set aside for card bills 100.00" in page
-    assert "= ready to assign" in page and "assigned to later months" not in page
+    sum_ = " ".join(re.sub(r"<[^>]+>", " ", page.split('class="calc-panel"', 1)[1]).split())
+    assert "In your accounts ₹1,000.00" in sum_ and "Set aside for card bills ₹100.00" in sum_
+    assert "How this works" not in page
     nxt = (THIS_MONTH + timedelta(days=32)).replace(day=1)
     assign(client, food, "50", nxt)
-    assert "− assigned to later months 50.00 = ready to assign" in client.get("/budget").text
+    later = " ".join(re.sub(r"<[^>]+>", " ", client.get("/budget").text.split('class="calc-panel"', 1)[1]).split())
+    assert "Assigned to later months ₹50.00" in later
 
 
 def test_a_budget_account_with_sub_accounts_is_not_announced_on_the_page(client, setup, root_accounts):
