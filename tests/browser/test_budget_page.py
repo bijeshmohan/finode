@@ -74,12 +74,13 @@ def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Pag
     expect(row.locator(".up-list")).to_contain_text("120.00")
     page.goto("/budget")
     expect(page.get_by_text("credit account")).to_have_count(0)
-    page.locator("details.how > summary").click()
-    expect(page.locator(".calc").first).to_contain_text("set aside for card bills 120.00")
+    page.locator("[data-budget-head='spend'] .calc-info > summary").click()
+    expect(page.locator(".calc-panel")).to_contain_text("Set aside for card bills")
+    expect(page.locator(".calc-panel")).to_contain_text("120.00")
     # Assigning money to a category changes ready to assign, and the explanation follows it.
     assign_in_sheet(page, "Rent", "500")
     expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("\u20b94,500.00")
-    expect(page.locator(".calc").first).to_contain_text("in categories 380.00")
+    expect(page.locator(".calc-panel")).to_contain_text("380.00")
 
 
 def test_the_target_form_shows_the_fields_each_kind_needs(page: Page, books):

@@ -1027,10 +1027,6 @@ form.htmx-request button[type="submit"], form.htmx-request button:not([type]) { 
 .budget-list { display: flex; flex-direction: column; }
 .budget-list .gh:first-child { margin-top: .6rem; }
 
-details.how { margin: -.4rem 0 .75rem; font-size: .8125rem; }
-details.how summary { cursor: pointer; color: var(--muted); list-style: none; text-decoration: underline; text-decoration-color: var(--faint); width: max-content; }
-details.how summary::-webkit-details-marker { display: none; }
-details.how p { margin: .5rem 0 0; }
 .sheet-amount small { display: block; font-size: .75rem; font-weight: 400; text-align: right; }
 .sheet-amount.over { color: var(--negative); }
 dialog.sheet form.stack { margin-top: 1rem; }
@@ -1100,7 +1096,6 @@ form.attn-item.fund { display: flex; gap: .75rem; align-items: center; justify-c
 .attn-item button { margin: 0; }
 .unused-hidden { display: none; }
 .show-budget-unused .unused-hidden { display: block; }
-details.how { margin: 1.25rem 0 0; }
 
 /* Where today falls in the month, on the bars of the current month: a tick. A fill ahead of the tick is spending faster than the month passes. */
 .glance-bar, .bar { position: relative; overflow: visible; }
@@ -1372,17 +1367,17 @@ html:not([data-live]) .crow:nth-child(2) .bar i { animation-delay: .05s; }
 html:not([data-live]) .crow:nth-child(3) .bar i { animation-delay: .1s; }
 html:not([data-live]) .crow:nth-child(n+4) .bar i { animation-delay: .15s; }
 /* Folding rows: the height eases (where the browser can) and the content comes in just behind. */
-details.upcoming::details-content, details.how::details-content { block-size: 0; overflow: clip; transition: block-size .26s cubic-bezier(.3, .7, .2, 1), content-visibility .26s allow-discrete; }
-details.upcoming[open]::details-content, details.how[open]::details-content { block-size: auto; }
-details.upcoming[open] > :not(summary), details.how[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: rise-in .22s ease-out; }
+details.upcoming::details-content { block-size: 0; overflow: clip; transition: block-size .26s cubic-bezier(.3, .7, .2, 1), content-visibility .26s allow-discrete; }
+details.upcoming[open]::details-content { block-size: auto; }
+details.upcoming[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: rise-in .22s ease-out; }
 /* A row or button that is being pressed dims a little, at once, and eases back when let go. */
 a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button, .need-line { transition: opacity .15s ease, transform .15s ease; }
 a.tx:active, a.crow:active, a.up-row:active, a.setting-link:active, a.add-row:active, a.intro-step:active, .need-line:active { opacity: .55; transition-duration: 0s; }
 a.button:active, button:not(.switch):not(.chip):active { transform: scale(.98); opacity: .8; transition-duration: 0s; }
 @media (prefers-reduced-motion: reduce) {
   html:not([data-live]) .glance-bar i, html:not([data-live]) .crow .bar i { animation: none; }
-  details.upcoming::details-content, details.how::details-content, a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button, .need-line { transition: none; }
-  details.upcoming[open] > :not(summary), details.how[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: none; }
+  details.upcoming::details-content, a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button, .need-line { transition: none; }
+  details.upcoming[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: none; }
   a.button:active, button:not(.switch):not(.chip):active { transform: none; }
 }
 

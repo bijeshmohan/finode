@@ -117,16 +117,4 @@
   <dialog id="cat-sheet" class="sheet sheet-bottom" aria-label="Category">
     <div id="cat-sheet-body" class="sheet-body"></div>
   </dialog>
-
-  <details class="how">
-    <summary>How this works</summary>
-    {% if budget.cards or budget.goals %}
-    <p class="muted calc">Money in your accounts {{ budget.money_in_accounts|money }}{% if budget.cards %} − set aside for card bills {{ budget.reserved_for_cards|money }}{% endif %} − in categories {{ budget.available|money }}{% if budget.goals %} − set aside for goals {{ budget.goal_available|money }}{% endif %}{% if budget.assigned_to_later_months %} − assigned to later months {{ budget.assigned_to_later_months|money }}{% endif %} = ready to assign.</p>
-    {% endif %}
-    {% if budget.cards %}<p class="muted calc">What you owe on a card is set aside automatically.</p>{% endif %}
-    {% if budget.assigned_to_later_months %}
-    <p class="muted calc">{{ budget.assigned_to_later_months|money|amount(budget.currency) }} is already assigned to later months, so it is not counted in Ready to assign.</p>
-    {% endif %}
-    <p class="muted calc">Tap a category to assign money to it, move money to another category{% if advanced %} or set a target{% endif %}. A group's total adds up everything inside it; "Everything else" is money for the group that is not in one of its categories. Assigned {{ budget.assigned|money }} · spent {{ budget.activity|money }} · available {{ budget.available|money }}.</p>
-  </details>
 </div>
