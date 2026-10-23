@@ -9,7 +9,7 @@
   <div class="sheet-amount {{ 'over' if line.available < 0 }}">{{ line.available|money }}<small class="muted">left</small></div>
 </div>
 
-<form class="stack" hx-post="/plan/group/{{ line.aid }}/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
+<form class="stack" hx-post="/budget/group/{{ line.aid }}/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
   <input type="hidden" name="month" value="{{ month_key }}">
   <label>Assigned this month
     <input class="assign" type="text" name="amount" inputmode="decimal" autocomplete="off" enterkeyhint="done" data-autofocus

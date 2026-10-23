@@ -181,7 +181,7 @@ def test_a_month_only_part_of_which_is_locked_is_still_open(client, books):
 
 def test_the_budget_page_says_so(client, books):
     lock(client, LAST_MONTH_END)
-    bad = client.post("/plan/assign", data={"category": books["food"]["aid"], "month": LAST_MONTH.strftime("%Y-%m"), "amount": "5"})
+    bad = client.post("/budget/assign", data={"category": books["food"]["aid"], "month": LAST_MONTH.strftime("%Y-%m"), "amount": "5"})
     assert bad.status_code == 400 and "locked period" in bad.text
 
 

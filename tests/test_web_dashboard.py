@@ -53,7 +53,7 @@ def test_dashboard_shows_summary_and_recent_transactions(
     text = client.get("/").text
     assert "120.50" in text  # no budget yet: what was spent this month
     assert "home-strip" not in text, "no Earned / Assigned / Spent columns"
-    assert 'href="/plan?month=' in text and "Set up your budget" in text
+    assert 'href="/budget?month=' in text and "Set up your budget" in text
     assert "Employer" in text and "Supermarket" in text
     assert plain(svc.reports.summary())["net_worth"] == "3379.50"  # 1000 + 2500 - 120.50
 
@@ -124,7 +124,7 @@ def test_onboarding_checklist_for_new_users(client: TestClient, root_accounts: d
     assert "Get started" in text
     assert f'href="/accounts/new?parent={root_accounts["Assets"]}"' in text
     assert 'href="/transactions/new">Record your first spend' in text
-    assert 'href="/plan">Give your money a job' in text
+    assert 'href="/budget">Give your money a job' in text
 
 
 def test_onboarding_ticks_off_steps_and_ignores_opening_balances(
@@ -264,6 +264,6 @@ def test_the_checklist_stays_on_home_after_the_first_entry_until_the_plan_is_use
     client.patch("/api/profile/", json={"advanced": False})
     text = client.get("/").text
     assert "Get started · 2 of 3" in text and "Give your money a job</a>" in text
-    assert "Open Plans and set aside rent and food" in text
+    assert "Open Budgets and set aside rent and food" in text
     client.put(f"/api/budget/categories/{food['aid']}", json={"month": date.today().replace(day=1).isoformat(), "amount": "50"})
     assert "Get started" not in client.get("/").text

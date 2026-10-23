@@ -1,0 +1,28 @@
+{#- The second step of a goal's sheet: hand some of what it saved to a category. Expects line, categories, picked, amount, month_key, month_name. -#}
+<div class="sheet-grab" aria-hidden="true"></div>
+<div class="sheet-title">
+  <div>
+    <h2>Use {{ line.name }} for…</h2>
+    <p class="muted">{{ line.available|money }} saved</p>
+  </div>
+</div>
+<p class="muted">Moves the goal's money to the category that paid for it.</p>
+<form class="stack" hx-post="/budget/goal/{{ line.gid }}/use" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
+  <input type="hidden" name="month" value="{{ month_key }}">
+  <label>Category
+    <select name="category" required>
+      {% if not picked %}<option value="">Choose…</option>{% endif %}
+      {% for c in categories %}
+      <option value="{{ c.aid }}" {{ "selected" if c.aid == picked }}>{{ c.path }}{% if c.available < 0 %} · {{ (-c.available)|money }} over{% endif %}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Amount
+    <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" value="{{ amount|money }}" data-autofocus>
+  </label>
+  <p id="cat-sheet-error" class="error" role="alert"></p>
+  <div class="sheet-actions">
+    <button type="submit">Use it</button>
+    <button type="button" class="button secondary" hx-get="/budget/goal/{{ line.gid }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">Back</button>
+  </div>
+</form>

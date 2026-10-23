@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
 {% from "partials/month_pill.html" import month_pill %}
-{% block title %}{{ group.line.name }} · Plans · finode{% endblock %}
+{% block title %}{{ group.line.name }} · Budgets · finode{% endblock %}
 {% block content %}
 <div class="cat-bar acct-nav">
-  <a class="back" href="/plan?month={{ month_key }}">{{ icon("back") }}Plans</a>
-  {{ month_pill("/plan/group/" ~ group.line.aid ~ "?month={month}", month_name, month_key, previous, next) }}
+  <a class="back" href="/budget?month={{ month_key }}">{{ icon("back") }}Budgets</a>
+  {{ month_pill("/budget/group/" ~ group.line.aid ~ "?month={month}", month_name, month_key, previous, next) }}
 </div>
 <h1 class="group-title">{{ group.line.name }}</h1>
 {% include "partials/budget_group_body.html" %}

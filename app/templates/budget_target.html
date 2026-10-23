@@ -2,11 +2,11 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Target · finode{% endblock %}
 {% block content %}
-<a class="back" href="/plan?month={{ month_key }}">{{ icon("back") }}Plans</a>
+<a class="back" href="/budget?month={{ month_key }}">{{ icon("back") }}Budgets</a>
 <h1>Target for {{ line.name }}</h1>
 <p class="muted">What this category should get. A target never moves money by itself.</p>
 {% set t = line.target %}
-<form class="card stack form-narrow" hx-post="/plan/target">
+<form class="card stack form-narrow" hx-post="/budget/target">
   <input type="hidden" name="month" value="{{ month_key }}">
   <input type="hidden" name="category" value="{{ line.aid }}">
   <label>Kind
@@ -38,7 +38,7 @@
     <button type="submit">Save target</button>
   </div>
 </form>
-<form class="card stack form-narrow note-card" hx-post="/plan/note">
+<form class="card stack form-narrow note-card" hx-post="/budget/note">
   <input type="hidden" name="month" value="{{ month_key }}">
   <input type="hidden" name="category" value="{{ line.aid }}">
   <label>Note
@@ -49,7 +49,7 @@
   <div class="actions"><button type="submit" class="secondary">Save note</button></div>
 </form>
 {% if t %}
-<form class="form-narrow" hx-post="/plan/target/delete" hx-confirm="Remove this target?">
+<form class="form-narrow" hx-post="/budget/target/delete" hx-confirm="Remove this target?">
   <input type="hidden" name="month" value="{{ month_key }}">
   <input type="hidden" name="category" value="{{ line.aid }}">
   <button type="submit" class="danger">Remove target</button>

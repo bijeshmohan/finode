@@ -379,14 +379,21 @@ document.body.addEventListener("htmx:beforeRequest", (event) => {
   const dialog = document.getElementById(body.id.replace("-body", ""));
   if (!dialog) return;
   body.innerHTML = SHEET_SKELETON;
-  delete dialog.dataset.dismissed;
   dialog.dataset.loading = "1";
+  loadingBy.set(dialog, event.detail.elt);
   if (!dialog.open) dialog.showModal();
 });
-// A sheet closed while its content is still on the way stays closed when the content arrives.
+// A sheet closed while its content is still on the way stays closed: the request is dropped, so nothing arrives to reopen it.
+const loadingBy = new WeakMap();
 document.addEventListener("close", (event) => {
   const dialog = event.target;
-  if (dialog && dialog.dataset && dialog.dataset.loading) dialog.dataset.dismissed = "1";
+  if (!dialog || !dialog.dataset || !dialog.dataset.loading) return;
+  delete dialog.dataset.loading;
+  const from = loadingBy.get(dialog);
+  loadingBy.delete(dialog);
+  if (from && window.htmx) window.htmx.trigger(from, "htmx:abort");
+  const body = dialog.querySelector(".sheet-body");
+  if (body && body.querySelector(".skeleton")) body.innerHTML = "";
 }, true);
 ["htmx:responseError", "htmx:sendError", "htmx:timeout"].forEach((name) => {
   document.body.addEventListener(name, (event) => {
@@ -403,8 +410,7 @@ document.body.addEventListener("htmx:afterSwap", (event) => {
   const id = event.target && event.target.id;
   if (!SHEET_BODIES.includes(id)) return;
   const dialog = document.getElementById(id.replace("-body", ""));
-  if (dialog && dialog.dataset.dismissed) { delete dialog.dataset.dismissed; delete dialog.dataset.loading; event.target.innerHTML = ""; return; }
-  if (dialog) delete dialog.dataset.loading;
+  if (dialog) { delete dialog.dataset.loading; loadingBy.delete(dialog); }
   if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();

@@ -2,7 +2,7 @@ from .auth import AuthUser
 from .account import Account
 from .account_deletion import AccountDeletion
 from .api_token import ApiToken
-from .budget import BudgetAllocation, BudgetTarget
+from .budget import BudgetAllocation, BudgetTarget, Goal, GoalAllocation
 from .oauth_grant import OAuthGrant
 from .profile import Profile
 from .recurring import RecurringPosting, RecurringTransaction
@@ -16,6 +16,8 @@ __all__ = [
     "AccountDeletion",
     "ApiToken",
     "BudgetAllocation",
+    "Goal",
+    "GoalAllocation",
     "OAuthGrant",
     "Profile",
     "RecurringTransaction",

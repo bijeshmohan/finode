@@ -3,34 +3,32 @@
 <div class="sheet-title">
   <div>
     <h2>{{ line.name }}</h2>
-    <p class="muted">by {{ line.target.target_date.strftime("%b %Y") }}</p>
+    <p class="muted">by {{ line.target_date.strftime("%b %Y") }}</p>
   </div>
-  <div class="sheet-amount">{{ line.available|money }}<small class="muted">saved of {{ line.target.amount|money }}</small></div>
+  <div class="sheet-amount">{{ line.available|money }}<small class="muted">saved of {{ line.amount|money }}</small></div>
 </div>
 <span class="bar" aria-hidden="true"><i style="width: {{ percent }}%"></i></span>
 <dl class="sheet-facts">
   <div><dt>Set aside in {{ month_name.split(" ")[0] }}</dt><dd>{{ line.assigned|money }}</dd></div>
-  <div><dt>Spent in {{ month_name.split(" ")[0] }}</dt><dd>{{ line.activity|money }}</dd></div>
-  <div><dt>Still to save</dt><dd>{{ ((line.target.amount - line.available) if line.target.amount > line.available else 0)|money }}</dd></div>
+  <div><dt>Still to save</dt><dd>{{ ((line.amount - line.available) if line.amount > line.available else 0)|money }}</dd></div>
   {% if not reached and months_left %}<div><dt>To get there</dt><dd>{{ line.needed|money }} a month · {{ months_left }} month{{ "" if months_left == 1 else "s" }} left</dd></div>{% endif %}
 </dl>
 <p id="cat-sheet-error" class="error" role="alert"></p>
-<div class="stack">
+<div class="stack sheet-stack">
   {% if line.underfunded > 0 %}
-  <form hx-post="/plan/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
-    <input type="hidden" name="category" value="{{ line.aid }}">
+  <form hx-post="/budget/goal/{{ line.gid }}/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
     <input type="hidden" name="month" value="{{ month_key }}">
-    <input type="hidden" name="tab" value="goals">
-    <input type="hidden" name="sheet" value="1">
     <input type="hidden" name="amount" value="{{ line.needed|money }}">
     <button type="submit">Set aside {{ line.needed|money }} this month</button>
   </form>
   {% endif %}
-  <a class="button secondary" href="/transactions/new?account={{ line.aid }}&back=/plan%3Ftab%3Dgoals">Record spending on it</a>
+  {% if line.available > 0 %}
+  <button type="button" class="button secondary" hx-get="/budget/goal/{{ line.gid }}/use?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">Use it for…</button>
+  {% endif %}
   <p class="sheet-more">
-    <a href="/plan/goal/{{ line.aid }}/edit">Change amount or month</a>
+    <a href="/budget/goal/{{ line.gid }}/edit">Change amount or month</a>
     ·
-    <button type="button" class="link-button danger-text" hx-post="/plan/goal/{{ line.aid }}/delete"
-            hx-confirm="Delete {{ line.name }}? {% if line.activity or line.assigned %}It has money set aside or spent, so it will leave your lists and its history stays in the reports.{% else %}Nothing was set aside for it.{% endif %}">Delete goal</button>
+    <button type="button" class="link-button danger-text" hx-post="/budget/goal/{{ line.gid }}/delete"
+            hx-confirm="Delete {{ line.name }}? {% if line.available > 0 %}The {{ line.available|money }} saved in it goes back to Ready to assign.{% else %}Nothing is saved in it.{% endif %}">Delete goal</button>
   </p>
 </div>

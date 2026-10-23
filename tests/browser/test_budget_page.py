@@ -12,7 +12,7 @@ LAST_MONTH = (THIS_MONTH - timedelta(days=1)).replace(day=1)
 
 
 def ready(page: Page) -> str:
-    return page.locator(".rta-text b").inner_text()
+    return page.locator("[data-budget-head='spend'] .figure").inner_text()
 
 
 def assign_in_sheet(page: Page, name: str, amount: str) -> None:
@@ -26,10 +26,10 @@ def assign_in_sheet(page: Page, name: str, amount: str) -> None:
 
 
 def test_assigning_changes_ready_to_assign_without_a_reload(page: Page, books):
-    page.goto("/plan")
+    page.goto("/budget")
     assert ready(page) == "\u20b95,000.00"
     assign_in_sheet(page, "Groceries", "1200")
-    expect(page.locator(".rta-text b")).to_have_text("\u20b93,800.00")
+    expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("\u20b93,800.00")
     page.locator("a.catrow", has_text="Groceries").first.click()
     assert page.locator('#cat-sheet input[aria-label="Assigned to Groceries"]').input_value() == "1,200.00"
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
@@ -38,7 +38,7 @@ def test_assigning_changes_ready_to_assign_without_a_reload(page: Page, books):
 def test_copying_last_months_amounts(page: Page, books, api: Api):
     api.put(f"/budget/categories/{books['food']['aid']}", month=LAST_MONTH.isoformat(), amount="300")
     api.put(f"/budget/categories/{books['rent']['aid']}", month=LAST_MONTH.isoformat(), amount="900")
-    page.goto("/plan")
+    page.goto("/budget")
     page.locator("button.need-line").click()
     button = page.get_by_role("button", name="Copy last month's amounts")
     expect(button).to_contain_text("1,200.00")
@@ -50,12 +50,12 @@ def test_copying_last_months_amounts(page: Page, books, api: Api):
 
 def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, api: Api):
     api.put(f"/budget/categories/{books['rent']['aid']}/target", kind="monthly", amount="800")
-    page.goto("/plan")
+    page.goto("/budget")
     expect(page.locator("a.catrow .crow-sub.short")).to_contain_text("needs 800.00 more")
     page.locator("button.need-line").click()
     page.get_by_role("button", name="Assign what is needed").click()
     expect(page.locator("a.catrow .crow-sub.short")).to_have_count(0)
-    expect(page.locator(".rta-text b")).to_have_text("\u20b94,200.00")
+    expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("\u20b94,200.00")
 
 
 def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Page, books, api: Api):
@@ -71,18 +71,18 @@ def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Pag
     row.locator("summary").click()
     expect(row.locator(".up-list")).to_contain_text("Visa")
     expect(row.locator(".up-list")).to_contain_text("120.00")
-    page.goto("/plan")
+    page.goto("/budget")
     expect(page.get_by_text("credit account")).to_have_count(0)
     page.locator("details.how > summary").click()
     expect(page.locator(".calc").first).to_contain_text("set aside for card bills 120.00")
     # Assigning money to a category changes ready to assign, and the explanation follows it.
     assign_in_sheet(page, "Rent", "500")
-    expect(page.locator(".rta-text b")).to_have_text("\u20b94,500.00")
+    expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("\u20b94,500.00")
     expect(page.locator(".calc").first).to_contain_text("in categories 380.00")
 
 
 def test_the_target_form_shows_the_fields_each_kind_needs(page: Page, books):
-    page.goto(f"/plan/target?category={books['rent']['aid']}")
+    page.goto(f"/budget/target?category={books['rent']['aid']}")
     day, month = page.locator("label[data-target-weekday]"), page.locator("label[data-target-date]")
     expect(day).to_be_hidden()
     expect(month).to_be_hidden()
@@ -98,7 +98,7 @@ def test_the_target_form_shows_the_fields_each_kind_needs(page: Page, books):
 
 
 def test_a_weekly_target_is_saved_from_the_form(page: Page, books):
-    page.goto(f"/plan/target?category={books['rent']['aid']}")
+    page.goto(f"/budget/target?category={books['rent']['aid']}")
     page.locator("select[data-target-kind]").select_option("weekly")
     page.locator("select[name=weekday]").select_option("4")
     page.locator("input[name=amount]").fill("100")
@@ -129,7 +129,7 @@ def test_a_weekly_target_opens_into_its_weeks(page: Page, books, api: Api):
         {"account": books["food"]["aid"], "side": "debit", "amount": "130"},
         {"account": books["checking"]["aid"], "side": "credit", "amount": "130"},
     ])
-    page.goto("/plan")
+    page.goto("/budget")
     page.locator("a.catrow", has_text="Groceries").first.click()
     weeks = page.locator("#cat-sheet details.weeks")
     expect(weeks.locator("li").first).to_contain_text("130.00 of 100.00")
@@ -142,11 +142,11 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(pa
     delivery = api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
     api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
     api.put(f"/budget/categories/{delivery['aid']}", amount="300")
-    page.goto("/plan")
+    page.goto("/budget")
     expect(page.locator("a.catrow", has_text="Delivery")).to_have_count(0)  # inside the group, on its page
     expect(page.locator("a.grow", has_text="Dining")).to_contain_text("Delivery")  # the hint names what is inside
     page.locator("a.grow", has_text="Dining").click()
-    page.wait_for_url("**/plan/group/**")
+    page.wait_for_url("**/budget/group/**")
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
     page.locator(".budget-hero").click()
     box = page.locator('#cat-sheet input[aria-label="Assigned to Dining"]')
@@ -161,13 +161,13 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(pa
     expect(page.locator("#cat-sheet")).not_to_be_visible()
     expect(page.locator(".budget-hero .figure")).to_have_text("\u20b9700.00")  # the group's page block was replaced, still on the group page
     expect(page.locator("a.catrow", has_text="Delivery")).to_be_visible()
-    page.get_by_role("link", name="Plans", exact=True).first.click()
-    expect(page.locator(".rta-text b")).to_have_text("\u20b94,300.00")
+    page.get_by_role("link", name="Budgets", exact=True).first.click()
+    expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("\u20b94,300.00")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
 def test_the_month_notch_on_a_budget_bar_is_small_and_not_clipped(page: Page, books):
-    page.goto("/plan")
+    page.goto("/budget")
     tick = page.locator("a.catrow .pace").first
     expect(tick).to_be_visible()
     box = tick.bounding_box()
@@ -180,7 +180,7 @@ def test_the_month_notch_also_shows_in_full_on_a_group_row(page: Page, books, ap
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
     api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
     api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
-    page.goto("/plan")
+    page.goto("/budget")
     tick = page.locator("a.grow .pace").first
     expect(tick).to_be_visible()
     box = tick.bounding_box()
@@ -196,7 +196,7 @@ def test_every_bar_runs_the_full_width_of_its_row(page: Page, books, api: Api):
     api.put(f"/budget/categories/{books['rent']['aid']}", amount="900")
     for width in (390, 1100):
         page.set_viewport_size({"width": width, "height": 800})
-        page.goto("/plan")
+        page.goto("/budget")
         sizes = page.eval_on_selector_all(
             "a.crow.has-bar",
             "els => els.map(e => [Math.round(e.getBoundingClientRect().width), Math.round(e.querySelector('.bar').getBoundingClientRect().width)])",
@@ -209,7 +209,7 @@ def test_budget_names_and_amounts_line_up(page: Page, books, api: Api):
     delivery = api.post("/accounts/", name="Delivery", parent_id=books["food"]["aid"])
     api.put(f"/budget/categories/{books['rent']['aid']}", amount="900")
     api.put(f"/budget/categories/{delivery['aid']}", amount="100")
-    page.goto("/plan")
+    page.goto("/budget")
     lefts = page.eval_on_selector_all(".crow-name", "els => els.filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().left))")
     rights = page.eval_on_selector_all(".crow-amt", "els => els.filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().right))")
     assert len(lefts) >= 2 and len(set(lefts)) == 1, lefts
@@ -218,8 +218,8 @@ def test_budget_names_and_amounts_line_up(page: Page, books, api: Api):
 
 
 def test_the_i_opens_the_sum_behind_ready_to_assign_and_survives_assigning(page: Page, books):
-    page.goto("/plan")
-    panel = page.locator(".rta-line .calc-panel")
+    page.goto("/budget")
+    panel = page.locator(".budget-head .calc-panel")
     expect(panel).not_to_be_visible()
     page.get_by_label("How what is ready to assign is worked out").click()
     expect(panel).to_be_visible()
@@ -232,7 +232,7 @@ def test_the_i_opens_the_sum_behind_ready_to_assign_and_survives_assigning(page:
 def test_save_works_on_the_first_tap_even_when_the_sheet_moves_under_the_finger(page: Page, books):
     """The keyboard opening or closing shifts a bottom sheet while a tap is under way; the click then goes to whatever is
     under the finger at the end, and Save used to need another tap."""
-    page.goto("/plan")
+    page.goto("/budget")
     page.locator("a.catrow", has_text="Groceries").first.click()
     box = page.locator('#cat-sheet input[aria-label="Assigned to Groceries"]')
     box.fill("1200")
@@ -242,7 +242,7 @@ def test_save_works_on_the_first_tap_even_when_the_sheet_moves_under_the_finger(
     page.evaluate("document.querySelector('#cat-sheet').style.transform = 'translateY(-160px)'")  # the sheet moves away
     page.mouse.up()
     expect(page.locator("#cat-sheet")).not_to_be_visible()
-    expect(page.locator(".rta-text b")).to_have_text("₹3,800.00")  # 5,000 - 1,200: it saved
+    expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("₹3,800.00")  # 5,000 - 1,200: it saved
 
 
 FAKE_KEYBOARD = """
@@ -257,7 +257,7 @@ def with_keyboard(page: Page, books, size, keyboard):
     """A phone of `size` where a soft keyboard of `keyboard` px takes the bottom of the screen when a field has focus."""
     page.set_viewport_size(size)
     page.add_init_script(FAKE_KEYBOARD)
-    page.goto("/plan")
+    page.goto("/budget")
     page.locator("a.catrow", has_text="Groceries").first.click()
     box = page.locator('#cat-sheet input[aria-label="Assigned to Groceries"]')
     expect(box).to_be_visible()
@@ -279,7 +279,7 @@ def test_save_is_above_the_keyboard_and_tappable_on_a_phone_and_a_small_phone(pa
         assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).closest('button')?.textContent.trim()", [x, y]) == "Save"
         page.mouse.click(x, y)
         expect(page.locator("#cat-sheet")).not_to_be_visible()
-        expect(page.locator(".rta-text b")).to_have_text("₹3,800.00")  # it saved on the first tap
+        expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("₹3,800.00")  # it saved on the first tap
         page.evaluate("window.__keyboard(0)")
         api_reset = page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})
         assert api_reset.ok
@@ -314,15 +314,15 @@ def test_save_works_after_the_keyboard_is_put_away_with_its_own_button(page: Pag
     page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})
 
 
-def test_a_new_goal_is_made_from_the_goals_chip_and_shows_its_share_as_you_type(page: Page, books):
+def test_a_new_goal_is_made_from_the_save_chip_and_shows_its_share_as_you_type(page: Page, books):
     index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
     by = f"{index // 12}-{index % 12 + 1:02d}"
-    page.goto("/plan")
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Budgets")
-    page.locator(".cat-chips .chip", has_text="Goals").click()
-    page.wait_for_url(re.compile(r"tab=goals"))
+    page.goto("/budget")
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Spend")
+    page.locator(".cat-chips .chip", has_text="Save").click()
+    page.wait_for_url(re.compile(r"tab=save"))
     page.get_by_role("link", name="New goal").click()
-    page.wait_for_url(re.compile(r"/plan/goal$"))
+    page.wait_for_url(re.compile(r"/budget/goal$"))
     expect(page.locator("#goal-calc")).to_contain_text("—")
     page.locator('input[name="name"]').fill("Goa trip")
     page.locator('input[name="amount"]').fill("1,00,000")
@@ -331,19 +331,19 @@ def test_a_new_goal_is_made_from_the_goals_chip_and_shows_its_share_as_you_type(
     expect(page.locator("#goal-calc")).to_contain_text("6 months")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
     page.get_by_role("button", name="Create goal").click()
-    page.wait_for_url(re.compile(r"/plan\?tab=goals$"))
+    page.wait_for_url(re.compile(r"/budget\?tab=save$"))
     row = page.locator("a.goalrow", has_text="Goa trip")
     expect(row).to_be_visible()
     expect(row).to_contain_text("16,666.67")
     expect(row).to_contain_text("This month done")
     expect(page.locator(".toast")).to_contain_text("Goal created")
-    expect(page.locator("[data-plan-head='goals']")).to_contain_text("16,666.67")
+    expect(page.locator("[data-budget-head='save']")).to_contain_text("16,666.67")
 
 
 def test_a_goals_sheet_sets_money_aside_and_deletes_the_goal(page: Page, books, api: Api):
     index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
-    page.request.post("/plan/goal", form={"name": "Bike", "amount": "60000", "by": f"{index // 12}-{index % 12 + 1:02d}"})
-    page.goto("/plan?tab=goals")
+    page.request.post("/budget/goal", form={"name": "Bike", "amount": "60000", "by": f"{index // 12}-{index % 12 + 1:02d}"})
+    page.goto("/budget?tab=save")
     expect(page.locator("a.goalrow", has_text="Bike")).to_contain_text("10,000.00 to go this month")
     page.locator("a.goalrow", has_text="Bike").click()
     sheet = page.locator("#cat-sheet")
@@ -351,10 +351,29 @@ def test_a_goals_sheet_sets_money_aside_and_deletes_the_goal(page: Page, books, 
     sheet.get_by_role("button", name=re.compile(r"Set aside .*10,000.00 this month")).click()
     expect(sheet).not_to_be_visible()
     expect(page.locator("a.goalrow", has_text="Bike")).to_contain_text("This month done")
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Goals")
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Save")
     page.locator("a.goalrow", has_text="Bike").click()
     page.on("dialog", lambda d: d.accept())
     sheet.get_by_role("button", name="Delete goal").click()
-    page.wait_for_url(re.compile(r"/plan\?tab=goals$"))
+    page.wait_for_url(re.compile(r"/budget\?tab=save$"))
     expect(page.locator("a.goalrow")).to_have_count(0)
     expect(page.locator(".toast")).to_contain_text("Goal deleted")
+
+
+def test_a_goal_hands_its_money_to_a_category_from_its_sheet(page: Page, books, api: Api):
+    index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
+    page.request.post("/budget/goal", form={"name": "Bike", "amount": "60000", "by": f"{index // 12}-{index % 12 + 1:02d}", "assign_now": "1"})
+    page.goto("/budget?tab=save")
+    page.locator("a.goalrow", has_text="Bike").click()
+    sheet = page.locator("#cat-sheet")
+    expect(sheet).to_be_visible()
+    sheet.get_by_role("button", name="Use it for…").click()
+    expect(sheet.locator("h2")).to_have_text("Use Bike for…")
+    sheet.locator("select[name=category]").select_option(books["rent"]["aid"])
+    sheet.locator("input[name=amount]").fill("4,000")
+    sheet.get_by_role("button", name="Use it").click()
+    expect(sheet).not_to_be_visible()
+    expect(page.locator("a.goalrow", has_text="Bike")).to_contain_text("6,000.00")
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Save")
+    page.locator(".cat-chips .chip", has_text="Spend").click()
+    expect(page.locator(".crow", has_text="Rent")).to_contain_text("4,000.00")

@@ -26,11 +26,11 @@ def setup(client, root_accounts):
 
 
 def test_the_budget_bars_carry_the_tick_for_the_current_month_only(client, setup):
-    page = client.get("/plan").text
+    page = client.get("/budget").text
     pace = month_progress()
     assert f'<b class="pace" style="left: {pace}%"></b>' in page
     last = (date.today().replace(day=1)).replace(year=date.today().year - 1)
-    assert 'class="pace"' not in client.get(f"/plan?month={last:%Y-%m}").text, "other months have no today"
+    assert 'class="pace"' not in client.get(f"/budget?month={last:%Y-%m}").text, "other months have no today"
 
 
 def test_the_home_bar_carries_the_tick_and_says_it_in_words(client, setup):
