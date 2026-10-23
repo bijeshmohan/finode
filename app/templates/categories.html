@@ -34,12 +34,9 @@
 {% if rows %}
 <div class="tile" data-cat-tree>
   {% for r in rows %}
-  <div class="top {{ 'unused-hidden' if r.node.account.aid in quiet_ids }}">{{ row(r.node, r.total, r.hint, r.share) }}</div>
+  <div class="top">{{ row(r.node, r.total, r.hint, r.share) }}</div>
   {% endfor %}
 </div>
-{% if quiet_count %}
-<p class="unused-toggle"><button type="button" class="link-button" data-toggle-cat-quiet>Load more</button></p>
-{% endif %}
 <a class="add-row" href="/categories/new?root={{ tab }}">{{ icon("plus") }}Add category</a>
 {% else %}
 <div class="empty-state card">

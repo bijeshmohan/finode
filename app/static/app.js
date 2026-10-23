@@ -876,16 +876,6 @@ document.body.addEventListener("click", (event) => {
   });
 })();
 
-// ---- Categories: categories with nothing in the month can be shown ----
-(() => {
-  document.body.addEventListener("click", (event) => {
-    const button = event.target.closest && event.target.closest("[data-toggle-cat-quiet]");
-    if (!button) return;
-    document.querySelector("[data-categories]").classList.add("show-quiet");
-    button.closest(".unused-toggle").remove();
-  });
-})();
-
 // ---- An account's "i" and its "..." menu share the same place: opening one closes the other ----
 (() => {
   document.addEventListener("toggle", (event) => {
