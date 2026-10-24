@@ -12,7 +12,6 @@ from ..repositories import BudgetRepository, TransactionRepository
 from ..schemas.budget import BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, GoalLine
 from ..schemas.account import AccountUpdate
 from .account import AccountService
-from .lock import locked_through
 from .transaction import decimal_places
 from ..clock import FIRST_DAY, LAST_DAY, local_today
 
@@ -437,8 +436,6 @@ class BudgetService:
         share, _ = self.goal_share(amount, by)
         name = self._goal_name(name)
         month = month_start(None)
-        if assign_now:
-            self._check_open(month)
         goal = self.br.add_goal(name, amount, month_start(by))
         if assign_now:
             self.br.set_goal(month, goal.gid, share)
@@ -465,9 +462,6 @@ class BudgetService:
     def delete_goal(self, gid: UUID) -> None:
         """Remove a goal for good: what was saved in it goes back to Ready to assign."""
         self._goal(gid)
-        for row in self.br.goal_allocations():
-            if row.goal_id == gid:
-                self._check_open(row.month)
         self.br.delete_goal(gid)
         self.br.db.commit()
 
@@ -488,7 +482,6 @@ class BudgetService:
     def assign_goal(self, month: date | None, gid: UUID, amount: Decimal) -> BudgetRead:
         """Set what is set aside for a goal in a month (zero removes it; negative takes back what was saved before)."""
         month = month_start(month)
-        self._check_open(month)
         goal = self._goal(gid)
         self._check_amount(amount)
         self._check_saved(goal, month, amount)
@@ -500,7 +493,6 @@ class BudgetService:
         """Hand money a goal saved to a category, in a month: the goal's money becomes that category's available money.
         Spending is recorded on the category as always; this is how the goal pays for it."""
         month = month_start(month)
-        self._check_open(month)
         goal = self._goal(gid)
         self._category(aid)
         self._check_amount(amount)
@@ -516,15 +508,6 @@ class BudgetService:
         self.br.db.commit()
         return self.view(month)
 
-    def _check_open(self, month: date) -> None:
-        """A month that ends inside the period lock is closed: what was assigned in it stays as it was."""
-        lock = locked_through(self.br.db, self.br.uid)
-        if lock is not None and month_end(month) <= lock:
-            raise BudgetError(
-                f"{month:%B %Y} is in a locked period (everything up to {lock:%d %b %Y} is closed): "
-                "move or remove the lock under Settings to change it!"
-            )
-
     def assigned(self, month: date, aid: UUID) -> Decimal:
         row = self.br.read(month, aid)
         return row.amount if row else ZERO
@@ -532,7 +515,6 @@ class BudgetService:
     def assign(self, month: date | None, aid: UUID, amount: Decimal) -> BudgetRead:
         """Set what a category gets in a month (0 removes it)."""
         month = month_start(month)
-        self._check_open(month)
         self._category(aid)
         if amount < 0:
             # A month's amount may be negative to take back what an earlier month left in the category (that is what
@@ -575,7 +557,6 @@ class BudgetService:
     def copy_previous(self, month: date | None) -> BudgetRead:
         """Assign this month what each category got last month, for the categories with nothing assigned yet."""
         month = month_start(month)
-        self._check_open(month)
         previous = first_of_month(month - timedelta(days=1))
         categories = self._categories(self.accounts.ar.list())
         rows = self.br.list(up_to=month)
@@ -604,7 +585,6 @@ class BudgetService:
     def move(self, month: date | None, from_aid: UUID, to_aid: UUID, amount: Decimal) -> BudgetRead:
         """Take money from one category's available and give it to another, in a month."""
         month = month_start(month)
-        self._check_open(month)
         if from_aid == to_aid:
             raise BudgetError("choose two different categories!")
         source, target = self._category(from_aid), self._category(to_aid)

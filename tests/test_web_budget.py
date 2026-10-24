@@ -359,14 +359,3 @@ def test_the_month_pill_is_in_the_title_row_and_needs_you_is_a_slim_line_under_t
     page = client.get("/budget").text
     assert page.index('data-budget-head') < page.index("data-toggle-attn") < page.index('id="attn-panel"'), "the line is under the head, its panel right below"
     assert "1 thing needs you" in page
-
-
-def test_the_old_plan_address_still_arrives_at_the_budgets_page(client):
-    moved = client.get("/plan?month=2026-09&tab=goals", follow_redirects=False)
-    assert moved.status_code == 301 and moved.headers["location"] == "/budget?month=2026-09&tab=goals"
-    assert client.get("/plan/move", follow_redirects=False).headers["location"] == "/budget/move"
-    assert client.get("/plan/group/abc?month=2026-09", follow_redirects=False).headers["location"] == "/budget/group/abc?month=2026-09"
-    assert client.get("/budget").status_code == 200
-    # an old link's tab names still land on the right chip
-    assert 'data-budget-head="save"' in client.get("/budget?tab=goals").text
-    assert 'data-budget-head="spend"' in client.get("/budget?tab=budgets").text

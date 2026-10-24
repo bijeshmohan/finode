@@ -31,7 +31,7 @@ def test_bars_fill_once_folds_ease_and_presses_answer():
 
 
 def test_a_sheets_content_fades_over_its_placeholders_and_the_saved_row_settles():
-    assert "#txn-sheet-body > *, #cat-sheet-body > *, #groups-sheet-body > * { animation: fade-in" in CSS
+    assert "#txn-sheet-body > *, #cat-sheet-body > * { animation: fade-in" in CSS
     assert "a.tx.tx-new { animation: tx-new" in CSS
 
 

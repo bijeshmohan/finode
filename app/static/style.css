@@ -1319,12 +1319,12 @@ a.button:active, button:not(.switch):not(.chip):active { transform: scale(.98); 
 
 /* ---------- Small motion: a sheet's content fades in over its placeholders; the entry just saved settles into the list ---------- */
 @keyframes fade-in { from { opacity: 0; } }
-#txn-sheet-body > *, #cat-sheet-body > *, #groups-sheet-body > * { animation: fade-in .18s ease-out; }
-#txn-sheet-body > .skeleton, #cat-sheet-body > .skeleton, #groups-sheet-body > .skeleton { animation: none; }
+#txn-sheet-body > *, #cat-sheet-body > * { animation: fade-in .18s ease-out; }
+#txn-sheet-body > .skeleton, #cat-sheet-body > .skeleton { animation: none; }
 @keyframes tx-new { from { opacity: 0; transform: translateY(-6px); background: var(--surface-2); } 60% { background: var(--surface-2); } to { background: transparent; } }
 a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; }
 @media (prefers-reduced-motion: reduce) {
-  #txn-sheet-body > *, #cat-sheet-body > *, #groups-sheet-body > *, a.tx.tx-new { animation: none; }
+  #txn-sheet-body > *, #cat-sheet-body > *, a.tx.tx-new { animation: none; }
 }
 
 /* ---------- Transactions filter: one quiet word, a sheet behind it ---------- */

@@ -20,14 +20,6 @@ class BackupProfile(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     default_currency: str
-    # Files written before accounts were fixed at two levels carry depth limits; they are ignored.
-    max_depth_assets: int = Field(default=0, exclude=True)
-    max_depth_liabilities: int = Field(default=0, exclude=True)
-    max_depth_equity: int = Field(default=0, exclude=True)
-    max_depth_income: int = Field(default=0, exclude=True)
-    max_depth_expenses: int = Field(default=0, exclude=True)
-    locked_through: Day | None = None
-    advanced: bool = Field(default=False, exclude=True)  # the Advanced switch was removed (2026-10-24): read, never written
 
 
 class BackupAccount(BaseModel):
@@ -41,8 +33,6 @@ class BackupAccount(BaseModel):
     closed_on: Day | None = None
     payment_category_id: UUID | None = None
     # Older backups: accounts could be pinned. Read, never written.
-    pinned: bool = Field(default=False, exclude=True)
-    position: int | None = None
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); a restore maps them onto the person's own.
     system_key: str | None = None
 
@@ -104,14 +94,6 @@ class BackupAllocation(BaseModel):
     amount: Decimal
 
 
-class BackupTarget(BaseModel):
-    account_id: UUID
-    kind: str
-    amount: Decimal
-    target_date: Day | None = None
-    weekday: int | None = None
-
-
 class BackupGoalMonth(BaseModel):
     month: Day
     amount: Decimal
@@ -137,8 +119,6 @@ class BackupFile(BaseModel):
     transactions: list[BackupTransaction] = []
     recurring: list[BackupRecurring] = []
     allocations: list[BackupAllocation] = []
-    # Budget targets were removed (2026-10-24): older files still carry them, they are read and ignored, never written.
-    targets: list[BackupTarget] = Field(default_factory=list, exclude=True)
     # Goals (their own records since the goals table; a file from before has its goals as plain categories).
     goals: list[BackupGoal] = []
 

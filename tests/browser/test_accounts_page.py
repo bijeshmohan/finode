@@ -95,19 +95,6 @@ def test_closing_an_account_from_its_page(page: Page, api, books):
     assert "assets › cash" in visible(page)
 
 
-def test_moving_an_account_changes_the_order_on_the_page(page: Page, api, books):
-    banks, _ = nested(api, books)
-    sbi = next(a for a in api.get("/accounts/") if a["name"] == "SBI")
-    page.goto(f"/accounts/{sbi['aid']}")
-    page.get_by_label("More actions").click()
-    page.get_by_role("button", name="Move up").click()
-    page.get_by_label("More actions").click()
-    expect(page.get_by_role("button", name="A–Z")).to_be_visible()
-    page.goto("/accounts")
-    names = page.locator("li[data-path^='assets › banks › '] .account-name").all_inner_texts()
-    assert [n.split()[0] for n in names] == ["SBI", "HDFC"]
-
-
 def test_names_and_amounts_line_up_in_every_row(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")

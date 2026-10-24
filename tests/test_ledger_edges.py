@@ -67,10 +67,6 @@ def test_a_nul_character_is_dropped_instead_of_failing(client, account, expense_
     assert "Cafe" in client.get("/transactions", params={"q": "Caf\x00e"}).text
 
 
-def test_a_lock_date_outside_the_calendar_is_refused(client):
-    assert client.patch("/api/profile/", json={"locked_through": "0001-01-01"}).status_code == 422
-
-
 @pytest.mark.parametrize("name", ["", "   ", "\t", "\u200b", " \u200b\u200d ", "two\nlines", "a:b"])
 def test_an_account_name_must_be_visible_and_on_one_line(client, root_accounts, name):
     assert client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts["Expenses"]}).status_code == 422

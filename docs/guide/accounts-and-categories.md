@@ -13,7 +13,7 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 If you signed up recently, your accounts start in five groups that are **built in**: under Assets, **Bank Accounts**, **Cash** and **Investments**; under Liabilities, **Credit Cards** and **Loans**. A group appears on the Accounts page once it has an account in it; until then the page shows an **Add account** button. You cannot rename, move, close or delete the groups, but you can add as many accounts as you like inside each (from that button or the round **+** at the top of the page, which starts on the first group), and you can still make groups of your own beside them.
 
-The group tells finode what an account is, so you do not have to answer the budget questions: an account in Bank Accounts, Cash or Credit Cards starts **part of the budget**; one in Investments or Loans starts **outside the budget**. You can change either choice for one account under *Budget options* on its form. Accounts you made before this existed are not moved or renamed. If you had an account before the groups existed, **Settings › Standard groups** adds them: it shows what will be added first, uses a group of yours that already has exactly that name (for example your own *Investments*), skips one that an account of yours is in the way of (rename your account first, then add it) and moves nothing. Then change **Under** on an account's edit page to move it into a group.
+The group tells finode what an account is, so you do not have to answer the budget questions: an account in Bank Accounts, Cash or Credit Cards starts **part of the budget**; one in Investments or Loans starts **outside the budget**. You can change either choice for one account under *Budget options* on its form. Accounts you made before this existed are not moved or renamed. Use **Under** on an account's edit page to move it into a group. Accounts are listed alphabetically, the built-in groups first.
 
 ## Accounts page
 
@@ -28,7 +28,7 @@ Tap **+ Add account**, the dashed row at the end of the Accounts page. The form 
 
 <img src="img/accounts.png" alt="The Accounts page: groups with subtotals, accounts in tiles" width="300">
 
-An account page shows its balance, an **Add transaction** button, a pencil for Edit, a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu when there is something in it (to add a sub-account, reorder the account or close it), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
+An account page shows its balance, an **Add transaction** button, a pencil for Edit, a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu when there is something in it (to add a sub-account or close it), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
 
 An account that has sub-accounts (such as a *Banks* group) is not posted to itself, so its page shows a **Sub-accounts** list with each balance instead; open one to see its transactions. The **+** beside the heading adds another.
 

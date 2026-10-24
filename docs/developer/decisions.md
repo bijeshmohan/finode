@@ -33,7 +33,7 @@ The decisions that look odd until you know the reason. Each entry says what was 
 ## The transaction service is the only writer
 
 **Decision.** The web form, the JSON API, imports, recurring rules and assistants all create transactions through `TransactionService`.
-**Why.** Balancing, ownership of accounts, closed accounts, limits and the period lock then exist once. The exceptions (imports and restores fill an empty ledger through repositories) are documented and tested.
+**Why.** Balancing, ownership of accounts, closed accounts and limits then exist once. The exceptions (imports and restores fill an empty ledger through repositories) are documented and tested.
 
 ## History is append-only and has no foreign key
 
@@ -94,7 +94,7 @@ The decisions that look odd until you know the reason. Each entry says what was 
 
 ## No Advanced switch (removed 2026-10-24)
 
-**Decision.** There was a switch (`profiles.advanced`) that hid rarely used features. It is gone: the features it hid (budget targets, since removed too, move up/down, closing accounts, the period lock) are either removed or always available in the place they belong.
+**Decision.** There was a switch (`profiles.advanced`) that hid rarely used features. It is gone: the features it hid (budget targets, since removed too, move up/down, the period lock) are removed; closing accounts is always available in the place they belong.
 **Why.** With targets gone only two small features were left behind a whole page and a setting. A rarely used feature should live in a menu or a row, not behind a switch.
 
 ## Typed columns for settings

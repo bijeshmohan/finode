@@ -63,7 +63,7 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
         node.depth = depth
         node.postable = node.kind not in ("root", "fixed") and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
         node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
-        node.children.sort(key=lambda n: (n.account.position is None, n.account.position or 0, n.account.name.lower()))
+        node.children.sort(key=lambda n: AccountService.order_key(n.account))
         for child in node.children:
             finish(child, depth + 1, node.path, root_name)
 
@@ -371,13 +371,8 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
         and not at_limit
         and (not has_own_postings or root.account.name in GROUP_POSTING_ROOT_NAMES)
     )
-    siblings = next((p.children for r in roots for p in r.walk() if node in p.children), [])
-    place = next((i for i, s in enumerate(siblings) if s is node), 0)
     return {
         "active": "accounts",
-        "can_move_up": node.kind == "user" and place > 0,
-        "can_move_down": node.kind == "user" and place < len(siblings) - 1,
-        "ordered_by_hand": any(s.account.position is not None for s in siblings),
         "node": node,
         "root": root,
         "entries": history,
@@ -472,24 +467,6 @@ def reopen_account(aid: UUID, accounts: Accounts):
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
     return htmx_redirect(f"/accounts/{aid}", flash="category-restored" if category else "account-reopened")
-
-
-@router.post("/{aid}/move")
-def move_account(aid: UUID, accounts: Accounts, direction: Annotated[str, Form()] = "up"):
-    try:
-        accounts.move(aid, direction)
-    except ValueError as e:
-        return htmx_error(str(e), "#page-error")
-    return htmx_redirect(f"/accounts/{aid}", flash="account-moved")
-
-
-@router.post("/{aid}/reset-order")
-def reset_account_order(aid: UUID, accounts: Accounts):
-    try:
-        accounts.reset_order(aid)
-    except ValueError as e:
-        return htmx_error(str(e), "#page-error")
-    return htmx_redirect(f"/accounts/{aid}", flash="account-order-reset")
 
 
 @router.get("/{aid}/more")

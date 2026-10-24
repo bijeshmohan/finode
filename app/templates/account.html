@@ -41,7 +41,6 @@
       {% if has_menu %}
             {% set menu_items = (category and root.account.name == "Expenses")
           or (can_add_child and not account.closed_on)
-          or (node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand))
           or (node.kind == "user" and category)
           or (node.kind == "user" and not category) %}
       {% if menu_items %}
@@ -51,12 +50,6 @@
         {% if category and root.account.name == "Expenses" %}<a href="/budget">{{ icon("budget") }}See in Budgets</a>{% endif %}
         {% if can_add_child and not account.closed_on %}
         <a href="{{ '/categories/new' if category else '/accounts/new' }}?parent={{ account.aid }}">{{ icon("plus") }}{{ "Add subcategory" if category else "Add sub-account" }}</a>
-        {% endif %}
-        {% if node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand) %}
-        <p class="menu-note">Listed {{ "in the order you chose" if ordered_by_hand else "alphabetically" }}{% if root.account.name == "Expenses" %}; the budget lists categories the same way{% endif %}.</p>
-        {% if can_move_up %}<button type="button" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "up"}'>{{ icon("arrow-up") }}Move up</button>{% endif %}
-        {% if can_move_down %}<button type="button" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "down"}'>{{ icon("arrow-down") }}Move down</button>{% endif %}
-        {% if ordered_by_hand %}<button type="button" hx-post="/accounts/{{ account.aid }}/reset-order">A–Z</button>{% endif %}
         {% endif %}
         {% if node.kind == "user" and category %}
         {% if account.closed_on %}

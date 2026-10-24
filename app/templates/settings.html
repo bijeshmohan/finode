@@ -55,11 +55,6 @@
     </div>
   </details>
 
-  {% if groups_missing %}
-  <a class="setting setting-link" id="groups" href="/settings" hx-get="/settings/groups" hx-target="#groups-sheet-body" hx-swap="innerHTML">
-    <span class="setting-title">Add the standard groups</span>{{ icon("chevron-right") }}
-  </a>
-  {% endif %}
   </div>
 
   <h2 class="settings-label">Your data</h2>
@@ -73,18 +68,6 @@
   <a class="setting setting-link" id="deleted" href="/accounts/deleted">
     <span class="setting-title">Recently deleted<small class="muted setting-sub">Accounts, categories and transactions</small></span>{{ icon("chevron-right") }}
   </a>
-  <details id="lock" class="setting">
-    <summary><span class="setting-title">Period lock</span><span class="setting-value">{{ profile.locked_through.strftime("up to %d %b %Y") if profile.locked_through else "Off" }}</span>{{ icon("chevron-right") }}</summary>
-    <form class="stack" hx-post="/settings/lock">
-      <p class="muted">Nothing dated on or before this day can be added, changed or deleted, and its budget months are frozen. Remove the lock any time.</p>
-      <label>Lock everything up to and including
-        <input type="date" name="locked_through" value="{{ profile.locked_through.isoformat() if profile.locked_through else '' }}" max="{{ yesterday }}">
-        <span class="hint">Leave it empty to remove the lock. Yesterday is the latest day you can lock.</span>
-      </label>
-      <p id="lock-error" class="error" role="alert"></p>
-      <div class="actions"><button type="submit">Save lock</button></div>
-    </form>
-  </details>
   <a class="setting setting-link" id="assistants" href="/profile/assistants">
     <span class="setting-title">AI assistants</span>{{ icon("chevron-right") }}
   </a>
@@ -108,9 +91,5 @@
   </form>
   </div>
 </div>
-
-<dialog id="groups-sheet" class="sheet sheet-bottom" aria-label="Standard groups">
-  <div id="groups-sheet-body" class="sheet-body"></div>
-</dialog>
 
 {% endblock %}

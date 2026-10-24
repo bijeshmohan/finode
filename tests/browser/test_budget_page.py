@@ -65,22 +65,6 @@ def test_a_card_the_budget_includes_is_in_the_sum(page: Page, books, api: Api):
     expect(page.locator(".calc-panel")).to_contain_text("380.00")
 
 
-def test_locking_the_books_from_settings_stops_an_edit(page: Page, books, api: Api):
-    entry = api.post("/transactions/", date=str(THIS_MONTH - timedelta(days=5)), postings=[
-        {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
-        {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
-    ])
-    page.goto("/settings")
-    page.locator("#lock summary").click()
-    page.fill('input[name="locked_through"]', str(THIS_MONTH - timedelta(days=1)))
-    page.get_by_role("button", name="Save lock").click()
-    expect(page.locator("#lock .setting-value")).to_have_text((THIS_MONTH - timedelta(days=1)).strftime("up to %d %b %Y"))
-    page.goto(f"/transactions/{entry['tid']}/edit")
-    expect(page.get_by_text("This entry is in a locked period")).to_be_visible()
-    expect(page.get_by_role("button", name="Save changes")).to_be_disabled()
-    expect(page.get_by_role("button", name="Delete transaction")).to_be_disabled()
-
-
 def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(page: Page, books, api: Api):
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
     delivery = api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
