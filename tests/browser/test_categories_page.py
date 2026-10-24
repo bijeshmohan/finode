@@ -36,8 +36,8 @@ def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside
     page.goto("/categories")
     names = page.locator("a.crow .crow-name").all_inner_texts()
     assert names[:2] == ["Rent", "Groceries"], names  # biggest first
-    expect(page.locator("a.crow", has_text="Groceries").locator(".crow-sub")).to_have_text("Delivery")
-    expect(page.locator("a.crow", has_text="Groceries").locator(".crow-share")).to_have_text("12%")
+    expect(page.locator("a.crow", has_text="Groceries").locator(".crow-sub")).to_contain_text("Delivery")
+    expect(page.locator("a.crow", has_text="Groceries").locator(".crow-sub")).to_contain_text("12%")
     assert page.evaluate("document.querySelector('.crow-amt').getBoundingClientRect().right") > 340, "amounts at the right edge"
     page.locator("a.crow", has_text="Groceries").click()
     page.wait_for_url(f"**/categories/{food['aid']}**")

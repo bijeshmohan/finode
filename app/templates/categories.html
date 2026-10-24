@@ -7,8 +7,9 @@
 {#- One category: its name and the biggest things inside it, what it came to in the month and its share of the month. -#}
 {% macro row(n, total, hint="", share="") %}
 <a class="r crow" href="/categories/{{ n.account.aid }}?month={{ month_key }}">
-  <span class="crow-main"><span class="crow-name">{{ n.account.name }}</span>{% if hint %}<span class="crow-sub">{{ hint }}</span>{% endif %}</span>
-  <span class="crow-amt"><span class="{{ 'income' if root_name == 'Income' and total > 0 }}">{{ total|money }}</span>{% if share %}<span class="crow-share">{{ share }}</span>{% endif %}</span>
+  {#- Every row is a name, one quiet line (what is in it and its share of the month) and the figure; a quiet dash when nothing came in or went out. -#}
+  <span class="crow-main"><span class="crow-name">{{ n.account.name }}</span><span class="crow-sub">{% if not total %}Nothing yet{% elif hint %}{{ hint }}{% if share %} · {{ share }}{% endif %}{% elif share %}{{ share }} of {{ "earnings" if root_name == "Income" else "spending" }}{% endif %}</span></span>
+  <span class="crow-amt">{% if total %}<span class="{{ 'income' if root_name == 'Income' and total > 0 }}">{{ total|money }}</span>{% else %}<span class="muted">–</span>{% endif %}</span>
 </a>
 {% endmacro %}
 

@@ -48,7 +48,7 @@ def test_a_group_is_a_heading_with_its_accounts_under_it_and_nothing_folds(clien
     assert f'href="/accounts/{tree["hdfc"]}"' in page
     assert "<details" not in page
     assert page.count('<a class="acc-gh"') == 2, "Banks and Food"
-    assert 'class="mono" aria-hidden="true">H<' in page, "each account has its initial"
+    assert 'class="mono"' not in page, "plain rows, like Budgets and Categories"
 
 
 def test_plain_accounts_under_a_type_share_one_block_under_others(client, tree):

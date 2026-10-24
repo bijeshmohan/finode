@@ -52,10 +52,10 @@ def test_copying_last_months_amounts(page: Page, books, api: Api):
 def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, api: Api):
     api.put(f"/budget/categories/{books['rent']['aid']}/target", kind="monthly", amount="800")
     page.goto("/budget")
-    expect(page.locator("a.catrow .crow-sub.short")).to_contain_text("needs 800.00 more")
+    expect(page.locator("a.catrow .crow-sub .short")).to_contain_text("needs 800.00 more")
     page.locator("button.need-line").click()
     page.get_by_role("button", name="Assign what is needed").click()
-    expect(page.locator("a.catrow .crow-sub.short")).to_have_count(0)
+    expect(page.locator("a.catrow .crow-sub .short")).to_have_count(0)
     expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("\u20b94,200.00")
 
 
@@ -160,27 +160,12 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(pa
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
-def test_the_month_notch_on_a_budget_bar_is_small_and_not_clipped(page: Page, books):
-    page.goto("/budget")
-    tick = page.locator("a.catrow .pace").first
-    expect(tick).to_be_visible()
-    box = tick.bounding_box()
-    assert box["height"] <= 8 and box["width"] <= 10, f"a small notch under the bar: {box}"
-    bar = page.locator("a.catrow .bar").first
-    assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible", "the bar must not clip the notch"
-
-
-def test_the_month_notch_also_shows_in_full_on_a_group_row(page: Page, books, api: Api):
+def test_the_budget_rows_have_no_notch_under_their_bars(page: Page, books, api: Api):
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
     api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
-    api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
     page.goto("/budget")
-    tick = page.locator("a.grow .pace").first
-    expect(tick).to_be_visible()
-    box = tick.bounding_box()
-    assert box["height"] <= 8 and box["width"] <= 10, f"a small notch on a group's bar too: {box}"
-    bar = page.locator("a.grow .bar").first
-    assert bar.evaluate("e => getComputedStyle(e).overflow") == "visible"
+    expect(page.locator("a.crow .bar").first).to_be_visible()
+    expect(page.locator("a.crow .pace")).to_have_count(0)
 
 
 def test_every_bar_runs_the_full_width_of_its_row(page: Page, books, api: Api):

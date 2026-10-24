@@ -1163,7 +1163,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 .crow .bar.over i { background: var(--danger); }
 .crow-amt .negative { color: var(--negative); }
 .budget-list .crow-amt { min-width: 7.5rem; }
-.crow-sub.short { color: var(--negative); }
+.crow-sub .short { color: var(--negative); }
 
 /* Entries dated ahead: one card. Closed it is a single line with what they come to; opened, a statement: the date down the left, hairlines between rows. */
 .upcoming { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); overflow: hidden; font-size: .9375rem; }
@@ -1306,7 +1306,7 @@ main:has(.glance) .section-head { margin-top: 1.5rem; }
 .home-recent .section-head { margin-top: 0; }
 
 /* Plans rows: a little more room under each bar so the notch clears the divider (2026-10-23) */
-.budget-list .crow.has-bar { padding: .9rem 0 1.15rem; }
+.budget-list .crow.has-bar { padding: .9rem 0; }
 
 /* The "i" beside the figures is faint until it is used (2026-10-23) */
 .calc-info .info-button { color: var(--faint); }
@@ -1466,3 +1466,7 @@ form[data-txn-kind="other"] .segmented.kinds::before { opacity: 0; }
 @media (min-width: 60rem) {
   body.app main { margin-left: max(calc(var(--sidebar-w) + 1rem), calc(50vw + var(--sidebar-w) / 2 - 22rem)); }
 }
+
+/* Budgets, Accounts and Categories share one row (2026-10-24): a name, one quiet second line, the figure at the right. Group headings on Accounts line up with the rows. */
+.crow-main { justify-content: center; }
+.acc-gh { padding-inline: calc(1rem + 1px); }
