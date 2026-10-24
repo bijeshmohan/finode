@@ -66,7 +66,11 @@ Every `input[inputmode="decimal"]` (the transaction form, the budget's sheet, mo
 
 ### The amount field's focus
 
-On a new entry the amount carries `data-autofocus` (not `autofocus`): `app.js` focuses it only when the device has a mouse (`(hover: hover) and (pointer: fine)`). On a phone nothing is focused, because a script cannot open the keyboard: the grey 0.00 stays visible until the person taps the amount, which hides it (`:focus::placeholder`), shows the cursor and opens the keyboard. Tapping a payee chip still focuses the amount (a real tap, so the keyboard opens).
+On a new entry the amount carries `data-autofocus` (not `autofocus`): `app.js` focuses it only when the device has a mouse (`(hover: hover) and (pointer: fine)`). On a phone nothing is focused, because a script cannot open the keyboard: the grey 0.00 stays visible until the first digit is typed, **also while the field is focused** (the cursor sits at its start, `:placeholder-shown { text-align: left }`; the same on a phone and a computer, 2026-10-24). Tapping a payee chip still focuses the amount (a real tap, so the keyboard opens).
+
+### The Add screen's polish (2026-10-24)
+
+The amount fields of the transaction form (`data-group`: the total and each row's amount) are **grouped as they are typed** (`groupAmount` in `app.js`: `1,24,500` for rupees; the cursor stays after the same digits; `tidyField` groups too, and the form groups what the page was opened with); the server strips commas (`parse_amount`), so values are sent grouped. `--n` (the width of the big amount) counts a comma as about half a digit. **A side with one row has no ×** (`recomputeTxn` and the load handler hide it; `.txn-row:has([data-remove-row][hidden])` gives the name its width back); a split shows it on every row. **The date is a chip** ("Today, 24 Oct", `templating.date_chip`, `label.date-chip` over an invisible `input[type=date]`; `app.js` renames it on change and opens the picker on click) and the note is a plain field with the placeholder "Note (optional)": no labels above either. **"Save & add another"** is a quiet underlined link under Save (`.form-actions button.quiet`).
 
 ### Lakhs and crores
 

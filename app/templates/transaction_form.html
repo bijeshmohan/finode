@@ -20,14 +20,11 @@
   {% set with_payee = true %}
   {% include "partials/txn_rows.html" %}
 
-  <div class="grid-form">
-    <label>Date
-      <input type="date" name="date" value="{{ transaction.date if editing else today }}" required>
-    </label>
-    <label>Note
-      <input type="text" name="comment" maxlength="200" placeholder="Optional" value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
-    </label>
-  </div>
+  {% set day = transaction.date if editing else today %}
+  <label class="chip date-chip" data-date-chip data-today="{{ today }}">{{ icon("calendar") }}<span data-date-label>{{ day|date_chip }}</span>
+    <input type="date" name="date" value="{{ day }}" required aria-label="Date">
+  </label>
+  <input type="text" name="comment" maxlength="200" placeholder="Note (optional)" aria-label="Note" value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
 
   <div class="related" data-related>
     <input type="hidden" name="related" value="{{ related.transaction.tid if related }}" data-related-value>
@@ -42,7 +39,7 @@
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions form-actions">
     <button type="submit" {{ "disabled" if locked_by }}>{{ "Save changes" if editing else "Save" }}</button>
-    {% if not editing %}<button type="submit" class="secondary" name="another" value="1">Save &amp; add another</button>{% endif %}
+    {% if not editing %}<button type="submit" class="quiet" name="another" value="1">Save &amp; add another</button>{% endif %}
   </div>
 </form>
 

@@ -32,8 +32,15 @@ function tidyAmount(text) {
   return sign + digits + (places ? "." + fraction.slice(0, places).padEnd(places, "0") : "");
 }
 
+// The amount of a transaction is grouped as it is typed (12,34,567.00 for rupees): `groupAmount` puts the commas in
+// whatever number it is given and leaves anything else alone. Fields that carry `data-group` use it.
+function groupAmount(text) {
+  const match = /^(-?)(\d*)(\.\d*)?$/.exec(text.replace(/,/g, ""));
+  return match ? match[1] + groupDigits(match[2]) + (match[3] || "") : text;
+}
+
 function tidyField(field) {
-  const tidy = tidyAmount(field.value);
+  const tidy = field.hasAttribute("data-group") ? groupAmount(tidyAmount(field.value)) : tidyAmount(field.value);
   if (tidy === field.value) return false;
   field.value = tidy;
   return true;
@@ -50,13 +57,20 @@ document.addEventListener("submit", (event) => {
 document.addEventListener("input", (event) => {
   const field = event.target;
   if (!field || field.tagName !== "INPUT" || field.getAttribute("inputmode") !== "decimal") return;
-  const cleaned = cleanAmount(field.value);
+  const clean = cleanAmount(field.value);
+  const cleaned = field.hasAttribute("data-group") ? groupAmount(clean) : clean;
   if (cleaned === field.value) return;
-  // Keep the cursor where it was, minus what was taken out in front of it.
+  // Keep the cursor after the same digits as before (commas come and go as the number is grouped).
   const caret = field.selectionStart ?? field.value.length;
-  const kept = cleanAmount(field.value.slice(0, caret)).length;
+  const digits = cleanAmount(field.value.slice(0, caret)).replace(/,/g, "").length;
   field.value = cleaned;
-  try { field.setSelectionRange(kept, kept); } catch (e) { /* not every input type allows it */ }
+  let seen = 0;
+  let at = cleaned.length;
+  for (let i = 0; i < cleaned.length; i++) {
+    if (seen >= digits) { at = i; break; }
+    if (cleaned[i] !== ",") seen += 1;
+  }
+  try { field.setSelectionRange(at, at); } catch (e) { /* not every input type allows it */ }
 }, true);
 
 // Let htmx swap server-rendered validation messages (4xx) into the page.
@@ -590,13 +604,13 @@ function rowShare(row) {
 function setSuggestion(row, text) {
   const field = row.querySelector('[name="amount"]');
   if (document.activeElement === field) return; // never overwrite what is being typed
-  field.value = text;
+  field.value = groupAmount(text);
   field.classList.toggle("suggested", text !== "");
 }
 
 function recomputeTxn(form) {
   const field = form.querySelector("#total");
-  field.style.setProperty("--n", Math.max(field.value.length, 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
+  field.style.setProperty("--n", Math.max(field.value.length - 0.55 * (field.value.split(",").length - 1), 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
   const total = parseDec(field.value) || 0n;
   const currency = form.dataset.currency;
 
@@ -629,7 +643,7 @@ function recomputeTxn(form) {
     open.forEach((row, index) => setSuggestion(row, index === 0 && remaining > 0n ? formatDec(remaining) : ""));
     rows.forEach((row) => {
       const only = rows.length === 1;
-      row.querySelector("[data-remove-row]").hidden = only && !rowAccount(row).value && !row.hasAttribute("data-touched");
+      row.querySelector("[data-remove-row]").hidden = only; // one row has nothing to remove
     });
 
     const status = form.querySelector(`[data-status="${side}"]`);
@@ -650,6 +664,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!form) return;
   const first = form.querySelector("select[data-account-select]");
   form._all = first ? withoutSelection(first.innerHTML) : "";
+  form.querySelectorAll("[data-group]").forEach((field) => { if (field.value) tidyField(field); });
+  form.querySelectorAll("[data-rows]").forEach((list) => {
+    const rows = list.querySelectorAll("[data-row]");
+    rows.forEach((row) => { row.querySelector("[data-remove-row]").hidden = rows.length === 1; });
+  });
   applyKind(form, form.querySelector("[data-kind-input]").value);
 });
 
@@ -1041,3 +1060,24 @@ function fitPayeeChips() {
 }
 document.body.addEventListener("htmx:afterSwap", (event) => { if (event.target && event.target.id === "payee-chips") fitPayeeChips(); });
 window.addEventListener("resize", fitPayeeChips);
+
+// The date chip on the Add screen: a native date picker under the day's name ("Today, 24 Oct"); choosing a day renames it.
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  const chip = input instanceof HTMLInputElement && input.closest("[data-date-chip]");
+  if (!chip || !input.value) return;
+  const [y, m, d] = input.value.split("-").map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d));
+  const today = chip.dataset.today;
+  const part = (options) => day.toLocaleDateString("en-GB", { timeZone: "UTC", ...options });
+  chip.querySelector("[data-date-label]").textContent =
+    input.value === today ? `Today, ${d} ${part({ month: "short" })}`
+    : input.value.slice(0, 4) === today.slice(0, 4) ? `${part({ weekday: "short" })}, ${d} ${part({ month: "short" })}`
+    : `${d} ${part({ month: "short", year: "numeric" })}`;
+});
+document.addEventListener("click", (event) => {
+  const input = event.target;
+  if (input instanceof HTMLInputElement && input.closest("[data-date-chip]") && typeof input.showPicker === "function") {
+    try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
+  }
+});

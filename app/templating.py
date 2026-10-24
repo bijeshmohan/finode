@@ -101,6 +101,18 @@ def friendly_date(value: date) -> str:
     return f"{value.day} {value:%b %Y}"
 
 
+def date_chip(value) -> str:
+    """The day on the Add screen's date chip: Today, 24 Oct / Wed, 21 Oct / 21 Oct 2025."""
+    if isinstance(value, str):
+        value = date.fromisoformat(value)
+    today = local_today()
+    if value == today:
+        return f"Today, {value.day} {value:%b}"
+    if value.year == today.year:
+        return f"{value:%a}, {value.day} {value:%b}"
+    return f"{value.day} {value:%b %Y}"
+
+
 def origin_label(origin: str | None) -> str | None:
     """Who entered or changed a transaction, for people: "Claude (AI assistant)", "an import"."""
     if not origin:
@@ -117,6 +129,7 @@ templates.env.globals["decimals"] = lambda: _places.get()
 templates.env.filters["symbol"] = symbol
 templates.env.filters["amount"] = amount
 templates.env.filters["friendly_date"] = friendly_date
+templates.env.filters["date_chip"] = date_chip
 templates.env.filters["local_day"] = local_day
 templates.env.filters["origin_label"] = origin_label
 templates.env.globals["flash_message"] = flash_message
