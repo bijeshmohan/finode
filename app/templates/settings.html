@@ -2,33 +2,29 @@
 {% from "partials/icons.html" import icon %}
 {% block title %}Settings · finode{% endblock %}
 {% block content %}
-<h1 class="sr-only">Settings</h1>
-{#- The profile header is the name: tap it to change it (there is no separate Profile page any more). -#}
-<details id="name" class="profile-edit form-narrow">
-  <summary class="profile-head" title="Change your name">
-    <span class="avatar" aria-hidden="true">{{ initials }}</span>
-    <div>
-      <p class="profile-name">{{ display_name or "Your profile" }}</p>
-      {% if email %}<p class="muted">{{ email }}</p>{% endif %}
-    </div>
-    {{ icon("chevron-right") }}
-  </summary>
-  <form class="stack" hx-post="/profile">
-    <div class="grid-form">
-      <label>First name
-        <input type="text" name="first_name" maxlength="40" autocomplete="given-name" value="{{ profile.first_name or '' }}">
-      </label>
-      <label>Last name
-        <input type="text" name="last_name" maxlength="40" autocomplete="family-name" value="{{ profile.last_name or '' }}">
-      </label>
-    </div>
-    {% if email %}<p class="hint muted">Your email ({{ email }}) is used to sign in and can't be changed here.</p>{% endif %}
-    <p id="form-error" class="error" role="alert"></p>
-    <div class="actions"><button type="submit">Save name</button></div>
-  </form>
-</details>
+<div class="page-head tall"><h1>Settings</h1></div>
 
-<div class="settings form-narrow">
+<div class="settings">
+  <div class="tile">
+  {#- The name is the profile row: tap it to change it (there is no separate Profile page any more). -#}
+  <details id="name" class="setting">
+    <summary><span class="setting-title">{{ display_name or "Your profile" }}</span><span class="setting-value">{{ email or "" }}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/profile">
+      <div class="grid-form">
+        <label>First name
+          <input type="text" name="first_name" maxlength="40" autocomplete="given-name" value="{{ profile.first_name or '' }}">
+        </label>
+        <label>Last name
+          <input type="text" name="last_name" maxlength="40" autocomplete="family-name" value="{{ profile.last_name or '' }}">
+        </label>
+      </div>
+      {% if email %}<p class="hint muted">Your email ({{ email }}) is used to sign in and can't be changed here.</p>{% endif %}
+      <p id="form-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">Save name</button></div>
+    </form>
+  </details>
+  </div>
+
   <h2 class="settings-label">Preferences</h2>
   <div class="tile">
   <details id="currency" class="setting">
@@ -59,7 +55,11 @@
     </div>
   </details>
 
-
+  {% if groups_missing %}
+  <a class="setting setting-link" id="groups" href="/settings" hx-get="/settings/groups" hx-target="#groups-sheet-body" hx-swap="innerHTML">
+    <span class="setting-title">Add the standard groups</span>{{ icon("chevron-right") }}
+  </a>
+  {% endif %}
   </div>
 
   <h2 class="settings-label">Your data</h2>
@@ -73,27 +73,25 @@
   <a class="setting setting-link" id="deleted" href="/accounts/deleted">
     <span class="setting-title">Recently deleted<small class="muted setting-sub">Accounts, categories and transactions</small></span>{{ icon("chevron-right") }}
   </a>
-
-  </div>
-
-  <h2 class="settings-label">Connections</h2>
-  <div class="tile">
+  <details id="lock" class="setting">
+    <summary><span class="setting-title">Period lock</span><span class="setting-value">{{ profile.locked_through.strftime("up to %d %b %Y") if profile.locked_through else "Off" }}</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/settings/lock">
+      <p class="muted">Nothing dated on or before this day can be added, changed or deleted, and its budget months are frozen. Remove the lock any time.</p>
+      <label>Lock everything up to and including
+        <input type="date" name="locked_through" value="{{ profile.locked_through.isoformat() if profile.locked_through else '' }}" max="{{ yesterday }}">
+        <span class="hint">Leave it empty to remove the lock. Yesterday is the latest day you can lock.</span>
+      </label>
+      <p id="lock-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">Save lock</button></div>
+    </form>
+  </details>
   <a class="setting setting-link" id="assistants" href="/profile/assistants">
     <span class="setting-title">AI assistants</span>{{ icon("chevron-right") }}
   </a>
-
   </div>
 
-  <h2 class="settings-label">More</h2>
+  {% if feedback_url or test_notice %}<h2 class="settings-label">About</h2>{% else %}<h2 class="settings-label" aria-hidden="true">&nbsp;</h2>{% endif %}
   <div class="tile">
-  {% if groups_missing %}
-  <a class="setting setting-link" id="groups" href="/settings" hx-get="/settings/groups" hx-target="#groups-sheet-body" hx-swap="innerHTML">
-    <span class="setting-title">Standard groups<small class="muted setting-sub">Bank Accounts, Cash, Investments, Credit Cards, Loans</small></span><span class="setting-value">Add</span>{{ icon("chevron-right") }}
-  </a>
-  {% endif %}
-  <a class="setting setting-link" id="advanced" href="/settings/advanced">
-    <span class="setting-title">Advanced</span><span class="setting-value">{{ "On" if profile.advanced else "Off" }}</span>{{ icon("chevron-right") }}
-  </a>
   {% if feedback_url %}
   <a class="setting setting-link" id="feedback" href="{{ feedback_url }}">
     <span class="setting-title">Send feedback</span>{{ icon("chevron-right") }}
@@ -105,6 +103,9 @@
     <div class="stack">{% include "partials/test_notice.html" %}</div>
   </details>
   {% endif %}
+  <form method="post" action="/logout" class="setting signout-row">
+    <button type="submit" class="signout-button">Sign out</button>
+  </form>
   </div>
 </div>
 
@@ -112,7 +113,4 @@
   <div id="groups-sheet-body" class="sheet-body"></div>
 </dialog>
 
-<form method="post" action="/logout" class="form-narrow signout">
-  <button type="submit" class="danger">{{ icon("logout") }}Sign out</button>
-</form>
 {% endblock %}

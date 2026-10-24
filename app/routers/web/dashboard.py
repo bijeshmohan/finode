@@ -106,7 +106,6 @@ def dashboard(
             "recent": recent,
             "more": more,
             "steps": steps if not all(step["done"] for step in steps) else None,
-            "show_steps_card": not profiles.pr.advanced(),  # people on Advanced know their way around; the card is for new profiles
             "steps_done": sum(1 for step in steps if step["done"]),
             "steps_total": len(steps),
         },

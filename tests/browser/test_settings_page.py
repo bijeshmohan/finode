@@ -13,13 +13,6 @@ def test_saving_the_currency_shows_the_new_one(page: Page, books):
     expect(page.locator("#currency")).to_have_attribute("open", "")  # and its row is open on the way back
 
 
-def test_the_advanced_switch_sits_in_the_middle_of_its_row(page: Page, books):
-    page.goto("/settings/advanced")
-    switch = page.locator("button.switch").bounding_box()
-    text = page.locator(".switch-row > div").bounding_box()
-    assert abs((switch["y"] + switch["height"] / 2) - (text["y"] + text["height"] / 2)) <= 1.5
-
-
 def test_a_touched_row_is_not_painted_grey(page: Page, books):
     """A tap or the start of a scroll leaves :hover on in touch browsers: rows must not turn into a grey rectangle."""
     page.goto("/settings")
@@ -31,14 +24,13 @@ def test_a_touched_row_is_not_painted_grey(page: Page, books):
     assert "@media (hover: hover) { .account-row:hover" in css and ".setting > summary:hover" not in css
 
 
-def test_the_switch_knob_sits_inside_the_track_in_both_positions(page: Page, books):
-    """A button centres its content: the knob has to be pinned to the start or it floats, and overflows when on."""
-    page.goto("/settings/advanced")
-    for expected in ("true", "false"):
-        switch = page.locator("button.switch")
-        expect(switch).to_have_attribute("aria-checked", expected)
-        page.wait_for_timeout(250)  # the knob slides
-        track, knob = switch.bounding_box(), page.locator("button.switch span").bounding_box()
-        left, right = knob["x"] - track["x"], track["x"] + track["width"] - (knob["x"] + knob["width"])
-        assert (round(left), round(right)) == ((3, 23) if expected == "false" else (23, 3)), (expected, left, right)
-        switch.click()
+def test_values_sit_beside_the_chevron_and_sign_out_is_a_red_row(page: Page, books):
+    page.goto("/settings")
+    for row in ("#currency", "#appearance"):
+        value = page.locator(f"{row} .setting-value").bounding_box()
+        chevron = page.locator(f"{row} summary .icon").bounding_box()
+        assert 0 <= chevron["x"] - (value["x"] + value["width"]) <= 12, f"{row}: the value is right beside the chevron"
+    out = page.get_by_role("button", name="Sign out")
+    expect(out).to_be_visible()
+    assert out.evaluate("e => getComputedStyle(e).color") != page.locator("#currency .setting-title").evaluate("e => getComputedStyle(e).color")
+    assert out.bounding_box()["width"] > 200, "a full row, not a small pill"

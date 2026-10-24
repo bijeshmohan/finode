@@ -50,11 +50,8 @@ def never_the_real_database(monkeypatch: pytest.MonkeyPatch, _scratch_engine):
 
 
 @pytest.fixture(autouse=True)
-def advanced_features_on(monkeypatch: pytest.MonkeyPatch):
-    """New profiles start with the advanced features hidden; most tests exercise them, so they start with them shown."""
-    from app.repositories import profile
-
-    monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", True)
+def plain_new_profiles(monkeypatch: pytest.MonkeyPatch):
+    """Most tests build their own accounts, so a new profile starts without the built-in groups."""
     from app.services import account as account_service
 
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", False)  # most tests build their own accounts

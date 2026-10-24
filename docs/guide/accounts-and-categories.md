@@ -28,7 +28,7 @@ Tap **+ Add account**, the dashed row at the end of the Accounts page. The form 
 
 <img src="img/accounts.png" alt="The Accounts page: groups with subtotals, accounts in tiles" width="300">
 
-An account page shows its balance, an **Add transaction** button, a pencil for Edit, a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu when there is something in it (to add a sub-account, or, with Advanced on, to reorder or close the account), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
+An account page shows its balance, an **Add transaction** button, a pencil for Edit, a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu when there is something in it (to add a sub-account, reorder the account or close it), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
 
 An account that has sub-accounts (such as a *Banks* group) is not posted to itself, so its page shows a **Sub-accounts** list with each balance instead; open one to see its transactions. The **+** beside the heading adds another.
 
@@ -45,7 +45,7 @@ A card or loan is a **liability**: its balance is what you owe. Paying the bill 
 
 ### Closing and deleting
 
-An account that holds a balance cannot be closed. A closed account keeps its history but disappears from pickers; **Reopen** it any time. Closing is under **Advanced** (see [Settings](recurring-and-settings.md)). An unused account can be deleted for good. Both can be brought back from **Settings › Recently deleted**.
+An account that holds a balance cannot be closed. A closed account keeps its history but disappears from pickers; **Reopen** it any time. Closing is in the account's **…** menu. An unused account can be deleted for good. Both can be brought back from **Settings › Recently deleted**.
 
 ## Categories page
 

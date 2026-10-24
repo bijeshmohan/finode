@@ -632,15 +632,6 @@ details.more > summary::-webkit-details-marker { display: none; }
 details.more[open] > summary { margin-bottom: .25rem; }
 
 /* ---------- Profile ---------- */
-.profile-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
-.profile-head h1 { margin: 0; }
-.profile-head p { margin: 0; overflow-wrap: anywhere; }
-.avatar {
-  flex: none; width: 3.5rem; height: 3.5rem; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--accent-soft); color: var(--accent);
-  font-size: 1.25rem; font-weight: 600; letter-spacing: .02em;
-}
 .settings { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
 .setting { border-top: 1px solid var(--border); }
 .settings > .setting:first-child { border-top: 0; }
@@ -657,7 +648,6 @@ details.setting[open] > summary { border-bottom: 1px solid var(--border); }
 details.setting > form, details.setting > .stack { padding: 1rem; }
 .segmented { display: flex; gap: .5rem; flex-wrap: wrap; }
 .segmented button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-.signout { margin-top: 1.25rem; }
 
 /* ---------- AI assistants ---------- */
 .tx-via { display: inline-flex; align-items: center; gap: .25rem; font-size: .75rem; color: var(--auto); }
@@ -932,30 +922,12 @@ ul.list > li + li { border-top-color: var(--border); }
 .account-hero h1 { font-size: 1.25rem; }
 
 /* ---------- Settings, the calm version ---------- */
-summary.profile-head { display: flex; align-items: center; gap: .9rem; padding: .25rem 0 1.1rem; margin-bottom: .5rem; border-bottom: 1px solid var(--surface-2); color: inherit; text-decoration: none; }
-summary.profile-head > div { flex: 1; min-width: 0; }
-summary.profile-head .profile-name { font-size: 1.0625rem; font-weight: 600; margin: 0; }
-summary.profile-head .icon { color: var(--faint); }
-summary.profile-head { cursor: pointer; list-style: none; }
-summary.profile-head::-webkit-details-marker { display: none; }
-.profile-edit[open] summary.profile-head { border-bottom: 0; margin-bottom: 0; }
-.profile-edit[open] summary.profile-head .icon { transform: rotate(90deg); }
-.profile-edit > form { padding: .25rem 0 1.1rem; border-bottom: 1px solid var(--surface-2); margin-bottom: .5rem; }
 .settings { background: none; border: 0; box-shadow: none; border-radius: 0; overflow: visible; }
 .settings-label { margin: 1.1rem 0 .15rem; font-size: .8125rem; font-weight: 500; color: var(--muted); }
 .setting { border-top: 0; border-bottom: 1px solid var(--surface-2); }
 .setting .icon { color: var(--faint); }
 .setting > summary, a.setting-link { padding-left: 0; padding-right: 0; }
 .setting-plain { display: flex; align-items: center; gap: .75rem; padding: .85rem 0; }
-.settings.dimmed .setting-plain { opacity: .45; }
-.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 1.1rem; margin-bottom: .5rem; border-bottom: 1px solid var(--surface-2); }
-.switch-row p { margin: 0; }
-.switch-title { font-weight: 600; }
-button.switch { flex: none; width: 52px; height: 32px; min-height: 0; margin: 0; padding: 3px; border: 0; border-radius: 16px; background: var(--border); display: flex; align-items: center; justify-content: flex-start; }
-button.switch:hover { background: var(--border); }
-button.switch span { width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 25%); transition: transform .15s; }
-button.switch[aria-checked="true"] { background: var(--text); }
-button.switch[aria-checked="true"] span { transform: translateX(20px); background: var(--on-accent); }
 .setting > summary .icon:last-child, a.setting-link .icon:last-child { margin-left: auto; }
 
 /* ---------- Bento: each group of rows is its own soft tile, with a gap between tiles ---------- */
@@ -975,7 +947,6 @@ button.switch[aria-checked="true"] span { transform: translateX(20px); backgroun
 .settings .tile .setting > summary, .settings .tile a.setting-link { min-height: 52px; }
 .settings .tile details.setting > form, .settings .tile details.setting > .stack { padding: .75rem 0 1rem; }
 .settings .tile details.setting[open] > summary { border-bottom: 0; }
-.settings.dimmed .tile .setting-plain { opacity: .45; }
 .settings-label { margin: 1.25rem 0 .4rem .25rem; }
 
 /* ---------- Loading, offline and failed saves ---------- */
@@ -1459,3 +1430,18 @@ form[data-txn-kind="other"] .segmented.kinds::before { opacity: 0; }
 /* Budgets, Accounts and Categories share one row (2026-10-24): a name, one quiet second line, the figure at the right. Group headings on Accounts line up with the rows. */
 .crow-main { justify-content: center; }
 .acc-gh { padding-inline: calc(1rem + 1px); }
+
+/* Settings polish (2026-10-24): values sit beside the chevron, sign out is a red row, and the data and assistants pages use the
+   same tiles as the rest of the app (a small gap, the heading close to its text, warnings as plain red rows). */
+.setting > summary .setting-value + .icon:last-child, a.setting-link .setting-value + .icon:last-child { margin-left: 0; }
+.setting-value { padding-right: .25rem; }
+.signout-row { display: flex; padding: 0; }
+.signout-row .signout-button { flex: 1; margin: 0; min-height: 52px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--danger); font-weight: 500; font-size: 1rem; text-align: left; }
+.settings .tile .signout-row { border-bottom: 0; }
+section.card.stack, details.card.stack { border-color: var(--tile-border); }
+section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-top: 0; }
+main > section.card.stack + section.card.stack, main > section.card.stack + details.card.stack, main > details.card.stack + section.card.stack { margin-top: .75rem; }
+.danger-card details.more { border: 0; border-top: 1px solid var(--surface-2); border-radius: 0; padding: 0; }
+.danger-card details.more > summary { color: var(--danger); }
+.danger-card details.more[open] > summary { margin-bottom: .25rem; }
+section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bottom: 0; }

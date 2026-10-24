@@ -60,7 +60,7 @@ Write the function in `app/mcp_server/tools.py`, using `with services() as s:` t
 
 - **For the whole installation:** a field on `Settings` in `app/config.py` (`FINODE_<NAME>`), and a line in the README's configuration list.
 - **For one person:** a typed column on `profiles`, a migration, a field on `ProfileUpdate`, and a form on the Settings page (`routers/web/settings.py`, `settings.html`; forms post to `/settings/...`). Do not add a key-value or JSON store, and do not use Supabase `user_metadata` (users can write it directly).
-- A rarely used feature should hide behind the Advanced switch (`ProfileRepository.advanced()`).
+- A rarely used feature goes in a menu or a row where it belongs; there is no Advanced switch.
 
 ## Testing guide
 

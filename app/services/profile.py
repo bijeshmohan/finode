@@ -1,4 +1,4 @@
-"""The person's profile and settings: names, currency, the Advanced switch and the period lock."""
+"""The person's profile and settings: names, currency and the period lock."""
 
 from datetime import timedelta
 
@@ -20,17 +20,12 @@ class ProfileService:
             last_name=profile.last_name,
             default_currency=profile.currency,
             locked_through=profile.locked_through,
-            advanced=profile.advanced,
             created=profile.created,
             updated=profile.updated,
         )
 
     def read(self) -> ProfileRead:
         return self._to_read(self.pr.get_or_create())
-
-    def advanced(self) -> bool:
-        """Whether the rarely used features are shown (one cheap query; a person with no profile row yet gets the default)."""
-        return self.pr.advanced()
 
     @staticmethod
     def _resolve_currency(data: ProfileUpdate) -> str | None:
