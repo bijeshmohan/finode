@@ -91,20 +91,6 @@ async def test_ambiguous_and_unknown_accounts_are_explained(session, books, secr
             await call(c, "record_transaction", amount="1", from_account="HDFC", to_account=name)
 
 
-async def test_weekly_and_yearly_targets(session, books, client, secret):
-    async with running_app(session), mcp_client(secret) as c:
-        weekly = payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "weekly", "amount": "200", "weekday": "friday"}))
-        line = next(l for l in weekly["categories"] if l["category"].endswith("Groceries"))
-        assert line["target"]["kind"] == "weekly" and line["target"]["weekday"] == "Friday" and line["underfunded"] != "0.00"
-        yearly = payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "yearly", "amount": "1200", "by": "2030-03"}))
-        line = next(l for l in yearly["categories"] if l["category"].endswith("Groceries"))
-        assert line["target"]["kind"] == "yearly" and line["target"]["by"] == "2030-03-01" and "weekday" not in line["target"]
-        with pytest.raises(ToolFailed, match="the weekday must be one of"):
-            payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "weekly", "amount": "5", "weekday": "someday"}))
-        with pytest.raises(ToolFailed, match="day of the week"):
-            payload(await c.call_tool("set_budget_target", {"category": "Groceries", "kind": "weekly", "amount": "5"}))
-
-
 async def test_ledger_rules_still_apply(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         with pytest.raises(ToolFailed, match="sub-accounts"):
@@ -380,26 +366,6 @@ async def test_assistants_can_set_money_aside_for_a_goal_and_hand_it_to_a_catego
 
 
 @pytest.mark.anyio
-async def test_assistants_can_set_targets_and_fund_them(session, root_accounts, client):
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
-    client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
-    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
-        data = payload(await c.call_tool("set_budget_target", {"category": "Rent", "kind": "monthly", "amount": "600"}))
-        rent = data["categories"][0]
-        assert rent["target"] == {"kind": "monthly", "amount": "600.00"} and rent["underfunded"] == "600.00"
-        assert data["underfunded"] == "600.00"
-        funded = payload(await c.call_tool("fund_budget_targets", {}))
-        assert funded["categories"][0]["assigned"] == "600.00" and funded["underfunded"] == "0.00"
-        assert "underfunded" not in funded["categories"][0]
-        gone = payload(await c.call_tool("set_budget_target", {"category": "Rent", "kind": "none"}))
-        assert "target" not in gone["categories"][0]
-        with pytest.raises(ToolFailed, match="amount is required"):
-            payload(await c.call_tool("set_budget_target", {"category": "Rent", "kind": "monthly"}))
-        with pytest.raises(ToolFailed, match="not an expense account"):
-            payload(await c.call_tool("set_budget_target", {"category": "Bank", "kind": "monthly", "amount": "5"}))
-
-
-@pytest.mark.anyio
 async def test_assistants_can_copy_last_months_budget(session, root_accounts, client):
     from datetime import date, timedelta
 
@@ -449,29 +415,6 @@ async def test_assistants_can_create_split_recurring_transactions_and_skip_one(s
         await c.call_tool("stop_recurring", {"recurring_id": made["id"]})
         with pytest.raises(ToolFailed, match="resume it first"):
             payload(await c.call_tool("skip_recurring_occurrence", {"recurring_id": made["id"]}))
-
-
-@pytest.mark.anyio
-async def test_get_budget_shows_category_notes(session, books, client, secret):
-    rent = client.post("/api/accounts/", json={"name": "Rent", "parent_id": books["food"]["parent_id"]}).json()
-    client.post("/budget/note", data={"category": rent["aid"], "note": "Due on the 5th"})
-    async with running_app(session), mcp_client(secret) as c:
-        data = payload(await c.call_tool("get_budget", {}))
-        mine = next(l for l in data["categories"] if l["category"].endswith("Rent"))
-        assert mine["note"] == "Due on the 5th"
-        assert all("note" not in l for l in data["categories"] if not l["category"].endswith("Rent"))
-
-
-@pytest.mark.anyio
-async def test_get_budget_lists_the_weeks_of_a_weekly_target(session, books, client, secret):
-    rent = client.post("/api/accounts/", json={"name": "Pocket money", "parent_id": books["food"]["parent_id"]}).json()
-    client.put(f"/api/budget/categories/{rent['aid']}/target", json={"kind": "weekly", "amount": "100", "weekday": 0})
-    async with running_app(session), mcp_client(secret) as c:
-        data = payload(await c.call_tool("get_budget", {}))
-        mine = next(l for l in data["categories"] if l["category"].endswith("Pocket money"))
-        assert mine["weeks"] and all({"from", "to", "spent"} <= set(w) for w in mine["weeks"])
-        assert all(w["allowance"] == "100.00" for w in mine["weeks"] if "allowance" in w)
-        assert all("weeks" not in l for l in data["categories"] if not l["category"].endswith("Pocket money"))
 
 
 @pytest.mark.anyio

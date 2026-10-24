@@ -1,7 +1,7 @@
 """A complete backup of what a user has recorded, and restoring it into an empty ledger.
 
 The ledger and CSV exports carry accounts and transactions; this one also carries everything
-around them (settings, budget plan and targets, recurring rules, account flags such as
+around them (settings, budget plan and goals, recurring rules, account flags such as
 "part of the budget" and "closed"), so it can rebuild the whole book. Left out on purpose: access tokens and
 connected apps (secrets and sign-ins to set up again) and the audit history (it describes the old rows).
 Restoring creates everything with new ids, all or nothing in one database transaction.
@@ -35,7 +35,6 @@ from ..schemas.backup import (
     BackupProfile,
     BackupRecurring,
     BackupRecurringPosting,
-    BackupTarget,
     BackupTransaction,
     RestoreSummary,
 )
@@ -119,12 +118,6 @@ class BackupService:
                 BackupAllocation(month=row.month, account_id=row.account_id, amount=row.amount)
                 for row in self.br.list()
             ],
-            targets=[
-                BackupTarget(
-                    account_id=t.account_id, kind=t.kind, amount=t.amount, target_date=t.target_date, weekday=t.weekday
-                )
-                for t in self.br.targets().values()
-            ],
             goals=[
                 BackupGoal(
                     name=g.name, amount=g.amount, target_date=g.target_date,
@@ -182,9 +175,7 @@ class BackupService:
         summary.accounts = sum(1 for a in file.accounts if a.parent_id is not None)
         summary.transactions = len(file.transactions)
         summary.recurring = len(file.recurring)
-        allocations, targets = self._expense_plan(file)
-        summary.allocations = len(allocations)
-        summary.targets = len(targets)
+        summary.allocations = len(self._expense_plan(file))
         summary.goals = len(file.goals)
         if file.transactions:
             summary.date_from = min(t.date for t in file.transactions)
@@ -284,13 +275,13 @@ class BackupService:
                 if saved < 0:
                     errors.append(f"the goal '{g.name}' would hold less than nothing in {r.month:%B %Y}.")
                     break
-        for row in [*file.allocations, *file.targets]:
+        for row in file.allocations:
             if row.account_id not in postable:
                 errors.append("a budget entry refers to an account that is not in the file.")
                 break
     @staticmethod
-    def _expense_plan(file: BackupFile) -> tuple[list, list]:
-        """The plan rows and targets that belong to expense categories: a file from when the Plan had Build and Earn
+    def _expense_plan(file: BackupFile) -> list:
+        """The plan rows that belong to expense categories: a file from when the Plan had Build and Earn
         also carries rows for funds, loans and income accounts, which the budget no longer has."""
         by_id = {a.id: a for a in file.accounts}
 
@@ -301,7 +292,7 @@ class BackupService:
                 account = by_id.get(account.parent_id)
             return account is not None and account.parent_id is None and account.name == "Expenses"
 
-        return [r for r in file.allocations if expense(r.account_id)], [t for t in file.targets if expense(t.account_id)]
+        return [r for r in file.allocations if expense(r.account_id)]
 
     @staticmethod
     def _depth(account: BackupAccount, accounts: dict[UUID, BackupAccount]) -> int | None:
@@ -408,11 +399,8 @@ class BackupService:
                     linked = self.tr.read(made[t.id])
                     linked.related_id = made[t.related_id]
                     db.add(linked)
-            allocations, targets = self._expense_plan(file)
-            for row in allocations:
+            for row in self._expense_plan(file):
                 self.br.set(row.month, ids[row.account_id], row.amount)
-            for target in targets:
-                self.br.set_target(ids[target.account_id], target.kind, target.amount, target.target_date, target.weekday)
             for g in file.goals:
                 goal = self.br.add_goal(g.name, g.amount, g.target_date)
                 for r in g.allocations:

@@ -51,14 +51,6 @@
     {% if budget.overspent_last_month %}
     <p class="attn-item">{{ budget.overspent_last_month|money|amount(budget.currency) }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
     {% endif %}
-    {% if advanced and budget.underfunded %}
-    <form class="attn-item fund" hx-post="/budget/fund" hx-target="#budget" hx-swap="outerHTML">
-      <span>Your targets still need {{ budget.underfunded|money|amount(budget.currency) }} this month.</span>
-      <input type="hidden" name="month" value="{{ month_key }}">
-      <input type="hidden" name="tab" value="{{ tab }}">
-      <button type="submit" class="secondary" {{ "disabled" if rta <= 0 }}>Assign what is needed</button>
-    </form>
-    {% endif %}
     {% if budget.copyable %}
     <form class="attn-item copy-last" hx-post="/budget/copy" hx-target="#budget" hx-swap="outerHTML">
       <input type="hidden" name="month" value="{{ month_key }}">

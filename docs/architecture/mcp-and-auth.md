@@ -52,7 +52,7 @@ Sign-up is invite-only (`app/signup.py`): the invite code is compared in constan
 
 Nine read tools: `get_overview`, `list_accounts`, `get_account`, `search_transactions`, `get_transaction`, `spending_breakdown`, `list_recurring`, `check_books`, `get_budget`.
 
-Thirteen write tools: `record_transaction`, `record_split`, `update_transaction`, `delete_transaction` (marked destructive), `create_account`, `create_recurring`, `stop_recurring`, `skip_recurring_occurrence`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`, `set_budget_target`, `fund_budget_targets`.
+Eleven write tools: `record_transaction`, `record_split`, `update_transaction`, `delete_transaction` (marked destructive), `create_account`, `create_recurring`, `stop_recurring`, `skip_recurring_occurrence`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`.
 
 One prompt, `monthly_review`. Assistants can create accounts but never delete or edit them. Amounts go out as strings. A service error becomes a `ToolError` with the service's message. `INSTRUCTIONS` in `tools.py` must be kept in step with the ledger rules.
 

@@ -20,32 +20,10 @@
   <p id="cat-sheet-error" class="error" role="alert"></p>
   <dl class="sheet-facts">
     <div><dt>Spent</dt><dd>{{ line.activity|money }}</dd></div>
-    {% if advanced and line.target %}
-    <div><dt>Target</dt><dd>
-      {{ {"monthly": "Monthly", "weekly": "Weekly", "refill": "Keep", "by_date": "Save", "yearly": "Yearly"}[line.target.kind] }} {{ line.target.amount|money }}
-      {%- if line.target.kind == "weekly" %} on {{ ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][line.target.weekday or 0] }}s{% elif line.target.kind == "yearly" %} in {{ line.target.target_date.strftime("%b") }}{% elif line.target.target_date %} by {{ line.target.target_date.strftime("%b %Y") }}{% endif %}
-      <span class="muted">{% if line.overdue %}overdue, {% endif %}{% if line.underfunded %}needs {{ line.underfunded|money }} more{% else %}funded{% endif %}</span>
-    </dd></div>
-    {% endif %}
     {% if line.overspent_last_month %}<div><dt>Overspent last month</dt><dd>{{ line.overspent_last_month|money }}</dd></div>{% endif %}
-    {% if line.note %}<div><dt>Note</dt><dd>{{ line.note }}</dd></div>{% endif %}
   </dl>
-  {% if advanced and line.weeks %}
-  <details class="weeks" open>
-    <summary>By week</summary>
-    <ul>
-      {% for w in line.weeks %}
-      <li class="{{ 'current' if w.current }}{{ ' over' if w.allowance is not none and w.spent > w.allowance }}">
-        <span class="range">{% if w.start == w.end %}{{ w.start.day }} {{ w.start.strftime("%b") }}{% else %}{{ w.start.day }}{% if w.start.month != w.end.month %} {{ w.start.strftime("%b") }}{% endif %} – {{ w.end.day }} {{ w.end.strftime("%b") }}{% endif %}</span>
-        <span class="figures">{{ w.spent|money }}{% if w.allowance is not none %} of {{ w.allowance|money }}{% else %} <em>(funded last month)</em>{% endif %}</span>
-      </li>
-      {% endfor %}
-    </ul>
-  </details>
-  {% endif %}
   <div class="sheet-actions">
     <button type="submit">Save</button>
     <a class="button secondary" href="/budget/move?month={{ month_key }}&source={{ line.aid }}">Move money</a>
   </div>
-  <p class="sheet-more"><a href="/budget/target?month={{ month_key }}&category={{ line.aid }}">{{ "Target and note" if advanced else "Note" }}</a></p>
 </form>

@@ -1,4 +1,4 @@
-"""Envelope budgeting on top of the ledger: assigned, activity, available and Ready to assign, targets, moving and copying money. Only the plan and targets are stored; the rest is derived (see docs/architecture/budget.md)."""
+"""Envelope budgeting on top of the ledger: assigned, activity, available and Ready to assign, goals, moving and copying money. Only the plan and goals are stored; the rest is derived (see docs/architecture/budget.md)."""
 
 import calendar
 from datetime import date, timedelta
@@ -6,10 +6,10 @@ from decimal import ROUND_CEILING, Decimal
 from uuid import UUID
 
 from ..models.account import Account
-from ..models.budget import BudgetTarget, Goal
+from ..models.budget import Goal
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, TransactionRepository
-from ..schemas.budget import TARGET_KINDS, BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetTargetRead, BudgetWeek, GoalLine
+from ..schemas.budget import BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, GoalLine
 from ..schemas.account import AccountUpdate
 from .account import AccountService
 from .lock import locked_through
@@ -42,67 +42,19 @@ def months_between(first: date, last: date) -> int:
     return (last.year - first.year) * 12 + last.month - first.month
 
 
-WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-
-
-def weekday_count(month: date, weekday: int) -> int:
-    """How many times a day of the week (0 = Monday) falls in the month."""
-    first, days = calendar.monthrange(month.year, month.month)
-    return sum(1 for d in range(days) if (first + d) % 7 == weekday)
-
-
-def weeks_of(month: date, weekday: int) -> list[tuple[date, date, bool]]:
-    """The month cut into weeks that start on `weekday` (0 = Monday): (first day, last day, funded this month).
-    The days before the first such day belong to a week funded last month; the last week stops at the month's end."""
-    last = month_end(month)
-    first = month + timedelta(days=(weekday - month.weekday()) % 7)
-    weeks = []
-    if first > month:
-        weeks.append((month, min(first - timedelta(days=1), last), False))
-    day = first
-    while day <= last:
-        weeks.append((day, min(day + timedelta(days=6), last), True))
-        day += timedelta(days=7)
-    return weeks
-
-
-def due_month(target: BudgetTarget, month: date) -> date | None:
-    """The month a by_date or yearly target is due, seen from `month`: a yearly target is due in the next such
-    month, this one included, so once its month has passed it moves on to next year."""
-    if target.target_date is None:
-        return None
-    if target.kind == "yearly":
-        due = date(month.year, target.target_date.month, 1)
-        return due if due >= month else date(month.year + 1, due.month, 1)
-    return first_of_month(target.target_date)
-
-
-def is_overdue(target: BudgetTarget, month: date, underfunded: Decimal) -> bool:
-    """A by_date target whose month is behind us and that is still short (yearly targets just roll on)."""
-    return target.kind == "by_date" and underfunded > 0 and target.target_date is not None and first_of_month(target.target_date) < month
-
-
-def funding(target: BudgetTarget, assigned: Decimal, carried: Decimal, month: date, decimals: int) -> tuple[Decimal, Decimal]:
-    """(needed, underfunded) for a category in a month, from its target.
-
-    `carried` is what the category brought into the month. monthly needs the amount assigned each month and
-    weekly the amount once for each of its days in the month; refill needs what keeps the amount available;
-    by_date and yearly save the missing money evenly over the months left, the whole of it once the due month
-    has come.
-    """
-    if target.kind == "monthly":
-        needed = target.amount
-    elif target.kind == "weekly":
-        needed = target.amount * weekday_count(month, target.weekday or 0)
-    elif target.kind == "refill":
-        needed = max(ZERO, target.amount - carried)
-    else:
-        remaining = max(ZERO, target.amount - carried)
-        due = due_month(target, month)
-        left = max(1, months_between(month, due) + 1) if due else 1
-        step = Decimal(1).scaleb(-decimals)
-        needed = min(remaining, (remaining / left).quantize(step, rounding=ROUND_CEILING))
+def funding(amount: Decimal, due: date, carried: Decimal, assigned: Decimal, month: date, decimals: int) -> tuple[Decimal, Decimal]:
+    """(needed, underfunded) for a goal in a month: the missing money (`amount` less what is saved, `carried`) spread
+    evenly over the months left, this one included, the whole of it once the due month has come."""
+    remaining = max(ZERO, amount - carried)
+    left = max(1, months_between(month, due) + 1)
+    step = Decimal(1).scaleb(-decimals)
+    needed = min(remaining, (remaining / left).quantize(step, rounding=ROUND_CEILING))
     return needed + ZERO, max(ZERO, needed - assigned) + ZERO
+
+
+def is_overdue(due: date, month: date, underfunded: Decimal) -> bool:
+    """A goal whose month is behind us and that is still short."""
+    return underfunded > 0 and due < month
 
 
 def month_end(month: date) -> date:
@@ -245,9 +197,6 @@ class BudgetService:
         card_books: dict[UUID, list[Decimal]] = {aid: [ZERO, ZERO, ZERO] for aid in liabilities}
 
         cash = ZERO
-        weekly = {aid for aid, t in self.br.targets().items() if t.kind == "weekly"}
-        # What was spent day by day this month in the categories with a weekly target.
-        daily: dict[UUID, dict[date, Decimal]] = {}
         # What happened to each category in each month: [assigned, spent].
         by_category: dict[UUID, dict[date, list[Decimal]]] = {}
         for p in postings:
@@ -267,9 +216,6 @@ class BudgetService:
                 value = p.amount if p.side == PostingSide.DEBIT else -p.amount
                 figures = by_category.setdefault(target, {}).setdefault(first_of_month(transaction.date), [ZERO, ZERO])
                 figures[1] += value
-                if target in weekly and first_of_month(transaction.date) == month:
-                    days = daily.setdefault(target, {})
-                    days[transaction.date] = days.get(transaction.date, ZERO) + value
         for row in allocations:
             if row.account_id in categories:
                 by_category.setdefault(row.account_id, {}).setdefault(row.month, [ZERO, ZERO])[0] += row.amount
@@ -278,7 +224,6 @@ class BudgetService:
         own: dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]] = {}
         for aid in categories:
             own[aid] = self._roll(by_category.get(aid, {}), month, previous)
-        targets = self.br.targets()
         total_assigned = sum((v[0] for v in own.values()), ZERO)
         total_activity = sum((v[1] for v in own.values()), ZERO)
         total_available = sum((v[2] for v in own.values()), ZERO)
@@ -316,30 +261,7 @@ class BudgetService:
         )
         reserved = sum((c.owed for c in cards), ZERO)
 
-        needs: dict[UUID, tuple[Decimal, Decimal]] = {}
-        for aid, target in targets.items():
-            if aid in own:
-                assigned, spent, available, _ = own[aid]
-                needs[aid] = funding(target, assigned, available - assigned + spent, month, currency.decimals)
-        total_underfunded = sum((v[1] for v in needs.values()), ZERO)
-
-        lines = self._lines(categories, by_id, parents, own, targets, needs)
-        today = local_today()
-        for line in lines:
-            target = targets.get(line.aid)
-            if target is not None and line.target is not None:
-                line.overdue = is_overdue(target, month, needs.get(line.aid, (ZERO, ZERO))[1])
-                if target.kind == "weekly" and not line.name.endswith("(other)"):
-                    spent_by_day = daily.get(line.aid, {})
-                    line.weeks = [
-                        BudgetWeek(
-                            start=first, end=last,
-                            spent=sum((v for d, v in spent_by_day.items() if first <= d <= last), ZERO),
-                            allowance=target.amount if funded else None,
-                            current=first <= today <= last,
-                        )
-                        for first, last, funded in weeks_of(month, target.weekday or 0)
-                    ]
+        lines = self._lines(categories, by_id, parents, own)
         read = BudgetRead(
             month=month,
             currency=currency.code,
@@ -351,7 +273,6 @@ class BudgetService:
             activity=total_activity,
             available=total_available,
             overspent_last_month=total_overspent,
-            underfunded=total_underfunded + sum((g.underfunded for g in goals), ZERO),
             goals=goals,
             goal_assigned=goal_assigned,
             goal_available=goal_available,
@@ -367,11 +288,6 @@ class BudgetService:
         )
         return read, own
 
-    @staticmethod
-    def _wish(goal: Goal) -> BudgetTarget:
-        """A goal's wish as the by-date target it is, so it is funded by the one rule (`funding`)."""
-        return BudgetTarget(kind="by_date", amount=goal.amount, target_date=goal.target_date)
-
     def _goal_lines(self, goals: list[Goal], rows, month: date, decimals: int) -> list[GoalLine]:
         """The goals, the soonest due first, with what is saved up to the month's end and what the month asks of each."""
         lines = []
@@ -379,13 +295,12 @@ class BudgetService:
             mine = [r for r in rows if r.goal_id == goal.gid and r.month <= month]
             assigned = sum((r.amount for r in mine if r.month == month), ZERO)
             saved = sum((r.amount for r in mine), ZERO)
-            wish = self._wish(goal)
-            needed, missing = funding(wish, assigned, saved - assigned, month, decimals)
+            needed, missing = funding(goal.amount, goal.target_date, saved - assigned, assigned, month, decimals)
             lines.append(
                 GoalLine(
                     gid=goal.gid, name=goal.name, amount=goal.amount, target_date=goal.target_date,
                     assigned=assigned, available=saved, needed=needed, underfunded=missing,
-                    overdue=is_overdue(wish, month, missing),
+                    overdue=is_overdue(goal.target_date, month, missing),
                 )
             )
         return sorted(lines, key=lambda g: (g.target_date, g.name.lower()))
@@ -423,7 +338,7 @@ class BudgetService:
             root = by_id[root.parent_id]
         return [root.name, *names]
 
-    def _lines(self, categories, by_id, parents, own, targets, needs) -> list[BudgetLine]:
+    def _lines(self, categories, by_id, parents, own) -> list[BudgetLine]:
         """The categories as a tree in display order: a group row (sums) before its subcategories;
         a group that was itself posted to or assigned money also gets an '(other)' row of its own."""
         children: dict[UUID | None, list[Account]] = {}
@@ -446,21 +361,11 @@ class BudgetService:
                 or any(visible(c) for c in children.get(account.aid, []))
             )
 
-        def missing(account: Account) -> Decimal:
-            return needs.get(account.aid, (ZERO, ZERO))[1] + sum((missing(c) for c in children.get(account.aid, [])), ZERO)
-
-        def line(account: Account, name: str, depth: int, figures, group: bool = False, underfunded=None) -> BudgetLine:
+        def line(account: Account, name: str, depth: int, figures, group: bool = False) -> BudgetLine:
             a, s, v, o = figures
-            target = targets.get(account.aid) if not group else None
             return BudgetLine(
                 aid=account.aid, name=name, path=":".join(self._path(account, by_id)), depth=depth, group=group,
                 assigned=a, activity=s, available=v, overspent_last_month=o,
-                target=BudgetTargetRead(
-                    kind=target.kind, amount=target.amount, target_date=target.target_date, weekday=target.weekday
-                ) if target else None,
-                needed=needs.get(account.aid, (ZERO, ZERO))[0] if target else ZERO,
-                underfunded=needs.get(account.aid, (ZERO, ZERO))[1] if underfunded is None else underfunded,
-                note=account.details if name == account.name else None,
             )
 
         lines: list[BudgetLine] = []
@@ -470,8 +375,8 @@ class BudgetService:
             if not kids:
                 lines.append(line(account, account.name, depth, own[account.aid]))
                 return
-            lines.append(line(account, account.name, depth, total(account), group=True, underfunded=missing(account)))
-            if any(own[account.aid]) or account.aid in targets:
+            lines.append(line(account, account.name, depth, total(account), group=True))
+            if any(own[account.aid]):
                 lines.append(line(account, f"{account.name} (other)", depth + 1, own[account.aid]))
             for kid in kids:
                 walk(kid, depth + 1)
@@ -505,48 +410,16 @@ class BudgetService:
         except ValueError as e:
             raise BudgetError(str(e))
 
-    def set_target(
-        self, aid: UUID, kind: str, amount: Decimal, target_date: date | None = None, weekday: int | None = None
-    ) -> BudgetRead:
-        """Say what a category should be funded with (replaces its target)."""
-        account = self._category(aid)
-        if kind not in TARGET_KINDS:
-            raise BudgetError(f"the target must be one of: {', '.join(TARGET_KINDS)}!")
-        if amount <= 0:
-            raise BudgetError("the target amount must be positive!")
-        self._check_amount(amount)
-        if kind == "by_date":
-            if target_date is None:
-                raise BudgetError("a target by a date needs the date!")
-            if first_of_month(target_date) < month_start(None):
-                raise BudgetError("the date is in the past: choose this month or later!")
-        elif kind == "yearly":
-            if target_date is None:
-                raise BudgetError("a yearly target needs the month it falls due!")
-            target_date = target_date.replace(day=1)
-        else:
-            target_date = None
-        if kind == "weekly":
-            if weekday is None or not 0 <= weekday <= 6:
-                raise BudgetError("a weekly target needs the day of the week!")
-        else:
-            weekday = None
-        self.br.set_target(account.aid, kind, amount, target_date, weekday)
-        self.br.db.commit()
-        return self.view(None)
-
     def goal_share(self, amount: Decimal, by: date) -> tuple[Decimal, int]:
         """What a goal of `amount` needed by the month `by` asks of each month if it starts now: (the share, the months it
-        is spread over, this one included). The same rule as a by-date target, so what the form promises is what the
-        target will ask."""
+        is spread over, this one included). The same rule as the plan uses, so what the form promises is what it will ask."""
         if amount <= 0:
             raise BudgetError("the goal amount must be positive!")
         self._check_amount(amount)
         month, due = month_start(None), month_start(by)
         if due <= month:
             raise BudgetError("choose a month after this one!")
-        target = BudgetTarget(kind="by_date", amount=amount, target_date=due)
-        share, _ = funding(target, ZERO, ZERO, month, self.accounts.currency().decimals)
+        share, _ = funding(amount, due, ZERO, ZERO, month, self.accounts.currency().decimals)
         return share, months_between(month, due) + 1
 
     def _goal_name(self, name: str, own: UUID | None = None) -> str:
@@ -640,47 +513,6 @@ class BudgetService:
         self._check_saved(goal, month, taken)
         self.br.set_goal(month, gid, taken)
         self.br.set(month, aid, self.assigned(month, aid) + amount)
-        self.br.db.commit()
-        return self.view(month)
-
-    def set_note(self, aid: UUID, note: str | None) -> BudgetRead:
-        """A short note on a category (kept as the account's details, so it is in backups and on the account's page)."""
-        account = self._category(aid)
-        note = (note or "").strip() or None
-        if note is not None and len(note) > 200:
-            raise BudgetError("a note can be at most 200 characters!")
-        if note != account.details:
-            self.accounts.update(aid, AccountUpdate(details=note))
-        return self.view(None)
-
-    def clear_target(self, aid: UUID) -> BudgetRead:
-        self._category(aid)
-        self.br.clear_target(aid)
-        self.br.db.commit()
-        return self.view(None)
-
-    def fund(self, month: date | None) -> BudgetRead:
-        """Assign what the targets still need, in display order, until there is nothing left to assign."""
-        month = month_start(month)
-        self._check_open(month)
-        data = self.view(month)
-        if data.underfunded <= 0:
-            raise BudgetError("nothing is underfunded!")
-        if data.ready_to_assign <= 0:
-            raise BudgetError("there is nothing ready to assign: add income or lower another category first!")
-        left = data.ready_to_assign
-        for line in data.lines:
-            if line.group or line.underfunded <= 0 or left <= 0:
-                continue
-            add = min(line.underfunded, left)
-            self.br.set(month, line.aid, self.assigned(month, line.aid) + add)
-            left -= add
-        for goal in data.goals:
-            if goal.underfunded <= 0 or left <= 0:
-                continue
-            add = min(goal.underfunded, left)
-            self.br.set_goal(month, goal.gid, goal.assigned + add)
-            left -= add
         self.br.db.commit()
         return self.view(month)
 

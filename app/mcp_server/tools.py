@@ -19,7 +19,6 @@ from ..schemas import AccountCreate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead, TransactionUpdate
 from ..services.simple import simple_postings
-from ..services.budget import WEEKDAYS
 from .accounts import AccountIndex
 from .context import Services, services
 from ..clock import local_today
@@ -52,8 +51,7 @@ finode is the user's personal double-entry ledger.
   expense category's assigned, spent and available amounts (goals, money being saved for something by a month, are listed
   under `goals`, not in `categories`, and are not counted in assigned/spent/available_total); assign_to_category plans a month's money and
   move_budget_money shifts it between categories; assign_to_goal sets money aside for a goal and use_goal hands what a goal saved to a
-  category that paid for something; set_budget_target records what a category should get and
-  get_budget then reports what is underfunded (fund_budget_targets assigns it, only when asked). These only change the plan, never the ledger, and the
+  category that paid for something. These only change the plan, never the ledger, and the
   user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
 - check_books confirms that debits equal credits in every transaction and overall; use it when the
   user doubts their numbers.
@@ -608,7 +606,6 @@ def _budget(data) -> dict[str, Any]:
         "assigned_this_month": text(data.assigned),
         "spent_this_month": text(data.activity),
         "available_total": text(data.available),
-        "underfunded": text(data.underfunded),
         **({"assigned_to_later_months": text(data.assigned_to_later_months)} if data.assigned_to_later_months else {}),
         **(
             {
@@ -645,36 +642,11 @@ def _budget(data) -> dict[str, Any]:
         "categories": [
             {
                 "category": line.path,
-                **({"note": line.note} if line.note else {}),
                 "is_group": line.group,
                 "assigned": text(line.assigned),
                 "spent": text(line.activity),
                 "available": text(line.available),
                 **({"overspent_last_month": text(line.overspent_last_month)} if line.overspent_last_month else {}),
-                **(
-                    {
-                        "target": {
-                            "kind": line.target.kind,
-                            "amount": text(line.target.amount),
-                            **({"by": line.target.target_date.isoformat()} if line.target.target_date else {}),
-                            **({"weekday": WEEKDAYS[line.target.weekday]} if line.target.weekday is not None else {}),
-                        }
-                    }
-                    if line.target
-                    else {}
-                ),
-                **({"underfunded": text(line.underfunded)} if line.underfunded else {}),
-                **({"overdue": True} if line.overdue else {}),
-                **(
-                    {"weeks": [
-                        {
-                            "from": w.start.isoformat(), "to": w.end.isoformat(), "spent": text(w.spent),
-                            **({"allowance": text(w.allowance)} if w.allowance is not None else {}),
-                        }
-                        for w in line.weeks
-                    ]}
-                    if line.weeks else {}
-                ),
             }
             for line in data.lines
         ],
@@ -777,39 +749,6 @@ def move_budget_money(
 
 
 @_tool_errors
-def set_budget_target(
-    category: Annotated[str, Field(description="An expense account, e.g. Rent or Expenses:Food:Groceries")],
-    kind: Annotated[str, Field(description="monthly (assign the amount every month), weekly (the amount every week), refill (keep the amount available), by_date (have the amount by a month) or yearly (the amount falls due every year); none removes the target")],
-    amount: Annotated[Decimal | None, Field(gt=0, description="Required except for none")] = None,
-    by: Annotated[str | None, Field(description="YYYY-MM or YYYY-MM-DD; for by_date, and for yearly the month it falls due (the year does not matter)")] = None,
-    weekday: Annotated[str | None, Field(description="Monday ... Sunday; only for weekly")] = None,
-) -> dict[str, Any]:
-    """Say what a category should be funded with, so get_budget can show what is still underfunded each month.
-    Replaces any earlier target of the category. Targets are a wish only; they never move money."""
-    with services() as s:
-        entry = _category(_index(s), category)
-        if kind == "none":
-            return _budget(s.budget.clear_target(entry.account.aid))
-        if amount is None:
-            raise ToolError("the amount is required for a target!")
-        day = None
-        if weekday is not None:
-            names = [w.lower() for w in WEEKDAYS]
-            if weekday.strip().lower() not in names:
-                raise ToolError("the weekday must be one of: " + ", ".join(WEEKDAYS) + "!")
-            day = names.index(weekday.strip().lower())
-        return _budget(s.budget.set_target(entry.account.aid, kind, amount, _month(by), day))
-
-
-@_tool_errors
-def fund_budget_targets(month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None) -> dict[str, Any]:
-    """Assign what the targets still need in a month, category by category, until nothing is ready to assign.
-    Only do this when the user asks to fund their targets."""
-    with services() as s:
-        return _budget(s.budget.fund(_month(month)))
-
-
-@_tool_errors
 def check_books(as_of: str | None = None) -> dict[str, Any]:
     """Check that the books are sound: debits equal credits in every transaction and overall.
     Returns the trial balance (debits and credits per account) and any problems found.
@@ -851,8 +790,6 @@ WRITE_TOOLS = [
     (use_goal, WRITE),
     (move_budget_money, WRITE),
     (copy_budget_from_previous_month, IDEMPOTENT_WRITE),
-    (set_budget_target, IDEMPOTENT_WRITE),
-    (fund_budget_targets, WRITE),
 ]
 
 

@@ -11,7 +11,7 @@ from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
 from ...dependencies import Budget
 from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, first_of_month, month_start, months_between
-from ...schemas.budget import TARGET_KINDS, BudgetLine, GoalLine
+from ...schemas.budget import BudgetLine, GoalLine
 from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount
 
@@ -76,7 +76,7 @@ class Node:
     @property
     def used(self) -> bool:
         return any(
-            l.assigned or l.activity or l.available or l.overspent_last_month or l.underfunded or l.target or l.note
+            l.assigned or l.activity or l.available or l.overspent_last_month
             for l in self.lines()
         )
 
@@ -91,7 +91,7 @@ def other_line(group: BudgetLine) -> BudgetLine:
     zero = Decimal("0.00")
     return BudgetLine(
         aid=group.aid, name=f"{group.name} (other)", path=group.path, depth=group.depth + 1,
-        assigned=zero, activity=zero, available=zero, overspent_last_month=zero, needed=zero, underfunded=zero,
+        assigned=zero, activity=zero, available=zero, overspent_last_month=zero,
     )
 
 
@@ -124,18 +124,14 @@ def _by_assigned(nodes: list[Node]) -> list[Node]:
 
 def _hint(node: Node, advanced: bool, style: str = "western") -> str:
     """The small line under a category's name: the three biggest things inside a group and '+N'; for a plain category
-    what needs a look (a target that is short, last month's overspending) and its note."""
+    what needs a look (last month's overspending)."""
     if node.is_group:
         inside = [c.line.name for c in _by_assigned(node.children) if c.line.assigned or c.line.activity] or [c.line.name for c in node.children]
         return " · ".join(inside[:3] + ([f"+{len(inside) - 3}"] if len(inside) > 3 else []))
     line = node.line
     parts = []
-    if advanced and line.underfunded:
-        parts.append(("overdue, " if line.overdue else "") + f"needs {money(line.underfunded, style)} more")
     if line.overspent_last_month:
         parts.append(f"{money(line.overspent_last_month, style)} overspent last month")
-    if line.note:
-        parts.append(line.note)
     return " · ".join(parts)
 
 
@@ -189,7 +185,7 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "overspent": -data.available if data.available < 0 else Decimal("0.00"),
         "attention": sum(
             1 for flag in (
-                bool(data.left_out_accounts), bool(data.overspent_last_month), advanced and bool(data.underfunded), bool(data.copyable)
+                bool(data.left_out_accounts), bool(data.overspent_last_month), bool(data.copyable)
             ) if flag
         ),
         "month_key": data.month.strftime("%Y-%m"),
@@ -254,7 +250,7 @@ def assign_group(
 
 @router.get("/category/{aid}/sheet")
 def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "", group: str = ""):
-    """One category in the sheet over the budget: assign, what was spent, the target, the week by week."""
+    """One category in the sheet over the budget: assign, what was spent, move money."""
     when = parse_month(month)
     context = _context(budget, when)
     lines = [l for n in context["tree"] for l in n.lines()]
@@ -319,89 +315,6 @@ def move(
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-moved")
-
-
-@router.post("/fund")
-def fund(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
-    when = parse_month(month)
-    try:
-        budget.fund(when)
-    except BudgetError as e:
-        return htmx_error(str(e), "#budget-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
-
-
-def _target_line(budget: Budget, month: date, category: UUID):
-    data = budget.view(month)
-    line = next((l for l in data.lines if l.aid == category and not l.name.endswith("(other)")), None)
-    if line is None:
-        raise HTTPException(status_code=404, detail="category not found")
-    return line
-
-
-@router.get("/target")
-def target_page(request: Request, budget: Budget, category: UUID, month: str = ""):
-    when = parse_month(month)
-    return templates.TemplateResponse(
-        request, "budget_target.html", {**_context(budget, when), "line": _target_line(budget, when, category)}
-    )
-
-
-@router.post("/target")
-def set_target(
-    budget: Budget,
-    category: Annotated[UUID, Form()],
-    kind: Annotated[str, Form()] = "monthly",
-    amount: Annotated[str, Form()] = "",
-    target_date: Annotated[str, Form()] = "",
-    weekday: Annotated[str, Form()] = "",
-    month: Annotated[str, Form()] = "",
-):
-    when = parse_month(month)
-    try:
-        if kind not in TARGET_KINDS:
-            raise BudgetError("choose what kind of target it is!")
-        day = None
-        if kind in ("by_date", "yearly"):
-            try:
-                day = date.fromisoformat(target_date.strip() + "-01") if len(target_date.strip()) == 7 else date.fromisoformat(target_date.strip())
-            except ValueError:
-                raise BudgetError("choose the month the money is needed by!" if kind == "by_date" else "choose the month it falls due each year!")
-        day_of_week = None
-        if kind == "weekly":
-            try:
-                day_of_week = int(weekday)
-            except ValueError:
-                raise BudgetError("choose the day of the week!")
-        budget.set_target(category, kind, parse_amount(amount), day, day_of_week)
-    except (BudgetError, ValueError) as e:
-        return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target")
-
-
-@router.post("/note")
-def set_note(
-    budget: Budget,
-    category: Annotated[UUID, Form()],
-    note: Annotated[str, Form()] = "",
-    month: Annotated[str, Form()] = "",
-):
-    when = parse_month(month)
-    try:
-        budget.set_note(category, note)
-    except (BudgetError, ValueError) as e:
-        return htmx_error(str(e), "#note-error")
-    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-note")
-
-
-@router.post("/target/delete")
-def clear_target(budget: Budget, category: Annotated[UUID, Form()], month: Annotated[str, Form()] = ""):
-    when = parse_month(month)
-    try:
-        budget.clear_target(category)
-    except BudgetError as e:
-        return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-target-cleared")
 
 
 @router.post("/accounts/{aid}/include")

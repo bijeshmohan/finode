@@ -33,7 +33,7 @@ Settings is about how the application works (your name and your data are on Prof
 | **Preferences › Appearance** | match the device, light or dark (kept per browser) |
 | **Your data** | backup, export and import (the same as on Profile), and **Recurring transactions** |
 | **Connections › AI assistants** | connect Claude or another assistant (see [the MCP guide](mcp.md)) |
-| **More › Advanced** | a switch that shows rarely used features: budget targets, Assign what is needed, week-by-week view, ordering accounts by hand, closing accounts, and the period lock. Switching it off only hides them; nothing is deleted |
+| **More › Advanced** | a switch that shows rarely used features: ordering accounts by hand, closing accounts, and the period lock. Switching it off only hides them; nothing is deleted |
 | **Period lock** (inside Advanced, once it is on) | close the books up to a day, say last month's end once you have checked it. Nothing dated on or before it can be added, changed or deleted, and the budget for those months is frozen |
 | **More** | also *Send feedback* (when the installation has an address for it), *About this test*, and *Sign out* |
 
@@ -45,7 +45,7 @@ There is no separate Profile page: the header of Settings is you (tap it to chan
 
 - **Export**: a plain-text ledger file (readable by ledger and hledger) or a CSV for spreadsheets. Always available.
 - **Import**: bring in a ledger file. Only possible while you have **no transactions** yet. You see a preview first, and it is all-or-nothing. Anything finode cannot represent (another currency, prices, conversions) is refused with the line number.
-- **Full backup**: one JSON file with everything you recorded (settings, accounts, transactions, recurring rules, budget plan and targets). **Restore** puts it back, but only into an empty ledger. Access tokens and connected apps are not included; set those up again.
+- **Full backup**: one JSON file with everything you recorded (settings, accounts, transactions, recurring rules, budget plan and goals). **Restore** puts it back, but only into an empty ledger. Access tokens and connected apps are not included; set those up again.
 - **Erase my books**: removes every account, transaction, rule and budget but keeps your profile, tokens and connections. You type your email to confirm.
 - **Delete my account**: removes everything including your sign-in (offered only when the installation allows it).
 
