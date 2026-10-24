@@ -34,8 +34,7 @@ PAGE_SIZE = 25
 
 # How many entries dated ahead the transactions page lists under "upcoming".
 UPCOMING_LIMIT = 100
-# "spending" and "transfers" are the older spellings of the chips and keep working in saved links.
-KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer", "spending": "expense", "transfers": "transfer"}
+KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer"}
 
 
 def _more(params: dict, shown: int, total: int, step: int, size: int) -> dict | None:
