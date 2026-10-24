@@ -416,3 +416,20 @@ def test_tapping_the_amount_in_a_sheet_focuses_it_and_does_not_close_the_sheet(p
         tap_amount("Delivery")
     finally:
         phone.close()
+
+
+def test_home_is_centred_beside_the_sidebar_and_its_day_label_lines_up(page: Page, books, api: Api):
+    api.post("/transactions/", postings=[
+        {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
+        {"account": books["checking"]["aid"], "side": "credit", "amount": "40"}])
+    page.set_viewport_size({"width": 1280, "height": 800})
+    page.goto("/")
+    column = page.evaluate("""() => {
+      const main = document.querySelector('main').getBoundingClientRect();
+      const side = document.querySelector('.sidebar').getBoundingClientRect();
+      return [main.left - side.right, innerWidth - main.right];
+    }""")
+    assert abs(column[0] - column[1]) <= 2, f"equal space on both sides of the column: {column}"
+    heading = page.locator(".home-recent .section-head h2").bounding_box()["x"]
+    day = page.locator(".tx-day-head").first.bounding_box()["x"]
+    assert abs(heading - day) <= 1, "the day label starts where the heading does"
