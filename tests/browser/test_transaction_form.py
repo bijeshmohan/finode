@@ -347,3 +347,16 @@ def test_the_picker_relates_an_entry_and_the_chip_removes_it(page: Page, books, 
     expect(page.locator("[data-related-chip]")).to_be_hidden()
     expect(page.locator("[data-related-add]")).to_be_visible()
     assert page.input_value("[data-related-value]") == ""
+
+
+def test_from_and_to_are_the_same_size_and_the_swap_sits_between_them(page: Page, books):
+    page.goto("/transactions/new")
+    page.fill("#total", "100")
+    heights = page.eval_on_selector_all(".txn-side", "els => els.map(e => Math.round(e.getBoundingClientRect().height))")
+    assert len(heights) == 2 and heights[0] == heights[1], f"the swap button must not make From taller than To: {heights}"
+    seam = page.evaluate("""() => {
+      const [from, to] = [...document.querySelectorAll('.txn-side')].map(e => e.getBoundingClientRect());
+      const b = document.querySelector('[data-swap-sides]').getBoundingClientRect();
+      return [b.top + b.height / 2, from.bottom, to.top];
+    }""")
+    assert seam[1] - 1 <= seam[0] <= seam[2] + 1, f"the button is on the seam between the tiles: {seam}"
