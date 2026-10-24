@@ -4,7 +4,6 @@ from datetime import date
 
 import pytest
 
-from app import clock
 from app.clock import month_progress
 
 from .test_budget import account, assign, move

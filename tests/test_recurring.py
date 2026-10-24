@@ -6,14 +6,12 @@ from uuid import UUID
 
 import pytest
 
-from app.dependencies import get_db_session
 from app.models.recurring import RecurringTransaction
 from app.models.transaction import Transaction
 from app.recurring_runner import run_once
 from app.services.schedule import describe, first_after, first_on_or_after, occurrence
 
 from .conftest import TEST_USER_ID
-
 
 # ---- the arithmetic of dates -----------------------------------------------------------------------
 
@@ -27,7 +25,10 @@ def test_daily_and_weekly_occurrences():
 def test_monthly_keeps_the_day_and_clamps_in_short_months():
     start = date(2026, 1, 31)
     assert [occurrence(start, "monthly", 1, n) for n in range(4)] == [
-        date(2026, 1, 31), date(2026, 2, 28), date(2026, 3, 31), date(2026, 4, 30),
+        date(2026, 1, 31),
+        date(2026, 2, 28),
+        date(2026, 3, 31),
+        date(2026, 4, 30),
     ]
     assert occurrence(date(2026, 11, 15), "monthly", 3, 1) == date(2027, 2, 15), "wraps over the year"
 
@@ -57,15 +58,22 @@ def test_describing_a_schedule():
 @pytest.fixture
 def accounts(client, root_accounts):
     def make(name, root, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra}).json()["aid"]
+        return client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra}).json()[
+            "aid"
+        ]
 
     return {"bank": make("Bank", "Assets", balance="10000"), "rent": make("Rent", "Expenses")}
 
 
 def rule(client, accounts, **fields):
     body = {
-        "from_account": accounts["bank"], "to_account": accounts["rent"], "amount": "1500",
-        "frequency": "monthly", "start_date": "2026-01-01", "payee": "Landlord", **fields,
+        "from_account": accounts["bank"],
+        "to_account": accounts["rent"],
+        "amount": "1500",
+        "frequency": "monthly",
+        "start_date": "2026-01-01",
+        "payee": "Landlord",
+        **fields,
     }
     response = client.post("/api/recurring/", json=body)
     assert response.status_code == 201, response.text
@@ -171,16 +179,24 @@ def test_an_account_a_rule_uses_cannot_be_deleted(client, accounts):
 
 
 def test_a_rule_that_cannot_be_recorded_is_refused_or_reported(client, accounts, root_accounts, session):
-    bad = client.post("/api/recurring/", json={
-        "from_account": accounts["bank"], "to_account": accounts["bank"], "amount": "5",
-        "frequency": "monthly", "start_date": "2026-01-01",
-    })
+    bad = client.post(
+        "/api/recurring/",
+        json={
+            "from_account": accounts["bank"],
+            "to_account": accounts["bank"],
+            "amount": "5",
+            "frequency": "monthly",
+            "start_date": "2026-01-01",
+        },
+    )
     assert bad.status_code == 400 and "differ" in bad.json()["detail"]
     wallet = client.post("/api/accounts/", json={"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()["aid"]
     created = rule(client, {"bank": wallet, "rent": accounts["rent"]}, start_date="2999-01-01")
     # the source later gains a sub-account, so it can no longer be posted to
     assert client.post("/api/accounts/", json={"name": "Sub", "parent_id": wallet}).status_code == 201
-    session.exec(RecurringTransaction.__table__.update().values(start_date=date(2026, 1, 1), next_date=date(2026, 1, 1)))
+    session.exec(
+        RecurringTransaction.__table__.update().values(start_date=date(2026, 1, 1), next_date=date(2026, 1, 1))
+    )
     session.commit()
     client.get("/api/recurring/")
     read = client.get(f"/api/recurring/{created['rid']}").json()
@@ -189,16 +205,28 @@ def test_a_rule_that_cannot_be_recorded_is_refused_or_reported(client, accounts,
 
 def test_validation_and_limits(client, accounts, monkeypatch):
     for body in ({"every": 0}, {"amount": "-1"}, {"frequency": "hourly"}, {"end_date": "2025-01-01"}):
-        response = client.post("/api/recurring/", json={
-            "from_account": accounts["bank"], "to_account": accounts["rent"], "amount": "1",
-            "start_date": "2026-01-01", **body,
-        })
+        response = client.post(
+            "/api/recurring/",
+            json={
+                "from_account": accounts["bank"],
+                "to_account": accounts["rent"],
+                "amount": "1",
+                "start_date": "2026-01-01",
+                **body,
+            },
+        )
         assert response.status_code == 422, body
     monkeypatch.setattr("app.services.recurring.MAX_RULES", 1)
     rule(client, accounts, start_date="2999-01-01")
-    again = client.post("/api/recurring/", json={
-        "from_account": accounts["bank"], "to_account": accounts["rent"], "amount": "1", "start_date": "2999-01-01",
-    })
+    again = client.post(
+        "/api/recurring/",
+        json={
+            "from_account": accounts["bank"],
+            "to_account": accounts["rent"],
+            "amount": "1",
+            "start_date": "2999-01-01",
+        },
+    )
     assert again.status_code == 400 and "at most" in again.json()["detail"]
 
 
@@ -220,10 +248,16 @@ def test_the_background_run_records_for_every_user(client, accounts, session, mo
 
     monkeypatch.setattr(context, "session_factory", lambda: nullcontext(session))
     rule(client, accounts, start_date="2999-01-01", frequency="daily")
-    session.exec(RecurringTransaction.__table__.update().values(start_date=date(2026, 1, 1), next_date=date(2026, 1, 1)))
+    session.exec(
+        RecurringTransaction.__table__.update().values(start_date=date(2026, 1, 1), next_date=date(2026, 1, 1))
+    )
     session.commit()
     recorded = run_once(date(2026, 1, 3))
-    assert recorded == 3 and [r.date for r in transactions(session)] == [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+    assert recorded == 3 and [r.date for r in transactions(session)] == [
+        date(2026, 1, 1),
+        date(2026, 1, 2),
+        date(2026, 1, 3),
+    ]
     assert run_once(date(2026, 1, 3)) == 0, "nothing left to do"
 
 
@@ -263,8 +297,13 @@ def test_settings_and_transactions_pages_link_to_it(client):
 def form(accounts, amount="1500", **extra):
     """What the page posts: a row on each side, like the transaction form."""
     return {
-        "account": [accounts["rent"], accounts["bank"]], "side": ["debit", "credit"], "amount": [amount, amount],
-        "frequency": "monthly", "every": "1", "start": "2999-01-01", **extra,
+        "account": [accounts["rent"], accounts["bank"]],
+        "side": ["debit", "credit"],
+        "amount": [amount, amount],
+        "frequency": "monthly",
+        "every": "1",
+        "start": "2999-01-01",
+        **extra,
     }
 
 
@@ -273,7 +312,9 @@ def test_creating_through_the_form(client, accounts, session):
     assert page.status_code == 200 and 'name="frequency"' in page.text and 'name="start"' in page.text
     assert 'name="total"' in page.text and 'data-rows="credit"' in page.text and 'data-rows="debit"' in page.text
     response = client.post("/recurring", data=form(accounts, payee="Landlord"))
-    assert client.get("/api/recurring/").json()[0]["from_account"] == accounts["bank"], "one on each side stays a plain rule"
+    assert client.get("/api/recurring/").json()[0]["from_account"] == accounts["bank"], (
+        "one on each side stays a plain rule"
+    )
     assert response.headers["HX-Redirect"] == "/recurring" and "recurring-saved" in response.headers["set-cookie"]
     assert "Landlord" in client.get("/recurring").text
 
@@ -297,7 +338,9 @@ def test_editing_pausing_and_deleting_through_the_pages(client, accounts):
     rid = created["rid"]
     edit = client.get(f"/recurring/{rid}/edit")
     assert edit.status_code == 200 and "Landlord" in edit.text and "Pause" in edit.text
-    saved = client.post(f"/recurring/{rid}/edit", data=form(accounts, "1600", frequency="weekly", every="2", payee="Landlord"))
+    saved = client.post(
+        f"/recurring/{rid}/edit", data=form(accounts, "1600", frequency="weekly", every="2", payee="Landlord")
+    )
     assert saved.headers["HX-Redirect"] == "/recurring"
     assert "Every 2 weeks" in client.get("/recurring").text
     client.post(f"/recurring/{rid}/pause")
@@ -340,7 +383,10 @@ def split_rule(client, a, **fields):
             {"account": a["Water"], "side": "debit", "amount": "200"},
             {"account": a["bank"], "side": "credit", "amount": "1200"},
         ],
-        "frequency": "monthly", "start_date": "2026-01-01", "payee": "Landlord", **fields,
+        "frequency": "monthly",
+        "start_date": "2026-01-01",
+        "payee": "Landlord",
+        **fields,
     }
     response = client.post("/api/recurring/", json=body)
     assert response.status_code == 201, response.text
@@ -355,7 +401,9 @@ def test_a_split_rule_records_every_row(client, split_accounts, session):
     first = client.get("/api/transactions/", params={"date_from": "2026-01-01", "date_to": "2026-01-01"}).json()
     split = next(t for t in first if t["payee"] == "Landlord")
     assert sorted((p["side"], p["amount"]) for p in split["postings"]) == [
-        ("credit", "1200.00"), ("debit", "1000.00"), ("debit", "200.00"),
+        ("credit", "1200.00"),
+        ("debit", "1000.00"),
+        ("debit", "200.00"),
     ]
     assert client.get("/api/reports/trial-balance").json()["balanced"]
     assert client.get(f"/api/recurring/{created['rid']}").json()["postings"][2]["side"] == "credit"
@@ -363,10 +411,13 @@ def test_a_split_rule_records_every_row(client, split_accounts, session):
 
 def test_a_split_rule_must_balance_and_not_mix_shapes(client, split_accounts):
     a = split_accounts
-    unbalanced = {"postings": [
-        {"account": a["rent"], "side": "debit", "amount": "1000"},
-        {"account": a["bank"], "side": "credit", "amount": "900"},
-    ], "start_date": "2999-01-01"}
+    unbalanced = {
+        "postings": [
+            {"account": a["rent"], "side": "debit", "amount": "1000"},
+            {"account": a["bank"], "side": "credit", "amount": "900"},
+        ],
+        "start_date": "2999-01-01",
+    }
     assert client.post("/api/recurring/", json=unbalanced).status_code == 400
     mixed = {**unbalanced, "from_account": a["bank"], "amount": "5"}
     assert client.post("/api/recurring/", json=mixed).status_code == 422
@@ -381,12 +432,17 @@ def test_a_split_rule_can_be_edited_into_a_plain_one_and_back(client, split_acco
     plain = {"from_account": a["bank"], "to_account": a["rent"], "amount": "1500", "start_date": "2999-01-01"}
     updated = client.put(f"/api/recurring/{rid}", json=plain).json()
     assert updated["postings"] == [] and updated["amount"] == "1500.00"
-    again = client.put(f"/api/recurring/{rid}", json={
-        "postings": [
-            {"account": a["rent"], "side": "debit", "amount": "1"},
-            {"account": a["Water"], "side": "debit", "amount": "2"},
-            {"account": a["bank"], "side": "credit", "amount": "3"},
-        ], "start_date": "2999-01-01"}).json()
+    again = client.put(
+        f"/api/recurring/{rid}",
+        json={
+            "postings": [
+                {"account": a["rent"], "side": "debit", "amount": "1"},
+                {"account": a["Water"], "side": "debit", "amount": "2"},
+                {"account": a["bank"], "side": "credit", "amount": "3"},
+            ],
+            "start_date": "2999-01-01",
+        },
+    ).json()
     assert len(again["postings"]) == 3 and again["from_account"] is None
 
 
@@ -406,17 +462,25 @@ def test_deleting_a_split_rule_removes_its_rows(client, split_accounts, session)
 
 def test_the_form_saves_a_split_and_shows_it_again(client, split_accounts):
     a = split_accounts
-    response = client.post("/recurring", data={
-        "account": [a["rent"], a["Water"], a["bank"]], "side": ["debit", "debit", "credit"],
-        "amount": ["1000", "200", "1200"], "frequency": "monthly", "every": "1", "start": "2999-01-01", "payee": "Landlord",
-    })
+    response = client.post(
+        "/recurring",
+        data={
+            "account": [a["rent"], a["Water"], a["bank"]],
+            "side": ["debit", "debit", "credit"],
+            "amount": ["1000", "200", "1200"],
+            "frequency": "monthly",
+            "every": "1",
+            "start": "2999-01-01",
+            "payee": "Landlord",
+        },
+    )
     assert response.headers["HX-Redirect"] == "/recurring", response.text
     [stored] = client.get("/api/recurring/").json()
     assert stored["from_account"] is None and len(stored["postings"]) == 3
     listing = client.get("/recurring").text
     assert "Landlord" in listing and "Bank" in listing and "Rent, Water" in listing and "1,200.00" in listing
     page = client.get(f"/recurring/{stored['rid']}/edit").text
-    debit = page[page.index('data-rows="debit"'):]
+    debit = page[page.index('data-rows="debit"') :]
     assert page.count('class="txn-row"') >= 3 and 'value="1200.00"' in page and "data-touched" in debit
     assert 'value="1000.00"' in page and 'value="200.00"' in page
 
@@ -424,7 +488,7 @@ def test_the_form_saves_a_split_and_shows_it_again(client, split_accounts):
 def test_the_edit_page_shows_a_plain_rule_as_one_row_each_side(client, accounts):
     created = rule(client, accounts, start_date="2999-01-01")
     page = client.get(f"/recurring/{created['rid']}/edit").text
-    credit = page[page.index('data-rows="credit"'):page.index('data-rows="debit"')]
+    credit = page[page.index('data-rows="credit"') : page.index('data-rows="debit"')]
     assert credit.count('class="txn-row"') == 1 and 'value="1500.00"' in page
 
 

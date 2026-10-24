@@ -6,13 +6,14 @@ finode cannot represent faithfully (lots, virtual postings, automated or periodi
 includes, balance assignments, prices) is reported as an error with its line number instead of being
 silently dropped.
 """
+
 import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from typing import cast
 
 from .model import AccountDecl, Journal, LedgerPosting, LedgerTransaction
-
 
 COMMENT_STARTS = ";#%|*"
 # Directives that carry nothing finode needs; their indented lines are skipped too.
@@ -23,9 +24,7 @@ HEADER = re.compile(rf"^{DATE}(?:=(?:\d{{4}}[-/.])?\d{{1,2}}[-/.]\d{{1,2}})?(?P<
 INLINE_COMMENT = re.compile(r"\s;")
 NUMBER = r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?"
 SYMBOL = r"\"[^\"]+\"|[^\d\s+\-\"=@{(;]+"
-AMOUNT = re.compile(
-    rf"^(?P<s1>[-+])?\s*(?P<pre>{SYMBOL})?\s*(?P<s2>[-+])?\s*(?P<num>{NUMBER})\s*(?P<post>{SYMBOL})?$"
-)
+AMOUNT = re.compile(rf"^(?P<s1>[-+])?\s*(?P<pre>{SYMBOL})?\s*(?P<s2>[-+])?\s*(?P<num>{NUMBER})\s*(?P<post>{SYMBOL})?$")
 MAX_PLACES = 8
 
 
@@ -66,7 +65,8 @@ def _parse_amount(text: str, state: _State, line: int) -> tuple[Decimal, str | N
     except InvalidOperation:
         state.error(line, f"cannot read the amount '{text.strip()}'")
         return None
-    if -amount.as_tuple().exponent > MAX_PLACES:
+    exponent = amount.as_tuple().exponent
+    if isinstance(exponent, int) and -exponent > MAX_PLACES:
         state.error(line, f"'{text.strip()}' has more than {MAX_PLACES} decimal places")
         return None
     negative = "-" in (match["s1"] or "") + (match["s2"] or "")
@@ -162,8 +162,9 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
     postings = []
     running = dict(state.balances)
     for entry in entries:
+        amount = cast(Decimal, entry.amount)  # the one that left its amount out was filled in above
         key = (entry.account, entry.assertion_commodity or entry.commodity)
-        running[key] = running.get(key, Decimal(0)) + entry.amount
+        running[key] = running.get(key, Decimal(0)) + amount
         if entry.assertion is not None and running[key] != entry.assertion:
             state.error(
                 entry.number,
@@ -173,7 +174,7 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
         postings.append(
             LedgerPosting(
                 account=entry.account,
-                amount=entry.amount,
+                amount=amount,
                 line=entry.number,
                 commodity=entry.commodity,
             )
@@ -184,7 +185,7 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
 
 def _parse_directive(raw: str, block: list[tuple[int, str]], line: int, state: _State) -> None:
     word = raw.split(None, 1)[0]
-    rest = raw[len(word):].strip()
+    rest = raw[len(word) :].strip()
     if word == "account":
         name, note = _split_comment(rest)
         for _, sub in block:

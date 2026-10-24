@@ -10,19 +10,19 @@ that nothing else refers to (no entry, recurring rule or payment link) moves acr
 category is removed. One that has entries or is used elsewhere stays what it is: an ordinary category with a target.
 Ready to assign does not change. The upgrade cannot be undone once goals exist (restore a backup instead).
 """
-from datetime import datetime, timezone
-from typing import Sequence, Union
+
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'd5f7a9c1e3b4'
-down_revision: Union[str, Sequence[str], None] = 'c4e6a8b0d2f4'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "d5f7a9c1e3b4"
+down_revision: str | Sequence[str] | None = "c4e6a8b0d2f4"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -60,31 +60,58 @@ def upgrade() -> None:
 
 def _move_old_goals(conn) -> None:
     accounts = sa.table(
-        "accounts", sa.column("aid", sa.Uuid()), sa.column("user", sa.Uuid()), sa.column("parent_id", sa.Uuid()),
-        sa.column("name", sa.String()), sa.column("payment_category_id", sa.Uuid()),
+        "accounts",
+        sa.column("aid", sa.Uuid()),
+        sa.column("user", sa.Uuid()),
+        sa.column("parent_id", sa.Uuid()),
+        sa.column("name", sa.String()),
+        sa.column("payment_category_id", sa.Uuid()),
     )
     targets = sa.table(
-        "budget_targets", sa.column("account_id", sa.Uuid()), sa.column("kind", sa.String()),
-        sa.column("amount", sa.Numeric(24, 8)), sa.column("target_date", sa.Date()),
+        "budget_targets",
+        sa.column("account_id", sa.Uuid()),
+        sa.column("kind", sa.String()),
+        sa.column("amount", sa.Numeric(24, 8)),
+        sa.column("target_date", sa.Date()),
     )
     allocations = sa.table(
-        "budget_allocations", sa.column("account_id", sa.Uuid()), sa.column("month", sa.Date()), sa.column("amount", sa.Numeric(24, 8)),
+        "budget_allocations",
+        sa.column("account_id", sa.Uuid()),
+        sa.column("month", sa.Date()),
+        sa.column("amount", sa.Numeric(24, 8)),
     )
     postings = sa.table("postings", sa.column("account", sa.Uuid()))
     rules = sa.table("recurring_transactions", sa.column("from_account", sa.Uuid()), sa.column("to_account", sa.Uuid()))
     rule_postings = sa.table("recurring_postings", sa.column("account", sa.Uuid()))
     goals = sa.table(
-        "goals", sa.column("created", sa.DateTime(timezone=True)), sa.column("updated", sa.DateTime(timezone=True)),
-        sa.column("gid", sa.Uuid()), sa.column("user", sa.Uuid()), sa.column("name", sa.String()),
-        sa.column("amount", sa.Numeric(24, 8)), sa.column("target_date", sa.Date()),
+        "goals",
+        sa.column("created", sa.DateTime(timezone=True)),
+        sa.column("updated", sa.DateTime(timezone=True)),
+        sa.column("gid", sa.Uuid()),
+        sa.column("user", sa.Uuid()),
+        sa.column("name", sa.String()),
+        sa.column("amount", sa.Numeric(24, 8)),
+        sa.column("target_date", sa.Date()),
     )
     goal_rows = sa.table(
-        "goal_allocations", sa.column("created", sa.DateTime(timezone=True)), sa.column("updated", sa.DateTime(timezone=True)),
-        sa.column("gaid", sa.Uuid()), sa.column("user", sa.Uuid()), sa.column("month", sa.Date()),
-        sa.column("goal_id", sa.Uuid()), sa.column("amount", sa.Numeric(24, 8)),
+        "goal_allocations",
+        sa.column("created", sa.DateTime(timezone=True)),
+        sa.column("updated", sa.DateTime(timezone=True)),
+        sa.column("gaid", sa.Uuid()),
+        sa.column("user", sa.Uuid()),
+        sa.column("month", sa.Date()),
+        sa.column("goal_id", sa.Uuid()),
+        sa.column("amount", sa.Numeric(24, 8)),
     )
 
-    rows = {r.aid: r for r in conn.execute(sa.select(accounts.c.aid, accounts.c.user, accounts.c.parent_id, accounts.c.name, accounts.c.payment_category_id))}
+    rows = {
+        r.aid: r
+        for r in conn.execute(
+            sa.select(
+                accounts.c.aid, accounts.c.user, accounts.c.parent_id, accounts.c.name, accounts.c.payment_category_id
+            )
+        )
+    }
     parents = {r.parent_id for r in rows.values() if r.parent_id is not None}
     used = {r.account for r in conn.execute(sa.select(postings.c.account))}
     used |= {r.account for r in conn.execute(sa.select(rule_postings.c.account))}
@@ -99,19 +126,46 @@ def _move_old_goals(conn) -> None:
             aid = rows[aid].parent_id
         return aid in rows and rows[aid].name == "Expenses"
 
-    now = datetime.now(timezone.utc)
-    for t in conn.execute(sa.select(targets.c.account_id, targets.c.amount, targets.c.target_date).where(targets.c.kind == "by_date")).all():
+    now = datetime.now(UTC)
+    for t in conn.execute(
+        sa.select(targets.c.account_id, targets.c.amount, targets.c.target_date).where(targets.c.kind == "by_date")
+    ).all():
         aid = t.account_id
-        if aid not in rows or aid in parents or aid in used or rows[aid].parent_id is None or not expense(aid) or t.target_date is None:
+        if (
+            aid not in rows
+            or aid in parents
+            or aid in used
+            or rows[aid].parent_id is None
+            or not expense(aid)
+            or t.target_date is None
+        ):
             continue
         account, gid = rows[aid], uuid4()
-        conn.execute(goals.insert().values(
-            created=now, updated=now, gid=gid, user=account.user, name=account.name[:80], amount=t.amount, target_date=t.target_date,
-        ))
-        for a in conn.execute(sa.select(allocations.c.month, allocations.c.amount).where(allocations.c.account_id == aid)).all():
-            conn.execute(goal_rows.insert().values(
-                created=now, updated=now, gaid=uuid4(), user=account.user, month=a.month, goal_id=gid, amount=a.amount,
-            ))
+        conn.execute(
+            goals.insert().values(
+                created=now,
+                updated=now,
+                gid=gid,
+                user=account.user,
+                name=account.name[:80],
+                amount=t.amount,
+                target_date=t.target_date,
+            )
+        )
+        for a in conn.execute(
+            sa.select(allocations.c.month, allocations.c.amount).where(allocations.c.account_id == aid)
+        ).all():
+            conn.execute(
+                goal_rows.insert().values(
+                    created=now,
+                    updated=now,
+                    gaid=uuid4(),
+                    user=account.user,
+                    month=a.month,
+                    goal_id=gid,
+                    amount=a.amount,
+                )
+            )
         conn.execute(allocations.delete().where(allocations.c.account_id == aid))
         conn.execute(targets.delete().where(targets.c.account_id == aid))
         conn.execute(accounts.delete().where(accounts.c.aid == aid))

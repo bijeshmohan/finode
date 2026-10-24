@@ -1,6 +1,7 @@
 """Plain data classes for a parsed journal: account declarations, transactions and their postings."""
 
 from dataclasses import dataclass, field
+from datetime import date as Date
 from decimal import Decimal
 
 
@@ -15,7 +16,7 @@ class LedgerPosting:
 
 @dataclass
 class LedgerTransaction:
-    date: date
+    date: Date
     payee: str
     notes: list[str]
     postings: list[LedgerPosting]

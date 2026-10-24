@@ -12,7 +12,6 @@ from app.signup import (
 )
 from app.web_auth import AuthUnavailableError
 
-
 CODE = "a-long-enough-invite-code"
 SERVICE_KEY = "sb_secret_test_key"
 
@@ -38,15 +37,16 @@ def _respond(monkeypatch: pytest.MonkeyPatch, status: int, body: dict | None = N
 def test_signup_enabled_requires_code_service_key_and_url():
     assert Settings(_env_file=None).signup_enabled is False
     assert Settings(_env_file=None, signup_code=CODE).signup_enabled is False
-    assert Settings(
-        _env_file=None, signup_code=CODE, supabase_service_role_key="k"
-    ).signup_enabled is False
-    assert Settings(
-        _env_file=None,
-        signup_code=CODE,
-        supabase_service_role_key="k",
-        supabase_url="https://proj.supabase.co",
-    ).signup_enabled is True
+    assert Settings(_env_file=None, signup_code=CODE, supabase_service_role_key="k").signup_enabled is False
+    assert (
+        Settings(
+            _env_file=None,
+            signup_code=CODE,
+            supabase_service_role_key="k",
+            supabase_url="https://proj.supabase.co",
+        ).signup_enabled
+        is True
+    )
 
 
 def test_short_signup_code_is_rejected_and_blank_means_disabled():

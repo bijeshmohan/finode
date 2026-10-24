@@ -47,7 +47,9 @@ def test_creating_a_goal_makes_a_goal_and_this_months_share_and_no_account(clien
     accounts = len(client.get("/api/accounts/").json())
     done = goal(client)
     assert done.status_code == 200, done.text
-    assert category(client, "Goa trip") is None and len(client.get("/api/accounts/").json()) == accounts, "a goal is not an account"
+    assert category(client, "Goa trip") is None and len(client.get("/api/accounts/").json()) == accounts, (
+        "a goal is not an account"
+    )
     line = next(l for l in the_goals(client) if l["name"] == "Goa trip")
     assert line["amount"] == "100000.00" and line["target_date"] == f"{months_ahead(5)}-01"
     assert line["assigned"] == "16666.67", "100000 over this month and the 5 after it, rounded up"
@@ -67,16 +69,19 @@ def test_the_preview_says_what_a_month_takes(client, books):
     assert "after this one" in client.get("/budget/goal/preview", params={"amount": "100", "by": months_ahead(0)}).text
 
 
-@pytest.mark.parametrize("form,message", [
-    ({"name": ""}, "what the goal is for"),
-    ({"amount": ""}, "how much you need"),
-    ({"amount": "0"}, "must be positive"),
-    ({"amount": "abc"}, "amount"),
-    ({"by": ""}, "month you need it by"),
-    ({"by": months_ahead(0)}, "after this one"),
-    ({"by": months_ahead(-3)}, "after this one"),
-    ({"amount": "10.005"}, "decimal"),
-])
+@pytest.mark.parametrize(
+    ("form", "message"),
+    [
+        ({"name": ""}, "what the goal is for"),
+        ({"amount": ""}, "how much you need"),
+        ({"amount": "0"}, "must be positive"),
+        ({"amount": "abc"}, "amount"),
+        ({"by": ""}, "month you need it by"),
+        ({"by": months_ahead(0)}, "after this one"),
+        ({"by": months_ahead(-3)}, "after this one"),
+        ({"amount": "10.005"}, "decimal"),
+    ],
+)
 def test_a_goal_that_cannot_work_is_refused_and_saves_nothing(client, books, form, message):
     refused = goal(client, **form)
     assert refused.status_code == 400 and message in refused.text.lower()

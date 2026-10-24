@@ -1,13 +1,11 @@
 """The MCP tools, called over HTTP through /mcp like a real assistant would."""
 
 from datetime import date, timedelta
-from decimal import Decimal
 
 import pytest
 
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
-
 
 pytestmark = pytest.mark.anyio
 
@@ -33,8 +31,13 @@ def books(client, root_accounts):
     travel_food = make(client, "Food", travel["aid"])
     salary = make(client, "Salary", root_accounts["Income"])
     return {
-        "hdfc": hdfc, "card": card, "food": food, "groceries": groceries, "travel_food": travel_food,
-        "salary": salary, "bank": bank_group,
+        "hdfc": hdfc,
+        "card": card,
+        "food": food,
+        "groceries": groceries,
+        "travel_food": travel_food,
+        "salary": salary,
+        "bank": bank_group,
     }
 
 
@@ -66,7 +69,11 @@ async def test_overview_and_accounts(session, books, secret):
 
 async def test_record_by_short_names_and_read_it_back(session, client, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        recorded = (await call(c, "record_transaction", amount="450", from_account="HDFC", to_account="Groceries", payee="DMart"))["recorded"]
+        recorded = (
+            await call(
+                c, "record_transaction", amount="450", from_account="HDFC", to_account="Groceries", payee="DMart"
+            )
+        )["recorded"]
         assert recorded["total"] == "450.00" and recorded["payee"] == "DMart"
         assert {(p["account"], p["side"]) for p in recorded["postings"]} == {
             ("Expenses:Food:Groceries", "debit"),
@@ -122,7 +129,9 @@ async def test_the_removed_tools_and_arguments_are_gone(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         names = {t.name for t in (await c.list_tools()).tools}
         assert "get_prices" not in names and "set_price" not in names
-        recorded = (await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Groceries"))["recorded"]
+        recorded = (await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Groceries"))[
+            "recorded"
+        ]
         assert "currency" not in recorded and all(set(p) == {"account", "side", "amount"} for p in recorded["postings"])
 
 
@@ -143,7 +152,9 @@ async def test_split_update_and_delete(session, client, books, secret):
         )["recorded"]
         assert split["total"] == "500.00" and len(split["postings"]) == 3
 
-        updated = (await call(c, "update_transaction", transaction_id=split["id"], payee="BigBasket", note=""))["updated"]
+        updated = (await call(c, "update_transaction", transaction_id=split["id"], payee="BigBasket", note=""))[
+            "updated"
+        ]
         assert updated["payee"] == "BigBasket" and len(updated["postings"]) == 3, "postings are kept"
         updated = (
             await call(
@@ -192,7 +203,11 @@ async def test_editing_a_web_entry_marks_who_changed_it(session, client, books, 
 
 async def test_search_filters(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        for amount, payee, to in (("100", "DMart", "Groceries"), ("2500", "Airline", "Travel:Food"), ("40", "Tea stall", "Groceries")):
+        for amount, payee, to in (
+            ("100", "DMart", "Groceries"),
+            ("2500", "Airline", "Travel:Food"),
+            ("40", "Tea stall", "Groceries"),
+        ):
             await call(c, "record_transaction", amount=amount, from_account="HDFC", to_account=to, payee=payee)
         found = await call(c, "search_transactions", text_contains="dmart")
         assert [t["payee"] for t in found["transactions"]] == ["DMart"]
@@ -259,15 +274,25 @@ async def test_assistants_can_list_create_and_stop_recurring_transactions(sessio
     client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         assert payload(await c.call_tool("list_recurring", {}))["recurring"] == []
-        made = payload(await c.call_tool("create_recurring", {
-            "amount": "1500", "from_account": "Bank", "to_account": "Rent", "payee": "Landlord",
-            "start_date": "2999-01-01",
-        }))["created"]
+        made = payload(
+            await c.call_tool(
+                "create_recurring",
+                {
+                    "amount": "1500",
+                    "from_account": "Bank",
+                    "to_account": "Rent",
+                    "payee": "Landlord",
+                    "start_date": "2999-01-01",
+                },
+            )
+        )["created"]
         assert made["from"] == "Assets:Bank" and made["to"] == "Expenses:Rent" and made["next_due"] == "2999-01-01"
         listed = payload(await c.call_tool("list_recurring", {}))["recurring"]
         assert listed[0]["id"] == made["id"] and listed[0]["every"] == "monthly" and listed[0]["status"] == "active"
         with pytest.raises(ToolFailed, match="differ"):
-            payload(await c.call_tool("create_recurring", {"amount": "1", "from_account": "Bank", "to_account": "Bank"}))
+            payload(
+                await c.call_tool("create_recurring", {"amount": "1", "from_account": "Bank", "to_account": "Bank"})
+            )
         assert payload(await c.call_tool("stop_recurring", {"recurring_id": made["id"]}))["paused"] == made["id"]
         assert payload(await c.call_tool("list_recurring", {}))["recurring"][0]["status"] == "paused or ended"
         with pytest.raises(ToolFailed, match="not a recurring transaction id"):
@@ -313,14 +338,18 @@ async def test_assistants_can_read_and_plan_the_budget(session, root_accounts, c
         assert after["ready_to_assign"] == "700.00"
         assert after["categories"][0]["assigned"] == "300.00" and after["categories"][0]["available"] == "300.00"
 
-        moved = payload(await c.call_tool(
-            "move_budget_money", {"from_category": "Food", "to_category": "Rent", "amount": "120"}
-        ))
+        moved = payload(
+            await c.call_tool("move_budget_money", {"from_category": "Food", "to_category": "Rent", "amount": "120"})
+        )
         assert [x["available"] for x in moved["categories"]] == ["180.00", "120.00"]
         assert moved["ready_to_assign"] == "700.00"
 
         with pytest.raises(ToolFailed, match="only 180.00 is available"):
-            payload(await c.call_tool("move_budget_money", {"from_category": "Food", "to_category": "Rent", "amount": "500"}))
+            payload(
+                await c.call_tool(
+                    "move_budget_money", {"from_category": "Food", "to_category": "Rent", "amount": "500"}
+                )
+            )
         with pytest.raises(ToolFailed, match="not an expense account"):
             payload(await c.call_tool("assign_to_category", {"category": "Bank", "amount": "5"}))
         with pytest.raises(ToolFailed, match="YYYY-MM"):
@@ -338,9 +367,16 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
     salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     for debit, credit, amount, on in ((bank, salary, "1000", 2), (food, bank, "30", 5)):
-        client.post("/api/transactions/", json={"date": last.replace(day=on).isoformat(), "postings": [
-            {"account": debit["aid"], "side": "debit", "amount": amount},
-            {"account": credit["aid"], "side": "credit", "amount": amount}]})
+        client.post(
+            "/api/transactions/",
+            json={
+                "date": last.replace(day=on).isoformat(),
+                "postings": [
+                    {"account": debit["aid"], "side": "debit", "amount": amount},
+                    {"account": credit["aid"], "side": "credit", "amount": amount},
+                ],
+            },
+        )
     client.put(f"/api/budget/categories/{food['aid']}", json={"month": last.isoformat(), "amount": "10"})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         data = payload(await c.call_tool("get_budget", {}))
@@ -355,8 +391,14 @@ async def test_assistants_can_set_money_aside_for_a_goal_and_hand_it_to_a_catego
     client.post("/budget/goal", data={"name": "Emergency fund", "amount": "600", "by": "2999-12"})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         data = payload(await c.call_tool("assign_to_goal", {"goal": "emergency FUND", "amount": "300"}))
-        assert data["saved_for_goals"] == "300.00" and data["goals"][0]["goal"] == "Emergency fund" and data["ready_to_assign"] == "700.00"
-        used = payload(await c.call_tool("use_goal", {"goal": "Emergency fund", "category": "Hospital", "amount": "120"}))
+        assert (
+            data["saved_for_goals"] == "300.00"
+            and data["goals"][0]["goal"] == "Emergency fund"
+            and data["ready_to_assign"] == "700.00"
+        )
+        used = payload(
+            await c.call_tool("use_goal", {"goal": "Emergency fund", "category": "Hospital", "amount": "120"})
+        )
         assert used["goals"][0]["saved"] == "180.00" and used["ready_to_assign"] == "700.00"
         assert used["categories"][0]["category"] == "Hospital" and used["categories"][0]["available"] == "120.00"
         with pytest.raises(ToolFailed, match="no goal is called 'Bike'.*Emergency fund"):
@@ -387,31 +429,60 @@ async def test_assistants_can_create_split_recurring_transactions_and_skip_one(s
     client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
     client.post("/api/accounts/", json={"name": "Water", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
-        made = payload(await c.call_tool("create_recurring", {
-            "postings": [
-                {"account": "Rent", "side": "debit", "amount": "1400"},
-                {"account": "Water", "side": "debit", "amount": "100"},
-                {"account": "Bank", "side": "credit", "amount": "1500"},
-            ],
-            "payee": "Landlord", "start_date": "2999-01-01",
-        }))["created"]
+        made = payload(
+            await c.call_tool(
+                "create_recurring",
+                {
+                    "postings": [
+                        {"account": "Rent", "side": "debit", "amount": "1400"},
+                        {"account": "Water", "side": "debit", "amount": "100"},
+                        {"account": "Bank", "side": "credit", "amount": "1500"},
+                    ],
+                    "payee": "Landlord",
+                    "start_date": "2999-01-01",
+                },
+            )
+        )["created"]
         assert made["next_due"] == "2999-01-01" and len(made["postings"]) == 3
         listed = payload(await c.call_tool("list_recurring", {}))["recurring"][0]
         assert {p["account"] for p in listed["postings"]} == {"Expenses:Rent", "Expenses:Water", "Assets:Bank"}
         with pytest.raises(ToolFailed, match="not both"):
-            payload(await c.call_tool("create_recurring", {"amount": "1", "from_account": "Bank", "to_account": "Rent",
-                "postings": [{"account": "Rent", "side": "debit", "amount": "1"}, {"account": "Bank", "side": "credit", "amount": "1"}]}))
+            payload(
+                await c.call_tool(
+                    "create_recurring",
+                    {
+                        "amount": "1",
+                        "from_account": "Bank",
+                        "to_account": "Rent",
+                        "postings": [
+                            {"account": "Rent", "side": "debit", "amount": "1"},
+                            {"account": "Bank", "side": "credit", "amount": "1"},
+                        ],
+                    },
+                )
+            )
         with pytest.raises(ToolFailed, match="or postings"):
             payload(await c.call_tool("create_recurring", {"amount": "1"}))
         with pytest.raises(ToolFailed, match="balance"):
-            payload(await c.call_tool("create_recurring", {"postings": [
-                {"account": "Rent", "side": "debit", "amount": "10"}, {"account": "Bank", "side": "credit", "amount": "9"}]}))
+            payload(
+                await c.call_tool(
+                    "create_recurring",
+                    {
+                        "postings": [
+                            {"account": "Rent", "side": "debit", "amount": "10"},
+                            {"account": "Bank", "side": "credit", "amount": "9"},
+                        ]
+                    },
+                )
+            )
 
         skipped = payload(await c.call_tool("skip_recurring_occurrence", {"recurring_id": made["id"]}))
         assert skipped["skipped"] == "2999-01-01" and skipped["next_due"] == "2999-02-01"
         assert payload(await c.call_tool("list_recurring", {}))["recurring"][0]["next_due"] == "2999-02-01"
         with pytest.raises(ToolFailed, match="no recurring transaction"):
-            payload(await c.call_tool("skip_recurring_occurrence", {"recurring_id": "00000000-0000-4000-8000-0000000000aa"}))
+            payload(
+                await c.call_tool("skip_recurring_occurrence", {"recurring_id": "00000000-0000-4000-8000-0000000000aa"})
+            )
         await c.call_tool("stop_recurring", {"recurring_id": made["id"]})
         with pytest.raises(ToolFailed, match="resume it first"):
             payload(await c.call_tool("skip_recurring_occurrence", {"recurring_id": made["id"]}))
@@ -433,37 +504,69 @@ async def test_only_expense_categories_can_be_planned(session, root_accounts, cl
 
 async def test_assistants_can_link_a_refund_to_the_purchase(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        bought = (await call(c, "record_transaction", amount="1200", from_account="HDFC", to_account="Groceries", payee="DMart"))["recorded"]
+        bought = (
+            await call(
+                c, "record_transaction", amount="1200", from_account="HDFC", to_account="Groceries", payee="DMart"
+            )
+        )["recorded"]
         assert bought["related_to"] is None
-        refund = (await call(c, "record_transaction", amount="400", from_account="Groceries", to_account="HDFC",
-                             payee="DMart", related_to=bought["id"]))["recorded"]
+        refund = (
+            await call(
+                c,
+                "record_transaction",
+                amount="400",
+                from_account="Groceries",
+                to_account="HDFC",
+                payee="DMart",
+                related_to=bought["id"],
+            )
+        )["recorded"]
         assert refund["related_to"] == bought["id"]
         original = await call(c, "get_transaction", transaction_id=bought["id"])
         assert [r["id"] for r in original["related"]] == [refund["id"]]
         # a split can be linked too, and the link can be changed and removed
-        split = (await call(c, "record_split", postings=[
-            {"account": "Groceries", "side": "credit", "amount": "50"}, {"account": "HDFC", "side": "debit", "amount": "50"}],
-            related_to=bought["id"]))["recorded"]
+        split = (
+            await call(
+                c,
+                "record_split",
+                postings=[
+                    {"account": "Groceries", "side": "credit", "amount": "50"},
+                    {"account": "HDFC", "side": "debit", "amount": "50"},
+                ],
+                related_to=bought["id"],
+            )
+        )["recorded"]
         assert split["related_to"] == bought["id"]
         moved = (await call(c, "update_transaction", transaction_id=split["id"], related_to=refund["id"]))["updated"]
         assert moved["related_to"] == refund["id"]
         cleared = (await call(c, "update_transaction", transaction_id=split["id"], related_to=""))["updated"]
         assert cleared["related_to"] is None
         with pytest.raises(ToolFailed, match="related transaction was not found"):
-            await call(c, "update_transaction", transaction_id=split["id"], related_to="00000000-0000-4000-8000-0000000000aa")
+            await call(
+                c, "update_transaction", transaction_id=split["id"], related_to="00000000-0000-4000-8000-0000000000aa"
+            )
         with pytest.raises(ToolFailed, match="relate"):
             await call(c, "update_transaction", transaction_id=bought["id"], related_to=bought["id"])
         with pytest.raises(ToolFailed, match="not a transaction id"):
-            await call(c, "record_transaction", amount="1", from_account="HDFC", to_account="Groceries", related_to="abc")
+            await call(
+                c, "record_transaction", amount="1", from_account="HDFC", to_account="Groceries", related_to="abc"
+            )
 
 
 async def test_assistants_can_list_and_restore_deleted_transactions(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         assert (await call(c, "list_deleted_transactions"))["deleted"] == []
-        made = (await call(c, "record_transaction", amount="75", from_account="HDFC", to_account="Groceries", payee="Milk"))["recorded"]
+        made = (
+            await call(c, "record_transaction", amount="75", from_account="HDFC", to_account="Groceries", payee="Milk")
+        )["recorded"]
         await call(c, "delete_transaction", transaction_id=made["id"])
         gone = (await call(c, "list_deleted_transactions"))["deleted"]
-        assert len(gone) == 1 and gone[0]["payee"] == "Milk" and gone[0]["total"] == "75.00" and gone[0]["transaction_id"] == made["id"]
+        assert (
+            len(gone) == 1
+            and gone[0]["payee"] == "Milk"
+            and gone[0]["total"] == "75.00"
+            and gone[0]["transaction_id"] == made["id"]
+        )
         back = (await call(c, "restore_transaction", deleted_id=gone[0]["deleted_id"]))["restored"]
         assert back["id"] == made["id"] and back["total"] == "75.00"
         assert (await call(c, "list_deleted_transactions"))["deleted"] == []
@@ -477,8 +580,17 @@ async def test_assistants_can_list_and_restore_deleted_transactions(session, boo
 
 async def test_assistants_can_resume_a_paused_recurring_transaction(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        made = (await call(c, "create_recurring", from_account="HDFC", to_account="Groceries", amount="10",
-                           frequency="monthly", start_date="2999-01-01"))["created"]
+        made = (
+            await call(
+                c,
+                "create_recurring",
+                from_account="HDFC",
+                to_account="Groceries",
+                amount="10",
+                frequency="monthly",
+                start_date="2999-01-01",
+            )
+        )["created"]
         await call(c, "stop_recurring", recurring_id=made["id"])
         assert (await call(c, "list_recurring"))["recurring"][0]["next_due"] is None
         resumed = await call(c, "resume_recurring", recurring_id=made["id"])
@@ -513,8 +625,12 @@ async def test_a_read_only_connection_refuses_the_new_tools(session, books):
     async with running_app(session), mcp_client(read_only) as c:
         assert "list_deleted_transactions" in {t.name for t in (await c.list_tools()).tools}
         assert (await call(c, "list_deleted_transactions"))["deleted"] == []
-        for tool, args in (("restore_transaction", {"deleted_id": "x"}), ("resume_recurring", {"recurring_id": "x"}),
-                           ("create_goal", {"name": "a", "amount": "1", "by": "2999-12"}),
-                           ("update_goal", {"goal": "a", "name": "b"}), ("delete_goal", {"goal": "a"})):
+        for tool, args in (
+            ("restore_transaction", {"deleted_id": "x"}),
+            ("resume_recurring", {"recurring_id": "x"}),
+            ("create_goal", {"name": "a", "amount": "1", "by": "2999-12"}),
+            ("update_goal", {"goal": "a", "name": "b"}),
+            ("delete_goal", {"goal": "a"}),
+        ):
             with pytest.raises(ToolFailed, match="read-only"):
                 await call(c, tool, **args)

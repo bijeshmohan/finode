@@ -7,10 +7,6 @@ from sqlmodel import Session, create_engine
 
 from .auth import CurrentUser, require_authenticated_user
 from .config import settings
-from .repositories.api_token import ApiTokenRepository
-from .repositories.oauth_grant import OAuthGrantRepository
-from .services.api_token import ApiTokenService
-from .services.oauth_grant import OAuthGrantService
 from .repositories import (
     AccountRepository,
     BudgetRepository,
@@ -18,8 +14,8 @@ from .repositories import (
     RecurringRepository,
     TransactionRepository,
 )
-from .services.backup import BackupService
-from .services.erase import EraseService
+from .repositories.api_token import ApiTokenRepository
+from .repositories.oauth_grant import OAuthGrantRepository
 from .services import (
     AccountService,
     BudgetService,
@@ -29,7 +25,10 @@ from .services import (
     ReportService,
     TransactionService,
 )
-
+from .services.api_token import ApiTokenService
+from .services.backup import BackupService
+from .services.erase import EraseService
+from .services.oauth_grant import OAuthGrantService
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
 
@@ -130,7 +129,9 @@ def get_recurring_service(
     pr: ProfileRepository = Depends(get_profile_repository),
 ) -> RecurringService:
     # What a rule records is marked as made by the rule, not by whoever happened to open the page.
-    return RecurringService(RecurringRepository(db, user.id), accounts, TransactionService(tr, ar, pr, origin="recurring"))
+    return RecurringService(
+        RecurringRepository(db, user.id), accounts, TransactionService(tr, ar, pr, origin="recurring")
+    )
 
 
 def get_report_service(

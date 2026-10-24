@@ -17,7 +17,6 @@ from ..repositories import (
 from ..services import AccountService, BudgetService, RecurringService, ReportService, TransactionService
 from ..services.api_token import TokenOwner
 
-
 # Who is calling: set by the transport for each request after checking the token.
 current_owner: ContextVar[TokenOwner | None] = ContextVar("finode_mcp_owner", default=None)
 

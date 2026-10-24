@@ -22,7 +22,14 @@ def test_upgrade_and_downgrade(alembic):
     command.upgrade(config, "c7e9a1b3d458")
     inspector = sa.inspect(engine)
     assert "budget_targets" in inspector.get_table_names()
-    assert {c["name"] for c in inspector.get_columns("budget_targets")} >= {"tgid", "user", "account_id", "kind", "amount", "target_date"}
+    assert {c["name"] for c in inspector.get_columns("budget_targets")} >= {
+        "tgid",
+        "user",
+        "account_id",
+        "kind",
+        "amount",
+        "target_date",
+    }
     command.downgrade(config, "b5d7f9a1c346")
     assert "budget_targets" not in sa.inspect(engine).get_table_names()
 

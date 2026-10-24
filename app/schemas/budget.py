@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 
 from .day import Day
 
-
 # Figures the budget computes. No digit limits: a sum of valid amounts may be longer than one amount can be, and a
 # limit here would turn a long total into an error on every page.
 Money = Field()

@@ -316,51 +316,31 @@ def _two_postings(debit: str, credit: str) -> dict:
     }
 
 
-def test_create_transaction_rejects_root_account(
-    client: TestClient, account: dict, root_accounts: dict[str, str]
-):
-    response = client.post(
-        "/api/transactions/", json=_two_postings(root_accounts["Expenses"], account["aid"])
-    )
+def test_create_transaction_rejects_root_account(client: TestClient, account: dict, root_accounts: dict[str, str]):
+    response = client.post("/api/transactions/", json=_two_postings(root_accounts["Expenses"], account["aid"]))
     assert response.status_code == 400
     assert response.json()["detail"] == "cannot post to root account 'Expenses'!"
     assert client.get("/api/transactions/").json() == []
 
 
-def test_create_transaction_rejects_asset_with_sub_accounts(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_create_transaction_rejects_asset_with_sub_accounts(client: TestClient, account: dict, expense_account: dict):
     client.post("/api/accounts/", json={"name": "child", "parent_id": account["aid"]})
-    response = client.post(
-        "/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"])
-    )
+    response = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"]))
     assert response.status_code == 400
-    assert response.json()["detail"] == (
-        "cannot post to account 'checking' because it has sub-accounts!"
-    )
+    assert response.json()["detail"] == ("cannot post to account 'checking' because it has sub-accounts!")
 
 
-def test_create_transaction_to_expense_group(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_create_transaction_to_expense_group(client: TestClient, account: dict, expense_account: dict):
     client.post("/api/accounts/", json={"name": "child", "parent_id": expense_account["aid"]})
-    response = client.post(
-        "/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"])
-    )
+    response = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"]))
     assert response.status_code == 201
     group = client.get(f"/api/accounts/{expense_account['aid']}").json()
     assert group["balance"] == "10.00"
 
 
-def test_create_transaction_to_leaf_sub_account(
-    client: TestClient, account: dict, expense_account: dict
-):
-    child = client.post(
-        "/api/accounts/", json={"name": "child", "parent_id": expense_account["aid"]}
-    ).json()
-    response = client.post(
-        "/api/transactions/", json=_two_postings(child["aid"], account["aid"])
-    )
+def test_create_transaction_to_leaf_sub_account(client: TestClient, account: dict, expense_account: dict):
+    child = client.post("/api/accounts/", json={"name": "child", "parent_id": expense_account["aid"]}).json()
+    response = client.post("/api/transactions/", json=_two_postings(child["aid"], account["aid"]))
     assert response.status_code == 201
     parent = client.get(f"/api/accounts/{expense_account['aid']}").json()
     assert parent["balance"] == "10.00"
@@ -369,9 +349,7 @@ def test_create_transaction_to_leaf_sub_account(
 def test_update_transaction_rejects_root_account(
     client: TestClient, account: dict, expense_account: dict, root_accounts: dict[str, str]
 ):
-    created = client.post(
-        "/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"])
-    ).json()
+    created = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"])).json()
     response = client.patch(
         f"/api/transactions/{created['tid']}",
         json=_two_postings(root_accounts["Expenses"], account["aid"]),
@@ -396,9 +374,7 @@ def _post(client: TestClient, debit: dict, credit: dict, amount: str, date: str,
     return response.json()
 
 
-def test_list_transactions_newest_first(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_list_transactions_newest_first(client: TestClient, account: dict, expense_account: dict):
     _post(client, expense_account, account, "1.00", "2026-01-05", "middle")
     _post(client, expense_account, account, "2.00", "2026-01-10", "newest")
     _post(client, expense_account, account, "3.00", "2026-01-01", "oldest")
@@ -407,16 +383,12 @@ def test_list_transactions_newest_first(
     assert payees == ["newest", "middle", "oldest"]
 
 
-def test_list_transactions_filter_by_date_range(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_list_transactions_filter_by_date_range(client: TestClient, account: dict, expense_account: dict):
     _post(client, expense_account, account, "1.00", "2026-01-05", "a")
     _post(client, expense_account, account, "2.00", "2026-01-10", "b")
     _post(client, expense_account, account, "3.00", "2026-01-15", "c")
 
-    response = client.get(
-        "/api/transactions/", params={"date_from": "2026-01-06", "date_to": "2026-01-10"}
-    )
+    response = client.get("/api/transactions/", params={"date_from": "2026-01-06", "date_to": "2026-01-10"})
     assert [t["payee"] for t in response.json()] == ["b"]
 
 
@@ -427,9 +399,7 @@ def test_list_transactions_filter_by_account_includes_sub_accounts(
     other_account: dict,
     expense_account: dict,
 ):
-    child = client.post(
-        "/api/accounts/", json={"name": "food", "parent_id": expense_account["aid"]}
-    ).json()
+    child = client.post("/api/accounts/", json={"name": "food", "parent_id": expense_account["aid"]}).json()
     _post(client, child, account, "5.00", "2026-01-05", "food")
     _post(client, other_account, account, "9.00", "2026-01-06", "transfer")
 
@@ -445,9 +415,7 @@ def test_list_transactions_filter_by_unknown_account(client: TestClient):
     assert response.status_code == 404
 
 
-def test_list_transactions_pagination(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_list_transactions_pagination(client: TestClient, account: dict, expense_account: dict):
     for day in range(1, 6):
         _post(client, expense_account, account, "1.00", f"2026-01-0{day}", f"t{day}")
 

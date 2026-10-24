@@ -27,9 +27,7 @@ def test_transactions_page_empty(client: TestClient):
     assert 'href="/transactions/new"' in response.text
 
 
-def test_transactions_page_lists_newest_first(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_transactions_page_lists_newest_first(client: TestClient, account: dict, expense_account: dict):
     _post(client, expense_account, account, "10.00", "2026-01-01", "older-shop")
     _post(client, expense_account, account, "2000.00", "2026-02-01", "newer-shop")
 
@@ -44,9 +42,7 @@ def listed(html: str) -> str:
     return re.sub(r'<dialog class="sheet sheet-bottom" id="tx-filter".*?</dialog>', "", html, flags=re.S)
 
 
-def test_transactions_page_filters(
-    client: TestClient, account: dict, other_account: dict, expense_account: dict
-):
+def test_transactions_page_filters(client: TestClient, account: dict, other_account: dict, expense_account: dict):
     _post(client, expense_account, account, "1.00", "2026-01-01", "from-checking")
     _post(client, expense_account, other_account, "1.00", "2026-03-01", "from-savings")
 
@@ -76,7 +72,9 @@ def test_transactions_page_shows_more_until_the_month_is_done(client: TestClient
     assert more.count('class="tx"') == 2 and "That is all of January · 27 transactions" in more and "Show" not in more
 
 
-def test_more_keeps_the_filters_and_the_month(client: TestClient, account: dict, other_account: dict, expense_account: dict):
+def test_more_keeps_the_filters_and_the_month(
+    client: TestClient, account: dict, other_account: dict, expense_account: dict
+):
     for i in range(30):
         _post(client, expense_account, account, "1.00", f"2026-01-{i % 28 + 1:02d}", f"a-{i:02d}")
     _post(client, expense_account, other_account, "1.00", "2026-01-03", "elsewhere")
@@ -85,6 +83,7 @@ def test_more_keeps_the_filters_and_the_month(client: TestClient, account: dict,
     assert "account=" in url and "month=2026-01" in url
     more = client.get(url).text
     assert "elsewhere" not in more and more.count('class="tx"') + listed(first).count('class="tx"') == 30
+
 
 def test_delete_transaction_from_ui(client: TestClient, account: dict, expense_account: dict):
     tx = _post(client, expense_account, account, "5.00", "2026-01-01", "oops")
@@ -113,7 +112,9 @@ def test_transactions_are_grouped_by_friendly_day_and_link_to_edit(
     assert f'href="/transactions/{tx["tid"]}/edit"' in text
 
 
-def test_a_day_with_several_entries_shows_what_was_spent_that_day(client: TestClient, account: dict, expense_account: dict):
+def test_a_day_with_several_entries_shows_what_was_spent_that_day(
+    client: TestClient, account: dict, expense_account: dict
+):
     _post(client, expense_account, account, "5.00", "2020-02-03", "coffee")
     _post(client, expense_account, account, "7.50", "2020-02-03", "snack")
     _post(client, expense_account, account, "2.00", "2020-02-04", "tea")
@@ -147,7 +148,7 @@ def test_the_filter_word_counts_what_is_set(client: TestClient, account: dict):
 
 def test_nothing_sits_beside_the_kind_chips_recurring_and_deleted_are_in_settings(client):
     page = client.get("/transactions").text
-    head = page[page.index('<div class="tx-filterbar">'):page.index("</dialog>")]
+    head = page[page.index('<div class="tx-filterbar">') : page.index("</dialog>")]
     assert "head-icons" not in head and 'href="/recurring"' not in page and 'href="/transactions/deleted"' not in page
     settings = client.get("/settings").text
     assert 'href="/recurring"' in settings and 'href="/accounts/deleted"' in settings

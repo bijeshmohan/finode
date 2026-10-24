@@ -10,7 +10,7 @@ from app.ratelimit import AttemptLimiter
 from app.routers.web import auth as web_auth_router
 from app.web_auth import InvalidCredentialsError, SessionTokens
 
-from .test_web_signup import CODE, FORM, raw_client, signup_on, supabase  # noqa: F401
+from .test_web_signup import CODE, FORM, raw_client, signup_on, supabase  # noqa: F401  (fixtures used by name)
 
 # ---- the counter ----------------------------------------------------------------------------------------------
 
@@ -67,9 +67,16 @@ def test_one_email_is_slowed_down_from_every_address(raw_client, failing_sign_in
     monkeypatch.setattr(web_auth_router, "_client", lambda request: request.headers["x-test-ip"])
     for ip in ("1.1.1.1", "2.2.2.2"):
         raw_client.post("/login", data={"email": "victim@x.com", "password": "bad"}, headers={"x-test-ip": ip})
-    blocked = raw_client.post("/login", data={"email": "victim@x.com", "password": "bad"}, headers={"x-test-ip": "3.3.3.3"})
+    blocked = raw_client.post(
+        "/login", data={"email": "victim@x.com", "password": "bad"}, headers={"x-test-ip": "3.3.3.3"}
+    )
     assert blocked.status_code == 429, "guessing one person's password from many addresses is slowed too"
-    assert raw_client.post("/login", data={"email": "someone@x.com", "password": "bad"}, headers={"x-test-ip": "3.3.3.3"}).status_code == 401
+    assert (
+        raw_client.post(
+            "/login", data={"email": "someone@x.com", "password": "bad"}, headers={"x-test-ip": "3.3.3.3"}
+        ).status_code
+        == 401
+    )
 
 
 def test_a_good_sign_in_is_not_counted_and_clears_the_email(raw_client, monkeypatch):
@@ -90,7 +97,7 @@ def test_a_good_sign_in_is_not_counted_and_clears_the_email(raw_client, monkeypa
     assert raw_client.post("/login", data={"email": "a@x.com", "password": "x"}).status_code == 429
 
 
-def test_sign_up_attempts_are_limited_even_with_the_right_code(raw_client, signup_on, supabase, monkeypatch):  # noqa: F811
+def test_sign_up_attempts_are_limited_even_with_the_right_code(raw_client, signup_on, supabase, monkeypatch):
     monkeypatch.setattr(settings, "signup_attempts", 2)
     assert raw_client.post("/signup", data={**FORM, "invite_code": "wrong"}).status_code == 403
     assert raw_client.post("/signup", data={**FORM, "invite_code": "wrong"}).status_code == 403
@@ -111,12 +118,21 @@ def test_accounts_are_limited(client, root_accounts, monkeypatch):
     form = client.post("/accounts", data={"name": "Three", "parent_id": root_accounts["Assets"]})
     assert "limit of" in form.text
     monkeypatch.setattr(settings, "max_accounts", 0)
-    assert client.post("/api/accounts/", json={"name": "Two", "parent_id": root_accounts["Assets"]}).status_code == 201, "0 = no limit"
+    assert (
+        client.post("/api/accounts/", json={"name": "Two", "parent_id": root_accounts["Assets"]}).status_code == 201
+    ), "0 = no limit"
 
 
 def make_tx(client, a, b, amount="1"):
-    return client.post("/api/transactions/", json={"postings": [
-        {"account": a["aid"], "side": "debit", "amount": amount}, {"account": b["aid"], "side": "credit", "amount": amount}]})
+    return client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": a["aid"], "side": "debit", "amount": amount},
+                {"account": b["aid"], "side": "credit", "amount": amount},
+            ]
+        },
+    )
 
 
 @pytest.fixture
@@ -140,8 +156,16 @@ def test_new_transactions_a_day_are_limited_but_not_recurring_ones(client, two_a
     assert make_tx(client, b, a).status_code == 201 and make_tx(client, b, a).status_code == 201
     refused = make_tx(client, b, a)
     assert refused.status_code == 400 and "new transactions a day" in refused.json()["detail"]
-    rule = client.post("/api/recurring/", json={
-        "from_account": a["aid"], "to_account": b["aid"], "amount": "1", "frequency": "daily", "start_date": "2026-09-01"})
+    rule = client.post(
+        "/api/recurring/",
+        json={
+            "from_account": a["aid"],
+            "to_account": b["aid"],
+            "amount": "1",
+            "frequency": "daily",
+            "start_date": "2026-09-01",
+        },
+    )
     assert rule.status_code == 201
     made = [t for t in client.get("/api/transactions/").json() if t.get("created_via") == "recurring"]
     assert len(made) > 5, "a rule catching up is not a person typing"
@@ -151,7 +175,8 @@ def test_a_transaction_cannot_have_endless_rows(client, two_accounts, monkeypatc
     a, b = two_accounts
     monkeypatch.setattr(settings, "max_postings_per_transaction", 3)
     rows = [{"account": b["aid"], "side": "debit", "amount": "1"} for _ in range(3)] + [
-        {"account": a["aid"], "side": "credit", "amount": "3"}]
+        {"account": a["aid"], "side": "credit", "amount": "3"}
+    ]
     refused = client.post("/api/transactions/", json={"postings": rows})
     assert refused.status_code == 400 and "at most 3 postings" in refused.json()["detail"]
 
@@ -172,16 +197,21 @@ def test_a_backup_bigger_than_the_limits_is_refused(client, session, root_accoun
 
     from app.auth import CurrentUser, require_authenticated_user
     from app.main import app
+
     from .test_backup import acct
 
     acct(client, "Bank", root_accounts["Assets"], balance="5")
     doc = client.get("/api/backup").json()
-    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(id=UUID(int=99), email="n@x.com", claims={})
+    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(
+        id=UUID(int=99), email="n@x.com", claims={}
+    )
     monkeypatch.setattr(settings, "max_accounts", 2)
     refused = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
     assert refused.status_code == 400 and "bigger than your limits allow" in str(refused.json())
     monkeypatch.setattr(settings, "max_accounts", 500)
-    assert client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")}).status_code == 200
+    assert (
+        client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")}).status_code == 200
+    )
 
 
 def test_uploads_have_a_size_limit(client, monkeypatch):

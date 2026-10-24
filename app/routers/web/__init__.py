@@ -4,7 +4,6 @@ from ...dependencies import load_currency
 from ...web_auth import web_login_required
 from . import accounts, auth, budget, categories, dashboard, data, oauth, profile, recurring, settings, transactions
 
-
 router = APIRouter(include_in_schema=False)
 router.include_router(auth.router)
 

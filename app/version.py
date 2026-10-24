@@ -8,7 +8,7 @@ def _read() -> str:
     try:
         with (Path(__file__).resolve().parent.parent / "pyproject.toml").open("rb") as f:
             return str(tomllib.load(f)["project"]["version"])
-    except (OSError, KeyError, tomllib.TOMLDecodeError):
+    except OSError, KeyError, tomllib.TOMLDecodeError:
         return "unknown"
 
 

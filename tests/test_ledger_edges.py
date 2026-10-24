@@ -4,9 +4,16 @@ import pytest
 
 
 def post(client, debit, credit, amount, **extra):
-    return client.post("/api/transactions/", json={"postings": [
-        {"account": debit["aid"], "side": "debit", "amount": amount},
-        {"account": credit["aid"], "side": "credit", "amount": amount}], **extra})
+    return client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": debit["aid"], "side": "debit", "amount": amount},
+                {"account": credit["aid"], "side": "credit", "amount": amount},
+            ],
+            **extra,
+        },
+    )
 
 
 def test_sums_longer_than_one_amount_can_be_still_show_up(client, account, expense_account):
@@ -15,15 +22,25 @@ def test_sums_longer_than_one_amount_can_be_still_show_up(client, account, expen
     for _ in range(3):
         made = post(client, expense_account, account, "5000000000000000.00")
         assert made.status_code == 201, made.text
-    for page in ("/", "/accounts", "/categories", "/budget", f"/accounts/{account['aid']}",
-                 "/api/accounts/", "/api/reports/trial-balance", "/api/budget/"):
+    for page in (
+        "/",
+        "/accounts",
+        "/categories",
+        "/budget",
+        f"/accounts/{account['aid']}",
+        "/api/accounts/",
+        "/api/reports/trial-balance",
+        "/api/budget/",
+    ):
         assert client.get(page).status_code == 200, page
     assert client.get("/api/reports/trial-balance").json()["balanced"]
     assert client.get(f"/api/accounts/{expense_account['aid']}").json()["balance"] == "15000000000000000.00"
 
 
 @pytest.mark.parametrize("day", ["1899-12-31", "3000-01-01", "0001-01-01", "9999-12-31"])
-def test_a_transaction_outside_the_calendar_finode_works_in_is_refused_with_a_reason(client, account, expense_account, day):
+def test_a_transaction_outside_the_calendar_finode_works_in_is_refused_with_a_reason(
+    client, account, expense_account, day
+):
     response = post(client, expense_account, account, "5", date=day)
     assert response.status_code == 422 and "the date must be between 01 Jan 1900 and 31 Dec 2999" in response.text
 
@@ -31,8 +48,14 @@ def test_a_transaction_outside_the_calendar_finode_works_in_is_refused_with_a_re
 @pytest.mark.parametrize("day", ["1900-01-01", "2999-12-31"])
 def test_the_first_and_last_day_work_everywhere(client, account, expense_account, day):
     assert post(client, expense_account, account, "5", date=day).status_code == 201
-    for page in ("/", "/transactions", "/accounts", "/budget", f"/budget?month={day[:7]}",
-                 f"/categories?month={day[:7]}"):
+    for page in (
+        "/",
+        "/transactions",
+        "/accounts",
+        "/budget",
+        f"/budget?month={day[:7]}",
+        f"/categories?month={day[:7]}",
+    ):
         assert client.get(page).status_code == 200, page
 
 
@@ -86,10 +109,14 @@ def test_account_names_are_trimmed_and_unique_where_they_sit(client, root_accoun
 
     fun = make("Fun", root_accounts["Expenses"]).json()
     assert client.patch(f"/api/accounts/{fun['aid']}", json={"name": "FOOD"}).status_code == 400
-    assert client.patch(f"/api/accounts/{fun['aid']}", json={"name": "FUN"}).status_code == 200, "its own name, new capitals"
+    assert client.patch(f"/api/accounts/{fun['aid']}", json={"name": "FUN"}).status_code == 200, (
+        "its own name, new capitals"
+    )
     assert client.patch(f"/api/accounts/{food.json()['aid']}", json={"name": "Fun"}).status_code == 400
     moved = client.patch(f"/api/accounts/{sub.json()['aid']}", json={"parent_id": root_accounts["Expenses"]})
-    assert moved.status_code == 400 and "already has an account" in moved.json()["detail"], "moving it in would clash with Food"
+    assert moved.status_code == 400 and "already has an account" in moved.json()["detail"], (
+        "moving it in would clash with Food"
+    )
 
 
 def test_a_payee_is_one_tidy_line_and_a_blank_one_is_none(client, account, expense_account):
@@ -100,31 +127,57 @@ def test_a_payee_is_one_tidy_line_and_a_blank_one_is_none(client, account, expen
 
 
 def test_an_account_cannot_be_on_both_sides_of_one_entry(client, account, expense_account, other_account):
-    both = client.post("/api/transactions/", json={"postings": [
-        {"account": account["aid"], "side": "debit", "amount": "10"},
-        {"account": account["aid"], "side": "credit", "amount": "10"}]})
+    both = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": account["aid"], "side": "debit", "amount": "10"},
+                {"account": account["aid"], "side": "credit", "amount": "10"},
+            ]
+        },
+    )
     assert both.status_code == 400 and "'checking' is on both sides of the entry" in both.json()["detail"]
 
-    mixed = client.post("/api/transactions/", json={"postings": [
-        {"account": expense_account["aid"], "side": "debit", "amount": "100"},
-        {"account": account["aid"], "side": "credit", "amount": "80"},
-        {"account": expense_account["aid"], "side": "credit", "amount": "20"}]})
+    mixed = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "100"},
+                {"account": account["aid"], "side": "credit", "amount": "80"},
+                {"account": expense_account["aid"], "side": "credit", "amount": "20"},
+            ]
+        },
+    )
     assert mixed.status_code == 400 and "'groceries' is on both sides" in mixed.json()["detail"]
 
     # the same account on several rows of one side is an ordinary split
-    split = client.post("/api/transactions/", json={"postings": [
-        {"account": expense_account["aid"], "side": "debit", "amount": "60"},
-        {"account": expense_account["aid"], "side": "debit", "amount": "40"},
-        {"account": account["aid"], "side": "credit", "amount": "100"}]})
+    split = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "60"},
+                {"account": expense_account["aid"], "side": "debit", "amount": "40"},
+                {"account": account["aid"], "side": "credit", "amount": "100"},
+            ]
+        },
+    )
     assert split.status_code == 201
 
     # editing only the payee of an entry does not look at the postings again
     assert client.patch(f"/api/transactions/{split.json()['tid']}", json={"payee": "Shop"}).status_code == 200
-    bad_edit = client.patch(f"/api/transactions/{split.json()['tid']}", json={"postings": [
-        {"account": account["aid"], "side": "debit", "amount": "5"},
-        {"account": account["aid"], "side": "credit", "amount": "5"}]})
+    bad_edit = client.patch(
+        f"/api/transactions/{split.json()['tid']}",
+        json={
+            "postings": [
+                {"account": account["aid"], "side": "debit", "amount": "5"},
+                {"account": account["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
+    )
     assert bad_edit.status_code == 400
 
-    web = client.post("/transactions/split", data={"account": [account["aid"], account["aid"]],
-                                                  "side": ["credit", "debit"], "amount": ["10", "10"]})
+    web = client.post(
+        "/transactions/split",
+        data={"account": [account["aid"], account["aid"]], "side": ["credit", "debit"], "amount": ["10", "10"]},
+    )
     assert web.status_code == 400 and "on both sides" in web.text

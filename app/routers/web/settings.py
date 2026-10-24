@@ -3,15 +3,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request
 from pydantic import ValidationError
 
-from ...config import settings
 from ...auth import CurrentUser, require_authenticated_user
+from ...config import settings
 from ...currencies import CURRENCIES
 from ...dependencies import Profiles
 from ...schemas.profile import ProfileUpdate
 from ...templating import templates
 from .profile import _feedback_url
 from .utils import htmx_error, htmx_redirect, validation_message
-
 
 router = APIRouter(prefix="/settings")
 

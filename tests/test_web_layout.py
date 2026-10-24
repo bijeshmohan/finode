@@ -49,8 +49,8 @@ def test_dark_theme_defines_the_same_tokens_in_both_dark_blocks():
     from pathlib import Path
 
     css = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
-    auto = css[css.index("@media (prefers-color-scheme: dark)"):css.index(':root[data-theme="dark"]')]
-    manual = css[css.index(':root[data-theme="dark"]'):css.index("/* ---------- Base")]
+    auto = css[css.index("@media (prefers-color-scheme: dark)") : css.index(':root[data-theme="dark"]')]
+    manual = css[css.index(':root[data-theme="dark"]') : css.index("/* ---------- Base")]
     names = lambda block: {line.split(":")[0].strip() for line in block.splitlines() if line.strip().startswith("--")}
     assert names(auto) == names(manual) and "--field-border" in names(auto)
 
@@ -68,8 +68,8 @@ def test_every_page_has_the_banner_and_the_loading_bar_but_the_banner_starts_hid
 
 def test_the_sidebar_lists_home_plan_accounts_categories_then_transactions(client: TestClient):
     page = client.get("/accounts").text
-    side = page[page.index('class="sidenav"'):page.index("sidebar-foot")]
+    side = page[page.index('class="sidenav"') : page.index("sidebar-foot")]
     order = [side.index(f'href="{path}"') for path in ("/", "/budget", "/accounts", "/categories", "/transactions")]
     assert order == sorted(order), "Home, Budgets, Accounts, Categories, Transactions"
-    bar = page[page.index('class="tabbar'):page.index("</nav>", page.index('class="tabbar'))]
+    bar = page[page.index('class="tabbar') : page.index("</nav>", page.index('class="tabbar'))]
     assert 'href="/transactions"' not in bar, "phones keep their four tabs (and the docked +)"

@@ -1,10 +1,11 @@
 """Persistence for recurring rules and their split postings, always filtered by the user's id."""
 
+import builtins
 from datetime import date
 from uuid import UUID
 
 from sqlalchemy import or_
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from ..models.recurring import RecurringPosting, RecurringTransaction
 from ..models.transaction import Transaction
@@ -15,7 +16,7 @@ class RecurringRepository:
         self.db = db
         self.uid = uid
 
-    def list(self) -> list[RecurringTransaction]:
+    def list(self) -> builtins.list[RecurringTransaction]:
         statement = (
             select(RecurringTransaction)
             .where(RecurringTransaction.user == self.uid)
@@ -28,7 +29,7 @@ class RecurringRepository:
             select(RecurringTransaction).where(RecurringTransaction.rid == rid, RecurringTransaction.user == self.uid)
         ).first()
 
-    def due(self, today: date) -> list[RecurringTransaction]:
+    def due(self, today: date) -> builtins.list[RecurringTransaction]:
         statement = select(RecurringTransaction).where(
             RecurringTransaction.user == self.uid,
             RecurringTransaction.active == True,  # noqa: E712
@@ -41,15 +42,17 @@ class RecurringRepository:
         self.db.flush()
         return rule
 
-    def postings(self) -> dict[UUID, list[RecurringPosting]]:
+    def postings(self) -> dict[UUID, builtins.list[RecurringPosting]]:
         """The rows of every split rule, by rule, in the order they were entered."""
-        found: dict[UUID, list[RecurringPosting]] = {}
-        statement = select(RecurringPosting).where(RecurringPosting.user == self.uid).order_by(RecurringPosting.position)
+        found: dict[UUID, builtins.list[RecurringPosting]] = {}
+        statement = (
+            select(RecurringPosting).where(RecurringPosting.user == self.uid).order_by(RecurringPosting.position)
+        )
         for row in self.db.exec(statement).all():
             found.setdefault(row.rid, []).append(row)
         return found
 
-    def set_postings(self, rid: UUID, rows: list[dict]) -> None:
+    def set_postings(self, rid: UUID, rows: builtins.list[dict]) -> None:
         for old in self.db.exec(select(RecurringPosting).where(RecurringPosting.rid == rid)).all():
             self.db.delete(old)
         self.db.flush()
@@ -76,7 +79,7 @@ class RecurringRepository:
         )
 
     @staticmethod
-    def users_with_due(db: Session, today: date) -> list[UUID]:
+    def users_with_due(db: Session, today: date) -> builtins.list[UUID]:
         statement = (
             select(RecurringTransaction.user)
             .where(RecurringTransaction.active == True, RecurringTransaction.next_date <= today)  # noqa: E712
@@ -85,18 +88,21 @@ class RecurringRepository:
         return list(db.exec(statement).all())
 
     @staticmethod
-    def active_rules_using(db: Session, uid: UUID, aids: set[UUID]) -> list[RecurringTransaction]:
+    def active_rules_using(db: Session, uid: UUID, aids: set[UUID]) -> builtins.list[RecurringTransaction]:
         """Rules that still run and record into or out of any of these accounts."""
-        posting_rules = {
-            rid
-            for rid in db.exec(
-                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.account.in_(aids))
+        posting_rules = set(
+            db.exec(
+                select(RecurringPosting.rid).where(
+                    RecurringPosting.user == uid, col(RecurringPosting.account).in_(aids)
+                )
             ).all()
-        }
+        )
         return [
             rule
             for rule in db.exec(
-                select(RecurringTransaction).where(RecurringTransaction.user == uid, RecurringTransaction.active == True)  # noqa: E712
+                select(RecurringTransaction).where(
+                    RecurringTransaction.user == uid, col(RecurringTransaction.active).is_(True)
+                )
             ).all()
             if rule.from_account in aids or rule.to_account in aids or rule.rid in posting_rules
         ]

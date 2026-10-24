@@ -1,8 +1,6 @@
 """Bringing back deleted accounts and categories: an unused one is removed for good but leaves a record to restore
 it from; one with a history is closed, and listed too."""
 
-from datetime import date, timedelta
-
 import pytest
 
 from app.clock import local_today
@@ -18,8 +16,13 @@ def books(client, root_accounts):
         return r.json()["aid"]
 
     food = make("Food", root_accounts["Expenses"])
-    return {"roots": root_accounts, "food": food, "snacks": make("Snacks", food), "bank": make("Bank", root_accounts["Assets"], balance="5000"),
-            "make": make}
+    return {
+        "roots": root_accounts,
+        "food": food,
+        "snacks": make("Snacks", food),
+        "bank": make("Bank", root_accounts["Assets"], balance="5000"),
+        "make": make,
+    }
 
 
 def deleted(svc):
@@ -89,8 +92,15 @@ def test_a_name_that_was_taken_since_blocks_the_restore(client, books, svc):
 
 def test_the_pages_list_closed_and_deleted_and_restore_both(client, books, svc):
     # a category with entries is closed when deleted; an unused one is removed
-    client.post("/api/transactions/", json={"postings": [
-        {"account": books["snacks"], "side": "debit", "amount": "10"}, {"account": books["bank"], "side": "credit", "amount": "10"}]})
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["snacks"], "side": "debit", "amount": "10"},
+                {"account": books["bank"], "side": "credit", "amount": "10"},
+            ]
+        },
+    )
     used = client.post(f"/accounts/{books['snacks']}/delete")
     assert used.status_code == 200
     spare = books["make"]("Spare", books["food"])
@@ -110,7 +120,14 @@ def test_accounts_and_categories_have_their_own_page(client, books):
     client.delete(f"/api/accounts/{wallet}")
     assert "Wallet" in client.get("/accounts/deleted").text and "Wallet" not in client.get("/categories/deleted").text
     assert 'href="/accounts/deleted"' in client.get("/settings").text, "Recently deleted is a row in Settings"
-    assert "/deleted" not in client.get("/accounts").text and "/deleted" not in client.get("/categories").text, "no bin in the page heads"
-    assert 'href="/settings"' in client.get("/accounts/deleted").text and 'href="/settings"' in client.get("/categories/deleted").text
+    assert "/deleted" not in client.get("/accounts").text and "/deleted" not in client.get("/categories").text, (
+        "no bin in the page heads"
+    )
+    assert (
+        'href="/settings"' in client.get("/accounts/deleted").text
+        and 'href="/settings"' in client.get("/categories/deleted").text
+    )
     for place in ("transactions", "accounts", "categories"):
-        assert 'href="/transactions/deleted"' in client.get(f"/{place}/deleted").text, "the three pages link to each other"
+        assert 'href="/transactions/deleted"' in client.get(f"/{place}/deleted").text, (
+            "the three pages link to each other"
+        )

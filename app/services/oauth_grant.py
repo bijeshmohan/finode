@@ -1,6 +1,7 @@
 """What a connected app (an OAuth client of Supabase) may do: its read-only or read & write grant for one user."""
 
-from datetime import datetime, timezone
+import builtins
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlmodel import Session
@@ -16,7 +17,7 @@ class OAuthGrantService:
     def __init__(self, repo: OAuthGrantRepository):
         self.repo = repo
 
-    def list(self) -> list[OAuthGrant]:
+    def list(self) -> builtins.list[OAuthGrant]:
         return [g for g in self.repo.list() if g.revoked is None]
 
     def allow(self, client_id: str, client_name: str, scope: str) -> OAuthGrant:
@@ -55,7 +56,7 @@ class OAuthGrantService:
         now = utc_now()
         last: datetime | None = grant.last_used
         if last is not None and last.tzinfo is None:
-            last = last.replace(tzinfo=timezone.utc)  # SQLite drops the zone
+            last = last.replace(tzinfo=UTC)  # SQLite drops the zone
         if last is None or now - last >= LAST_USED_RESOLUTION:
             grant.last_used = now
             db.add(grant)

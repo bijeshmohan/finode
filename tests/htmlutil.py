@@ -2,7 +2,6 @@
 
 from html.parser import HTMLParser
 
-
 VOID = {"input", "br", "hr", "img", "meta", "link", "option_placeholder"}
 
 

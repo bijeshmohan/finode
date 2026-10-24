@@ -20,7 +20,7 @@ def books(client, root_accounts):
 def head(client):
     page = client.get(f"/budget?month={MONTH}").text
     start = page.index("data-budget-head")
-    return page[start: start + 3000], page
+    return page[start : start + 3000], page
 
 
 def test_the_head_is_ready_to_assign_and_left_to_spend_is_not_on_the_page(client, books):
@@ -35,7 +35,12 @@ def test_the_head_is_ready_to_assign_and_left_to_spend_is_not_on_the_page(client
 
 def test_the_head_says_what_it_is_made_of_in_the_i(client, books):
     _, page = head(client)
-    for label in ("In your accounts", "Set aside for card bills", "Left in your categories", "Assigned to later months"):
+    for label in (
+        "In your accounts",
+        "Set aside for card bills",
+        "Left in your categories",
+        "Assigned to later months",
+    ):
         assert label in page
 
 

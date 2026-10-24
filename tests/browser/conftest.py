@@ -37,7 +37,7 @@ def pytest_collection_modifyitems(items):
 
 
 @pytest.fixture(scope="session")
-def browser() -> Generator["Browser", None, None]:
+def browser() -> Generator[Browser]:
     if sync_playwright is None:
         pytest.skip("playwright is not installed")
     playwright = sync_playwright().start()
@@ -54,7 +54,7 @@ def browser() -> Generator["Browser", None, None]:
 
 
 @pytest.fixture
-def live_server(session) -> Generator[str, None, None]:
+def live_server(session) -> Generator[str]:
     """The app on a free port, signed in as the test user, with the fresh in-memory database of the test."""
     # The test database is one in-memory SQLite connection, which must not be used by two threads at once (a page
     # fetches several things at the same time; that raised "bad parameter or other API misuse" now and then). So
@@ -87,14 +87,19 @@ def live_server(session) -> Generator[str, None, None]:
 
 
 @pytest.fixture
-def page(browser: "Browser", live_server: str) -> Generator["Page", None, None]:
-    context = browser.new_context(viewport={"width": 390, "height": 844}, base_url=live_server, reduced_motion="reduce")  # measured positions must not catch a page mid-rise
+def page(browser: Browser, live_server: str) -> Generator[Page]:
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, base_url=live_server, reduced_motion="reduce"
+    )  # measured positions must not catch a page mid-rise
     page = context.new_page()
     page.set_default_timeout(8000)
     errors: list[str] = []
     # WebKit reports a background request that was cancelled by a navigation (or by the page closing) as an error
     # "... due to access control checks"; it has no effect for a person using the app.
-    page.on("pageerror", lambda error: errors.append(str(error)) if "due to access control checks" not in str(error) else None)
+    page.on(
+        "pageerror",
+        lambda error: errors.append(str(error)) if "due to access control checks" not in str(error) else None,
+    )
     yield page
     context.close()
     assert not errors, f"JavaScript errors in the page: {errors}"
@@ -103,7 +108,7 @@ def page(browser: "Browser", live_server: str) -> Generator["Page", None, None]:
 class Api:
     """Set data up through the JSON API, as the signed-in test user."""
 
-    def __init__(self, page: "Page"):
+    def __init__(self, page: Page):
         self.request = page.request
 
     def post(self, path: str, **body):
@@ -127,7 +132,7 @@ class Api:
 
 
 @pytest.fixture
-def api(page: "Page") -> Api:
+def api(page: Page) -> Api:
     return Api(page)
 
 

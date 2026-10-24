@@ -8,17 +8,17 @@ Every top-level account allows a category and a sub-category (Expenses > Food > 
 deeper, for everybody, so the per-person limits are dropped. The migration refuses (changing nothing) when
 somebody still has an account deeper than that: flatten it first.
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'a5c7e9b1d3f6'
-down_revision: Union[str, Sequence[str], None] = 'f4b6d8a0c2e5'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "a5c7e9b1d3f6"
+down_revision: str | Sequence[str] | None = "f4b6d8a0c2e5"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 COLUMNS = ("assets", "liabilities", "equity", "income", "expenses")
 MAX_DEPTH = 2
@@ -26,8 +26,10 @@ MAX_DEPTH = 2
 
 def upgrade() -> None:
     connection = op.get_bind()
-    parents = {str(aid): str(parent) if parent else None
-               for aid, parent in connection.execute(sa.text("SELECT aid, parent_id FROM accounts"))}
+    parents = {
+        str(aid): str(parent) if parent else None
+        for aid, parent in connection.execute(sa.text("SELECT aid, parent_id FROM accounts"))
+    }
     names = {str(aid): name for aid, name in connection.execute(sa.text("SELECT aid, name FROM accounts"))}
 
     def depth(aid: str) -> int:

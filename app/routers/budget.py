@@ -18,7 +18,6 @@ from ..schemas.budget import (
 )
 from ..services.budget import BudgetError
 
-
 router = APIRouter(
     prefix="/budget",
     tags=["budget"],
@@ -32,7 +31,7 @@ def get_budget(budget: Budget, month: date | None = None):
     try:
         return budget.view(month)
     except BudgetError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.put("/categories/{aid}", response_model=BudgetRead, status_code=200)
@@ -41,7 +40,7 @@ def assign(aid: UUID, data: BudgetAssign, budget: Budget):
     try:
         return budget.assign(data.month, aid, data.amount)
     except BudgetError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 def _run(action, *args):
@@ -50,7 +49,7 @@ def _run(action, *args):
         return action(*args)
     except BudgetError as e:
         status = 404 if "not found" in str(e) else 400
-        raise HTTPException(status_code=status, detail=str(e))
+        raise HTTPException(status_code=status, detail=str(e)) from None
 
 
 @router.post("/move", response_model=BudgetRead)

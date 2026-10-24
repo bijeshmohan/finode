@@ -16,14 +16,26 @@ def books(client, root_accounts):
         assert response.status_code == 201, response.text
         return response.json()
 
-    return {"bank": make("Bank", "Assets", balance="5000"), "food": make("Food", "Expenses"), "rent": make("Rent", "Expenses"),
-            "salary": make("Salary", "Income"), "spare": make("Spare", "Assets")}
+    return {
+        "bank": make("Bank", "Assets", balance="5000"),
+        "food": make("Food", "Expenses"),
+        "rent": make("Rent", "Expenses"),
+        "salary": make("Salary", "Income"),
+        "spare": make("Spare", "Assets"),
+    }
 
 
 def entry(client, books, amount="10", to="food", **extra):
-    response = client.post("/api/transactions/", json={"postings": [
-        {"account": books[to]["aid"], "side": "debit", "amount": amount},
-        {"account": books["bank"]["aid"], "side": "credit", "amount": amount}], **extra})
+    response = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books[to]["aid"], "side": "debit", "amount": amount},
+                {"account": books["bank"]["aid"], "side": "credit", "amount": amount},
+            ],
+            **extra,
+        },
+    )
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -36,7 +48,9 @@ def test_close_reopen_and_the_closed_list(client, books):
     assert client.get("/api/accounts/closed").json() == []
     assert client.post(f"/api/accounts/{spare}/close").status_code == 200
     closed = client.get("/api/accounts/closed").json()
-    assert [c["aid"] for c in closed] == [spare] and closed[0]["root"] == "Assets" and closed[0]["path"].endswith("Spare")
+    assert (
+        [c["aid"] for c in closed] == [spare] and closed[0]["root"] == "Assets" and closed[0]["path"].endswith("Spare")
+    )
     reopened = client.post(f"/api/accounts/{spare}/reopen")
     assert reopened.status_code == 200 and reopened.json()["closed_on"] is None
     assert client.get("/api/accounts/closed").json() == []
@@ -72,9 +86,16 @@ def test_the_register_has_the_running_balance(client, books):
 def test_the_list_filters_like_the_web_page(client, books):
     entry(client, books, "10", payee="Swiggy", comment="lunch")
     entry(client, books, "20", to="rent", payee="Landlord")
-    client.post("/api/transactions/", json={"postings": [
-        {"account": books["bank"]["aid"], "side": "debit", "amount": "99"},
-        {"account": books["salary"]["aid"], "side": "credit", "amount": "99"}], "payee": "Employer"})
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["bank"]["aid"], "side": "debit", "amount": "99"},
+                {"account": books["salary"]["aid"], "side": "credit", "amount": "99"},
+            ],
+            "payee": "Employer",
+        },
+    )
 
     def payees(**params):
         return sorted(t["payee"] for t in client.get("/api/transactions/", params=params).json())
@@ -122,9 +143,16 @@ def test_history_and_related(client, books):
 
 
 def test_pause_and_resume_a_recurring_rule(client, books):
-    rule = client.post("/api/recurring/", json={
-        "from_account": books["bank"]["aid"], "to_account": books["food"]["aid"], "amount": "5",
-        "frequency": "monthly", "start_date": (TODAY + timedelta(days=40)).isoformat()}).json()
+    rule = client.post(
+        "/api/recurring/",
+        json={
+            "from_account": books["bank"]["aid"],
+            "to_account": books["food"]["aid"],
+            "amount": "5",
+            "frequency": "monthly",
+            "start_date": (TODAY + timedelta(days=40)).isoformat(),
+        },
+    ).json()
     paused = client.post(f"/api/recurring/{rule['rid']}/pause")
     assert paused.status_code == 200 and paused.json()["active"] is False
     resumed = client.post(f"/api/recurring/{rule['rid']}/resume")
@@ -146,12 +174,16 @@ def line(data, name):
 
 def test_move_and_copy_budget_money(client, books):
     client.put(f"/api/budget/categories/{books['food']['aid']}", json={"amount": "100"})
-    moved = client.post("/api/budget/move", json={
-        "from_category": books["food"]["aid"], "to_category": books["rent"]["aid"], "amount": "30"})
+    moved = client.post(
+        "/api/budget/move",
+        json={"from_category": books["food"]["aid"], "to_category": books["rent"]["aid"], "amount": "30"},
+    )
     assert moved.status_code == 200, moved.text
     assert float(line(moved.json(), "Food")["available"]) == 70 and float(line(moved.json(), "Rent")["available"]) == 30
-    too_much = client.post("/api/budget/move", json={
-        "from_category": books["food"]["aid"], "to_category": books["rent"]["aid"], "amount": "500"})
+    too_much = client.post(
+        "/api/budget/move",
+        json={"from_category": books["food"]["aid"], "to_category": books["rent"]["aid"], "amount": "500"},
+    )
     assert too_much.status_code == 400
     next_month = (date.fromisoformat(THIS_MONTH) + timedelta(days=32)).replace(day=1).isoformat()
     copied = client.post("/api/budget/copy", json={"month": next_month})
@@ -160,7 +192,9 @@ def test_move_and_copy_budget_money(client, books):
 
 
 def test_include_an_account_in_the_budget(client, books):
-    out = client.post("/api/accounts/", json={"name": "Outside", "parent_id": books["bank"]["parent_id"], "on_budget": False}).json()
+    out = client.post(
+        "/api/accounts/", json={"name": "Outside", "parent_id": books["bank"]["parent_id"], "on_budget": False}
+    ).json()
     done = client.post(f"/api/budget/accounts/{out['aid']}/include")
     assert done.status_code == 200 and client.get(f"/api/accounts/{out['aid']}").json()["on_budget"] is True
     assert client.post(f"/api/budget/accounts/{MISSING}/include").status_code == 404
@@ -170,7 +204,9 @@ def test_a_group_budget(client, books, root_accounts):
     dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": root_accounts["Expenses"]}).json()
     cafe = client.post("/api/accounts/", json={"name": "Cafe", "parent_id": dining["aid"]}).json()
     client.put(f"/api/budget/categories/{cafe['aid']}", json={"amount": "40"})
-    assert client.put(f"/api/budget/groups/{dining['aid']}", json={"total": "10"}).status_code == 400, "below its categories"
+    assert client.put(f"/api/budget/groups/{dining['aid']}", json={"total": "10"}).status_code == 400, (
+        "below its categories"
+    )
     ok = client.put(f"/api/budget/groups/{dining['aid']}", json={"total": "60"})
     assert ok.status_code == 200, ok.text
     assert float(line(ok.json(), "Dining")["assigned"]) == 60
@@ -182,14 +218,21 @@ def test_goals_from_start_to_finish(client, books):
     goal = made.json()["goals"][0]
     gid = goal["gid"]
     assert goal["name"] == "Laptop" and float(goal["amount"]) == 6000
-    assert client.post("/api/budget/goals", json={"name": "laptop", "amount": "1", "by": "2999-12-01"}).status_code == 400
+    assert (
+        client.post("/api/budget/goals", json={"name": "laptop", "amount": "1", "by": "2999-12-01"}).status_code == 400
+    )
     changed = client.put(f"/api/budget/goals/{gid}", json={"name": "New laptop", "amount": "7000", "by": "2999-12-01"})
     assert changed.json()["goals"][0]["name"] == "New laptop" and float(changed.json()["goals"][0]["amount"]) == 7000
     saved = client.put(f"/api/budget/goals/{gid}/month", json={"amount": "500"})
     assert saved.status_code == 200 and float(saved.json()["goals"][0]["available"]) == 500
     used = client.post(f"/api/budget/goals/{gid}/use", json={"category": books["rent"]["aid"], "amount": "200"})
     assert used.status_code == 200 and float(line(used.json(), "Rent")["available"]) == 200
-    assert client.post(f"/api/budget/goals/{gid}/use", json={"category": books["rent"]["aid"], "amount": "9999"}).status_code == 400
+    assert (
+        client.post(
+            f"/api/budget/goals/{gid}/use", json={"category": books["rent"]["aid"], "amount": "9999"}
+        ).status_code
+        == 400
+    )
     assert client.delete(f"/api/budget/goals/{gid}").status_code == 204
     assert budget(client)["goals"] == []
     assert client.delete(f"/api/budget/goals/{gid}").status_code == 404
@@ -208,7 +251,10 @@ def test_summary_and_breakdown(client, books):
     assert breakdown["root"] == "Expenses" and float(breakdown["total"]) == 100
     assert float(breakdown["lines"][0]["amount"]) == 70, "largest first"
     assert client.get("/api/reports/breakdown", params={"kind": "income"}).json()["root"] == "Income"
-    assert client.get("/api/reports/summary", params={"date_from": "2026-02-01", "date_to": "2026-01-01"}).status_code == 400
+    assert (
+        client.get("/api/reports/summary", params={"date_from": "2026-02-01", "date_to": "2026-01-01"}).status_code
+        == 400
+    )
 
 
 def test_the_currency_list(client):

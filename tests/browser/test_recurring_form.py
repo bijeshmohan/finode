@@ -12,7 +12,10 @@ def test_a_split_rule_from_the_form(page: Page, books, api: Api):
     page.fill('[data-rows="debit"] [name="amount"]', "700")
     page.select_option('[data-rows="debit"] [data-row]:nth-child(1) select', label="Rent")
     page.select_option('[data-rows="debit"] [data-row]:nth-child(2) select', label="Groceries")
-    assert page.eval_on_selector_all('[data-rows="debit"] [name="amount"]', "e => e.map(x => x.value)") == ["700", "300.00"]
+    assert page.eval_on_selector_all('[data-rows="debit"] [name="amount"]', "e => e.map(x => x.value)") == [
+        "700",
+        "300.00",
+    ]
     page.fill('input[name="payee"]', "Landlord")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/recurring")
@@ -34,8 +37,15 @@ def test_a_plain_rule_stays_plain(page: Page, books, api: Api):
 
 
 def test_skipping_the_next_occurrence_from_the_edit_page(page: Page, books, api: Api):
-    rule = api.post("/recurring/", from_account=books["checking"]["aid"], to_account=books["rent"]["aid"], amount="900",
-                    frequency="monthly", start_date="2999-01-01", payee="Landlord")
+    rule = api.post(
+        "/recurring/",
+        from_account=books["checking"]["aid"],
+        to_account=books["rent"]["aid"],
+        amount="900",
+        frequency="monthly",
+        start_date="2999-01-01",
+        payee="Landlord",
+    )
     page.goto(f"/recurring/{rule['rid']}/edit")
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_role("button", name="Skip 1 Jan 2999").click()

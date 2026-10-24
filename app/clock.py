@@ -1,11 +1,11 @@
 """What day it is. The server's own clock decides unless FINODE_TIMEZONE names a zone (for example
 Asia/Kolkata), so "today" is the day where the people using it live and not where the server is."""
-from datetime import date, datetime, timezone
+
+from datetime import UTC, date, datetime
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 from .config import settings
-
 
 # The days finode accepts for entries, rules, targets and months. Far wider than any real use, narrow enough that
 # date arithmetic (the next month, the day before) can never run off the calendar's ends at year 1 or 9999.
@@ -31,7 +31,7 @@ def local_today() -> date:
 
 def local_midnight_utc() -> datetime:
     """The start of today, as a UTC moment (to compare with stored timestamps)."""
-    return local_now().replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    return local_now().replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
 
 
 def month_progress(today: date | None = None) -> int:
@@ -45,5 +45,5 @@ def month_progress(today: date | None = None) -> int:
 def local_day(moment: datetime) -> date:
     """The day a stored moment fell on, where the people using it live."""
     if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=timezone.utc)
+        moment = moment.replace(tzinfo=UTC)
     return moment.astimezone(_zone(settings.timezone)).date() if settings.timezone else moment.astimezone().date()

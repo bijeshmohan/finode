@@ -5,16 +5,19 @@ import pytest
 from app.templating import group_digits, grouping_for, money
 
 
-@pytest.mark.parametrize("value, indian, western", [
-    ("0", "0.00", "0.00"),
-    ("999", "999.00", "999.00"),
-    ("1000", "1,000.00", "1,000.00"),
-    ("99999.5", "99,999.50", "99,999.50"),
-    ("100000", "1,00,000.00", "100,000.00"),
-    ("1234567", "12,34,567.00", "1,234,567.00"),
-    ("123456789", "12,34,56,789.00", "123,456,789.00"),
-    ("-1234567.891", "−12,34,567.891", "−1,234,567.891"),
-])
+@pytest.mark.parametrize(
+    ("value", "indian", "western"),
+    [
+        ("0", "0.00", "0.00"),
+        ("999", "999.00", "999.00"),
+        ("1000", "1,000.00", "1,000.00"),
+        ("99999.5", "99,999.50", "99,999.50"),
+        ("100000", "1,00,000.00", "100,000.00"),
+        ("1234567", "12,34,567.00", "1,234,567.00"),
+        ("123456789", "12,34,56,789.00", "123,456,789.00"),
+        ("-1234567.891", "−12,34,567.891", "−1,234,567.891"),
+    ],
+)
 def test_the_two_ways_of_grouping(value, indian, western):
     assert money(value, "indian") == indian and money(value, "western") == western
 
@@ -27,7 +30,9 @@ def test_only_the_rupee_is_grouped_in_lakhs():
 
 @pytest.fixture
 def lakhs(client, root_accounts):
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}).json()
+    bank = client.post(
+        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}
+    ).json()
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     return bank, food
 
@@ -47,8 +52,9 @@ def test_another_currency_keeps_thousands(client, lakhs):
 
 
 def test_budget_hints_follow_the_grouping(client, lakhs):
-    bank, food = lakhs
+    _bank, food = lakhs
     from datetime import date
+
     month = date.today().replace(day=1).isoformat()
     client.put(f"/api/budget/categories/{food['aid']}", json={"month": month, "amount": "250000"})
     page = client.get("/budget").text

@@ -1,6 +1,6 @@
 """The commodities migration must keep every existing amount and balance exactly as it was."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -9,8 +9,8 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
-from migrations.commodity_seed import seed_id
 from app.config import settings
+from migrations.commodity_seed import seed_id
 
 # The last revision before finode kept one currency (the later ones cannot be undone).
 BEFORE_SINGLE_CURRENCY = "e2a4c6e8f1b3"
@@ -31,7 +31,7 @@ def alembic(tmp_path, monkeypatch):
 
 
 def _insert_ledger(engine) -> tuple[UUID, UUID, UUID]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     root, bank, tid = uuid4(), uuid4(), uuid4()
     other = uuid4()
     with engine.begin() as c:
@@ -59,7 +59,7 @@ def _insert_ledger(engine) -> tuple[UUID, UUID, UUID]:
         for account, side in ((bank, "DEBIT"), (other, "CREDIT")):
             c.execute(
                 sa.text(
-                    "INSERT INTO postings (created, updated, pid, user, \"transaction\", account, side, amount) "
+                    'INSERT INTO postings (created, updated, pid, user, "transaction", account, side, amount) '
                     "VALUES (:n, :n, :p, :u, :t, :a, :s, 1234.56)"
                 ).bindparams(
                     sa.bindparam("p", uuid4(), type_=sa.Uuid()),
@@ -71,9 +71,7 @@ def _insert_ledger(engine) -> tuple[UUID, UUID, UUID]:
                 )
             )
         c.execute(
-            sa.text(
-                "INSERT INTO profiles (created, updated, user, first_name) VALUES (:n, :n, :u, 'Asha')"
-            ).bindparams(
+            sa.text("INSERT INTO profiles (created, updated, user, first_name) VALUES (:n, :n, :u, 'Asha')").bindparams(
                 sa.bindparam("u", USER, type_=sa.Uuid()), sa.bindparam("n", now, type_=sa.DateTime(timezone=True))
             )
         )
@@ -83,7 +81,7 @@ def _insert_ledger(engine) -> tuple[UUID, UUID, UUID]:
 def test_existing_data_is_backfilled_in_the_default_currency(alembic):
     config, engine = alembic
     command.upgrade(config, PARENT)
-    root, bank, tid = _insert_ledger(engine)
+    _root, _bank, _tid = _insert_ledger(engine)
 
     command.upgrade(config, BEFORE_SINGLE_CURRENCY)
 
@@ -92,10 +90,7 @@ def test_existing_data_is_backfilled_in_the_default_currency(alembic):
         commodities = {code for (code,) in c.execute(sa.text("SELECT code FROM commodities"))}
         assert {"INR", "USD", "TRY", "KWD"} <= commodities
         assert "BTC" not in commodities, "no shared non-currency rows remain"
-        accounts = {
-            name: commodity
-            for name, commodity in c.execute(sa.text("SELECT name, commodity_id FROM accounts"))
-        }
+        accounts = dict(c.execute(sa.text("SELECT name, commodity_id FROM accounts")).all())
         assert accounts["Assets"] is None, "root accounts hold nothing of their own"
         assert UUID(accounts["Bank"]) == inr and UUID(accounts["Cash"]) == inr
         (currency,) = c.execute(sa.text("SELECT currency_id FROM transactions")).one()
@@ -135,9 +130,26 @@ def test_downgrade_keeps_the_amounts(alembic):
 PRIOR = "b2e4a6c8d013"
 
 
-OLD_CURRENCIES = (
-    "INR USD EUR GBP JPY AUD CAD CHF CNY HKD SGD AED SAR NZD SEK NOK DKK ZAR".split()
-)
+OLD_CURRENCIES = [
+    "INR",
+    "USD",
+    "EUR",
+    "GBP",
+    "JPY",
+    "AUD",
+    "CAD",
+    "CHF",
+    "CNY",
+    "HKD",
+    "SGD",
+    "AED",
+    "SAR",
+    "NZD",
+    "SEK",
+    "NOK",
+    "DKK",
+    "ZAR",
+]
 
 
 def _as_before(engine):
@@ -153,18 +165,24 @@ def _as_before(engine):
             engine,
             'INSERT INTO commodities (created, updated, cid, "user", code, name, kind, decimals) '
             "VALUES (:n, :n, :c, NULL, :code, :name, 'crypto', :d)",
-            c=uuid4(), code=code, name=name, d=decimals,
+            c=uuid4(),
+            code=code,
+            name=name,
+            d=decimals,
         )
 
 
 def _ids(engine):
     with engine.connect() as c:
-        return {code: UUID(str(cid)) for cid, code in c.execute(sa.text('SELECT cid, code FROM commodities WHERE "user" IS NULL'))}
+        return {
+            code: UUID(str(cid))
+            for cid, code in c.execute(sa.text('SELECT cid, code FROM commodities WHERE "user" IS NULL'))
+        }
 
 
 def _insert(engine, sql, **params):
     types = {k: sa.Uuid() for k, v in params.items() if isinstance(v, UUID)}
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with engine.begin() as c:
         c.execute(
             sa.text(sql).bindparams(
@@ -177,7 +195,7 @@ def _insert(engine, sql, **params):
 def test_shared_coins_in_use_become_the_users_own(alembic):
     config, engine = alembic
     command.upgrade(config, PARENT)
-    root, bank, tid = _insert_ledger(engine)
+    _root, bank, _tid = _insert_ledger(engine)
     command.upgrade(config, PRIOR)
     _as_before(engine)
     ids = _ids(engine)
@@ -187,23 +205,37 @@ def test_shared_coins_in_use_become_the_users_own(alembic):
         engine,
         'INSERT INTO prices (created, updated, pid, "user", commodity_id, quote_id, date, price) '
         "VALUES (:n, :n, :p, :u, :b, :i, '2026-01-02', 5000000)",
-        p=uuid4(), u=USER, b=ids["BTC"], i=ids["INR"],
+        p=uuid4(),
+        u=USER,
+        b=ids["BTC"],
+        i=ids["INR"],
     )
     _insert(
         engine,
         'INSERT INTO prices (created, updated, pid, "user", commodity_id, quote_id, date, price) '
         "VALUES (:n, :n, :p, NULL, :e, :i, '2026-01-02', 200000)",
-        p=uuid4(), e=ids["ETH"], i=ids["INR"],
+        p=uuid4(),
+        e=ids["ETH"],
+        i=ids["INR"],
     )
 
     command.upgrade(config, BEFORE_SINGLE_CURRENCY)
 
     with engine.connect() as c:
-        shared = {code for (code,) in c.execute(sa.text('SELECT code FROM commodities WHERE "user" IS NULL AND kind <> \'currency\''))}
+        shared = {
+            code
+            for (code,) in c.execute(
+                sa.text("SELECT code FROM commodities WHERE \"user\" IS NULL AND kind <> 'currency'")
+            )
+        }
         assert shared == set(), "the shared coins are gone"
         (own,) = c.execute(sa.text('SELECT cid, code, kind, decimals FROM commodities WHERE "user" IS NOT NULL')).all()
         assert own[1:] == ("BTC", "crypto", 8)
-        (held,) = c.execute(sa.text("SELECT commodity_id FROM accounts WHERE aid = :a").bindparams(sa.bindparam("a", bank, type_=sa.Uuid()))).one()
+        (held,) = c.execute(
+            sa.text("SELECT commodity_id FROM accounts WHERE aid = :a").bindparams(
+                sa.bindparam("a", bank, type_=sa.Uuid())
+            )
+        ).one()
         assert UUID(held) == UUID(own[0]), "the account holds the user's copy"
         prices = c.execute(sa.text("SELECT commodity_id FROM prices")).all()
         assert [UUID(p[0]) for p in prices] == [UUID(own[0])], "the user's price follows; the shared feed is dropped"
@@ -217,7 +249,9 @@ def test_the_full_iso_list_is_present_and_old_ids_are_kept(alembic):
     command.upgrade(config, BEFORE_SINGLE_CURRENCY)
     after = _ids(engine)
     assert len(after) > 150 and {"TRY", "KWD", "VND"} <= set(after)
-    assert all(after[code] == cid for code, cid in before.items() if code in after), "existing currency ids are unchanged"
+    assert all(after[code] == cid for code, cid in before.items() if code in after), (
+        "existing currency ids are unchanged"
+    )
 
 
 def test_a_clashing_private_code_stops_the_upgrade_with_a_clear_message(alembic):
@@ -228,7 +262,8 @@ def test_a_clashing_private_code_stops_the_upgrade_with_a_clear_message(alembic)
         engine,
         'INSERT INTO commodities (created, updated, cid, "user", code, name, kind, decimals) '
         "VALUES (:n, :n, :c, :u, 'TRY', 'Some stock', 'stock', 2)",
-        c=uuid4(), u=USER,
+        c=uuid4(),
+        u=USER,
     )
     with pytest.raises(RuntimeError, match="TRY"):
         command.upgrade(config, BEFORE_SINGLE_CURRENCY)

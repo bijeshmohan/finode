@@ -34,15 +34,28 @@ def test_a_goal_is_not_money_to_spend_but_still_has_a_job(client, books):
     before = api(client)
     assert goal(client).status_code == 200
     after = api(client)
-    assert after["available"] == before["available"] and after["assigned"] == before["assigned"], "Left to spend does not include the goal"
+    assert after["available"] == before["available"] and after["assigned"] == before["assigned"], (
+        "Left to spend does not include the goal"
+    )
     assert after["goal_available"] == "16666.67"
-    assert float(after["ready_to_assign"]) == pytest.approx(float(before["ready_to_assign"]) - 16666.67), "the money has a job"
+    assert float(after["ready_to_assign"]) == pytest.approx(float(before["ready_to_assign"]) - 16666.67), (
+        "the money has a job"
+    )
     identity(after)
     assert "Goa trip" not in {l["name"] for l in after["lines"]}
-    client.post("/api/transactions/", json={"postings": [
-        {"account": books["food"]["aid"], "side": "debit", "amount": "100"}, {"account": books["bank"]["aid"], "side": "credit", "amount": "100"}]})
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["food"]["aid"], "side": "debit", "amount": "100"},
+                {"account": books["bank"]["aid"], "side": "credit", "amount": "100"},
+            ]
+        },
+    )
     home = client.get("/").text
-    assert "Left to spend" in home and "2,900" in home and "19,566" not in home, "Home's Left to spend leaves the goal out too"
+    assert "Left to spend" in home and "2,900" in home and "19,566" not in home, (
+        "Home's Left to spend leaves the goal out too"
+    )
 
 
 def test_the_goals_chip_lists_goals_and_budgets_does_not(client, books):
@@ -50,7 +63,7 @@ def test_the_goals_chip_lists_goals_and_budgets_does_not(client, books):
     goals = client.get(f"/budget?tab=save&month={MONTH}").text
     assert "Saved for goals" in goals and "16,666.67" in goals and "Goa trip" in goals and "This month done" in goals
     assert "of 1,00,000.00" in goals and "by " + date.fromisoformat(months_ahead(5) + "-01").strftime("%b %Y") in goals
-    assert "Left to spend" not in goals and 'data-budget-tree' not in goals
+    assert "Left to spend" not in goals and "data-budget-tree" not in goals
     budgets = client.get(f"/budget?month={MONTH}").text
     assert "Goa trip" not in budgets.split("data-budget-tree", 1)[1], "not in the list of budgets"
     assert "in goals" in budgets and "tab=save" in budgets, "a quiet line says how much and links to Goals"
@@ -90,14 +103,27 @@ def test_a_goal_hands_its_money_to_the_category_that_paid(client, books):
     goal(client)
     hospital = account(client, books["roots"], "Hospital", "Expenses")
     # the hospital bill is recorded on its category as always, and overspends it
-    client.post("/api/transactions/", json={"postings": [
-        {"account": hospital["aid"], "side": "debit", "amount": "6000"}, {"account": books["bank"]["aid"], "side": "credit", "amount": "6000"}]})
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": hospital["aid"], "side": "debit", "amount": "6000"},
+                {"account": books["bank"]["aid"], "side": "credit", "amount": "6000"},
+            ]
+        },
+    )
     before = api(client)
     g = the_goal(client)
     page = client.get(f"/budget/goal/{g['gid']}/use?month={MONTH}").text
-    assert "Use Goa trip for" in page and "Hospital · 6,000.00 over" in unescape(page) and 'value="6,000.00"' in page.replace("₹", "")
+    assert (
+        "Use Goa trip for" in page
+        and "Hospital · 6,000.00 over" in unescape(page)
+        and 'value="6,000.00"' in page.replace("₹", "")
+    )
     assert f'<option value="{hospital["aid"]}" selected' in page, "the category that is over comes first"
-    done = client.post(f"/budget/goal/{g['gid']}/use", data={"category": hospital["aid"], "amount": "6000", "month": MONTH})
+    done = client.post(
+        f"/budget/goal/{g['gid']}/use", data={"category": hospital["aid"], "amount": "6000", "month": MONTH}
+    )
     assert done.status_code == 200, done.text
     after = api(client)
     assert the_goal(client)["available"] == "10666.67" and the_goal(client)["assigned"] == "10666.67"
@@ -107,11 +133,15 @@ def test_a_goal_hands_its_money_to_the_category_that_paid(client, books):
     identity(after)
 
 
-@pytest.mark.parametrize("amount,message", [("0", "positive"), ("99999", "nly 16666.67 is saved"), ("1.005", "decimal")])
+@pytest.mark.parametrize(
+    ("amount", "message"), [("0", "positive"), ("99999", "nly 16666.67 is saved"), ("1.005", "decimal")]
+)
 def test_a_goal_cannot_hand_over_what_it_does_not_have(client, books, amount, message):
     goal(client)
     g = the_goal(client)
-    refused = client.post(f"/budget/goal/{g['gid']}/use", data={"category": books["food"]["aid"], "amount": amount, "month": MONTH})
+    refused = client.post(
+        f"/budget/goal/{g['gid']}/use", data={"category": books["food"]["aid"], "amount": amount, "month": MONTH}
+    )
     assert refused.status_code == 400 and message in refused.text
     assert the_goal(client)["available"] == "16666.67"
 
@@ -122,12 +152,19 @@ def test_a_goal_can_be_changed(client, books):
     page = client.get(f"/budget/goal/{g['gid']}/edit").text
     assert 'value="Goa trip"' in page and f'value="{months_ahead(5)}"' in page
     assert "assign_now" not in page, "only a new goal sets money aside"
-    done = client.post(f"/budget/goal/{g['gid']}", data={"name": "Goa and Hampi", "amount": "150000", "by": months_ahead(8)})
+    done = client.post(
+        f"/budget/goal/{g['gid']}", data={"name": "Goa and Hampi", "amount": "150000", "by": months_ahead(8)}
+    )
     assert done.status_code == 200, done.text
     changed = the_goal(client, "Goa and Hampi")
     assert changed["amount"] == "150000.00" and changed["target_date"] == f"{months_ahead(8)}-01"
     assert changed["available"] == "16666.67", "what was saved stays"
-    assert client.post(f"/budget/goal/{g['gid']}", data={"name": "Goa and Hampi", "amount": "1", "by": months_ahead(0)}).status_code == 400
+    assert (
+        client.post(
+            f"/budget/goal/{g['gid']}", data={"name": "Goa and Hampi", "amount": "1", "by": months_ahead(0)}
+        ).status_code
+        == 400
+    )
 
 
 def test_deleting_a_goal_gives_its_money_back_to_ready_to_assign(client, books):
@@ -143,7 +180,9 @@ def test_the_goal_pages_refuse_what_is_not_a_goal(client, books):
     food = books["food"]["aid"]
     for path in (f"/budget/goal/{food}/sheet", f"/budget/goal/{food}/edit", f"/budget/goal/{food}/use"):
         assert client.get(path).status_code == 404
-    assert client.post(f"/budget/goal/{food}", data={"name": "x", "amount": "1", "by": months_ahead(2)}).status_code == 400
+    assert (
+        client.post(f"/budget/goal/{food}", data={"name": "x", "amount": "1", "by": months_ahead(2)}).status_code == 400
+    )
     assert client.post(f"/budget/goal/{food}/delete").status_code == 400
     assert client.post(f"/budget/goal/{food}/assign", data={"amount": "5"}).status_code == 400
     assert "Food" in {a["name"] for a in client.get("/api/accounts/").json()}

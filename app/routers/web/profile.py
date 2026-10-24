@@ -1,6 +1,5 @@
 from typing import Annotated
 from urllib.parse import quote
-
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -8,15 +7,14 @@ from pydantic import ValidationError
 
 from ...auth import CurrentUser, require_authenticated_user
 from ...config import settings
-from ...dependencies import ApiTokens, Backup, Erase, Data, OAuthGrants, Profiles
+from ...dependencies import ApiTokens, Backup, Data, Erase, OAuthGrants, Profiles
 from ...schemas.api_token import ApiTokenCreate
 from ...schemas.profile import ProfileUpdate
 from ...signup import delete_user
-from ...version import VERSION
 from ...templating import templates
+from ...version import VERSION
 from ...web_auth import AuthUnavailableError, clear_auth_cookies
 from .utils import htmx_error, htmx_redirect, validation_message
-
 
 router = APIRouter(prefix="/profile")
 
@@ -56,7 +54,11 @@ def _confirmed(user: CurrentUser, typed: str) -> bool:
 
 
 @router.post("/data/erase")
-def erase_books(user: Annotated[CurrentUser, Depends(require_authenticated_user)], erase: Erase, confirm: Annotated[str, Form()] = ""):
+def erase_books(
+    user: Annotated[CurrentUser, Depends(require_authenticated_user)],
+    erase: Erase,
+    confirm: Annotated[str, Form()] = "",
+):
     if not _confirmed(user, confirm):
         return htmx_error(f"Type {user.email or 'DELETE'} to confirm.", "#erase-error")
     erase.erase_books()
@@ -64,7 +66,11 @@ def erase_books(user: Annotated[CurrentUser, Depends(require_authenticated_user)
 
 
 @router.post("/data/delete-account")
-def delete_account(user: Annotated[CurrentUser, Depends(require_authenticated_user)], erase: Erase, confirm: Annotated[str, Form()] = ""):
+def delete_account(
+    user: Annotated[CurrentUser, Depends(require_authenticated_user)],
+    erase: Erase,
+    confirm: Annotated[str, Form()] = "",
+):
     if not _confirmed(user, confirm):
         return htmx_error(f"Type {user.email or 'DELETE'} to confirm.", "#delete-error")
     if not settings.can_delete_logins:
@@ -147,9 +153,9 @@ def change_token_access(tkid: UUID, tokens: ApiTokens, scope: Annotated[str, For
     try:
         tokens.set_scope(tkid, scope)
     except LookupError:
-        raise HTTPException(status_code=404, detail="token not found")
+        raise HTTPException(status_code=404, detail="token not found") from None
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     return htmx_redirect("/profile/assistants", flash="access-changed")
 
 
@@ -158,5 +164,5 @@ def revoke_token(tkid: UUID, tokens: ApiTokens):
     try:
         tokens.revoke(tkid)
     except LookupError:
-        raise HTTPException(status_code=404, detail="token not found")
+        raise HTTPException(status_code=404, detail="token not found") from None
     return htmx_redirect("/profile/assistants", flash="token-revoked")

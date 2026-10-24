@@ -8,17 +8,17 @@ Only an unused account can be deleted (no entries, sub-accounts or rules), so it
 account itself, the amounts planned for it, its target and which accounts budgeted their payments under it.
 Existing deletions left no trace, so the table starts empty.
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'c8f0b2d4e6a1'
-down_revision: Union[str, Sequence[str], None] = 'b6d8f0a2c4e7'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "c8f0b2d4e6a1"
+down_revision: str | Sequence[str] | None = "b6d8f0a2c4e7"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

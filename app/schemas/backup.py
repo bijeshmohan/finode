@@ -1,6 +1,7 @@
 """The full-backup file: everything a user has recorded, in one JSON document (see services/backup.py)."""
 
-from datetime import date as Date, datetime
+from datetime import date as Date
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -8,7 +9,6 @@ from pydantic import BaseModel, Field
 
 from ..models.transaction import PostingSide
 from .day import Day
-
 
 FORMAT = "finode-backup"
 VERSION = 2

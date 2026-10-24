@@ -39,10 +39,17 @@ def trial(client, **params):
 
 def test_an_empty_ledger_is_balanced(client, root_accounts):
     result = trial(client)
-    assert result["balanced"] and result["problems"] == [] and result["lines"] == [] and result["debit"] == result["credit"] == "0.00"
+    assert (
+        result["balanced"]
+        and result["problems"] == []
+        and result["lines"] == []
+        and result["debit"] == result["credit"] == "0.00"
+    )
 
 
-def test_the_books_balance_through_every_kind_of_change(client, root_accounts, account, other_account, expense_account, income_account):
+def test_the_books_balance_through_every_kind_of_change(
+    client, root_accounts, account, other_account, expense_account, income_account
+):
     client.patch(f"/api/accounts/{account['aid']}", json={"balance": "500"})  # opening balance adjustment
     first = post(client, account, expense_account, "40")
     post(client, account, other_account, "100")
@@ -70,7 +77,9 @@ def test_the_books_balance_through_every_kind_of_change(client, root_accounts, a
 def test_the_trial_balance_names_a_transaction_that_does_not_balance(client, session, account, expense_account):
     made = post(client, account, expense_account, "10")
     # Bypass the service, the way a bug or manual SQL could.
-    posting = session.query(Posting).filter(Posting.transaction == UUID(made["tid"]), Posting.side == PostingSide.DEBIT).one()
+    posting = (
+        session.query(Posting).filter(Posting.transaction == UUID(made["tid"]), Posting.side == PostingSide.DEBIT).one()
+    )
     posting.amount = 11
     session.add(posting)
     session.commit()
@@ -102,7 +111,9 @@ def test_entries_dated_in_the_future_do_not_count_yet(client, root_accounts, acc
     post(client, account, expense_account, "10", on=date.today().isoformat())
     post(client, account, expense_account, "25", on=tomorrow)
     assert client.get(f"/api/accounts/{expense_account['aid']}").json()["balance"] == "10.00"
-    assert client.get(f"/api/accounts/{expense_account['aid']}", params={"as_of": tomorrow}).json()["balance"] == "35.00"
+    assert (
+        client.get(f"/api/accounts/{expense_account['aid']}", params={"as_of": tomorrow}).json()["balance"] == "35.00"
+    )
     listed = {a["name"]: a for a in client.get("/api/accounts/", params={"as_of": tomorrow}).json()}
     assert listed["Expenses"]["balance"] == "35.00"
     assert {a["name"]: a for a in client.get("/api/accounts/").json()}["Expenses"]["balance"] == "10.00"
@@ -111,7 +122,10 @@ def test_entries_dated_in_the_future_do_not_count_yet(client, root_accounts, acc
 def test_a_balance_as_of_a_past_day(client, account, expense_account):
     post(client, account, expense_account, "10", on="2026-01-05")
     post(client, account, expense_account, "20", on="2026-03-05")
-    assert client.get(f"/api/accounts/{expense_account['aid']}", params={"as_of": "2026-02-01"}).json()["balance"] == "10.00"
+    assert (
+        client.get(f"/api/accounts/{expense_account['aid']}", params={"as_of": "2026-02-01"}).json()["balance"]
+        == "10.00"
+    )
 
 
 # ---- stable postings -----------------------------------------------------------------------------
@@ -263,7 +277,7 @@ def test_balance_adjustments_are_in_the_history_too(client, session, account):
 # ---- database checks -----------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("column,value", [("amount", 0), ("amount", -1)])
+@pytest.mark.parametrize(("column", "value"), [("amount", 0), ("amount", -1)])
 def test_the_database_refuses_a_posting_that_is_not_positive(client, session, account, expense_account, column, value):
     made = post(client, account, expense_account, "10")
     posting = session.query(Posting).filter(Posting.transaction == UUID(made["tid"])).first()
@@ -299,8 +313,13 @@ def test_an_import_balances(client, root_accounts):
 def test_recurring_occurrences_balance(client, root_accounts, account, expense_account):
     response = client.post(
         "/api/recurring/",
-        json={"from_account": account["aid"], "to_account": expense_account["aid"], "amount": "9",
-              "frequency": "monthly", "start_date": (date.today() - timedelta(days=70)).isoformat()},
+        json={
+            "from_account": account["aid"],
+            "to_account": expense_account["aid"],
+            "amount": "9",
+            "frequency": "monthly",
+            "start_date": (date.today() - timedelta(days=70)).isoformat(),
+        },
     )
     assert response.status_code == 201, response.text
     client.get("/api/recurring/")

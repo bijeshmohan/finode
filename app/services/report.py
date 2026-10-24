@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+from ..clock import local_today
 from ..models.transaction import PostingSide
 from ..repositories import TransactionRepository
 from ..schemas.report import (
@@ -13,7 +14,6 @@ from ..schemas.report import (
     TrialBalanceRead,
 )
 from .account import AccountService
-from ..clock import local_today
 
 
 class ReportService:
@@ -44,7 +44,8 @@ class ReportService:
         income, expenses = self._period_totals(roots, period_start, period_end)
         # Paying into a loan budgeted under a category spends that category: as on the Budget and the Categories page.
         expenses += sum(
-            (p.amount for _, p in self.accounts.payments_into_loans(accounts, period_start, period_end)), Decimal("0.00")
+            (p.amount for _, p in self.accounts.payments_into_loans(accounts, period_start, period_end)),
+            Decimal("0.00"),
         )
 
         return SummaryRead(
@@ -85,7 +86,9 @@ class ReportService:
             totals[posting.account] = totals.get(posting.account, Decimal("0.00")) + value
         if root_name == "Expenses":
             # Paying into a loan budgeted under a category spends that category (as on the Budget).
-            for category, posting in self.accounts.payments_into_loans(list(accounts.values()), period_start, period_end):
+            for category, posting in self.accounts.payments_into_loans(
+                list(accounts.values()), period_start, period_end
+            ):
                 totals[category] = totals.get(category, Decimal("0.00")) + posting.amount
         return totals
 
@@ -171,7 +174,9 @@ class ReportService:
             postings = by_transaction.get(tid, [])
             label = f"transaction {tid} ({transaction.date})"
             if len(postings) < 2:
-                problems.append(f"{label} has {len(postings)} posting{'' if len(postings) == 1 else 's'}, at least two are needed")
+                problems.append(
+                    f"{label} has {len(postings)} posting{'' if len(postings) == 1 else 's'}, at least two are needed"
+                )
             debit = credit = Decimal(0)
             for posting in postings:
                 account = accounts.get(posting.account)

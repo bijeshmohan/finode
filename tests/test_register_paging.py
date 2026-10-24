@@ -15,13 +15,24 @@ from .svc import plain, services
 @pytest.fixture
 def busy(client, root_accounts):
     """A bank account with many entries over many days (three on some days), and what it was spent on."""
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10000"}).json()["aid"]
+    bank = client.post(
+        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10000"}
+    ).json()["aid"]
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()["aid"]
     made = []
     for i in range(80):
         day = local_today() - timedelta(days=1 + i // 3)  # three entries a day
-        r = client.post("/api/transactions/", json={"date": str(day), "payee": f"Shop {i:02d}", "postings": [
-            {"account": food, "side": "debit", "amount": "10"}, {"account": bank, "side": "credit", "amount": "10"}]})
+        r = client.post(
+            "/api/transactions/",
+            json={
+                "date": str(day),
+                "payee": f"Shop {i:02d}",
+                "postings": [
+                    {"account": food, "side": "debit", "amount": "10"},
+                    {"account": bank, "side": "credit", "amount": "10"},
+                ],
+            },
+        )
         assert r.status_code == 201
         made.append((r.json()["tid"], str(day), f"Shop {i:02d}"))
     return bank, food, made
@@ -81,14 +92,25 @@ def test_the_running_balance_is_the_same_as_the_full_register(client, busy, sess
 def test_entries_dated_ahead_still_all_show_in_their_card(client, busy):
     bank, food, _ = busy
     for i in range(3):
-        client.post("/api/transactions/", json={"date": str(local_today() + timedelta(days=5 + i)), "payee": f"Later {i}", "postings": [
-            {"account": food, "side": "debit", "amount": "5"}, {"account": bank, "side": "credit", "amount": "5"}]})
+        client.post(
+            "/api/transactions/",
+            json={
+                "date": str(local_today() + timedelta(days=5 + i)),
+                "payee": f"Later {i}",
+                "postings": [
+                    {"account": food, "side": "debit", "amount": "5"},
+                    {"account": bank, "side": "credit", "amount": "5"},
+                ],
+            },
+        )
     page = client.get(f"/accounts/{bank}").text
     assert "3 upcoming" in page and all(f"Later {i}" in page for i in range(3))
 
 
 def test_a_small_account_has_no_button(client, root_accounts):
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}).json()["aid"]
+    bank = client.post(
+        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}
+    ).json()["aid"]
     assert "Load more" not in client.get(f"/accounts/{bank}").text
 
 
@@ -103,5 +125,9 @@ def test_the_database_is_not_read_in_full_for_the_page(client, busy, session):
         assert client.get(f"/accounts/{bank}").status_code == 200
     finally:
         event.remove(engine, "before_cursor_execute", watch)
-    wide = [s for s, params in seen if "transactions.payee" in s and "IN (" in s.upper() and len(params) > REGISTER_PAGE + 20]
+    wide = [
+        s
+        for s, params in seen
+        if "transactions.payee" in s and "IN (" in s.upper() and len(params) > REGISTER_PAGE + 20
+    ]
     assert not wide, "transactions were read for more entries than the page shows"

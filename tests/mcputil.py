@@ -38,9 +38,8 @@ async def mcp_client(secret: str):
         base_url="http://testserver",
         headers={"Authorization": f"Bearer {secret}"},
     )
-    async with http:
-        async with Client(streamable_http_client("http://testserver/mcp", http_client=http)) as client:
-            yield client
+    async with http, Client(streamable_http_client("http://testserver/mcp", http_client=http)) as client:
+        yield client
 
 
 def payload(result) -> Any:

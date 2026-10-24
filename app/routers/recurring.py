@@ -6,7 +6,6 @@ from ..auth import require_authenticated_user
 from ..dependencies import Recurring
 from ..schemas.recurring import RecurringCreate, RecurringRead, RecurringUpdate
 
-
 router = APIRouter(
     prefix="/recurring",
     tags=["recurring"],
@@ -29,7 +28,7 @@ def create_recurring(data: RecurringCreate, recurring: Recurring):
         recurring.process_due()  # a start date in the past is recorded straight away
         return recurring.read(created.rid)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.get("/{rid}", response_model=RecurringRead)
@@ -47,7 +46,7 @@ def update_recurring(rid: UUID, data: RecurringUpdate, recurring: Recurring):
     try:
         rule = recurring.update(rid, data)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     if rule is None:
         raise HTTPException(status_code=404, detail="recurring transaction not found")
     return rule
@@ -77,7 +76,7 @@ def skip_recurring(rid: UUID, recurring: Recurring):
     try:
         rule = recurring.skip_next(rid)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     if rule is None:
         raise HTTPException(status_code=404, detail="recurring transaction not found")
     return rule

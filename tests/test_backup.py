@@ -46,30 +46,61 @@ def rich(client, root_accounts):
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
 
     dmart = tx(client, [line(groceries, "debit", "250"), line(card, "credit", "250")], date="2026-09-03", payee="DMart")
-    tx(client, [line(card, "debit", "40"), line(groceries, "credit", "40")], date="2026-09-04", payee="DMart", related_id=dmart["tid"])
+    tx(
+        client,
+        [line(card, "debit", "40"), line(groceries, "credit", "40")],
+        date="2026-09-04",
+        payee="DMart",
+        related_id=dmart["tid"],
+    )
     tx(client, [line(bank, "debit", "90000"), line(salary, "credit", "90000")], date="2026-09-01", payee="Employer")
     tx(client, [line(loan, "debit", "15000"), line(bank, "credit", "15000")], date="2026-09-05", payee="EMI")
-    tx(client, [line(groceries, "debit", "100"), line(food, "debit", "50"), line(bank, "credit", "150")],
-       date="2026-09-06", comment="split")
+    tx(
+        client,
+        [line(groceries, "debit", "100"), line(food, "debit", "50"), line(bank, "credit", "150")],
+        date="2026-09-06",
+        comment="split",
+    )
 
-    client.post("/api/recurring/", json={
-        "from_account": bank["aid"], "to_account": groceries["aid"], "amount": "500", "frequency": "monthly",
-        "start_date": "2026-07-01", "payee": "Milk",
-    })
-    client.post("/api/recurring/", json={
-        "postings": [line(groceries, "debit", "60"), line(food, "debit", "40"), line(bank, "credit", "100")],
-        "frequency": "weekly", "start_date": "2999-01-01", "payee": "Split rule",
-    })
+    client.post(
+        "/api/recurring/",
+        json={
+            "from_account": bank["aid"],
+            "to_account": groceries["aid"],
+            "amount": "500",
+            "frequency": "monthly",
+            "start_date": "2026-07-01",
+            "payee": "Milk",
+        },
+    )
+    client.post(
+        "/api/recurring/",
+        json={
+            "postings": [line(groceries, "debit", "60"), line(food, "debit", "40"), line(bank, "credit", "100")],
+            "frequency": "weekly",
+            "start_date": "2999-01-01",
+            "payee": "Split rule",
+        },
+    )
     rid = next(r["rid"] for r in client.get("/api/recurring/").json() if r["payee"] == "Split rule")
-    assert client.post(f"/api/recurring/{rid}/skip").status_code == 200  # a skipped occurrence is part of the rule's state
+    assert (
+        client.post(f"/api/recurring/{rid}/skip").status_code == 200
+    )  # a skipped occurrence is part of the rule's state
     client.put(f"/api/budget/categories/{groceries['aid']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}", json={"month": "2026-09-01", "amount": "15000"})
-    assert client.post("/budget/goal", data={"name": "Emergency fund", "amount": "100000", "by": "2999-12", "assign_now": "1"}).status_code == 200
+    assert (
+        client.post(
+            "/budget/goal", data={"name": "Emergency fund", "amount": "100000", "by": "2999-12", "assign_now": "1"}
+        ).status_code
+        == 200
+    )
     return {"bank": bank, "groceries": groceries}
 
 
 def as_user(user_id):
-    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(id=user_id, email="x@example.com", claims={})
+    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(
+        id=user_id, email="x@example.com", claims={}
+    )
 
 
 def canonical(doc: dict) -> dict:
@@ -89,44 +120,95 @@ def canonical(doc: dict) -> dict:
     return {
         "profile": doc["profile"],
         "accounts": sorted(
-            (paths[a["id"]], a["details"], a["on_budget"], a["closed_on"] is not None,
-             paths.get(a["payment_category_id"]))
+            (
+                paths[a["id"]],
+                a["details"],
+                a["on_budget"],
+                a["closed_on"] is not None,
+                paths.get(a["payment_category_id"]),
+            )
             for a in doc["accounts"]
         ),
         "transactions": [
-            (t["date"], t["payee"], t["comment"], t["created_via"], rules.get(t["recurring_id"]), t["recurring_date"], entries.get(t["related_id"]),
-             sorted((paths[p["account"]], p["side"], p["amount"]) for p in t["postings"]))
+            (
+                t["date"],
+                t["payee"],
+                t["comment"],
+                t["created_via"],
+                rules.get(t["recurring_id"]),
+                t["recurring_date"],
+                entries.get(t["related_id"]),
+                sorted((paths[p["account"]], p["side"], p["amount"]) for p in t["postings"]),
+            )
             for t in doc["transactions"]
         ],
         "recurring": sorted(
-            (r["payee"], paths.get(r["from_account"]), paths.get(r["to_account"]), r["amount"],
-             sorted((paths[p["account"]], p["side"], p["amount"]) for p in r["postings"]),
-             r["frequency"], r["start_date"], r["next_date"], r["last_date"], r["skipped_date"], r["active"])
+            (
+                r["payee"],
+                paths.get(r["from_account"]),
+                paths.get(r["to_account"]),
+                r["amount"],
+                sorted((paths[p["account"]], p["side"], p["amount"]) for p in r["postings"]),
+                r["frequency"],
+                r["start_date"],
+                r["next_date"],
+                r["last_date"],
+                r["skipped_date"],
+                r["active"],
+            )
             for r in doc["recurring"]
         ),
         "allocations": sorted((a["month"], paths[a["account_id"]], a["amount"]) for a in doc["allocations"]),
         "goals": sorted(
-            (g["name"], g["amount"], g["target_date"], sorted((r["month"], r["amount"]) for r in g["allocations"])) for g in doc["goals"]
+            (g["name"], g["amount"], g["target_date"], sorted((r["month"], r["amount"]) for r in g["allocations"]))
+            for g in doc["goals"]
         ),
     }
 
 
 def test_the_backup_has_everything(client, rich):
     response = client.get("/api/backup")
-    assert response.status_code == 200 and 'attachment; filename="finode-backup-' in response.headers["content-disposition"]
+    assert (
+        response.status_code == 200
+        and 'attachment; filename="finode-backup-' in response.headers["content-disposition"]
+    )
     doc = response.json()
     assert doc["format"] == "finode-backup" and doc["version"] == 2
     assert doc["profile"]["first_name"] == "Ada" and doc["profile"]["default_currency"] == "INR"
     names = {a["name"] for a in doc["accounts"]}
-    assert {"Banks", "HDFC", "Old Savings", "Visa", "Home Loan", "Groceries", "EMI", "Opening Balances", "Assets"} <= names
+    assert {
+        "Banks",
+        "HDFC",
+        "Old Savings",
+        "Visa",
+        "Home Loan",
+        "Groceries",
+        "EMI",
+        "Opening Balances",
+        "Assets",
+    } <= names
     assert any(a["closed_on"] for a in doc["accounts"]) and any(a["payment_category_id"] for a in doc["accounts"])
     assert any(a["on_budget"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
     assert len(doc["allocations"]) == 2
-    assert [g["name"] for g in doc["goals"]] == ["Emergency fund"] and len(doc["goals"][0]["allocations"]) == 1, "goals are their own records"
-    assert set(doc) == {"format", "version", "exported_at", "profile", "accounts", "transactions", "recurring", "allocations", "goals"}, "no tokens or connected apps"
-    assert not any("commodity" in a for a in doc["accounts"]) and not any("value" in p for t in doc["transactions"] for p in t["postings"])
+    assert [g["name"] for g in doc["goals"]] == ["Emergency fund"] and len(doc["goals"][0]["allocations"]) == 1, (
+        "goals are their own records"
+    )
+    assert set(doc) == {
+        "format",
+        "version",
+        "exported_at",
+        "profile",
+        "accounts",
+        "transactions",
+        "recurring",
+        "allocations",
+        "goals",
+    }, "no tokens or connected apps"
+    assert not any("commodity" in a for a in doc["accounts"]) and not any(
+        "value" in p for t in doc["transactions"] for p in t["postings"]
+    )
 
 
 def test_restoring_rebuilds_the_same_books_for_someone_else(client, rich):
@@ -134,7 +216,9 @@ def test_restoring_rebuilds_the_same_books_for_someone_else(client, rich):
     try:
         as_user(OTHER)
         assert client.get("/api/backup").json()["transactions"] == []
-        preview = client.post("/api/restore", params={"dry_run": True}, files={"file": ("b.json", json.dumps(doc), "application/json")})
+        preview = client.post(
+            "/api/restore", params={"dry_run": True}, files={"file": ("b.json", json.dumps(doc), "application/json")}
+        )
         assert preview.status_code == 200 and preview.json()["transactions"] == len(doc["transactions"])
         assert client.get("/api/backup").json()["transactions"] == [], "a preview saves nothing"
         done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
@@ -172,7 +256,9 @@ def test_an_older_backup_with_a_lock_and_hand_set_places_still_restores(client, 
         done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
         assert done.status_code == 200, done.text
         again = client.get("/api/backup").json()
-        assert "locked_through" not in again["profile"] and not any("position" in a for a in again["accounts"]), "read, never written"
+        assert "locked_through" not in again["profile"] and not any("position" in a for a in again["accounts"]), (
+            "read, never written"
+        )
     finally:
         as_user(TEST_USER_ID)
 
@@ -187,7 +273,9 @@ def test_an_older_backup_with_build_and_earn_rows_restores_without_them(client, 
     doc["profile"].update(plan_build=True, plan_earn=True)
     for account in (fund, salary):
         doc["allocations"].append({"month": "2026-09-01", "account_id": account["id"], "amount": "700"})
-    doc["targets"] = [{"account_id": fund["id"], "kind": "monthly", "amount": "700", "target_date": None, "weekday": None}]  # a file from before targets were removed
+    doc["targets"] = [
+        {"account_id": fund["id"], "kind": "monthly", "amount": "700", "target_date": None, "weekday": None}
+    ]  # a file from before targets were removed
     try:
         as_user(OTHER)
         done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
@@ -211,10 +299,16 @@ def test_a_broken_file_is_refused_and_saves_nothing(client, rich):
         as_user(OTHER)
 
         def post(body):
-            return client.post("/api/restore", files={"file": ("b.json", body if isinstance(body, str) else json.dumps(body), "application/json")})
+            return client.post(
+                "/api/restore",
+                files={"file": ("b.json", body if isinstance(body, str) else json.dumps(body), "application/json")},
+            )
 
         assert post("not json").status_code == 400
-        assert post({"format": "other", "version": 1, "profile": {"default_currency": "INR"}, "accounts": []}).status_code == 400
+        assert (
+            post({"format": "other", "version": 1, "profile": {"default_currency": "INR"}, "accounts": []}).status_code
+            == 400
+        )
         wrong_version = {**doc, "version": 99}
         assert "version 99" in str(post(wrong_version).json())
         unbalanced = json.loads(json.dumps(doc))

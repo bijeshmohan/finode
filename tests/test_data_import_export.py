@@ -8,7 +8,6 @@ from app.repositories import AccountRepository, ProfileRepository, TransactionRe
 from app.services import AccountService, DataService
 from app.services.data import ImportRejected
 
-
 JOURNAL = """\
 account Assets:Bank:HDFC
     note Salary account
@@ -65,10 +64,15 @@ def test_import_maps_top_level_aliases_and_opening_balances(client: TestClient):
 
 
 def test_import_rejected_when_transactions_exist(client: TestClient, account, expense_account):
-    client.post("/api/transactions/", json={"postings": [
-        {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-        {"account": account["aid"], "side": "credit", "amount": "1.00"},
-    ]})
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
+                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+            ]
+        },
+    )
     response = _import(client, JOURNAL)
     assert response.status_code == 400
     assert "no transactions" in response.json()["detail"]["errors"][0]
@@ -107,7 +111,9 @@ def test_long_payee_moves_to_note_and_zero_postings_skipped(client: TestClient):
 
 
 def test_empty_and_oversized_and_binary_files(client: TestClient):
-    assert _import(client, "; nothing here\n", dry_run="true").json()["errors"] == ["The file has no transactions to import."]
+    assert _import(client, "; nothing here\n", dry_run="true").json()["errors"] == [
+        "The file has no transactions to import."
+    ]
     big = client.post("/api/import", files={"file": ("a", b"x" * (5 * 1024 * 1024 + 1))})
     assert big.status_code == 400 and "5 MB" in big.json()["detail"]
     bad = client.post("/api/import", files={"file": ("a", b"\xff\xfe\x00")})
@@ -152,12 +158,21 @@ def test_colon_in_account_name_rejected(client: TestClient, root_accounts):
 
 def test_export_then_import_round_trips_for_another_user(client: TestClient, session: Session):
     _import(client, JOURNAL)
-    client.post("/api/accounts/", json={"name": "Empty", "parent_id": next(
-        a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Assets")})
+    client.post(
+        "/api/accounts/",
+        json={
+            "name": "Empty",
+            "parent_id": next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Assets"),
+        },
+    )
     exported = client.get("/api/export").text
 
     other = UUID("00000000-0000-4000-8000-000000000002")
-    ar, tr, pr = AccountRepository(session, other), TransactionRepository(session, other), ProfileRepository(session, other)
+    ar, tr, pr = (
+        AccountRepository(session, other),
+        TransactionRepository(session, other),
+        ProfileRepository(session, other),
+    )
     data = DataService(AccountService(ar, tr, pr), ar, tr, pr)
     summary = data.run_import(exported)
     assert summary.errors == [] and summary.transactions == 3

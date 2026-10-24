@@ -2,8 +2,8 @@
 
 The application no longer has a commodities table; this list only serves migrations a1d3f5b7c902 and c4a6b8d0e135.
 """
-from uuid import NAMESPACE_DNS, UUID, uuid5
 
+from uuid import NAMESPACE_DNS, UUID, uuid5
 
 # (code, name, kind, decimals, symbol)
 SEED_COMMODITIES: tuple[tuple[str, str, str, int, str | None], ...] = (

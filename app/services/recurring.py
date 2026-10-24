@@ -1,15 +1,17 @@
 """Recurring transactions: validating a rule, recording every occurrence that is due, skipping one, pausing and resuming."""
 
+import builtins
 from datetime import date
 from uuid import UUID
 
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
+from ..clock import local_today
 from ..models.recurring import RecurringTransaction
+from ..models.transaction import PostingSide
 from ..models.utils import utc_now
 from ..repositories.recurring import RecurringRepository
-from ..models.transaction import PostingSide
 from ..schemas.recurring import RecurringCreate, RecurringPostingData, RecurringRead, RecurringUpdate
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from . import schedule
@@ -17,8 +19,6 @@ from .account import AccountService
 from .simple import simple_postings
 from .transaction import TransactionService
 from .validation import validation_message
-from ..clock import local_today
-
 
 # One run records at most this many missed occurrences of a rule (a daily rule left for a year).
 MAX_PER_RUN = 400
@@ -41,7 +41,7 @@ class RecurringService:
         ]
         return read
 
-    def list(self) -> list[RecurringRead]:
+    def list(self) -> builtins.list[RecurringRead]:
         rows = self.repo.postings()
         return [self._to_read(r, rows) for r in self.repo.list()]
 
@@ -52,18 +52,17 @@ class RecurringService:
     def _transaction(self, rule_like, day: date) -> TransactionCreate:
         if rule_like.postings:
             return TransactionCreate(
-                date=day, payee=rule_like.payee, comment=rule_like.comment,
+                date=day,
+                payee=rule_like.payee,
+                comment=rule_like.comment,
                 postings=[PostingCreate(account=p.account, side=p.side, amount=p.amount) for p in rule_like.postings],
             )
         postings = simple_postings(rule_like.amount, rule_like.from_account, rule_like.to_account)
         return TransactionCreate(date=day, payee=rule_like.payee, comment=rule_like.comment, postings=postings)
 
     @staticmethod
-    def _rows(data) -> list[dict]:
-        return [
-            {"account": p.account, "side": p.side.value, "amount": p.amount}
-            for p in data.postings
-        ]
+    def _rows(data) -> builtins.list[dict]:
+        return [{"account": p.account, "side": p.side.value, "amount": p.amount} for p in data.postings]
 
     def as_transaction(self, rule: RecurringRead) -> TransactionCreate:
         """The transaction a rule records (on its start date), for showing it."""
@@ -164,6 +163,11 @@ class RecurringService:
             recorded += self._catch_up(rule, today)
         return recorded
 
+    def _reread(self, rule: RecurringTransaction) -> RecurringTransaction:
+        """The rule as the database has it now (after a rollback); it cannot have gone, only this worker deletes rules."""
+        fresh = self.repo.read(rule.rid)
+        return fresh if fresh is not None else rule
+
     def _catch_up(self, rule: RecurringTransaction, today: date) -> int:
         recorded = 0
         while rule.active and rule.next_date <= today and recorded < MAX_PER_RUN:
@@ -176,10 +180,10 @@ class RecurringService:
                     recorded += 1
             except IntegrityError:
                 self.repo.db.rollback()  # another worker recorded it a moment ago
-                rule = self.repo.read(rule.rid)
+                rule = self._reread(rule)
             except (ValueError, ValidationError) as e:
                 self.repo.db.rollback()
-                rule = self.repo.read(rule.rid)
+                rule = self._reread(rule)
                 message = validation_message(e) if isinstance(e, ValidationError) else str(e)
                 rule.last_error = f"{day.isoformat()}: {message}"[:300]
                 self.repo.add(rule)

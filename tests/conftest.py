@@ -11,7 +11,6 @@ from app.dependencies import get_db_session
 from app.main import app
 from app.web_auth import web_login_required
 
-
 TEST_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
 
 
@@ -21,8 +20,13 @@ def deployment_settings_off(monkeypatch: pytest.MonkeyPatch):
     from app.config import settings
 
     for name, value in (
-        ("test_notice", False), ("feedback_email", None), ("password_reset", False),
-        ("signup_code", None), ("supabase_service_role_key", None), ("max_users", 10), ("timezone", None),
+        ("test_notice", False),
+        ("feedback_email", None),
+        ("password_reset", False),
+        ("signup_code", None),
+        ("supabase_service_role_key", None),
+        ("max_users", 10),
+        ("timezone", None),
     ):
         monkeypatch.setattr(settings, name, value)
 
@@ -68,7 +72,7 @@ def fresh_attempt_limits():
 
 
 @pytest.fixture
-def session() -> Generator[Session, None, None]:
+def session() -> Generator[Session]:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -85,7 +89,7 @@ def session() -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def client(session: Session) -> Generator[TestClient, None, None]:
+def client(session: Session) -> Generator[TestClient]:
     def get_session_override():
         session.info.pop("read_memory", None)  # in production every request has its own session, hence its own memory
         return session

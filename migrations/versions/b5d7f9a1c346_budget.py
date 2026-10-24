@@ -5,17 +5,17 @@ Revises: a3c5e7f9b124
 Create Date: 2026-10-09 00:00:00.000000
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'b5d7f9a1c346'
-down_revision: Union[str, Sequence[str], None] = 'a3c5e7f9b124'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "b5d7f9a1c346"
+down_revision: str | Sequence[str] | None = "a3c5e7f9b124"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -33,8 +33,12 @@ def upgrade() -> None:
         sa.column("on_budget", sa.Boolean()),
     )
     commodities = sa.table("commodities", sa.column("cid", sa.Uuid()), sa.column("kind", sa.String()))
-    currencies = {r[0] for r in connection.execute(sa.select(commodities.c.cid).where(commodities.c.kind == "currency"))}
-    rows = connection.execute(sa.select(accounts.c.aid, accounts.c.name, accounts.c.parent_id, accounts.c.commodity_id)).all()
+    currencies = {
+        r[0] for r in connection.execute(sa.select(commodities.c.cid).where(commodities.c.kind == "currency"))
+    }
+    rows = connection.execute(
+        sa.select(accounts.c.aid, accounts.c.name, accounts.c.parent_id, accounts.c.commodity_id)
+    ).all()
     by_id = {r.aid: r for r in rows}
     parents = {r.parent_id for r in rows if r.parent_id is not None}
 
@@ -50,7 +54,10 @@ def upgrade() -> None:
     budgeted = [
         r.aid
         for r in rows
-        if r.parent_id is not None and r.aid not in parents and r.commodity_id in currencies and root_name(r) == "Assets"
+        if r.parent_id is not None
+        and r.aid not in parents
+        and r.commodity_id in currencies
+        and root_name(r) == "Assets"
     ]
     if budgeted:
         connection.execute(accounts.update().where(accounts.c.aid.in_(budgeted)).values(on_budget=True))

@@ -6,7 +6,6 @@ from .recurring import RecurringService
 from .report import ReportService
 from .transaction import TransactionService
 
-
 __all__ = [
     "AccountService",
     "BudgetService",

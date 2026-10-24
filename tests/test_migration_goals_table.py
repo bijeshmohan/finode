@@ -24,21 +24,27 @@ def alembic(tmp_path, monkeypatch):
 
 def account(conn, key, name, parent=None):
     conn.execute(
-        sa.text('INSERT INTO accounts (aid, "user", name, parent_id, on_budget, created, updated) VALUES (:a, :u, :n, :p, 0, :t, :t)'),
+        sa.text(
+            'INSERT INTO accounts (aid, "user", name, parent_id, on_budget, created, updated) VALUES (:a, :u, :n, :p, 0, :t, :t)'
+        ),
         {"a": key * 32, "u": USER, "n": name, "p": parent * 32 if parent else None, "t": NOW},
     )
 
 
 def plan(conn, key, account_key, month, amount):
     conn.execute(
-        sa.text('INSERT INTO budget_allocations (bid, "user", month, account_id, amount, created, updated) VALUES (:b, :u, :m, :a, :x, :t, :t)'),
+        sa.text(
+            'INSERT INTO budget_allocations (bid, "user", month, account_id, amount, created, updated) VALUES (:b, :u, :m, :a, :x, :t, :t)'
+        ),
         {"b": key * 32, "u": USER, "m": month, "a": account_key * 32, "x": amount, "t": NOW},
     )
 
 
 def target(conn, key, account_key, kind, amount, date=None):
     conn.execute(
-        sa.text('INSERT INTO budget_targets (tgid, "user", account_id, kind, amount, target_date, created, updated) VALUES (:t, :u, :a, :k, :x, :d, :n, :n)'),
+        sa.text(
+            'INSERT INTO budget_targets (tgid, "user", account_id, kind, amount, target_date, created, updated) VALUES (:t, :u, :a, :k, :x, :d, :n, :n)'
+        ),
         {"t": key * 32, "u": USER, "a": account_key * 32, "k": kind, "x": amount, "d": date, "n": NOW},
     )
 
@@ -58,10 +64,15 @@ def seed(conn):
     target(conn, "e", "3", "by_date", "50000", "2027-03-01")
     target(conn, "f", "4", "by_date", "9000", "2027-03-01")
     target(conn, "g", "5", "monthly", "700")
-    conn.execute(sa.text('INSERT INTO transactions (tid, "user", date, created, updated) VALUES (:t, :u, :d, :n, :n)'), {"t": "9" * 32, "u": USER, "d": NOW, "n": NOW})
+    conn.execute(
+        sa.text('INSERT INTO transactions (tid, "user", date, created, updated) VALUES (:t, :u, :d, :n, :n)'),
+        {"t": "9" * 32, "u": USER, "d": NOW, "n": NOW},
+    )
     for key, acct, side in (("h", "4", "DEBIT"), ("i", "6", "CREDIT")):
         conn.execute(
-            sa.text('INSERT INTO postings (pid, "user", "transaction", account, side, amount, created, updated) VALUES (:p, :u, :t, :a, :s, 100, :n, :n)'),
+            sa.text(
+                'INSERT INTO postings (pid, "user", "transaction", account, side, amount, created, updated) VALUES (:p, :u, :t, :a, :s, 100, :n, :n)'
+            ),
             {"p": key * 32, "u": USER, "t": "9" * 32, "a": acct * 32, "s": side, "n": NOW},
         )
 
@@ -78,8 +89,13 @@ def test_goals_move_across_and_the_rest_stays(alembic):
         rows = conn.execute(sa.text("SELECT month, amount FROM goal_allocations ORDER BY month")).all()
         assert [(r.month, float(r.amount)) for r in rows] == [("2026-09-01", 1000.0), ("2026-10-01", 2000.0)]
         names = set(conn.execute(sa.text("SELECT name FROM accounts")).scalars())
-        assert names == {"Assets", "Expenses", "Bike", "Rent", "Bank"}, "the unused goal's category goes, the others stay"
-        assert sorted(conn.execute(sa.text("SELECT account_id FROM budget_allocations")).scalars()) == ["4" * 32, "5" * 32]
+        assert names == {"Assets", "Expenses", "Bike", "Rent", "Bank"}, (
+            "the unused goal's category goes, the others stay"
+        )
+        assert sorted(conn.execute(sa.text("SELECT account_id FROM budget_allocations")).scalars()) == [
+            "4" * 32,
+            "5" * 32,
+        ]
         assert sorted(conn.execute(sa.text("SELECT account_id FROM budget_targets")).scalars()) == ["4" * 32, "5" * 32]
         assert conn.execute(sa.text("SELECT count(*) FROM postings")).scalar() == 2, "the ledger is untouched"
 

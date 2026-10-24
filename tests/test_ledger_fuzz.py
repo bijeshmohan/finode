@@ -5,6 +5,7 @@ fine. What may never happen is an error other than a refusal, an unbalanced book
 one worked out here straight from the stored postings.
 """
 
+import itertools
 import json
 import random
 from datetime import timedelta
@@ -34,9 +35,13 @@ def money(rng: random.Random) -> Decimal:
 
 
 def split(rng: random.Random, total: Decimal, parts: int) -> list[Decimal]:
-    cuts = sorted(rng.sample(range(1, int(total * 100)), parts - 1)) if parts > 1 and total > Decimal("0.02") * parts else []
+    cuts = (
+        sorted(rng.sample(range(1, int(total * 100)), parts - 1))
+        if parts > 1 and total > Decimal("0.02") * parts
+        else []
+    )
     edges = [0, *cuts, int(total * 100)]
-    return [Decimal(b - a) / 100 for a, b in zip(edges, edges[1:])]
+    return [Decimal(b - a) / 100 for a, b in itertools.pairwise(edges)]
 
 
 def recount(session) -> dict[UUID, Decimal]:
@@ -71,7 +76,9 @@ def check(session, s, step: str) -> None:
     for account in s.accounts.list():
         assert account.balance == expected[account.aid], (step, account.name, account.balance, expected[account.aid])
     raw = session.exec(select(Posting).where(Posting.user == TEST_USER_ID)).all()
-    assert sum(p.amount for p in raw if p.side == PostingSide.DEBIT) == sum(p.amount for p in raw if p.side == PostingSide.CREDIT)
+    assert sum(p.amount for p in raw if p.side == PostingSide.DEBIT) == sum(
+        p.amount for p in raw if p.side == PostingSide.CREDIT
+    )
     assert all(p.amount > 0 for p in raw)
 
 
@@ -94,8 +101,14 @@ def run(session, seed: int, steps: int) -> list[str]:
         debit_n = rng.randint(1, len(chosen) - 1)
         total = money(rng)
         debits, credits = split(rng, total, debit_n), split(rng, total, len(chosen) - debit_n)
-        rows = [PostingCreate(account=a.aid, side=PostingSide.DEBIT, amount=x) for a, x in zip(chosen[:debit_n], debits)]
-        rows += [PostingCreate(account=a.aid, side=PostingSide.CREDIT, amount=x) for a, x in zip(chosen[debit_n:], credits)]
+        rows = [
+            PostingCreate(account=a.aid, side=PostingSide.DEBIT, amount=x)
+            for a, x in zip(chosen[:debit_n], debits, strict=False)
+        ]
+        rows += [
+            PostingCreate(account=a.aid, side=PostingSide.CREDIT, amount=x)
+            for a, x in zip(chosen[debit_n:], credits, strict=False)
+        ]
         return rows
 
     def when():
@@ -103,7 +116,12 @@ def run(session, seed: int, steps: int) -> list[str]:
 
     for step in range(steps):
         op = rng.choice(
-            ["account"] * 3 + ["tx"] * 8 + ["edit"] * 3 + ["delete"] * 2 + ["restore"] * 2 + ["balance"] * 2
+            ["account"] * 3
+            + ["tx"] * 8
+            + ["edit"] * 3
+            + ["delete"] * 2
+            + ["restore"] * 2
+            + ["balance"] * 2
             + ["rename", "move", "close", "reopen", "drop", "undrop"]
         )
         label = f"seed {seed} step {step} {op}"
@@ -112,7 +130,9 @@ def run(session, seed: int, steps: int) -> list[str]:
             if op == "account":
                 made += 1
                 parent = rng.choice([*roots.values(), *[a.aid for a in accounts() if a.parent_id in roots.values()]])
-                s.accounts.create(AccountCreate(name=f"A{made}", parent_id=parent, balance=rng.choice([Decimal(0), money(rng)])))
+                s.accounts.create(
+                    AccountCreate(name=f"A{made}", parent_id=parent, balance=rng.choice([Decimal(0), money(rng)]))
+                )
             elif op == "tx":
                 rows = pick_postings()
                 if rows:
@@ -174,10 +194,14 @@ def test_a_random_ledger_survives_a_backup_and_restore(session, client):
     doc = client.get("/api/backup").json()
 
     def balances():
-        return {a["name"] + "|" + str(a["parent_id"] is None): a["balance"] for a in client.get("/api/accounts/").json()}
+        return {
+            a["name"] + "|" + str(a["parent_id"] is None): a["balance"] for a in client.get("/api/accounts/").json()
+        }
 
     before = sorted(a["balance"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None)
-    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(id=OTHER, email="o@example.com", claims={})
+    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(
+        id=OTHER, email="o@example.com", claims={}
+    )
     try:
         done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
         assert done.status_code == 200, done.text
@@ -185,7 +209,9 @@ def test_a_random_ledger_survives_a_backup_and_restore(session, client):
         assert client.get("/api/reports/trial-balance").json()["balanced"]
         assert before == after
     finally:
-        app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(id=TEST_USER_ID, email="test@example.com", claims={})
+        app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(
+            id=TEST_USER_ID, email="test@example.com", claims={}
+        )
 
 
 # ---- the budget -----------------------------------------------------------------------------------------------
@@ -205,9 +231,16 @@ def budget_checks(session, s, label: str) -> None:
         month = month_of(today + timedelta(days=31 * offset))
         view = s.budget.view(month)
         assert view.ready_to_assign == (
-            view.money_in_accounts - view.reserved_for_cards - view.available - view.goal_available - view.assigned_to_later_months
+            view.money_in_accounts
+            - view.reserved_for_cards
+            - view.available
+            - view.goal_available
+            - view.assigned_to_later_months
         ), (label, month, "Ready to assign must be what is in the accounts minus what already has a job")
-        assert view.assigned_to_later_months == sum((r.amount for r in rows if r.month > month), Decimal(0)), (label, month)
+        assert view.assigned_to_later_months == sum((r.amount for r in rows if r.month > month), Decimal(0)), (
+            label,
+            month,
+        )
 
 
 def run_budget(session, seed: int, steps: int) -> int:
@@ -217,12 +250,22 @@ def run_budget(session, seed: int, steps: int) -> int:
     bank = s.accounts.create(AccountCreate(name="Bank", parent_id=roots["Assets"], balance=Decimal(5000)))
     card = s.accounts.create(AccountCreate(name="Card", parent_id=roots["Liabilities"], on_budget=True))
     salary = s.accounts.create(AccountCreate(name="Salary", parent_id=roots["Income"]))
-    cats = [s.accounts.create(AccountCreate(name=n, parent_id=roots["Expenses"])) for n in ("Rent", "Food", "Fun", "Bills")]
+    cats = [
+        s.accounts.create(AccountCreate(name=n, parent_id=roots["Expenses"])) for n in ("Rent", "Food", "Fun", "Bills")
+    ]
     done = 0
     for step in range(steps):
         s = services(session)
         month = month_of(local_today() + timedelta(days=31 * rng.randint(-2, 2)))
-        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy"] + ["goal", "gassign", "gassign", "guse", "guse", "gdelete"])
+        op = rng.choice(
+            ["assign"] * 4
+            + ["move"] * 3
+            + ["spend"] * 4
+            + ["card"] * 2
+            + ["income"]
+            + ["copy"]
+            + ["goal", "gassign", "gassign", "guse", "guse", "gdelete"]
+        )
         label = f"budget seed {seed} step {step} {op}"
         try:
             if op == "assign":
@@ -232,26 +275,49 @@ def run_budget(session, seed: int, steps: int) -> int:
                 amount = money(rng) * rng.choice([1, 1, 1, -1])
                 view = s.budget.assign(month, cat.aid, amount)
                 after = {l.name: l.available for l in view.lines + view.goals}[cat.name]
-                assert amount >= 0 or after >= 0 or before < 0, (label, "taking money out never leaves a category overspent")
+                assert amount >= 0 or after >= 0 or before < 0, (
+                    label,
+                    "taking money out never leaves a category overspent",
+                )
             elif op == "move":
                 a, b = rng.sample(cats, 2)
                 before = s.budget.view(month).ready_to_assign
                 s.budget.move(month, a.aid, b.aid, money(rng) / 10)
-                assert s.budget.view(month).ready_to_assign == before, (label, "moving money never changes Ready to assign")
+                assert s.budget.view(month).ready_to_assign == before, (
+                    label,
+                    "moving money never changes Ready to assign",
+                )
             elif op in ("spend", "card"):
                 source = bank if op == "spend" else card
                 day = month + timedelta(days=rng.randint(0, 27))
                 amount = money(rng) / 5
-                s.transactions.create(TransactionCreate(date=day, postings=[
-                    PostingCreate(account=rng.choice(cats).aid, side=PostingSide.DEBIT, amount=amount),
-                    PostingCreate(account=source.aid, side=PostingSide.CREDIT, amount=amount)]))
+                s.transactions.create(
+                    TransactionCreate(
+                        date=day,
+                        postings=[
+                            PostingCreate(account=rng.choice(cats).aid, side=PostingSide.DEBIT, amount=amount),
+                            PostingCreate(account=source.aid, side=PostingSide.CREDIT, amount=amount),
+                        ],
+                    )
+                )
             elif op == "income":
                 amount = money(rng)
-                s.transactions.create(TransactionCreate(date=month + timedelta(days=rng.randint(0, 27)), postings=[
-                    PostingCreate(account=bank.aid, side=PostingSide.DEBIT, amount=amount),
-                    PostingCreate(account=salary.aid, side=PostingSide.CREDIT, amount=amount)]))
+                s.transactions.create(
+                    TransactionCreate(
+                        date=month + timedelta(days=rng.randint(0, 27)),
+                        postings=[
+                            PostingCreate(account=bank.aid, side=PostingSide.DEBIT, amount=amount),
+                            PostingCreate(account=salary.aid, side=PostingSide.CREDIT, amount=amount),
+                        ],
+                    )
+                )
             elif op == "goal":
-                s.budget.create_goal(rng.choice(["Trip", "Bike", "Laptop", "Fund"]), money(rng) * 10, local_today() + timedelta(days=31 * rng.randint(1, 8)), rng.random() < 0.5)
+                s.budget.create_goal(
+                    rng.choice(["Trip", "Bike", "Laptop", "Fund"]),
+                    money(rng) * 10,
+                    local_today() + timedelta(days=31 * rng.randint(1, 8)),
+                    rng.random() < 0.5,
+                )
             elif op in ("gassign", "guse", "gdelete"):
                 goals = s.budget.view(month).goals
                 if not goals:
@@ -263,7 +329,10 @@ def run_budget(session, seed: int, steps: int) -> int:
                 elif op == "guse":
                     before = s.budget.view(month).ready_to_assign
                     s.budget.use_goal(month, goal.gid, rng.choice(cats).aid, money(rng) / 10)
-                    assert s.budget.view(month).ready_to_assign == before, (label, "handing a goal's money to a category never changes Ready to assign")
+                    assert s.budget.view(month).ready_to_assign == before, (
+                        label,
+                        "handing a goal's money to a category never changes Ready to assign",
+                    )
                 else:
                     s.budget.delete_goal(goal.gid)
             elif op == "copy":
