@@ -11,7 +11,6 @@ from app.config import settings
 from app.dependencies import get_db_session
 from app.main import app
 
-
 USER_A_ID = UUID("00000000-0000-4000-8000-00000000000a")
 USER_B_ID = UUID("00000000-0000-4000-8000-00000000000b")
 

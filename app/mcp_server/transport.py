@@ -8,10 +8,9 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from uuid import UUID
 
 import anyio.to_thread
+from fastapi import HTTPException
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.types import Receive, Scope, Send
-
-from fastapi import HTTPException
 
 from .. import oauth
 from ..auth import verify_supabase_jwt
@@ -21,7 +20,6 @@ from ..services.api_token import ApiTokenService, TokenOwner
 from ..services.oauth_grant import OAuthGrantService
 from . import context
 from .tools import build_server
-
 
 # One server per scope, so a read-only token never even sees the tools that write.
 SERVERS = {TokenScope.READ: build_server(write=False), TokenScope.WRITE: build_server(write=True)}
@@ -55,7 +53,7 @@ def _authenticate(secret: str) -> TokenOwner | None:
     try:
         claims = verify_supabase_jwt(secret)
         user = UUID(claims["sub"])
-    except (HTTPException, ValueError, KeyError):
+    except HTTPException, ValueError, KeyError:
         return None
     client_id = claims.get("client_id")
     if not client_id:

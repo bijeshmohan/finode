@@ -10,7 +10,6 @@ from uuid import UUID
 from sqlalchemy import delete
 from sqlmodel import Session, SQLModel
 
-
 # Kept when only the books are cleared.
 KEPT_WITH_THE_BOOKS = {"profiles", "api_tokens", "oauth_grants"}
 

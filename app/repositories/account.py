@@ -57,7 +57,7 @@ class AccountRepository:
         aid: UUID,
         data: AccountUpdate,
         on_budget: bool | None = None,
-        payment_category: UUID | None | type(...) = ...,
+        payment_category: UUID | type(...) | None = ...,
     ) -> Account | None:
         account = self.read(aid)
         if not account:
@@ -124,4 +124,3 @@ class AccountRepository:
             Account.user == self.uid,
         )
         return self.db.exec(statement).first() is not None
-

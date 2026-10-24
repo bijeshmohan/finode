@@ -1,9 +1,8 @@
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
-
-from alembic import context
 
 from app.config import settings
 from app.models import account, api_token, auth, oauth_grant, profile, recurring, transaction  # noqa: F401  register tables
@@ -20,15 +19,11 @@ target_metadata = SQLModel.metadata
 def include_name(name, type_, parent_names):
     if type_ == "schema" and name == "auth":
         return False
-    if type_ == "table" and parent_names.get("schema_name") == "auth":
-        return False
-    return True
+    return not (type_ == "table" and parent_names.get("schema_name") == "auth")
 
 
 def include_object(object_, name, type_, reflected, compare_to):
-    if type_ == "table" and object_.schema == "auth":
-        return False
-    return True
+    return not (type_ == "table" and object_.schema == "auth")
 
 
 def run_migrations_offline() -> None:

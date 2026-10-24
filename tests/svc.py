@@ -16,7 +16,11 @@ from .conftest import TEST_USER_ID
 
 
 def services(session, user=TEST_USER_ID, origin="api"):
-    ar, tr, pr = AccountRepository(session, user), TransactionRepository(session, user), ProfileRepository(session, user)
+    ar, tr, pr = (
+        AccountRepository(session, user),
+        TransactionRepository(session, user),
+        ProfileRepository(session, user),
+    )
     accounts = AccountService(ar, tr, pr)
     return SimpleNamespace(
         accounts=accounts,

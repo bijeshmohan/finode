@@ -6,13 +6,13 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-from .routers import accounts, budget, data, profile, recurring, reports, transactions, web
 from . import recurring_runner
 from .caching import Compression, cache_headers_middleware
+from .config import settings
 from .flash import clear_shown_flash_middleware
 from .mcp_server import transport as mcp_transport
+from .routers import accounts, budget, data, profile, recurring, reports, transactions, web
 from .templating import BASE_DIR
-from .config import settings
 from .web_auth import LoginRequired, login_required_handler, refreshed_cookies_middleware
 
 
@@ -37,6 +37,8 @@ app.router.routes.append(Route("/mcp", endpoint=mcp_transport.MCPEndpoint(), met
 @app.get("/.well-known/oauth-protected-resource", include_in_schema=False)
 def protected_resource(request: Request):
     return mcp_transport.protected_resource_metadata(request.scope)
+
+
 # The JSON API lives under /api; the web UI owns the site root.
 for api_router in (accounts, budget, recurring, transactions, data, profile, reports):
     app.include_router(api_router.router, prefix="/api")

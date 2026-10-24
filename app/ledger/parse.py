@@ -6,13 +6,13 @@ finode cannot represent faithfully (lots, virtual postings, automated or periodi
 includes, balance assignments, prices) is reported as an error with its line number instead of being
 silently dropped.
 """
+
 import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from .model import AccountDecl, Journal, LedgerPosting, LedgerTransaction
-
 
 COMMENT_STARTS = ";#%|*"
 # Directives that carry nothing finode needs; their indented lines are skipped too.
@@ -23,9 +23,7 @@ HEADER = re.compile(rf"^{DATE}(?:=(?:\d{{4}}[-/.])?\d{{1,2}}[-/.]\d{{1,2}})?(?P<
 INLINE_COMMENT = re.compile(r"\s;")
 NUMBER = r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?"
 SYMBOL = r"\"[^\"]+\"|[^\d\s+\-\"=@{(;]+"
-AMOUNT = re.compile(
-    rf"^(?P<s1>[-+])?\s*(?P<pre>{SYMBOL})?\s*(?P<s2>[-+])?\s*(?P<num>{NUMBER})\s*(?P<post>{SYMBOL})?$"
-)
+AMOUNT = re.compile(rf"^(?P<s1>[-+])?\s*(?P<pre>{SYMBOL})?\s*(?P<s2>[-+])?\s*(?P<num>{NUMBER})\s*(?P<post>{SYMBOL})?$")
 MAX_PLACES = 8
 
 
@@ -184,7 +182,7 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
 
 def _parse_directive(raw: str, block: list[tuple[int, str]], line: int, state: _State) -> None:
     word = raw.split(None, 1)[0]
-    rest = raw[len(word):].strip()
+    rest = raw[len(word) :].strip()
     if word == "account":
         name, note = _split_comment(rest)
         for _, sub in block:

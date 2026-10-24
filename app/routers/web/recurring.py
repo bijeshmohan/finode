@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import ValidationError
 
+from ...clock import local_today
 from ...dependencies import Accounts, Recurring
 from ...models.transaction import PostingSide
 from ...schemas.recurring import RecurringCreate, RecurringPostingData, RecurringRead, RecurringUpdate
@@ -15,8 +16,6 @@ from ...templating import templates
 from .accounts import build_tree
 from .transactions import form_context, form_rows, infer_kind, split_postings
 from .utils import htmx_error, htmx_redirect, validation_message
-from ...clock import local_today
-
 
 router = APIRouter(prefix="/recurring")
 
@@ -50,8 +49,12 @@ def _row(rule: RecurringRead, paths: dict[UUID, str]) -> RuleRow:
         )
         total = sum((p.amount for p in rule.postings if p.side == PostingSide.DEBIT), Decimal(0))
         return RuleRow(
-            rule=rule, from_name=names(PostingSide.CREDIT), to_name=names(PostingSide.DEBIT), amount=total,
-            schedule=describe(rule.frequency, rule.every), status=_status(rule),
+            rule=rule,
+            from_name=names(PostingSide.CREDIT),
+            to_name=names(PostingSide.DEBIT),
+            amount=total,
+            schedule=describe(rule.frequency, rule.every),
+            status=_status(rule),
         )
     return RuleRow(
         rule=rule,
@@ -85,13 +88,20 @@ def recurring_page(request: Request, accounts: Accounts, recurring: Recurring):
 def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | None, **extra) -> dict:
     """The shared transaction rows (total, From and To) filled from the rule: simple and split alike."""
     if rule is None:
-        transaction, total, from_rows, to_rows = None, "", form_rows([], PostingSide.CREDIT), form_rows([], PostingSide.DEBIT)
+        transaction, total, from_rows, to_rows = (
+            None,
+            "",
+            form_rows([], PostingSide.CREDIT),
+            form_rows([], PostingSide.DEBIT),
+        )
         kind = "expense"
     else:
         recorded = recurring.as_transaction(rule)
         transaction = None
         total = sum((p.amount for p in recorded.postings if p.side == PostingSide.DEBIT), Decimal(0))
-        kind = infer_kind(recorded.postings, {n.account.aid: r.account.name for r in build_tree(accounts.list()) for n in r.walk()})
+        kind = infer_kind(
+            recorded.postings, {n.account.aid: r.account.name for r in build_tree(accounts.list()) for n in r.walk()}
+        )
         from_rows = form_rows(recorded.postings, PostingSide.CREDIT)
         to_rows = form_rows(recorded.postings, PostingSide.DEBIT)
     return form_context(
@@ -121,17 +131,24 @@ def _parse_date(value: str, label: str) -> date | None:
     try:
         return date.fromisoformat(value.strip())
     except ValueError:
-        raise ValueError(f"{label} is not a valid date!")
+        raise ValueError(f"{label} is not a valid date!") from None
 
 
 def _parse(
-    account: list[str], side: list[str], amount: list[str],
-    payee: str, comment: str, frequency: str, every: str, start: str, end: str,
+    account: list[str],
+    side: list[str],
+    amount: list[str],
+    payee: str,
+    comment: str,
+    frequency: str,
+    every: str,
+    start: str,
+    end: str,
 ) -> dict:
     try:
         count = int(every.strip() or "1")
     except ValueError:
-        raise ValueError("'every' must be a whole number!")
+        raise ValueError("'every' must be a whole number!") from None
     started = _parse_date(start, "the start date")
     if started is None:
         raise ValueError("choose a start date!")
@@ -139,15 +156,22 @@ def _parse(
     if len(rows) < 2:
         raise ValueError("choose where the money comes from and where it goes!")
     common = {
-        "payee": payee, "comment": comment, "frequency": frequency, "every": count,
-        "start_date": started, "end_date": _parse_date(end, "the end date"),
+        "payee": payee,
+        "comment": comment,
+        "frequency": frequency,
+        "every": count,
+        "start_date": started,
+        "end_date": _parse_date(end, "the end date"),
     }
     debit = [p for p in rows if p.side == PostingSide.DEBIT]
     credit = [p for p in rows if p.side == PostingSide.CREDIT]
     if len(rows) == 2 and len(debit) == 1 and len(credit) == 1 and debit[0].amount == credit[0].amount:
         # One account on each side is a plain rule.
         return {
-            "from_account": credit[0].account, "to_account": debit[0].account, "amount": credit[0].amount, **common,
+            "from_account": credit[0].account,
+            "to_account": debit[0].account,
+            "amount": credit[0].amount,
+            **common,
         }
     return {
         "postings": [RecurringPostingData(account=p.account, side=p.side, amount=p.amount) for p in rows],
@@ -159,9 +183,9 @@ def _parse(
 def create_recurring(
     accounts: Accounts,
     recurring: Recurring,
-    account: Annotated[list[str], Form()] = [],
-    side: Annotated[list[str], Form()] = [],
-    amount: Annotated[list[str], Form()] = [],
+    account: Annotated[list[str] | None, Form()] = None,
+    side: Annotated[list[str] | None, Form()] = None,
+    amount: Annotated[list[str] | None, Form()] = None,
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     frequency: Annotated[str, Form()] = "monthly",
@@ -169,11 +193,10 @@ def create_recurring(
     start: Annotated[str, Form()] = "",
     end: Annotated[str, Form()] = "",
 ):
+    account, side, amount = account or [], side or [], amount or []
     try:
-        data = RecurringCreate(
-            **_parse(account, side, amount, payee, comment, frequency, every, start, end)
-        )
-        created = recurring.create(data)
+        data = RecurringCreate(**_parse(account, side, amount, payee, comment, frequency, every, start, end))
+        recurring.create(data)
         recurring.process_due()  # a start date in the past is recorded straight away
     except ValidationError as e:
         return htmx_error(validation_message(e), "#form-error")
@@ -199,9 +222,9 @@ def update_recurring(
     rid: UUID,
     accounts: Accounts,
     recurring: Recurring,
-    account: Annotated[list[str], Form()] = [],
-    side: Annotated[list[str], Form()] = [],
-    amount: Annotated[list[str], Form()] = [],
+    account: Annotated[list[str] | None, Form()] = None,
+    side: Annotated[list[str] | None, Form()] = None,
+    amount: Annotated[list[str] | None, Form()] = None,
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     frequency: Annotated[str, Form()] = "monthly",
@@ -209,10 +232,9 @@ def update_recurring(
     start: Annotated[str, Form()] = "",
     end: Annotated[str, Form()] = "",
 ):
+    account, side, amount = account or [], side or [], amount or []
     try:
-        data = RecurringUpdate(
-            **_parse(account, side, amount, payee, comment, frequency, every, start, end)
-        )
+        data = RecurringUpdate(**_parse(account, side, amount, payee, comment, frequency, every, start, end))
         rule = recurring.update(rid, data)
         if rule is not None:
             recurring.process_due()

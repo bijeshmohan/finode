@@ -1,33 +1,39 @@
 """Export to and import from the ledger journal format (and CSV for spreadsheets)."""
+
 import csv
 import io
 import re
 from dataclasses import dataclass, field
+from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID
 
 from pydantic import ValidationError
 
+from ..clock import local_today
+from ..config import settings
 from ..ledger import AccountDecl, LedgerPosting, LedgerTransaction, parse, write
 from ..ledger.parse import _plain
+from ..limits import LimitReached, ensure_room
 from ..models.transaction import PostingSide
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
 from ..schemas.account import AccountCreate
 from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
-from ..config import settings
-from ..limits import LimitReached, ensure_room
 from .account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
-from ..clock import local_today
-
 
 MAX_REPORTED_ERRORS = 20
 ROOT_ALIASES = {
-    "assets": "Assets", "asset": "Assets",
-    "liabilities": "Liabilities", "liability": "Liabilities",
+    "assets": "Assets",
+    "asset": "Assets",
+    "liabilities": "Liabilities",
+    "liability": "Liabilities",
     "equity": "Equity",
-    "income": "Income", "revenue": "Income", "revenues": "Income",
-    "expenses": "Expenses", "expense": "Expenses",
+    "income": "Income",
+    "revenue": "Income",
+    "revenues": "Income",
+    "expenses": "Expenses",
+    "expense": "Expenses",
 }
 OPENING_BALANCE_NAMES = {"opening balances", "opening balance"}
 PLACEHOLDER = UUID(int=1)  # stands in for account ids while validating transactions
@@ -42,7 +48,7 @@ class ImportRejected(ValueError):
 
 @dataclass
 class _Planned:
-    date: date
+    date: Date
     payee: str | None
     comment: str | None
     postings: list[tuple[Key, PostingSide, Decimal]]  # account, side, amount
@@ -76,9 +82,7 @@ def _resolve(path: str) -> Key:
         raise ValueError(f"'{path}' has an empty account name")
     root = ROOT_ALIASES.get(parts[0].casefold())
     if root is None:
-        raise ValueError(
-            f"'{path}' must start with Assets, Liabilities, Equity, Income or Expenses"
-        )
+        raise ValueError(f"'{path}' must start with Assets, Liabilities, Equity, Income or Expenses")
     parts[0] = root
     if root == "Equity" and len(parts) == 2 and parts[1].casefold() in OPENING_BALANCE_NAMES:
         parts[1] = OPENING_BALANCES_ACCOUNT_NAME
@@ -140,7 +144,7 @@ class DataService:
         return write(decls, entries, local_today())
 
     def export_csv(self) -> str:
-        accounts, paths, postings, transactions = self._snapshot()
+        _accounts, paths, postings, transactions = self._snapshot()
         out = io.StringIO()
         writer = csv.writer(out)
         writer.writerow(["date", "payee", "note", "account", "debit", "credit"])
@@ -149,10 +153,16 @@ class DataService:
                 shown = f"{p.amount:.2f}"
                 debit = shown if p.side == PostingSide.DEBIT else ""
                 credit = shown if p.side == PostingSide.CREDIT else ""
-                writer.writerow([
-                    t.date.isoformat(), _formula_safe(t.payee), _formula_safe(t.comment),
-                    paths[p.account], debit, credit,
-                ])
+                writer.writerow(
+                    [
+                        t.date.isoformat(),
+                        _formula_safe(t.payee),
+                        _formula_safe(t.comment),
+                        paths[p.account],
+                        debit,
+                        credit,
+                    ]
+                )
         return out.getvalue()
 
     # --- import -----------------------------------------------------------
@@ -180,8 +190,7 @@ class DataService:
         errors = plan.summary.errors
         if not self.can_import():
             errors.append(
-                "Import only works while you have no transactions. Export your data first "
-                "if you want to start over."
+                "Import only works while you have no transactions. Export your data first if you want to start over."
             )
             return plan
 
@@ -238,7 +247,9 @@ class DataService:
             label = ":".join(key)
             if len(key) == 1:
                 errors.append(f"line {line}: cannot post to the top-level account '{label}'")
-            elif key in parents and not (key[0] in GROUP_POSTING_ROOT_NAMES and key[1:] != (OPENING_BALANCES_ACCOUNT_NAME,)):
+            elif key in parents and not (
+                key[0] in GROUP_POSTING_ROOT_NAMES and key[1:] != (OPENING_BALANCES_ACCOUNT_NAME,)
+            ):
                 errors.append(
                     f"line {line}: '{label}' has sub-accounts, so it cannot be posted to; "
                     f"move those postings to a sub-account such as '{label}:Other'"
@@ -325,7 +336,7 @@ class DataService:
             return None  # already reported while collecting accounts
 
         postings = []
-        for posting, key in zip(lines, keys):
+        for posting, key in zip(lines, keys, strict=False):
             amount = abs(posting.amount)
             side = PostingSide.DEBIT if posting.amount > 0 else PostingSide.CREDIT
             if _places(amount) > decimals:

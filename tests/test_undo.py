@@ -13,7 +13,10 @@ def _cookie(response) -> str:
 
 def test_deleting_an_entry_offers_undo_that_brings_it_back(client: TestClient, account: dict, expense_account: dict):
     made = _post(client, expense_account, account, "5.00", "2026-01-01", "coffee")
-    gone = client.post(f"/transactions/{made['tid']}/delete", headers={"HX-Current-URL": "http://testserver/transactions?month=2026-01"})
+    gone = client.post(
+        f"/transactions/{made['tid']}/delete",
+        headers={"HX-Current-URL": "http://testserver/transactions?month=2026-01"},
+    )
     assert gone.headers["HX-Redirect"] == "/transactions?month=2026-01"
     flash = gone.headers["set-cookie"].split(";")[0].split("=", 1)[1]
     assert flash.startswith("transaction-deleted|restore|")
@@ -23,7 +26,10 @@ def test_deleting_an_entry_offers_undo_that_brings_it_back(client: TestClient, a
     hid = flash.rsplit("|", 1)[1]
     assert f'hx-post="/transactions/deleted/{hid}/restore"' in page and ">Undo<" in page
 
-    back = client.post(f"/transactions/deleted/{hid}/restore", headers={"HX-Current-URL": "http://testserver/transactions?month=2026-01"})
+    back = client.post(
+        f"/transactions/deleted/{hid}/restore",
+        headers={"HX-Current-URL": "http://testserver/transactions?month=2026-01"},
+    )
     assert back.headers["HX-Redirect"] == "/transactions?month=2026-01"
     assert client.get(f"/api/transactions/{made['tid']}").status_code == 200
 
@@ -50,7 +56,12 @@ def test_saving_an_entry_offers_undo_that_deletes_it(client: TestClient, account
 
 
 def test_a_tampered_cookie_never_renders_an_undo(client: TestClient):
-    for value in ("transaction-deleted|restore|not-a-uuid", f"transaction-deleted|evil|{uuid4()}", f"nope|restore|{uuid4()}", "transaction-deleted|restore"):
+    for value in (
+        "transaction-deleted|restore|not-a-uuid",
+        f"transaction-deleted|evil|{uuid4()}",
+        f"nope|restore|{uuid4()}",
+        "transaction-deleted|restore",
+    ):
         client.cookies.set("finode_flash", value)
         page = client.get("/").text
         assert "toast-undo" not in page and 'hx-post="/transactions/deleted' not in page

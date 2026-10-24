@@ -26,6 +26,14 @@ def test_upgrade_drops_the_table_and_downgrade_brings_it_back_empty(alembic):
     command.downgrade(config, "e7b9d1f3a5c8")
     inspector = sa.inspect(engine)
     assert "budget_targets" in inspector.get_table_names()
-    assert {c["name"] for c in inspector.get_columns("budget_targets")} >= {"tgid", "user", "account_id", "kind", "amount", "target_date", "weekday"}
+    assert {c["name"] for c in inspector.get_columns("budget_targets")} >= {
+        "tgid",
+        "user",
+        "account_id",
+        "kind",
+        "amount",
+        "target_date",
+        "weekday",
+    }
     with engine.connect() as connection:
         assert connection.execute(sa.text("select count(*) from budget_targets")).scalar() == 0

@@ -1,6 +1,6 @@
 """The accounts page in a browser: the type chips, groups under their headings and closed accounts."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from playwright.sync_api import Page, expect
@@ -51,7 +51,9 @@ def test_the_chips_switch_between_assets_and_liabilities_and_equity_is_neither(p
     shown = visible(page)
     assert shown == ["liabilities › visa"], shown
     expect(page.locator(".cat-chips .chip").nth(1)).to_have_attribute("aria-pressed", "true")
-    page.get_by_role("link", name="Liability").click()  # tapping the chosen chip again leaves neither chosen: that is Equity
+    page.get_by_role(
+        "link", name="Liability"
+    ).click()  # tapping the chosen chip again leaves neither chosen: that is Equity
     page.wait_for_url("**/accounts?tab=equity")
     assert visible(page) == ["equity › opening balances"]
     expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_count(0)
@@ -72,7 +74,9 @@ def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(page: Pag
     closed = api.post("/accounts/", name="Old Card", parent_id=books["roots"]["Liabilities"])
     api.request.post(f"/api/accounts/{closed['aid']}/close")
     table = Account.__table__
-    session.exec(table.update().where(table.c.aid == UUID(old["aid"])).values(created=datetime.now(timezone.utc) - timedelta(days=30)))
+    session.exec(
+        table.update().where(table.c.aid == UUID(old["aid"])).values(created=datetime.now(UTC) - timedelta(days=30))
+    )
     session.commit()
     page.goto("/accounts")
     assert "assets › old wallet" in visible(page), "no entries, no balance and old: still listed"
@@ -120,10 +124,15 @@ def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api)
     from datetime import date, timedelta
 
     for i in range(70):
-        api.post("/transactions/", payee=f"Shop {i:02d}", date=str(date.today() - timedelta(days=1 + i)), postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "5"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "5"},
-        ])
+        api.post(
+            "/transactions/",
+            payee=f"Shop {i:02d}",
+            date=str(date.today() - timedelta(days=1 + i)),
+            postings=[
+                {"account": books["food"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["checking"]["aid"], "side": "credit", "amount": "5"},
+            ],
+        )
     page.goto(f"/accounts/{books['checking']['aid']}")
     rows = page.locator("a.tx")
     first = rows.count()

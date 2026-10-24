@@ -7,13 +7,19 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
+from ...clock import local_day, local_today
 from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
-from ...services.account import FIXED_DEFAULTS, GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, AccountInUseError, AccountService, RegisterPage
+from ...services.account import (
+    FIXED_DEFAULTS,
+    GROUP_POSTING_ROOT_NAMES,
+    MAX_ACCOUNT_DEPTH,
+    AccountInUseError,
+    AccountService,
+    RegisterPage,
+)
 from ...templating import templates
 from .utils import UpcomingItem, htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
-from ...clock import local_day, local_today
-
 
 router = APIRouter(prefix="/accounts")
 
@@ -30,7 +36,7 @@ class Node:
     kind: str = "user"  # root | system | user
     path: str = ""
     postable: bool = False
-    children: list["Node"] = field(default_factory=list)
+    children: list[Node] = field(default_factory=list)
     # For the accounts page: whether the account is closed (closed ones wait behind "Load more").
     closed: bool = False
 
@@ -112,7 +118,12 @@ def _parent_options(
 
 def _starts(roots: list[Node]) -> dict[UUID, str]:
     """For each built-in group, how an account made under it starts: "budget" (part of the budget) or "outside" it."""
-    return {n.account.aid: FIXED_DEFAULTS[n.account.system_key] for r in roots for n in r.walk() if n.account.system_key in FIXED_DEFAULTS}
+    return {
+        n.account.aid: FIXED_DEFAULTS[n.account.system_key]
+        for r in roots
+        for n in r.walk()
+        if n.account.system_key in FIXED_DEFAULTS
+    }
 
 
 def _load(accounts: AccountService, aid: UUID) -> tuple[list[Node], Node]:
@@ -168,7 +179,9 @@ def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
             "currency": accounts.currency().code,
             "closed": closed_count([root]),
             # What the quiet line under the figure counts: the open accounts of the type (groups are only headings).
-            "account_count": sum(1 for n in root.walk() if n.account.closed_on is None and n.depth > 0 and not n.children),
+            "account_count": sum(
+                1 for n in root.walk() if n.account.closed_on is None and n.depth > 0 and not n.children
+            ),
         },
     )
 
@@ -201,7 +214,14 @@ def closed_count(roots: list[Node]) -> int:
 
 
 @router.get("/new")
-def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None, kind: str = "account", root: str = ""):
+def new_account_page(
+    request: Request,
+    accounts: Accounts,
+    profiles: Profiles,
+    parent: UUID | None = None,
+    kind: str = "account",
+    root: str = "",
+):
     """The form for a new account (under Assets or Liabilities), or with kind=category for a new category
     (under Expenses or Income, reached from the Categories page)."""
     kind = "category" if kind == "category" else "account"
@@ -215,9 +235,13 @@ def new_account_page(request: Request, accounts: Accounts, profiles: Profiles, p
         parent_roots = [r for r in roots if r.account.name == only]
         if parent is None or root_of.get(parent) != only:
             parent = parent_roots[0].account.aid if parent_roots else None
-            first_group = next((c for c in parent_roots[0].children if c.kind == "fixed"), None) if parent_roots else None
+            first_group = (
+                next((c for c in parent_roots[0].children if c.kind == "fixed"), None) if parent_roots else None
+            )
             if first_group is not None:
-                parent = first_group.account.aid  # the "+" on a type starts on its first built-in group (Bank Accounts, Credit Cards)
+                parent = (
+                    first_group.account.aid
+                )  # the "+" on a type starts on its first built-in group (Bank Accounts, Credit Cards)
     else:
         parent_roots = roots
     starts = _starts(everything)
@@ -285,9 +309,13 @@ def quick_create_account(
             raise ValueError("choose where the account belongs!")
         name = name.strip()
         if any(child.account.name.casefold() == name.casefold() for child in parent.children):
-            raise ValueError(f"'{parent.account.name}' already has an account named '{name}'. Pick it from the list instead!")
+            raise ValueError(
+                f"'{parent.account.name}' already has an account named '{name}'. Pick it from the list instead!"
+            )
         root = _root_of(roots, parent)
-        opening = parse_amount(balance, Decimal("0.00")) if root.account.name in OPENING_BALANCE_ROOTS else Decimal("0.00")
+        opening = (
+            parse_amount(balance, Decimal("0.00")) if root.account.name in OPENING_BALANCE_ROOTS else Decimal("0.00")
+        )
         created = accounts.create(
             AccountCreate(
                 name=name,
@@ -323,7 +351,9 @@ def create_account(
             balance=parse_amount(balance, Decimal("0.00")),
             # The form asked (budget_choice): its box says yes or no. Without it the default applies (an asset: yes).
             on_budget=None if budget_choice is None else on_budget is not None,
-            payment_category_id=None if on_budget is not None or not payment_category.strip() else UUID(payment_category.strip()),
+            payment_category_id=None
+            if on_budget is not None or not payment_category.strip()
+            else UUID(payment_category.strip()),
         )
         created = accounts.create(data)
     except ValidationError as e:
@@ -354,11 +384,19 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
         history, ahead, has_any = page.entries, page.upcoming, page.has_any
     else:
         history = list(reversed([e for e in entries if e.date <= today]))
-        ahead = [e for e in sorted((e for e in entries if e.date > today), key=lambda e: e.date)]
+        ahead = sorted((e for e in entries if e.date > today), key=lambda e: e.date)
         has_any = bool(entries)
     # What is dated ahead is not history: it waits in its own card, soonest first, and out of the running list.
     upcoming = [
-        UpcomingItem(e.tid, e.date, e.payee or ", ".join(e.counter_accounts), (", ".join(e.counter_accounts) if e.payee else "") + (f" \u00b7 {e.comment}" if e.comment and e.payee else e.comment or ""), abs(e.change), _is_inflow(root.account.name, e.change))
+        UpcomingItem(
+            e.tid,
+            e.date,
+            e.payee or ", ".join(e.counter_accounts),
+            (", ".join(e.counter_accounts) if e.payee else "")
+            + (f" \u00b7 {e.comment}" if e.comment and e.payee else e.comment or ""),
+            abs(e.change),
+            _is_inflow(root.account.name, e.change),
+        )
         for e in ahead
     ]
     signs = {e.change > 0 for e in ahead}
@@ -473,7 +511,9 @@ def reopen_account(aid: UUID, accounts: Accounts):
 def account_more(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles, offset: int = 0):
     """The next chunk of an account's transactions (htmx replaces the "Load more" button with it)."""
     context = account_context(accounts, profiles, aid, None, offset=max(offset, 0))
-    return templates.TemplateResponse(request, "partials/account_entries.html", {**context, "category": False, "area": "/accounts"})
+    return templates.TemplateResponse(
+        request, "partials/account_entries.html", {**context, "category": False, "area": "/accounts"}
+    )
 
 
 @router.get("/{aid}/edit")

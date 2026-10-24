@@ -3,14 +3,13 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Request
 
+from ...clock import local_today, month_progress
 from ...dependencies import Accounts, Budget, Profiles, Recurring, Reports, Transactions
 from ...services.account import AccountService
-from ...clock import local_today, month_progress
 from ...templating import templates
 from .budget import parse_month
 from .categories import _month_context
 from .transactions import HOME_FIRST, HOME_MORE, AccountIndex, _more, to_row
-
 
 router = APIRouter()
 
@@ -40,7 +39,11 @@ def dashboard(
     this_month = local_today().replace(day=1)
     when = min(parse_month(month), this_month)  # never a month that has not started
     is_current = when == this_month
-    summary = reports.summary() if is_current else reports.summary(when, when.replace(day=calendar.monthrange(when.year, when.month)[1]))
+    summary = (
+        reports.summary()
+        if is_current
+        else reports.summary(when, when.replace(day=calendar.monthrange(when.year, when.month)[1]))
+    )
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts)
     # The chosen month's own entries, newest first (this month up to today), a few at first and "Show more" for the rest.
@@ -50,16 +53,19 @@ def dashboard(
     more = _more({"scope": "home", "month": when.strftime("%Y-%m")}, len(recent), month_total, HOME_MORE, HOME_MORE)
     roots = {a.name: a.aid for a in all_accounts if a.parent_id is None}
     system_ids = {a.aid for a in all_accounts if AccountService.is_opening_balances(a, all_accounts)}
-    used_roots = {
-        index.roots[a.aid] for a in all_accounts if a.parent_id is not None and a.aid not in system_ids
-    }
+    used_roots = {index.roots[a.aid] for a in all_accounts if a.parent_id is not None and a.aid not in system_ids}
+
     # Opening balances are bookkeeping, not a transaction the user recorded.
     def recorded(rows):
         return any(not any(p.account in system_ids for p in row.transaction.postings) for row in rows)
 
     has_recorded = recorded(recent)
-    if not has_recorded:  # a month with nothing yet: look at the latest entries of any month (dated ahead is not recent)
-        has_recorded = recorded([to_row(t, index) for t in transactions.list(date_to=local_today(), limit=RECENT_LIMIT)])
+    if (
+        not has_recorded
+    ):  # a month with nothing yet: look at the latest entries of any month (dated ahead is not recent)
+        has_recorded = recorded(
+            [to_row(t, index) for t in transactions.list(date_to=local_today(), limit=RECENT_LIMIT)]
+        )
     planned = bool(budget.br.list())  # anything ever assigned in the Plan
     steps = [
         {
@@ -91,7 +97,9 @@ def dashboard(
         "carried": month.available - month.assigned + month.activity,  # what earlier months left in the categories
         "of": to_spend,
         "percent": int(min(max(month.activity / to_spend, Decimal(0)), Decimal(1)) * 100) if to_spend > 0 else 0,
-        "pace": month_progress() if is_current else None,  # how far through the month today is: the tick on the bar (none for a past month)
+        "pace": month_progress()
+        if is_current
+        else None,  # how far through the month today is: the tick on the bar (none for a past month)
     }
     return templates.TemplateResponse(
         request,

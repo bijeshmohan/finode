@@ -23,14 +23,18 @@ def alembic(tmp_path, monkeypatch):
 
 def account(conn, key, name, parent=None, saving=0):
     conn.execute(
-        sa.text('INSERT INTO accounts (aid, "user", name, parent_id, on_budget, saving, created, updated) VALUES (:a, :u, :n, :p, 0, :s, :t, :t)'),
+        sa.text(
+            'INSERT INTO accounts (aid, "user", name, parent_id, on_budget, saving, created, updated) VALUES (:a, :u, :n, :p, 0, :s, :t, :t)'
+        ),
         {"a": key * 32, "u": USER, "n": name, "p": parent * 32 if parent else None, "s": saving, "t": NOW},
     )
 
 
 def plan(conn, key, account_key, amount="100"):
     conn.execute(
-        sa.text('INSERT INTO budget_allocations (bid, "user", month, account_id, amount, created, updated) VALUES (:b, :u, :m, :a, :x, :t, :t)'),
+        sa.text(
+            'INSERT INTO budget_allocations (bid, "user", month, account_id, amount, created, updated) VALUES (:b, :u, :m, :a, :x, :t, :t)'
+        ),
         {"b": key * 32, "u": USER, "m": "2026-10-01", "a": account_key * 32, "x": amount, "t": NOW},
     )
 
@@ -51,13 +55,23 @@ def test_only_the_expense_plan_is_kept_and_the_flags_go(alembic):
             plan(conn, key, target)
         for key, target in (("f", "6"), ("g", "7")):
             conn.execute(
-                sa.text('INSERT INTO budget_targets (tgid, "user", account_id, kind, amount, created, updated) VALUES (:t, :u, :a, \'monthly\', 5, :n, :n)'),
+                sa.text(
+                    "INSERT INTO budget_targets (tgid, \"user\", account_id, kind, amount, created, updated) VALUES (:t, :u, :a, 'monthly', 5, :n, :n)"
+                ),
                 {"t": key * 32, "u": USER, "a": target * 32, "n": NOW},
             )
-        conn.execute(sa.text('INSERT INTO profiles ("user", currency, advanced, plan_build, plan_earn, created, updated) VALUES (:u, \'INR\', 1, 1, 1, :t, :t)'), {"u": USER, "t": NOW})
+        conn.execute(
+            sa.text(
+                "INSERT INTO profiles (\"user\", currency, advanced, plan_build, plan_earn, created, updated) VALUES (:u, 'INR', 1, 1, 1, :t, :t)"
+            ),
+            {"u": USER, "t": NOW},
+        )
     command.upgrade(config, "c4e6a8b0d2f4")
     with engine.begin() as conn:
-        assert sorted(conn.execute(sa.text("SELECT account_id FROM budget_allocations")).scalars()) == ["5" * 32, "6" * 32]
+        assert sorted(conn.execute(sa.text("SELECT account_id FROM budget_allocations")).scalars()) == [
+            "5" * 32,
+            "6" * 32,
+        ]
         assert conn.execute(sa.text("SELECT account_id FROM budget_targets")).scalars().all() == ["6" * 32]
         assert conn.execute(sa.text("SELECT count(*) FROM accounts")).scalar() == 9, "no account is touched"
     inspector = sa.inspect(engine)

@@ -24,10 +24,15 @@ def books(client, root_accounts):
 
 
 def spend(client, source, target, amount="10"):
-    return client.post("/api/transactions/", json={"postings": [
-        {"account": target["aid"], "side": "debit", "amount": amount},
-        {"account": source["aid"], "side": "credit", "amount": amount},
-    ]})
+    return client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": target["aid"], "side": "debit", "amount": amount},
+                {"account": source["aid"], "side": "credit", "amount": amount},
+            ]
+        },
+    )
 
 
 def close(client, account):
@@ -36,14 +41,24 @@ def close(client, account):
 
 def test_an_empty_account_closes_and_keeps_its_history(client, books, session):
     spend(client, books["hdfc"], books["groceries"], "10")
-    client.post("/api/transactions/", json={"postings": [
-        {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
-        {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
-    ]})
-    client.post("/api/transactions/", json={"postings": [
-        {"account": books["hdfc"]["aid"], "side": "debit", "amount": "5"},
-        {"account": books["old"]["aid"], "side": "credit", "amount": "5"},
-    ]})
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
+    )
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["hdfc"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["old"]["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
+    )
     closed = close(client, books["old"])
     assert closed.status_code == 200 and closed.json()["closed_on"]
     register = services(session).accounts.register(UUID(books["old"]["aid"]))
@@ -57,10 +72,16 @@ def test_an_account_with_a_balance_cannot_be_closed(client, books):
 
 
 def test_a_future_dated_entry_blocks_closing(client, books):
-    client.post("/api/transactions/", json={"date": "2999-01-01", "postings": [
-        {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
-        {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
-    ]})
+    client.post(
+        "/api/transactions/",
+        json={
+            "date": "2999-01-01",
+            "postings": [
+                {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+            ],
+        },
+    )
     assert close(client, books["old"]).status_code == 400
 
 
@@ -91,29 +112,51 @@ def test_nothing_can_be_posted_to_a_closed_account(client, books):
 
 
 def test_an_old_entry_on_a_closed_account_can_still_be_edited(client, books):
-    made = client.post("/api/transactions/", json={"payee": "x", "postings": [
-        {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
-        {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
-    ]}).json()
-    client.post("/api/transactions/", json={"postings": [
-        {"account": books["hdfc"]["aid"], "side": "debit", "amount": "5"},
-        {"account": books["old"]["aid"], "side": "credit", "amount": "5"},
-    ]})
+    made = client.post(
+        "/api/transactions/",
+        json={
+            "payee": "x",
+            "postings": [
+                {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+            ],
+        },
+    ).json()
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["hdfc"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["old"]["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
+    )
     close(client, books["old"])
     edited = client.patch(f"/api/transactions/{made['tid']}", json={"payee": "renamed"})
     assert edited.status_code == 200 and edited.json()["payee"] == "renamed"
-    moved = client.patch(f"/api/transactions/{made['tid']}", json={"postings": [
-        {"account": books["groceries"]["aid"], "side": "debit", "amount": "5"},
-        {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
-    ]})
+    moved = client.patch(
+        f"/api/transactions/{made['tid']}",
+        json={
+            "postings": [
+                {"account": books["groceries"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
+    )
     assert moved.status_code == 200, "moving it off the closed account is fine"
 
 
 def test_a_running_recurring_rule_blocks_closing(client, books):
-    rule = client.post("/api/recurring/", json={
-        "from_account": books["old"]["aid"], "to_account": books["groceries"]["aid"], "amount": "1",
-        "start_date": "2999-01-01", "payee": "Netflix",
-    }).json()
+    rule = client.post(
+        "/api/recurring/",
+        json={
+            "from_account": books["old"]["aid"],
+            "to_account": books["groceries"]["aid"],
+            "amount": "1",
+            "start_date": "2999-01-01",
+            "payee": "Netflix",
+        },
+    ).json()
     refused = close(client, books["old"])
     assert refused.status_code == 409 and "Netflix" in refused.json()["detail"]
     paused = client.post(f"/recurring/{rule['rid']}/pause")
@@ -124,7 +167,9 @@ def test_a_running_recurring_rule_blocks_closing(client, books):
 def test_reopening_brings_back_the_account_its_groups_and_what_is_inside(client, books):
     close(client, books["food"])
     reopened = client.post(f"/accounts/{books['food']['aid']}/reopen")
-    assert reopened.status_code == 200 and client.get(f"/api/accounts/{books['food']['aid']}").json()["closed_on"] is None
+    assert (
+        reopened.status_code == 200 and client.get(f"/api/accounts/{books['food']['aid']}").json()["closed_on"] is None
+    )
     assert client.get(f"/api/accounts/{books['groceries']['aid']}").json()["closed_on"] is None
     close(client, books["food"])
     client.post(f"/accounts/{books['groceries']['aid']}/reopen")
@@ -133,14 +178,24 @@ def test_reopening_brings_back_the_account_its_groups_and_what_is_inside(client,
 
 
 def test_pickers_leave_closed_accounts_out_but_keep_what_an_entry_uses(client, books):
-    made = client.post("/api/transactions/", json={"postings": [
-        {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
-        {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
-    ]}).json()
-    client.post("/api/transactions/", json={"postings": [
-        {"account": books["hdfc"]["aid"], "side": "debit", "amount": "5"},
-        {"account": books["old"]["aid"], "side": "credit", "amount": "5"},
-    ]})
+    made = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
+    ).json()
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["hdfc"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["old"]["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
+    )
     close(client, books["old"])
     assert f'<option value="{books["old"]["aid"]}"' not in client.get("/transactions/new").text
     assert f'<option value="{books["old"]["aid"]}"' in client.get(f"/transactions/{made['tid']}/edit").text
@@ -149,9 +204,18 @@ def test_pickers_leave_closed_accounts_out_but_keep_what_an_entry_uses(client, b
 def test_the_accounts_page_tucks_closed_accounts_away(client, books):
     close(client, books["old"])
     page = client.get("/accounts").text
-    assert ">Load more</button>" in page and "closed account" not in page.split("<main", 1)[1].split("data-accounts", 1)[0] and "closed-hidden" in page and '<span class="badge">closed</span>' in page
+    assert (
+        ">Load more</button>" in page
+        and "closed account" not in page.split("<main", 1)[1].split("data-accounts", 1)[0]
+        and "closed-hidden" in page
+        and '<span class="badge">closed</span>' in page
+    )
     detail = client.get(f"/accounts/{books['old']['aid']}").text
-    assert "Reopen account" in detail and "Closed on " in detail and f"/transactions/new?account={books['old']['aid']}" not in detail
+    assert (
+        "Reopen account" in detail
+        and "Closed on " in detail
+        and f"/transactions/new?account={books['old']['aid']}" not in detail
+    )
     open_detail = client.get(f"/accounts/{books['hdfc']['aid']}").text
     assert "Close account" in open_detail and "still holds" in open_detail
 
@@ -187,4 +251,8 @@ async def test_assistants_do_not_see_or_post_to_closed_accounts(session, client,
         entry = next(a for a in listed if a["path"] == "Assets:Banks:Old Savings")
         assert entry["can_post"] is False and entry["closed"]
         with pytest.raises(ToolFailed, match="is closed"):
-            payload(await c.call_tool("record_transaction", {"amount": "1", "from_account": "HDFC", "to_account": "Old Savings"}))
+            payload(
+                await c.call_tool(
+                    "record_transaction", {"amount": "1", "from_account": "HDFC", "to_account": "Old Savings"}
+                )
+            )

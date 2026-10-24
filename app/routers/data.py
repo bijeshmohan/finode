@@ -4,14 +4,13 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 
 from ..auth import require_authenticated_user
+from ..clock import local_today
 from ..config import settings
-from ..limits import upload_limit_bytes
 from ..dependencies import Backup, Data
+from ..limits import upload_limit_bytes
 from ..schemas.backup import RestoreSummary
 from ..schemas.data import ImportSummary
 from ..services.data import ImportRejected
-from ..clock import local_today
-
 
 MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
@@ -41,7 +40,7 @@ def read_upload(file: UploadFile | None, limit: int = MAX_IMPORT_BYTES) -> str:
     try:
         return raw.decode("utf-8-sig")
     except UnicodeDecodeError:
-        raise ValueError("The file is not UTF-8 text.")
+        raise ValueError("The file is not UTF-8 text.") from None
 
 
 @router.get("/export")
@@ -54,13 +53,13 @@ def import_data(data: Data, file: UploadFile | None = File(default=None), dry_ru
     try:
         text = read_upload(file)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     if dry_run:
         return data.preview_import(text)
     try:
         return data.run_import(text)
     except ImportRejected as e:
-        raise HTTPException(status_code=400, detail=e.summary.model_dump(mode="json"))
+        raise HTTPException(status_code=400, detail=e.summary.model_dump(mode="json")) from None
 
 
 def backup_response(backup) -> Response:
@@ -77,7 +76,7 @@ def read_backup(file: UploadFile | None) -> dict:
     try:
         data = json.loads(read_upload(file, upload_limit_bytes(settings.max_restore_mb)))
     except json.JSONDecodeError:
-        raise ValueError("The file is not a finode backup (it is not valid JSON).")
+        raise ValueError("The file is not a finode backup (it is not valid JSON).") from None
     if not isinstance(data, dict):
         raise ValueError("The file is not a finode backup.")
     return data
@@ -95,7 +94,7 @@ def restore(backup: Backup, file: UploadFile | None = File(default=None), dry_ru
     try:
         summary = backup.restore(read_backup(file), dry_run=dry_run)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     if summary.errors:
         raise HTTPException(status_code=400, detail=summary.model_dump(mode="json"))
     return summary

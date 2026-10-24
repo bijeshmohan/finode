@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, Index, JSON
+from sqlalchemy import JSON, CheckConstraint, DateTime, Index
 from sqlmodel import Field, SQLModel
 
 from .utils import utc_now

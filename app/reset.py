@@ -5,6 +5,7 @@ Supabase emails a link built from its "Reset password" template; ours points at
 links, and the token must not be spent by them); submitting the form spends the
 token and sets the new password.
 """
+
 import httpx
 
 from .config import settings
@@ -37,7 +38,7 @@ def send_reset_email(email: str) -> None:
     try:
         response = httpx.post(_url("recover"), json={"email": email}, headers=_headers(), timeout=10)
     except httpx.HTTPError:
-        raise AuthUnavailableError("the sign-in service is unreachable")
+        raise AuthUnavailableError("the sign-in service is unreachable") from None
     # 429 is Supabase's own limit (one email a minute per address); the caller answers the same way.
     if response.status_code not in (200, 429):
         raise AuthUnavailableError("the sign-in service returned an unexpected response")
@@ -60,7 +61,7 @@ def reset_password(token_hash: str, password: str) -> SessionTokens:
             _url("user"), json={"password": password}, headers=_headers(tokens.access_token), timeout=10
         )
     except httpx.HTTPError:
-        raise AuthUnavailableError("the sign-in service is unreachable")
+        raise AuthUnavailableError("the sign-in service is unreachable") from None
     if changed.status_code in (400, 422):
         try:
             body = changed.json()

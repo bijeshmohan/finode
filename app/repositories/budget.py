@@ -45,19 +45,20 @@ class BudgetRepository:
 
     def delete_for_account(self, account_id: UUID) -> None:
         for row in self.db.exec(
-            select(BudgetAllocation).where(
-                BudgetAllocation.user == self.uid, BudgetAllocation.account_id == account_id
-            )
+            select(BudgetAllocation).where(BudgetAllocation.user == self.uid, BudgetAllocation.account_id == account_id)
         ).all():
             self.db.delete(row)
         self.db.flush()
 
     def uses_account(self, account_id: UUID) -> bool:
-        return self.db.exec(
-            select(BudgetAllocation).where(
-                BudgetAllocation.user == self.uid, BudgetAllocation.account_id == account_id
-            )
-        ).first() is not None
+        return (
+            self.db.exec(
+                select(BudgetAllocation).where(
+                    BudgetAllocation.user == self.uid, BudgetAllocation.account_id == account_id
+                )
+            ).first()
+            is not None
+        )
 
     # ---- goals -----------------------------------------------------------------------------------
 
@@ -96,7 +97,9 @@ class BudgetRepository:
         return [r for r in rows if up_to is None or r.month <= up_to]
 
     def goal_assigned(self, month: date, goal_id: UUID) -> Decimal:
-        return sum((r.amount for r in self.goal_allocations() if r.month == month and r.goal_id == goal_id), Decimal("0.00"))
+        return sum(
+            (r.amount for r in self.goal_allocations() if r.month == month and r.goal_id == goal_id), Decimal("0.00")
+        )
 
     def set_goal(self, month: date, goal_id: UUID, amount: Decimal) -> None:
         """Make the month's amount set aside for a goal exactly `amount` (zero removes it)."""

@@ -17,8 +17,19 @@ def ledger(client, root_accounts):
 
 
 def record(client, bank, food, payee="Lunch", amount="120", on=None, **extra):
-    r = client.post("/api/transactions/", json={"date": str(on or local_today()), "payee": payee, "comment": "with notes", "postings": [
-        {"account": food, "side": "debit", "amount": amount}, {"account": bank, "side": "credit", "amount": amount}], **extra})
+    r = client.post(
+        "/api/transactions/",
+        json={
+            "date": str(on or local_today()),
+            "payee": payee,
+            "comment": "with notes",
+            "postings": [
+                {"account": food, "side": "debit", "amount": amount},
+                {"account": bank, "side": "credit", "amount": amount},
+            ],
+            **extra,
+        },
+    )
     assert r.status_code == 201, r.text
     return r.json()["tid"]
 
@@ -50,7 +61,8 @@ def test_a_deleted_entry_is_listed_and_restored_as_it_was(client, ledger, svc):
     for key in ("date", "payee", "comment"):
         assert after[key] == before[key]
     assert sorted((p["account"], p["side"], p["amount"]) for p in after["postings"]) == sorted(
-        (p["account"], p["side"], p["amount"]) for p in before["postings"])
+        (p["account"], p["side"], p["amount"]) for p in before["postings"]
+    )
     assert client.get("/api/reports/trial-balance").json()["balanced"] is True
     assert "Lunch" not in client.get("/transactions/deleted").text, "what is back leaves the list"
     assert [h.action for h in svc.transactions.history(UUID(tid))] == ["created", "deleted", "created"]
@@ -72,7 +84,9 @@ def test_restoring_twice_or_something_unknown_is_refused(client, ledger, svc):
     hid = hid_of(svc, tid)
     assert restored(restore(client, hid))
     again = restore(client, hid)
-    assert again.status_code == 400 and "already back" in again.text and again.headers["HX-Retarget"] == "#restore-error"
+    assert (
+        again.status_code == 400 and "already back" in again.text and again.headers["HX-Retarget"] == "#restore-error"
+    )
     web = restore(client, "00000000-0000-4000-8000-000000000000")
     assert web.status_code == 404 and web.headers["HX-Retarget"] == "#restore-error"
 
@@ -93,7 +107,9 @@ def test_only_the_latest_deletion_of_an_entry_can_be_restored(client, ledger, sv
 
 def test_an_account_that_is_gone_blocks_the_restore_with_a_reason(client, ledger, svc):
     bank, food = ledger
-    other = client.post("/api/accounts/", json={"name": "Snacks", "parent_id": client.get(f"/api/accounts/{food}").json()["parent_id"]}).json()["aid"]
+    other = client.post(
+        "/api/accounts/", json={"name": "Snacks", "parent_id": client.get(f"/api/accounts/{food}").json()["parent_id"]}
+    ).json()["aid"]
     tid = record(client, bank, other)
     client.delete(f"/api/transactions/{tid}")
     assert client.delete(f"/api/accounts/{other}").status_code in (200, 204)

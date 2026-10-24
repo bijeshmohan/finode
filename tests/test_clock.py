@@ -1,6 +1,6 @@
 """FINODE_TIMEZONE decides what "today" is."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -33,7 +33,7 @@ def test_without_a_zone_the_servers_clock_is_used(monkeypatch: pytest.MonkeyPatc
 
 def test_midnight_is_given_as_a_utc_moment(kolkata_after_midnight):
     midnight = clock.local_midnight_utc()
-    assert midnight == datetime(2031, 10, 15, 18, 30, tzinfo=timezone.utc)
+    assert midnight == datetime(2031, 10, 15, 18, 30, tzinfo=UTC)
 
 
 def test_the_setting_must_name_a_real_zone():
@@ -46,10 +46,12 @@ def test_the_setting_must_name_a_real_zone():
 def test_new_entries_and_the_pages_use_that_day(client, account, expense_account, kolkata_after_midnight):
     made = client.post(
         "/api/transactions/",
-        json={"postings": [
-            {"account": expense_account["aid"], "side": "debit", "amount": "5"},
-            {"account": account["aid"], "side": "credit", "amount": "5"},
-        ]},
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "5"},
+                {"account": account["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
     )
     assert made.status_code == 201 and made.json()["date"] == "2031-10-16"
     assert "2031-10-16" in client.get("/transactions/new").text

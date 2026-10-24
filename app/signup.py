@@ -9,16 +9,14 @@ from .config import settings
 from .web_auth import AuthUnavailableError
 
 
-class EmailAlreadyRegisteredError(Exception):
-    ...
+class EmailAlreadyRegisteredError(Exception): ...
 
 
 class SignupRejectedError(Exception):
     """Supabase refused the email or password; the message is safe to show."""
 
 
-class RateLimitedError(Exception):
-    ...
+class RateLimitedError(Exception): ...
 
 
 def invite_code_is_valid(candidate: str) -> bool:
@@ -49,7 +47,7 @@ def delete_user(user_id) -> None:
             timeout=10,
         )
     except httpx.HTTPError:
-        raise AuthUnavailableError("the sign-in service is unreachable")
+        raise AuthUnavailableError("the sign-in service is unreachable") from None
     if response.status_code not in (200, 204, 404):
         raise AuthUnavailableError("the sign-in service returned an unexpected response")
 
@@ -70,7 +68,7 @@ def create_user(email: str, password: str) -> None:
             timeout=10,
         )
     except httpx.HTTPError:
-        raise AuthUnavailableError("sign-up service is unreachable")
+        raise AuthUnavailableError("sign-up service is unreachable") from None
 
     if response.status_code in (200, 201):
         return

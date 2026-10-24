@@ -1,6 +1,6 @@
 """The two-levels migration: the depth limits leave the profile; deeper accounts stop it, changing nothing."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -11,7 +11,7 @@ from alembic.config import Config
 from app.config import settings
 
 BEFORE = "f4b6d8a0c2e5"
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 USER = uuid4()
 
 
@@ -32,7 +32,9 @@ def _chain(engine, depth):
         for level in range(depth + 1):
             aid = uuid4()
             c.execute(
-                sa.text("INSERT INTO accounts (created, updated, aid, user, name, parent_id) VALUES (:n, :n, :a, :u, :name, :p)").bindparams(
+                sa.text(
+                    "INSERT INTO accounts (created, updated, aid, user, name, parent_id) VALUES (:n, :n, :a, :u, :name, :p)"
+                ).bindparams(
                     sa.bindparam("n", NOW, type_=sa.DateTime(timezone=True)),
                     sa.bindparam("a", aid, type_=sa.Uuid()),
                     sa.bindparam("u", USER, type_=sa.Uuid()),
@@ -48,8 +50,13 @@ def test_the_limits_go_and_the_accounts_stay(alembic):
     command.upgrade(config, BEFORE)
     _chain(engine, 2)
     with engine.begin() as c:
-        c.execute(sa.text('INSERT INTO profiles (created, updated, "user", max_depth_expenses) VALUES (:n, :n, :u, 3)').bindparams(
-            sa.bindparam("n", NOW, type_=sa.DateTime(timezone=True)), sa.bindparam("u", USER, type_=sa.Uuid())))
+        c.execute(
+            sa.text(
+                'INSERT INTO profiles (created, updated, "user", max_depth_expenses) VALUES (:n, :n, :u, 3)'
+            ).bindparams(
+                sa.bindparam("n", NOW, type_=sa.DateTime(timezone=True)), sa.bindparam("u", USER, type_=sa.Uuid())
+            )
+        )
     command.upgrade(config, "head")
     inspector = sa.inspect(engine)
     assert not [c["name"] for c in inspector.get_columns("profiles") if c["name"].startswith("max_depth")]

@@ -19,13 +19,28 @@ def books(client, root_accounts):
     dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food["aid"]}).json()
     rent = account(client, root_accounts, "Rent", "Expenses")
     travel = account(client, root_accounts, "Travel", "Expenses")
-    return {"bank": bank, "salary": salary, "food": food, "groceries": groceries, "dining": dining, "rent": rent, "travel": travel}
+    return {
+        "bank": bank,
+        "salary": salary,
+        "food": food,
+        "groceries": groceries,
+        "dining": dining,
+        "rent": rent,
+        "travel": travel,
+    }
 
 
 def entry(client, debit, credit, amount, when):
-    response = client.post("/api/transactions/", json={"date": when.isoformat(), "postings": [
-        {"account": debit["aid"], "side": "debit", "amount": amount},
-        {"account": credit["aid"], "side": "credit", "amount": amount}]})
+    response = client.post(
+        "/api/transactions/",
+        json={
+            "date": when.isoformat(),
+            "postings": [
+                {"account": debit["aid"], "side": "debit", "amount": amount},
+                {"account": credit["aid"], "side": "credit", "amount": amount},
+            ],
+        },
+    )
     assert response.status_code == 201, response.text
 
 
@@ -42,7 +57,9 @@ def rows(page: str) -> list[tuple[str, str, str]]:
 
     found = re.findall(
         r'<span class="crow-name">(.*?)</span><span class="crow-sub">(.*?)</span></span>\s*<span class="crow-amt"><span class="[^"]*">(.*?)</span>',
-        page, flags=re.S)
+        page,
+        flags=re.S,
+    )
     return [(name, line, amount) for name, line, amount in found]
 
 
@@ -52,8 +69,11 @@ def test_categories_are_ranked_by_what_they_came_to_with_their_share_and_what_is
     entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
     page = client.get("/categories").text
     assert "1,500.00" in page, "the month's spending"
-    assert rows(page)[:2] == [("Rent", "67% of spending", "1,000.00"), ("Food", "Groceries · Dining · 33%", "500.00")], "biggest first"
-    assert "cgrp" not in page and "<details" not in page.split('data-categories')[1], "nothing folds"
+    assert rows(page)[:2] == [
+        ("Rent", "67% of spending", "1,000.00"),
+        ("Food", "Groceries · Dining · 33%", "500.00"),
+    ], "biggest first"
+    assert "cgrp" not in page and "<details" not in page.split("data-categories")[1], "nothing folds"
 
 
 def test_the_hint_names_the_three_biggest_and_counts_the_rest(client, books):
@@ -100,7 +120,12 @@ def test_it_is_one_month_at_a_time_and_never_the_future(client, books):
 def test_income_is_its_own_tab_with_a_plus_free_green_list(client, books):
     entry(client, books["bank"], books["salary"], "5000", THIS_MONTH)
     page = client.get("/categories?tab=income").text
-    assert '<span class="muted">Earned so far</span>' in page and "5,000.00" in page and "Salary" in page and "Rent" not in page
+    assert (
+        '<span class="muted">Earned so far</span>' in page
+        and "5,000.00" in page
+        and "Salary" in page
+        and "Rent" not in page
+    )
     assert 'aria-pressed="true">Income<' in page
 
 
@@ -194,8 +219,12 @@ def test_a_closed_sub_category_is_not_listed_under_its_group(client, books):
 
 def test_a_category_that_was_spent_in_can_be_deleted_without_emptying_it_first(client, books):
     entry(client, books["rent"], books["bank"], "900", THIS_MONTH)
-    assert client.post(f"/api/accounts/{books['rent']['aid']}/close").status_code == 200, "its balance is spending, not money"
-    assert client.post(f"/api/accounts/{books['bank']['aid']}/close").status_code == 400, "an account still holding money is not"
+    assert client.post(f"/api/accounts/{books['rent']['aid']}/close").status_code == 200, (
+        "its balance is spending, not money"
+    )
+    assert client.post(f"/api/accounts/{books['bank']['aid']}/close").status_code == 400, (
+        "an account still holding money is not"
+    )
 
 
 def test_a_category_page_says_delete_where_an_account_says_close(client, books):
@@ -228,7 +257,9 @@ def test_every_row_has_one_quiet_line_and_the_unused_ones_say_nothing_yet(client
     entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
     found = rows(client.get("/categories").text)
     assert len(found) == 3
-    assert [r for r in found if r[1] == "100% of spending"] and len([r for r in found if r[1] == "Nothing yet" and r[2] == "–"]) == 2, "one row has everything, the others a quiet dash"
+    assert [r for r in found if r[1] == "100% of spending"] and len(
+        [r for r in found if r[1] == "Nothing yet" and r[2] == "–"]
+    ) == 2, "one row has everything, the others a quiet dash"
 
 
 def test_with_nothing_in_the_month_every_row_is_a_dash(client, books):
@@ -261,9 +292,13 @@ def test_each_list_heading_on_a_category_page_has_its_own_plus(client, books):
     assert f'href="/categories/new?parent={books["food"]["aid"]}"' in group and 'title="Add subcategory"' in group
     assert f'href="/transactions/new?account={books["food"]["aid"]}' in group and 'title="Add transaction"' in group
     leaf = client.get(f"/categories/{books['groceries']['aid']}").text
-    assert 'title="Add transaction"' in leaf and "Subcategories" not in leaf and 'title="Add subcategory"' not in leaf, "as deep as it gets"
+    assert (
+        'title="Add transaction"' in leaf and "Subcategories" not in leaf and 'title="Add subcategory"' not in leaf
+    ), "as deep as it gets"
     empty = client.get(f"/categories/{books['rent']['aid']}").text
-    assert "Subcategories" not in empty and 'title="Add subcategory"' not in empty, "no empty row: the … menu adds the first"
+    assert "Subcategories" not in empty and 'title="Add subcategory"' not in empty, (
+        "no empty row: the … menu adds the first"
+    )
     assert "Add subcategory" in empty, "the menu still does"
 
 
@@ -293,6 +328,11 @@ def test_the_plus_on_a_categories_tab_offers_only_that_kind(client, root_account
     assert f'value="{root_accounts["Income"]}" selected' in income, "it starts on the kind itself"
     assert f'value="{root_accounts["Expenses"]}"' not in income, "no Expenses accounts to put it under"
     expense = client.get("/categories/new?root=expense").text
-    assert f'value="{root_accounts["Expenses"]}" selected' in expense and f'value="{root_accounts["Income"]}"' not in expense
+    assert (
+        f'value="{root_accounts["Expenses"]}" selected' in expense
+        and f'value="{root_accounts["Income"]}"' not in expense
+    )
     both = client.get("/categories/new").text
-    assert f'value="{root_accounts["Income"]}"' in both and f'value="{root_accounts["Expenses"]}"' in both, "no tab: both, as before"
+    assert f'value="{root_accounts["Income"]}"' in both and f'value="{root_accounts["Expenses"]}"' in both, (
+        "no tab: both, as before"
+    )

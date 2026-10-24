@@ -1,6 +1,6 @@
 """The ledger-integrity migration: existing transactions get a history, bad rows are refused."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -8,8 +8,8 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
-from migrations.commodity_seed import seed_id
 from app.config import settings
+from migrations.commodity_seed import seed_id
 
 # The last revision before finode kept one currency (the later ones cannot be undone).
 BEFORE_SINGLE_CURRENCY = "e2a4c6e8f1b3"
@@ -17,7 +17,7 @@ BEFORE_SINGLE_CURRENCY = "e2a4c6e8f1b3"
 
 PARENT = "f1a3c5e7b892"
 USER = uuid4()
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 @pytest.fixture
@@ -31,10 +31,7 @@ def alembic(tmp_path, monkeypatch):
 
 
 def _bind(**values):
-    return [
-        sa.bindparam(k, v, type_=sa.Uuid() if hasattr(v, "hex") else None)
-        for k, v in values.items()
-    ]
+    return [sa.bindparam(k, v, type_=sa.Uuid() if hasattr(v, "hex") else None) for k, v in values.items()]
 
 
 def _ledger(engine, amount="1234.56"):
@@ -74,7 +71,7 @@ def _ledger(engine, amount="1234.56"):
 def test_existing_transactions_start_their_history(alembic):
     config, engine = alembic
     command.upgrade(config, PARENT)
-    tid, bank = _ledger(engine)
+    _tid, _bank = _ledger(engine)
 
     command.upgrade(config, BEFORE_SINGLE_CURRENCY)
 
@@ -94,7 +91,7 @@ def test_existing_transactions_start_their_history(alembic):
 def test_the_database_refuses_postings_that_are_not_positive(alembic):
     config, engine = alembic
     command.upgrade(config, BEFORE_SINGLE_CURRENCY)
-    tid, bank = _ledger(engine)
+    _tid, _bank = _ledger(engine)
     with pytest.raises(sa.exc.IntegrityError), engine.begin() as c:
         c.execute(sa.text("UPDATE postings SET amount = 0"))
     with pytest.raises(sa.exc.IntegrityError), engine.begin() as c:

@@ -1,12 +1,13 @@
-from datetime import date as Date, datetime
+from datetime import date as Date
+from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ..models.transaction import PostingSide
 from ..clock import local_today
+from ..models.transaction import PostingSide
 from .day import Day
 
 
@@ -24,8 +25,7 @@ class PostingBase(BaseModel):
         return v
 
 
-class PostingCreate(PostingBase):
-    ...
+class PostingCreate(PostingBase): ...
 
 
 class PostingRead(PostingBase):
@@ -59,7 +59,7 @@ class TransactionCreate(TransactionBase):
     related_id: UUID | None = None
 
     @model_validator(mode="after")
-    def postings_must_balance(self) -> "TransactionCreate":
+    def postings_must_balance(self) -> TransactionCreate:
         validate_balanced_postings(self.postings)
         return self
 
@@ -90,13 +90,13 @@ class TransactionUpdate(BaseModel):
     _tidy_comment = field_validator("comment")(lambda cls, v: _tidy_comment(v))
 
     @model_validator(mode="after")
-    def non_nullable_fields_must_not_be_null(self) -> "TransactionUpdate":
+    def non_nullable_fields_must_not_be_null(self) -> TransactionUpdate:
         if "date" in self.model_fields_set and self.date is None:
             raise ValueError("the field 'date' must not be null!")
         return self
 
     @model_validator(mode="after")
-    def postings_must_balance(self) -> "TransactionUpdate":
+    def postings_must_balance(self) -> TransactionUpdate:
         if self.postings is not None:
             validate_balanced_postings(self.postings)
         return self
@@ -106,12 +106,8 @@ def validate_balanced_postings(postings: list[PostingCreate]) -> None:
     if len(postings) < 2:
         raise ValueError("transactions must contain at least two postings!")
 
-    debit_total = sum(
-        posting.amount for posting in postings if posting.side == PostingSide.DEBIT
-    )
-    credit_total = sum(
-        posting.amount for posting in postings if posting.side == PostingSide.CREDIT
-    )
+    debit_total = sum(posting.amount for posting in postings if posting.side == PostingSide.DEBIT)
+    credit_total = sum(posting.amount for posting in postings if posting.side == PostingSide.CREDIT)
     if debit_total != credit_total:
         raise ValueError("transaction debits and credits must balance!")
 

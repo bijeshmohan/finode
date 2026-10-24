@@ -28,25 +28,27 @@ def test_saving_too_long_name_reports_error(client: TestClient):
     assert response.headers["HX-Retarget"] == "#form-error"
 
 
-
-
 def test_top_bar_leads_to_settings_and_has_no_sign_out(client: TestClient):
     text = client.get("/").text
     assert 'class="icon-button avatar-link" href="/settings"' in text
     assert 'href="/profile"' not in text
     assert "/logout" not in text
-    assert 'href="/profile"' not in client.get("/settings").text, "there is one page now: the name is edited on Settings"
+    assert 'href="/profile"' not in client.get("/settings").text, (
+        "there is one page now: the name is edited on Settings"
+    )
 
 
 def test_tab_bar_has_four_tabs_and_the_docked_plus(client: TestClient):
     text = client.get("/").text
-    tabbar = text[text.index('<nav class="tabbar'):]
+    tabbar = text[text.index('<nav class="tabbar') :]
     tabbar = tabbar[: tabbar.index("</nav>")]
     assert tabbar.count("<a ") == 5 and tabbar.count('class="fab"') == 1, "four tabs and the docked +"
     assert all(name in tabbar for name in ("Home", "Budgets", "Accounts", "Categories"))
     assert "Transactions" not in tabbar and "Settings" not in tabbar and "/profile" not in tabbar
     assert "search-link" not in text and "focus=search" not in text, "no search icon in the top bar"
-    assert 'href="/transactions"' in text, "Transactions is reached from the sidebar on wide screens (and 'View all' on Home once there is something)"
+    assert 'href="/transactions"' in text, (
+        "Transactions is reached from the sidebar on wide screens (and 'View all' on Home once there is something)"
+    )
 
 
 def test_settings_page_has_sign_out(client: TestClient):
@@ -70,7 +72,7 @@ def test_sections_are_collapsible_and_summarise_values(client: TestClient):
     text = client.get("/settings").text
     for section in ("name", "currency", "appearance"):
         assert f'<details id="{section}" class="setting">' in text
-    assert "Currency</span><span class=\"setting-value\">INR" in text
+    assert 'Currency</span><span class="setting-value">INR' in text
 
 
 def test_theme_cookie_sets_data_theme(client: TestClient):
@@ -94,7 +96,7 @@ def test_settings_is_reached_from_the_avatar_and_the_sidebar(client: TestClient)
     text = client.get("/").text
     assert text.count('href="/settings"') == 2, "the avatar on phones and the sidebar link on wide screens"
     top = text[: text.index("</header>")]
-    assert "<circle cx=\"12\" cy=\"12\" r=\"3\"/>" not in top, "no gear icon in the top bar"
+    assert '<circle cx="12" cy="12" r="3"/>' not in top, "no gear icon in the top bar"
     assert 'aria-current="page"' in client.get("/settings").text.split('href="/settings"')[1][:80]
 
 

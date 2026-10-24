@@ -1,7 +1,7 @@
 """The accounts page: every group open under its heading, unused accounts tucked away."""
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -21,7 +21,9 @@ def tree(client, root_accounts, session):
     }
     cards = make("Credit Cards", root_accounts["Liabilities"])
     ids["amex"] = make("Amex", cards, balance="300")
-    food = make("Food", root_accounts["Assets"])  # a second group, so the tests need no Expenses account (those are Categories)
+    food = make(
+        "Food", root_accounts["Assets"]
+    )  # a second group, so the tests need no Expenses account (those are Categories)
     ids["food"] = food
     ids["groceries"] = make("Groceries", food)
     ids["snacks"] = make("Snacks", food)
@@ -30,7 +32,7 @@ def tree(client, root_accounts, session):
 
 
 def age(session, *names, days=30):
-    old = datetime.now(timezone.utc) - timedelta(days=days)
+    old = datetime.now(UTC) - timedelta(days=days)
     table = Account.__table__
     session.exec(table.update().where(table.c.name.in_(names)).values(created=old))
     session.commit()
@@ -38,8 +40,8 @@ def age(session, *names, days=30):
 
 def item(page: str, aid: str) -> str:
     """The <li> of one account."""
-    start = page.index(f'<li data-path="', page.index(f'/accounts/{aid}"') - 400)
-    return page[start:page.index("</li>", page.index(f'/accounts/{aid}"'))]
+    start = page.index('<li data-path="', page.index(f'/accounts/{aid}"') - 400)
+    return page[start : page.index("</li>", page.index(f'/accounts/{aid}"'))]
 
 
 def test_a_group_is_a_heading_with_its_accounts_under_it_and_nothing_folds(client, tree):
@@ -55,7 +57,9 @@ def test_plain_accounts_under_a_type_share_one_block_under_others(client, tree):
     page = client.get("/accounts").text
     assert page.count('<div class="acc-block') == 3, "Banks, Food and the plain ones"
     assert page.count('<a class="acc-gh"') == 2, "the two groups open pages"
-    assert page.count("data-others") == 1 and ">Others</span>" in page, "the plain ones sit under Others, a label and not a link"
+    assert page.count("data-others") == 1 and ">Others</span>" in page, (
+        "the plain ones sit under Others, a label and not a link"
+    )
 
 
 def test_the_chips_pick_a_type_in_the_order_assets_liabilities_and_equity_has_none(client, tree):
@@ -63,20 +67,27 @@ def test_the_chips_pick_a_type_in_the_order_assets_liabilities_and_equity_has_no
     chips = re.findall(r'<a class="chip" href="/accounts\?tab=(\w+)" aria-pressed="(\w+)">(\w+)</a>', page)
     # The chosen chip links to Equity (tapping it again leaves neither chosen); the other one links to itself.
     assert chips == [("equity", "true", "Asset"), ("liabilities", "false", "Liability")]
-    assert client.get("/accounts?tab=nonsense").text.count('aria-pressed="true"') == 1 and client.get("/accounts?tab=nonsense").text.split('aria-pressed="true">')[1].startswith("Asset<")
+    assert client.get("/accounts?tab=nonsense").text.count('aria-pressed="true"') == 1 and client.get(
+        "/accounts?tab=nonsense"
+    ).text.split('aria-pressed="true">')[1].startswith("Asset<")
     assert "Amex" not in page and "Opening Balances" not in page, "only the chosen type is listed"
     liabilities = client.get("/accounts?tab=liabilities").text
     assert "Amex" in liabilities and "HDFC" not in liabilities and 'aria-pressed="true">Liability<' in liabilities
     assert "Opening Balances" in client.get("/accounts?tab=equity").text
     assert "data-account-search" not in page and "Recently used" not in page and "Search accounts" not in page
-    assert "Net worth" not in page and 'class="add-row" href="/accounts/new?root=assets"' in page, "an Add account row ends the page"
+    assert "Net worth" not in page and 'class="add-row" href="/accounts/new?root=assets"' in page, (
+        "an Add account row ends the page"
+    )
     assert "circ-button" not in page and "head-icons" not in page, "no round + or bin beside the switcher"
     assert page.index('class="add-row"') > page.index('class="tile list"'), "after the accounts"
 
 
 def test_the_figure_is_the_chosen_types_total(client, tree):
     page = client.get("/accounts").text
-    assert '<span class="muted">What you own</span>' in page and "5,000.00" in page.split('cat-hero"', 1)[1].split("</span>\n</div>", 1)[0]
+    assert (
+        '<span class="muted">What you own</span>' in page
+        and "5,000.00" in page.split('cat-hero"', 1)[1].split("</span>\n</div>", 1)[0]
+    )
     owed = client.get("/accounts?tab=liabilities").text
     assert "What you owe" in owed and "300.00" in owed.split('cat-hero"', 1)[1].split("</span>\n</div>", 1)[0]
 
@@ -84,7 +95,7 @@ def test_the_figure_is_the_chosen_types_total(client, tree):
 def test_the_quiet_line_counts_the_open_accounts_of_the_type(client, tree):
     page = client.get("/accounts").text
     line = page.split('hero-note"><span>', 1)[1].split("</span>", 1)[0]
-    assert line.endswith(" accounts") or line.endswith(" account"), line
+    assert line.endswith((" accounts", " account")), line
 
 
 def test_every_open_account_shows_even_with_no_entries_and_no_balance(client, tree, session):
@@ -115,4 +126,6 @@ def test_categories_end_with_an_add_row_and_an_empty_page_keeps_its_button(clien
     client.post("/api/accounts/", json={"name": "Dining", "parent_id": root_accounts["Expenses"]})
     page = client.get("/categories?tab=expense").text
     assert 'class="add-row" href="/categories/new?root=expense"' in page and "circ-button" not in page
-    assert client.get("/categories?tab=income").text.count('class="add-row"') == 0, "nothing in Income yet: its own button"
+    assert client.get("/categories?tab=income").text.count('class="add-row"') == 0, (
+        "nothing in Income yet: its own button"
+    )

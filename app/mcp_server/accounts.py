@@ -8,7 +8,6 @@ from uuid import UUID
 from ..schemas import AccountRead
 from ..services.account import GROUP_POSTING_ROOT_NAMES
 
-
 SEPARATORS = re.compile(r"\s*(?::|›|>|/)\s*")
 ROOT_ALIASES = {
     "asset": "assets",
@@ -86,9 +85,11 @@ class AccountIndex:
         # Top-level accounts can match too, so naming one gets a clear "use a sub-account" message.
         candidates = list(self.entries.values())
         exact = [e for e in candidates if folded(e) == wanted]
-        matches = exact or [e for e in candidates if folded(e)[-len(wanted):] == wanted]
+        matches = exact or [e for e in candidates if folded(e)[-len(wanted) :] == wanted]
         if len(matches) > 1:
-            matches = [e for e in matches if e.account.closed_on is None] or matches  # a closed twin is not the one meant
+            matches = [
+                e for e in matches if e.account.closed_on is None
+            ] or matches  # a closed twin is not the one meant
         if postable and len(matches) > 1:
             # "Food" under Expenses and a group "Food" under Assets: prefer what can take postings.
             matches = [e for e in matches if e.postable] or matches

@@ -8,17 +8,17 @@ Budget targets (monthly, weekly, refill, by-date and yearly wishes per category,
 week-by-week view) were taken out. Nothing else refers to the table; the plan (`budget_allocations`) and goals are
 untouched. Downgrading brings back an empty table.
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'f2c4e6a8b0d1'
-down_revision: Union[str, Sequence[str], None] = 'e7b9d1f3a5c8'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "f2c4e6a8b0d1"
+down_revision: str | Sequence[str] | None = "e7b9d1f3a5c8"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

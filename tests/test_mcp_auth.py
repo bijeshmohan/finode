@@ -6,8 +6,8 @@ import httpx2
 import pytest
 
 from app.config import settings
-from app.mcp_server import transport
 from app.main import app
+from app.mcp_server import transport
 from app.models.api_token import ApiToken
 from app.models.transaction import Transaction
 from app.repositories.api_token import ApiTokenRepository
@@ -16,7 +16,6 @@ from app.services.api_token import ApiTokenService, hash_secret
 
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
-
 
 pytestmark = pytest.mark.anyio
 
@@ -71,11 +70,27 @@ async def test_a_read_only_token_can_see_but_not_use_write_tools(session, root_a
     async with running_app(session), mcp_client(secret) as c:
         names = {t.name for t in (await c.list_tools()).tools}
         assert "get_overview" in names and "list_accounts" in names
-        writers = {"record_transaction", "record_split", "update_transaction", "delete_transaction", "create_account", "assign_to_category", "assign_to_goal", "use_goal", "move_budget_money", "copy_budget_from_previous_month"}
+        writers = {
+            "record_transaction",
+            "record_split",
+            "update_transaction",
+            "delete_transaction",
+            "create_account",
+            "assign_to_category",
+            "assign_to_goal",
+            "use_goal",
+            "move_budget_money",
+            "copy_budget_from_previous_month",
+        }
         assert writers <= names, "listed so the assistant can explain, but they only refuse"
         calls = {
             "record_transaction": {"amount": "1", "from_account": "a", "to_account": "b"},
-            "record_split": {"postings": [{"account": "a", "side": "debit", "amount": "1"}, {"account": "b", "side": "credit", "amount": "1"}]},
+            "record_split": {
+                "postings": [
+                    {"account": "a", "side": "debit", "amount": "1"},
+                    {"account": "b", "side": "credit", "amount": "1"},
+                ]
+            },
             "update_transaction": {"transaction_id": "00000000-0000-4000-8000-000000000001"},
             "delete_transaction": {"transaction_id": "00000000-0000-4000-8000-000000000001"},
             "create_account": {"name": "X", "parent": "Assets"},

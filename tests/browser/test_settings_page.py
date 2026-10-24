@@ -18,7 +18,10 @@ def test_a_touched_row_is_not_painted_grey(page: Page, books):
     page.goto("/settings")
     for row in (page.locator("details.setting > summary").first, page.locator("a.setting-link").first):
         row.hover()
-        assert page.evaluate("el => getComputedStyle(el).backgroundColor", row.element_handle()) in ("rgba(0, 0, 0, 0)", "transparent")
+        assert page.evaluate("el => getComputedStyle(el).backgroundColor", row.element_handle()) in (
+            "rgba(0, 0, 0, 0)",
+            "transparent",
+        )
     # and the hover colours that remain are only for devices that really hover
     css = page.request.get(page.evaluate("document.querySelector('link[rel=stylesheet]').href")).text()
     assert "@media (hover: hover) { .account-row:hover" in css and ".setting > summary:hover" not in css
@@ -32,5 +35,7 @@ def test_values_sit_beside_the_chevron_and_sign_out_is_a_red_row(page: Page, boo
         assert 0 <= chevron["x"] - (value["x"] + value["width"]) <= 12, f"{row}: the value is right beside the chevron"
     out = page.get_by_role("button", name="Sign out")
     expect(out).to_be_visible()
-    assert out.evaluate("e => getComputedStyle(e).color") != page.locator("#currency .setting-title").evaluate("e => getComputedStyle(e).color")
+    assert out.evaluate("e => getComputedStyle(e).color") != page.locator("#currency .setting-title").evaluate(
+        "e => getComputedStyle(e).color"
+    )
     assert out.bounding_box()["width"] > 200, "a full row, not a small pill"

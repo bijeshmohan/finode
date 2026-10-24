@@ -6,10 +6,11 @@ from uuid import UUID
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
+from ..clock import local_today
 from ..models.recurring import RecurringTransaction
+from ..models.transaction import PostingSide
 from ..models.utils import utc_now
 from ..repositories.recurring import RecurringRepository
-from ..models.transaction import PostingSide
 from ..schemas.recurring import RecurringCreate, RecurringPostingData, RecurringRead, RecurringUpdate
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from . import schedule
@@ -17,8 +18,6 @@ from .account import AccountService
 from .simple import simple_postings
 from .transaction import TransactionService
 from .validation import validation_message
-from ..clock import local_today
-
 
 # One run records at most this many missed occurrences of a rule (a daily rule left for a year).
 MAX_PER_RUN = 400
@@ -52,7 +51,9 @@ class RecurringService:
     def _transaction(self, rule_like, day: date) -> TransactionCreate:
         if rule_like.postings:
             return TransactionCreate(
-                date=day, payee=rule_like.payee, comment=rule_like.comment,
+                date=day,
+                payee=rule_like.payee,
+                comment=rule_like.comment,
                 postings=[PostingCreate(account=p.account, side=p.side, amount=p.amount) for p in rule_like.postings],
             )
         postings = simple_postings(rule_like.amount, rule_like.from_account, rule_like.to_account)
@@ -60,10 +61,7 @@ class RecurringService:
 
     @staticmethod
     def _rows(data) -> list[dict]:
-        return [
-            {"account": p.account, "side": p.side.value, "amount": p.amount}
-            for p in data.postings
-        ]
+        return [{"account": p.account, "side": p.side.value, "amount": p.amount} for p in data.postings]
 
     def as_transaction(self, rule: RecurringRead) -> TransactionCreate:
         """The transaction a rule records (on its start date), for showing it."""

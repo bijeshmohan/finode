@@ -3,8 +3,6 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
-from decimal import Decimal
-
 import pytest
 
 THIS_MONTH = date.today().replace(day=1)
@@ -245,7 +243,9 @@ def test_sub_categories_roll_up_into_their_group(client, root_accounts, setup):
     names = [l["name"] for l in data["lines"]]
     assert names == ["Food", "Dining", "Groceries", "Rent"]
     food = line(data, "Food")
-    assert food["group"] and food["assigned"] == "300.00" and food["activity"] == "50.00" and food["available"] == "250.00"
+    assert (
+        food["group"] and food["assigned"] == "300.00" and food["activity"] == "50.00" and food["available"] == "250.00"
+    )
     assert not line(data, "Groceries")["group"]
     assert data["available"] == "250.00" and data["ready_to_assign"] == "700.00"
 
@@ -286,9 +286,10 @@ def test_only_what_is_available_can_be_moved(client, setup):
 def test_only_expense_accounts_are_categories(client, setup):
     response = client.put(f"/api/budget/categories/{setup['bank']['aid']}", json={"amount": "5"})
     assert response.status_code == 400 and "expense" in response.json()["detail"]
-    assert client.put(
-        "/api/budget/categories/00000000-0000-4000-8000-0000000000aa", json={"amount": "5"}
-    ).status_code == 400
+    assert (
+        client.put("/api/budget/categories/00000000-0000-4000-8000-0000000000aa", json={"amount": "5"}).status_code
+        == 400
+    )
 
 
 def test_amounts_follow_the_currencys_decimals(client, setup):
@@ -363,7 +364,9 @@ def test_only_the_month_after_the_overspending_deducts_it(client, root_accounts)
     assert line(last, "Food")["available"] == "0.00" and last["overspent_last_month"] == "30.00"
     assert last["ready_to_assign"] == "960.00"
     this = budget(client, THIS_MONTH)
-    assert this["overspent_last_month"] == "0.00" and this["ready_to_assign"] == "960.00", "deducted once, not every month"
+    assert this["overspent_last_month"] == "0.00" and this["ready_to_assign"] == "960.00", (
+        "deducted once, not every month"
+    )
 
 
 def test_money_assigned_later_in_the_month_can_still_cover_a_deficit(client, root_accounts):
@@ -396,367 +399,6 @@ def test_groups_add_up_the_overspending_of_their_categories(client, root_account
 def test_a_category_with_nothing_available_cannot_give_money_away(client, lastmonth):
     response = move_budget(client, lastmonth["food"], lastmonth["rent"], "5", THIS_MONTH)
     assert response.status_code == 400 and "nothing available to move" in response.text
-
-
-# ---- targets ------------------------------------------------------------------------------------------
-
-
-def fixture_budget(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets", balance="2000")
-    food = account(client, root_accounts, "Food", "Expenses")
-    rent = account(client, root_accounts, "Rent", "Expenses")
-    return bank, food, rent
-
-
-def line(data, name):
-    return next(l for l in [*data["lines"], *data["goals"]] if l["name"] == name)
-
-
-@pytest.fixture
-def setup(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets", balance="1000")
-    salary = account(client, root_accounts, "Salary", "Income")
-    food = account(client, root_accounts, "Food", "Expenses")
-    rent = account(client, root_accounts, "Rent", "Expenses")
-    return {"bank": bank, "salary": salary, "food": food, "rent": rent, "roots": root_accounts}
-
-
-# ---- which accounts count ----------------------------------------------------------------------
-
-
-def test_new_asset_accounts_are_part_of_the_budget_and_cards_are_opted_in(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets")
-    card = account(client, root_accounts, "Card", "Liabilities")
-    assert bank["on_budget"] is True
-    assert card["on_budget"] is False, "cards are opted in"
-    assert account(client, root_accounts, "Other", "Assets", on_budget=False)["on_budget"] is False
-
-
-def test_the_flag_can_be_changed_but_only_where_it_makes_sense(client, root_accounts):
-    card = account(client, root_accounts, "Card", "Liabilities")
-    ok = client.patch(f"/api/accounts/{card['aid']}", json={"on_budget": True})
-    assert ok.status_code == 200 and ok.json()["on_budget"] is True
-    assert client.patch(f"/api/accounts/{card['aid']}", json={"on_budget": False}).json()["on_budget"] is False
-    food = account(client, root_accounts, "Food", "Expenses")
-    assert client.patch(f"/api/accounts/{food['aid']}", json={"on_budget": True}).status_code == 400
-    group = account(client, root_accounts, "Banks", "Assets", on_budget=False)
-    account_child = client.post("/api/accounts/", json={"name": "Child", "parent_id": group["aid"]}).json()
-    assert client.patch(f"/api/accounts/{group['aid']}", json={"on_budget": True}).status_code == 400
-    assert account_child["on_budget"] is True
-
-
-# ---- ready to assign -----------------------------------------------------------------------------
-
-
-def test_the_money_in_budget_accounts_is_ready_to_assign(client, setup):
-    data = budget(client)
-    assert data["ready_to_assign"] == "1000.00" and data["cash"] == "1000.00"
-    assert data["budget_accounts"] == ["Assets:Bank"] and data["currency"] == "INR"
-    assert {l["name"] for l in data["lines"]} == {"Food", "Rent"}
-
-
-def test_income_raises_it_and_assigning_lowers_it(client, setup):
-    move(client, setup["salary"], setup["bank"], "500")
-    assert budget(client)["ready_to_assign"] == "1500.00"
-    data = assign(client, setup["food"], "300")
-    assert data["ready_to_assign"] == "1200.00" and line(data, "Food")["assigned"] == "300.00"
-    assert line(data, "Food")["available"] == "300.00"
-
-
-def test_setting_an_amount_replaces_it_and_zero_removes_it(client, setup):
-    assign(client, setup["food"], "300")
-    assert line(assign(client, setup["food"], "100"), "Food")["assigned"] == "100.00"
-    data = assign(client, setup["food"], "0")
-    assert line(data, "Food")["assigned"] == "0.00" and data["ready_to_assign"] == "1000.00"
-
-
-def test_spending_lowers_the_category_not_ready_to_assign(client, setup):
-    assign(client, setup["food"], "300")
-    move(client, setup["bank"], setup["food"], "120")
-    data = budget(client)
-    food = line(data, "Food")
-    assert food["activity"] == "120.00" and food["available"] == "180.00"
-    assert data["ready_to_assign"] == "700.00", "1000 - 120 spent - 180 left in Food = 700... and Rent has nothing"
-
-
-def test_a_refund_gives_money_back_to_the_category(client, setup):
-    assign(client, setup["food"], "300")
-    move(client, setup["bank"], setup["food"], "120")
-    move(client, setup["food"], setup["bank"], "20")
-    assert line(budget(client), "Food")["available"] == "200.00"
-
-
-def test_unassigned_spending_overspends_the_category(client, setup):
-    move(client, setup["bank"], setup["rent"], "50")
-    data = budget(client)
-    assert line(data, "Rent")["available"] == "-50.00"
-    assert data["ready_to_assign"] == "1000.00", "cash fell by 50 and so did what is available"
-
-
-def test_transfers_between_budget_accounts_change_nothing(client, root_accounts, setup):
-    other = account(client, root_accounts, "Savings", "Assets")
-    move(client, setup["bank"], other, "400")
-    assert budget(client)["ready_to_assign"] == "1000.00"
-
-
-def test_money_moved_out_of_the_budget_lowers_ready_to_assign(client, root_accounts, setup):
-    vault = account(client, root_accounts, "Vault", "Assets", on_budget=False)
-    move(client, setup["bank"], vault, "400")
-    data = budget(client)
-    assert data["ready_to_assign"] == "600.00" and data["budget_accounts"] == ["Assets:Bank"]
-
-
-def test_spending_from_outside_the_budget_is_not_the_budgets_business(client, root_accounts, setup):
-    vault = account(client, root_accounts, "Vault", "Assets", on_budget=False, balance="200")
-    move(client, vault, setup["food"], "80")
-    data = budget(client)
-    assert line(data, "Food")["activity"] == "0.00" and data["ready_to_assign"] == "1000.00"
-
-
-# ---- credit cards ----------------------------------------------------------------------------------
-
-
-def test_a_card_in_the_budget_makes_purchases_count_and_payments_neutral(client, root_accounts, setup):
-    card = account(client, root_accounts, "Card", "Liabilities", on_budget=True)
-    assign(client, setup["food"], "300")
-    move(client, card, setup["food"], "100")  # bought on the card
-    data = budget(client)
-    assert line(data, "Food")["available"] == "200.00"
-    assert data["cash"] == "900.00", "the card's debt counts against the cash"
-    assert data["ready_to_assign"] == "700.00"
-    move(client, setup["bank"], card, "100")  # paid the card off
-    data = budget(client)
-    assert data["cash"] == "900.00" and data["ready_to_assign"] == "700.00"
-    assert "Liabilities:Card" in data["budget_accounts"]
-
-
-def test_a_card_left_out_of_the_budget_is_ignored(client, root_accounts, setup):
-    card = account(client, root_accounts, "Card", "Liabilities")
-    move(client, card, setup["food"], "100")
-    assert line(budget(client), "Food")["activity"] == "0.00"
-
-
-# ---- months ------------------------------------------------------------------------------------------
-
-
-def test_what_is_left_carries_into_the_next_month(client, setup):
-    assign(client, setup["food"], "300", LAST_MONTH)
-    move(client, setup["bank"], setup["food"], "100", on=LAST_MONTH.replace(day=15).isoformat())
-    last = budget(client, LAST_MONTH)
-    assert line(last, "Food")["available"] == "200.00"
-    this = budget(client, THIS_MONTH)
-    food = line(this, "Food")
-    assert food["assigned"] == "0.00" and food["activity"] == "0.00" and food["available"] == "200.00"
-    assert this["ready_to_assign"] == "700.00"
-    assert last["ready_to_assign"] == "-300.00", "last month the 1000 did not exist yet (it arrived today)"
-
-
-def test_an_overspent_category_starts_the_next_month_at_zero(client, setup):
-    assign(client, setup["rent"], "10", LAST_MONTH)  # budgeting started last month
-    move(client, setup["bank"], setup["rent"], "40", on=LAST_MONTH.replace(day=10).isoformat())
-    this = budget(client, THIS_MONTH)
-    rent = line(this, "Rent")
-    assert rent["available"] == "0.00" and rent["overspent_last_month"] == "30.00"
-    assert this["overspent_last_month"] == "30.00"
-
-
-def test_a_month_shows_the_state_at_its_end(client, setup):
-    move(client, setup["salary"], setup["bank"], "500", on=THIS_MONTH.replace(day=2).isoformat())
-    assert budget(client, LAST_MONTH)["ready_to_assign"] == "0.00", "the opening balance arrived this month"
-    assert budget(client, THIS_MONTH)["ready_to_assign"] == "1500.00"
-
-
-def test_any_day_in_the_month_names_it(client, setup):
-    day = THIS_MONTH.replace(day=17)
-    assign(client, setup["food"], "50", day)
-    assert budget(client, THIS_MONTH)["month"] == THIS_MONTH.isoformat()
-    assert line(budget(client, THIS_MONTH), "Food")["assigned"] == "50.00"
-
-
-# ---- groups --------------------------------------------------------------------------------------------
-
-
-def test_sub_categories_roll_up_into_their_group(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
-    assign(client, groceries, "200")
-    assign(client, dining, "100")
-    move(client, setup["bank"], groceries, "50")
-    data = budget(client)
-    names = [l["name"] for l in data["lines"]]
-    assert names == ["Food", "Dining", "Groceries", "Rent"]
-    food = line(data, "Food")
-    assert food["group"] and food["assigned"] == "300.00" and food["activity"] == "50.00" and food["available"] == "250.00"
-    assert not line(data, "Groceries")["group"]
-    assert data["available"] == "250.00" and data["ready_to_assign"] == "700.00"
-
-
-def test_a_group_posted_to_directly_gets_its_own_row(client, root_accounts, setup):
-    client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]})
-    move(client, setup["bank"], setup["food"], "30")
-    data = budget(client)
-    other = line(data, "Food (other)")
-    assert other["activity"] == "30.00" and other["aid"] == setup["food"]["aid"] and other["depth"] == 2
-    assert line(data, "Food")["activity"] == "30.00"
-
-
-# ---- moving money --------------------------------------------------------------------------------------
-
-
-def test_money_moves_between_categories(client, setup):
-    assign(client, setup["food"], "300")
-    response = move_budget(client, setup["food"], setup["rent"], "120")
-    assert response.status_code == 200
-    data = response.json()
-    assert line(data, "Food")["available"] == "180.00" and line(data, "Rent")["available"] == "120.00"
-    assert data["ready_to_assign"] == "700.00", "moving does not change what is left to assign"
-
-
-def test_only_what_is_available_can_be_moved(client, setup):
-    assign(client, setup["food"], "100")
-    response = move_budget(client, setup["food"], setup["rent"], "150")
-    assert response.status_code == 400 and "only 100.00 is available" in response.text
-    same = move_budget(client, setup["food"], setup["food"], "1")
-    assert same.status_code == 400 and "different" in same.text
-    assert move_budget(client, setup["food"], setup["rent"], "0").status_code == 400
-
-
-# ---- guards ----------------------------------------------------------------------------------------------
-
-
-def test_only_expense_accounts_are_categories(client, setup):
-    response = client.put(f"/api/budget/categories/{setup['bank']['aid']}", json={"amount": "5"})
-    assert response.status_code == 400 and "expense" in response.json()["detail"]
-    assert client.put(
-        "/api/budget/categories/00000000-0000-4000-8000-0000000000aa", json={"amount": "5"}
-    ).status_code == 400
-
-
-def test_amounts_follow_the_currencys_decimals(client, setup):
-    response = client.put(f"/api/budget/categories/{setup['food']['aid']}", json={"amount": "1.234"})
-    assert response.status_code == 400 and "decimal" in response.json()["detail"]
-
-
-def test_deleting_a_category_removes_its_plan(client, setup):
-    assign(client, setup["rent"], "100")
-    assert client.delete(f"/api/accounts/{setup['rent']['aid']}").status_code == 204
-    data = budget(client)
-    assert data["ready_to_assign"] == "1000.00" and {l["name"] for l in data["lines"]} == {"Food"}
-
-
-def test_the_budget_does_not_touch_the_ledger(client, setup):
-    before = client.get("/api/reports/trial-balance").json()
-    assign(client, setup["food"], "300")
-    assert client.get("/api/reports/trial-balance").json() == before
-
-
-def test_the_empty_budget(client, root_accounts):
-    data = budget(client)
-    assert data["ready_to_assign"] == "0.00" and data["lines"] == [] and data["budget_accounts"] == []
-
-
-# ---- cash overspending, the YNAB way ---------------------------------------------------------------
-
-
-@pytest.fixture
-def lastmonth(client, root_accounts):
-    """1000 arrived last month, nothing assigned yet."""
-    bank = account(client, root_accounts, "Bank", "Assets")
-    salary = account(client, root_accounts, "Salary", "Income")
-    food = account(client, root_accounts, "Food", "Expenses")
-    rent = account(client, root_accounts, "Rent", "Expenses")
-    move(client, salary, bank, "1000", on=LAST_MONTH.replace(day=2).isoformat())
-    assign(client, food, "100", LAST_MONTH)
-    move(client, bank, food, "130", on=LAST_MONTH.replace(day=15).isoformat())
-    return {"bank": bank, "food": food, "rent": rent, "salary": salary}
-
-
-def test_overspending_shows_red_in_its_own_month_without_changing_ready_to_assign(client, lastmonth):
-    last = budget(client, LAST_MONTH)
-    assert line(last, "Food")["available"] == "-30.00"
-    assert last["ready_to_assign"] == "900.00", "cash 870, and the deficit is still counted against it"
-    assert last["overspent_last_month"] == "0.00"
-
-
-def test_the_overspending_is_taken_out_of_ready_to_assign_the_next_month(client, lastmonth):
-    this = budget(client, THIS_MONTH)
-    assert this["cash"] == "870.00"
-    assert line(this, "Food")["available"] == "0.00" and line(this, "Food")["overspent_last_month"] == "30.00"
-    assert this["ready_to_assign"] == "870.00", "the 30 that was overspent has left the budget for good"
-    assert this["overspent_last_month"] == "30.00"
-
-
-def test_covering_it_means_assigning_the_next_month_from_zero(client, lastmonth):
-    data = assign(client, lastmonth["food"], "50", THIS_MONTH)
-    assert line(data, "Food")["available"] == "50.00", "not 20: the deficit does not come back"
-    assert data["ready_to_assign"] == "820.00"
-
-
-def test_only_the_month_after_the_overspending_deducts_it(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets")
-    salary = account(client, root_accounts, "Salary", "Income")
-    food = account(client, root_accounts, "Food", "Expenses")
-    two_ago = (LAST_MONTH - timedelta(days=1)).replace(day=1)
-    move(client, salary, bank, "1000", on=two_ago.replace(day=2).isoformat())
-    assign(client, food, "10", two_ago)
-    move(client, bank, food, "40", on=two_ago.replace(day=10).isoformat())
-    last = budget(client, LAST_MONTH)
-    assert line(last, "Food")["available"] == "0.00" and last["overspent_last_month"] == "30.00"
-    assert last["ready_to_assign"] == "960.00"
-    this = budget(client, THIS_MONTH)
-    assert this["overspent_last_month"] == "0.00" and this["ready_to_assign"] == "960.00", "deducted once, not every month"
-
-
-def test_money_assigned_later_in_the_month_can_still_cover_a_deficit(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets")
-    salary = account(client, root_accounts, "Salary", "Income")
-    food = account(client, root_accounts, "Food", "Expenses")
-    move(client, salary, bank, "1000", on=LAST_MONTH.replace(day=2).isoformat())
-    move(client, bank, food, "60", on=LAST_MONTH.replace(day=5).isoformat())  # overspent mid-month
-    assign(client, food, "100", LAST_MONTH)  # ...then covered before the month ended
-    last = budget(client, LAST_MONTH)
-    assert line(last, "Food")["available"] == "40.00" and last["overspent_last_month"] == "0.00"
-    assert line(budget(client, THIS_MONTH), "Food")["available"] == "40.00"
-
-
-def test_groups_add_up_the_overspending_of_their_categories(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets")
-    salary = account(client, root_accounts, "Salary", "Income")
-    food = account(client, root_accounts, "Food", "Expenses")
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": food["aid"]}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food["aid"]}).json()
-    move(client, salary, bank, "1000", on=LAST_MONTH.replace(day=2).isoformat())
-    assign(client, groceries, "10", LAST_MONTH)
-    move(client, bank, groceries, "30", on=LAST_MONTH.replace(day=5).isoformat())
-    move(client, bank, dining, "20", on=LAST_MONTH.replace(day=6).isoformat())
-    data = budget(client, THIS_MONTH)
-    assert line(data, "Food")["overspent_last_month"] == "40.00" and data["overspent_last_month"] == "40.00"
-    assert data["ready_to_assign"] == "950.00"
-
-
-def test_a_category_with_nothing_available_cannot_give_money_away(client, lastmonth):
-    response = move_budget(client, lastmonth["food"], lastmonth["rent"], "5", THIS_MONTH)
-    assert response.status_code == 400 and "nothing available to move" in response.text
-
-
-# ---- targets ------------------------------------------------------------------------------------------
-
-
-def fixture_budget(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets", balance="2000")
-    food = account(client, root_accounts, "Food", "Expenses")
-    rent = account(client, root_accounts, "Rent", "Expenses")
-    return bank, food, rent
-
-
-def target(client, category, kind, amount, **extra):
-    response = client.put(f"/api/budget/categories/{category['aid']}/target", json={"kind": kind, "amount": amount, **extra})
-    assert response.status_code == 200, response.text
-    return response.json()
-
-
-def line(data, name):
-    return next(l for l in [*data["lines"], *data["goals"]] if l["name"] == name)
 
 
 # ---- first-time setup ------------------------------------------------------------------------------------
@@ -766,21 +408,27 @@ def test_history_before_the_first_assignment_is_not_overspending(client, setup):
     move(client, setup["bank"], setup["food"], "40", on=LAST_MONTH.replace(day=10).isoformat())
     data = budget(client, THIS_MONTH)
     assert line(data, "Food")["available"] == "0.00" and data["overspent_last_month"] == "0.00"
-    assert data["ready_to_assign"] == "1000.00" or data["ready_to_assign"] == data["cash"], "cash is untouched by the past"
+    assert data["ready_to_assign"] == "1000.00" or data["ready_to_assign"] == data["cash"], (
+        "cash is untouched by the past"
+    )
 
 
 def test_spending_from_a_card_outside_the_budget_is_pointed_out(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets", balance="1000")
+    _bank = account(client, root_accounts, "Bank", "Assets", balance="1000")
     card = account(client, root_accounts, "Card", "Liabilities")
     food = account(client, root_accounts, "Food", "Expenses")
     move(client, card, food, "75")
     data = budget(client)
     assert line(data, "Food")["activity"] == "0.00", "not counted while the card is outside the budget"
     assert data["left_out"] == "75.00"
-    assert [(a["path"], a["entries"], a["spent"]) for a in data["left_out_accounts"]] == [("Liabilities:Card", 1, "75.00")]
+    assert [(a["path"], a["entries"], a["spent"]) for a in data["left_out_accounts"]] == [
+        ("Liabilities:Card", 1, "75.00")
+    ]
     client.patch(f"/api/accounts/{card['aid']}", json={"on_budget": True})
     after = budget(client)
-    assert line(after, "Food")["activity"] == "75.00" and after["left_out"] == "0.00" and after["left_out_accounts"] == []
+    assert (
+        line(after, "Food")["activity"] == "75.00" and after["left_out"] == "0.00" and after["left_out_accounts"] == []
+    )
 
 
 def test_spending_paid_from_equity_or_other_currencies_is_not_flagged(client, root_accounts):
@@ -854,7 +502,11 @@ def test_copying_skips_closed_categories(client, setup):
     assert client.post(f"/api/accounts/{setup['rent']['aid']}/close").status_code == 200
     data = press(client, "copy").json()
     assert line(data, "Food")["assigned"] == "300.00"
-    assert line(data, "Rent")["assigned"] == "0.00", "a closed category gets nothing more (what it holds just carries over)"
+    assert line(data, "Rent")["assigned"] == "0.00", (
+        "a closed category gets nothing more (what it holds just carries over)"
+    )
+
+
 # ---- credit card payments ----------------------------------------------------------------------------------
 
 
@@ -869,7 +521,8 @@ def card_books(client, root_accounts):
 def identity(data):
     """Ready to assign is always what is in the accounts, minus the card bills, minus the categories."""
     money, reserved, available, saved, later = (
-        Decimal(data[k]) for k in ("money_in_accounts", "reserved_for_cards", "available", "goal_available", "assigned_to_later_months")
+        Decimal(data[k])
+        for k in ("money_in_accounts", "reserved_for_cards", "available", "goal_available", "assigned_to_later_months")
     )
     assert Decimal(data["ready_to_assign"]) == money - reserved - available - saved - later, data
 
@@ -951,7 +604,9 @@ def test_a_negative_assignment_can_only_take_back_what_the_category_has_left(cli
 
     with pytest.raises(BudgetError, match="only 0.00 is available in 'Food'"):
         svc.budget.assign(this_month, food.aid, Decimal(-300))  # nothing there to take back
-    assert svc.budget.view(this_month).ready_to_assign == Decimal(1000), "Ready to assign never exceeds the money there is"
+    assert svc.budget.view(this_month).ready_to_assign == Decimal(1000), (
+        "Ready to assign never exceeds the money there is"
+    )
 
     svc.budget.assign(last_month, food.aid, Decimal(100))
     taken = svc.budget.assign(this_month, food.aid, Decimal(-60))  # last month left 100 in Food: 60 of it goes back

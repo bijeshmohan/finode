@@ -10,23 +10,19 @@ from fastapi.responses import RedirectResponse
 from . import auth
 from .config import settings
 
-
 ACCESS_COOKIE = "finode_access"
 REFRESH_COOKIE = "finode_refresh"
 REFRESH_MAX_AGE = 60 * 60 * 24 * 30
 LOGIN_PATH = "/login"
 
 
-class LoginRequired(Exception):
-    ...
+class LoginRequired(Exception): ...
 
 
-class InvalidCredentialsError(Exception):
-    ...
+class InvalidCredentialsError(Exception): ...
 
 
-class AuthUnavailableError(Exception):
-    ...
+class AuthUnavailableError(Exception): ...
 
 
 @dataclass(frozen=True)
@@ -48,7 +44,7 @@ def _token_request(grant_type: str, payload: dict) -> dict:
             timeout=10,
         )
     except httpx.HTTPError:
-        raise AuthUnavailableError("sign-in service is unreachable")
+        raise AuthUnavailableError("sign-in service is unreachable") from None
     if response.status_code in (400, 401, 403, 422):
         raise InvalidCredentialsError()
     if response.status_code != 200:
@@ -63,8 +59,8 @@ def _to_tokens(data: dict) -> SessionTokens:
             refresh_token=data["refresh_token"],
             expires_in=int(data.get("expires_in", 3600)),
         )
-    except (KeyError, TypeError, ValueError):
-        raise AuthUnavailableError("sign-in service returned an unexpected response")
+    except KeyError, TypeError, ValueError:
+        raise AuthUnavailableError("sign-in service returned an unexpected response") from None
 
 
 def sign_in(email: str, password: str) -> SessionTokens:
@@ -114,7 +110,7 @@ def web_login_required(request: Request) -> None:
     if refresh_token:
         try:
             tokens = refresh_session(refresh_token)
-        except (InvalidCredentialsError, AuthUnavailableError):
+        except InvalidCredentialsError, AuthUnavailableError:
             pass
         else:
             request.state.access_token = tokens.access_token
@@ -129,7 +125,7 @@ CONSENT_PATH = "/oauth/consent"
 
 def safe_next(target: str | None) -> str | None:
     """Where to go after signing in: only the OAuth consent page, which an app sends people to."""
-    if target and target.startswith(CONSENT_PATH) and target[len(CONSENT_PATH):len(CONSENT_PATH) + 1] in ("", "?"):
+    if target and target.startswith(CONSENT_PATH) and target[len(CONSENT_PATH) : len(CONSENT_PATH) + 1] in ("", "?"):
         return target
     return None
 

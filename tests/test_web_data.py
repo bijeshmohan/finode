@@ -1,6 +1,5 @@
 from fastapi.testclient import TestClient
 
-
 JOURNAL = "2026-09-01 Opening\n    Assets:Cash  100\n    Equity:Opening Balances\n"
 
 

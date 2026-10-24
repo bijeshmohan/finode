@@ -1,19 +1,18 @@
 """The Jinja2 environment and its filters: money (with Indian or western digit grouping), currency signs, friendly dates, hashed static URLs."""
 
 import hashlib
+from contextvars import ContextVar
 from datetime import date, timedelta
 from decimal import Decimal
-from contextvars import ContextVar
 from functools import lru_cache
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from .clock import local_day, local_today
 from .currencies import find
 from .flash import flash_message, flash_undo
 from .models.utils import normalize_amount
-from .clock import local_day, local_today
-
 
 BASE_DIR = Path(__file__).parent
 
@@ -119,7 +118,9 @@ def origin_label(origin: str | None) -> str | None:
         return None
     if origin.startswith("mcp:"):
         return f"{origin[4:]} (AI assistant)"
-    return {"web": "the app", "api": "the API", "import": "an import", "recurring": "a recurring transaction"}.get(origin, origin)
+    return {"web": "the app", "api": "the API", "import": "an import", "recurring": "a recurring transaction"}.get(
+        origin, origin
+    )
 
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")

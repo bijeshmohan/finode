@@ -70,14 +70,18 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
     page.keyboard.type("60")
     page.keyboard.press("Tab")
     assert amounts(page, "credit") == ["60.00", "40.00"]
-    assert page.eval_on_selector_all('[data-rows="credit"] [name="amount"]', "e => e.map(x => x.classList.contains('suggested'))") == [False, True]
+    assert page.eval_on_selector_all(
+        '[data-rows="credit"] [name="amount"]', "e => e.map(x => x.classList.contains('suggested'))"
+    ) == [False, True]
     page.select_option('[data-rows="credit"] [data-row]:nth-child(2) select', label="Cash")
     page.select_option('[data-rows="debit"] select', label="Rent")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     [entry] = [t for t in api.get("/transactions/") if len(t["postings"]) == 3]
     assert sorted((p["side"], p["amount"]) for p in entry["postings"]) == [
-        ("credit", "40.00"), ("credit", "60.00"), ("debit", "100.00"),
+        ("credit", "40.00"),
+        ("credit", "60.00"),
+        ("debit", "100.00"),
     ]
 
 
@@ -114,10 +118,14 @@ def test_adding_an_account_from_the_picker(page: Page, books, api: Api):
 
 
 def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
-    entry = api.post("/transactions/", payee="Old", postings=[
-        {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
-        {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
-    ])
+    entry = api.post(
+        "/transactions/",
+        payee="Old",
+        postings=[
+            {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
+            {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
+        ],
+    )
     page.goto(f"/transactions/{entry['tid']}/edit")
     expect(page.locator('[data-kind="expense"]')).to_have_attribute("aria-pressed", "true")
     assert page.input_value("#total") == "40.00" and amounts(page, "credit") == ["40.00"]
@@ -130,10 +138,14 @@ def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
 
 
 def history(api: Api, books, payee="Swiggy", source="card", target="food"):
-    api.post("/transactions/", payee=payee, postings=[
-        {"account": books[target]["aid"], "side": "debit", "amount": "100"},
-        {"account": books[source]["aid"], "side": "credit", "amount": "100"},
-    ])
+    api.post(
+        "/transactions/",
+        payee=payee,
+        postings=[
+            {"account": books[target]["aid"], "side": "debit", "amount": "100"},
+            {"account": books[source]["aid"], "side": "credit", "amount": "100"},
+        ],
+    )
 
 
 def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(page: Page, books, api: Api):
@@ -153,7 +165,9 @@ def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(p
     newest = api.get("/transactions/")[0]
     assert newest["payee"] == "Swiggy" and {p["amount"] for p in newest["postings"]} == {"250.00"}
     assert {(p["account"], p["side"]) for p in newest["postings"]} == {
-        (books["card"]["aid"], "credit"), (books["food"]["aid"], "debit")}
+        (books["card"]["aid"], "credit"),
+        (books["food"]["aid"], "debit"),
+    }
 
 
 def test_a_chip_still_lets_you_split_the_amount_afterwards(page: Page, books, api: Api):
@@ -204,12 +218,20 @@ def test_the_cursor_is_ink_coloured_and_the_grey_zero_stays_while_empty(page: Pa
 def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(page: Page, books):
     page.goto("/transactions/new")
     expect(page.locator("#total")).to_be_focused()
-    phone = page.context.browser.new_context(base_url=page.url.split("/transactions")[0], has_touch=True, is_mobile=True, viewport={"width": 390, "height": 844})
+    phone = page.context.browser.new_context(
+        base_url=page.url.split("/transactions")[0],
+        has_touch=True,
+        is_mobile=True,
+        viewport={"width": 390, "height": 844},
+    )
     try:
         mobile = phone.new_page()
         mobile.goto("/transactions/new")
         expect(mobile.locator("#total")).not_to_be_focused()
-        assert mobile.eval_on_selector("#total", "e => getComputedStyle(e, '::placeholder').opacity") != "0" or mobile.context.browser.browser_type.name == "webkit"
+        assert (
+            mobile.eval_on_selector("#total", "e => getComputedStyle(e, '::placeholder').opacity") != "0"
+            or mobile.context.browser.browser_type.name == "webkit"
+        )
         mobile.tap("#total")
         expect(mobile.locator("#total")).to_be_focused()
     finally:
@@ -263,10 +285,16 @@ def test_the_allocation_status_groups_rupees_in_lakhs(page: Page, books):
 
 
 def _spend(api: Api, books, payee: str, amount: str, on: str, **extra):
-    return api.post("/transactions/", date=on, payee=payee, postings=[
-        {"account": books["food"]["aid"], "side": "debit", "amount": amount},
-        {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
-    ], **extra)
+    return api.post(
+        "/transactions/",
+        date=on,
+        payee=payee,
+        postings=[
+            {"account": books["food"]["aid"], "side": "debit", "amount": amount},
+            {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
+        ],
+        **extra,
+    )
 
 
 def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books, api: Api):
@@ -276,7 +304,9 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books,
     page.get_by_role("link", name="Related").click()
     expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy · 10 Oct · 1,000.00")
     expect(page.locator("[data-related-add]")).to_be_hidden()
-    assert page.input_value("#total") in ("", "0", "0.00") and page.input_value('input[name="payee"]') == "", "nothing is copied"
+    assert page.input_value("#total") in ("", "0", "0.00") and page.input_value('input[name="payee"]') == "", (
+        "nothing is copied"
+    )
     page.fill("#total", "300")
     page.select_option('[data-rows="credit"] select', label="Checking")
     page.select_option('[data-rows="debit"] select', label="Groceries")
@@ -285,7 +315,9 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books,
     page.wait_for_url("**/transactions")
     [new] = [t for t in api.get("/transactions/") if t["payee"] == "Swiggy cash-back"]
     assert new["related_id"] == first["tid"]
-    page.locator("a.tx", has_text="Swiggy").last.click()  # the original now lists it, and the sheet of one opens the other
+    page.locator(
+        "a.tx", has_text="Swiggy"
+    ).last.click()  # the original now lists it, and the sheet of one opens the other
     expect(page.locator("#txn-sheet .sheet-related-head")).to_have_text("Related · 1")
     page.locator("#txn-sheet .sheet-related-row").click()
     expect(page.locator("#txn-sheet-body h2")).to_have_text("Swiggy cash-back")
@@ -322,8 +354,12 @@ def test_the_picker_relates_an_entry_and_the_chip_removes_it(page: Page, books, 
 def test_from_and_to_are_the_same_size_and_the_swap_sits_between_them(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "100")
-    heights = page.eval_on_selector_all(".txn-side", "els => els.map(e => Math.round(e.getBoundingClientRect().height))")
-    assert len(heights) == 2 and heights[0] == heights[1], f"the swap button must not make From taller than To: {heights}"
+    heights = page.eval_on_selector_all(
+        ".txn-side", "els => els.map(e => Math.round(e.getBoundingClientRect().height))"
+    )
+    assert len(heights) == 2 and heights[0] == heights[1], (
+        f"the swap button must not make From taller than To: {heights}"
+    )
     seam = page.evaluate("""() => {
       const [from, to] = [...document.querySelectorAll('.txn-side')].map(e => e.getBoundingClientRect());
       const b = document.querySelector('[data-swap-sides]').getBoundingClientRect();
@@ -358,7 +394,9 @@ def test_an_amount_loses_its_leading_zeros_as_typed_and_gets_its_decimals_when_l
 
 def test_the_kind_pill_moves_to_the_chosen_button_and_fades_for_other(page: Page, books):
     page.goto("/transactions/new")
-    pill = lambda: page.evaluate("""() => { const s = getComputedStyle(document.querySelector('.segmented.kinds'), '::before'); return [new DOMMatrix(s.transform).m41, Number(s.opacity)]; }""")
+    pill = lambda: page.evaluate(
+        """() => { const s = getComputedStyle(document.querySelector('.segmented.kinds'), '::before'); return [new DOMMatrix(s.transform).m41, Number(s.opacity)]; }"""
+    )
     assert pill() == [0, 1], "Expense is first"
     page.click('[data-kind="income"]')
     income = pill()
@@ -376,7 +414,9 @@ def test_the_payee_suggestions_stay_on_one_row_on_a_phone_and_a_wide_screen(page
         page.set_viewport_size({"width": width, "height": 800})
         page.goto("/transactions/new")
         expect(page.locator("#payee-chips .chip").first).to_be_visible()
-        tops = page.eval_on_selector_all("#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).map(e => e.offsetTop)")
+        tops = page.eval_on_selector_all(
+            "#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).map(e => e.offsetTop)"
+        )
         assert tops and len(set(tops)) == 1, f"every suggestion on one row at {width}px: {tops}"
     expect(page.locator("#payee")).to_have_attribute("placeholder", "Payee or Merchant?")
     page.set_viewport_size({"width": 390, "height": 800})
@@ -414,7 +454,10 @@ def test_a_lone_row_has_no_cross_and_a_split_has_one_on_every_row(page: Page, bo
     page.locator('[data-rows="debit"] select').first.select_option(books["food"]["aid"])
     page.fill('[data-rows="debit"] [name="amount"]', "60")
     expect(page.locator('[data-rows="debit"] [data-remove-row]:visible')).to_have_count(2)
-    expect(page.locator('[data-rows="credit"] [data-remove-row]:visible')).to_have_count(0), "the other side is still one row"
+    (
+        expect(page.locator('[data-rows="credit"] [data-remove-row]:visible')).to_have_count(0),
+        "the other side is still one row",
+    )
     page.fill('[data-rows="debit"] [name="amount"]', "100")
     expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
 

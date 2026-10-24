@@ -1,8 +1,7 @@
 """The rupee sign in place of "INR", and blue for what was added automatically."""
 
-from decimal import Decimal
-
 from app.templating import amount, symbol
+
 from .test_budget import account, assign
 
 
@@ -18,14 +17,18 @@ def test_the_big_figures_use_the_sign_and_the_font_carries_it(client, root_accou
     food = account(client, root_accounts, "Food", "Expenses")
     assign(client, food, "100")
     budget = client.get("/budget").text
-    assert '<span class="figure"><span class="cur">&#8377;</span>900.00</span>' in budget, "the head is ready to assign: 1000 in the bank, 100 assigned"
+    assert '<span class="figure"><span class="cur">&#8377;</span>900.00</span>' in budget, (
+        "the head is ready to assign: 1000 in the bank, 100 assigned"
+    )
     assert "INR</span>" not in budget.split('class="ready')[1].split("</div>")[0]
     from .test_budget import move
 
     move(client, bank, food, "30")
     home = client.get("/").text
     assert '<span class="cur">&#8377;</span>' in home
-    assert "fonts/figtree-rupee.woff2" in home and "unicode-range:U+20B9" in home, "the sign comes from our own font, not the phone's"
+    assert "fonts/figtree-rupee.woff2" in home and "unicode-range:U+20B9" in home, (
+        "the sign comes from our own font, not the phone's"
+    )
 
 
 def test_what_was_added_automatically_is_blue(client):
@@ -38,13 +41,22 @@ def test_what_was_added_automatically_is_blue(client):
 
 
 def test_an_account_page_shows_the_rupee_sign_like_a_category_page(client, root_accounts):
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}).json()
+    bank = client.post(
+        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}
+    ).json()
     page = client.get(f"/accounts/{bank['aid']}").text
     assert '<p class="hero-balance"><span class="cur">&#8377;</span>12,34,567.00</p>' in page
     food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     assert '<span class="cur">&#8377;</span>0.00' in client.get(f"/categories/{food['aid']}").text
-    client.post("/api/transactions/", json={"postings": [
-        {"account": food["aid"], "side": "debit", "amount": "75"}, {"account": bank["aid"], "side": "credit", "amount": "75"}]})
+    client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": food["aid"], "side": "debit", "amount": "75"},
+                {"account": bank["aid"], "side": "credit", "amount": "75"},
+            ]
+        },
+    )
     client.patch(f"/api/accounts/{bank['aid']}", json={"balance": "-75"})
     overdrawn = client.get(f"/accounts/{bank['aid']}").text
     assert '&minus;<span class="cur">&#8377;</span>' in overdrawn, "a negative keeps its minus in front of the sign"
@@ -52,6 +64,8 @@ def test_an_account_page_shows_the_rupee_sign_like_a_category_page(client, root_
 
 def test_another_currency_keeps_its_code_after_the_figure_on_an_account_page(client, root_accounts):
     client.patch("/api/profile/", json={"default_currency": "USD"})
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "40"}).json()
+    bank = client.post(
+        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "40"}
+    ).json()
     page = client.get(f"/accounts/{bank['aid']}").text
     assert '<p class="hero-balance">40.00<small>USD</small></p>' in page

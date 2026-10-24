@@ -8,14 +8,14 @@ from app.version import VERSION
 from .test_web_signup import FORM, raw_client, signup_on, supabase  # noqa: F401
 
 
-def test_without_the_test_notice_sign_up_is_as_before(raw_client, signup_on, supabase, monkeypatch):  # noqa: F811
+def test_without_the_test_notice_sign_up_is_as_before(raw_client, signup_on, supabase, monkeypatch):
     monkeypatch.setattr(settings, "test_notice", False)
     page = raw_client.get("/signup").text
     assert "This is a test" not in page and 'name="accept"' not in page
     assert raw_client.post("/signup", data=FORM).status_code == 303
 
 
-def test_sign_up_shows_the_notice_and_wants_it_accepted(raw_client, signup_on, supabase, monkeypatch):  # noqa: F811
+def test_sign_up_shows_the_notice_and_wants_it_accepted(raw_client, signup_on, supabase, monkeypatch):
     monkeypatch.setattr(settings, "test_notice", True)
     page = raw_client.get("/signup").text
     assert "This is a test version run by a person, not a company" in page

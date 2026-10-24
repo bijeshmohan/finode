@@ -9,8 +9,8 @@ from sqlmodel import Session, func, select
 from ..models.account import Account
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..models.transaction_history import TransactionHistory
-from ..schemas.transaction import TransactionCreate, TransactionUpdate
 from ..models.utils import without_nul
+from ..schemas.transaction import TransactionCreate, TransactionUpdate
 from .cache import remembered
 
 
@@ -94,7 +94,9 @@ class TransactionRepository:
     def deleted_row(self, hid: UUID) -> TransactionHistory | None:
         return self.db.exec(
             select(TransactionHistory).where(
-                TransactionHistory.hid == hid, TransactionHistory.user == self.uid, TransactionHistory.action == "deleted"
+                TransactionHistory.hid == hid,
+                TransactionHistory.user == self.uid,
+                TransactionHistory.action == "deleted",
             )
         ).first()
 
@@ -113,14 +115,18 @@ class TransactionRepository:
     def related_to(self, tid: UUID) -> list[Transaction]:
         """The entries that point at this one, oldest first."""
         return self.db.exec(
-            select(Transaction).where(Transaction.related_id == tid, Transaction.user == self.uid).order_by(Transaction.date, Transaction.created)
+            select(Transaction)
+            .where(Transaction.related_id == tid, Transaction.user == self.uid)
+            .order_by(Transaction.date, Transaction.created)
         ).all()
 
     def read_many(self, tids: list[UUID]) -> dict[UUID, Transaction]:
         """Several transactions in one query."""
         if not tids:
             return {}
-        rows = self.db.exec(select(Transaction).where(Transaction.tid.in_(list(tids)), Transaction.user == self.uid)).all()
+        rows = self.db.exec(
+            select(Transaction).where(Transaction.tid.in_(list(tids)), Transaction.user == self.uid)
+        ).all()
         return {t.tid: t for t in rows}
 
     def _matching(
@@ -143,23 +149,33 @@ class TransactionRepository:
                 .join(Account, Account.aid == Posting.account)
                 .where(Posting.user == self.uid, Account.name.icontains(text, autoescape=True))
             )
-            statement = statement.where(or_(
-                Transaction.payee.icontains(text, autoescape=True),
-                Transaction.comment.icontains(text, autoescape=True),
-                Transaction.tid.in_(named),
-            ))
+            statement = statement.where(
+                or_(
+                    Transaction.payee.icontains(text, autoescape=True),
+                    Transaction.comment.icontains(text, autoescape=True),
+                    Transaction.tid.in_(named),
+                )
+            )
         if kind and kind_accounts is not None:
             expense_ids, income_ids = kind_accounts
-            spends = Transaction.tid.in_(select(Posting.transaction).where(
-                Posting.user == self.uid, Posting.side == PostingSide.DEBIT, Posting.account.in_(expense_ids)))
-            earns = Transaction.tid.in_(select(Posting.transaction).where(
-                Posting.user == self.uid, Posting.side == PostingSide.CREDIT, Posting.account.in_(income_ids)))
+            spends = Transaction.tid.in_(
+                select(Posting.transaction).where(
+                    Posting.user == self.uid, Posting.side == PostingSide.DEBIT, Posting.account.in_(expense_ids)
+                )
+            )
+            earns = Transaction.tid.in_(
+                select(Posting.transaction).where(
+                    Posting.user == self.uid, Posting.side == PostingSide.CREDIT, Posting.account.in_(income_ids)
+                )
+            )
             # The same order as the rows are told apart in the list: spending first, then income, else a transfer.
-            statement = statement.where({
-                "expense": spends,
-                "income": and_(earns, not_(spends)),
-                "transfer": and_(not_(spends), not_(earns)),
-            }[kind])
+            statement = statement.where(
+                {
+                    "expense": spends,
+                    "income": and_(earns, not_(spends)),
+                    "transfer": and_(not_(spends), not_(earns)),
+                }[kind]
+            )
         if account_ids is not None:
             statement = statement.where(
                 Transaction.tid.in_(
@@ -170,8 +186,11 @@ class TransactionRepository:
                 )
             )
         if also_ids is not None:  # a second account the entry must touch as well (the web filter's category)
-            statement = statement.where(Transaction.tid.in_(
-                select(Posting.transaction).where(Posting.account.in_(also_ids), Posting.user == self.uid)))
+            statement = statement.where(
+                Transaction.tid.in_(
+                    select(Posting.transaction).where(Posting.account.in_(also_ids), Posting.user == self.uid)
+                )
+            )
         if payee:  # exactly this payee, capitals aside
             statement = statement.where(func.lower(Transaction.payee) == without_nul(payee).strip().lower())
         if date_from is not None:
@@ -214,7 +233,9 @@ class TransactionRepository:
         """The payees used, the most used first (one spelling each: the newest entry's)."""
         rows = self.db.exec(
             select(func.lower(Transaction.payee), func.max(Transaction.payee), func.count())
-            .where(Transaction.user == self.uid, Transaction.payee.is_not(None), Transaction.payee.not_in(SYSTEM_PAYEES))
+            .where(
+                Transaction.user == self.uid, Transaction.payee.is_not(None), Transaction.payee.not_in(SYSTEM_PAYEES)
+            )
             .group_by(func.lower(Transaction.payee))
             .order_by(func.count().desc(), func.lower(Transaction.payee))
             .limit(limit)
@@ -234,7 +255,9 @@ class TransactionRepository:
         grouped: dict[UUID, list[Posting]] = {}
         if not tids:
             return grouped
-        for posting in self.db.exec(select(Posting).where(Posting.transaction.in_(tids), Posting.user == self.uid)).all():
+        for posting in self.db.exec(
+            select(Posting).where(Posting.transaction.in_(tids), Posting.user == self.uid)
+        ).all():
             grouped.setdefault(posting.transaction, []).append(posting)
         return grouped
 
@@ -256,8 +279,10 @@ class TransactionRepository:
 
     def count_since(self, since: datetime, leaving_out: tuple[str, ...] = ()) -> int:
         """Transactions created since a moment, not counting those made by the given origins (a recurring rule)."""
-        statement = select(func.count()).select_from(Transaction).where(
-            Transaction.user == self.uid, Transaction.created >= since
+        statement = (
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.user == self.uid, Transaction.created >= since)
         )
         for origin in leaving_out:
             statement = statement.where(or_(Transaction.created_via.is_(None), Transaction.created_via != origin))
@@ -299,9 +324,7 @@ class TransactionRepository:
             Posting.user == self.uid,
         )
         if date_from is not None or date_to is not None:
-            statement = statement.join(
-                Transaction, Transaction.tid == Posting.transaction
-            )
+            statement = statement.join(Transaction, Transaction.tid == Posting.transaction)
             if date_from is not None:
                 statement = statement.where(Transaction.date >= date_from)
             if date_to is not None:
@@ -357,7 +380,7 @@ class TransactionRepository:
                         break
         for posting in remaining:
             self.db.delete(posting)
-        for data, old in zip(postings, taken):
+        for data, old in zip(postings, taken, strict=False):
             if old is None:
                 self.db.add(Posting(**data.model_dump(), transaction=transaction.tid, user=self.uid))
             else:

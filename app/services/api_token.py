@@ -13,8 +13,7 @@ from ..models.utils import utc_now
 from ..repositories.api_token import ApiTokenRepository
 from ..schemas.api_token import ApiTokenCreate, ApiTokenCreated, ApiTokenRead
 
-
-SECRET_PREFIX = "fin_"
+SECRET_PREFIX = "fin_"  # noqa: S105  (the public start of every token, not a secret)
 # A user can have this many tokens that are not revoked.
 MAX_ACTIVE_TOKENS = 20
 # "Last used" is written at most this often per token, not on every call.

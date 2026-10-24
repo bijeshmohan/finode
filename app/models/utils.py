@@ -1,13 +1,13 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import DateTime, Numeric, event, inspect
 from sqlalchemy.types import TypeDecorator
-from sqlmodel import Session, SQLModel, Field
+from sqlmodel import Field, Session, SQLModel
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def without_nul(text: str) -> str:

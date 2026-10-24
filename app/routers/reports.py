@@ -7,7 +7,6 @@ from ..auth import require_authenticated_user
 from ..dependencies import Reports
 from ..schemas.report import BreakdownRead, SummaryRead, TrialBalanceRead
 
-
 router = APIRouter(
     prefix="/reports",
     tags=["reports"],
@@ -27,7 +26,7 @@ def get_summary(reports: Reports, date_from: date | None = None, date_to: date |
     try:
         return reports.summary(date_from, date_to)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.get("/breakdown", response_model=BreakdownRead)
@@ -42,4 +41,4 @@ def get_breakdown(
     try:
         return reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None

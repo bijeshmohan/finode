@@ -16,7 +16,6 @@ from ..schemas.transaction import (
 )
 from ..services.transaction import InvalidPostingError
 
-
 router = APIRouter(
     prefix="/transactions",
     tags=["transactions"],
@@ -33,9 +32,9 @@ def create_transaction(
     try:
         return transactions.create(transaction)
     except (InvalidPostingError, LimitReached) as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from None
 
 
 @router.get("/payees", response_model=list[PayeeRead])
@@ -56,9 +55,9 @@ def restore_transaction(hid: UUID, transactions: Transactions):
     try:
         return transactions.restore(hid)
     except LookupError:
-        raise HTTPException(status_code=404, detail="deleted transaction not found")
+        raise HTTPException(status_code=404, detail="deleted transaction not found") from None
     except (ValueError, LimitReached) as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.get("/{tid}", response_model=TransactionRead, status_code=200)
@@ -89,7 +88,7 @@ def get_transactions(
     try:
         return transactions.list(account, date_from, date_to, limit, offset, text, kind, category, payee)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from None
 
 
 @router.patch("/{tid}", response_model=TransactionRead, status_code=200)
@@ -102,9 +101,9 @@ def update_transaction(
     try:
         transaction = transactions.update(tid, data)
     except InvalidPostingError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from None
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return transaction
@@ -116,9 +115,9 @@ def delete_transaction(tid: UUID, transactions: Transactions):
     try:
         transaction = transactions.delete(tid)
     except InvalidPostingError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError:
-        raise HTTPException(status_code=404, detail="transaction not found")
+        raise HTTPException(status_code=404, detail="transaction not found") from None
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return {"message": "transaction deleted successfully"}

@@ -65,8 +65,8 @@ class Settings(BaseSettings):
 
         try:
             ZoneInfo(v)
-        except (ZoneInfoNotFoundError, ValueError):
-            raise ValueError(f"FINODE_TIMEZONE must be a time zone name such as Asia/Kolkata, not {v!r}")
+        except ZoneInfoNotFoundError, ValueError:
+            raise ValueError(f"FINODE_TIMEZONE must be a time zone name such as Asia/Kolkata, not {v!r}") from None
         return v
 
     @property

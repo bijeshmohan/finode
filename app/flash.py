@@ -3,10 +3,10 @@
 The cookie only ever holds a key from MESSAGES, so nothing user-supplied is
 rendered from it.
 """
+
 from uuid import UUID
 
 from fastapi import Request, Response
-
 
 FLASH_COOKIE = "finode_flash"
 

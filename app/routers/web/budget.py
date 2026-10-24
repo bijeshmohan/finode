@@ -8,11 +8,10 @@ from fastapi import APIRouter, Form, HTTPException, Request
 
 from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
 from ...dependencies import Budget
-from ...services.budget import BudgetError, first_of_month, month_start, months_between
 from ...schemas.budget import BudgetLine, GoalLine
+from ...services.budget import BudgetError, first_of_month, month_start, months_between
 from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount
-
 
 router = APIRouter(prefix="/budget")
 
@@ -59,10 +58,7 @@ class Node:
 
     @property
     def used(self) -> bool:
-        return any(
-            l.assigned or l.activity or l.available or l.overspent_last_month
-            for l in self.lines()
-        )
+        return any(ln.assigned or ln.activity or ln.available or ln.overspent_last_month for ln in self.lines())
 
     @property
     def count(self) -> int:
@@ -74,8 +70,14 @@ def other_line(group: BudgetLine) -> BudgetLine:
     """The part of a group that is in none of its subcategories: money can be assigned to it and spent from it."""
     zero = Decimal("0.00")
     return BudgetLine(
-        aid=group.aid, name=f"{group.name} (other)", path=group.path, depth=group.depth + 1,
-        assigned=zero, activity=zero, available=zero, overspent_last_month=zero,
+        aid=group.aid,
+        name=f"{group.name} (other)",
+        path=group.path,
+        depth=group.depth + 1,
+        assigned=zero,
+        activity=zero,
+        available=zero,
+        overspent_last_month=zero,
     )
 
 
@@ -110,7 +112,9 @@ def _hint(node: Node, style: str = "western") -> str:
     """The small line under a category's name: the three biggest things inside a group and '+N'; for a plain category
     what needs a look (last month's overspending)."""
     if node.is_group:
-        inside = [c.line.name for c in _by_assigned(node.children) if c.line.assigned or c.line.activity] or [c.line.name for c in node.children]
+        inside = [c.line.name for c in _by_assigned(node.children) if c.line.assigned or c.line.activity] or [
+            c.line.name for c in node.children
+        ]
         return " · ".join(inside[:3] + ([f"+{len(inside) - 3}"] if len(inside) > 3 else []))
     line = node.line
     parts = []
@@ -137,13 +141,25 @@ def _goal_rows(data) -> list[dict]:
     for goal in data.goals:
         due = first_of_month(goal.target_date)
         reached = goal.available >= goal.amount
-        rows.append({
-            "line": goal,
-            "percent": int(min(max(goal.available / goal.amount, Decimal(0)), Decimal(1)) * 100) if goal.amount > 0 else 0,
-            "reached": reached,
-            "months_left": max(0, months_between(data.month, due) + 1),
-            "status": "reached" if reached else "overdue" if goal.overdue else "short" if goal.underfunded > 0 else "done" if goal.needed > 0 else "",
-        })
+        rows.append(
+            {
+                "line": goal,
+                "percent": int(min(max(goal.available / goal.amount, Decimal(0)), Decimal(1)) * 100)
+                if goal.amount > 0
+                else 0,
+                "reached": reached,
+                "months_left": max(0, months_between(data.month, due) + 1),
+                "status": "reached"
+                if reached
+                else "overdue"
+                if goal.overdue
+                else "short"
+                if goal.underfunded > 0
+                else "done"
+                if goal.needed > 0
+                else "",
+            }
+        )
     return rows
 
 
@@ -167,9 +183,7 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         # More spent than there was to spend in all the categories together (a single overspent category shows on its own bar).
         "overspent": -data.available if data.available < 0 else Decimal("0.00"),
         "attention": sum(
-            1 for flag in (
-                bool(data.left_out_accounts), bool(data.overspent_last_month), bool(data.copyable)
-            ) if flag
+            1 for flag in (bool(data.left_out_accounts), bool(data.overspent_last_month), bool(data.copyable)) if flag
         ),
         "month_key": data.month.strftime("%Y-%m"),
         "month_name": f"{calendar.month_name[data.month.month]} {data.month.year}",
@@ -195,7 +209,9 @@ def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
     return {
         **context,
         "group": node,
-        "kids": [{"node": c, "hint": _hint(c, grouping_for(context["budget"].currency))} for c in _by_assigned(node.children)],
+        "kids": [
+            {"node": c, "hint": _hint(c, grouping_for(context["budget"].currency))} for c in _by_assigned(node.children)
+        ],
         "edit_url": f"/budget/group/{aid}/sheet?month={month:%Y-%m}",
         "glance": _glance(node.line),
     }
@@ -213,7 +229,9 @@ def group_sheet(request: Request, budget: Budget, aid: UUID, month: str = ""):
     when = parse_month(month)
     context = _group_context(budget, when, aid)
     return templates.TemplateResponse(
-        request, "partials/budget_group_sheet.html", {**context, "minimum": budget.group_minimum(when, aid, context["budget"])}
+        request,
+        "partials/budget_group_sheet.html",
+        {**context, "minimum": budget.group_minimum(when, aid, context["budget"])},
     )
 
 
@@ -234,12 +252,13 @@ def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "",
     """One category in the sheet over the budget: assign, what was spent, move money."""
     when = parse_month(month)
     context = _context(budget, when)
-    lines = [l for n in context["tree"] for l in n.lines()]
-    line = next((l for l in lines if l.aid == aid and not l.group), None)
+    lines = [ln for n in context["tree"] for ln in n.lines()]
+    line = next((ln for ln in lines if ln.aid == aid and not ln.group), None)
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
     return templates.TemplateResponse(
-        request, "partials/budget_sheet.html",
+        request,
+        "partials/budget_sheet.html",
         {**context, "line": line, "group_id": group},
     )
 
@@ -262,7 +281,9 @@ def assign(
         return htmx_error(str(e), "#cat-sheet-error" if sheet else "#budget-error")
     if group:  # assigned from a group's page: that page's block comes back
         try:
-            return templates.TemplateResponse(request, "partials/budget_group_body.html", _group_context(budget, when, UUID(group)))
+            return templates.TemplateResponse(
+                request, "partials/budget_group_body.html", _group_context(budget, when, UUID(group))
+            )
         except ValueError:
             pass
     return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
@@ -299,7 +320,13 @@ def move(
 
 
 @router.post("/accounts/{aid}/include")
-def include_account(request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
+def include_account(
+    request: Request,
+    budget: Budget,
+    aid: UUID,
+    month: Annotated[str, Form()] = "",
+    tab: Annotated[str, Form()] = "spend",
+):
     when = parse_month(month)
     try:
         budget.include_account(aid)
@@ -309,7 +336,9 @@ def include_account(request: Request, budget: Budget, aid: UUID, month: Annotate
 
 
 @router.post("/copy")
-def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"):
+def copy_previous(
+    request: Request, budget: Budget, month: Annotated[str, Form()] = "", tab: Annotated[str, Form()] = "spend"
+):
     when = parse_month(month)
     try:
         budget.copy_previous(when)
@@ -338,10 +367,14 @@ def _goal_input(amount: str, by: str) -> tuple[Decimal, date]:
 def _goal_form(request: Request, budget: Budget, goal=None):
     this_month = month_start(None)
     return templates.TemplateResponse(
-        request, "budget_goal.html",
+        request,
+        "budget_goal.html",
         {
-            "active": "budget", "hide_fab": True, "currency": budget.accounts.currency().code,
-            "earliest": shift(this_month, 1).strftime("%Y-%m"), "goal": goal,
+            "active": "budget",
+            "hide_fab": True,
+            "currency": budget.accounts.currency().code,
+            "earliest": shift(this_month, 1).strftime("%Y-%m"),
+            "goal": goal,
         },
     )
 
@@ -377,8 +410,16 @@ def goal_preview(request: Request, budget: Budget, amount: str = "", by: str = "
         except (BudgetError, ValueError) as e:
             error = _sentence(str(e))
     return templates.TemplateResponse(
-        request, "partials/goal_preview.html",
-        {"share": share, "months": months, "first": month_start(None), "last": last, "error": error, "currency": budget.accounts.currency().code},
+        request,
+        "partials/goal_preview.html",
+        {
+            "share": share,
+            "months": months,
+            "first": month_start(None),
+            "last": last,
+            "error": error,
+            "currency": budget.accounts.currency().code,
+        },
     )
 
 
@@ -402,12 +443,14 @@ def goal_use_sheet(request: Request, budget: Budget, goal_id: UUID, month: str =
     if row is None:
         raise HTTPException(status_code=404, detail="goal not found")
     saved = row["line"].available
-    lines = [l for l in context["budget"].lines if not l.group]
+    lines = [ln for ln in context["budget"].lines if not ln.group]
     # The category that is most over what was planned comes first, with the amount that covers it (or all there is).
-    over = min((l for l in lines if l.available < 0), key=lambda l: l.available, default=None)
+    over = min((ln for ln in lines if ln.available < 0), key=lambda ln: ln.available, default=None)
     amount = min(-over.available, saved) if over is not None else saved
     return templates.TemplateResponse(
-        request, "partials/goal_use.html", {**context, **row, "categories": lines, "picked": over.aid if over else None, "amount": amount},
+        request,
+        "partials/goal_use.html",
+        {**context, **row, "categories": lines, "picked": over.aid if over else None, "amount": amount},
     )
 
 

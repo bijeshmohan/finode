@@ -44,7 +44,9 @@ class RecurringRepository:
     def postings(self) -> dict[UUID, list[RecurringPosting]]:
         """The rows of every split rule, by rule, in the order they were entered."""
         found: dict[UUID, list[RecurringPosting]] = {}
-        statement = select(RecurringPosting).where(RecurringPosting.user == self.uid).order_by(RecurringPosting.position)
+        statement = (
+            select(RecurringPosting).where(RecurringPosting.user == self.uid).order_by(RecurringPosting.position)
+        )
         for row in self.db.exec(statement).all():
             found.setdefault(row.rid, []).append(row)
         return found
@@ -87,16 +89,17 @@ class RecurringRepository:
     @staticmethod
     def active_rules_using(db: Session, uid: UUID, aids: set[UUID]) -> list[RecurringTransaction]:
         """Rules that still run and record into or out of any of these accounts."""
-        posting_rules = {
-            rid
-            for rid in db.exec(
+        posting_rules = set(
+            db.exec(
                 select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.account.in_(aids))
             ).all()
-        }
+        )
         return [
             rule
             for rule in db.exec(
-                select(RecurringTransaction).where(RecurringTransaction.user == uid, RecurringTransaction.active == True)  # noqa: E712
+                select(RecurringTransaction).where(
+                    RecurringTransaction.user == uid, RecurringTransaction.active.is_(True)
+                )
             ).all()
             if rule.from_account in aids or rule.to_account in aids or rule.rid in posting_rules
         ]
