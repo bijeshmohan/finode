@@ -79,7 +79,6 @@ class BackupService:
                 last_name=profile.last_name,
                 default_currency=profile.currency,
                 locked_through=profile.locked_through,
-                advanced=profile.advanced,
             ),
             accounts=[
                 BackupAccount(
@@ -312,7 +311,6 @@ class BackupService:
             fields = file.profile
             profile.first_name, profile.last_name = fields.first_name, fields.last_name
             profile.locked_through = fields.locked_through
-            profile.advanced = fields.advanced
             profile.currency = find_currency(fields.default_currency).code
             db.add(profile)
             self.accounts.reset_defaults()

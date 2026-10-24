@@ -381,6 +381,7 @@ def test_the_payee_suggestions_stay_on_one_row_on_a_phone_and_a_wide_screen(page
     expect(page.locator("#payee")).to_have_attribute("placeholder", "Payee or Merchant?")
     page.set_viewport_size({"width": 390, "height": 800})
     page.goto("/transactions/new")
+    expect(page.locator("#payee-chips .chip").first).to_be_visible()  # the chips arrive by htmx
     shown = page.eval_on_selector_all("#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).length")
     assert 0 < shown < 7, "a phone fits fewer chips than there are habits"
 

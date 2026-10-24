@@ -31,11 +31,8 @@ Settings is about how the application works (your name and your data are on Prof
 |---|---|
 | **Preferences › Currency** | the one currency of your ledger. Changing it relabels; nothing is converted |
 | **Preferences › Appearance** | match the device, light or dark (kept per browser) |
-| **Your data** | backup, export and import (the same as on Profile), and **Recurring transactions** |
-| **Connections › AI assistants** | connect Claude or another assistant (see [the MCP guide](mcp.md)) |
-| **More › Advanced** | a switch that shows rarely used features: ordering accounts by hand, closing accounts, and the period lock. Switching it off only hides them; nothing is deleted |
-| **Period lock** (inside Advanced, once it is on) | close the books up to a day, say last month's end once you have checked it. Nothing dated on or before it can be added, changed or deleted, and the budget for those months is frozen |
-| **More** | also *Send feedback* (when the installation has an address for it), *About this test*, and *Sign out* |
+| **Your data** | backup, export and import, **Recurring transactions**, **Recently deleted**, the **Period lock** (close the books up to a day, say last month's end once you have checked it: nothing dated on or before it can be added, changed or deleted, and the budget for those months is frozen) and **AI assistants** (connect Claude or another assistant, see [the MCP guide](mcp.md)) |
+| **About** | *Send feedback* (when the installation has an address for it), *About this test*, and *Sign out* (the red row at the end) |
 
 ## Profile and your data
 

@@ -20,7 +20,7 @@ A new Home screen shows **Get started** with three steps:
 2. **Record your first spend.** Pick the account you paid from and the category (you can make one on the spot).
 3. **Give your money a job.** Open Budgets and set aside an amount for rent, food and the rest.
 
-Steps tick off as you do them, and the card disappears when all are done. It stays on Home after your first entry until the third step is done. (If you switch on **Advanced** in Settings, the card no longer stays.)
+Steps tick off as you do them, and the card disappears when all are done. It stays on Home after your first entry until the third step is done.
 
 The Budgets page has a short welcome until you assign the first amount. On the new-account form the budget choices are folded into one **Budget options** line that says where the account stands.
 

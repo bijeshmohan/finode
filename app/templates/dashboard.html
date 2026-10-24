@@ -41,7 +41,7 @@
 {% endif %}
 
 {% if has_recorded %}
-{% if steps and show_steps_card %}
+{% if steps %}
 <section class="tile get-started">
   <p class="section-label">Get started · {{ steps_done }} of {{ steps_total }}</p>
   {% include "partials/get_started.html" %}

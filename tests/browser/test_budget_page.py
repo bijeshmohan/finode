@@ -70,7 +70,7 @@ def test_locking_the_books_from_settings_stops_an_edit(page: Page, books, api: A
         {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
         {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
     ])
-    page.goto("/settings/advanced")
+    page.goto("/settings")
     page.locator("#lock summary").click()
     page.fill('input[name="locked_through"]', str(THIS_MONTH - timedelta(days=1)))
     page.get_by_role("button", name="Save lock").click()

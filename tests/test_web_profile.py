@@ -60,25 +60,22 @@ def test_settings_page_has_sign_out(client: TestClient):
     assert text.count("test@example.com") >= 1 and "Signed in as" not in text
 
 
-def test_header_shows_initials_and_name(client: TestClient):
+def test_the_profile_row_shows_the_name(client: TestClient):
     client.patch("/api/profile/", json={"first_name": "Bijesh", "last_name": "Mohan"})
     text = client.get("/settings").text
-    assert '<span class="avatar" aria-hidden="true">BM</span>' in text and '<p class="profile-name">Bijesh Mohan</p>' in text
+    assert '<span class="setting-title">Bijesh Mohan</span>' in text
 
 
-def test_header_falls_back_to_email_initial(client: TestClient):
+def test_the_profile_row_falls_back_to_a_plain_label(client: TestClient):
     text = client.get("/settings").text
-    assert '>T</span>' in text and "Your profile" in text
+    assert "Your profile" in text
 
 
 def test_sections_are_collapsible_and_summarise_values(client: TestClient):
     text = client.get("/settings").text
-    assert '<details id="name" class="profile-edit form-narrow">' in text
-    for section in ("currency", "appearance"):
+    for section in ("name", "currency", "appearance", "lock"):
         assert f'<details id="{section}" class="setting">' in text
     assert "Currency</span><span class=\"setting-value\">INR" in text
-    advanced = client.get("/settings/advanced").text
-    assert '<details id="lock" class="setting">' in advanced
 
 
 def test_theme_cookie_sets_data_theme(client: TestClient):
@@ -91,9 +88,9 @@ def test_theme_cookie_sets_data_theme(client: TestClient):
 
 def test_settings_page_holds_application_settings_not_profile(client: TestClient):
     settings = client.get("/settings").text
-    for title in ("Currency", "Appearance", "Recurring transactions", "AI assistants", "Advanced"):
+    for title in ("Currency", "Appearance", "Recurring transactions", "AI assistants", "Period lock"):
         assert title in settings, title
-    assert "Period lock" not in settings
+    assert "Advanced" not in settings, "the Advanced switch is gone"
     assert "MCP tokens" not in settings
     assert "First name" in settings and "Sign out" in settings, "the name and sign-out are on this page too"
 
@@ -112,6 +109,6 @@ def test_old_profile_setting_routes_are_gone(client: TestClient):
 
 def test_each_settings_entry_appears_once(client: TestClient):
     text = client.get("/settings").text
-    for ident in ("currency", "appearance", "recurring", "advanced", "assistants"):
+    for ident in ("currency", "appearance", "recurring", "lock", "assistants"):
         assert text.count(f'id="{ident}"') <= 1, ident
     assert text.count("Recurring transactions</span>") == 1

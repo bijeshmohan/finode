@@ -18,7 +18,6 @@ class ProfileUpdate(BaseModel):
     default_currency: str | None = Field(default=None, max_length=20)
     # Close the books up to and including this day (a day before today at the latest); null opens them again.
     locked_through: Day | None = None
-    advanced: bool | None = None
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -37,6 +36,5 @@ class ProfileRead(BaseModel):
     last_name: str | None = None
     default_currency: str | None = None
     locked_through: date | None = None
-    advanced: bool = False
     created: datetime
     updated: datetime

@@ -42,33 +42,13 @@ def settings_page(
             "currencies": list(CURRENCIES.values()),
             "email": user.email,
             "display_name": " ".join(names),
-            "initials": "".join(n[0] for n in names[:2]).upper() or (user.email or "?")[0].upper(),
             "test_notice": settings.test_notice,
             "feedback_url": _feedback_url(),
+            "yesterday": (local_today() - timedelta(days=1)).isoformat(),
             # Shown only to people who are missing built-in groups (new people have them all).
             "groups_missing": any(e["action"] != "have" for e in accounts.fixed_parents_plan()),
         },
     )
-
-
-@router.get("/advanced")
-def advanced_page(request: Request, profiles: Profiles):
-    profile = profiles.read()
-    return templates.TemplateResponse(
-        request,
-        "advanced.html",
-        {
-            "active": "settings",
-            "profile": profile,
-            "yesterday": (local_today() - timedelta(days=1)).isoformat(),
-        },
-    )
-
-
-@router.post("/advanced")
-def update_advanced(profiles: Profiles, advanced: Annotated[str, Form()] = ""):
-    profiles.update(ProfileUpdate(advanced=advanced.strip() in ("1", "true", "on")))
-    return htmx_redirect("/settings/advanced", flash="advanced-on" if advanced.strip() in ("1", "true", "on") else "advanced-off")
 
 
 @router.post("/currency")
@@ -93,7 +73,7 @@ def update_lock(profiles: Profiles, locked_through: Annotated[str, Form()] = "")
     except (ValidationError, ValueError) as e:
         message = validation_message(e) if isinstance(e, ValidationError) else str(e)
         return htmx_error(message, "#lock-error")
-    return htmx_redirect(_saved("lock", "/settings/advanced"), flash="lock-saved" if day else "lock-removed")
+    return htmx_redirect(_saved("lock"), flash="lock-saved" if day else "lock-removed")
 
 
 @router.get("/groups")

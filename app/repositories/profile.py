@@ -11,10 +11,6 @@ from ..schemas.profile import ProfileUpdate
 from .cache import remembered
 
 
-# New people start with the rarely used features hidden (tests switch this on so they see everything).
-NEW_PROFILE_ADVANCED = False
-
-
 class ProfileRepository:
     def __init__(self, db: Session, uid: UUID):
         self.db = db
@@ -24,11 +20,6 @@ class ProfileRepository:
         return remembered(
             self.db, ("profile", self.uid), lambda: self.db.exec(select(Profile).where(Profile.user == self.uid)).first()
         )
-
-    def advanced(self) -> bool:
-        """Whether the rarely used features are shown; a person with no profile row yet gets the default."""
-        profile = self.read()
-        return profile.advanced if profile is not None else NEW_PROFILE_ADVANCED
 
     def currency(self) -> str:
         """The code of the currency the ledger is kept in; a person with no profile row yet gets the default."""
@@ -41,7 +32,7 @@ class ProfileRepository:
         if profile:
             return profile
         try:
-            profile = Profile(user=self.uid, currency=DEFAULT_CURRENCY, advanced=NEW_PROFILE_ADVANCED)
+            profile = Profile(user=self.uid, currency=DEFAULT_CURRENCY)
             self.db.add(profile)
             self.db.commit()
         except IntegrityError:

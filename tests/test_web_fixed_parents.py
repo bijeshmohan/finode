@@ -4,7 +4,6 @@ import re
 
 import pytest
 
-from app.repositories import profile
 from app.services import account as account_service
 
 from .test_fixed_parents import group, make
@@ -13,7 +12,6 @@ from .test_fixed_parents import group, make
 @pytest.fixture(autouse=True)
 def new_person(monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
-    monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", False)
 
 
 def test_with_no_accounts_the_page_shows_an_add_account_pill_and_no_groups(client):

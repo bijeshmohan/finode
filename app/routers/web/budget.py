@@ -9,7 +9,6 @@ from fastapi.responses import RedirectResponse
 
 from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
 from ...dependencies import Budget
-from ...repositories.profile import ProfileRepository
 from ...services.budget import BudgetError, first_of_month, month_start, months_between
 from ...schemas.budget import BudgetLine, GoalLine
 from ...templating import grouping_for, money, templates
@@ -122,7 +121,7 @@ def _by_assigned(nodes: list[Node]) -> list[Node]:
     return sorted(nodes, key=lambda n: (-n.line.assigned, n.line.name.lower()))
 
 
-def _hint(node: Node, advanced: bool, style: str = "western") -> str:
+def _hint(node: Node, style: str = "western") -> str:
     """The small line under a category's name: the three biggest things inside a group and '+N'; for a plain category
     what needs a look (last month's overspending)."""
     if node.is_group:
@@ -165,7 +164,6 @@ def _goal_rows(data) -> list[dict]:
 
 def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     data = budget.view(month)
-    advanced = ProfileRepository(budget.br.db, budget.br.uid).advanced()
     tree = build_tree(data.lines)
     # Whole groups with nothing in them (nothing assigned, spent or planned) are tucked away once anything is in use;
     # plain top-level categories always show, so there is always something to tap and assign to.
@@ -175,10 +173,10 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "tab": OLD_TABS.get(tab, tab) if OLD_TABS.get(tab, tab) in TABS else "spend",
         "tabs": TABS,
         "goal_rows": _goal_rows(data),
-        # A short welcome until the first amount is assigned (not for people on Advanced, who know their way around).
-        "show_intro": not advanced and not budget.br.list(),
+        # A short welcome until the first amount is assigned.
+        "show_intro": not budget.br.list(),
         "tree": tree,
-        "rows": [{"node": n, "hint": _hint(n, advanced, grouping_for(data.currency))} for n in _by_assigned(tree)],
+        "rows": [{"node": n, "hint": _hint(n, grouping_for(data.currency))} for n in _by_assigned(tree)],
         "unused_ids": {n.line.aid for n in unused},
         "unused_count": len(unused),
         # More spent than there was to spend in all the categories together (a single overspent category shows on its own bar).
@@ -194,7 +192,6 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "next": shift(data.month, 1).strftime("%Y-%m"),
         "is_current": data.month == month_start(None),
         "active": "budget",
-        "advanced": advanced,
         # Only the current month has a "today": the tick on the bars shows how far through it we are.
         "pace": month_progress() if data.month == month_start(None) else None,
     }
@@ -210,11 +207,10 @@ def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
     node = next((n for n in context["tree"] if n.line.aid == aid and n.is_group), None)
     if node is None:
         raise HTTPException(status_code=404, detail="category not found")
-    advanced = context["advanced"]
     return {
         **context,
         "group": node,
-        "kids": [{"node": c, "hint": _hint(c, advanced, grouping_for(context["budget"].currency))} for c in _by_assigned(node.children)],
+        "kids": [{"node": c, "hint": _hint(c, grouping_for(context["budget"].currency))} for c in _by_assigned(node.children)],
         "edit_url": f"/budget/group/{aid}/sheet?month={month:%Y-%m}",
         "glance": _glance(node.line),
     }

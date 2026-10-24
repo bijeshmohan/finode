@@ -7,19 +7,19 @@
 <h1>AI assistants</h1>
 <p class="muted form-narrow">Let Claude or another assistant that speaks MCP work with your books. Each connection is either <strong>read only</strong> (it answers questions) or <strong>read &amp; write</strong> (it can also record transactions). You can change that at any time.</p>
 
-<section class="card stack form-narrow">
+<section class="card stack">
   <h2>Connected</h2>
   {% include "partials/connections.html" %}
 </section>
 
-<section class="card stack form-narrow">
+<section class="card stack">
   <h2>Connect by signing in</h2>
   <p class="muted">Add this address as a custom connector in Claude or another app, then choose the access level.</p>
   <div class="copy-row"><code class="secret" id="mcp-address">{{ mcp_url }}</code>
     <button type="button" class="secondary small" data-copy="#mcp-address">Copy</button></div>
 </section>
 
-<section class="card stack form-narrow">
+<section class="card stack">
   <h2>Connect with a token</h2>
   <p class="muted">For tools that take a token, such as Claude Code, Claude Desktop and Cursor.</p>
   <form class="stack" hx-post="/profile/assistants" hx-target="#new-token" hx-swap="innerHTML">
@@ -40,7 +40,7 @@
   <div id="new-token"></div>
 </section>
 
-<details class="card stack form-narrow">
+<details class="card stack">
   <summary>Setup instructions for tokens</summary>
   {% with secret = none %}{% include "partials/mcp_setup.html" %}{% endwith %}
 </details>

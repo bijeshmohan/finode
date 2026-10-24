@@ -375,7 +375,6 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
     place = next((i for i, s in enumerate(siblings) if s is node), 0)
     return {
         "active": "accounts",
-        "advanced": profiles.advanced(),
         "can_move_up": node.kind == "user" and place > 0,
         "can_move_down": node.kind == "user" and place < len(siblings) - 1,
         "ordered_by_hand": any(s.account.position is not None for s in siblings),
