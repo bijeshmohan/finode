@@ -69,7 +69,7 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
     page.click('[data-rows="credit"] [name="amount"]')  # a suggestion is selected on entry: typing replaces it
     page.keyboard.type("60")
     page.keyboard.press("Tab")
-    assert amounts(page, "credit") == ["60", "40.00"]
+    assert amounts(page, "credit") == ["60.00", "40.00"]
     assert page.eval_on_selector_all('[data-rows="credit"] [name="amount"]', "e => e.map(x => x.classList.contains('suggested'))") == [False, True]
     page.select_option('[data-rows="credit"] [data-row]:nth-child(2) select', label="Cash")
     page.select_option('[data-rows="debit"] select', label="Rent")
@@ -360,3 +360,27 @@ def test_from_and_to_are_the_same_size_and_the_swap_sits_between_them(page: Page
       return [b.top + b.height / 2, from.bottom, to.top];
     }""")
     assert seam[1] - 1 <= seam[0] <= seam[2] + 1, f"the button is on the seam between the tiles: {seam}"
+
+
+def test_an_amount_loses_its_leading_zeros_as_typed_and_gets_its_decimals_when_left(page: Page, books):
+    page.goto("/transactions/new")
+    total = page.locator("#total")
+    total.click()
+    page.keyboard.type("007")
+    assert total.input_value() == "7", "no zeros in front"
+    total.fill("")
+    page.keyboard.type("0.5")
+    assert total.input_value() == "0.5", "a lone zero before the point stays"
+    page.keyboard.press("Tab")
+    assert total.input_value() == "0.50", "written out with two decimals on leaving"
+    for typed, tidy in (("1.", "1.00"), ("1.1", "1.10"), ("12", "12.00"), (".5", "0.50"), ("1,200", "1200.00")):
+        total.fill("")
+        total.click()
+        page.keyboard.type(typed)
+        page.keyboard.press("Tab")
+        assert total.input_value() == tidy, typed
+    assert page.input_value('[data-rows="debit"] [name="amount"]') == "1200.00", "the rows follow the tidied amount"
+    total.fill("")
+    total.click()
+    page.keyboard.press("Tab")
+    assert total.input_value() == "", "an empty amount stays empty"

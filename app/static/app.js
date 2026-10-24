@@ -16,8 +16,36 @@ function cleanAmount(text) {
     else if (ch === "." && !dot && places > 0) { dot = true; out += ch; }
     else if (ch === "-" && out === "") out += ch;
   }
-  return out;
+  return out.replace(/^(-?)0+(?=\d)/, "$1"); // no zeros in front: "01" is 1, "00.5" is 0.5
 }
+
+// When the person leaves an amount (or sends the form) it is written out whole: no commas or zeros in front, and the
+// decimals the currency keeps ("1." and "1.1" become 1.00 and 1.10 for rupees). Anything that is not a number stays as typed.
+function tidyAmount(text) {
+  const places = Number(document.documentElement.dataset.places ?? 2);
+  let t = text.replace(/[,\s]/g, "");
+  const sign = t.startsWith("-") ? "-" : "";
+  t = t.replace("-", "");
+  if (t === "" || t === "." || !/^\d*\.?\d*$/.test(t)) return text;
+  const [whole, fraction = ""] = t.split(".");
+  const digits = whole.replace(/^0+(?=\d)/, "") || "0";
+  return sign + digits + (places ? "." + fraction.slice(0, places).padEnd(places, "0") : "");
+}
+
+function tidyField(field) {
+  const tidy = tidyAmount(field.value);
+  if (tidy === field.value) return false;
+  field.value = tidy;
+  return true;
+}
+
+const isAmountField = (el) => el && el.tagName === "INPUT" && el.getAttribute("inputmode") === "decimal";
+document.addEventListener("focusout", (event) => {
+  if (isAmountField(event.target) && tidyField(event.target)) event.target.dispatchEvent(new Event("input", { bubbles: true }));
+}, true);
+document.addEventListener("submit", (event) => {
+  if (event.target.querySelectorAll) event.target.querySelectorAll('input[inputmode="decimal"]').forEach(tidyField);
+}, true);
 
 document.addEventListener("input", (event) => {
   const field = event.target;
@@ -541,7 +569,7 @@ function quickApply(form, make) {
   if (next < 0n) next = 0n;
   if (next >= QUICK_MAX) return;
   form._quickUndo = (form._quickUndo || []).concat(before);
-  total.value = formatDec(next);
+  total.value = tidyAmount(formatDec(next));
   form._quickBusy = true;
   total.dispatchEvent(new Event("input", { bubbles: true }));
   form._quickBusy = false;

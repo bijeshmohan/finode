@@ -285,7 +285,7 @@ def test_a_tap_beside_the_sheet_while_typing_only_puts_the_keyboard_away(page: P
     page.mouse.click(195, 20)  # the dim area above the sheet
     expect(page.locator("#cat-sheet")).to_be_visible()
     expect(box).not_to_be_focused()
-    assert box.input_value() == "77", "what was typed is kept"
+    assert box.input_value() == "77.00", "what was typed is kept, written out with its decimals"
     page.mouse.click(195, 20)
     expect(page.locator("#cat-sheet")).not_to_be_visible()
 
