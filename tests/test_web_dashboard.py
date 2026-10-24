@@ -70,7 +70,7 @@ def test_dashboard_shows_what_is_left_to_spend_once_there_is_a_budget(
         {"account": bank["aid"], "side": "credit", "amount": "100"}]})
     text = " ".join(client.get("/").text.split())
     assert "Left to spend" in text and "300.00" in text
-    assert "Spent 100.00 of 400.00" not in text, "the columns under the bar already say it"
+    assert "Spent so far 100.00 of 400.00" in text, "a caption under the bar says what it shows"
     assert 'style="width: 25%"' in text
 
 
@@ -179,7 +179,7 @@ def test_the_latest_entries_on_home_sit_under_a_transactions_heading(
         {"account": account["aid"], "side": "credit", "amount": "5"}]})
     page = client.get("/").text
     assert "<h2>Transactions</h2>" in page and "<h2>Recent</h2>" not in page
-    assert 'href="/transactions?month=' + date.today().strftime('%Y-%m') + '">View all</a>' in page
+    assert 'href="/transactions?month=' + date.today().strftime('%Y-%m') + '">View all ›</a>' in page
 
 
 def test_the_i_on_home_shows_the_sum_with_the_persons_own_numbers(

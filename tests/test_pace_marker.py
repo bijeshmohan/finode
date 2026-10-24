@@ -25,12 +25,8 @@ def setup(client, root_accounts):
     return {"bank": bank, "food": food}
 
 
-def test_the_budget_bars_carry_the_tick_for_the_current_month_only(client, setup):
-    page = client.get("/budget").text
-    pace = month_progress()
-    assert f'<b class="pace" style="left: {pace}%"></b>' in page
-    last = (date.today().replace(day=1)).replace(year=date.today().year - 1)
-    assert 'class="pace"' not in client.get(f"/budget?month={last:%Y-%m}").text, "other months have no today"
+def test_the_budget_rows_carry_no_tick_it_is_on_home_and_in_a_groups_head(client, setup):
+    assert 'class="pace"' not in client.get("/budget").text, "one triangle under every row was noise (2026-10-24)"
 
 
 def test_the_home_bar_carries_the_tick_and_says_it_in_words(client, setup):

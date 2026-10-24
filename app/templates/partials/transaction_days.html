@@ -13,7 +13,10 @@
           <span class="tx-main">
             {#- No payee: the row leads with where the money went and says where it came from. -#}
             <span class="tx-title">{{ t.payee or row.debits|join(", ") }}</span>
-            <span class="tx-sub">{% if t.payee %}{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% else %}{{ row.credits|join(", ") }}{% endif %}{% if t.comment %} · {{ t.comment }}{% endif %}</span>
+            {#- An opening balance or an adjustment names just the account: the system's "Opening Balances" and the stock note say nothing. -#}
+            {% set system = "Opening Balances" in row.credits or "Opening Balances" in row.debits %}
+            {% set note = "" if system and t.comment == "Initial account balance" else t.comment %}
+            <span class="tx-sub">{% if system %}{{ (row.credits + row.debits)|reject("equalto", "Opening Balances")|join(", ") }}{% elif t.payee %}{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% else %}{{ row.credits|join(", ") }}{% endif %}{% if note %} · {{ note }}{% endif %}</span>
             {% if t.recurring_id or t.created_via == "recurring" %}<span class="tx-via">{{ icon("repeat") }}Recurring</span>{% endif %}
             {% if (t.created_via or "").startswith("mcp:") or (t.updated_via or "").startswith("mcp:") %}<span class="tx-via">{{ icon("spark") }}{{ "Added" if (t.created_via or "").startswith("mcp:") else "Changed" }} by {{ ((t.created_via if (t.created_via or "").startswith("mcp:") else t.updated_via))[4:] }}</span>{% endif %}
           </span>

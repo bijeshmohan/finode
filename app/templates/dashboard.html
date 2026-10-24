@@ -31,6 +31,7 @@
   {% if glance.has_budget %}
   <p class="glance-figure {{ 'over' if glance.left < 0 }}">{{ figure(glance.left, currency) }}</p>
   <div class="glance-bar" role="img" aria-label="{{ glance.percent }}% of what there was to spend is spent{% if glance.pace is not none %}, and {{ glance.pace }}% of the month has passed{% endif %}"><i style="width: {{ glance.percent }}%"></i>{% if glance.pace is not none %}<b class="pace" style="left: {{ glance.pace }}%"></b>{% endif %}</div>
+  <p class="glance-caption">{{ "Spent so far" if is_current else "Spent" }} {{ glance.spent|money }} of {{ glance.of|money }}</p>
   {{ calc_panel([("Carried in from earlier months", glance.carried, ""), ("Assigned in " ~ mname, glance.assigned, "+"), ("Spent so far" if is_current else "Spent", glance.spent, "−")], "Left to spend", glance.left, currency, "Each category's leftover, plus what you assigned this month, minus what you spent.") }}
   {% else %}
   <p class="glance-figure">{{ figure(summary.expenses, currency) }}</p>
@@ -49,7 +50,7 @@
 <div class="home-recent">
 <div class="section-head">
   <h2>Transactions</h2>
-  <a href="/transactions?month={{ month_key }}">View all</a>
+  <a class="quiet-link" href="/transactions?month={{ month_key }}">View all ›</a>
 </div>
 {% if recent %}
 {% with rows=recent %}{% include "partials/transaction_list.html" %}{% endwith %}

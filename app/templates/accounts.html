@@ -3,11 +3,10 @@
 {% from "partials/money.html" import figure %}
 {% block title %}Accounts · finode{% endblock %}
 
-{#- One account: a round initial, its name and its balance. -#}
+{#- One account: its name and its balance. -#}
 {% macro entry(node) %}
 <li data-path="{{ node.path|lower }}" class="{{ 'closed-hidden' if node.closed }}">
   <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}">
-    <i class="mono" aria-hidden="true">{{ node.account.name[:1]|upper }}</i>
     <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}</span>
     <span class="account-balance">{{ node.account.balance|money }}</span>
   </a>
