@@ -115,7 +115,6 @@ templates.env.filters["money"] = money
 templates.env.globals["grouping"] = lambda: _grouping.get()
 templates.env.globals["decimals"] = lambda: _places.get()
 templates.env.filters["symbol"] = symbol
-templates.env.filters["places"] = places
 templates.env.filters["amount"] = amount
 templates.env.filters["friendly_date"] = friendly_date
 templates.env.filters["local_day"] = local_day
