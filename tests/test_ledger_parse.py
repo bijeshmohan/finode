@@ -59,7 +59,9 @@ def test_single_posting_rejected():
 
 def test_unsupported_features_are_reported():
     assert "virtual postings" in _errors("2026-10-04 x\n    (Assets:A)  10\n    Assets:B  -10\n")[0]
-    assert "lots are not supported" in _errors("2026-10-04 x\n    Assets:A  10 AAPL {5 USD}\n    Assets:B  -50 USD\n")[0]
+    assert (
+        "lots are not supported" in _errors("2026-10-04 x\n    Assets:A  10 AAPL {5 USD}\n    Assets:B  -50 USD\n")[0]
+    )
     assert "automated" in _errors("= expenses\n    (Assets:A)  1\n")[0]
     assert "unsupported directive 'include'" in _errors("include other.ledger\n")[0]
     assert "balance assignments" in _errors("2026-10-04 x\n    Assets:A  = 5\n    Assets:B\n")[0]
@@ -97,7 +99,9 @@ def _txn(text: str):
 
 
 def test_amounts_keep_their_label_and_precision():
-    t = _txn("2026-01-05 x\n    Assets:Wise  100.50 INR\n    Equity:O  -100.50 INR\n    Assets:Cash  0.12345678\n    Equity:P  -0.12345678\n")
+    t = _txn(
+        "2026-01-05 x\n    Assets:Wise  100.50 INR\n    Equity:O  -100.50 INR\n    Assets:Cash  0.12345678\n    Equity:P  -0.12345678\n"
+    )
     assert [(p.amount, p.commodity) for p in t.postings] == [
         (Decimal("100.50"), "INR"),
         (Decimal("-100.50"), "INR"),
@@ -126,7 +130,9 @@ def test_a_left_out_amount_takes_the_label_the_others_have():
     t = _txn("2026-01-05 x\n    A:B  10 INR\n    C:D  4 INR\n    E:F\n")
     assert (t.postings[2].amount, t.postings[2].commodity) == (Decimal("-14"), "INR")
     t = _txn("2026-01-05 x\n    A:B  10 USD\n    C:D  5 EUR\n    E:F\n")
-    assert (t.postings[2].amount, t.postings[2].commodity) == (Decimal("-15"), None), "different labels: the importer will object"
+    assert (t.postings[2].amount, t.postings[2].commodity) == (Decimal("-15"), None), (
+        "different labels: the importer will object"
+    )
 
 
 def test_balance_assertions_are_per_label():

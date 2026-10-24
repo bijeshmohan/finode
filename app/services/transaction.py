@@ -1,35 +1,37 @@
 """Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits), plus history, deleted entries and restoring."""
 
+import builtins
+from collections.abc import Collection
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from ..config import settings
 from ..clock import local_midnight_utc
+from ..config import settings
+from ..currencies import Currency
+from ..currencies import find as find_currency
 from ..limits import ensure_room
-from ..currencies import Currency, find as find_currency
-from ..models.transaction import Transaction, Posting, PostingSide
+from ..models import Account
+from ..models.transaction import Posting, PostingSide, Transaction
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
-from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 from ..schemas.transaction import (
+    HistoryPosting,
+    HistoryRead,
+    PostingRead,
     TransactionCreate,
     TransactionRead,
     TransactionUpdate,
-    PostingRead,
-    HistoryPosting,
-    HistoryRead,
 )
-
+from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 
 # How many deleted entries the recently-deleted page lists.
 RESTORABLE_LIMIT = 50
 
-class InvalidPostingError(ValueError):
-    ...
+
+class InvalidPostingError(ValueError): ...
 
 
-class InvalidPostingAccountError(InvalidPostingError):
-    ...
+class InvalidPostingAccountError(InvalidPostingError): ...
 
 
 def decimal_places(value: Decimal) -> int:
@@ -59,7 +61,9 @@ class TransactionService:
                 raise RuntimeError("the profile names a currency finode does not know")
         return self._currency
 
-    def _resolve(self, data: TransactionCreate | TransactionUpdate, keep_closed: set[UUID] = frozenset()) -> None:
+    def _resolve(
+        self, data: TransactionCreate | TransactionUpdate, keep_closed: Collection[UUID] = frozenset()
+    ) -> None:
         """Check the postings: the accounts can be posted to, the amounts fit the currency and the entry balances."""
         postings = data.postings
         if postings is None:
@@ -82,11 +86,13 @@ class TransactionService:
                 raise InvalidPostingAccountError(f"cannot post to root account '{account.name}'!")
             if account.closed_on is not None and account.aid not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
-            if account.aid in has_children:
-                if AccountService.root_name(account, accounts_by_id) not in GROUP_POSTING_ROOT_NAMES:
-                    raise InvalidPostingAccountError(
-                        f"cannot post to account '{account.name}' because it has sub-accounts!"
-                    )
+            if (
+                account.aid in has_children
+                and AccountService.root_name(account, accounts_by_id) not in GROUP_POSTING_ROOT_NAMES
+            ):
+                raise InvalidPostingAccountError(
+                    f"cannot post to account '{account.name}' because it has sub-accounts!"
+                )
             if decimal_places(posting.amount) > currency.decimals:
                 raise InvalidPostingError(
                     f"{currency.code} amounts can have at most {currency.decimals} "
@@ -162,11 +168,13 @@ class TransactionService:
         accounts = {a.aid: a for a in self.ar.list()}
         paths: dict[UUID, str] = {}
         for aid, account in accounts.items():
-            chain, seen = [], set()
-            while account is not None and account.aid not in seen:
-                seen.add(account.aid)
-                chain.append(account.name)
-                account = accounts.get(account.parent_id) if account.parent_id else None
+            chain: builtins.list[str] = []
+            seen: set[UUID] = set()
+            current: Account | None = account
+            while current is not None and current.aid not in seen:
+                seen.add(current.aid)
+                chain.append(current.name)
+                current = accounts.get(current.parent_id) if current.parent_id else None
             paths[aid] = ":".join(reversed(chain))
         return paths
 
@@ -208,7 +216,10 @@ class TransactionService:
             date=date.fromisoformat(snapshot["date"]),
             payee=snapshot.get("payee"),
             comment=snapshot.get("comment"),
-            postings=[{"account": UUID(p["account"]), "side": p["side"], "amount": Decimal(p["amount"])} for p in snapshot["postings"]],
+            postings=[
+                {"account": UUID(p["account"]), "side": p["side"], "amount": Decimal(p["amount"])}
+                for p in snapshot["postings"]
+            ],
         )
         self._check_limits()
         self._resolve(data)
@@ -290,7 +301,9 @@ class TransactionService:
         kind_accounts = None
         if kind:
             roots = {a.name: a.aid for a in self.ar.list() if a.parent_id is None}
-            kind_accounts = tuple(self._account_subtree(roots[name]) if name in roots else [] for name in ("Expenses", "Income"))
+            kind_accounts = tuple(
+                self._account_subtree(roots[name]) if name in roots else [] for name in ("Expenses", "Income")
+            )
         return account_ids, kind_accounts, also_ids
 
     def list(
@@ -304,11 +317,19 @@ class TransactionService:
         kind: str | None = None,
         also: UUID | None = None,
         payee: str | None = None,
-    ) -> list[TransactionRead]:
+    ) -> builtins.list[TransactionRead]:
         account_ids, kind_accounts, also_ids = self._args(account, kind, also)
         transactions = self.tr.list(
-            account_ids, date_from, date_to, limit, offset, (text or "").strip() or None, kind or None, kind_accounts,
-            also_ids, (payee or "").strip() or None,
+            account_ids,
+            date_from,
+            date_to,
+            limit,
+            offset,
+            (text or "").strip() or None,
+            kind or None,
+            kind_accounts,
+            also_ids,
+            (payee or "").strip() or None,
         )
         postings = self.tr.postings_for_transactions([t.tid for t in transactions])  # one query, not one per row
         return [self._to_read(transaction, postings.get(transaction.tid, [])) for transaction in transactions]
@@ -324,31 +345,37 @@ class TransactionService:
         kind: str | None = None,
         also: UUID | None = None,
         payee: str | None = None,
-    ) -> tuple[list[TransactionRead], int]:
+    ) -> tuple[builtins.list[TransactionRead], int]:
         """A chunk of the list for "Show more" and how many entries match in all. A day is never split between two
         chunks: the chunk runs on to the end of the day its last entry falls on."""
         account_ids, kind_accounts, also_ids = self._args(account, kind, also)
         text, payee = (text or "").strip() or None, (payee or "").strip() or None
 
         def read(first, last, limit, start):
-            return self.tr.list(account_ids, first, last, limit, start, text, kind or None, kind_accounts, also_ids, payee)
+            return self.tr.list(
+                account_ids, first, last, limit, start, text, kind or None, kind_accounts, also_ids, payee
+            )
 
         found = read(date_from, date_to, size + 1, offset)
         more_exist = len(found) > size
         if more_exist and found[size].date == found[size - 1].date:
             day = found[size - 1].date  # the day goes on: take all of it
-            found = [t for t in found[:size] if t.date != day] + read(max(day, date_from) if date_from else day, day, None, 0)
+            found = [t for t in found[:size] if t.date != day] + read(
+                max(day, date_from) if date_from else day, day, None, 0
+            )
         else:
             found = found[:size]
         if more_exist:
-            total = self.tr.count_matching(account_ids, date_from, date_to, text, kind or None, kind_accounts, also_ids, payee)
+            total = self.tr.count_matching(
+                account_ids, date_from, date_to, text, kind or None, kind_accounts, also_ids, payee
+            )
         else:
             total = offset + len(found)  # nothing is left, so there is no need to count
         postings = self.tr.postings_for_transactions([t.tid for t in found])  # one query, not one per row
         found = [self._to_read(t, postings.get(t.tid, [])) for t in found]
         return found, total
 
-    def payees(self) -> list[tuple[str, int]]:
+    def payees(self) -> builtins.list[tuple[str, int]]:
         """Who you have paid or been paid by, most used first, for the transactions filter."""
         return self.tr.payees()
 

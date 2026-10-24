@@ -11,13 +11,14 @@ from ...dependencies import OAuthGrants
 from ...templating import templates
 from .utils import htmx_redirect
 
-
 router = APIRouter(prefix="/oauth")
 
 
 def _problem(request: Request, message: str, status_code: int = 400):
     return templates.TemplateResponse(
-        request, "oauth_consent.html", {"active": "profile", "hide_fab": True, "problem": message, "details": None},
+        request,
+        "oauth_consent.html",
+        {"active": "profile", "hide_fab": True, "problem": message, "details": None},
         status_code=status_code,
     )
 
@@ -25,15 +26,19 @@ def _problem(request: Request, message: str, status_code: int = 400):
 @router.get("/consent")
 def consent_page(request: Request, authorization_id: str = ""):
     if not authorization_id.strip():
-        return _problem(request, "This page is opened by an app that wants to connect. Start from the app's connector settings.")
+        return _problem(
+            request, "This page is opened by an app that wants to connect. Start from the app's connector settings."
+        )
     try:
         details = oauth.authorization_details(authorization_id.strip(), request.state.access_token)
     except oauth.OAuthError as e:
         return _problem(request, str(e))
     if details.redirect_url:
         # Already decided earlier: Supabase only wants the user sent back.
-        return RedirectResponse(details.redirect_url, status_code=303) if oauth.is_web_url(details.redirect_url) else _problem(
-            request, "The app asked to be opened in a way finode does not allow."
+        return (
+            RedirectResponse(details.redirect_url, status_code=303)
+            if oauth.is_web_url(details.redirect_url)
+            else _problem(request, "The app asked to be opened in a way finode does not allow.")
         )
     return templates.TemplateResponse(
         request,
@@ -73,9 +78,9 @@ def change_access(gid: UUID, grants: OAuthGrants, scope: Annotated[str, Form()] 
     try:
         grants.set_scope(gid, scope)
     except LookupError:
-        raise HTTPException(status_code=404, detail="app not found")
+        raise HTTPException(status_code=404, detail="app not found") from None
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     return htmx_redirect("/profile/assistants", flash="access-changed")
 
 
@@ -84,6 +89,6 @@ def disconnect(request: Request, gid: UUID, grants: OAuthGrants):
     try:
         grant = grants.revoke(gid)
     except LookupError:
-        raise HTTPException(status_code=404, detail="app not found")
+        raise HTTPException(status_code=404, detail="app not found") from None
     oauth.revoke_grant(grant.client_id, request.state.access_token)
     return htmx_redirect("/profile/assistants", flash="app-disconnected")

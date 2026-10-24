@@ -1,15 +1,14 @@
 import json
 from dataclasses import dataclass
+from datetime import date as Date
 from decimal import Decimal, InvalidOperation
-from uuid import UUID
 from html import escape
+from uuid import UUID
 
 from fastapi import Response
 from fastapi.responses import HTMLResponse
 
 from ...flash import set_flash
-
-
 from ...services.validation import validation_message  # noqa: F401  (shared with the services)
 
 
@@ -18,7 +17,7 @@ class UpcomingItem:
     """One entry dated ahead, as the "upcoming" card shows it (see partials/upcoming.html)."""
 
     tid: UUID
-    date: date
+    date: Date
     title: str
     sub: str
     amount: Decimal
@@ -34,7 +33,7 @@ def parse_amount(value: str | None, default: Decimal | None = None) -> Decimal:
     try:
         amount = Decimal(value)
     except InvalidOperation:
-        raise ValueError(f"'{value}' is not a valid amount!")
+        raise ValueError(f"'{value}' is not a valid amount!") from None
     if not amount.is_finite():
         raise ValueError(f"'{value}' is not a valid amount!")
     return amount

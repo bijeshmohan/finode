@@ -32,14 +32,16 @@ def rows(session, model, user=TEST_USER_ID):
 
 
 @pytest.fixture
-def both(client, session, rich):  # noqa: F811
+def both(client, session, rich):
     """A has a full ledger, an assistant token and a connected app; B has a little."""
     ApiTokenService(ApiTokenRepository(session, TEST_USER_ID)).create(ApiTokenCreate(name="Laptop", scope="write"))
     OAuthGrantService(OAuthGrantRepository(session, TEST_USER_ID)).allow("client-a", "A-Assistant", "write")
     client.patch("/api/profile/", json={"first_name": "Ada", "last_name": "L"})
     with signed_in_as(B_USER):
         roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
-        mine = client.post("/api/accounts/", json={"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}).json()
+        mine = client.post(
+            "/api/accounts/", json={"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}
+        ).json()
         client.patch("/api/profile/", json={"first_name": "Bea"})
         ApiTokenService(ApiTokenRepository(session, B_USER)).create(ApiTokenCreate(name="B-Phone"))
     return mine
@@ -47,14 +49,31 @@ def both(client, session, rich):  # noqa: F811
 
 def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, both):
     before_b = books_of(client, B_USER)
-    shelf = client.post("/api/accounts/", json={"name": "Shelf", "parent_id": next(
-        a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets")}).json()["aid"]
+    shelf = client.post(
+        "/api/accounts/",
+        json={
+            "name": "Shelf",
+            "parent_id": next(
+                a["aid"]
+                for a in client.get("/api/accounts/").json()
+                if a["parent_id"] is None and a["name"] == "Assets"
+            ),
+        },
+    ).json()["aid"]
     client.delete(f"/api/accounts/{shelf}")
     assert rows(session, AccountDeletion), "a deleted account leaves a record"
     removed = EraseService(session, TEST_USER_ID).erase_books()
-    assert rows(session, AccountDeletion) == [] and "account_deletions" in removed, "erasing the books clears the records too"
-    assert {"accounts", "transactions", "postings", "recurring_transactions", "budget_allocations",
-            "transaction_history"} <= set(removed)
+    assert rows(session, AccountDeletion) == [] and "account_deletions" in removed, (
+        "erasing the books clears the records too"
+    )
+    assert {
+        "accounts",
+        "transactions",
+        "postings",
+        "recurring_transactions",
+        "budget_allocations",
+        "transaction_history",
+    } <= set(removed)
     for model in (Account, Transaction, Posting):
         assert rows(session, model) == [], model
     # What belongs to the person, not the books, stays.
@@ -80,7 +99,9 @@ def test_after_erasing_a_backup_restores_everything(client, session, both):
     done = client.post("/api/restore", files={"file": ("b.json", json.dumps(backup), "application/json")})
     assert done.status_code == 200, done.text
     again = client.get("/api/backup").json()
-    assert len(again["transactions"]) == len(backup["transactions"]) and len(again["accounts"]) == len(backup["accounts"])
+    assert len(again["transactions"]) == len(backup["transactions"]) and len(again["accounts"]) == len(
+        backup["accounts"]
+    )
     assert client.get("/api/reports/trial-balance").json()["balanced"]
 
 
@@ -146,7 +167,7 @@ def test_deleting_an_account_frees_a_place_for_the_next_person(client, session, 
     from app.routers.web import auth as web_auth_router  # noqa: F401
 
     monkeypatch.setattr(settings, "max_users", 2)
-    count = lambda: len(session.exec(select(Profile)).all())  # noqa: E731
+    count = lambda: len(session.exec(select(Profile)).all())
     assert count() == 2
     monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
     monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
@@ -172,7 +193,10 @@ def test_supabase_delete_call(monkeypatch):
     monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
     monkeypatch.setattr(signup.httpx, "delete", fake)
     signup.delete_user(UUID(int=7))
-    assert sent["url"] == f"https://proj.supabase.co/auth/v1/admin/users/{UUID(int=7)}" and sent["headers"]["apikey"] == "sb_secret_x"
+    assert (
+        sent["url"] == f"https://proj.supabase.co/auth/v1/admin/users/{UUID(int=7)}"
+        and sent["headers"]["apikey"] == "sb_secret_x"
+    )
     monkeypatch.setattr(signup.httpx, "delete", lambda *a, **k: Reply(500))
     with pytest.raises(AuthUnavailableError):
         signup.delete_user(UUID(int=7))

@@ -22,11 +22,13 @@ def test_upgrade_keeps_existing_accounts_unpinned_and_downgrade_removes_the_colu
     command.upgrade(config, "f3b5d7e9a1c2")
     with engine.begin() as connection:
         connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
-        connection.execute(sa.text(
-            "INSERT INTO accounts (aid, user, name, on_budget, created, updated) "
-            "VALUES ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000aa', 'Old', 0, "
-            "'2026-01-01 00:00:00', '2026-01-01 00:00:00')"
-        ))
+        connection.execute(
+            sa.text(
+                "INSERT INTO accounts (aid, user, name, on_budget, created, updated) "
+                "VALUES ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000aa', 'Old', 0, "
+                "'2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+            )
+        )
     command.upgrade(config, "b8d0f2a4c6e1")
     columns = {c["name"] for c in sa.inspect(engine).get_columns("accounts")}
     assert {"pinned", "position"} <= columns
@@ -50,13 +52,17 @@ def test_advanced_switch_is_on_for_existing_profiles_and_can_be_undone(alembic):
     command.upgrade(config, "d1f3b5c7e9a4")
     with engine.begin() as connection:
         connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
-        connection.execute(sa.text(
-            "INSERT INTO profiles (user, max_depth_assets, max_depth_liabilities, max_depth_equity, max_depth_income, "
-            "max_depth_expenses, created, updated) VALUES ('00000000-0000-4000-8000-0000000000aa', 0, 0, 0, 0, 0, "
-            "'2026-01-01 00:00:00', '2026-01-01 00:00:00')"
-        ))
+        connection.execute(
+            sa.text(
+                "INSERT INTO profiles (user, max_depth_assets, max_depth_liabilities, max_depth_equity, max_depth_income, "
+                "max_depth_expenses, created, updated) VALUES ('00000000-0000-4000-8000-0000000000aa', 0, 0, 0, 0, 0, "
+                "'2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+            )
+        )
     command.upgrade(config, "e2a4c6e8f1b3")
     with engine.connect() as connection:
-        assert connection.execute(sa.text("SELECT advanced FROM profiles")).scalar() in (1, True), "nothing disappears on deploy"
+        assert connection.execute(sa.text("SELECT advanced FROM profiles")).scalar() in (1, True), (
+            "nothing disappears on deploy"
+        )
     command.downgrade(config, "d1f3b5c7e9a4")
     assert "advanced" not in {c["name"] for c in sa.inspect(engine).get_columns("profiles")}

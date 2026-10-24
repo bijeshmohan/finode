@@ -29,7 +29,7 @@ def test_the_budget_checkbox_is_a_whole_tappable_row(client: TestClient, root_ac
 
 def test_the_token_form_wraps_its_cards_so_the_legend_is_not_a_grid_item(client: TestClient):
     page = client.get("/profile/assistants").text
-    form = page[page.index('<fieldset class="plain">'):]
+    form = page[page.index('<fieldset class="plain">') :]
     assert form.index("<legend>Access</legend>") < form.index('<div class="access-choice">')
     assert page.count('type="radio" name="scope"') == 2
 

@@ -1,0 +1,36 @@
+# Install once with:  uv run pre-commit install
+# Run on everything:  uv run pre-commit run --all-files
+# ruff and mypy come from the project's own lock file (uv run), so the hooks and CI always agree.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(app/static/htmx\.min\.js|docs/guide/img/)
+      - id: end-of-file-fixer
+        exclude: ^(app/static/htmx\.min\.js|docs/guide/img/|app/static/fonts/)
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=600]
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false

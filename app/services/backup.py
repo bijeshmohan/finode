@@ -7,15 +7,16 @@ connected apps (secrets and sign-ins to set up again) and the audit history (it 
 Restoring creates everything with new ids, all or nothing in one database transaction.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from pydantic import ValidationError
 
 from ..config import settings
-from ..limits import LimitReached, ensure_room
 from ..currencies import find as find_currency
+from ..limits import LimitReached, ensure_room
 from ..models.recurring import RecurringTransaction
 from ..models.transaction import PostingSide
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
@@ -28,9 +29,9 @@ from ..schemas.backup import (
     VERSION,
     BackupAccount,
     BackupAllocation,
+    BackupFile,
     BackupGoal,
     BackupGoalMonth,
-    BackupFile,
     BackupPosting,
     BackupProfile,
     BackupRecurring,
@@ -73,7 +74,7 @@ class BackupService:
         file = BackupFile(
             format=FORMAT,
             version=VERSION,
-            exported_at=datetime.now(timezone.utc),
+            exported_at=datetime.now(UTC),
             profile=BackupProfile(
                 first_name=profile.first_name,
                 last_name=profile.last_name,
@@ -81,34 +82,55 @@ class BackupService:
             ),
             accounts=[
                 BackupAccount(
-                    id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details,
-                    on_budget=a.on_budget, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
+                    id=a.aid,
+                    parent_id=a.parent_id,
+                    name=a.name,
+                    details=a.details,
+                    on_budget=a.on_budget,
+                    closed_on=a.closed_on,
+                    payment_category_id=a.payment_category_id,
                     system_key=a.system_key,
                 )
                 for a in accounts
             ],
             transactions=[
                 BackupTransaction(
-                    id=t.tid, date=t.date, payee=t.payee, comment=t.comment,
-                    created_via=t.created_via, updated_via=t.updated_via,
-                    recurring_id=t.recurring_id, recurring_date=t.recurring_date, related_id=t.related_id,
+                    id=t.tid,
+                    date=t.date,
+                    payee=t.payee,
+                    comment=t.comment,
+                    created_via=t.created_via,
+                    updated_via=t.updated_via,
+                    recurring_id=t.recurring_id,
+                    recurring_date=t.recurring_date,
+                    related_id=t.related_id,
                     postings=[
-                        BackupPosting(account=p.account, side=p.side, amount=p.amount)
-                        for p in postings.get(t.tid, [])
+                        BackupPosting(account=p.account, side=p.side, amount=p.amount) for p in postings.get(t.tid, [])
                     ],
                 )
                 for t in sorted(self.tr.list(), key=lambda t: (t.date, t.created))
             ],
             recurring=[
                 BackupRecurring(
-                    id=r.rid, from_account=r.from_account, to_account=r.to_account, amount=r.amount,
+                    id=r.rid,
+                    from_account=r.from_account,
+                    to_account=r.to_account,
+                    amount=r.amount,
                     postings=[
                         BackupRecurringPosting(account=p.account, side=PostingSide(p.side), amount=p.amount)
                         for p in recurring_rows.get(r.rid, [])
                     ],
-                    payee=r.payee, comment=r.comment, frequency=r.frequency, every=r.every,
-                    start_date=r.start_date, end_date=r.end_date, next_date=r.next_date, last_date=r.last_date,
-                    skipped_date=r.skipped_date, active=r.active, last_error=r.last_error,
+                    payee=r.payee,
+                    comment=r.comment,
+                    frequency=r.frequency,
+                    every=r.every,
+                    start_date=r.start_date,
+                    end_date=r.end_date,
+                    next_date=r.next_date,
+                    last_date=r.last_date,
+                    skipped_date=r.skipped_date,
+                    active=r.active,
+                    last_error=r.last_error,
                 )
                 for r in self.rr.list()
             ],
@@ -118,10 +140,13 @@ class BackupService:
             ],
             goals=[
                 BackupGoal(
-                    name=g.name, amount=g.amount, target_date=g.target_date,
+                    name=g.name,
+                    amount=g.amount,
+                    target_date=g.target_date,
                     allocations=[
                         BackupGoalMonth(month=r.month, amount=r.amount)
-                        for r in sorted(self.br.goal_allocations(), key=lambda r: r.month) if r.goal_id == g.gid
+                        for r in sorted(self.br.goal_allocations(), key=lambda r: r.month)
+                        if r.goal_id == g.gid
                     ],
                 )
                 for g in sorted(self.br.goals(), key=lambda g: (g.target_date, g.name))
@@ -135,25 +160,32 @@ class BackupService:
         """Only an empty ledger can be restored into: nothing recorded, no accounts of the user's own."""
         accounts = self.accounts.ensure_roots()
         own = [
-            a for a in accounts
+            a
+            for a in accounts
             if a.parent_id is not None and a.system_key is None and not self.accounts.is_opening_balances(a, accounts)
         ]
-        return not own and not self.tr.account_ids_with_postings() and not self.rr.list() and not self.br.list() and not self.br.goals()
+        return (
+            not own
+            and not self.tr.account_ids_with_postings()
+            and not self.rr.list()
+            and not self.br.list()
+            and not self.br.goals()
+        )
 
     def restore(self, raw: dict, dry_run: bool = False) -> RestoreSummary:
         summary = RestoreSummary()
         try:
             file = BackupFile.model_validate(raw)
         except ValidationError as e:
-            summary.errors = [
-                f"{'.'.join(str(part) for part in err['loc'])}: {err['msg']}" for err in e.errors()[:8]
-            ]
+            summary.errors = [f"{'.'.join(str(part) for part in err['loc'])}: {err['msg']}" for err in e.errors()[:8]]
             return summary
         if file.format != FORMAT:
             summary.errors = ["this is not a finode backup file."]
             return summary
         if file.version not in READS:
-            summary.errors = [f"this backup is version {file.version}; this finode reads versions {', '.join(map(str, READS))}."]
+            summary.errors = [
+                f"this backup is version {file.version}; this finode reads versions {', '.join(map(str, READS))}."
+            ]
             return summary
         if not self.can_restore():
             summary.errors = [
@@ -204,7 +236,9 @@ class BackupService:
             if a.parent_id is not None and a.parent_id not in accounts:
                 errors.append(f"account '{a.name}' has a parent that is not in the file.")
             if other(a.commodity):
-                errors.append(f"account '{a.name}' holds {a.commodity}, but finode keeps one currency ({currency.code}).")
+                errors.append(
+                    f"account '{a.name}' holds {a.commodity}, but finode keeps one currency ({currency.code})."
+                )
             if ":" in a.name:
                 errors.append(f"account name '{a.name}' contains ':'.")
         if errors:
@@ -217,7 +251,7 @@ class BackupService:
         if any(self._depth(a, accounts) is None for a in file.accounts):
             errors.append("the accounts contain a cycle.")
             return
-        too_deep = [a.name for a in file.accounts if self._depth(a, accounts) > MAX_ACCOUNT_DEPTH]
+        too_deep = [a.name for a in file.accounts if (self._depth(a, accounts) or 0) > MAX_ACCOUNT_DEPTH]
         if too_deep:
             errors.append(
                 f"accounts can be at most {MAX_ACCOUNT_DEPTH} levels deep (a category and a subcategory), "
@@ -254,12 +288,16 @@ class BackupService:
             used = [r.from_account, r.to_account, *(p.account for p in r.postings)]
             if any(a is not None and a not in postable for a in used):
                 errors.append(f"a recurring transaction ({r.payee or r.id}) uses an account that is not in the file.")
-            if r.received_amount is not None or other(r.currency) or any(
-                p.value is not None and p.value != p.amount for p in r.postings
+            if (
+                r.received_amount is not None
+                or other(r.currency)
+                or any(p.value is not None and p.value != p.amount for p in r.postings)
             ):
                 errors.append(f"a recurring transaction ({r.payee or r.id}) converts between currencies.")
             if not r.postings and None in (r.from_account, r.to_account, r.amount):
-                errors.append(f"a recurring transaction ({r.payee or r.id}) has neither from, to and amount nor postings.")
+                errors.append(
+                    f"a recurring transaction ({r.payee or r.id}) has neither from, to and amount nor postings."
+                )
         names = [" ".join(g.name.split()).lower() for g in file.goals]
         if len(set(names)) != len(names) or "" in names:
             errors.append("a goal has no name, or two goals have the same name.")
@@ -268,15 +306,16 @@ class BackupService:
                 errors.append(f"the goal '{g.name}' has an amount that is not positive, or a name that is too long.")
                 break
             saved = Decimal(0)
-            for r in sorted(g.allocations, key=lambda r: r.month):
-                saved += r.amount
+            for alloc in sorted(g.allocations, key=lambda x: x.month):
+                saved += alloc.amount
                 if saved < 0:
-                    errors.append(f"the goal '{g.name}' would hold less than nothing in {r.month:%B %Y}.")
+                    errors.append(f"the goal '{g.name}' would hold less than nothing in {alloc.month:%B %Y}.")
                     break
         for row in file.allocations:
             if row.account_id not in postable:
                 errors.append("a budget entry refers to an account that is not in the file.")
                 break
+
     @staticmethod
     def _expense_plan(file: BackupFile) -> list:
         """The plan rows that belong to expense categories: a file from when the Plan had Build and Earn
@@ -309,7 +348,10 @@ class BackupService:
             profile = self.pr.get_or_create()
             fields = file.profile
             profile.first_name, profile.last_name = fields.first_name, fields.last_name
-            profile.currency = find_currency(fields.default_currency).code
+            currency = find_currency(fields.default_currency)
+            if currency is None:
+                raise ValueError(f"unknown currency '{fields.default_currency}'!")
+            profile.currency = currency.code
             db.add(profile)
             self.accounts.reset_defaults()
 
@@ -329,17 +371,26 @@ class BackupService:
                     ids[a.id] = fixed[a.system_key].aid
                     kept.add(a.id)
             taken = {
-                (by_old[a.parent_id].name, a.name) for a in file.accounts
+                (by_old[a.parent_id].name, a.name)
+                for a in file.accounts
                 if a.parent_id is not None and a.id not in kept and by_old[a.parent_id].parent_id is None
             }
-            self.accounts.release_fixed_parents([
-                f.aid for f in fixed.values() if (by_id_now[f.parent_id].name, f.name) in taken and f.aid not in ids.values()
-            ])
+            self.accounts.release_fixed_parents(
+                [
+                    f.aid
+                    for f in fixed.values()
+                    if (by_id_now[cast(UUID, f.parent_id)].name, f.name) in taken and f.aid not in ids.values()
+                ]
+            )
             opening = None
-            for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old)):
+            for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old) or 0):
                 if a.parent_id is None or a.id in kept:
                     continue
-                if a.name == OPENING_BALANCES_ACCOUNT_NAME and by_old[a.parent_id].name == "Equity" and by_old[a.parent_id].parent_id is None:
+                if (
+                    a.name == OPENING_BALANCES_ACCOUNT_NAME
+                    and by_old[a.parent_id].name == "Equity"
+                    and by_old[a.parent_id].parent_id is None
+                ):
                     opening = opening or self.accounts.opening_balances_account()
                     ids[a.id] = opening.aid
                     continue
@@ -352,6 +403,8 @@ class BackupService:
                 if a.parent_id is None or a.id in kept or ids[a.id] == (opening.aid if opening else None):
                     continue
                 account = self.ar.read(ids[a.id])
+                if account is None:
+                    continue
                 account.closed_on = a.closed_on
                 account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)
@@ -364,9 +417,17 @@ class BackupService:
                     from_account=ids.get(r.from_account) if r.from_account else None,
                     to_account=ids.get(r.to_account) if r.to_account else None,
                     amount=r.amount,
-                    payee=r.payee, comment=r.comment, frequency=r.frequency, every=r.every,
-                    start_date=r.start_date, end_date=r.end_date, next_date=r.next_date, last_date=r.last_date,
-                    skipped_date=r.skipped_date, active=r.active, last_error=r.last_error,
+                    payee=r.payee,
+                    comment=r.comment,
+                    frequency=r.frequency,
+                    every=r.every,
+                    start_date=r.start_date,
+                    end_date=r.end_date,
+                    next_date=r.next_date,
+                    last_date=r.last_date,
+                    skipped_date=r.skipped_date,
+                    active=r.active,
+                    last_error=r.last_error,
                 )
                 self.rr.add(rule)
                 self.rr.set_postings(
@@ -377,29 +438,31 @@ class BackupService:
 
             made: dict[UUID, UUID] = {}
             for t in file.transactions:
-                postings = [
-                    PostingCreate(account=ids[p.account], side=p.side, amount=p.amount) for p in t.postings
-                ]
-                created = self.tr.create(
+                postings = [PostingCreate(account=ids[p.account], side=p.side, amount=p.amount) for p in t.postings]
+                entry = self.tr.create(
                     TransactionCreate(date=t.date, payee=t.payee, comment=t.comment, postings=postings),
                     origin=t.created_via,
-                    recurring=(rules[t.recurring_id], t.recurring_date) if t.recurring_id and t.recurring_date else None,
+                    recurring=(rules[t.recurring_id], t.recurring_date)
+                    if t.recurring_id and t.recurring_date
+                    else None,
                 )
-                made[t.id] = created.tid
+                made[t.id] = entry.tid
                 if t.updated_via != t.created_via:
-                    created.updated_via = t.updated_via
-                    db.add(created)
+                    entry.updated_via = t.updated_via
+                    db.add(entry)
             for t in file.transactions:  # links last: every entry has its new id by now
                 if t.related_id in made:
                     linked = self.tr.read(made[t.id])
+                    if linked is None:
+                        continue
                     linked.related_id = made[t.related_id]
                     db.add(linked)
             for row in self._expense_plan(file):
                 self.br.set(row.month, ids[row.account_id], row.amount)
             for g in file.goals:
                 goal = self.br.add_goal(g.name, g.amount, g.target_date)
-                for r in g.allocations:
-                    self.br.set_goal(r.month, goal.gid, r.amount)
+                for alloc in g.allocations:
+                    self.br.set_goal(alloc.month, goal.gid, alloc.amount)
             db.commit()
         except Exception:
             db.rollback()

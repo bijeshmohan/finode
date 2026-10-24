@@ -16,7 +16,6 @@ from ...templating import templates
 from .accounts import CATEGORY_ROOTS, Node, _load, _root_of, account_context, build_tree, deleted_page, new_account_page
 from .budget import parse_month, shift
 
-
 router = APIRouter(prefix="/categories")
 
 TABS = {"expense": "Expenses", "income": "Income"}
@@ -91,7 +90,7 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
         return RedirectResponse(f"/categories?tab={tab}", status_code=303)
     tab = tab if tab in TABS else "expense"
     root_name = TABS[tab]
-    top, own, totals = _figures(accounts, reports, root_name, when, end)
+    top, _own, totals = _figures(accounts, reports, root_name, when, end)
     grand = sum((totals[n.account.aid] for n in top), ZERO)
     rows = []
     for n in _by_amount(top, totals):
@@ -115,7 +114,9 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
 
 
 @router.get("/new")
-def new_category_page(request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None, root: str = ""):
+def new_category_page(
+    request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None, root: str = ""
+):
     """The form for a new category is the account form, set to categories (see accounts.new_account_page)."""
     return new_account_page(request, accounts, profiles, parent=parent, kind="category", root=root)
 
@@ -126,7 +127,9 @@ def deleted_categories_page(request: Request, accounts: Accounts):
 
 
 @router.get("/{aid}")
-def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles, reports: Reports, month: str = ""):
+def category_page(
+    request: Request, aid: UUID, accounts: Accounts, profiles: Profiles, reports: Reports, month: str = ""
+):
     roots, node = _load(accounts, aid)
     root = _root_of(roots, node)
     if root.account.name not in CATEGORY_ROOTS or node.kind == "root":
@@ -134,9 +137,12 @@ def category_page(request: Request, aid: UUID, accounts: Accounts, profiles: Pro
     when, end, is_current = _period(month)
     if when is None:
         return RedirectResponse(f"/categories/{aid}", status_code=303)
+
     # The figure is the whole category's month; the list is what was posted to this category itself (each
     # subcategory's entries are on its own page).
-    in_month = lambda rows: [e for e in (rows or []) if when <= e.date <= end]
+    def in_month(rows):
+        return [e for e in (rows or []) if when <= e.date <= end]
+
     everything = in_month(accounts.register(aid))
     entries = in_month(accounts.register(aid, own_only=True))
     context = account_context(accounts, profiles, aid, entries)

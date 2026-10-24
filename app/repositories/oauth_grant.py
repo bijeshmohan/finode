@@ -1,9 +1,10 @@
 """Persistence for connected-app grants, always filtered by the user's id."""
 
+import builtins
 from datetime import datetime
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from ..models.oauth_grant import OAuthGrant
 
@@ -13,8 +14,8 @@ class OAuthGrantRepository:
         self.db = db
         self.uid = uid
 
-    def list(self) -> list[OAuthGrant]:
-        statement = select(OAuthGrant).where(OAuthGrant.user == self.uid).order_by(OAuthGrant.created.desc())
+    def list(self) -> builtins.list[OAuthGrant]:
+        statement = select(OAuthGrant).where(OAuthGrant.user == self.uid).order_by(col(OAuthGrant.created).desc())
         return self.db.exec(statement).all()
 
     def read(self, gid: UUID) -> OAuthGrant | None:

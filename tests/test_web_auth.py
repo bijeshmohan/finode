@@ -17,7 +17,7 @@ from app.web_auth import (
 
 
 @pytest.fixture
-def raw_client(session: Session) -> Generator[TestClient, None, None]:
+def raw_client(session: Session) -> Generator[TestClient]:
     """A client with real authentication; only the database is replaced."""
     app.dependency_overrides[get_db_session] = lambda: session
     with TestClient(app, follow_redirects=False) as c:
@@ -30,9 +30,11 @@ def valid_jwt(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         auth,
         "verify_supabase_jwt",
-        lambda token: {"sub": "00000000-0000-4000-8000-000000000001"}
-        if token == "good-token"
-        else (_ for _ in ()).throw(auth.HTTPException(status_code=401, detail="invalid")),
+        lambda token: (
+            {"sub": "00000000-0000-4000-8000-000000000001"}
+            if token == "good-token"
+            else (_ for _ in ()).throw(auth.HTTPException(status_code=401, detail="invalid"))
+        ),
     )
 
 
@@ -102,12 +104,8 @@ def test_protected_page_with_valid_cookie(raw_client: TestClient, valid_jwt):
     assert "Nothing recorded yet" in response.text
 
 
-def test_expired_access_token_is_refreshed(
-    raw_client: TestClient, valid_jwt, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setattr(
-        web_auth, "refresh_session", lambda token: SessionTokens("good-token", "refresh-2", 3600)
-    )
+def test_expired_access_token_is_refreshed(raw_client: TestClient, valid_jwt, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(web_auth, "refresh_session", lambda token: SessionTokens("good-token", "refresh-2", 3600))
     raw_client.cookies.set(ACCESS_COOKIE, "expired-token", path="/")
     raw_client.cookies.set(REFRESH_COOKIE, "refresh-1", path="/")
 
@@ -118,9 +116,7 @@ def test_expired_access_token_is_refreshed(
     assert any(c.startswith(f"{REFRESH_COOKIE}=refresh-2") for c in cookies)
 
 
-def test_failed_refresh_redirects_to_login(
-    raw_client: TestClient, valid_jwt, monkeypatch: pytest.MonkeyPatch
-):
+def test_failed_refresh_redirects_to_login(raw_client: TestClient, valid_jwt, monkeypatch: pytest.MonkeyPatch):
     def fail(token):
         raise InvalidCredentialsError()
 

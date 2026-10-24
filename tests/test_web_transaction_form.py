@@ -7,31 +7,19 @@ def _balance(client: TestClient, account: dict) -> str:
     return client.get(f"/api/accounts/{account['aid']}").json()["balance"]
 
 
-
-
-def test_form_only_offers_postable_accounts(
-    client: TestClient, root_accounts: dict[str, str], account: dict
-):
-    parent = client.post(
-        "/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}
-    ).json()
+def test_form_only_offers_postable_accounts(client: TestClient, root_accounts: dict[str, str], account: dict):
+    parent = client.post("/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}).json()
     client.post("/api/accounts/", json={"name": "dining", "parent_id": parent["aid"]})
 
     text = client.get("/transactions/new").text
     assert f'<option value="{parent["aid"]}"' in text  # expense groups are postable
-    asset_group = client.post(
-        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"]}
-    ).json()
+    asset_group = client.post("/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"]}).json()
     client.post("/api/accounts/", json={"name": "hdfc", "parent_id": asset_group["aid"]})
     text = client.get("/transactions/new").text
     assert f'<option value="{asset_group["aid"]}"' not in text  # asset groups are not
     for aid in root_accounts.values():
         assert f'<option value="{aid}"' not in text  # roots
     assert "Food › dining" in text.replace("food", "Food")
-
-
-
-
 
 
 def test_create_simple_transaction(client: TestClient, account: dict, expense_account: dict):
@@ -59,9 +47,7 @@ def test_create_simple_transaction(client: TestClient, account: dict, expense_ac
     assert _balance(client, expense_account) == "42.50"
 
 
-def test_create_simple_transaction_defaults_to_today(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_create_simple_transaction_defaults_to_today(client: TestClient, account: dict, expense_account: dict):
     client.post(
         "/transactions/split",
         data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": ["1", "1"]},
@@ -71,15 +57,15 @@ def test_create_simple_transaction_defaults_to_today(
     assert tx["payee"] is None
 
 
-
-
-def test_create_simple_transaction_rejects_bad_amounts(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_create_simple_transaction_rejects_bad_amounts(client: TestClient, account: dict, expense_account: dict):
     for amount in ("0", "-3", "abc", "1.234", ""):
         response = client.post(
             "/transactions/split",
-            data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": [amount, amount]},
+            data={
+                "account": [expense_account["aid"], account["aid"]],
+                "side": ["debit", "credit"],
+                "amount": [amount, amount],
+            },
         )
         assert response.status_code == 400, amount
     assert client.get("/api/transactions/").json() == []
@@ -90,15 +76,17 @@ def test_create_simple_transaction_rejects_root_account(
 ):
     response = client.post(
         "/transactions/split",
-        data={"account": [root_accounts["Expenses"], account["aid"]], "side": ["debit", "credit"], "amount": ["5", "5"]},
+        data={
+            "account": [root_accounts["Expenses"], account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["5", "5"],
+        },
     )
     assert response.status_code == 400
     assert "root account" in response.text
 
 
-def test_create_split_transaction(
-    client: TestClient, account: dict, expense_account: dict, other_account: dict
-):
+def test_create_split_transaction(client: TestClient, account: dict, expense_account: dict, other_account: dict):
     response = client.post(
         "/transactions/split",
         data={
@@ -116,9 +104,7 @@ def test_create_split_transaction(
     assert _balance(client, account) == "-50.00"
 
 
-def test_create_split_transaction_must_balance(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_create_split_transaction_must_balance(client: TestClient, account: dict, expense_account: dict):
     response = client.post(
         "/transactions/split",
         data={
@@ -155,9 +141,7 @@ def test_create_split_transaction_requires_two_postings_and_accounts(
     assert "needs an account" in missing_account.text
 
 
-def test_edit_page_prefills_existing_postings(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_edit_page_prefills_existing_postings(client: TestClient, account: dict, expense_account: dict):
     tx = client.post(
         "/api/transactions/",
         json={
@@ -214,9 +198,7 @@ def test_update_transaction_from_form(client: TestClient, account: dict, expense
     assert _balance(client, expense_account) == "12.00"
 
 
-def test_update_transaction_validation_error(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_update_transaction_validation_error(client: TestClient, account: dict, expense_account: dict):
     tx = client.post(
         "/api/transactions/",
         json={
@@ -295,22 +277,21 @@ def _tx(client: TestClient, debit: dict, credit: dict, amount: str = "10.00") ->
     ).json()
 
 
-
-
-def test_create_returns_to_the_page_it_came_from(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_create_returns_to_the_page_it_came_from(client: TestClient, account: dict, expense_account: dict):
     back = f"/accounts/{account['aid']}"
     response = client.post(
         "/transactions/split",
-        data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": ["3", "3"], "back": back},
+        data={
+            "account": [expense_account["aid"], account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["3", "3"],
+            "back": back,
+        },
     )
     assert response.headers["HX-Redirect"] == back
 
 
-def test_return_path_must_stay_inside_the_app(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_return_path_must_stay_inside_the_app(client: TestClient, account: dict, expense_account: dict):
     for back in ("https://evil.example", "//evil.example/", "/api/accounts/", "/static/x", "/mcp", "/app\\x"):
         response = client.post(
             "/transactions/split",
@@ -324,12 +305,15 @@ def test_return_path_must_stay_inside_the_app(
         assert response.headers["HX-Redirect"] == "/transactions", back
 
 
-def test_save_and_add_another_reopens_the_form(
-    client: TestClient, account: dict, expense_account: dict
-):
+def test_save_and_add_another_reopens_the_form(client: TestClient, account: dict, expense_account: dict):
     simple = client.post(
         "/transactions/split",
-        data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": ["1", "1"], "another": "1"},
+        data={
+            "account": [expense_account["aid"], account["aid"]],
+            "side": ["debit", "credit"],
+            "amount": ["1", "1"],
+            "another": "1",
+        },
     )
     assert simple.headers["HX-Redirect"] == "/transactions/new"
 
@@ -346,7 +330,9 @@ def test_save_and_add_another_reopens_the_form(
     assert split.headers["HX-Redirect"] == "/transactions/new?back=%2Faccounts"
 
 
-def test_update_transaction_to_other_accounts(client: TestClient, account: dict, other_account: dict, expense_account: dict):
+def test_update_transaction_to_other_accounts(
+    client: TestClient, account: dict, other_account: dict, expense_account: dict
+):
     tx = _tx(client, expense_account, account)
     response = client.post(
         f"/transactions/{tx['tid']}/edit",
@@ -366,8 +352,6 @@ def test_update_transaction_to_other_accounts(client: TestClient, account: dict,
         (other_account["aid"], "credit", "15.50"),
     }
     assert _balance(client, account) == "0.00"
-
-
 
 
 def test_multi_posting_transactions_edit_in_split_mode_only(
@@ -395,21 +379,14 @@ def test_delete_returns_to_the_page_it_came_from(client: TestClient, account: di
     assert response.headers["HX-Redirect"] == back
 
 
-
-
-
-
-
-
-
 def test_new_page_has_a_total_and_a_row_on_each_side(client: TestClient, account: dict, expense_account: dict):
     page = client.get("/transactions/new").text
     assert 'class="tabs' not in page and "Split across" not in page
     assert page.count("data-txn-form") == 1 and 'name="total"' in page and date.today().isoformat() in page
     assert page.index('data-rows="credit"') < page.index('data-rows="debit"')
-    credit = page[page.index('data-rows="credit"'):page.index('data-rows="debit"')]
-    assert credit.count("class=\"txn-row\"") == 1 and 'name="side" value="credit"' in credit
-    assert 'name="side" value="debit"' in page[page.index('data-rows="debit"'):]
+    credit = page[page.index('data-rows="credit"') : page.index('data-rows="debit"')]
+    assert credit.count('class="txn-row"') == 1 and 'name="side" value="credit"' in credit
+    assert 'name="side" value="debit"' in page[page.index('data-rows="debit"') :]
     assert 'hx-post="/transactions/split"' in page
     assert "<template" in page and "checking" in page
     assert "data-touched" not in page, "a new form has nothing of the user's yet"
@@ -432,13 +409,18 @@ def test_old_mode_links_still_open_the_form(client: TestClient, account: dict):
 
 def test_a_transaction_with_several_rows_shows_them_all(client: TestClient, account: dict, expense_account: dict):
     other = client.post("/api/accounts/", json={"name": "Tips", "parent_id": expense_account["parent_id"]}).json()
-    tx = client.post("/api/transactions/", json={"postings": [
-        {"account": expense_account["aid"], "side": "debit", "amount": "6"},
-        {"account": other["aid"], "side": "debit", "amount": "4"},
-        {"account": account["aid"], "side": "credit", "amount": "10"},
-    ]}).json()
+    tx = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "6"},
+                {"account": other["aid"], "side": "debit", "amount": "4"},
+                {"account": account["aid"], "side": "credit", "amount": "10"},
+            ]
+        },
+    ).json()
     page = client.get(f"/transactions/{tx['tid']}/edit").text
-    debit = page[page.index('data-rows="debit"'):]
+    debit = page[page.index('data-rows="debit"') :]
     assert debit.count("data-touched") >= 2 and 'value="10.00"' in page and "Split across" not in page
 
 
@@ -447,14 +429,16 @@ def test_a_transaction_with_several_rows_shows_them_all(client: TestClient, acco
 
 def _kind(page: str) -> str:
     start = page.index('name="kind" value="') + len('name="kind" value="')
-    return page[start:page.index('"', start)]
+    return page[start : page.index('"', start)]
 
 
 def _pressed(page: str) -> list[str]:
     return [label for label in ("Expense", "Income", "Transfer") if f'aria-pressed="true">{label}<' in page]
 
 
-def test_a_new_entry_starts_as_an_expense_with_three_buttons_in_order(client: TestClient, account: dict, expense_account: dict):
+def test_a_new_entry_starts_as_an_expense_with_three_buttons_in_order(
+    client: TestClient, account: dict, expense_account: dict
+):
     page = client.get("/transactions/new").text
     assert _kind(page) == "expense" and _pressed(page) == ["Expense"]
     order = [page.index(f">{label}</button>") for label in ("Expense", "Income", "Transfer")]
@@ -463,17 +447,26 @@ def test_a_new_entry_starts_as_an_expense_with_three_buttons_in_order(client: Te
     assert "data-side-hint" in page
 
 
-def test_an_entry_that_fits_no_kind_has_nothing_selected(client: TestClient, root_accounts, account: dict, expense_account: dict):
+def test_an_entry_that_fits_no_kind_has_nothing_selected(
+    client: TestClient, root_accounts, account: dict, expense_account: dict
+):
     capital = client.post("/api/accounts/", json={"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
-    tid = client.post("/api/transactions/", json={"postings": [
-        {"account": account["aid"], "side": "debit", "amount": "5"},
-        {"account": capital["aid"], "side": "credit", "amount": "5"},
-    ]}).json()["tid"]
+    tid = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": account["aid"], "side": "debit", "amount": "5"},
+                {"account": capital["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
+    ).json()["tid"]
     page = client.get(f"/transactions/{tid}/edit").text
     assert _kind(page) == "other" and _pressed(page) == []
 
 
-def test_opening_a_form_from_an_account_picks_the_kind(client: TestClient, root_accounts, account: dict, expense_account: dict):
+def test_opening_a_form_from_an_account_picks_the_kind(
+    client: TestClient, root_accounts, account: dict, expense_account: dict
+):
     salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
     capital = client.post("/api/accounts/", json={"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
     assert _kind(client.get("/transactions/new", params={"account": salary["aid"]}).text) == "income"
@@ -482,16 +475,23 @@ def test_opening_a_form_from_an_account_picks_the_kind(client: TestClient, root_
     assert _kind(client.get("/transactions/new", params={"account": account["aid"]}).text) == "expense"
 
 
-def test_editing_shows_what_the_entry_is(client: TestClient, root_accounts, account: dict, other_account: dict, expense_account: dict):
+def test_editing_shows_what_the_entry_is(
+    client: TestClient, root_accounts, account: dict, other_account: dict, expense_account: dict
+):
     salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
     card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
     capital = client.post("/api/accounts/", json={"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
 
     def entry(debit, credit):
-        return client.post("/api/transactions/", json={"postings": [
-            {"account": debit["aid"], "side": "debit", "amount": "5"},
-            {"account": credit["aid"], "side": "credit", "amount": "5"},
-        ]}).json()["tid"]
+        return client.post(
+            "/api/transactions/",
+            json={
+                "postings": [
+                    {"account": debit["aid"], "side": "debit", "amount": "5"},
+                    {"account": credit["aid"], "side": "credit", "amount": "5"},
+                ]
+            },
+        ).json()["tid"]
 
     expected = {
         entry(expense_account, account): "expense",
@@ -506,11 +506,18 @@ def test_editing_shows_what_the_entry_is(client: TestClient, root_accounts, acco
         assert _kind(client.get(f"/transactions/{tid}/edit").text) == kind, (tid, kind)
 
 
-def test_a_split_across_expenses_is_still_an_expense(client: TestClient, account: dict, expense_account: dict, root_accounts):
+def test_a_split_across_expenses_is_still_an_expense(
+    client: TestClient, account: dict, expense_account: dict, root_accounts
+):
     other = client.post("/api/accounts/", json={"name": "Tips", "parent_id": root_accounts["Expenses"]}).json()
-    tid = client.post("/api/transactions/", json={"postings": [
-        {"account": expense_account["aid"], "side": "debit", "amount": "6"},
-        {"account": other["aid"], "side": "debit", "amount": "4"},
-        {"account": account["aid"], "side": "credit", "amount": "10"},
-    ]}).json()["tid"]
+    tid = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": expense_account["aid"], "side": "debit", "amount": "6"},
+                {"account": other["aid"], "side": "debit", "amount": "4"},
+                {"account": account["aid"], "side": "credit", "amount": "10"},
+            ]
+        },
+    ).json()["tid"]
     assert _kind(client.get(f"/transactions/{tid}/edit").text) == "expense"

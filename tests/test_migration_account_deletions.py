@@ -28,6 +28,12 @@ def test_the_table_comes_and_goes(alembic):
     command.upgrade(config, AFTER)
     inspector = sa.inspect(engine)
     assert "account_deletions" in inspector.get_table_names()
-    assert {c["name"] for c in inspector.get_columns("account_deletions")} == {"did", "user", "account_id", "at", "snapshot"}
+    assert {c["name"] for c in inspector.get_columns("account_deletions")} == {
+        "did",
+        "user",
+        "account_id",
+        "at",
+        "snapshot",
+    }
     command.downgrade(config, BEFORE)
     assert "account_deletions" not in sa.inspect(engine).get_table_names()

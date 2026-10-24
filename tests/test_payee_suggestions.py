@@ -5,7 +5,6 @@ import re
 import pytest
 
 
-
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, root, **extra):
@@ -23,15 +22,25 @@ def books(client, root_accounts):
 
 
 def pay(client, payee, source, target, amount="10"):
-    response = client.post("/api/transactions/", json={"payee": payee, "postings": [
-        {"account": target["aid"], "side": "debit", "amount": amount},
-        {"account": source["aid"], "side": "credit", "amount": amount}]})
+    response = client.post(
+        "/api/transactions/",
+        json={
+            "payee": payee,
+            "postings": [
+                {"account": target["aid"], "side": "debit", "amount": amount},
+                {"account": source["aid"], "side": "credit", "amount": amount},
+            ],
+        },
+    )
     assert response.status_code == 201, response.text
 
 
 def chips(client, payee=""):
     html = client.get("/transactions/suggest", params={"payee": payee}).text
-    return re.findall(r'<button type="button" class="chip" data-suggest data-payee="([^"]*)" data-suggest-kind="(\w+)" data-from="([0-9a-f-]+)" data-to="([0-9a-f-]+)"( data-exact)?', html)
+    return re.findall(
+        r'<button type="button" class="chip" data-suggest data-payee="([^"]*)" data-suggest-kind="(\w+)" data-from="([0-9a-f-]+)" data-to="([0-9a-f-]+)"( data-exact)?',
+        html,
+    )
 
 
 def test_nothing_to_suggest_without_history(client, books):
@@ -79,17 +88,26 @@ def test_income_and_transfers_are_suggested_with_their_kind(client, books):
 
 
 def test_splits_entries_without_a_payee_and_closed_accounts_are_left_out(client, books):
-    client.post("/api/transactions/", json={"payee": "Big shop", "postings": [
-        {"account": books["groceries"]["aid"], "side": "debit", "amount": "6"},
-        {"account": books["delivery"]["aid"], "side": "debit", "amount": "4"},
-        {"account": books["hdfc"]["aid"], "side": "credit", "amount": "10"}]})
+    client.post(
+        "/api/transactions/",
+        json={
+            "payee": "Big shop",
+            "postings": [
+                {"account": books["groceries"]["aid"], "side": "debit", "amount": "6"},
+                {"account": books["delivery"]["aid"], "side": "debit", "amount": "4"},
+                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "10"},
+            ],
+        },
+    )
     pay(client, "", books["hdfc"], books["groceries"])
     extra = client.post("/api/accounts/", json={"name": "Gone", "parent_id": books["delivery"]["parent_id"]}).json()
     pay(client, "Old place", books["hdfc"], extra)
     pay(client, "Refund", extra, books["hdfc"])  # back to zero, so it can be closed
     assert {c[0] for c in chips(client)} == {"Old place", "Refund"}
     assert client.post(f"/api/accounts/{extra['aid']}/close").status_code == 200
-    assert chips(client) == [], "a closed account is never suggested, and splits and entries without a payee are not either"
+    assert chips(client) == [], (
+        "a closed account is never suggested, and splits and entries without a payee are not either"
+    )
 
 
 def test_the_chips_are_html_escaped(client, books):

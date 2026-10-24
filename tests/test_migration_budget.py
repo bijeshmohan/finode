@@ -1,6 +1,6 @@
 """The budget migration switches on the asset accounts that hold a currency and nothing else."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -8,8 +8,8 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 
-from migrations.commodity_seed import seed_id
 from app.config import settings
+from migrations.commodity_seed import seed_id
 
 # The last revision before finode kept one currency (the later ones cannot be undone).
 BEFORE_SINGLE_CURRENCY = "e2a4c6e8f1b3"
@@ -17,7 +17,7 @@ BEFORE_SINGLE_CURRENCY = "e2a4c6e8f1b3"
 
 PARENT = "a3c5e7f9b124"
 USER = uuid4()
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 @pytest.fixture
@@ -33,12 +33,17 @@ def alembic(tmp_path, monkeypatch):
 def test_asset_leaves_holding_a_currency_are_budgeted(alembic):
     config, engine = alembic
     command.upgrade(config, PARENT)
-    assets, liabilities, bank, group, child, card, coins, expense_root, food = (uuid4() for _ in range(9))
+    assets, liabilities, bank, group, child, card, _coins, expense_root, food = (uuid4() for _ in range(9))
     inr = seed_id("INR")
     rows = [
-        (assets, "Assets", None, None), (liabilities, "Liabilities", None, None),
-        (bank, "Bank", assets, inr), (group, "Group", assets, inr), (child, "Child", group, inr),
-        (card, "Card", liabilities, inr), (expense_root, "Expenses", None, None), (food, "Food", expense_root, inr),
+        (assets, "Assets", None, None),
+        (liabilities, "Liabilities", None, None),
+        (bank, "Bank", assets, inr),
+        (group, "Group", assets, inr),
+        (child, "Child", group, inr),
+        (card, "Card", liabilities, inr),
+        (expense_root, "Expenses", None, None),
+        (food, "Food", expense_root, inr),
     ]
     with engine.begin() as c:
         for aid, name, parent, commodity in rows:

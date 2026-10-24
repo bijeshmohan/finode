@@ -4,7 +4,6 @@ from .profile import ProfileRepository
 from .recurring import RecurringRepository
 from .transaction import TransactionRepository
 
-
 __all__ = [
     "AccountRepository",
     "BudgetRepository",

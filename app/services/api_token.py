@@ -1,5 +1,6 @@
 """Personal access tokens for /mcp: creating one (only a sha256 of the secret is kept), checking it, revoking it."""
 
+import builtins
 import hashlib
 import secrets
 from dataclasses import dataclass
@@ -13,8 +14,7 @@ from ..models.utils import utc_now
 from ..repositories.api_token import ApiTokenRepository
 from ..schemas.api_token import ApiTokenCreate, ApiTokenCreated, ApiTokenRead
 
-
-SECRET_PREFIX = "fin_"
+SECRET_PREFIX = "fin_"  # noqa: S105  (the public start of every token, not a secret)
 # A user can have this many tokens that are not revoked.
 MAX_ACTIVE_TOKENS = 20
 # "Last used" is written at most this often per token, not on every call.
@@ -50,7 +50,7 @@ class ApiTokenService:
             revoked=token.revoked,
         )
 
-    def list(self) -> list[ApiTokenRead]:
+    def list(self) -> builtins.list[ApiTokenRead]:
         return [self._to_read(t) for t in self.repo.list()]
 
     def create(self, data: ApiTokenCreate) -> ApiTokenCreated:

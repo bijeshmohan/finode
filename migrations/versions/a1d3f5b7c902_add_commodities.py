@@ -5,20 +5,20 @@ Revises: 9c2d4e6f1a51
 Create Date: 2026-10-05 00:00:00.000000
 
 """
-from datetime import datetime, timezone
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+from datetime import UTC, datetime
+
 import sqlalchemy as sa
+from alembic import op
 
 from migrations.commodity_seed import DEFAULT_CURRENCY_CODE, seed_id, seed_rows
 
-
 # revision identifiers, used by Alembic.
-revision: str = 'a1d3f5b7c902'
-down_revision: Union[str, Sequence[str], None] = '9c2d4e6f1a51'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "a1d3f5b7c902"
+down_revision: str | Sequence[str] | None = "9c2d4e6f1a51"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -53,7 +53,7 @@ def upgrade() -> None:
         sqlite_where=sa.text('"user" IS NOT NULL'),
         postgresql_where=sa.text('"user" IS NOT NULL'),
     )
-    op.bulk_insert(commodities, seed_rows(datetime.now(timezone.utc)))
+    op.bulk_insert(commodities, seed_rows(datetime.now(UTC)))
 
     # Everything recorded so far is in the default currency.
     inr = seed_id(DEFAULT_CURRENCY_CODE)

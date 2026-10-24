@@ -7,8 +7,8 @@ import pytest
 
 from app.services import account as account_service
 
-from .test_backup import OTHER, as_user, restore_as_other
 from .conftest import TEST_USER_ID
+from .test_backup import OTHER, as_user, restore_as_other
 
 NAMES = {
     "Assets": ["Bank Accounts", "Cash", "Investments"],
@@ -41,13 +41,18 @@ def test_a_new_person_starts_with_the_five_groups_in_order(client):
     assert set(found) == {"assets.bank", "assets.cash", "assets.investments", "liabilities.cards", "liabilities.loans"}
     roots = {a["aid"]: a["name"] for a in accounts(client) if a["parent_id"] is None}
     for root, names in NAMES.items():
-        mine = sorted((a for a in found.values() if roots[a["parent_id"]] == root), key=lambda a: account_service.FIXED_ORDER[a["system_key"]])
+        mine = sorted(
+            (a for a in found.values() if roots[a["parent_id"]] == root),
+            key=lambda a: account_service.FIXED_ORDER[a["system_key"]],
+        )
         assert [a["name"] for a in mine] == names
 
 
 def test_the_groups_come_first_and_everything_else_by_name(client, root_accounts):
     for name in ("Zeta", "Alpha"):
-        assert client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts["Assets"]}).status_code == 201
+        assert (
+            client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts["Assets"]}).status_code == 201
+        )
     mine = [a for a in accounts(client) if a["parent_id"] == root_accounts["Assets"]]
     ordered = sorted(mine, key=lambda a: account_service.AccountService.order_key(type("A", (), a)))
     assert [a["name"] for a in ordered] == ["Bank Accounts", "Cash", "Investments", "Alpha", "Zeta"]
@@ -55,7 +60,12 @@ def test_the_groups_come_first_and_everything_else_by_name(client, root_accounts
 
 def test_the_groups_cannot_be_renamed_moved_closed_or_deleted(client, root_accounts):
     bank = group(client, "Bank Accounts")
-    for change in ({"name": "Banks"}, {"parent_id": group(client, "Cash")["aid"]}, {"details": "x"}, {"on_budget": False}):
+    for change in (
+        {"name": "Banks"},
+        {"parent_id": group(client, "Cash")["aid"]},
+        {"details": "x"},
+        {"on_budget": False},
+    ):
         refused = client.patch(f"/api/accounts/{bank['aid']}", json=change)
         assert refused.status_code == 400 and "built in" in refused.json()["detail"], change
     assert client.delete(f"/api/accounts/{bank['aid']}").status_code == 400
@@ -94,7 +104,13 @@ def test_people_with_a_ledger_of_their_own_get_none(client, monkeypatch):
 
 
 def test_an_account_can_be_moved_into_a_group_but_not_the_group_ordered(client):
-    other = client.post("/api/accounts/", json={"name": "Piggy", "parent_id": next(a["aid"] for a in accounts(client) if a["name"] == "Assets" and a["parent_id"] is None)}).json()
+    other = client.post(
+        "/api/accounts/",
+        json={
+            "name": "Piggy",
+            "parent_id": next(a["aid"] for a in accounts(client) if a["name"] == "Assets" and a["parent_id"] is None),
+        },
+    ).json()
     moved = client.patch(f"/api/accounts/{other['aid']}", json={"parent_id": group(client, "Cash")["aid"]})
     assert moved.status_code == 200, moved.text
     page = client.post(f"/accounts/{group(client, 'Cash')['aid']}/move", data={"direction": "up"})
@@ -105,7 +121,12 @@ def test_a_backup_round_trips_the_groups_by_key(client):
     make(client, "HDFC", "Bank Accounts", balance="500")
     doc = client.get("/api/backup").json()
     assert {a["system_key"] for a in doc["accounts"] if a["system_key"]} == {
-        "assets.bank", "assets.cash", "assets.investments", "liabilities.cards", "liabilities.loans"}
+        "assets.bank",
+        "assets.cash",
+        "assets.investments",
+        "liabilities.cards",
+        "liabilities.loans",
+    }
     try:
         as_user(OTHER)
         done = restore_as_other(client, doc)
@@ -126,7 +147,9 @@ def test_a_backup_without_groups_brings_its_own_structure(client, monkeypatch):
     try:
         as_user(OTHER)
         roots = {a["name"]: a["aid"] for a in accounts(client) if a["parent_id"] is None}
-        cash = client.post("/api/accounts/", json={"name": "Cash", "parent_id": roots["Assets"], "balance": "300"}).json()
+        _cash = client.post(
+            "/api/accounts/", json={"name": "Cash", "parent_id": roots["Assets"], "balance": "300"}
+        ).json()
         doc = client.get("/api/backup").json()
     finally:
         as_user(TEST_USER_ID)
@@ -146,9 +169,15 @@ def restore_as_other_from_new(client, doc):
         assert monkeypatched.status_code == 200, monkeypatched.text
         again = client.get("/api/accounts/").json()
         assert {a["system_key"] for a in again if a["system_key"]} == {
-            "assets.bank", "assets.investments", "liabilities.cards", "liabilities.loans"}, "only the colliding Cash stepped aside"
+            "assets.bank",
+            "assets.investments",
+            "liabilities.cards",
+            "liabilities.loans",
+        }, "only the colliding Cash stepped aside"
         cash = next(a for a in again if a["name"] == "Cash")
-        assert cash["balance"] == "300.00" and cash["parent_id"] == next(a["aid"] for a in again if a["name"] == "Assets" and a["parent_id"] is None)
+        assert cash["balance"] == "300.00" and cash["parent_id"] == next(
+            a["aid"] for a in again if a["name"] == "Assets" and a["parent_id"] is None
+        )
         return monkeypatched
     finally:
         as_user(TEST_USER_ID)
@@ -169,7 +198,11 @@ def test_an_import_uses_the_groups_it_builds_on_and_sets_aside_the_rest(client):
     cash = next(a for a in found if a["name"] == "Cash")
     assert cash["system_key"] is None and cash["balance"] == "200.00", "a plain Assets:Cash replaced the empty group"
     assert {a["system_key"] for a in found if a["system_key"]} == {
-        "assets.bank", "assets.investments", "liabilities.cards", "liabilities.loans"}, "only the colliding group stepped aside"
+        "assets.bank",
+        "assets.investments",
+        "liabilities.cards",
+        "liabilities.loans",
+    }, "only the colliding group stepped aside"
 
 
 def test_erasing_the_books_gives_the_groups_back(client):
@@ -178,5 +211,10 @@ def test_erasing_the_books_gives_the_groups_back(client):
     assert done.status_code == 200, done.text
     found = accounts(client)
     assert {a["system_key"] for a in found if a["system_key"]} == {
-        "assets.bank", "assets.cash", "assets.investments", "liabilities.cards", "liabilities.loans"}
+        "assets.bank",
+        "assets.cash",
+        "assets.investments",
+        "liabilities.cards",
+        "liabilities.loans",
+    }
     assert not any(a["name"] == "HDFC" for a in found)

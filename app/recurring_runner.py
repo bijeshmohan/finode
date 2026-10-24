@@ -11,12 +11,12 @@ from datetime import date
 
 import anyio.to_thread
 
+from .clock import local_today
 from .config import settings
 from .mcp_server import context
 from .repositories import AccountRepository, ProfileRepository, RecurringRepository, TransactionRepository
 from .services import AccountService, RecurringService, TransactionService
 from .services.recurring import ORIGIN
-from .clock import local_today
 
 log = logging.getLogger("finode.recurring")
 FIRST_RUN_DELAY_SECONDS = 60
@@ -33,7 +33,9 @@ def run_once(today: date | None = None) -> int:
             with context.session_factory() as db:
                 ar, tr, pr = AccountRepository(db, uid), TransactionRepository(db, uid), ProfileRepository(db, uid)
                 service = RecurringService(
-                    RecurringRepository(db, uid), AccountService(ar, tr, pr), TransactionService(tr, ar, pr, origin=ORIGIN)
+                    RecurringRepository(db, uid),
+                    AccountService(ar, tr, pr),
+                    TransactionService(tr, ar, pr, origin=ORIGIN),
                 )
                 recorded += service.process_due(today)
         except Exception:  # one user's trouble must not stop the others

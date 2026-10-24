@@ -8,19 +8,19 @@ Every person keeps their ledger in one currency, now a column on the profile. Th
 (and changes nothing) when somebody recorded anything that cannot be kept that way: assets of their own,
 prices, accounts or transactions in more than one currency, or conversions. There is no way back.
 """
-from datetime import datetime, timezone
-from typing import Sequence, Union
+
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from uuid import UUID
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'f4b6d8a0c2e5'
-down_revision: Union[str, Sequence[str], None] = 'e2a4c6e8f1b3'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "f4b6d8a0c2e5"
+down_revision: str | Sequence[str] | None = "e2a4c6e8f1b3"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 DEFAULT = "INR"
 
@@ -37,14 +37,14 @@ def _currencies(connection) -> dict:
     """The one currency each person's ledger is in (the profile's choice when it holds nothing yet)."""
     used: dict = {}
     for sql in (
-        "SELECT a.\"user\", c.code FROM accounts a JOIN commodities c ON c.cid = a.commodity_id",
-        "SELECT t.\"user\", c.code FROM transactions t JOIN commodities c ON c.cid = t.currency_id",
+        'SELECT a."user", c.code FROM accounts a JOIN commodities c ON c.cid = a.commodity_id',
+        'SELECT t."user", c.code FROM transactions t JOIN commodities c ON c.cid = t.currency_id',
     ):
         for user, code in connection.execute(sa.text(sql)):
             used.setdefault(_uuid(user), set()).add(code)
     chosen: dict = {}
     for user, code in connection.execute(
-        sa.text("SELECT p.\"user\", c.code FROM profiles p LEFT JOIN commodities c ON c.cid = p.default_commodity_id")
+        sa.text('SELECT p."user", c.code FROM profiles p LEFT JOIN commodities c ON c.cid = p.default_commodity_id')
     ):
         chosen[_uuid(user)] = code or DEFAULT
     result: dict = {}
@@ -75,7 +75,7 @@ def upgrade() -> None:
 
     with op.batch_alter_table("profiles") as batch:
         batch.add_column(sa.Column("currency", sa.String(length=3), nullable=False, server_default=DEFAULT))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     profiles = {_uuid(row[0]) for row in connection.execute(sa.text('SELECT "user" FROM profiles'))}
     for user, code in currencies.items():
         if user in profiles:
@@ -86,7 +86,9 @@ def upgrade() -> None:
             )
         elif code != DEFAULT:
             connection.execute(
-                sa.text('INSERT INTO profiles ("user", currency, created, updated) VALUES (:user, :code, :now, :now)').bindparams(
+                sa.text(
+                    'INSERT INTO profiles ("user", currency, created, updated) VALUES (:user, :code, :now, :now)'
+                ).bindparams(
                     sa.bindparam("code", code),
                     sa.bindparam("user", user, type_=sa.Uuid()),
                     sa.bindparam("now", now, type_=sa.DateTime(timezone=True)),

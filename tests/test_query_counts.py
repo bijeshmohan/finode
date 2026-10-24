@@ -4,9 +4,8 @@ Every query costs a network round trip to the hosted database (about 16 ms), so 
 seconds. These tests count the statements a page runs and check the count does not grow with the size of the books.
 """
 
-from sqlalchemy import event
-
 import pytest
+from sqlalchemy import event
 
 PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/categories", "/categories?tab=income"]
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
@@ -14,8 +13,13 @@ PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/ca
 # Home asks 13 since goals became their own table: the budget reads them (with what is set aside) in one more query.
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
 CEILING = {
-    "/transactions/new": 3, "/transactions": 10, "/": 12, "/accounts": 3, "/budget": 5,
-    "/categories": 4, "/categories?tab=income": 4,
+    "/transactions/new": 3,
+    "/transactions": 10,
+    "/": 12,
+    "/accounts": 3,
+    "/budget": 5,
+    "/categories": 4,
+    "/categories?tab=income": 4,
 }
 
 
@@ -47,9 +51,15 @@ def grow(client, root_accounts, accounts: int, transactions: int, start: int = 0
     assets = [a for a in made if a["parent_id"] == root_accounts["Assets"]]
     expenses = [a for a in made if a["parent_id"] == root_accounts["Expenses"]]
     for i in range(transactions):
-        response = client.post("/api/transactions/", json={"postings": [
-            {"account": expenses[i % len(expenses)]["aid"], "side": "debit", "amount": "5"},
-            {"account": assets[i % len(assets)]["aid"], "side": "credit", "amount": "5"}]})
+        response = client.post(
+            "/api/transactions/",
+            json={
+                "postings": [
+                    {"account": expenses[i % len(expenses)]["aid"], "side": "debit", "amount": "5"},
+                    {"account": assets[i % len(assets)]["aid"], "side": "credit", "amount": "5"},
+                ]
+            },
+        )
         assert response.status_code == 201, response.text
 
 
@@ -59,7 +69,9 @@ def test_the_number_of_queries_does_not_grow_with_the_books(client, root_account
     grow(client, root_accounts, accounts=40, transactions=40, start=10)
     large = {p: count_queries(lambda p=p: client.get(p)) for p in PAGES}
     for page in PAGES:
-        assert large[page] <= small[page] + 2, f"{page} asks the database more often as the books grow: {small[page]} -> {large[page]}"
+        assert large[page] <= small[page] + 2, (
+            f"{page} asks the database more often as the books grow: {small[page]} -> {large[page]}"
+        )
         assert large[page] <= CEILING[page], f"{page} makes {large[page]} queries"
 
 
@@ -87,8 +99,12 @@ def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_account
     expenses = [a["aid"] for a in leaves if a["parent_id"] == root_accounts["Expenses"]]
 
     def save(rows: int):
-        data = {"account": [assets[0]] + expenses[:rows], "side": ["credit"] + ["debit"] * rows,
-                "amount": [str(rows)] + ["1"] * rows, "payee": "split"}
+        data = {
+            "account": [assets[0], *expenses[:rows]],
+            "side": ["credit"] + ["debit"] * rows,
+            "amount": [str(rows)] + ["1"] * rows,
+            "payee": "split",
+        }
         return count_queries(lambda: client.post("/transactions/split", data=data))
 
     short, long = save(2), save(7)

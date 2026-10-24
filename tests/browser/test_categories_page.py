@@ -10,14 +10,21 @@ from .conftest import Api
 
 def tree(api: Api, books):
     food = books["food"]
-    api.post("/accounts/", name="Delivery", parent_id=food["aid"])  # a category inside a category: Groceries is a group now
+    api.post(
+        "/accounts/", name="Delivery", parent_id=food["aid"]
+    )  # a category inside a category: Groceries is a group now
     return food
 
 
 def spend(api: Api, books, category, amount="300"):
-    api.post("/transactions/", date=date.today().isoformat(), postings=[
-        {"account": category["aid"], "side": "debit", "amount": amount},
-        {"account": books["checking"]["aid"], "side": "credit", "amount": amount}])
+    api.post(
+        "/transactions/",
+        date=date.today().isoformat(),
+        postings=[
+            {"account": category["aid"], "side": "debit", "amount": amount},
+            {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
+        ],
+    )
 
 
 def test_the_tab_bar_has_categories_and_no_transactions_(page: Page, books):
@@ -38,7 +45,9 @@ def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside
     assert names[:2] == ["Rent", "Groceries"], names  # biggest first
     expect(page.locator("a.crow", has_text="Groceries").locator(".crow-sub")).to_contain_text("Delivery")
     expect(page.locator("a.crow", has_text="Groceries").locator(".crow-sub")).to_contain_text("12%")
-    assert page.evaluate("document.querySelector('.crow-amt').getBoundingClientRect().right") > 340, "amounts at the right edge"
+    assert page.evaluate("document.querySelector('.crow-amt').getBoundingClientRect().right") > 340, (
+        "amounts at the right edge"
+    )
     page.locator("a.crow", has_text="Groceries").click()
     page.wait_for_url(f"**/categories/{food['aid']}**")
     expect(page.locator(".hero-balance")).to_have_text("₹120.00")
@@ -50,9 +59,14 @@ def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside
 
 def test_the_month_total_and_the_income_tab(page: Page, books, api: Api):
     spend(api, books, books["rent"], "900")
-    api.post("/transactions/", date=date.today().isoformat(), postings=[
-        {"account": books["checking"]["aid"], "side": "debit", "amount": "5000"},
-        {"account": books["salary"]["aid"], "side": "credit", "amount": "5000"}])
+    api.post(
+        "/transactions/",
+        date=date.today().isoformat(),
+        postings=[
+            {"account": books["checking"]["aid"], "side": "debit", "amount": "5000"},
+            {"account": books["salary"]["aid"], "side": "credit", "amount": "5000"},
+        ],
+    )
     page.goto("/categories")
     expect(page.locator(".cat-hero .figure")).to_have_text("₹900.00")
     page.get_by_role("link", name="Income").click()
@@ -73,7 +87,9 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(pag
     page.locator("a.crow", has_text="Rent").click()
     page.wait_for_url(f"**/categories/{books['rent']['aid']}**")
     expect(page.locator(".hero-balance")).to_have_text("₹900.00")
-    expect(page.get_by_role("link", name="Add transaction")).to_have_attribute("href", f"/transactions/new?account={books['rent']['aid']}&back=/categories/{books['rent']['aid']}")
+    expect(page.get_by_role("link", name="Add transaction")).to_have_attribute(
+        "href", f"/transactions/new?account={books['rent']['aid']}&back=/categories/{books['rent']['aid']}"
+    )
     page.get_by_label("More actions").click()
     expect(page.get_by_role("link", name="See in Budgets")).to_be_visible()
 
@@ -93,9 +109,13 @@ def test_the_month_pill_sits_in_the_title_row_as_on_budget_and_transactions(page
     for path in ("/budget", "/categories", "/transactions"):
         page.goto(path)
         title, pill = (page.locator(s).first.bounding_box() for s in (".page-head h1", ".page-head .month-pill"))
-        assert abs((title["y"] + title["height"] / 2) - (pill["y"] + pill["height"] / 2)) < 14, f"{path}: pill beside the title"
+        assert abs((title["y"] + title["height"] / 2) - (pill["y"] + pill["height"] / 2)) < 14, (
+            f"{path}: pill beside the title"
+        )
         spots[path] = round(pill["x"] + pill["width"])
-        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
+            "no sideways scrolling on a phone"
+        )
     assert len(set(spots.values())) == 1, f"the pill ends at the same edge on every page: {spots}"
     page.goto("/categories")
     chips, hero = (page.locator(s).first.bounding_box() for s in (".cat-chips", ".cat-hero"))
@@ -128,7 +148,9 @@ def test_accounts_and_categories_share_the_same_heights(page: Page, books):
     spots = {}
     for path in ("/accounts", "/categories"):
         page.goto(path)
-        title, chips, hero = (page.locator(s).first.bounding_box() for s in (".page-head h1", ".cat-chips", ".cat-hero"))
+        title, chips, hero = (
+            page.locator(s).first.bounding_box() for s in (".page-head h1", ".cat-chips", ".cat-hero")
+        )
         assert page.locator(".cat-bar .head-icons").count() == 0, f"{path}: nothing beside the switcher"
         spots[path] = (round(title["y"]), round(chips["y"]), round(chips["width"]), round(hero["y"]))
     assert spots["/accounts"] == spots["/categories"], f"title, full-width switcher and figure line up: {spots}"
@@ -138,7 +160,16 @@ def test_the_head_is_the_same_on_accounts_categories_and_budgets(page: Page, boo
     spots = {}
     for path in ("/accounts", "/categories", "/budget"):
         page.goto(path)
-        title, chips, label, figure = (page.locator(s).first.bounding_box() for s in (".page-head h1", ".cat-chips", ".ready-hero .hero-top", ".ready-hero .figure"))
-        spots[path] = (round(title["y"]), round(chips["y"]), round(label["y"]), round(figure["y"]), round(figure["height"]))
+        title, chips, label, figure = (
+            page.locator(s).first.bounding_box()
+            for s in (".page-head h1", ".cat-chips", ".ready-hero .hero-top", ".ready-hero .figure")
+        )
+        spots[path] = (
+            round(title["y"]),
+            round(chips["y"]),
+            round(label["y"]),
+            round(figure["y"]),
+            round(figure["height"]),
+        )
         expect(page.locator(".ready-hero .hero-top .muted").first).to_be_visible()
     assert len(set(spots.values())) == 1, f"title, switcher, label and figure line up on all three pages: {spots}"

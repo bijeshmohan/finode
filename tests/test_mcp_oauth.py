@@ -14,11 +14,10 @@ from app.main import app
 from app.mcp_server import transport
 from app.repositories.oauth_grant import OAuthGrantRepository
 from app.services.oauth_grant import OAuthGrantService
+from tests.htmlutil import element, text_of
 
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, mcp_client, payload, running_app
-from tests.htmlutil import element, text_of
-
 
 pytestmark = pytest.mark.anyio
 
@@ -61,8 +60,12 @@ async def raw_post(token: str | None):
     headers = {"Accept": "application/json, text/event-stream"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    init = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}}
+    init = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}},
+    }
     async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url="https://finode.example") as http:
         return await http.post("/mcp", json=init, headers=headers)
 
@@ -139,10 +142,14 @@ async def test_an_ordinary_sign_in_token_does_not_work_on_mcp(session, jwts):
 
 async def test_marks_name_the_app(session, jwts, client, root_accounts):
     allow(session, name="Claude on phone", scope="write")
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
+    _bank = client.post(
+        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}
+    ).json()
     client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(app_token(jwts)) as c:
-        recorded = payload(await c.call_tool("record_transaction", {"amount": "9", "from_account": "Bank", "to_account": "Food"}))
+        recorded = payload(
+            await c.call_tool("record_transaction", {"amount": "9", "from_account": "Bank", "to_account": "Food"})
+        )
     assert recorded["recorded"]["created_via"] == "assistant (Claude on phone)"
 
 
@@ -179,7 +186,11 @@ class FakeSupabase:
             return httpx.Response(self.status, json={"msg": "nope"}, request=request)
         if url.endswith("/consent"):
             action = kwargs["json"]["action"]
-            target = "https://claude.ai/api/mcp/auth_callback?code=abc" if action == "approve" else "https://claude.ai/api/mcp/auth_callback?error=access_denied"
+            target = (
+                "https://claude.ai/api/mcp/auth_callback?code=abc"
+                if action == "approve"
+                else "https://claude.ai/api/mcp/auth_callback?error=access_denied"
+            )
             return httpx.Response(200, json={"redirect_url": target}, request=request)
         if method == "DELETE":
             return httpx.Response(204, request=request)
@@ -210,7 +221,7 @@ def test_consent_page_shows_the_app_and_asks_what_it_may_do(consent_client, fake
     assert page.status_code == 200
     assert "Connect Claude?" in page.text and "https://claude.ai/api/mcp/auth_callback" in page.text
     assert 'name="action" value="allow-read"' in page.text and 'name="action" value="allow-write"' in page.text
-    assert 'value="deny"' in page.text and "name=\"access\"" not in page.text
+    assert 'value="deny"' in page.text and 'name="access"' not in page.text
     method, url, extra = fake.calls[0]
     assert (method, url) == ("GET", f"{SUPABASE}/auth/v1/oauth/authorizations/{AUTH_ID}")
     assert extra["headers"]["Authorization"] == "Bearer user-jwt" and extra["headers"]["apikey"] == "anon-key"
@@ -218,9 +229,14 @@ def test_consent_page_shows_the_app_and_asks_what_it_may_do(consent_client, fake
 
 def test_allowing_records_the_level_and_sends_the_user_back_to_the_app(consent_client, fake, session):
     response = consent_client.post(
-        "/oauth/consent", data={"authorization_id": AUTH_ID, "action": "allow", "access": "write"}, follow_redirects=False
+        "/oauth/consent",
+        data={"authorization_id": AUTH_ID, "action": "allow", "access": "write"},
+        follow_redirects=False,
     )
-    assert response.status_code == 303 and response.headers["location"] == "https://claude.ai/api/mcp/auth_callback?code=abc"
+    assert (
+        response.status_code == 303
+        and response.headers["location"] == "https://claude.ai/api/mcp/auth_callback?code=abc"
+    )
     grant = OAuthGrantRepository(session, TEST_USER_ID).by_client("client-1")
     assert (grant.client_name, grant.scope, grant.revoked) == ("Claude", "write", None)
     consent_call = next(c for c in fake.calls if c[1].endswith("/consent"))
@@ -229,7 +245,9 @@ def test_allowing_records_the_level_and_sends_the_user_back_to_the_app(consent_c
 
 def test_denying_records_nothing(consent_client, fake, session):
     response = consent_client.post(
-        "/oauth/consent", data={"authorization_id": AUTH_ID, "action": "deny", "access": "write"}, follow_redirects=False
+        "/oauth/consent",
+        data={"authorization_id": AUTH_ID, "action": "deny", "access": "write"},
+        follow_redirects=False,
     )
     assert response.status_code == 303 and "error=access_denied" in response.headers["location"]
     assert OAuthGrantRepository(session, TEST_USER_ID).by_client("client-1") is None
@@ -238,7 +256,13 @@ def test_denying_records_nothing(consent_client, fake, session):
 def test_the_app_comes_from_supabase_not_the_form(consent_client, fake, session):
     consent_client.post(
         "/oauth/consent",
-        data={"authorization_id": AUTH_ID, "action": "allow", "access": "read", "client_id": "evil", "client_name": "Evil"},
+        data={
+            "authorization_id": AUTH_ID,
+            "action": "allow",
+            "access": "read",
+            "client_id": "evil",
+            "client_name": "Evil",
+        },
         follow_redirects=False,
     )
     assert OAuthGrantRepository(session, TEST_USER_ID).by_client("evil") is None
@@ -292,9 +316,15 @@ def test_connected_apps_are_listed_and_can_be_disconnected(consent_client, fake,
     apps = text_of(element(page, "token-list"))
     assert "Claude on phone" in apps and "read only" in apps
     response = consent_client.post(f"/oauth/apps/{grant.gid}/disconnect")
-    assert response.headers["HX-Redirect"] == "/profile/assistants" and "app-disconnected" in response.headers["set-cookie"]
+    assert (
+        response.headers["HX-Redirect"] == "/profile/assistants"
+        and "app-disconnected" in response.headers["set-cookie"]
+    )
     assert OAuthGrantRepository(session, TEST_USER_ID).read(grant.gid).revoked is not None
-    assert any(m == "DELETE" and "client_id=client-1" in str(e["params"]) or e.get("params") == {"client_id": "client-1"} for m, u, e in fake.calls)
+    assert any(
+        (m == "DELETE" and "client_id=client-1" in str(e["params"])) or e.get("params") == {"client_id": "client-1"}
+        for m, u, e in fake.calls
+    )
     assert "Claude on phone" not in text_of(element(consent_client.get("/profile/assistants").text, "token-list"))
     assert consent_client.post(f"/oauth/apps/{UUID(int=9)}/disconnect").status_code == 404
 

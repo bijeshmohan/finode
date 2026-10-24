@@ -37,6 +37,6 @@ def first_after(start: date, frequency: str, every: int, day: date) -> date:
 
 
 def describe(frequency: str, every: int) -> str:
-    """"Every month", "Every 2 weeks"."""
+    """ "Every month", "Every 2 weeks"."""
     unit = {"daily": "day", "weekly": "week", "monthly": "month", "yearly": "year"}[frequency]
     return f"Every {unit}" if every == 1 else f"Every {every} {unit}s"

@@ -1,6 +1,8 @@
 [project]
 name = "finode"
 version = "0.1.0"
+description = "Personal finance on double-entry bookkeeping, with envelope budgeting, a minimal web UI and an MCP server"
+readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.18.4",
@@ -18,8 +20,12 @@ entrypoint = "app.main:app"
 
 [dependency-groups]
 dev = [
+    "mypy>=2.4.0",
     "playwright==1.55.0",
+    "pre-commit>=4.7.0",
     "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.2",
 ]
 
 [tool.pytest.ini_options]
@@ -29,4 +35,93 @@ markers = [
 filterwarnings = [
     "ignore:websockets.legacy is deprecated:DeprecationWarning",
     "ignore:websockets.server.WebSocketServerProtocol is deprecated:DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+extend-exclude = ["app/static", "backups"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "UP",       # pyupgrade
+    "B",        # flake8-bugbear
+    "C4",       # flake8-comprehensions
+    "SIM",      # flake8-simplify
+    "PIE",      # flake8-pie
+    "RUF",      # ruff-specific
+    "S",        # flake8-bandit (security)
+    "T20",      # no stray print()
+    "PT",       # pytest style
+]
+ignore = [
+    "E501",     # the formatter wraps code; long strings and comments are allowed
+    "PT018",    # one assert with "and" is how these tests read
+    "RUF001", "RUF002", "RUF003",  # the interface uses the typographic characters (– — › ₹ ✕) on purpose
+    "B008",     # FastAPI/Form defaults are evaluated per request, not shared state
+    "SIM108",   # a plain if/else is sometimes clearer than a ternary
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",     # assert is what tests do
+    "S105", "S106", "S311",  # fake secrets and random data in tests
+    "PT011", "RUF043",
+    "E741",     # short names such as l in a comprehension read fine in a test
+    "E731",     # a lambda helper in a test is fine
+    "S608", "S107",  # SQL built from fixed table names, a fake token default
+    "SIM115", "SIM117",
+    "F811",     # a fixture imported from another test module is used by its parameter name
+]
+"migrations/**" = ["S608"]  # table names come from fixed lists
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.14"
+files = ["app"]
+plugins = ["pydantic.mypy"]
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = false
+no_implicit_optional = true
+show_error_codes = true
+pretty = false
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = false
+warn_required_dynamic_aliases = true
+
+# SQLModel's column attributes are typed as their Python values (Posting.amount is a Decimal to the checker, a column
+# to SQLAlchemy), and its Field() has no overload for our custom column types. The persistence layers are thin SQL
+# over those, so the noise is switched off there and nowhere else.
+[[tool.mypy.overrides]]
+module = ["app.models.*"]
+disable_error_code = ["call-overload", "assignment"]
+
+[[tool.mypy.overrides]]
+module = ["app.repositories.*"]
+disable_error_code = ["arg-type", "call-overload", "return-value", "attr-defined", "assignment", "valid-type"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = ["app/static/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "\\.\\.\\.$",
 ]

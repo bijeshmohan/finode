@@ -1,8 +1,8 @@
-from datetime import date as Date, datetime
+import unicodedata
+from datetime import date as Date
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
-
-import unicodedata
 
 from pydantic import BaseModel, Field, field_validator
 

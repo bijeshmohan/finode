@@ -1,9 +1,10 @@
 """Persistence for personal access tokens, always filtered by the user's id."""
 
+import builtins
 from datetime import datetime
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from ..models.api_token import ApiToken
 
@@ -13,8 +14,8 @@ class ApiTokenRepository:
         self.db = db
         self.uid = uid
 
-    def list(self) -> list[ApiToken]:
-        statement = select(ApiToken).where(ApiToken.user == self.uid).order_by(ApiToken.created.desc())
+    def list(self) -> builtins.list[ApiToken]:
+        statement = select(ApiToken).where(ApiToken.user == self.uid).order_by(col(ApiToken.created).desc())
         return self.db.exec(statement).all()
 
     def read(self, tkid: UUID) -> ApiToken | None:

@@ -9,22 +9,24 @@ lines (funds, deposits, loans) and Earn lines (expected income): the budget keep
 Only the plan is touched: no transaction, posting or account is. The upgrade cannot be undone for those rows (the
 downgrade puts the columns back, switched off, and restore a backup to get the rows back).
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'c4e6a8b0d2f4'
-down_revision: Union[str, Sequence[str], None] = 'b9d1f3a5c7e2'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "c4e6a8b0d2f4"
+down_revision: str | Sequence[str] | None = "b9d1f3a5c7e2"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     conn = op.get_bind()
-    accounts = {row.aid: (row.parent_id, row.name) for row in conn.execute(sa.text("SELECT aid, parent_id, name FROM accounts"))}
+    accounts = {
+        row.aid: (row.parent_id, row.name) for row in conn.execute(sa.text("SELECT aid, parent_id, name FROM accounts"))
+    }
 
     def expense(aid) -> bool:
         seen = set()
@@ -34,12 +36,16 @@ def upgrade() -> None:
         return aid in accounts and accounts[aid][1] == "Expenses"
 
     for table in ("budget_allocations", "budget_targets"):
-        stale = [row.account_id for row in conn.execute(sa.text(f"SELECT DISTINCT account_id FROM {table}")) if not expense(row.account_id)]
+        stale = [
+            row.account_id
+            for row in conn.execute(sa.text(f"SELECT DISTINCT account_id FROM {table}"))
+            if not expense(row.account_id)
+        ]
         for chunk in range(0, len(stale), 200):
-            marks = ", ".join(f":a{i}" for i in range(len(stale[chunk:chunk + 200])))
+            marks = ", ".join(f":a{i}" for i in range(len(stale[chunk : chunk + 200])))
             conn.execute(
                 sa.text(f"DELETE FROM {table} WHERE account_id IN ({marks})"),
-                {f"a{i}": aid for i, aid in enumerate(stale[chunk:chunk + 200])},
+                {f"a{i}": aid for i, aid in enumerate(stale[chunk : chunk + 200])},
             )
     with op.batch_alter_table("accounts") as batch:
         batch.drop_column("saving")

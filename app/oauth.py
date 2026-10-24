@@ -5,6 +5,7 @@ signed-in user allows an app. These calls use the *user's own* session token, as
 `auth.oauth.*` methods do.
 """
 
+import contextlib
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -47,7 +48,7 @@ def _call(method: str, path: str, user_token: str, **kwargs) -> dict:
     try:
         response = httpx.request(method, f"{auth_url()}{path}", headers=_headers(user_token), timeout=10, **kwargs)
     except httpx.HTTPError:
-        raise OAuthError("the sign-in service is unreachable: try again in a moment!")
+        raise OAuthError("the sign-in service is unreachable: try again in a moment!") from None
     if response.status_code in (401, 403):
         raise OAuthError("your sign-in has expired: sign in again and retry!")
     if response.status_code == 404:
@@ -61,7 +62,7 @@ def _call(method: str, path: str, user_token: str, **kwargs) -> dict:
     try:
         return response.json() if response.content else {}
     except ValueError:
-        raise OAuthError("the sign-in service returned an unexpected response!")
+        raise OAuthError("the sign-in service returned an unexpected response!") from None
 
 
 def authorization_details(authorization_id: str, user_token: str) -> AuthorizationDetails:
@@ -94,10 +95,8 @@ def decide(authorization_id: str, approve: bool, user_token: str) -> str:
 
 def revoke_grant(client_id: str, user_token: str) -> None:
     """Stop Supabase issuing and refreshing tokens for the app. Best effort: finode's own check is what blocks it."""
-    try:
+    with contextlib.suppress(OAuthError):
         _call("DELETE", "/user/oauth/grants", user_token, params={"client_id": client_id})
-    except OAuthError:
-        pass
 
 
 def is_web_url(url: str) -> bool:

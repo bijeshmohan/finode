@@ -1,6 +1,6 @@
 """The migration that drops accounts.pinned: the column goes, the accounts stay, and it can be undone."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -12,7 +12,7 @@ from app.config import settings
 
 BEFORE = "a5c7e9b1d3f6"
 AFTER = "b6d8f0a2c4e7"
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 @pytest.fixture
@@ -36,7 +36,9 @@ def test_the_column_goes_and_comes_back_empty(alembic):
     aid = uuid4()
     with engine.begin() as c:
         c.execute(
-            sa.text("INSERT INTO accounts (created, updated, aid, user, name, pinned) VALUES (:n, :n, :a, :u, 'Wallet', 1)").bindparams(
+            sa.text(
+                "INSERT INTO accounts (created, updated, aid, user, name, pinned) VALUES (:n, :n, :a, :u, 'Wallet', 1)"
+            ).bindparams(
                 sa.bindparam("n", NOW, type_=sa.DateTime(timezone=True)),
                 sa.bindparam("a", aid, type_=sa.Uuid()),
                 sa.bindparam("u", uuid4(), type_=sa.Uuid()),

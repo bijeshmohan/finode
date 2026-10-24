@@ -15,9 +15,9 @@ def new_person(monkeypatch):
 
 
 def test_with_no_accounts_the_page_shows_an_add_account_pill_and_no_groups(client):
-    for tab, target in (("assets", "Bank Accounts"), ("liabilities", "Credit Cards")):
+    for tab, _target in (("assets", "Bank Accounts"), ("liabilities", "Credit Cards")):
         text = client.get(f"/accounts?tab={tab}").text
-        shown = text[text.index("data-accounts"):]
+        shown = text[text.index("data-accounts") :]
         assert "Add account" in shown and f"/accounts/new?root={tab}" in shown
         for name in ("Bank Accounts", "Cash", "Investments", "Credit Cards", "Loans"):
             assert f">{name}<" not in shown, name
@@ -27,7 +27,7 @@ def test_with_no_accounts_the_page_shows_an_add_account_pill_and_no_groups(clien
 def test_only_groups_with_accounts_are_shown(client):
     make(client, "HDFC", "Bank Accounts", balance="500")
     text = client.get("/accounts").text
-    shown = text[text.index("data-accounts"):]
+    shown = text[text.index("data-accounts") :]
     assert "Bank Accounts" in shown and "HDFC" in shown and "add-pill" not in shown
     for name in ("Cash", "Investments"):
         assert f">{name}<" not in shown, name
@@ -55,7 +55,9 @@ def test_the_form_starts_as_the_group_says(client):
 
 def test_creating_a_loan_from_the_form_leaves_it_outside_the_budget(client):
     loans = group(client, "Loans")["aid"]
-    done = client.post("/accounts", data={"name": "Home Loan", "parent_id": loans, "balance": "1000000", "budget_choice": "1"})
+    done = client.post(
+        "/accounts", data={"name": "Home Loan", "parent_id": loans, "balance": "1000000", "budget_choice": "1"}
+    )
     assert done.status_code == 200, done.text
     made = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Home Loan")
     assert made["on_budget"] is False
@@ -80,4 +82,4 @@ def test_an_empty_groups_page_is_about_adding_accounts_not_transactions(client):
     page = client.get(f"/accounts/{group(client, 'Investments')['aid']}").text
     assert "Sub-accounts" in page and "Nothing here yet" in page
     assert "<h2>Transactions</h2>" not in page and "No transactions yet" not in page
-    assert f'/accounts/new?parent={group(client, "Investments")["aid"]}' in page
+    assert f"/accounts/new?parent={group(client, 'Investments')['aid']}" in page

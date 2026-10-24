@@ -9,16 +9,14 @@ from .config import settings
 from .web_auth import AuthUnavailableError
 
 
-class EmailAlreadyRegisteredError(Exception):
-    ...
+class EmailAlreadyRegisteredError(Exception): ...
 
 
 class SignupRejectedError(Exception):
     """Supabase refused the email or password; the message is safe to show."""
 
 
-class RateLimitedError(Exception):
-    ...
+class RateLimitedError(Exception): ...
 
 
 def invite_code_is_valid(candidate: str) -> bool:
@@ -44,12 +42,12 @@ def delete_user(user_id) -> None:
         raise AuthUnavailableError("deleting logins is not configured")
     try:
         response = httpx.delete(
-            f"{settings.supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}",
+            f"{(settings.supabase_url or '').rstrip('/')}/auth/v1/admin/users/{user_id}",
             headers=_admin_headers(),
             timeout=10,
         )
     except httpx.HTTPError:
-        raise AuthUnavailableError("the sign-in service is unreachable")
+        raise AuthUnavailableError("the sign-in service is unreachable") from None
     if response.status_code not in (200, 204, 404):
         raise AuthUnavailableError("the sign-in service returned an unexpected response")
 
@@ -64,13 +62,13 @@ def create_user(email: str, password: str) -> None:
         raise AuthUnavailableError("sign-up is not configured")
     try:
         response = httpx.post(
-            f"{settings.supabase_url.rstrip('/')}/auth/v1/admin/users",
+            f"{(settings.supabase_url or '').rstrip('/')}/auth/v1/admin/users",
             json={"email": email, "password": password, "email_confirm": True},
             headers=_admin_headers(),
             timeout=10,
         )
     except httpx.HTTPError:
-        raise AuthUnavailableError("sign-up service is unreachable")
+        raise AuthUnavailableError("sign-up service is unreachable") from None
 
     if response.status_code in (200, 201):
         return

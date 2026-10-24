@@ -1,8 +1,6 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-
-from .day import Day
 
 
 def _clean(value: str | None) -> str | None:
@@ -24,7 +22,7 @@ class ProfileUpdate(BaseModel):
         return _clean(v)
 
     @model_validator(mode="after")
-    def default_currency_must_not_be_null(self) -> "ProfileUpdate":
+    def default_currency_must_not_be_null(self) -> ProfileUpdate:
         if "default_currency" in self.model_fields_set and not self.default_currency:
             raise ValueError("the field 'default_currency' must not be empty!")
         return self

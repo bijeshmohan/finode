@@ -7,17 +7,17 @@ Create Date: 2026-10-24 21:00:00.000000
 `profiles.advanced` hid ordering and closing of accounts and the period lock until switched on. The switch was removed:
 those features are always there. Downgrading adds the column back, switched off.
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'a9b1c3d5e7f2'
-down_revision: Union[str, Sequence[str], None] = 'f2c4e6a8b0d1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "a9b1c3d5e7f2"
+down_revision: str | Sequence[str] | None = "f2c4e6a8b0d1"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

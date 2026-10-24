@@ -1,17 +1,17 @@
 from datetime import date as Date
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pydantic import field_validator
 from sqlalchemy import CheckConstraint, Index
 from sqlmodel import Field
 
-from .utils import Amount, TimestampMixin
 from ..clock import local_today
+from .utils import Amount, TimestampMixin
 
 
-class PostingSide(str, Enum):
+class PostingSide(StrEnum):
     DEBIT = "debit"
     CREDIT = "credit"
 

@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 from functools import wraps
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 from uuid import UUID
 
 from mcp.server.mcpserver import MCPServer
@@ -12,6 +12,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field, ValidationError
 
+from ..clock import local_today
 from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
@@ -21,8 +22,6 @@ from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionR
 from ..services.simple import simple_postings
 from .accounts import AccountIndex
 from .context import Services, services
-from ..clock import local_today
-
 
 INSTRUCTIONS = """\
 finode is the user's personal double-entry ledger.
@@ -139,7 +138,7 @@ def _transaction_id(value: str) -> UUID:
     try:
         return UUID(value.strip())
     except ValueError:
-        raise ToolError(f"'{value}' is not a transaction id: use the id from search_transactions!")
+        raise ToolError(f"'{value}' is not a transaction id: use the id from search_transactions!") from None
 
 
 # ---- reading ---------------------------------------------------------------------------------------
@@ -169,7 +168,9 @@ def get_overview() -> dict[str, Any]:
 @_tool_errors
 def list_accounts(
     type: Annotated[AccountType | None, Field(description="Only accounts under this top-level account")] = None,
-    include_closed: Annotated[bool, Field(description="Also list accounts the user has closed (they cannot be posted to)")] = False,
+    include_closed: Annotated[
+        bool, Field(description="Also list accounts the user has closed (they cannot be posted to)")
+    ] = False,
 ) -> dict[str, Any]:
     """Every account with its path and balance. Top-level accounts show the total of everything inside."""
     with services() as s:
@@ -226,7 +227,9 @@ def get_account(
 def search_transactions(
     date_from: Annotated[date | None, Field(description="On or after this day (YYYY-MM-DD)")] = None,
     date_to: Annotated[date | None, Field(description="On or before this day (YYYY-MM-DD)")] = None,
-    account: Annotated[str | None, Field(description="Only transactions touching this account or its sub-accounts")] = None,
+    account: Annotated[
+        str | None, Field(description="Only transactions touching this account or its sub-accounts")
+    ] = None,
     text_contains: Annotated[str | None, Field(description="Case-insensitive text in the payee or note")] = None,
     min_amount: Annotated[Decimal | None, Field(ge=0, description="Smallest transaction total")] = None,
     max_amount: Annotated[Decimal | None, Field(ge=0, description="Largest transaction total")] = None,
@@ -237,7 +240,7 @@ def search_transactions(
         index = _index(s)
         aid = index.find(account, allow_root=True).account.aid if account else None
         needle = (text_contains or "").casefold().strip()
-        found = []
+        found: list[dict[str, Any]] = []
         truncated = False
         for t in s.transactions.list(account=aid, date_from=date_from, date_to=date_to):
             total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
@@ -285,7 +288,9 @@ def spending_breakdown(
             "from": report.period_start.isoformat(),
             "to": report.period_end.isoformat(),
             "total": text(report.total),
-            "by_account": [{"account": line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines],
+            "by_account": [
+                {"account": line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines
+            ],
         }
 
 
@@ -309,8 +314,8 @@ def list_recurring() -> dict[str, Any]:
                         }
                         if r.postings
                         else {
-                            "from": index.path(r.from_account),
-                            "to": index.path(r.to_account),
+                            "from": index.path(cast(UUID, r.from_account)),
+                            "to": index.path(cast(UUID, r.to_account)),
                             "amount": text(r.amount),
                         }
                     ),
@@ -334,13 +339,18 @@ def list_recurring() -> dict[str, Any]:
 @_tool_errors
 def record_transaction(
     amount: Annotated[Amount, Field(description="How much leaves the 'from' account")],
-    from_account: Annotated[str, Field(description="Where the money comes from, e.g. Assets:Bank:HDFC or Liabilities:Card")],
+    from_account: Annotated[
+        str, Field(description="Where the money comes from, e.g. Assets:Bank:HDFC or Liabilities:Card")
+    ],
     to_account: Annotated[str, Field(description="Where it goes, e.g. Expenses:Food")],
     date: OptionalDate = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
     related_to: Annotated[
-        str | None, Field(description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions")
+        str | None,
+        Field(
+            description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions"
+        ),
     ] = None,
 ) -> dict[str, Any]:
     """Record money moving from one account to another: spending, income or a transfer."""
@@ -387,7 +397,10 @@ def record_split(
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
     related_to: Annotated[
-        str | None, Field(description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions")
+        str | None,
+        Field(
+            description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions"
+        ),
     ] = None,
 ) -> dict[str, Any]:
     """Record a transaction with several rows, e.g. a bill split across categories or a salary
@@ -416,7 +429,8 @@ def update_transaction(
         list[PostingIn] | None, Field(description="All the rows again, replacing the old ones; leave out to keep them")
     ] = None,
     related_to: Annotated[
-        str | None, Field(description="Id of an earlier transaction this one is related to; an empty string removes the link")
+        str | None,
+        Field(description="Id of an earlier transaction this one is related to; an empty string removes the link"),
     ] = None,
 ) -> dict[str, Any]:
     """Change a transaction. Only what you pass changes."""
@@ -439,11 +453,15 @@ def update_transaction(
         if not changes:
             raise ToolError("nothing to change: pass a date, payee, note, postings or related_to!")
         saved = s.transactions.update(tid, TransactionUpdate(**changes))
+        if saved is None:
+            raise ToolError("transaction not found")
         return {"updated": _transaction(saved, index, s)}
 
 
 @_tool_errors
-def delete_transaction(transaction_id: Annotated[str, Field(description="Id from search_transactions")]) -> dict[str, Any]:
+def delete_transaction(
+    transaction_id: Annotated[str, Field(description="Id from search_transactions")],
+) -> dict[str, Any]:
     """Delete a transaction for good. Ask the user to confirm first."""
     tid = _transaction_id(transaction_id)
     with services() as s:
@@ -472,7 +490,9 @@ def create_account(
         siblings = [e for e in index.entries.values() if e.account.parent_id == parent_entry.account.aid]
         twin = next((e for e in siblings if e.account.name.casefold() == name.casefold()), None)
         if twin:
-            raise ToolError(f"'{parent_entry.path}' already has an account named '{twin.account.name}': use {twin.path}!")
+            raise ToolError(
+                f"'{parent_entry.path}' already has an account named '{twin.account.name}': use {twin.path}!"
+            )
         if opening_balance and parent_entry.root not in ("Assets", "Liabilities"):
             raise ToolError("only asset and liability accounts have an opening balance!")
         created = s.accounts.create(
@@ -493,18 +513,29 @@ def create_account(
 
 @_tool_errors
 def create_recurring(
-    amount: Annotated[Amount | None, Field(description="How much leaves the 'from' account each time (a simple rule; not with postings)")] = None,
+    amount: Annotated[
+        Amount | None,
+        Field(description="How much leaves the 'from' account each time (a simple rule; not with postings)"),
+    ] = None,
     from_account: Annotated[AccountRef | None, Field(description="A simple rule: where the money comes from")] = None,
     to_account: Annotated[AccountRef | None, Field(description="A simple rule: where it goes")] = None,
-    frequency: Annotated[Literal["daily", "weekly", "monthly", "yearly"], Field(description="The unit between occurrences")] = "monthly",
+    frequency: Annotated[
+        Literal["daily", "weekly", "monthly", "yearly"], Field(description="The unit between occurrences")
+    ] = "monthly",
     every: Annotated[int, Field(ge=1, le=366, description="Every N units: 2 with weekly is fortnightly")] = 1,
-    start_date: Annotated[date | None, Field(description="First occurrence, YYYY-MM-DD; today when left out. Past dates are recorded right away")] = None,
+    start_date: Annotated[
+        date | None,
+        Field(description="First occurrence, YYYY-MM-DD; today when left out. Past dates are recorded right away"),
+    ] = None,
     end_date: Annotated[date | None, Field(description="Last possible occurrence; none when left out")] = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
     postings: Annotated[
         list[PostingIn] | None,
-        Field(min_length=2, description="Instead of from, to and amount: a split over several accounts, like record_split (debits must equal credits)"),
+        Field(
+            min_length=2,
+            description="Instead of from, to and amount: a split over several accounts, like record_split (debits must equal credits)",
+        ),
     ] = None,
 ) -> dict[str, Any]:
     """Set up a transaction that finode records by itself on a schedule (rent, salary, a subscription).
@@ -516,9 +547,13 @@ def create_recurring(
             if any(v is not None for v in (amount, from_account, to_account)):
                 raise ToolError("give either from_account, to_account and amount, or postings, not both!")
             source = target = None
-            shape = {"postings": [p.model_dump() | {"account": index.find(p.account, postable=True).account.aid} for p in postings]}
+            shape: dict[str, Any] = {
+                "postings": [
+                    p.model_dump() | {"account": index.find(p.account, postable=True).account.aid} for p in postings
+                ]
+            }
         else:
-            if None in (amount, from_account, to_account):
+            if amount is None or from_account is None or to_account is None:
                 raise ToolError("give from_account, to_account and amount, or postings!")
             source = index.find(from_account, postable=True)
             target = index.find(to_account, postable=True)
@@ -536,12 +571,17 @@ def create_recurring(
         )
         s.recurring.process_due()
         rule = s.recurring.read(created.rid)
+        if rule is None:
+            raise ToolError("the recurring transaction was not saved")
         what = (
             {"from": source.path, "to": target.path, "amount": text(rule.amount)}
-            if source is not None
-            else {"postings": [
-                {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)} for p in rule.postings
-            ]}
+            if source is not None and target is not None
+            else {
+                "postings": [
+                    {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)}
+                    for p in rule.postings
+                ]
+            }
         )
         return {
             "created": {
@@ -563,7 +603,9 @@ def stop_recurring(
         try:
             rid = UUID(recurring_id.strip())
         except ValueError:
-            raise ToolError(f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!")
+            raise ToolError(
+                f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
+            ) from None
         rule = s.recurring.set_active(rid, False)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
@@ -580,11 +622,15 @@ def skip_recurring_occurrence(
         try:
             rid = UUID(recurring_id.strip())
         except ValueError:
-            raise ToolError(f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!")
+            raise ToolError(
+                f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
+            ) from None
         before = s.recurring.read(rid)
         if before is None:
             raise ToolError("no recurring transaction has that id!")
         rule = s.recurring.skip_next(rid)
+        if rule is None:
+            raise ToolError("no recurring transaction has that id!")
         return {
             "skipped": before.next_date.isoformat(),
             "next_due": rule.next_date.isoformat() if rule.active else None,
@@ -614,7 +660,7 @@ def _month(value: str | None) -> date | None:
     try:
         return date.fromisoformat(value + "-01") if len(value.strip()) == 7 else date.fromisoformat(value.strip())
     except ValueError:
-        raise ToolError(f"'{value}' is not a month: use YYYY-MM!")
+        raise ToolError(f"'{value}' is not a month: use YYYY-MM!") from None
 
 
 def _category(index: AccountIndex, text: str):
@@ -638,7 +684,12 @@ def _budget(data) -> dict[str, Any]:
                 "money_in_accounts": text(data.money_in_accounts),
                 "reserved_for_card_bills": text(data.reserved_for_cards),
                 "credit_cards": [
-                    {"card": c.path, "to_pay": text(c.owed), "charged_this_month": text(c.charged), "paid_this_month": text(c.paid)}
+                    {
+                        "card": c.path,
+                        "to_pay": text(c.owed),
+                        "charged_this_month": text(c.charged),
+                        "paid_this_month": text(c.paid),
+                    }
                     for c in data.cards
                 ],
             }
@@ -686,7 +737,9 @@ def _budget(data) -> dict[str, Any]:
             else {}
         ),
         **(
-            {"note_accounts": "No account is part of the budget yet: the user switches 'Part of the budget' on for an account."}
+            {
+                "note_accounts": "No account is part of the budget yet: the user switches 'Part of the budget' on for an account."
+            }
             if not data.budget_accounts
             else {}
         ),
@@ -694,7 +747,9 @@ def _budget(data) -> dict[str, Any]:
 
 
 @_tool_errors
-def get_budget(month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None) -> dict[str, Any]:
+def get_budget(
+    month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
+) -> dict[str, Any]:
     """The envelope budget for a month: what is still ready to assign, and for each expense category what
     was assigned this month, what was spent and what is available (leftovers carry over; a category overspent last month starts at zero and that amount was already taken out of ready to assign).
     Groups sum their subcategories."""
@@ -705,7 +760,9 @@ def get_budget(month: Annotated[str | None, Field(description="YYYY-MM; this mon
 @_tool_errors
 def assign_to_category(
     category: Annotated[str, Field(description="An expense account, e.g. Groceries or Expenses:Food:Groceries")],
-    amount: Annotated[Decimal, Field(ge=0, description="The month's total for the category (replaces what was assigned; 0 clears it)")],
+    amount: Annotated[
+        Decimal, Field(ge=0, description="The month's total for the category (replaces what was assigned; 0 clears it)")
+    ],
     month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
 ) -> dict[str, Any]:
     """Give money a job: set how much of a month is assigned to a category. This is a plan only; no transaction
@@ -727,7 +784,12 @@ def _goal(s, name: str):
 @_tool_errors
 def assign_to_goal(
     goal: Annotated[str, Field(description="The goal's name, e.g. Emergency fund (see `goals` in get_budget)")],
-    amount: Annotated[Decimal, Field(description="The month's total set aside for the goal (replaces it; 0 clears it; negative takes back what was saved before)")],
+    amount: Annotated[
+        Decimal,
+        Field(
+            description="The month's total set aside for the goal (replaces it; 0 clears it; negative takes back what was saved before)"
+        ),
+    ],
     month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
 ) -> dict[str, Any]:
     """Set money aside for a goal in a month. This is a plan only; no transaction is recorded. It lowers what is
@@ -782,7 +844,7 @@ def check_books(as_of: str | None = None) -> dict[str, Any]:
     try:
         day = date.fromisoformat(as_of) if as_of else None
     except ValueError:
-        raise ToolError(f"'{as_of}' is not a date: use YYYY-MM-DD!")
+        raise ToolError(f"'{as_of}' is not a date: use YYYY-MM-DD!") from None
     with services() as s:
         trial = s.reports.trial_balance(day)
         return {
@@ -793,7 +855,8 @@ def check_books(as_of: str | None = None) -> dict[str, Any]:
             "total_debit": text(trial.debit),
             "total_credit": text(trial.credit),
             "accounts": [
-                {"account": line.account, "debit": text(line.debit), "credit": text(line.credit)} for line in trial.lines
+                {"account": line.account, "debit": text(line.debit), "credit": text(line.credit)}
+                for line in trial.lines
             ],
         }
 
@@ -803,19 +866,20 @@ def list_deleted_transactions() -> dict[str, Any]:
     """Transactions that were deleted and can still be brought back, newest deletion first (up to 50). Use the
     `deleted_id` with restore_transaction."""
     with services() as s:
-        index = _index(s)
         rows = []
         for h in s.transactions.restorable():
             total = sum((p.amount for p in h.postings if p.side == PostingSide.DEBIT), Decimal(0))
-            rows.append({
-                "deleted_id": str(h.hid),
-                "transaction_id": str(h.transaction),
-                "deleted_at": h.at.isoformat(),
-                "date": h.date.isoformat(),
-                "payee": h.payee,
-                "note": h.comment,
-                "total": text(total),
-            })
+            rows.append(
+                {
+                    "deleted_id": str(h.hid),
+                    "transaction_id": str(h.transaction),
+                    "deleted_at": h.at.isoformat(),
+                    "date": h.date.isoformat(),
+                    "payee": h.payee,
+                    "note": h.comment,
+                    "total": text(total),
+                }
+            )
         return {"deleted": rows}
 
 
@@ -828,12 +892,14 @@ def restore_transaction(
     try:
         hid = UUID(deleted_id.strip())
     except ValueError:
-        raise ToolError(f"'{deleted_id}' is not a deleted-transaction id: use the deleted_id from list_deleted_transactions!")
+        raise ToolError(
+            f"'{deleted_id}' is not a deleted-transaction id: use the deleted_id from list_deleted_transactions!"
+        ) from None
     with services() as s:
         try:
             restored = s.transactions.restore(hid)
         except LookupError:
-            raise ToolError("no deleted transaction has that id!")
+            raise ToolError("no deleted transaction has that id!") from None
         return {"restored": _transaction(restored, _index(s), s)}
 
 
@@ -847,7 +913,9 @@ def resume_recurring(
         try:
             rid = UUID(recurring_id.strip())
         except ValueError:
-            raise ToolError(f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!")
+            raise ToolError(
+                f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
+            ) from None
         rule = s.recurring.set_active(rid, True)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
@@ -866,7 +934,9 @@ def create_goal(
     name: Annotated[str, Field(description="What it is for, e.g. Emergency fund (at most 80 characters)")],
     amount: Annotated[Decimal, Field(gt=0, description="How much to save in all")],
     by: Annotated[str, Field(description="The month it is needed by, YYYY-MM; after this month")],
-    set_aside_now: Annotated[bool, Field(description="Also set aside this month's share (it lowers ready to assign)")] = False,
+    set_aside_now: Annotated[
+        bool, Field(description="Also set aside this month's share (it lowers ready to assign)")
+    ] = False,
 ) -> dict[str, Any]:
     """Create a savings goal. Goals are listed under `goals` in get_budget."""
     with services() as s:
@@ -885,11 +955,14 @@ def update_goal(
         current = _goal(s, goal)
         if name is None and amount is None and by is None:
             raise ToolError("nothing to change: pass a name, amount or by!")
-        return _budget(s.budget.update_goal(
-            current.gid, name if name is not None else current.name,
-            amount if amount is not None else current.amount,
-            _goal_month(by) if by else current.target_date,
-        ))
+        return _budget(
+            s.budget.update_goal(
+                current.gid,
+                name if name is not None else current.name,
+                amount if amount is not None else current.amount,
+                _goal_month(by) if by else current.target_date,
+            )
+        )
 
 
 @_tool_errors
@@ -902,8 +975,16 @@ def delete_goal(goal: Annotated[str, Field(description="The goal's name")]) -> d
 
 
 READ_TOOLS = [
-    get_overview, list_accounts, get_account, search_transactions, get_transaction, spending_breakdown,
-    list_recurring, check_books, get_budget, list_deleted_transactions,
+    get_overview,
+    list_accounts,
+    get_account,
+    search_transactions,
+    get_transaction,
+    spending_breakdown,
+    list_recurring,
+    check_books,
+    get_budget,
+    list_deleted_transactions,
 ]
 WRITE_TOOLS = [
     (record_transaction, WRITE),

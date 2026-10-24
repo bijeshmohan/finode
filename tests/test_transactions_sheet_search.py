@@ -1,7 +1,7 @@
 """Searching and filtering the transactions list, the details sheet that opens from a row, and "add again"."""
 
 import re
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 
@@ -24,9 +24,17 @@ def books(client, root_accounts):
 
 
 def post(client, payee, debit, credit, amount="10", **extra):
-    response = client.post("/api/transactions/", json={"payee": payee, "postings": [
-        {"account": debit["aid"], "side": "debit", "amount": amount},
-        {"account": credit["aid"], "side": "credit", "amount": amount}], **extra})
+    response = client.post(
+        "/api/transactions/",
+        json={
+            "payee": payee,
+            "postings": [
+                {"account": debit["aid"], "side": "debit", "amount": amount},
+                {"account": credit["aid"], "side": "credit", "amount": amount},
+            ],
+            **extra,
+        },
+    )
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -99,7 +107,9 @@ def test_the_category_and_the_merchant_narrow_the_list_together_with_the_account
     post(client, "dmart", books["groceries"], books["cash"], "310")  # the same shop, another account and spelling
     assert set(titles(page(client, category=books["groceries"]["aid"]))) == {"DMart", "dmart"}
     assert set(titles(page(client, merchant="DMART"))) == {"DMart", "dmart"}, "the payee, capitals aside"
-    assert titles(page(client, merchant="DMart", account=books["cash"]["aid"])) == ["dmart"], "account and merchant both"
+    assert titles(page(client, merchant="DMart", account=books["cash"]["aid"])) == ["dmart"], (
+        "account and merchant both"
+    )
     assert titles(page(client, category=books["delivery"]["aid"], merchant="DMart")) == [], "nothing is both"
 
 
@@ -113,19 +123,21 @@ def test_a_filter_says_how_many_match_and_what_they_come_to(client, books, ledge
 
 def test_each_filter_shows_its_value_with_a_way_to_remove_it(client, books, ledger):
     html = page(client, category=books["groceries"]["aid"], merchant="DMart")
-    applied = html[html.index('class="tx-applied"'):].split("</p>")[0]
+    applied = html[html.index('class="tx-applied"') :].split("</p>")[0]
     assert "Groceries" in applied and "DMart" in applied and "Filter · 2" in html
     removal = re.findall(r'href="([^"]*)"', applied)
-    assert any("merchant" not in h and "category" in h for h in removal) and any("category" not in h and "merchant" in h for h in removal)
+    assert any("merchant" not in h and "category" in h for h in removal) and any(
+        "category" not in h and "merchant" in h for h in removal
+    )
 
 
 def test_the_sheet_lists_the_choices(client, books, ledger):
     html = page(client)
-    sheet = html[html.index('id="tx-filter"'):html.index("</dialog>")]
+    sheet = html[html.index('id="tx-filter"') : html.index("</dialog>")]
     assert 'data-filter-list="account"' in sheet and "HDFC" in sheet and "Regalia Gold" in sheet
     assert 'data-filter-list="category"' in sheet and "Groceries" in sheet and "Salary" in sheet
     assert 'data-filter-list="merchant"' in sheet and "Swiggy" in sheet and "DMart" in sheet
-    accounts = sheet[sheet.index('data-filter-list="account"'):sheet.index('data-filter-list="category"')]
+    accounts = sheet[sheet.index('data-filter-list="account"') : sheet.index('data-filter-list="category"')]
     assert "Groceries" not in accounts, "categories are not accounts here"
 
 
@@ -147,7 +159,9 @@ def test_the_sheet_shows_the_entry(client, books, ledger):
     assert "Swiggy" in text and "597.00" in text and "−597.00" not in text, "an ordinary expense has no minus"
     assert "Paid from Regalia Gold" in text and "Spent on Delivery" in text
     assert "Note" not in text and "Added" not in text, "no empty note row, and nothing about who the app or API is"
-    assert "weekly shop" in flat(sheet(client, ledger["dmart"])) and "Note weekly shop" in flat(sheet(client, ledger["dmart"]))
+    assert "weekly shop" in flat(sheet(client, ledger["dmart"])) and "Note weekly shop" in flat(
+        sheet(client, ledger["dmart"])
+    )
 
 
 def test_a_date_is_not_said_twice(client, books, ledger):
@@ -172,10 +186,17 @@ def test_the_note_is_shown_and_escaped(client, books):
 
 
 def test_a_split_lists_every_account_with_its_amount(client, books):
-    tx = client.post("/api/transactions/", json={"payee": "Big shop", "postings": [
-        {"account": books["groceries"]["aid"], "side": "debit", "amount": "600"},
-        {"account": books["delivery"]["aid"], "side": "debit", "amount": "300"},
-        {"account": books["hdfc"]["aid"], "side": "credit", "amount": "900"}]}).json()
+    tx = client.post(
+        "/api/transactions/",
+        json={
+            "payee": "Big shop",
+            "postings": [
+                {"account": books["groceries"]["aid"], "side": "debit", "amount": "600"},
+                {"account": books["delivery"]["aid"], "side": "debit", "amount": "300"},
+                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "900"},
+            ],
+        },
+    ).json()
     text = flat(sheet(client, tx))
     assert "Groceries 600.00" in text and "Delivery 300.00" in text and "900.00" in text and "−900.00" not in text
 
@@ -184,7 +205,9 @@ def test_the_sheet_offers_edit_add_again_and_delete(client, books, ledger):
     html = sheet(client, ledger["dmart"])
     assert f'href="/transactions/{ledger["dmart"]["tid"]}/edit"' in html
     assert f'href="/transactions/new?repeat={ledger["dmart"]["tid"]}"' in html
-    assert f'hx-post="/transactions/{ledger["dmart"]["tid"]}/delete"' in html and "hx-confirm" not in html, "undo replaces the confirmation"
+    assert f'hx-post="/transactions/{ledger["dmart"]["tid"]}/delete"' in html and "hx-confirm" not in html, (
+        "undo replaces the confirmation"
+    )
 
 
 def test_a_missing_entry_has_no_sheet(client, books, ledger):
@@ -212,12 +235,24 @@ def test_add_again_copies_the_entry_for_today(client, books, ledger):
 
 
 def test_add_again_keeps_every_row_of_a_split(client, books):
-    tx = client.post("/api/transactions/", json={"payee": "Big shop", "postings": [
-        {"account": books["groceries"]["aid"], "side": "debit", "amount": "600"},
-        {"account": books["delivery"]["aid"], "side": "debit", "amount": "300"},
-        {"account": books["hdfc"]["aid"], "side": "credit", "amount": "900"}]}).json()
+    tx = client.post(
+        "/api/transactions/",
+        json={
+            "payee": "Big shop",
+            "postings": [
+                {"account": books["groceries"]["aid"], "side": "debit", "amount": "600"},
+                {"account": books["delivery"]["aid"], "side": "debit", "amount": "300"},
+                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "900"},
+            ],
+        },
+    ).json()
     html = client.get("/transactions/new", params={"repeat": tx["tid"]}).text
-    assert html.count('name="side" value="debit"') >= 2 and 'value="600.00"' in html and 'value="300.00"' in html and 'value="900.00"' in html
+    assert (
+        html.count('name="side" value="debit"') >= 2
+        and 'value="600.00"' in html
+        and 'value="300.00"' in html
+        and 'value="900.00"' in html
+    )
 
 
 def test_add_again_of_a_missing_entry(client, books):
@@ -245,11 +280,19 @@ def test_only_an_assistant_or_a_rule_is_named_above_the_buttons(client, session,
 
 
 def test_the_sheet_leads_like_the_row_and_offers_words_not_glyphs(client, books, ledger):
-    entry = client.post("/api/transactions/", json={"postings": [
-        {"account": books["groceries"]["aid"], "side": "debit", "amount": "70"},
-        {"account": books["cash"]["aid"], "side": "credit", "amount": "70"}]}).json()
+    entry = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["groceries"]["aid"], "side": "debit", "amount": "70"},
+                {"account": books["cash"]["aid"], "side": "credit", "amount": "70"},
+            ]
+        },
+    ).json()
     sheet = client.get(f"/transactions/{entry['tid']}/sheet").text
-    assert "No payee" not in sheet and "<h2>Groceries</h2>" in sheet, "the title is where the money went, as in the list"
+    assert "No payee" not in sheet and "<h2>Groceries</h2>" in sheet, (
+        "the title is where the money went, as in the list"
+    )
     links = sheet.split('class="sheet-links"', 1)[1]
     assert ">Repeat</a>" in links and ">Related</a>" in links and "Delete" in links and "circ-button" not in sheet
     assert 'class="tx tx-system"' in page(client), "an opening balance is the quiet kind of row"

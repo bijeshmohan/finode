@@ -5,17 +5,17 @@ Revises: 8b1f3c2d9a40
 Create Date: 2026-10-05 00:00:00.000000
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '9c2d4e6f1a51'
-down_revision: Union[str, Sequence[str], None] = '8b1f3c2d9a40'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "9c2d4e6f1a51"
+down_revision: str | Sequence[str] | None = "8b1f3c2d9a40"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 COLUMNS = (
     "max_depth_assets",

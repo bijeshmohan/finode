@@ -5,8 +5,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from .test_backup import as_user, OTHER
 from .conftest import TEST_USER_ID
+from .test_backup import OTHER, as_user
 
 
 def _make(client: TestClient, name: str, parent: str):
@@ -21,7 +21,10 @@ def test_every_type_stops_at_two_levels(client: TestClient, root_accounts, root)
     assert level2.status_code == 201
     refused = _make(client, "Three", level2.json()["aid"])
     assert refused.status_code == 400
-    assert "at most two levels deep" in refused.json()["detail"] and "category and a subcategory" in refused.json()["detail"]
+    assert (
+        "at most two levels deep" in refused.json()["detail"]
+        and "category and a subcategory" in refused.json()["detail"]
+    )
 
 
 def test_there_is_no_depth_setting_any_more(client: TestClient):
@@ -52,7 +55,12 @@ def test_import_refuses_a_third_level(client: TestClient):
     errors = response.json()["errors"]
     assert errors and "Expenses:Food:Dining:Takeaway" in errors[0] and "at most 2 levels deep" in errors[0]
     fine = "2026-01-01 x\n    Expenses:Food:Dining  5\n    Assets:Cash\n"
-    assert client.post("/api/import", files={"file": ("a.ledger", fine.encode())}, params={"dry_run": "true"}).json()["errors"] == []
+    assert (
+        client.post("/api/import", files={"file": ("a.ledger", fine.encode())}, params={"dry_run": "true"}).json()[
+            "errors"
+        ]
+        == []
+    )
 
 
 def test_a_restore_refuses_a_third_level_and_ignores_old_limits(client: TestClient, root_accounts):
@@ -61,14 +69,19 @@ def test_a_restore_refuses_a_third_level_and_ignores_old_limits(client: TestClie
     doc = client.get("/api/backup").json()
     assert not [k for k in doc["profile"] if "depth" in k]
     deep = json.loads(json.dumps(doc))
-    deep["accounts"].append({"id": "00000000-0000-4000-8000-0000000000d3", "parent_id": dining["aid"], "name": "Takeaway"})
+    deep["accounts"].append(
+        {"id": "00000000-0000-4000-8000-0000000000d3", "parent_id": dining["aid"], "name": "Takeaway"}
+    )
     old = json.loads(json.dumps(doc))
     old["profile"]["max_depth_expenses"] = 1  # what an older backup carries
     try:
         as_user(OTHER)
         refused = client.post("/api/restore", files={"file": ("b.json", json.dumps(deep), "application/json")})
         assert refused.status_code == 400 and "at most 2 levels deep" in str(refused.json())
-        assert client.post("/api/restore", files={"file": ("b.json", json.dumps(old), "application/json")}).status_code == 200
+        assert (
+            client.post("/api/restore", files={"file": ("b.json", json.dumps(old), "application/json")}).status_code
+            == 200
+        )
     finally:
         as_user(TEST_USER_ID)
 

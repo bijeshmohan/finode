@@ -21,7 +21,6 @@ from app.web_auth import (
     SessionTokens,
 )
 
-
 CODE = "a-long-enough-invite-code"
 SERVICE_KEY = "sb_secret_test_key"
 FORM = {
@@ -33,7 +32,7 @@ FORM = {
 
 
 @pytest.fixture
-def raw_client(session: Session) -> Generator[TestClient, None, None]:
+def raw_client(session: Session) -> Generator[TestClient]:
     app.dependency_overrides[get_db_session] = lambda: session
     with TestClient(app, follow_redirects=False) as c:
         yield c
@@ -51,9 +50,7 @@ def signup_on(monkeypatch: pytest.MonkeyPatch):
 def supabase(monkeypatch: pytest.MonkeyPatch):
     """Record calls to Supabase; every call succeeds unless a test overrides it."""
     calls = {"create_user": [], "sign_in": []}
-    monkeypatch.setattr(
-        web_auth_router, "create_user", lambda email, password: calls["create_user"].append(email)
-    )
+    monkeypatch.setattr(web_auth_router, "create_user", lambda email, password: calls["create_user"].append(email))
 
     def fake_sign_in(email, password):
         calls["sign_in"].append(email)
@@ -135,9 +132,7 @@ def test_failed_signup_keeps_email_but_not_secrets(raw_client: TestClient, signu
         (AuthUnavailableError("down"), 503, "currently unavailable"),
     ],
 )
-def test_signup_supabase_failures(
-    raw_client: TestClient, signup_on, supabase, monkeypatch, error, status, message
-):
+def test_signup_supabase_failures(raw_client: TestClient, signup_on, supabase, monkeypatch, error, status, message):
     def fail(email, password):
         raise error
 

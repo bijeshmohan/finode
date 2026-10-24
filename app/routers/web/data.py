@@ -10,7 +10,6 @@ from ...templating import templates
 from ..data import backup_response, export_response, read_backup, read_upload
 from .utils import htmx_redirect
 
-
 router = APIRouter()
 
 

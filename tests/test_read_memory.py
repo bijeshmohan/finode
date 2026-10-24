@@ -14,7 +14,9 @@ from .svc import services
 
 def count(session):
     n = {"queries": 0}
-    event.listen(session.get_bind(), "before_cursor_execute", lambda *a, **k: n.__setitem__("queries", n["queries"] + 1))
+    event.listen(
+        session.get_bind(), "before_cursor_execute", lambda *a, **k: n.__setitem__("queries", n["queries"] + 1)
+    )
     return n
 
 

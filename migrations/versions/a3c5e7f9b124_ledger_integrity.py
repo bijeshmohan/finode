@@ -5,27 +5,29 @@ Revises: f1a3c5e7b892
 Create Date: 2026-10-08 00:00:00.000000
 
 """
+
+from collections.abc import Sequence
 from decimal import Decimal
-from typing import Sequence, Union
 from uuid import uuid4
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'a3c5e7f9b124'
-down_revision: Union[str, Sequence[str], None] = 'f1a3c5e7b892'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "a3c5e7f9b124"
+down_revision: str | Sequence[str] | None = "f1a3c5e7b892"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    bad = op.get_bind().execute(
-        sa.text(
-            "SELECT count(*) FROM postings WHERE amount <= 0 OR value <= 0 OR side NOT IN ('DEBIT', 'CREDIT')"
+    bad = (
+        op.get_bind()
+        .execute(
+            sa.text("SELECT count(*) FROM postings WHERE amount <= 0 OR value <= 0 OR side NOT IN ('DEBIT', 'CREDIT')")
         )
-    ).scalar()
+        .scalar()
+    )
     if bad:
         raise RuntimeError(f"{bad} posting(s) are not positive or have an unknown side: fix them before migrating")
     with op.batch_alter_table("postings") as batch:

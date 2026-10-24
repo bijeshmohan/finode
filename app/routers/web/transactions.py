@@ -1,17 +1,18 @@
-from dataclasses import dataclass
 import calendar
+from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Annotated
 from urllib.parse import urlencode, urlparse
 from uuid import UUID
-
-from typing import Annotated
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import ValidationError
 
+from ...clock import local_today
 from ...dependencies import Accounts, Recurring, Transactions
 from ...models.transaction import PostingSide
+from ...repositories.transaction import SYSTEM_PAYEES
 from ...schemas import AccountRead
 from ...schemas.transaction import (
     PostingCreate,
@@ -19,14 +20,11 @@ from ...schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
-from ...repositories.transaction import SYSTEM_PAYEES
 from ...templating import templates
 from .accounts import build_tree, posting_groups
 from .budget import parse_month
 from .categories import _month_context
 from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
-from ...clock import local_today
-
 
 router = APIRouter(prefix="/transactions")
 
@@ -42,10 +40,14 @@ def _more(params: dict, shown: int, total: int, step: int, size: int) -> dict | 
     left = total - shown
     if left <= 0:
         return None
-    return {"url": "/transactions/more?" + urlencode({**params, "offset": shown, "size": size}), "n": min(step, left), "left": left}
+    return {
+        "url": "/transactions/more?" + urlencode({**params, "offset": shown, "size": size}),
+        "n": min(step, left),
+        "left": left,
+    }
 
 
-def _applied(filters: dict, index: "AccountIndex", rest: dict) -> list[dict]:
+def _applied(filters: dict, index: AccountIndex, rest: dict) -> list[dict]:
     """What is filtered, each with the page's own address without it (the ✕ beside it)."""
     out = []
     for key, label in (("account", "Account"), ("category", "Category"), ("merchant", "Merchant")):
@@ -61,7 +63,7 @@ def _applied(filters: dict, index: "AccountIndex", rest: dict) -> list[dict]:
     return out
 
 
-def _summary(found: list, index: "AccountIndex") -> dict:
+def _summary(found: list, index: AccountIndex) -> dict:
     """How many entries match and, when they all go one way, what they come to."""
     rows = [to_row(t, index) for t in found]
     kinds = {r.kind for r in rows}
@@ -71,7 +73,8 @@ def _summary(found: list, index: "AccountIndex") -> dict:
 
 def _filter_options(all_accounts, transactions) -> dict:
     """The choices behind the Filter sheet: accounts (assets, liabilities, equity), categories (expenses, income), payees."""
-    accounts, categories = [], []
+    accounts: list[dict] = []
+    categories: list[dict] = []
     for root in build_tree(all_accounts):
         target = categories if root.account.name in ("Expenses", "Income") else accounts
         parents: dict[int, str] = {}
@@ -99,13 +102,9 @@ class AccountIndex:
     roots: dict[UUID, str]
 
     @classmethod
-    def build(cls, accounts: list[AccountRead]) -> "AccountIndex":
+    def build(cls, accounts: list[AccountRead]) -> AccountIndex:
         names = {a.aid: a.name for a in accounts}
-        roots = {
-            node.account.aid: root.account.name
-            for root in build_tree(accounts)
-            for node in root.walk()
-        }
+        roots = {node.account.aid: root.account.name for root in build_tree(accounts) for node in root.walk()}
         return cls(names, roots)
 
 
@@ -119,9 +118,7 @@ def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
         return found
 
     def touches(root: str, side: PostingSide) -> bool:
-        return any(
-            p.side == side and index.roots.get(p.account) == root for p in transaction.postings
-        )
+        return any(p.side == side and index.roots.get(p.account) == root for p in transaction.postings)
 
     if touches("Expenses", PostingSide.DEBIT):
         kind = "expense"
@@ -189,11 +186,31 @@ def transactions_page(
         also = UUID(category) if category else None
         who = merchant.strip() or None
         # With a filter set the whole match is read (it is one month), so the line above the list can say what it comes to.
-        everything = transactions.list(
-            UUID(account) if account else None, first, min(last, today) if last else today, None, 0, q, KIND_FILTERS.get(kind), also, who,
-        ) if (account or category or who) else None
+        everything = (
+            transactions.list(
+                UUID(account) if account else None,
+                first,
+                min(last, today) if last else today,
+                None,
+                0,
+                q,
+                KIND_FILTERS.get(kind),
+                also,
+                who,
+            )
+            if (account or category or who)
+            else None
+        )
         chunk, total = transactions.page(
-            0, PAGE_SIZE, UUID(account) if account else None, first, min(last, today) if last else today, q, KIND_FILTERS.get(kind), also, who,
+            0,
+            PAGE_SIZE,
+            UUID(account) if account else None,
+            first,
+            min(last, today) if last else today,
+            q,
+            KIND_FILTERS.get(kind),
+            also,
+            who,
         )
         if last is None or last > today:
             ahead = transactions.list(
@@ -209,17 +226,29 @@ def transactions_page(
             )
             for t in sorted(ahead, key=lambda t: (t.date, t.created)):
                 r = to_row(t, index)
-                upcoming.append(UpcomingItem(
-                    t.tid, t.date, t.payee or ", ".join(r.debits), f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}" if t.payee else ", ".join(r.credits),
-                    r.amount, r.kind == "income",
-                ))
+                upcoming.append(
+                    UpcomingItem(
+                        t.tid,
+                        t.date,
+                        t.payee or ", ".join(r.debits),
+                        f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}" if t.payee else ", ".join(r.credits),
+                        r.amount,
+                        r.kind == "income",
+                    )
+                )
     except ValueError as e:
         error = f"Invalid filter: {e}"
         chunk, total = [], 0
         everything = None
     rows = [to_row(t, index) for t in chunk]
 
-    filters = {"account": account, "category": category, "merchant": merchant.strip(), "date_from": date_from, "date_to": date_to}
+    filters = {
+        "account": account,
+        "category": category,
+        "merchant": merchant.strip(),
+        "date_from": date_from,
+        "date_to": date_to,
+    }
     query = {k: v for k, v in filters.items() if v}
     summary = _summary(everything, index) if everything is not None else None
     options = _filter_options(all_accounts, transactions)
@@ -232,25 +261,46 @@ def transactions_page(
         {
             "active": "transactions",
             **_month_context(when, is_current),
-            "keep": "".join(f"&{urlencode({k: v})}" for k, v in {**query, **({"kind": kind} if kind else {}), **({"q": q.strip()} if q.strip() else {})}.items()),
+            "keep": "".join(
+                f"&{urlencode({k: v})}"
+                for k, v in {
+                    **query,
+                    **({"kind": kind} if kind else {}),
+                    **({"q": q.strip()} if q.strip() else {}),
+                }.items()
+            ),
             "currency": accounts.currency().code,
             "rows": rows,
             "upcoming": upcoming,
             # What the schedule comes to; left out when something coming in is mixed with what is going out.
-            "upcoming_total": sum((r.amount for r in upcoming), 0) if upcoming and not any(r.income for r in upcoming) else None,
+            "upcoming_total": sum((r.amount for r in upcoming), 0)
+            if upcoming and not any(r.income for r in upcoming)
+            else None,
             "error": error,
             "filters": filters,
             "active_filters": len(query),
             "summary": summary,
             "total": total,
-            "applied": _applied(filters, index, {"month": when.strftime("%Y-%m"), **({"q": q.strip()} if q.strip() else {}), **({"kind": kind} if kind else {})}),
+            "applied": _applied(
+                filters,
+                index,
+                {
+                    "month": when.strftime("%Y-%m"),
+                    **({"q": q.strip()} if q.strip() else {}),
+                    **({"kind": kind} if kind else {}),
+                },
+            ),
             "options": options,
             "q": q.strip(),
             "kind": kind,
             "searching": bool(q.strip() or kind or query),
             "roots": build_tree(all_accounts),
             "more": _more(
-                {**shown, "scope": "list"}, len(rows), total, PAGE_SIZE, PAGE_SIZE,
+                {**shown, "scope": "list"},
+                len(rows),
+                total,
+                PAGE_SIZE,
+                PAGE_SIZE,
             ),
         },
     )
@@ -289,16 +339,34 @@ def more_transactions(
             first, last = when, when.replace(day=calendar.monthrange(when.year, when.month)[1])
         kind = KIND_FILTERS.get(kind, "")
         chunk, total = transactions.page(
-            offset, size, UUID(account) if account else None, first, min(last, today) if last else today, q, kind or None,
-            UUID(category) if category else None, merchant.strip() or None,
+            offset,
+            size,
+            UUID(account) if account else None,
+            first,
+            min(last, today) if last else today,
+            q,
+            kind or None,
+            UUID(category) if category else None,
+            merchant.strip() or None,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     index = AccountIndex.build(accounts.list())
-    params = {k: v for k, v in {
-        "scope": scope, "month": when.strftime("%Y-%m"), "account": account, "category": category, "merchant": merchant.strip(),
-        "date_from": date_from, "date_to": date_to, "q": q.strip(), "kind": kind,
-    }.items() if v}
+    params = {
+        k: v
+        for k, v in {
+            "scope": scope,
+            "month": when.strftime("%Y-%m"),
+            "account": account,
+            "category": category,
+            "merchant": merchant.strip(),
+            "date_from": date_from,
+            "date_to": date_to,
+            "q": q.strip(),
+            "kind": kind,
+        }.items()
+        if v
+    }
     step = HOME_MORE if scope == "home" else PAGE_SIZE
     return templates.TemplateResponse(
         request,
@@ -335,8 +403,12 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
             "back": safe_back(back, ""),  # the page to return to after Edit, Repeat or Related (an account's page, say)
             "from_label": labels[0],
             "to_label": labels[1],
-            "from_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
-            "to_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.DEBIT],
+            "from_postings": [
+                (names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT
+            ],
+            "to_postings": [
+                (names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.DEBIT
+            ],
             "related_to": related_info(transactions, index, transaction.related_id),
             "related": [to_row(r, index) for r in transactions.related(tid)],
         },
@@ -350,7 +422,9 @@ def _here(request: Request) -> str:
 
 
 @router.post("/{tid}/delete")
-def delete_transaction(request: Request, tid: UUID, transactions: Transactions, back: str = "", sheet: Annotated[str, Form()] = ""):
+def delete_transaction(
+    request: Request, tid: UUID, transactions: Transactions, back: str = "", sheet: Annotated[str, Form()] = ""
+):
     try:
         transactions.delete(tid)
     except ValueError as e:
@@ -390,7 +464,13 @@ NOT_PAGES = ("/api", "/mcp", "/static", "/.well-known", "/docs", "/openapi.json"
 
 def safe_back(value: str | None, default: str = "/transactions") -> str:
     """Only follow return paths inside the app (never another host)."""
-    if value and value.startswith("/") and not value.startswith("//") and "\\" not in value and not value.startswith(NOT_PAGES):
+    if (
+        value
+        and value.startswith("/")
+        and not value.startswith("//")
+        and "\\" not in value
+        and not value.startswith(NOT_PAGES)
+    ):
         return value
     return default
 
@@ -434,7 +514,7 @@ def split_postings(account: list[str], side: list[str], amount: list[str]) -> li
     if not (len(account) == len(side) == len(amount)):
         raise ValueError("every posting needs an account, a side and an amount!")
     postings = []
-    for account_id, posting_side, posting_amount in zip(account, side, amount):
+    for account_id, posting_side, posting_amount in zip(account, side, amount, strict=False):
         if not account_id and not posting_amount.strip():
             continue  # untouched blank row
         if not account_id:
@@ -488,14 +568,23 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
         credits = [p for p in t.postings if p.side == PostingSide.CREDIT]
         debits = [p for p in t.postings if p.side == PostingSide.DEBIT]
         simple = (
-            len(credits) == 1 and len(debits) == 1
-            and credits[0].account in usable and debits[0].account in usable
-            and "Equity" not in (index.roots.get(credits[0].account), index.roots.get(debits[0].account))  # opening balances are not a payee
+            len(credits) == 1
+            and len(debits) == 1
+            and credits[0].account in usable
+            and debits[0].account in usable
+            and "Equity"
+            not in (
+                index.roots.get(credits[0].account),
+                index.roots.get(debits[0].account),
+            )  # opening balances are not a payee
         )
         payee = (t.payee or "").strip()
         if not payee or not simple:
             continue
-        entry = seen.setdefault(payee.lower(), {"payee": payee, "count": 0, "route": (credits[0].account, debits[0].account), "order": position})
+        entry = seen.setdefault(
+            payee.lower(),
+            {"payee": payee, "count": 0, "route": (credits[0].account, debits[0].account), "order": position},
+        )
         entry["count"] += 1  # the first one seen is the newest: its route is the one repeated
     habits = []
     for key, entry in seen.items():
@@ -503,14 +592,23 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
             continue
         from_id, to_id = entry["route"]
         roots = index.roots
-        habits.append((
-            0 if wanted and key == wanted else 1 if key.startswith(wanted) else 2, -entry["count"], entry["order"],
-            PayeeHabit(
-                payee=entry["payee"], count=entry["count"], from_id=from_id, to_id=to_id,
-                kind=infer_kind([_P(from_id, PostingSide.CREDIT), _P(to_id, PostingSide.DEBIT)], roots),
-                from_name=index.names.get(from_id, "?"), to_name=index.names.get(to_id, "?"), exact=bool(wanted) and key == wanted,
-            ),
-        ))
+        habits.append(
+            (
+                0 if wanted and key == wanted else 1 if key.startswith(wanted) else 2,
+                -entry["count"],
+                entry["order"],
+                PayeeHabit(
+                    payee=entry["payee"],
+                    count=entry["count"],
+                    from_id=from_id,
+                    to_id=to_id,
+                    kind=infer_kind([_P(from_id, PostingSide.CREDIT), _P(to_id, PostingSide.DEBIT)], roots),
+                    from_name=index.names.get(from_id, "?"),
+                    to_name=index.names.get(to_id, "?"),
+                    exact=bool(wanted) and key == wanted,
+                ),
+            )
+        )
     habits.sort(key=lambda h: h[:3])
     return [h[3] for h in habits[:limit]]
 
@@ -546,7 +644,14 @@ def parse_related(value: str) -> UUID | None:
 
 
 @router.get("/related-picker")
-def related_picker(request: Request, accounts: Accounts, transactions: Transactions, q: str = "", exclude: UUID | None = None, results: str = ""):
+def related_picker(
+    request: Request,
+    accounts: Accounts,
+    transactions: Transactions,
+    q: str = "",
+    exclude: UUID | None = None,
+    results: str = "",
+):
     """The sheet that lists earlier entries to relate a new one to: the newest first, narrowed by what is typed."""
     index = AccountIndex.build(accounts.list())
     found = transactions.list(text=q, limit=RELATED_PICKER_LIMIT + 1, date_to=local_today())
@@ -606,7 +711,7 @@ def new_transaction_page(
             raise HTTPException(status_code=404, detail="transaction not found")
     from_id = to_id = None
     roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
-    kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account), "expense")
+    kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account, ""), "expense")
     if account is not None:
         # From an expense category the money arrives there; from anything else it leaves.
         if roots_of.get(account) == "Expenses":
@@ -634,9 +739,9 @@ def new_transaction_page(
 @router.post("/split")
 def create_split_transaction(
     transactions: Transactions,
-    account: Annotated[list[str], Form()] = [],
-    side: Annotated[list[str], Form()] = [],
-    amount: Annotated[list[str], Form()] = [],
+    account: Annotated[list[str] | None, Form()] = None,
+    side: Annotated[list[str] | None, Form()] = None,
+    amount: Annotated[list[str] | None, Form()] = None,
     date_: Annotated[str, Form(alias="date")] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
@@ -644,6 +749,7 @@ def create_split_transaction(
     another: Annotated[str, Form()] = "",
     related: Annotated[str, Form()] = "",
 ):
+    account, side, amount = account or [], side or [], amount or []
     try:
         made = transactions.create(
             TransactionCreate(
@@ -695,7 +801,16 @@ def edit_transaction_page(
     )
 
 
-def _update(transactions: Transactions, tid: UUID, date_: str, payee: str, comment: str, postings_fn, back: str, related: str = ""):
+def _update(
+    transactions: Transactions,
+    tid: UUID,
+    date_: str,
+    payee: str,
+    comment: str,
+    postings_fn,
+    back: str,
+    related: str = "",
+):
     try:
         transactions.update(
             tid,
@@ -711,7 +826,7 @@ def _update(transactions: Transactions, tid: UUID, date_: str, payee: str, comme
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         if "not found" in str(e) and f"'{tid}'" in str(e):
-            raise HTTPException(status_code=404, detail="transaction not found")
+            raise HTTPException(status_code=404, detail="transaction not found") from None
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(safe_back(back), flash="transaction-updated")
 
@@ -721,14 +836,15 @@ def update_transaction(
     tid: UUID,
     transactions: Transactions,
     date_: Annotated[str, Form(alias="date")] = "",
-    account: Annotated[list[str], Form()] = [],
-    side: Annotated[list[str], Form()] = [],
-    amount: Annotated[list[str], Form()] = [],
+    account: Annotated[list[str] | None, Form()] = None,
+    side: Annotated[list[str] | None, Form()] = None,
+    amount: Annotated[list[str] | None, Form()] = None,
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     back: Annotated[str, Form()] = "",
     related: Annotated[str, Form()] = "",
 ):
+    account, side, amount = account or [], side or [], amount or []
     return _update(
         transactions,
         tid,

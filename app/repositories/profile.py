@@ -18,7 +18,9 @@ class ProfileRepository:
 
     def read(self) -> Profile | None:
         return remembered(
-            self.db, ("profile", self.uid), lambda: self.db.exec(select(Profile).where(Profile.user == self.uid)).first()
+            self.db,
+            ("profile", self.uid),
+            lambda: self.db.exec(select(Profile).where(Profile.user == self.uid)).first(),
         )
 
     def currency(self) -> str:

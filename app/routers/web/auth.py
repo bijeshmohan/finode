@@ -2,15 +2,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
-
 from sqlmodel import Session, func, select
 
 from ...config import settings
-from ...flash import set_flash
-from ...reset import PasswordRejectedError, ResetLinkInvalidError, reset_password, send_reset_email
-from ...ratelimit import attempts, minutes
 from ...dependencies import get_db_session
+from ...flash import set_flash
 from ...models.profile import Profile
+from ...ratelimit import attempts, minutes
+from ...reset import PasswordRejectedError, ResetLinkInvalidError, reset_password, send_reset_email
 from ...signup import (
     EmailAlreadyRegisteredError,
     RateLimitedError,
@@ -27,7 +26,6 @@ from ...web_auth import (
     set_auth_cookies,
     sign_in,
 )
-
 
 router = APIRouter()
 
@@ -87,9 +85,9 @@ def login(
         error, status_code = "Sign-in is currently unavailable. Please try again later.", 503
     else:
         attempts.reset(keys[1])
-        response = RedirectResponse(safe_next(next) or "/", status_code=303)
-        set_auth_cookies(response, tokens)
-        return response
+        redirect = RedirectResponse(safe_next(next) or "/", status_code=303)
+        set_auth_cookies(redirect, tokens)
+        return redirect
     return templates.TemplateResponse(
         request, "login.html", _login_context(request, error, email, next), status_code=status_code
     )
@@ -139,7 +137,10 @@ def signup(
     wait = attempts.retry_after(key, settings.signup_attempts, _window())
     if wait:
         response = _signup_form(
-            request, f"Too many attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}.", email, 429
+            request,
+            f"Too many attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}.",
+            email,
+            429,
         )
         response.headers["Retry-After"] = str(wait)
         return response
@@ -155,9 +156,7 @@ def signup(
     if not email or "@" not in email:
         return _signup_form(request, "Enter a valid email address.", email, 400)
     if len(password) < MIN_PASSWORD_LENGTH:
-        return _signup_form(
-            request, f"Password must be at least {MIN_PASSWORD_LENGTH} characters.", email, 400
-        )
+        return _signup_form(request, f"Password must be at least {MIN_PASSWORD_LENGTH} characters.", email, 400)
     if password != confirm_password:
         return _signup_form(request, "Passwords do not match.", email, 400)
 
@@ -170,13 +169,11 @@ def signup(
     except RateLimitedError:
         return _signup_form(request, "Too many attempts. Please try again later.", email, 429)
     except AuthUnavailableError:
-        return _signup_form(
-            request, "Sign-up is currently unavailable. Please try again later.", email, 503
-        )
+        return _signup_form(request, "Sign-up is currently unavailable. Please try again later.", email, 503)
 
     try:
         tokens = sign_in(email, password)
-    except (InvalidCredentialsError, AuthUnavailableError):
+    except InvalidCredentialsError, AuthUnavailableError:
         return RedirectResponse("/login?created=1", status_code=303)
     response = RedirectResponse("/", status_code=303)
     set_auth_cookies(response, tokens)
@@ -198,7 +195,9 @@ def _require_reset_enabled() -> None:
         raise HTTPException(status_code=404, detail="Not Found")
 
 
-def _forgot_form(request: Request, error: str | None = None, email: str = "", sent: bool = False, status_code: int = 200):
+def _forgot_form(
+    request: Request, error: str | None = None, email: str = "", sent: bool = False, status_code: int = 200
+):
     return templates.TemplateResponse(
         request, "forgot.html", {"error": error, "email": email, "sent": sent}, status_code=status_code
     )
@@ -219,7 +218,9 @@ def forgot(request: Request, email: Annotated[str, Form()] = ""):
     if any(waits):
         wait = max(w for w in waits if w)
         response = _forgot_form(
-            request, f"Too many attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}.", email,
+            request,
+            f"Too many attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}.",
+            email,
             status_code=429,
         )
         response.headers["Retry-After"] = str(wait)
@@ -231,7 +232,9 @@ def forgot(request: Request, email: Annotated[str, Form()] = ""):
     try:
         send_reset_email(email)
     except AuthUnavailableError:
-        return _forgot_form(request, "Could not send the email right now. Please try again later.", email, status_code=503)
+        return _forgot_form(
+            request, "Could not send the email right now. Please try again later.", email, status_code=503
+        )
     # The same answer whether or not the address has an account, so this cannot be used to find out who does.
     return _forgot_form(request, email=email, sent=True)
 
@@ -261,7 +264,12 @@ def reset(
     key = f"reset-link:ip:{_client(request)}"
     wait = attempts.retry_after(key, settings.reset_attempts * 2, _window())
     if wait:
-        response = _reset_form(request, token_hash, f"Too many attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}.", 429)
+        response = _reset_form(
+            request,
+            token_hash,
+            f"Too many attempts. Try again in {minutes(wait)} minute{'s' if minutes(wait) != 1 else ''}.",
+            429,
+        )
         response.headers["Retry-After"] = str(wait)
         return response
     if len(password) < MIN_PASSWORD_LENGTH:

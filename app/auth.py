@@ -5,12 +5,11 @@ from typing import Any
 from uuid import UUID
 
 import jwt
-from jwt import PyJWKClient
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt import PyJWKClient
 
 from .config import settings
-
 
 bearer_scheme = HTTPBearer(auto_error=False)
 SUPPORTED_JWT_ALGORITHMS = ("RS256", "ES256")
@@ -55,7 +54,7 @@ def verify_supabase_jwt(token: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid authentication token",
-        )
+        ) from None
 
     algorithm = header.get("alg")
     if algorithm not in SUPPORTED_JWT_ALGORITHMS:
@@ -78,32 +77,32 @@ def verify_supabase_jwt(token: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="authentication token has expired",
-        )
+        ) from None
     except jwt.ImmatureSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="authentication token is not active",
-        )
+        ) from None
     except jwt.InvalidAudienceError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid authentication token audience",
-        )
+        ) from None
     except jwt.InvalidIssuerError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid authentication token issuer",
-        )
+        ) from None
     except jwt.MissingRequiredClaimError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid authentication token",
-        )
+        ) from None
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid authentication token",
-        )
+        ) from None
 
     if not payload.get("sub"):
         raise HTTPException(
@@ -146,7 +145,7 @@ def require_authenticated_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid authentication token subject",
-        )
+        ) from None
 
     return CurrentUser(
         id=user_id,

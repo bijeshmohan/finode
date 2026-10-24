@@ -6,10 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
-from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, ClosedAccount, DeletedAccount, RegisterEntry
 from ..limits import LimitReached
+from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, ClosedAccount, DeletedAccount, RegisterEntry
 from ..services.account import AccountInUseError, SystemAccountError
-
 
 router = APIRouter(
     prefix="/accounts",
@@ -24,7 +23,7 @@ def create_account(account: AccountCreate, accounts: Accounts):
     try:
         return accounts.create(account)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.get("/closed", response_model=list[ClosedAccount])
@@ -46,9 +45,9 @@ def restore_deleted_account(did: UUID, accounts: Accounts):
     try:
         return accounts.restore_deleted(did)
     except LookupError:
-        raise HTTPException(status_code=404, detail="deleted account not found")
+        raise HTTPException(status_code=404, detail="deleted account not found") from None
     except (ValueError, LimitReached) as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.get("/{aid}", response_model=AccountRead, status_code=200)
@@ -78,8 +77,8 @@ def update_account(aid: UUID, data: AccountUpdate, accounts: Accounts):
     except ValueError as e:
         msg = str(e)
         if "not found" in msg:
-            raise HTTPException(status_code=404, detail="account not found")
-        raise HTTPException(status_code=400, detail=msg)
+            raise HTTPException(status_code=404, detail="account not found") from None
+        raise HTTPException(status_code=400, detail=msg) from None
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
     return account
@@ -91,11 +90,11 @@ def delete_account(aid: UUID, accounts: Accounts):
     try:
         account = accounts.delete(aid)
     except AccountInUseError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from None
     except SystemAccountError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError:
-        raise HTTPException(status_code=404, detail="account not found")
+        raise HTTPException(status_code=404, detail="account not found") from None
     if not account:
         raise HTTPException(status_code=404, detail="account not found")
     return {"message": "account deleted successfully"}
@@ -105,11 +104,11 @@ def _closing(action, aid: UUID):
     try:
         return action(aid)
     except AccountInUseError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from None
     except ValueError as e:
         if "not found" in str(e):
-            raise HTTPException(status_code=404, detail="account not found")
-        raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=404, detail="account not found") from None
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.post("/{aid}/close", response_model=AccountRead, status_code=200)
