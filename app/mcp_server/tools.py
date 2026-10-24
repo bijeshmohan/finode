@@ -45,12 +45,15 @@ finode is the user's personal double-entry ledger.
   them, create_recurring sets one up (finode then records each occurrence by itself, so do not also
   record the same payment by hand; give postings instead of from/to/amount for a split), stop_recurring
   pauses one and skip_recurring_occurrence leaves out just the next occurrence.
+- A refund, reversal or cash-back can be linked to the earlier transaction with related_to (its id); it is a link
+  only and changes no amount. Deleted transactions can be listed (list_deleted_transactions) and brought back
+  (restore_transaction); resume_recurring restarts a paused recurring transaction.
 - Dates are YYYY-MM-DD; today's date is used when you leave the date out. Balances count entries
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
   expense category's assigned, spent and available amounts (goals, money being saved for something by a month, are listed
   under `goals`, not in `categories`, and are not counted in assigned/spent/available_total); assign_to_category plans a month's money and
-  move_budget_money shifts it between categories; assign_to_goal sets money aside for a goal and use_goal hands what a goal saved to a
+  move_budget_money shifts it between categories; create_goal, update_goal and delete_goal manage goals; assign_to_goal sets money aside for a goal and use_goal hands what a goal saved to a
   category that paid for something. These only change the plan, never the ledger, and the
   user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
 - check_books confirms that debits equal credits in every transaction and overall; use it when the
@@ -112,6 +115,7 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
             }
             for p in t.postings
         ],
+        "related_to": str(t.related_id) if t.related_id else None,
         "created_via": _via(t.created_via),
         "updated_via": _via(t.updated_via),
     }
@@ -125,6 +129,10 @@ def _via(origin: str | None) -> str | None:
 
 def _index(s: Services) -> AccountIndex:
     return AccountIndex(s.accounts.list())
+
+
+def _related_id(value: str | None) -> UUID | None:
+    return _transaction_id(value) if value and value.strip() else None
 
 
 def _transaction_id(value: str) -> UUID:
@@ -253,7 +261,12 @@ def get_transaction(transaction_id: Annotated[str, Field(description="Id from se
         t = s.transactions.read(_transaction_id(transaction_id))
         if t is None:
             raise ToolError("transaction not found")
-        return _transaction(t, _index(s), s)
+        index = _index(s)
+        found = _transaction(t, index, s)
+        found["related"] = [
+            {"id": str(r.tid), "date": r.date.isoformat(), "payee": r.payee} for r in s.transactions.related(t.tid)
+        ]
+        return found
 
 
 @_tool_errors
@@ -326,6 +339,9 @@ def record_transaction(
     date: OptionalDate = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
+    related_to: Annotated[
+        str | None, Field(description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions")
+    ] = None,
 ) -> dict[str, Any]:
     """Record money moving from one account to another: spending, income or a transfer."""
     with services() as s:
@@ -339,6 +355,7 @@ def record_transaction(
                 payee=(payee or "").strip() or None,
                 comment=(note or "").strip() or None,
                 postings=postings,
+                related_id=_related_id(related_to),
             )
         )
         return {"recorded": _transaction(saved, index, s)}
@@ -369,6 +386,9 @@ def record_split(
     date: OptionalDate = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
+    related_to: Annotated[
+        str | None, Field(description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions")
+    ] = None,
 ) -> dict[str, Any]:
     """Record a transaction with several rows, e.g. a bill split across categories or a salary
     with deductions. Debits must equal credits."""
@@ -380,6 +400,7 @@ def record_split(
                 payee=(payee or "").strip() or None,
                 comment=(note or "").strip() or None,
                 postings=_postings(index, postings),
+                related_id=_related_id(related_to),
             )
         )
         return {"recorded": _transaction(saved, index, s)}
@@ -393,6 +414,9 @@ def update_transaction(
     note: Annotated[str | None, Field(max_length=200, description="New note; an empty string clears it")] = None,
     postings: Annotated[
         list[PostingIn] | None, Field(description="All the rows again, replacing the old ones; leave out to keep them")
+    ] = None,
+    related_to: Annotated[
+        str | None, Field(description="Id of an earlier transaction this one is related to; an empty string removes the link")
     ] = None,
 ) -> dict[str, Any]:
     """Change a transaction. Only what you pass changes."""
@@ -410,8 +434,10 @@ def update_transaction(
             changes["comment"] = note.strip() or None
         if postings is not None:
             changes["postings"] = _postings(index, postings)
+        if related_to is not None:
+            changes["related_id"] = _related_id(related_to)
         if not changes:
-            raise ToolError("nothing to change: pass a date, payee, note or postings!")
+            raise ToolError("nothing to change: pass a date, payee, note, postings or related_to!")
         saved = s.transactions.update(tid, TransactionUpdate(**changes))
         return {"updated": _transaction(saved, index, s)}
 
@@ -772,9 +798,112 @@ def check_books(as_of: str | None = None) -> dict[str, Any]:
         }
 
 
+@_tool_errors
+def list_deleted_transactions() -> dict[str, Any]:
+    """Transactions that were deleted and can still be brought back, newest deletion first (up to 50). Use the
+    `deleted_id` with restore_transaction."""
+    with services() as s:
+        index = _index(s)
+        rows = []
+        for h in s.transactions.restorable():
+            total = sum((p.amount for p in h.postings if p.side == PostingSide.DEBIT), Decimal(0))
+            rows.append({
+                "deleted_id": str(h.hid),
+                "transaction_id": str(h.transaction),
+                "deleted_at": h.at.isoformat(),
+                "date": h.date.isoformat(),
+                "payee": h.payee,
+                "note": h.comment,
+                "total": text(total),
+            })
+        return {"deleted": rows}
+
+
+@_tool_errors
+def restore_transaction(
+    deleted_id: Annotated[str, Field(description="The deleted_id from list_deleted_transactions")],
+) -> dict[str, Any]:
+    """Bring a deleted transaction back as it was. It returns as an ordinary entry (a link to a recurring rule or to a
+    related entry is not restored)."""
+    try:
+        hid = UUID(deleted_id.strip())
+    except ValueError:
+        raise ToolError(f"'{deleted_id}' is not a deleted-transaction id: use the deleted_id from list_deleted_transactions!")
+    with services() as s:
+        try:
+            restored = s.transactions.restore(hid)
+        except LookupError:
+            raise ToolError("no deleted transaction has that id!")
+        return {"restored": _transaction(restored, _index(s), s)}
+
+
+@_tool_errors
+def resume_recurring(
+    recurring_id: Annotated[str, Field(description="The id from list_recurring")],
+) -> dict[str, Any]:
+    """Resume a paused recurring transaction. What fell due while it was paused is not recorded late; it carries on
+    from the next occurrence."""
+    with services() as s:
+        try:
+            rid = UUID(recurring_id.strip())
+        except ValueError:
+            raise ToolError(f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!")
+        rule = s.recurring.set_active(rid, True)
+        if rule is None:
+            raise ToolError("no recurring transaction has that id!")
+        return {"resumed": str(rule.rid), "next_due": rule.next_date.isoformat() if rule.active else None}
+
+
+def _goal_month(value: str) -> date:
+    month = _month(value)
+    if month is None:
+        raise ToolError("pass the month the goal is needed by, YYYY-MM!")
+    return month
+
+
+@_tool_errors
+def create_goal(
+    name: Annotated[str, Field(description="What it is for, e.g. Emergency fund (at most 80 characters)")],
+    amount: Annotated[Decimal, Field(gt=0, description="How much to save in all")],
+    by: Annotated[str, Field(description="The month it is needed by, YYYY-MM; after this month")],
+    set_aside_now: Annotated[bool, Field(description="Also set aside this month's share (it lowers ready to assign)")] = False,
+) -> dict[str, Any]:
+    """Create a savings goal. Goals are listed under `goals` in get_budget."""
+    with services() as s:
+        return _budget(s.budget.create_goal(name, amount, _goal_month(by), set_aside_now))
+
+
+@_tool_errors
+def update_goal(
+    goal: Annotated[str, Field(description="The goal's current name")],
+    name: Annotated[str | None, Field(description="New name; leave out to keep it")] = None,
+    amount: Annotated[Decimal | None, Field(gt=0, description="New target amount; leave out to keep it")] = None,
+    by: Annotated[str | None, Field(description="New month it is needed by, YYYY-MM; leave out to keep it")] = None,
+) -> dict[str, Any]:
+    """Change a goal's name, target amount or month. What is saved in it stays."""
+    with services() as s:
+        current = _goal(s, goal)
+        if name is None and amount is None and by is None:
+            raise ToolError("nothing to change: pass a name, amount or by!")
+        return _budget(s.budget.update_goal(
+            current.gid, name if name is not None else current.name,
+            amount if amount is not None else current.amount,
+            _goal_month(by) if by else current.target_date,
+        ))
+
+
+@_tool_errors
+def delete_goal(goal: Annotated[str, Field(description="The goal's name")]) -> dict[str, Any]:
+    """Delete a goal for good: what was saved in it goes back to ready to assign. Ask the user to confirm first."""
+    with services() as s:
+        found = _goal(s, goal)
+        s.budget.delete_goal(found.gid)
+        return {"deleted": found.name, "returned_to_ready_to_assign": text(found.available)}
+
+
 READ_TOOLS = [
     get_overview, list_accounts, get_account, search_transactions, get_transaction, spending_breakdown,
-    list_recurring, check_books, get_budget,
+    list_recurring, check_books, get_budget, list_deleted_transactions,
 ]
 WRITE_TOOLS = [
     (record_transaction, WRITE),
@@ -785,6 +914,11 @@ WRITE_TOOLS = [
     (create_recurring, WRITE),
     (stop_recurring, IDEMPOTENT_WRITE),
     (skip_recurring_occurrence, WRITE),
+    (resume_recurring, IDEMPOTENT_WRITE),
+    (restore_transaction, WRITE),
+    (create_goal, WRITE),
+    (update_goal, IDEMPOTENT_WRITE),
+    (delete_goal, DESTRUCTIVE),
     (assign_to_category, IDEMPOTENT_WRITE),
     (assign_to_goal, IDEMPOTENT_WRITE),
     (use_goal, WRITE),
