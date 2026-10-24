@@ -36,7 +36,7 @@
       <button type="button" class="link" data-related-clear aria-label="Remove the link">✕</button>
     </div>
     <button type="button" class="add-row related-add" data-related-add{% if related %} hidden{% endif %}
-            hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.tid if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">+ Related to an earlier entry</button>
+            hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.tid if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">{{ icon("link") }} Related transaction</button>
   </div>
 
   <p id="form-error" class="error" role="alert"></p>

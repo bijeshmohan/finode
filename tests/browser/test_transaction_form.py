@@ -295,8 +295,10 @@ def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, book
 def test_the_allocation_status_groups_rupees_in_lakhs(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "1500000")
-    page.fill('[data-rows="debit"] [name="amount"]', "500000")
-    expect(page.locator('[data-status="debit"]')).to_contain_text("15,00,000.00 INR allocated")
+    page.fill('[data-rows="debit"] [name="amount"]', "2000000")
+    expect(page.locator('[data-status="debit"]')).to_contain_text("5,00,000.00 INR over")
+    page.fill('[data-rows="debit"] [name="amount"]', "1500000")
+    expect(page.locator('[data-status="debit"]')).to_have_text("")  # balanced: nothing is said
     assert page.evaluate("document.documentElement.dataset.grouping") == "indian"
 
 
