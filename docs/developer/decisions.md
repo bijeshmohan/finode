@@ -92,10 +92,10 @@ The decisions that look odd until you know the reason. Each entry says what was 
 **Decision.** A personal access token or an OAuth app token only works on `/mcp`; a normal sign-in token is refused there; an app's token is refused by the JSON API and web UI.
 **Why.** Connecting an assistant must never hand it the ability to act as a full sign-in (changing the password, minting tokens, deleting the account).
 
-## The Advanced switch
+## No Advanced switch (removed 2026-10-24)
 
-**Decision.** Rarely used features (budget targets, week-by-week, move up/down, closing accounts, the period lock) hide behind `profiles.advanced`; new profiles start with it off.
-**Why.** The default experience stays minimal. Hiding never touches the data, so turning it on again shows everything, and the API and assistants keep working.
+**Decision.** There was a switch (`profiles.advanced`) that hid rarely used features. It is gone: the features it hid (budget targets, since removed too, move up/down, closing accounts, the period lock) are either removed or always available in the place they belong.
+**Why.** With targets gone only two small features were left behind a whole page and a setting. A rarely used feature should live in a menu or a row, not behind a switch.
 
 ## Typed columns for settings
 

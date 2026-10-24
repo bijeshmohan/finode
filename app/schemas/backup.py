@@ -27,7 +27,7 @@ class BackupProfile(BaseModel):
     max_depth_income: int = Field(default=0, exclude=True)
     max_depth_expenses: int = Field(default=0, exclude=True)
     locked_through: Day | None = None
-    advanced: bool = False
+    advanced: bool = Field(default=False, exclude=True)  # the Advanced switch was removed (2026-10-24): read, never written
 
 
 class BackupAccount(BaseModel):

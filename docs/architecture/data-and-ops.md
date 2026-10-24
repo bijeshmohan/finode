@@ -22,7 +22,7 @@ erDiagram
 
 | Table | Holds |
 |---|---|
-| `profiles` | one row per person: names, currency, the Advanced switch, the period lock. Per-person settings are typed columns here, not a key-value store. |
+| `profiles` | one row per person: names, currency, the period lock. Per-person settings are typed columns here, not a key-value store. |
 | `accounts` | the account tree (parent, `on_budget`, `closed_on`, `payment_category_id`, `position`, note) |
 | `transactions`, `postings` | the ledger (see [The ledger](ledger.md)) |
 | `transaction_history` | append-only snapshots after every create, update and delete |

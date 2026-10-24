@@ -30,8 +30,8 @@ def test_there_is_no_depth_setting_any_more(client: TestClient):
     client.patch("/api/profile/", json={"max_depth_expenses": 1})  # an old client: ignored
     food = _make(client, "Food", client.get("/api/accounts/").json()[0]["aid"]).json()
     assert food["parent_id"]
-    advanced = client.get("/settings/advanced").text
-    assert 'id="depth"' not in advanced and "Account depth" not in advanced
+    settings_page = client.get("/settings").text
+    assert 'id="depth"' not in settings_page and "Account depth" not in settings_page
     assert client.post("/settings/depth", data={"max_depth_expenses": "1"}).status_code in (404, 405)
 
 

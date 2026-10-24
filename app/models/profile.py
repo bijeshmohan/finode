@@ -1,7 +1,6 @@
 from datetime import date as Date
 from uuid import UUID
 
-from sqlalchemy import false
 from sqlmodel import Field
 
 from .utils import TimestampMixin
@@ -18,5 +17,3 @@ class Profile(TimestampMixin, table=True):
     currency: str = Field(default="INR", max_length=3, sa_column_kwargs={"server_default": "INR"})
     # Period lock: nothing dated on or before this day can be added, changed or deleted (see services/lock.py).
     locked_through: Date | None = Field(default=None)
-    # Show the rarely used features (targets, lock, pinning, closing...). Off hides them, never the data.
-    advanced: bool = Field(default=False, sa_column_kwargs={"server_default": false()})

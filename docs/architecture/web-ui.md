@@ -26,7 +26,6 @@ flowchart LR
     Accounts["/accounts"] --> Acc["/accounts/{id}"]
     Cats["/categories"] --> Cat["/categories/{id}"]
     Settings["/settings"] --> Rec["/recurring"]
-    Settings --> Adv["/settings/advanced"]
     Settings --> Prof["/profile"]
     Prof --> Ass["/profile/assistants"]
     Prof --> Dat["/profile/data"]
@@ -51,7 +50,7 @@ Pages work without scripts where they can: rows are links to detail or edit page
 - **Bento tiles.** Rows are grouped into soft rounded tiles (a tile per day in transaction lists, per group on Accounts and Budget). One rule block at the end of `style.css` defines them; new lists should reuse it.
 - **Tokens only.** Colours come from the CSS variables at the top of `style.css`; the light theme, the automatic dark block and the manual `data-theme="dark"` block must define the same tokens (a test compares them). Green and red are for money in and out only.
 - **The `back` path.** Forms that can be opened from several places take a `back` path and return there; always pass it through `safe_back`, which only allows local paths of the web UI.
-- **The Advanced switch.** Rarely used features (move up/down, closing accounts, the period lock) hide behind `profiles.advanced`. The data is never touched.
+- **No Advanced switch (removed 2026-10-24).** Ordering and closing accounts are always in an account's menu and the period lock is a row under Your data; the `profiles.advanced` column is dropped (migration `a9b1c3d5e7f2`).
 - **Amount fields.** Every `input[inputmode="decimal"]` is cleaned as it is typed (`cleanAmount` in `app.js`): digits, one decimal point, a leading minus. The server still decides how many decimals are allowed.
 - **Indian grouping.** For INR the whole part is grouped as lakhs and crores (`12,34,567.00`); other currencies in thousands. `templating.money` follows the person's currency automatically.
 - **Signs.** Ordinary spending shows no minus; income is `+` and green; a real negative keeps its `−` in red. On an account's own page, what raises an asset or pays into a liability is green with a `+`.

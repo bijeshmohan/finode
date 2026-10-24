@@ -39,12 +39,11 @@
       <a class="circ-button" href="/accounts/{{ account.aid }}/edit" title="Edit" aria-label="Edit {{ account.name }}">{{ icon("edit") }}</a>
       {% endif %}
       {% if has_menu %}
-      {# An asset or liability account with entries, with Advanced off, has nothing to offer here: no empty menu. #}
-      {% set menu_items = (category and root.account.name == "Expenses")
+            {% set menu_items = (category and root.account.name == "Expenses")
           or (can_add_child and not account.closed_on)
-          or (advanced and node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand))
+          or (node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand))
           or (node.kind == "user" and category)
-          or (node.kind == "user" and not category and (advanced or account.closed_on)) %}
+          or (node.kind == "user" and not category) %}
       {% if menu_items %}
       <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
@@ -53,7 +52,7 @@
         {% if can_add_child and not account.closed_on %}
         <a href="{{ '/categories/new' if category else '/accounts/new' }}?parent={{ account.aid }}">{{ icon("plus") }}{{ "Add subcategory" if category else "Add sub-account" }}</a>
         {% endif %}
-        {% if advanced and node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand) %}
+        {% if node.kind == "user" and (can_move_up or can_move_down or ordered_by_hand) %}
         <p class="menu-note">Listed {{ "in the order you chose" if ordered_by_hand else "alphabetically" }}{% if root.account.name == "Expenses" %}; the budget lists categories the same way{% endif %}.</p>
         {% if can_move_up %}<button type="button" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "up"}'>{{ icon("arrow-up") }}Move up</button>{% endif %}
         {% if can_move_down %}<button type="button" hx-post="/accounts/{{ account.aid }}/move" hx-vals='{"direction": "down"}'>{{ icon("arrow-down") }}Move down</button>{% endif %}
@@ -67,7 +66,7 @@
         <button type="button" class="danger-text" hx-post="/accounts/{{ account.aid }}/delete"
                 hx-confirm="Delete {{ account.name }}{% if node.children %} and the subcategories in it{% endif %}? If there are entries, they stay in your history and reports, but {{ 'these categories leave' if node.children else 'it leaves' }} your lists and pickers.">{{ icon("trash") }}Delete category</button>
         {% endif %}
-        {% elif node.kind == "user" and (advanced or account.closed_on) %}
+        {% elif node.kind == "user" %}
         {% if account.closed_on %}
         <p class="menu-note">Reopen {{ account.name }}{% if node.children %} and everything inside it{% endif %} to use {{ "them" if node.children else "it" }} again.</p>
         <button type="button" hx-post="/accounts/{{ account.aid }}/reopen">Reopen account</button>

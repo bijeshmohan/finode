@@ -158,7 +158,7 @@ def test_onboarding_ticks_off_steps_and_ignores_opening_balances(
             ]
         },
     )
-    assert "Get started" not in client.get("/").text
+    assert "Get started · 2 of 3" in client.get("/").text, "the card stays until the budget has a job for the money"
 
 
 def test_money_filter_groups_digits_and_uses_a_true_minus():
@@ -252,15 +252,13 @@ def test_the_month_pill_in_the_box_shows_another_month_and_never_a_future_one(
 
 
 def test_the_checklist_stays_on_home_after_the_first_entry_until_the_plan_is_used(client: TestClient, root_accounts, monkeypatch):
-    """New profiles (Advanced off) keep seeing the card until all three steps are done; people on Advanced never do."""
+    """Everybody keeps seeing the card until all three steps are done."""
     from app.repositories import profile
 
     bank = client.post("/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
     food = client.post("/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}).json()
     client.post("/api/transactions/", json={"postings": [
         {"account": food["aid"], "side": "debit", "amount": "5"}, {"account": bank["aid"], "side": "credit", "amount": "5"}]})
-    assert "Get started" not in client.get("/").text  # Advanced is on in the tests
-    client.patch("/api/profile/", json={"advanced": False})
     text = client.get("/").text
     assert "Get started · 2 of 3" in text and "Give your money a job</a>" in text
     assert "Open Budgets and set aside rent and food" in text

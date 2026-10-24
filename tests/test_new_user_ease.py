@@ -2,15 +2,12 @@
 
 import pytest
 
-from app.repositories import profile
-
 from .test_budget import account
 
 
 @pytest.fixture
-def new_person(monkeypatch):
-    """A person with a brand-new profile: Advanced off."""
-    monkeypatch.setattr(profile, "NEW_PROFILE_ADVANCED", False)
+def new_person():
+    """A person with a brand-new profile (every profile is the same now; the fixture is kept for the reading of the tests)."""
 
 
 def test_the_plan_welcomes_a_new_person_until_something_is_assigned(client, root_accounts, new_person):
@@ -21,10 +18,6 @@ def test_the_plan_welcomes_a_new_person_until_something_is_assigned(client, root
     text = client.get("/budget").text
     assert "Give every" in text and "Tap a category below" in text and "Start with your first category" not in text
     client.put(f"/api/budget/categories/{food['aid']}", json={"amount": "300"})
-    assert "Give every" not in client.get("/budget").text
-
-
-def test_people_on_advanced_do_not_get_the_welcome(client, root_accounts):
     assert "Give every" not in client.get("/budget").text
 
 
