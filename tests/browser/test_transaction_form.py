@@ -288,7 +288,10 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books,
     page.get_by_role("link", name="Related").click()
     expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy · 10 Oct · 1,000.00")
     expect(page.locator("[data-related-add]")).to_be_hidden()
+    assert page.input_value("#total") in ("", "0", "0.00") and page.input_value('input[name="payee"]') == "", "nothing is copied"
     page.fill("#total", "300")
+    page.select_option('[data-rows="credit"] select', label="Checking")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
     page.fill('input[name="payee"]', "Swiggy cash-back")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")

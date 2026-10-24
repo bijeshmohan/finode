@@ -93,12 +93,15 @@ def test_the_ledger_still_balances_with_links(client, account, expense_account):
     assert client.get("/api/reports/trial-balance").json()["balanced"]
 
 
-def test_add_related_opens_the_form_as_a_copy_with_the_link(client, account, expense_account):
+def test_related_opens_a_blank_form_with_the_link(client, account, expense_account):
     first = make(client, expense_account, account, "1000", "Swiggy")
     page = client.get("/transactions/new", params={"related": first["tid"]}).text
     assert f'name="related" value="{first["tid"]}"' in page
     assert "Related to" in page and "Swiggy · 10 Oct · 1,000.00" in page
-    assert 'value="Swiggy"' in page, "the payee is copied"
+    import re
+    assert not re.search(r'name="payee"[^>]*value="Swiggy"|value="Swiggy"[^>]*name="payee"', page), "nothing is copied from the original"
+    assert 'value="1000' not in page
+    assert client.get("/transactions/new", params={"related": "00000000-0000-4000-8000-0000000000aa"}).status_code == 404
     assert "data-related-chip" in page and "data-related-chip hidden" not in page
 
 
