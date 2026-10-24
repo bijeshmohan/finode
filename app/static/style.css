@@ -1441,3 +1441,19 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 .txn-swap .swap { position: absolute; left: 50%; top: -1.125rem; margin-left: -1.125rem; width: 2.25rem; height: 2.25rem; min-height: 0; min-width: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--surface); border: 1px solid var(--tile-border); color: var(--muted); }
 .txn-swap .swap .icon { width: 1.1rem; height: 1.1rem; }
 @media (hover: hover) { .txn-swap .swap:hover { color: var(--text); background: var(--surface-2); } }
+
+/* Expense / Income / Transfer: one pill glides to the chosen button (the form's data-txn-kind says which; "other" has none, so
+   the pill fades out). Transform and opacity only, so Safari on iOS and macOS animate it too (2026-10-24). */
+.segmented.kinds { position: relative; isolation: isolate; }
+.segmented.kinds::before {
+  content: ""; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px;
+  width: calc((100% - 6px - 8px) / 3); border-radius: 9px; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+  transform: translateX(0); opacity: 1;
+  transition: transform .28s cubic-bezier(.3, .7, .2, 1), opacity .18s ease;
+}
+form[data-txn-kind="income"] .segmented.kinds::before { transform: translateX(calc(100% + 4px)); }
+form[data-txn-kind="transfer"] .segmented.kinds::before { transform: translateX(calc(200% + 8px)); }
+form[data-txn-kind="other"] .segmented.kinds::before { opacity: 0; }
+.segmented.kinds button { position: relative; transition: color .2s ease; }
+.segmented.kinds button[aria-pressed="true"] { background: transparent; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .segmented.kinds::before, .segmented.kinds button { transition: none; } }
