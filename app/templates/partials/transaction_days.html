@@ -8,13 +8,13 @@
     <ul class="card list">
       {% for row in items %}
       {% set t = row.transaction %}
+      {% set system = "Opening Balances" in row.credits or "Opening Balances" in row.debits %}
       <li>
-        <a class="tx" href="/transactions/{{ t.tid }}/edit" hx-get="/transactions/{{ t.tid }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+        <a class="tx{{ " tx-system" if system }}" href="/transactions/{{ t.tid }}/edit" hx-get="/transactions/{{ t.tid }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
           <span class="tx-main">
             {#- No payee: the row leads with where the money went and says where it came from. -#}
             <span class="tx-title">{{ t.payee or row.debits|join(", ") }}</span>
             {#- An opening balance or an adjustment names just the account: the system's "Opening Balances" and the stock note say nothing. -#}
-            {% set system = "Opening Balances" in row.credits or "Opening Balances" in row.debits %}
             {% set note = "" if system and t.comment == "Initial account balance" else t.comment %}
             <span class="tx-sub">{% if system %}{{ (row.credits + row.debits)|reject("equalto", "Opening Balances")|join(", ") }}{% elif t.payee %}{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% else %}{{ row.credits|join(", ") }}{% endif %}{% if note %} · {{ note }}{% endif %}</span>
             {% if t.recurring_id or t.created_via == "recurring" %}<span class="tx-via">{{ icon("repeat") }}Recurring</span>{% endif %}

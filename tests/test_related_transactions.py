@@ -146,9 +146,9 @@ def test_both_sheets_show_the_link(client, account, expense_account):
     assert "Related to" in new_sheet and f"/transactions/{first['tid']}/sheet" in new_sheet and "1,000.00" in new_sheet
     old_sheet = client.get(f"/transactions/{first['tid']}/sheet").text
     assert "Related · 1" in old_sheet and f"/transactions/{second['tid']}/sheet" in old_sheet and "300.00" in old_sheet
-    assert f"/transactions/new?related={first['tid']}" in old_sheet and 'aria-label="Related"' in old_sheet
+    assert f"/transactions/new?related={first['tid']}" in old_sheet and ">Related</a>" in old_sheet
     plain = make(client, expense_account, account, "5", "Plain")
-    assert "Related" not in client.get(f"/transactions/{plain['tid']}/sheet").text.replace('aria-label="Related"', "").replace('title="Related"', "")
+    assert "sheet-related" not in client.get(f"/transactions/{plain['tid']}/sheet").text
 
 
 def test_the_picker_lists_earlier_entries_and_narrows_by_text(client, account, expense_account):

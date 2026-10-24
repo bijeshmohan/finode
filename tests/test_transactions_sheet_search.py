@@ -106,7 +106,7 @@ def test_the_category_and_the_merchant_narrow_the_list_together_with_the_account
 def test_a_filter_says_how_many_match_and_what_they_come_to(client, books, ledger):
     html = page(client, category=books["groceries"]["aid"])
     assert "<b>1</b> transaction" in html and "1,286.00 spent" in html
-    assert "All transactions" in page(client) and "transactions ·" not in page(client)
+    assert "All transactions" not in page(client) and "transactions ·" not in page(client), "no filter: a plain count"
     income = page(client, category=books["salary"]["aid"])
     assert "earned" in income
 
@@ -257,3 +257,14 @@ def test_only_an_assistant_or_a_rule_is_named_above_the_buttons(client, session,
     session.commit()
     html = sheet(client, ledger["swiggy"])
     assert 'href="/recurring"' in html and "Recurring" in flat(html) and "Added by" not in flat(html)
+
+
+def test_the_sheet_leads_like_the_row_and_offers_words_not_glyphs(client, books, ledger):
+    entry = client.post("/api/transactions/", json={"postings": [
+        {"account": books["groceries"]["aid"], "side": "debit", "amount": "70"},
+        {"account": books["cash"]["aid"], "side": "credit", "amount": "70"}]}).json()
+    sheet = client.get(f"/transactions/{entry['tid']}/sheet").text
+    assert "No payee" not in sheet and "<h2>Groceries</h2>" in sheet, "the title is where the money went, as in the list"
+    links = sheet.split('class="sheet-links"', 1)[1]
+    assert ">Repeat</a>" in links and ">Related</a>" in links and "Delete" in links and "circ-button" not in sheet
+    assert 'class="tx tx-system"' in page(client), "an opening balance is the quiet kind of row"

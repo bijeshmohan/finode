@@ -139,7 +139,7 @@ def test_transaction_amounts_use_colour_not_a_minus_sign(
 
 def test_the_filter_word_counts_what_is_set(client: TestClient, account: dict):
     closed = client.get("/transactions").text
-    assert "data-open-filter" in closed and "All transactions" in closed and 'class="tx-applied"' not in closed
+    assert "data-open-filter" in closed and "All transactions" not in closed and 'class="tx-applied"' not in closed
     opened = client.get("/transactions", params={"account": account["aid"], "date_from": "2026-01-01"}).text
     assert "Filter · 1" in opened and 'class="tx-applied"' in opened
     assert "Nothing matches." in listed(opened)
