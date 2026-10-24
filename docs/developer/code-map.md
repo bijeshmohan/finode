@@ -32,10 +32,10 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 
 | Folder | One line |
 |---|---|
-| `models/` | SQLModel tables: `account`, `transaction` (+ `Posting`), `transaction_history`, `account_deletion`, `budget` (allocations, targets), `recurring`, `profile`, `api_token`, `oauth_grant`, `auth` (mirror of Supabase `users`), `utils` (timestamps, the `Amount` column type) |
+| `models/` | SQLModel tables: `account`, `transaction` (+ `Posting`), `transaction_history`, `account_deletion`, `budget` (allocations, goals), `recurring`, `profile`, `api_token`, `oauth_grant`, `auth` (mirror of Supabase `users`), `utils` (timestamps, the `Amount` column type) |
 | `schemas/` | Pydantic shapes per entity: `*Base`, `*Create`, `*Read`, `*Update` |
 | `repositories/` | tenant-scoped queries; `transaction.py` also appends history |
-| `services/` | `account`, `transaction`, `budget`, `report`, `recurring` (+ `schedule`), `profile`, `lock`, `data`, `backup`, `erase`, `api_token`, `oauth_grant`, `simple`, `validation` |
+| `services/` | `account`, `transaction`, `budget`, `report`, `recurring` (+ `schedule`), `profile`, `data`, `backup`, `erase`, `api_token`, `oauth_grant`, `simple`, `validation` |
 | `routers/` | the JSON API (`/api`): `accounts`, `transactions`, `profile`, `recurring`, `budget`, `reports`, `data` |
 | `routers/web/` | the HTML pages, one module per area |
 | `mcp_server/` | `transport` (auth, rate limit), `tools`, `accounts` (name lookup), `context` |

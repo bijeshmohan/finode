@@ -26,10 +26,9 @@ flowchart LR
     Accounts["/accounts"] --> Acc["/accounts/{id}"]
     Cats["/categories"] --> Cat["/categories/{id}"]
     Settings["/settings"] --> Rec["/recurring"]
-    Settings --> Prof["/profile"]
-    Prof --> Ass["/profile/assistants"]
-    Prof --> Dat["/profile/data"]
-    Tx --> Del["/transactions/deleted"]
+    Settings --> Ass["/profile/assistants"]
+    Settings --> Dat["/profile/data"]
+    Settings --> Del["/accounts/deleted"]
 ```
 
 The bottom tab bar on phones is Home, Budgets, Accounts and Categories with the "+" docked in the middle (nothing floats over the page); from 60rem up a fixed sidebar replaces the bar. Transactions has no tab: it is reached from "View all" on Home and from the sidebar.
@@ -60,4 +59,4 @@ Pages work without scripts where they can: rows are links to detail or edit page
 
 Unit tests see only the server-rendered HTML (`tests/htmlutil.py` has small helpers). Anything that lives in `app.js` is tested in `tests/browser/` with Playwright, which starts the real app on a free port with an in-memory database. Run them with `scripts/browser-tests.sh`.
 
-Next: [MCP and authentication](mcp-and-auth.md).
+Next: [The design system](design.md).

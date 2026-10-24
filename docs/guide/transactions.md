@@ -30,7 +30,7 @@ Open a transaction and tap **Repeat** (under Edit) to start a new one pre-filled
 
 ### Related entries
 
-A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap the **Related** circle (a chain link): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **Related transaction** and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
+A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap **Related** (under Edit): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **Related transaction** and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
 
 Both entries show the link in their details sheet: the new one says "Related to" the original, the original lists what is related to it, and tapping either opens the other. A link is only a link: it changes no amounts, balances or budget, and deleting the original simply drops it.
 
@@ -51,12 +51,12 @@ An entry dated in the future (a loan instalment, a bill you entered ahead) is **
 
 ## Editing and deleting
 
-Open a row and tap **Edit**. The edit page also shows the entry's history. **Delete** removes it at once and the toast offers **Undo** for a few seconds (the entry also waits in Recently deleted).
+Open a row and tap **Edit**.  **Delete** removes it at once and the toast offers **Undo** for a few seconds (the entry also waits in Recently deleted).
 
 
 ### Recently deleted
 
-Deleted by accident? Open **Settings › Your data › Recently deleted** (it also lists accounts and categories): it lists what was deleted, newest first, each with **Restore**. A restored entry comes back with its old details (it is checked again, so a locked period or a closed account will stop it, and tell you why). Only the latest deletion of an entry can be restored, and a restored entry is no longer linked to the recurring rule that made it.
+Deleted by accident? Open **Settings › Your data › Recently deleted** (it also lists accounts and categories): it lists what was deleted, newest first, each with **Restore**. A restored entry comes back with its old details (it is checked again, so a closed account will stop it, and tell you why). Only the latest deletion of an entry can be restored, and a restored entry is no longer linked to the recurring rule that made it.
 
 ## How amounts look
 

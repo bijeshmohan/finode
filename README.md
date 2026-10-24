@@ -233,4 +233,4 @@ uv run alembic upgrade head
 - `PUT`/`DELETE /api/budget/categories/{aid}/target` set or remove a category's target (`monthly`, `refill`, `by_date`)
 - `GET /api/reports/trial-balance` — every account's debits and credits up to `as_of` (default today) and a list of problems; `balanced` is false when a transaction does not balance
 
-Moving budget money, copying last month, funding targets, notes, ordering and reopening accounts, pausing recurring rules, restoring deleted entries, an account's register, the reports and the history are in the web app and in the MCP tools; the JSON API keeps the core above.
+Moving budget money, copying last month, reopening accounts, pausing recurring rules, restoring deleted entries, an account's register, the reports and the history are in the web app and in the MCP tools; the JSON API keeps the core above.
