@@ -93,14 +93,6 @@ def dashboard(
         "percent": int(min(max(month.activity / to_spend, Decimal(0)), Decimal(1)) * 100) if to_spend > 0 else 0,
         "pace": month_progress() if is_current else None,  # how far through the month today is: the tick on the bar (none for a past month)
     }
-    overspent = sorted(
-        (l for l in month.lines if not l.group and l.available < 0), key=lambda l: l.available
-    )
-    warning = (
-        {"name": overspent[0].name, "n": len(overspent), "over": -sum((l.available for l in overspent), Decimal(0)), "first": -overspent[0].available}
-        if overspent
-        else None
-    )
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -110,9 +102,6 @@ def dashboard(
             "currency": summary.currency,
             **_month_context(when, is_current),
             "glance": glance,
-            "warning": warning,
-            "cards": month.cards,
-            "cards_owed": month.reserved_for_cards,
             "has_recorded": has_recorded,
             "recent": recent,
             "more": more,

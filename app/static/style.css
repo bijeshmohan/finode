@@ -782,7 +782,6 @@ form.copy-last button { margin: 0; }
 .segmented.kinds button { flex: 1 1 0; min-width: 0; padding-left: .25rem; padding-right: .25rem; }
 .muted.calc { font-size: .82rem; margin: .25rem 0 .75rem; font-variant-numeric: tabular-nums; }
 /* Home's credit row is the upcoming card's look (.upcoming) with one line per credit account. */
-.home-credit { margin: 0 0 .75rem; }
 
 /* ---------- Sign-in and sign-up ---------- */
 .login-notice { color: var(--positive); background: var(--accent-soft); border-radius: var(--radius-sm); padding: .6rem .75rem; margin: .5rem 0; }
@@ -868,9 +867,6 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 .glance-bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .glance-note { margin: .5rem 0 0; font-size: .8125rem; color: var(--muted); }
 /* Home: the figure with the month pill, and an overspent warning */
-.home-alert { display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem; padding: 0; color: var(--text); text-decoration: none; font-size: .875rem; }
-.home-alert .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--warn); flex: none; }
-.home-alert > span:nth-child(2) { flex: 1; min-width: 0; }
 .glance .box-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 2.75rem; }
 .glance .box-top .month-pill { flex: none; }
 /* Earned, Assigned and Spent: three plain columns that are one link to the month's Summary. */
@@ -1317,13 +1313,10 @@ main > :not(.page-head):not(.cat-bar) { animation: rise-in .22s ease-out; }
 .glance .glance-figure { margin-top: .5rem; }
 .glance > .glance-bar { margin-top: 1.5rem; }
 .glance > .glance-note { margin-top: 1rem; }
-.home-alert { margin: 1.6rem 0 0; }
 main:has(.glance) .section-head { margin-top: 2.5rem; }
 .home-recent .section-head { margin-top: 0; }
 /* From 60rem the Transactions heading shares a line with Left to spend (the month pill row), as the other pages' titles do (2026-10-23). */
 @media (min-width: 60rem) { main:has(.glance) .home-recent .section-head { margin-top: .6rem; } }
-.home-credit { margin: 1.6rem 0 0; }
-.home-alert + .home-credit { margin-top: 1.1rem; }
 
 /* Plans rows: a little more room under each bar so the notch clears the divider (2026-10-23) */
 .budget-list .crow.has-bar { padding: .9rem 0 1.15rem; }

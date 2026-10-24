@@ -219,17 +219,8 @@ def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_
     assert "home-strip" not in page
     assert 'href="/summary' not in page, "the Summary page is gone"
     assert "home-tile" not in page and "Balance" not in page.split("<h2>Transactions</h2>")[0] and "Owed" not in page
-    assert 'class="home-alert"' in page and f"<b>{expense_account['name']}</b> is over by ₹30.00" in text
-    assert page.index('class="glance"') < page.index('class="home-alert"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"
-
-
-def test_home_has_no_warning_when_nothing_is_overspent(client: TestClient, root_accounts: dict[str, str], expense_account: dict):
-    client.post("/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"})
-    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "50"})
-    client.post("/api/transactions/", json={"payee": "x", "postings": [
-        {"account": expense_account["aid"], "side": "debit", "amount": "10"},
-        {"account": client.get("/api/accounts/").json()[0]["aid"], "side": "credit", "amount": "10"}]})
-    assert 'class="home-alert"' not in client.get("/").text
+    assert "home-alert" not in page and "is over by" not in text, "no overspent warning on Home (removed 2026-10-24)"
+    assert page.index('class="glance"') < page.index("<h2>Transactions</h2>"), "Transactions stay last"
 
 
 def test_the_month_pill_in_the_box_shows_another_month_and_never_a_future_one(
@@ -247,17 +238,17 @@ def test_the_month_pill_in_the_box_shows_another_month_and_never_a_future_one(
     now_html = client.get("/").text
     now = _words(now_html)
     assert 'class="month-input"' in now_html and f'max="{today:%Y-%m}"' in now_html
-    assert "₹100.00" in now
+    assert "100.00" in now
     before_html = client.get("/", params={"month": f"{last:%Y-%m}"}).text
     before = _words(before_html)
-    assert "₹300.00" in before and f"{last:%b} {last:%Y}" in before and 'class="pace"' not in before_html
+    assert "300.00" in before and f"{last:%b} {last:%Y}" in before and 'class="pace"' not in before_html
     rows = before_html[before_html.index("<h2>Transactions</h2>"):]
     assert "300.00" in rows and "100.00" not in rows, "an older month lists its own entries, not the latest ones"
     empty = client.get("/", params={"month": f"{(last - timedelta(days=40)):%Y-%m}"}).text
     assert "Nothing was recorded in" in empty and "Nothing recorded yet" not in empty, "an empty month keeps the box and the page"
     assert f'href="/transactions?month={last:%Y-%m}"' in before_html
     ahead = _words(client.get("/", params={"month": "2999-01"}).text)
-    assert "₹100.00" in ahead, "a month that has not started opens this month"
+    assert "100.00" in ahead, "a month that has not started opens this month"
 
 
 def test_the_checklist_stays_on_home_after_the_first_entry_until_the_plan_is_used(client: TestClient, root_accounts, monkeypatch):

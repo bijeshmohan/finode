@@ -59,19 +59,11 @@ def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, 
     expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("\u20b94,200.00")
 
 
-def test_a_card_the_budget_includes_is_listed_and_the_sum_is_explained(page: Page, books, api: Api):
+def test_a_card_the_budget_includes_is_in_the_sum(page: Page, books, api: Api):
     api.post("/transactions/", postings=[
         {"account": books["food"]["aid"], "side": "debit", "amount": "120"},
         {"account": books["card"]["aid"], "side": "credit", "amount": "120"},
     ])
-    page.goto("/")
-    row = page.locator("details.home-credit")
-    expect(row.locator("summary")).to_contain_text("1 credit account")
-    expect(row.locator("summary")).to_contain_text("120.00 owed")
-    expect(row.locator(".up-list")).to_be_hidden()  # folded until tapped
-    row.locator("summary").click()
-    expect(row.locator(".up-list")).to_contain_text("Visa")
-    expect(row.locator(".up-list")).to_contain_text("120.00")
     page.goto("/budget")
     expect(page.get_by_text("credit account")).to_have_count(0)
     page.locator("[data-budget-head='spend'] .calc-info > summary").click()
