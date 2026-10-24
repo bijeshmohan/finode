@@ -46,28 +46,6 @@
   {% include "partials/get_started.html" %}
 </section>
 {% endif %}
-{% if warning %}
-<a class="home-alert" href="/budget">
-  <span class="dot" aria-hidden="true"></span>
-  <span>{% if warning.n == 1 %}<b>{{ warning.name }}</b> is over by {{ warning.over|money|amount(currency) }}{% else %}<b>{{ warning.n }} categories</b> are overspent · {{ warning.over|money|amount(currency) }} in all{% endif %}</span>
-  <span class="hero-chev" aria-hidden="true">{{ icon("back") }}</span>
-</a>
-{% endif %}
-{% if cards %}
-<details class="upcoming home-credit">
-  <summary><span>{{ cards|length }} credit account{{ "" if cards|length == 1 else "s" }} <span class="sub">· {{ cards_owed|money|amount(currency) }} owed</span></span><span class="gcaret">{{ icon("caret") }}</span></summary>
-  <ul class="up-list">
-    {% for card in cards %}
-    <li>
-      <div class="up-row">
-        <span class="up-main"><span class="up-title">{{ card.path.split(":")[-1] }}</span><span class="up-sub">{% if card.charged or card.paid %}Charged {{ card.charged|money }} · paid {{ card.paid|money }}{% else %}Nothing charged or paid{% endif %}</span></span>
-        <span class="up-amount">{{ card.owed|money }}</span>
-      </div>
-    </li>
-    {% endfor %}
-  </ul>
-</details>
-{% endif %}
 <div class="home-recent">
 <div class="section-head">
   <h2>Transactions</h2>

@@ -49,7 +49,6 @@ You have ₹50,000 in your bank account, and no budget yet.
 - **Move money** never changes Ready to assign; it limits you to what the source category has left. Typing a smaller (even negative) amount in a category's *Assign* field takes money back to Ready to assign, but never more than the category has left.
 - Behind the slim **"N things need you"** line under the figure (tap to open it) are the things that need a decision: accounts left out of the budget, last month's overspending, *Copy last month's amounts*, and (Advanced) *Assign what is needed*.
 - **Copy last month's amounts** assigns each category what it got last month, but only where nothing is assigned yet.
-- The **credit accounts** row (a collapsible card on Home, before the transactions, like the upcoming card on Transactions) shows what you owe on budget credit cards, with the month's charges and payments. You do not assign to cards; their debt is already set aside from your cash.
 
 ### Credit cards, loans and EMIs
 
