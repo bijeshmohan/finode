@@ -20,14 +20,14 @@
   <div class="amount-quick" data-amount-quick data-symbol="{{ currency|symbol }}" data-places="{{ currency|places }}" data-sign="+">
     <button type="button" class="chip" data-last-amount hidden></button>
     {% set places = currency|places %}
-    {% set steps = (("0.01", 2), ("0.1", 1), ("1", 0), ("10", 0), ("100", 0), ("1000", 0)) %}
+    {% set steps = (("0.01", 2), ("0.1", 1), ("1", 0), ("10", 0)) %}
     <div class="qa-row">
       <button type="button" class="chip qa-sign" data-quick-sign aria-pressed="false" aria-label="Subtract instead of add">+ / −</button>
-      {% for step, decimals in steps if decimals <= places %}<button type="button" class="chip qa-add" data-nudge="{{ step }}"><span class="qa-s" aria-hidden="true"></span>{{ "1,000" if step == "1000" else step }}</button>{% endfor %}
-      <button type="button" class="chip qa-undo" data-quick-undo aria-label="Undo the last tap" disabled>{{ icon("undo") }}</button>
+      {% for step, decimals in steps if decimals <= places %}<button type="button" class="chip qa-add" data-nudge="{{ step }}"><span class="qa-s" aria-hidden="true"></span>{{ step }}</button>{% endfor %}
     </div>
     <div class="qa-row">
-      {% for mul, label in (("1/2", "×½"), ("2", "×2"), ("5", "×5"), ("10", "×10"), ("100", "×100")) %}<button type="button" class="chip qa-mul" data-mul="{{ mul }}" aria-label="Multiply by {{ label[1:] }}">{{ label }}</button>{% endfor %}
+      {% for mul in (2, 5, 10) %}<button type="button" class="chip qa-mul" data-mul="{{ mul }}" aria-label="Multiply by {{ mul }}">×{{ mul }}</button>{% endfor %}
+      <button type="button" class="chip qa-undo" data-quick-undo aria-label="Undo the last tap" disabled>{{ icon("undo") }}</button>
     </div>
   </div>
   {% endif %}

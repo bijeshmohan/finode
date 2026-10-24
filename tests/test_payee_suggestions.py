@@ -55,7 +55,7 @@ def test_chips_carry_the_last_amount_for_the_as_last_time_chip(client, books):
     assert 'data-payee="Swiggy"' in html and 'data-amount="597.5"' in html
     assert 'data-amount="600"' in html, "no exponent form for round numbers"
     form = client.get("/transactions/new").text
-    assert "data-amount-quick" in form and 'data-nudge="100"' in form and 'data-nudge="0.01"' in form and 'data-mul="1/2"' in form and "data-quick-undo" in form and "data-last-amount" in form
+    assert "data-amount-quick" in form and 'data-nudge="10"' in form and 'data-nudge="0.01"' in form and 'data-mul="5"' in form and 'data-nudge="100"' not in form and 'data-mul="1/2"' not in form and "data-quick-undo" in form and "data-last-amount" in form
     assert "data-amount-quick" not in client.get("/recurring/new").text, "only the new-entry form has them"
 
 
