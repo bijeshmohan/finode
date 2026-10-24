@@ -75,7 +75,7 @@ No balance is stored. An account's balance is computed from its postings (`Accou
 
 - **Database checks.** `postings` has `CHECK` constraints (`amount > 0`, `side IN ('DEBIT','CREDIT')`). Balance and "at least two postings" cannot be a plain check, so they are enforced in the service and re-verified by `ReportService.trial_balance` (the `check_books` tool in MCP), which re-reads every stored transaction and names any that fail.
 - **Stable posting ids.** Editing a transaction updates postings in place where it can, so anything pointing at a posting keeps working.
-- **Append-only history.** `transaction_history` gets a row on every create, update and delete, holding the transaction as it stood afterwards. It has no foreign key, so a deleted transaction's trace survives. The edit page shows it, and **Recently deleted** reads it to restore an entry (with its old id). Account deletions have a similar log (`account_deletions`).
+- **Append-only history.** `transaction_history` gets a row on every create, update and delete, holding the transaction as it stood afterwards. It has no foreign key, so a deleted transaction's trace survives. The edit page does not show it; **Recently deleted** reads it to restore an entry (with its old id). Account deletions have a similar log (`account_deletions`).
 - **Period lock.** `profiles.locked_through` closes the books up to a day. `services/lock.py` is the single check; transactions in the locked period cannot be created, changed or deleted, and the budget refuses to change months that end inside it.
 - **Recurring entries are recorded once.** A unique index on `(recurring_id, recurring_date)` makes repeated or concurrent runs safe.
 
