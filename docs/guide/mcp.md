@@ -14,9 +14,10 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 | `spending_breakdown` | where the money went, by account |
 | `get_budget` | the month's budget: Ready to assign, each category's assigned, spent and left, and your goals |
 | `list_recurring` | your recurring rules |
+| `list_deleted_transactions` | deleted transactions that can still be brought back |
 | `check_books` | re-checks that every transaction balances |
 
-**Write** (only on a read & write connection): `record_transaction`, `record_split`, `update_transaction`, `delete_transaction`, `create_account`, `create_recurring`, `stop_recurring`, `skip_recurring_occurrence`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`.
+**Write** (only on a read & write connection): `record_transaction`, `record_split`, `update_transaction`, `delete_transaction`, `create_account`, `create_recurring`, `stop_recurring`, `resume_recurring`, `skip_recurring_occurrence`, `restore_transaction`, `create_goal`, `update_goal`, `delete_goal`, `assign_to_category`, `assign_to_goal`, `use_goal`, `move_budget_money`, `copy_budget_from_previous_month`. Recording or changing a transaction can link it to an earlier one (`related_to`, for a refund or reversal).
 
 There is also a ready-made prompt, `monthly_review`, which asks the assistant for a short review of a month.
 
