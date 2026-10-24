@@ -33,8 +33,8 @@
 <p id="sheet-error" class="error" role="alert"></p>
 <div class="sheet-actions">
   {% if locked_by %}<span class="button" aria-disabled="true">Edit</span>{% else %}<a class="button" href="/transactions/{{ t.tid }}/edit">Edit</a>{% endif %}
-  <a class="button secondary" href="/transactions/new?repeat={{ t.tid }}">Add again</a>
-  <a class="button secondary" href="/transactions/new?related={{ t.tid }}">Add related</a>
+  <a class="circ-button" href="/transactions/new?repeat={{ t.tid }}" aria-label="Repeat" title="Repeat">{{ icon("copy") }}</a>
+  <a class="circ-button" href="/transactions/new?related={{ t.tid }}" aria-label="Related" title="Related">{{ icon("link") }}</a>
 </div>
 <button type="button" class="sheet-delete" {{ "disabled" if locked_by }}
         hx-post="/transactions/{{ t.tid }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>

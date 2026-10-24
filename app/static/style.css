@@ -912,6 +912,8 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
 .sheet-actions { display: flex; gap: .625rem; margin-top: 1.1rem; }
 .sheet-stack { margin-top: 1.1rem; }
 .sheet-actions .button { flex: 1; min-height: 3.125rem; padding-inline: .5rem; white-space: nowrap; }
+.sheet-actions { align-items: center; }
+.sheet-actions .circ-button { flex: none; width: 3.125rem; height: 3.125rem; }
 .sheet-actions .button[aria-disabled="true"] { opacity: .45; }
 .sheet-delete { display: block; width: 100%; margin-top: .4rem; min-height: 3rem; color: var(--danger); background: transparent; border: 0; font-weight: 500; }
 .sheet-delete:hover { background: transparent; text-decoration: underline; }
