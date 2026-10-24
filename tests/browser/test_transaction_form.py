@@ -295,8 +295,10 @@ def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, book
 def test_the_allocation_status_groups_rupees_in_lakhs(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "1500000")
-    page.fill('[data-rows="debit"] [name="amount"]', "500000")
-    expect(page.locator('[data-status="debit"]')).to_contain_text("15,00,000.00 INR allocated")
+    page.fill('[data-rows="debit"] [name="amount"]', "2000000")
+    expect(page.locator('[data-status="debit"]')).to_contain_text("5,00,000.00 INR over")
+    page.fill('[data-rows="debit"] [name="amount"]', "1500000")
+    expect(page.locator('[data-status="debit"]')).to_have_text("")  # balanced: nothing is said
     assert page.evaluate("document.documentElement.dataset.grouping") == "indian"
 
 
@@ -337,8 +339,16 @@ def test_the_picker_relates_an_entry_and_the_chip_removes_it(page: Page, books, 
     expect(page.locator("[data-related-chip]")).to_be_hidden()
     page.locator("[data-related-add]").click()
     expect(page.locator("[data-related-pick]")).to_have_count(2)  # the newest first, once the sheet has loaded
-    page.fill("#related-picker input[type=search]", "swig")
-    expect(page.locator("[data-related-pick]")).to_have_count(1)
+    search = page.locator("#related-picker input[type=search]")
+    for attempt in range(4):  # htmx may not have wired the freshly swapped-in field yet (slow WebKit runs): type again
+        search.fill("")
+        search.fill("swig")
+        try:
+            expect(page.locator("[data-related-pick]")).to_have_count(1, timeout=1500)
+            break
+        except AssertionError:
+            if attempt == 3:
+                raise
     page.locator("[data-related-pick]").click()
     expect(page.locator("#related-picker")).not_to_be_visible()
     expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy")

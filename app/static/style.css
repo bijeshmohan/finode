@@ -1417,7 +1417,9 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 .ready-hero .hero-top { min-height: 1.75rem; }
 
 /* An entry related to an earlier one: the chip on the form, the picker rows and the list in the details sheet. */
-.related { margin: 1rem 0 0; }
+.related { margin: 0; }
+.related .related-add { margin-top: 0; }
+.side-status:empty { display: none; }
 .related-chip { display: flex; align-items: center; gap: .75rem; padding: .6rem .85rem; border-radius: var(--radius); background: var(--surface-2, var(--surface)); }
 .related-chip > span { flex: 1; min-width: 0; }
 .related-chip small { display: block; color: var(--muted); font-size: .75rem; }

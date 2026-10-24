@@ -719,7 +719,7 @@ function recomputeTxn(form) {
     status.classList.toggle("off", left !== 0n && total > 0n && rows.some((r) => rowShare(r) > 0n));
     status.textContent =
       total === 0n ? ""
-      : left === 0n ? `${money(total)} ${currency} allocated`
+      : left === 0n ? "" // balanced is the normal state, so nothing is said about it
       : left > 0n ? `${money(left)} ${currency} left to allocate`
       : `${money(-left)} ${currency} over`;
   });
