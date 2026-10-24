@@ -36,6 +36,7 @@ def test_the_sheet_closes_with_escape_and_with_a_tap_outside(page: Page, books, 
     expect(page.locator("#txn-sheet")).to_be_hidden()
     page.locator("a.tx", has_text="Swiggy").click()
     expect(page.locator("#txn-sheet")).to_be_visible()
+    page.wait_for_function("() => document.getAnimations().length === 0")  # the sheet has finished sliding up
     page.mouse.click(20, 60)  # on the dimmed page behind it
     expect(page.locator("#txn-sheet")).to_be_hidden()
 
