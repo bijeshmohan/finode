@@ -170,3 +170,28 @@ def test_the_backup_and_the_service_see_the_links(session, client, account, expe
     doc = client.get("/api/backup").json()
     assert next(t for t in doc["transactions"] if t["id"] == b["tid"])["related_id"] == a["tid"]
     assert services(session).transactions.related(UUID(a["tid"]))[0].tid == UUID(b["tid"])
+
+
+# ---- the details sheet on an account's or a category's own page ----------------------------------------------------
+
+def test_account_and_category_pages_open_the_sheet_and_come_back(client, account, expense_account):
+    made = make(client, expense_account, account, "250", "DMart")
+    for page_url, back in ((f"/accounts/{account['aid']}", f"/accounts/{account['aid']}"), (f"/categories/{expense_account['aid']}", f"/categories/{expense_account['aid']}")):
+        page = client.get(page_url).text
+        assert 'id="txn-sheet-body"' in page, page_url
+        assert f'hx-get="/transactions/{made["tid"]}/sheet?back={back}"' in page, page_url
+    sheet = client.get(f"/transactions/{made['tid']}/sheet", params={"back": f"/accounts/{account['aid']}"}).text
+    back = f"/accounts/{account['aid']}"
+    assert f"/transactions/{made['tid']}/edit?back={back}" in sheet
+    assert f"/transactions/new?repeat={made['tid']}&amp;back={back}" in sheet or f"/transactions/new?repeat={made['tid']}&back={back}" in sheet
+    plain = client.get(f"/transactions/{made['tid']}/sheet").text
+    assert f"/transactions/{made['tid']}/edit\"" in plain and "back=" not in plain.split("sheet-actions")[1]
+    assert "back=" not in client.get(f"/transactions/{made['tid']}/sheet", params={"back": "https://evil.example"}).text.split("sheet-actions")[1]
+
+
+def test_an_upcoming_entry_on_an_account_page_opens_the_sheet(client, account, expense_account):
+    from datetime import date, timedelta
+
+    ahead = make(client, expense_account, account, "99", "Later", on=(date.today() + timedelta(days=5)).isoformat())
+    page = client.get(f"/accounts/{account['aid']}").text
+    assert f'hx-get="/transactions/{ahead["tid"]}/sheet?back=' in page and 'id="txn-sheet-body"' in page
