@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from .currencies import find
 from .flash import flash_message, flash_undo
 from .models.utils import normalize_amount
 from .clock import local_day, local_today
@@ -60,6 +61,12 @@ def symbol(code: str | None) -> str:
     return SYMBOLS.get(code or "", code or "")
 
 
+def places(code: str | None) -> int:
+    """How many decimals the currency keeps (rupees 2, yen 0): the quick-amount chips never go finer."""
+    found = find(code)
+    return found.decimals if found else 2
+
+
 def amount(text: str, code: str | None) -> str:
     """An amount with its currency: the sign in front where there is one (₹1,200.00, −₹5.00), else the code after it."""
     if not code:
@@ -106,6 +113,7 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["money"] = money
 templates.env.globals["grouping"] = lambda: _grouping.get()
 templates.env.filters["symbol"] = symbol
+templates.env.filters["places"] = places
 templates.env.filters["amount"] = amount
 templates.env.filters["friendly_date"] = friendly_date
 templates.env.filters["local_day"] = local_day

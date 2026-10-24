@@ -172,6 +172,29 @@ def test_the_last_amount_and_the_nudges_fill_the_amount(page: Page, books, api: 
     assert page.input_value('[data-rows="debit"] [name="amount"]').startswith(page.input_value("#total").split(".")[0]), "the rows follow the amount"
 
 
+def test_the_quick_chips_build_any_amount_and_undo(page: Page, books):
+    page.goto("/transactions/new")
+    tap = lambda sel: page.locator(sel).click()
+    total = lambda: float(page.input_value("#total"))
+    tap('[data-nudge="10"]'); tap('[data-mul="5"]'); tap('[data-mul="100"]')
+    assert total() == 5000
+    tap('[data-mul="1/2"]')
+    assert total() == 2500
+    tap("[data-quick-undo]")
+    assert total() == 5000
+    tap("[data-quick-sign]")
+    tap('[data-nudge="0.01"]')
+    assert page.input_value("#total") == "4999.99", "the minus switch subtracts"
+    expect(page.locator('[data-rows="debit"] [name="amount"]').first).to_have_value("4999.99")
+    tap("[data-quick-sign]")
+    tap('[data-nudge="1000"]')
+    assert total() == 5999.99
+    page.fill("#total", "12")
+    expect(page.locator("[data-quick-undo]")).to_be_disabled()
+    tap("[data-quick-sign]"); tap('[data-nudge="100"]')
+    assert total() == 0, "never below zero"
+
+
 def test_a_chip_still_lets_you_split_the_amount_afterwards(page: Page, books, api: Api):
     history(api, books)
     page.goto("/transactions/new")

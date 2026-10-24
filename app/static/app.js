@@ -509,15 +509,69 @@ function showLastAmount(form, amount) {
   last.textContent = `${quick.dataset.symbol}${groupDigits(whole)}${fraction === "00" ? "" : "." + fraction} as last time`;
 }
 
+// The quick-amount chips build any amount without the keyboard: + steps (or − steps with the +/− switch), × to move up or
+// halve, and an undo for the last tap. Typing in the amount forgets the undo history. Never finer than the currency
+// keeps, never past what the ledger accepts, never below zero.
+const QUICK_MAX = 10n ** BigInt(16 + SCALE);
+
+function quickApply(form, make) {
+  const total = form.querySelector("#total");
+  const quick = form.querySelector("[data-amount-quick]");
+  if (!total || !quick) return;
+  const before = total.value;
+  const current = parseDec(before) || 0n;
+  const places = Number(quick.dataset.places || 2);
+  const unit = 10n ** BigInt(SCALE - places);
+  let next = make(current, quick.dataset.sign === "-" ? -1n : 1n);
+  next = ((next + unit / 2n) / unit) * unit; // round to the places the currency keeps
+  if (next < 0n) next = 0n;
+  if (next >= QUICK_MAX) return;
+  form._quickUndo = (form._quickUndo || []).concat(before);
+  total.value = formatDec(next);
+  form._quickBusy = true;
+  total.dispatchEvent(new Event("input", { bubbles: true }));
+  form._quickBusy = false;
+  quick.querySelector("[data-quick-undo]").disabled = false;
+}
+
 document.body.addEventListener("click", (event) => {
-  const button = event.target.closest && event.target.closest("[data-last-amount], [data-nudge]");
+  const button = event.target.closest && event.target.closest("[data-last-amount], [data-nudge], [data-mul], [data-quick-sign], [data-quick-undo]");
   if (!button) return;
   const form = button.closest("form[data-txn-form]");
-  const total = form && form.querySelector("#total");
-  if (!total) return;
-  const base = button.hasAttribute("data-nudge") ? parseDec(total.value) || 0n : 0n;
-  total.value = formatDec(base + parseDec(button.dataset.amount || button.dataset.nudge));
-  total.dispatchEvent(new Event("input", { bubbles: true }));
+  const quick = button.closest("[data-amount-quick]");
+  if (!form || !quick) return;
+  if (button.hasAttribute("data-quick-sign")) {
+    const minus = quick.dataset.sign !== "-";
+    quick.dataset.sign = minus ? "-" : "+";
+    button.setAttribute("aria-pressed", String(minus));
+  } else if (button.hasAttribute("data-quick-undo")) {
+    const history = form._quickUndo || [];
+    if (!history.length) return;
+    const total = form.querySelector("#total");
+    total.value = history.pop();
+    form._quickBusy = true;
+    total.dispatchEvent(new Event("input", { bubbles: true }));
+    form._quickBusy = false;
+    button.disabled = !history.length;
+  } else if (button.hasAttribute("data-mul")) {
+    const [top, bottom] = button.dataset.mul.split("/").map((n) => BigInt(n));
+    quickApply(form, (value) => (value * top) / (bottom || 1n));
+  } else if (button.hasAttribute("data-nudge")) {
+    const step = parseDec(button.dataset.nudge);
+    quickApply(form, (value, sign) => value + sign * step);
+  } else {
+    quickApply(form, () => parseDec(button.dataset.amount));
+  }
+});
+
+// Typing in the amount starts over: the undo history no longer matches what is there.
+document.addEventListener("input", (event) => {
+  if (!event.target.matches || !event.target.matches("#total")) return;
+  const form = event.target.closest("form[data-txn-form]");
+  if (!form || form._quickBusy) return;
+  form._quickUndo = [];
+  const undo = form.querySelector("[data-quick-undo]");
+  if (undo) undo.disabled = true;
 });
 
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
