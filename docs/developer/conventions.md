@@ -40,7 +40,7 @@ Python 3.14 or newer is required. No linter or formatter is configured.
 
 ## How to add a route to the JSON API
 
-The API is small on purpose. Prefer the web app and the MCP tools. If a route is really needed: a handler in `app/routers/`, a schema in `app/schemas/`, a test, and the classification in the isolation audit. Tests for features that are not API routes reach the code through the services (`tests/svc.py`) or the web routes.
+The API covers everything the web app and the assistants can do (see [The JSON API](api.md) for the list and what is left out on purpose), so a new feature gets its route too: a handler in `app/routers/`, a schema in `app/schemas/`, a test (`tests/test_api_parity.py` is the pattern), the classification in the isolation audit (a route with an id is swept automatically; name the id `goal_id`, `hid`, `did`… so the audit knows it), and a row in `docs/developer/api.md`.
 
 ## How to add an MCP tool
 
