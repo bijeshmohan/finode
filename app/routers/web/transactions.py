@@ -476,8 +476,8 @@ class PayeeHabit:
 HABIT_HISTORY = 300  # how many recent transactions the suggestions look at
 
 
-def payee_habits(transactions: Transactions, accounts: Accounts, query: str = "", limit: int = 6) -> tuple[list[PayeeHabit], UUID | None]:
-    """Suggestions for the payee field, and the account most often paid from lately.
+def payee_habits(transactions: Transactions, accounts: Accounts, query: str = "", limit: int = 6) -> list[PayeeHabit]:
+    """Suggestions for the payee field.
 
     Only entries with one account on each side count (a split has no single route to repeat), and only accounts
     that can still be used. Payees you pay often come first; typing narrows them to those starting with, then
@@ -488,7 +488,6 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
     usable = {a.aid for a in all_accounts if a.parent_id is not None and a.closed_on is None}
     wanted = query.strip().lower()
     seen: dict[str, dict] = {}
-    from_counts: dict[UUID, int] = {}
     for position, t in enumerate(transactions.list(limit=HABIT_HISTORY)):
         credits = [p for p in t.postings if p.side == PostingSide.CREDIT]
         debits = [p for p in t.postings if p.side == PostingSide.DEBIT]
@@ -497,8 +496,6 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
             and credits[0].account in usable and debits[0].account in usable
             and "Equity" not in (index.roots.get(credits[0].account), index.roots.get(debits[0].account))  # opening balances are not a payee
         )
-        if simple and position < 40 and index.roots.get(credits[0].account) in ASSET_LIKE:
-            from_counts[credits[0].account] = from_counts.get(credits[0].account, 0) + 1
         payee = (t.payee or "").strip()
         if not payee or not simple:
             continue
@@ -520,8 +517,7 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
             ),
         ))
     habits.sort(key=lambda h: h[:3])
-    favourite = max(from_counts, key=from_counts.get) if from_counts else None
-    return [h[3] for h in habits[:limit]], favourite
+    return [h[3] for h in habits[:limit]]
 
 
 @dataclass
@@ -548,7 +544,7 @@ def split_quick_entry(text: str) -> tuple[str, str]:
 @router.get("/suggest")
 def suggest_payees(request: Request, accounts: Accounts, transactions: Transactions, payee: str = ""):
     """The chips under the payee field: people you pay, with the accounts you used the last time."""
-    habits, _ = payee_habits(transactions, accounts, payee)
+    habits = payee_habits(transactions, accounts, payee)
     return templates.TemplateResponse(request, "partials/payee_chips.html", {"habits": habits})
 
 
@@ -632,7 +628,7 @@ def new_transaction_page(
     roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
     amount_text, payee_text = split_quick_entry(q)
     kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account), "expense")
-    habits, favourite = payee_habits(transactions, accounts, payee_text) if (payee_text or account is None) else ([], None)
+    habits = payee_habits(transactions, accounts, payee_text) if (payee_text or account is None) else []
     if account is not None:
         # From an expense category the money arrives there; from anything else it leaves.
         if roots_of.get(account) == "Expenses":
@@ -644,8 +640,6 @@ def new_transaction_page(
         if match is not None:  # a payee you have paid before: the same accounts as last time
             from_id, to_id, kind = match.from_id, match.to_id, match.kind
             payee_text = match.payee  # spelled the way you wrote it before
-        elif favourite is not None:
-            from_id = favourite  # otherwise the account you paid from most lately
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
