@@ -1,0 +1,11 @@
+{#- The earlier entries a new one can be related to. Expects rows (TransactionRow). -#}
+{% for row in rows %}
+<li><button type="button" data-related-pick="{{ row.transaction.tid }}" data-label="{{ row.transaction.payee or (row.credits|join(', ') if row.kind == 'income' else row.debits|join(', ')) }} · {{ row.transaction.date.strftime('%d %b') }} · {{ row.amount|money }}">
+  {% set main = row.credits|join(", ") if row.kind == "income" else row.debits|join(", ") %}
+  {% set other = row.debits|join(", ") if row.kind == "income" else row.credits|join(", ") %}
+  <span>{{ row.transaction.payee or main }}<small class="muted">{{ row.transaction.date.strftime("%d %b %Y") }} · {{ main if row.transaction.payee else other }}</small></span>
+  <span class="tx-amount {{ row.kind }}">{{ "+" if row.kind == "income" }}{{ row.amount|money }}</span>
+</button></li>
+{% else %}
+<li class="muted related-none">{{ "Nothing matches." if q else "No earlier transactions." }}</li>
+{% endfor %}

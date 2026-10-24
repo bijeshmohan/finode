@@ -46,7 +46,8 @@ def rich(client, root_accounts):
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
     assert client.post(f"/accounts/{loan['aid']}/move", data={"direction": "up"}).status_code == 200  # Liabilities: Home Loan before Visa
 
-    tx(client, [line(groceries, "debit", "250"), line(card, "credit", "250")], date="2026-09-03", payee="DMart")
+    dmart = tx(client, [line(groceries, "debit", "250"), line(card, "credit", "250")], date="2026-09-03", payee="DMart")
+    tx(client, [line(card, "debit", "40"), line(groceries, "credit", "40")], date="2026-09-04", payee="DMart", related_id=dmart["tid"])
     tx(client, [line(bank, "debit", "90000"), line(salary, "credit", "90000")], date="2026-09-01", payee="Employer")
     tx(client, [line(loan, "debit", "15000"), line(bank, "credit", "15000")], date="2026-09-05", payee="EMI")
     tx(client, [line(groceries, "debit", "100"), line(food, "debit", "50"), line(bank, "credit", "150")],
@@ -89,6 +90,7 @@ def canonical(doc: dict) -> dict:
 
     paths = {aid: path(aid) for aid in by_id}
     rules = {r["id"]: (r["payee"], r["frequency"]) for r in doc["recurring"]}
+    entries = {t["id"]: (t["date"], t["payee"], t["comment"]) for t in doc["transactions"]}
     return {
         "profile": doc["profile"],
         "accounts": sorted(
@@ -97,7 +99,7 @@ def canonical(doc: dict) -> dict:
             for a in doc["accounts"]
         ),
         "transactions": [
-            (t["date"], t["payee"], t["comment"], t["created_via"], rules.get(t["recurring_id"]), t["recurring_date"],
+            (t["date"], t["payee"], t["comment"], t["created_via"], rules.get(t["recurring_id"]), t["recurring_date"], entries.get(t["related_id"]),
              sorted((paths[p["account"]], p["side"], p["amount"]) for p in t["postings"]))
             for t in doc["transactions"]
         ],

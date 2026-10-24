@@ -29,12 +29,26 @@
     </label>
   </div>
 
+  <div class="related" data-related>
+    <input type="hidden" name="related" value="{{ related.transaction.tid if related }}" data-related-value>
+    <div class="related-chip" data-related-chip{% if not related %} hidden{% endif %}>
+      <span><small>Related to</small><b data-related-label>{% if related %}{% include "partials/related_label.html" %}{% endif %}</b></span>
+      <button type="button" class="link" data-related-clear aria-label="Remove the link">✕</button>
+    </div>
+    <button type="button" class="add-row related-add" data-related-add{% if related %} hidden{% endif %}
+            hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.tid if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">+ Related to an earlier entry</button>
+  </div>
+
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions form-actions">
     <button type="submit" {{ "disabled" if locked_by }}>{{ "Save changes" if editing else "Save" }}</button>
     {% if not editing %}<button type="submit" class="secondary" name="another" value="1">Save &amp; add another</button>{% endif %}
   </div>
 </form>
+
+<dialog id="related-picker" class="sheet sheet-bottom" aria-label="Related to">
+  <div id="related-picker-body" class="sheet-body"></div>
+</dialog>
 
 <dialog id="quick-account" class="sheet" aria-labelledby="quick-account-title">
   <div id="quick-account-body" class="sheet-body"></div>

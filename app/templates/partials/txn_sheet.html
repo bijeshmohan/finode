@@ -17,11 +17,24 @@
   {% if t.recurring_id or t.created_via == "recurring" %}<div><dt>Repeats</dt><dd class="auto"><a href="/recurring">Part of a recurring transaction</a></dd></div>{% endif %}
 </dl>
 
+{% if related_to or related %}
+<div class="sheet-related">
+  <p class="sheet-related-head">{{ "Related to" if related_to else "Related · " ~ related|length }}</p>
+  {% for r in ([related_to] if related_to else related) %}
+  <button type="button" class="sheet-related-row" hx-get="/transactions/{{ r.transaction.tid }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML">
+    <span>{{ r.transaction.payee or (r.credits|join(", ") if r.kind == "income" else r.debits|join(", ")) }}<small class="muted">{{ r.transaction.date|friendly_date }}</small></span>
+    <span class="tx-amount {{ r.kind }}">{{ "+" if r.kind == "income" }}{{ r.amount|money }}</span>
+  </button>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if locked_by %}<p class="notice" role="status">In a locked period (everything up to {{ locked_by.strftime("%d %b %Y") }} is closed): it can't be changed or deleted.</p>{% endif %}
 <p id="sheet-error" class="error" role="alert"></p>
 <div class="sheet-actions">
   {% if locked_by %}<span class="button" aria-disabled="true">Edit</span>{% else %}<a class="button" href="/transactions/{{ t.tid }}/edit">Edit</a>{% endif %}
   <a class="button secondary" href="/transactions/new?repeat={{ t.tid }}">Add again</a>
+  <a class="button secondary" href="/transactions/new?related={{ t.tid }}">Add related</a>
 </div>
 <button type="button" class="sheet-delete" {{ "disabled" if locked_by }}
         hx-post="/transactions/{{ t.tid }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>

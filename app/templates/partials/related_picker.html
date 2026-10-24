@@ -1,0 +1,8 @@
+{#- The sheet that picks the entry a new one is related to. Expects rows, q, exclude. -#}
+<div class="sheet-grab" aria-hidden="true"></div>
+<h2 class="filter-title">Related to…</h2>
+<input type="search" name="q" class="filter-search" placeholder="Search payee, note or account" aria-label="Search transactions" autocomplete="off" data-autofocus
+       hx-get="/transactions/related-picker?results=1{{ '&exclude=' ~ exclude if exclude }}" hx-trigger="input changed delay:250ms, search" hx-target="#related-results" hx-swap="innerHTML">
+<ul class="filter-options" id="related-results">
+  {% include "partials/related_results.html" %}
+</ul>

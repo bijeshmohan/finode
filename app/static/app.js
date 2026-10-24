@@ -371,7 +371,7 @@ function applyKind(form, kind) {
 
 // A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
 // if it never does (an error, no connection) the sheet closes again.
-const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "groups-sheet-body"];
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "groups-sheet-body", "related-picker-body"];
 const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
 document.body.addEventListener("htmx:beforeRequest", (event) => {
   const body = event.detail && event.detail.target;
@@ -987,5 +987,27 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
   });
   form.addEventListener("submit", () => {
     form.querySelectorAll("[data-filter-value]").forEach((input) => { if (!input.value) input.disabled = true; });
+  });
+})();
+
+// ---- Relating an entry to an earlier one: the chip, the dashed row and the picker sheet ----
+(() => {
+  const set = (box, tid, label) => {
+    box.querySelector("[data-related-value]").value = tid;
+    box.querySelector("[data-related-label]").textContent = label;
+    box.querySelector("[data-related-chip]").hidden = !tid;
+    box.querySelector("[data-related-add]").hidden = !!tid;
+  };
+  document.addEventListener("click", (event) => {
+    const pick = event.target.closest("[data-related-pick]");
+    if (pick) {
+      const box = document.querySelector("[data-related]");
+      if (box) set(box, pick.dataset.relatedPick, pick.dataset.label);
+      const dialog = pick.closest("dialog");
+      if (dialog) dialog.close();
+      return;
+    }
+    const clear = event.target.closest("[data-related-clear]");
+    if (clear) set(clear.closest("[data-related]"), "", "");
   });
 })();

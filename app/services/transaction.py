@@ -133,6 +133,7 @@ class TransactionService:
             created_via=transaction.created_via,
             updated_via=transaction.updated_via,
             recurring_id=transaction.recurring_id,
+            related_id=transaction.related_id,
             postings=[
                 self._posting_to_read(posting)
                 for posting in (postings if postings is not None else self.tr.postings(transaction.tid))
@@ -226,6 +227,23 @@ class TransactionService:
         """Raise what create would raise, without saving anything."""
         self._resolve(data)
 
+    def _check_related(self, related_id: UUID | None, tid: UUID | None = None) -> None:
+        """The entry this one is related to must be the person's own, and following the links must never lead back here."""
+        if related_id is None:
+            return
+        if tid is not None and related_id == tid:
+            raise InvalidPostingError("an entry cannot be related to itself!")
+        seen: set[UUID] = set()
+        link: UUID | None = related_id
+        while link is not None and link not in seen:
+            found = self.tr.read(link)
+            if found is None:
+                raise InvalidPostingError("the related transaction was not found!")
+            if tid is not None and found.related_id == tid:
+                raise InvalidPostingError("that entry is already related to this one!")
+            seen.add(link)
+            link = found.related_id
+
     def _check_limits(self) -> None:
         ensure_room(self.tr.count(), settings.max_transactions, "transactions")
         if settings.max_transactions_per_day and self.origin not in ("recurring", "import"):
@@ -243,6 +261,7 @@ class TransactionService:
         self._refuse_locked(data.date)
         self._check_limits()
         self._resolve(data)
+        self._check_related(data.related_id)
         transaction = self.tr.create(data, self.origin, recurring)
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
@@ -253,6 +272,12 @@ class TransactionService:
         if not transaction:
             return None
         return self._to_read(transaction)
+
+    def related(self, tid: UUID) -> list[TransactionRead]:
+        """The entries that are related to this one, oldest first."""
+        rows = self.tr.related_to(tid)
+        postings = self.tr.postings_for_transactions([t.tid for t in rows])
+        return [self._to_read(t, postings.get(t.tid, [])) for t in rows]
 
     def _account_subtree(self, aid: UUID) -> list[UUID]:
         accounts = self.ar.list()
@@ -352,6 +377,8 @@ class TransactionService:
         # Postings an entry already has on an account that was closed since stay allowed, so it can still be edited.
         kept = {p.account for p in self.tr.postings(tid)}
         self._resolve(data, kept)
+        if "related_id" in data.model_fields_set:
+            self._check_related(data.related_id, tid)
         transaction = self.tr.update(tid, data, self.origin)
         if not transaction:
             raise RuntimeError(f"failed to update transaction with tid '{tid}'!")

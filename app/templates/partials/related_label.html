@@ -1,0 +1,2 @@
+{#- "Swiggy · 12 Oct · 1,000.00": one line naming the entry another is related to. Expects related (TransactionRow). -#}
+{{ related.transaction.payee or (related.credits|join(", ") if related.kind == "income" else related.debits|join(", ")) }} · {{ related.transaction.date.strftime("%d %b") }} · {{ related.amount|money }}

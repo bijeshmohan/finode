@@ -110,6 +110,12 @@ class TransactionRepository:
         transaction = self.db.exec(statement).first()
         return transaction
 
+    def related_to(self, tid: UUID) -> list[Transaction]:
+        """The entries that point at this one, oldest first."""
+        return self.db.exec(
+            select(Transaction).where(Transaction.related_id == tid, Transaction.user == self.uid).order_by(Transaction.date, Transaction.created)
+        ).all()
+
     def read_many(self, tids: list[UUID]) -> dict[UUID, Transaction]:
         """Several transactions in one query."""
         if not tids:
@@ -354,6 +360,9 @@ class TransactionRepository:
         if not transaction:
             return None
         self._record(transaction, "deleted", origin)
+        for other in self.related_to(tid):  # what pointed at it is no longer related to anything
+            other.related_id = None
+            self.db.add(other)
         for posting in self.postings(tid):
             self.db.delete(posting)
         self.db.delete(transaction)
