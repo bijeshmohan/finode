@@ -136,3 +136,8 @@ class HistoryRead(BaseModel):
     payee: str | None = None
     comment: str | None = None
     postings: list[HistoryPosting]
+
+
+class PayeeRead(BaseModel):
+    payee: str
+    count: int

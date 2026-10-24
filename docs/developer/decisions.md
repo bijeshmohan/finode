@@ -71,10 +71,10 @@ The decisions that look odd until you know the reason. Each entry says what was 
 **Decision.** Jinja2 templates, vendored htmx, one `app.js`.
 **Why (inferred).** One developer, a small app, and no build pipeline to maintain. Pages work without scripts where they can. (This is the documented intent; the project guidance says not to add a build step.)
 
-## A small JSON API; the web app and MCP are the real front doors
+## A complete JSON API next to the web app and MCP
 
-**Decision.** The API keeps accounts, transactions, the profile, recurring rules, the budget read/assign/targets, the trial balance, backup/restore and import/export. Everything else was removed.
-**Why.** Unused routes are surface area to secure and keep working. The web app and assistants use services directly. A new route is for the web UI or the assistants first.
+**Decision.** The JSON API was once cut down to a small core; on 2026-10-25 the owner decided to keep it for good and asked for it to cover everything the application does (reopening, registers, restoring deleted things, history, related entries, moving and copying budget money, groups, goals, reports). It leaves out only sign-in, token management and the two destructive account actions; see [The JSON API](api.md).
+**Why.** It will be useful in future (scripts, other clients). The cost is more routes to secure, so each is covered by the isolation audit and a parity test, and the web app and assistants still call the services directly.
 
 ## Supabase for identity, finode for data
 

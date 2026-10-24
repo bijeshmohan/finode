@@ -36,3 +36,11 @@ class ProfileRead(BaseModel):
     default_currency: str | None = None
     created: datetime
     updated: datetime
+
+
+class CurrencyRead(BaseModel):
+    code: str
+    name: str
+    # Decimal places the currency keeps.
+    decimals: int
+    symbol: str | None = None

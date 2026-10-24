@@ -85,3 +85,24 @@ class RegisterEntry(BaseModel):
     counter_accounts: list[str]
     change: Decimal
     balance: Decimal
+
+
+class ClosedAccount(BaseModel):
+    """An account (or deleted-with-history category) that was closed: the outermost of its closed branch."""
+
+    aid: UUID
+    name: str
+    path: str
+    root: str
+    closed_on: Date
+
+
+class DeletedAccount(BaseModel):
+    """An account or category deleted for good that can still be restored."""
+
+    did: UUID
+    account_id: UUID
+    at: datetime
+    name: str | None = None
+    path: str | None = None
+    root: str | None = None

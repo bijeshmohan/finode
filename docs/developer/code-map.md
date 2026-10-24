@@ -36,7 +36,7 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | `schemas/` | Pydantic shapes per entity: `*Base`, `*Create`, `*Read`, `*Update` |
 | `repositories/` | tenant-scoped queries; `transaction.py` also appends history |
 | `services/` | `account`, `transaction`, `budget`, `report`, `recurring` (+ `schedule`), `profile`, `data`, `backup`, `erase`, `api_token`, `oauth_grant`, `simple`, `validation` |
-| `routers/` | the JSON API (`/api`): `accounts`, `transactions`, `profile`, `recurring`, `budget`, `reports`, `data` |
+| `routers/` | the JSON API (`/api`, all of it listed in [api.md](api.md)): `accounts`, `transactions`, `profile`, `recurring`, `budget`, `reports`, `data` |
 | `routers/web/` | the HTML pages, one module per area |
 | `mcp_server/` | `transport` (auth, rate limit), `tools`, `accounts` (name lookup), `context` |
 | `ledger/` | journal format parser and writer (import and export) |

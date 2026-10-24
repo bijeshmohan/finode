@@ -116,3 +116,56 @@ class BudgetAssign(BaseModel):
     month: Day | None = None
     # The month's total for the category, not an addition to it.
     amount: Decimal = Field(decimal_places=8, max_digits=24)
+
+
+Amount = Field(decimal_places=8, max_digits=24)
+
+
+class BudgetMove(BaseModel):
+    """Take money from one category's available and give it to another, in a month."""
+
+    month: Day | None = None
+    from_category: UUID
+    to_category: UUID
+    amount: Decimal = Amount
+
+
+class BudgetCopy(BaseModel):
+    """Assign a month what each category got the month before, where nothing is assigned yet."""
+
+    month: Day | None = None
+
+
+class GroupAssign(BaseModel):
+    month: Day | None = None
+    # The group's whole budget for the month: at least what its subcategories add up to.
+    total: Decimal = Amount
+
+
+class GoalCreate(BaseModel):
+    name: str
+    amount: Decimal = Amount
+    # Any day in the month the goal is needed by (after this month).
+    by: Day
+    # Also set aside this month's share now.
+    set_aside_now: bool = False
+
+
+class GoalUpdate(BaseModel):
+    name: str
+    amount: Decimal = Amount
+    by: Day
+
+
+class GoalAssign(BaseModel):
+    month: Day | None = None
+    # The month's total set aside for the goal (replaces it; negative takes back what was saved before).
+    amount: Decimal = Amount
+
+
+class GoalUse(BaseModel):
+    """Hand money a goal saved to the category that paid for something."""
+
+    month: Day | None = None
+    category: UUID
+    amount: Decimal = Amount
