@@ -49,16 +49,6 @@ def test_copying_last_months_amounts(page: Page, books, api: Api):
     assert page.locator('#cat-sheet input[aria-label="Assigned to Rent"]').input_value() in ("900.00", "900")
 
 
-def test_a_target_shows_what_is_missing_and_funding_fills_it(page: Page, books, api: Api):
-    api.put(f"/budget/categories/{books['rent']['aid']}/target", kind="monthly", amount="800")
-    page.goto("/budget")
-    expect(page.locator("a.catrow .crow-sub .short")).to_contain_text("needs 800.00 more")
-    page.locator("button.need-line").click()
-    page.get_by_role("button", name="Assign what is needed").click()
-    expect(page.locator("a.catrow .crow-sub .short")).to_have_count(0)
-    expect(page.locator("[data-budget-head='spend'] .figure")).to_have_text("\u20b94,200.00")
-
-
 def test_a_card_the_budget_includes_is_in_the_sum(page: Page, books, api: Api):
     api.post("/transactions/", postings=[
         {"account": books["food"]["aid"], "side": "debit", "amount": "120"},
@@ -75,32 +65,6 @@ def test_a_card_the_budget_includes_is_in_the_sum(page: Page, books, api: Api):
     expect(page.locator(".calc-panel")).to_contain_text("380.00")
 
 
-def test_the_target_form_shows_the_fields_each_kind_needs(page: Page, books):
-    page.goto(f"/budget/target?category={books['rent']['aid']}")
-    day, month = page.locator("label[data-target-weekday]"), page.locator("label[data-target-date]")
-    expect(day).to_be_hidden()
-    expect(month).to_be_hidden()
-    page.locator("select[data-target-kind]").select_option("weekly")
-    expect(day).to_be_visible()
-    expect(month).to_be_hidden()
-    page.locator("select[data-target-kind]").select_option("yearly")
-    expect(day).to_be_hidden()
-    expect(month).to_be_visible()
-    expect(month).to_contain_text("Due in")
-    page.locator("select[data-target-kind]").select_option("by_date")
-    expect(month).to_contain_text("By (month)")
-
-
-def test_a_weekly_target_is_saved_from_the_form(page: Page, books):
-    page.goto(f"/budget/target?category={books['rent']['aid']}")
-    page.locator("select[data-target-kind]").select_option("weekly")
-    page.locator("select[name=weekday]").select_option("4")
-    page.locator("input[name=amount]").fill("100")
-    page.get_by_role("button", name="Save target").click()
-    page.locator("a.catrow", has_text="Rent").first.click()
-    expect(page.locator("#cat-sheet")).to_contain_text("Weekly 100.00 on Fris")
-
-
 def test_locking_the_books_from_settings_stops_an_edit(page: Page, books, api: Api):
     entry = api.post("/transactions/", date=str(THIS_MONTH - timedelta(days=5)), postings=[
         {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
@@ -115,20 +79,6 @@ def test_locking_the_books_from_settings_stops_an_edit(page: Page, books, api: A
     expect(page.get_by_text("This entry is in a locked period")).to_be_visible()
     expect(page.get_by_role("button", name="Save changes")).to_be_disabled()
     expect(page.get_by_role("button", name="Delete transaction")).to_be_disabled()
-
-
-def test_a_weekly_target_opens_into_its_weeks(page: Page, books, api: Api):
-    api.put(f"/budget/categories/{books['food']['aid']}/target", kind="weekly", amount="100", weekday=THIS_MONTH.weekday())
-    api.post("/transactions/", date=str(THIS_MONTH), postings=[
-        {"account": books["food"]["aid"], "side": "debit", "amount": "130"},
-        {"account": books["checking"]["aid"], "side": "credit", "amount": "130"},
-    ])
-    page.goto("/budget")
-    page.locator("a.catrow", has_text="Groceries").first.click()
-    weeks = page.locator("#cat-sheet details.weeks")
-    expect(weeks.locator("li").first).to_contain_text("130.00 of 100.00")
-    expect(weeks.locator("li.over")).to_have_count(1)
-    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scrolling on a phone"
 
 
 def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(page: Page, books, api: Api):

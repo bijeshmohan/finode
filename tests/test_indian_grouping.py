@@ -50,10 +50,9 @@ def test_budget_hints_follow_the_grouping(client, lakhs):
     bank, food = lakhs
     from datetime import date
     month = date.today().replace(day=1).isoformat()
-    client.put(f"/api/budget/categories/{food['aid']}", json={"month": month, "amount": "100"})
-    client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "monthly", "amount": "250000"})
+    client.put(f"/api/budget/categories/{food['aid']}", json={"month": month, "amount": "250000"})
     page = client.get("/budget").text
-    assert "needs 2,49,900.00 more" in page
+    assert "of 2,50,000.00" in page
 
 
 def test_the_page_tells_the_scripts_how_many_decimals_the_currency_keeps(client):

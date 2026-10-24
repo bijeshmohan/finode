@@ -27,7 +27,7 @@ erDiagram
 | `transactions`, `postings` | the ledger (see [The ledger](ledger.md)) |
 | `transaction_history` | append-only snapshots after every create, update and delete |
 | `account_deletions` | append-only snapshots of accounts deleted for good, used by *Recently deleted* |
-| `budget_allocations`, `budget_targets` | the plan and the wishes (see [The budget](budget.md)) |
+| `budget_allocations`, `goals`, `goal_allocations` | the plan and the goals (see [The budget](budget.md)) |
 | `recurring_transactions`, `recurring_postings` | recurring rules, simple or split |
 | `api_tokens`, `oauth_grants` | assistant access (see [MCP and authentication](mcp-and-auth.md)) |
 
@@ -56,7 +56,7 @@ Main groups: database (`database_url`, `database_echo`), Supabase (`supabase_url
 |---|---|---|
 | **Export** | plain-text ledger journal (`/export`, `/api/export`) or CSV | always allowed |
 | **Import** | the same journal format (`app/ledger/` parses it, `services/data.py` maps it to accounts and transactions) | only while you have no transactions; preview first; all-or-nothing; unsupported input (conversions, prices, include, …) is an error with its line number |
-| **Backup** | one JSON file, `finode-backup` version 2 (`services/backup.py`) | everything you recorded: settings, accounts, transactions, recurring rules, budget plan and targets. Access tokens, connected apps and the audit history are deliberately left out |
+| **Backup** | one JSON file, `finode-backup` version 2 (`services/backup.py`) | everything you recorded: settings, accounts, transactions, recurring rules, budget plan and goals. Access tokens, connected apps and the audit history are deliberately left out |
 | **Restore** | that file | only into an empty ledger; validated first; all-or-nothing; everything gets new ids |
 
 When you add a model or an account/budget flag, add it to the backup and to `tests/test_backup.py`, or it will silently be missing from backups.

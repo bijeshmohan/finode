@@ -12,11 +12,11 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 | `list_accounts`, `get_account` | your accounts and one account's balance and recent activity |
 | `search_transactions`, `get_transaction` | find and open entries |
 | `spending_breakdown` | where the money went, by account |
-| `get_budget` | the month's budget: Ready to assign, each category's assigned, spent and left, targets |
+| `get_budget` | the month's budget: Ready to assign, each category's assigned, spent and left, and your goals |
 | `list_recurring` | your recurring rules |
 | `check_books` | re-checks that every transaction balances |
 
-**Write** (only on a read & write connection): `record_transaction`, `record_split`, `update_transaction`, `delete_transaction`, `create_account`, `create_recurring`, `stop_recurring`, `skip_recurring_occurrence`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`, `set_budget_target`, `fund_budget_targets`.
+**Write** (only on a read & write connection): `record_transaction`, `record_split`, `update_transaction`, `delete_transaction`, `create_account`, `create_recurring`, `stop_recurring`, `skip_recurring_occurrence`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`.
 
 There is also a ready-made prompt, `monthly_review`, which asks the assistant for a short review of a month.
 

@@ -13,7 +13,7 @@ class AccountDeletion(SQLModel, table=True):
     foreign key to the account, so the trace survives it.
 
     `snapshot` holds its name, parent, note, budget flag, payment category, place among its siblings, the
-    amounts planned for it in the budget and its target, and the accounts whose payments were budgeted under it.
+    amounts planned for it in the budget and the accounts whose payments were budgeted under it.
     """
 
     __tablename__ = "account_deletions"

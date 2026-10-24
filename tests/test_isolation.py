@@ -66,8 +66,7 @@ REFERENCES = {
     ("POST", "/accounts"), ("POST", "/accounts/quick"), ("POST", "/api/accounts/"),
     ("POST", "/api/import"), ("PATCH", "/api/profile/"), ("POST", "/api/recurring/"),
     ("POST", "/api/restore"), ("POST", "/api/transactions/"), ("POST", "/budget/assign"), ("POST", "/budget/copy"), ("POST", "/budget/goal"),
-    ("POST", "/budget/fund"), ("POST", "/budget/move"), ("POST", "/budget/note"), ("GET", "/budget/target"), ("POST", "/budget/target"),
-    ("POST", "/budget/target/delete"),
+    ("POST", "/budget/move"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
     ("POST", "/recurring"), ("POST", "/restore"), ("POST", "/restore/preview"), ("POST", "/settings/currency"),
     ("POST", "/settings/advanced"), ("POST", "/settings/groups"), ("POST", "/settings/lock"), ("POST", "/transactions/split"),
@@ -214,7 +213,6 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("PATCH", "/api/accounts/{aid}"): {"json": {"name": "hacked", "details": "hacked"}},
         ("PATCH", "/api/transactions/{tid}"): {"json": {"payee": "hacked"}},
         ("PUT", "/api/budget/categories/{aid}"): {"json": {"amount": "5"}},
-        ("PUT", "/api/budget/categories/{aid}/target"): {"json": {"kind": "monthly", "amount": "5"}},
         ("PUT", "/api/recurring/{rid}"): {"json": {"from_account": mine, "to_account": bills, "amount": "1", "start_date": "2999-01-01"}},
         ("POST", "/accounts/{aid}/edit"): {"data": {"name": "hacked"}},
         ("POST", "/transactions/{tid}/edit"): {"data": rows},
@@ -323,15 +321,11 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "account": [a["Groceries"], mine], "side": ["debit", "credit"], "amount": ["5", "5"],
             "frequency": "monthly", "every": "1", "start": "2999-01-01"})
         refused("assign A's category", "POST", "/budget/assign", data={"category": a["Groceries"], "amount": "5"})
-        refused("A's target", "POST", "/budget/target", data={"category": a["Groceries"], "kind": "monthly", "amount": "5"})
-        refused("note on A's category", "POST", "/budget/note", data={"category": a["Groceries"], "note": "hacked"})
-        refused("clear A's target", "POST", "/budget/target/delete", data={"category": a["Groceries"]})
-        refused("A's target page", "GET", "/budget/target", params={"category": a["Groceries"]})
         refused("move A's money", "POST", "/budget/move", data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
         refused("move page for A's category", "GET", "/budget/move", params={"source": a["Groceries"]})
         refused("quick account under A's group", "POST", "/accounts/quick", data={"name": "x", "parent_id": a["Banks"]})
         refused("account form under A's group", "POST", "/accounts", data={"name": "x", "parent_id": a["Banks"]})
-    assert len(refusals) >= 20
+    assert len(refusals) >= 18
     assert books_of(client, TEST_USER_ID) == before_a, "A's books were changed"
     assert books_of(client, B_USER) == before_b, "a refused request still changed B's books"
 
@@ -408,7 +402,6 @@ async def test_b_s_assistant_cannot_reach_a(client: TestClient, session, world: 
         await fails("record_transaction", amount="1", from_account="Mine", to_account=a["Groceries"])
         await fails("assign_to_category", category=a["Groceries"], amount="5")
         await fails("assign_to_category", category="Groceries", amount="5")
-        await fails("set_budget_target", category=a["Groceries"], kind="monthly", amount="5")
         await fails("stop_recurring", recurring_id=world.rids[0])
         await fails("create_account", name="x", parent=a["Banks"])
     assert books_of(client, TEST_USER_ID) == before_a, "A's books were changed through an assistant"

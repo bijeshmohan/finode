@@ -12,25 +12,6 @@ from .day import Day
 Money = Field()
 
 
-TARGET_KINDS = ("monthly", "weekly", "refill", "by_date", "yearly")
-
-
-class BudgetTargetRead(BaseModel):
-    # monthly: assign `amount` every month; weekly: `amount` every week, on `weekday` (0 = Monday); refill: keep `amount`
-    # available; by_date: have `amount` available by `target_date`; yearly: the same every year, in `target_date`'s month.
-    kind: str
-    amount: Decimal = Money
-    target_date: Date | None = None
-    weekday: int | None = None
-
-
-class BudgetTargetSet(BaseModel):
-    kind: str
-    amount: Decimal = Field(gt=0, decimal_places=8, max_digits=24)
-    target_date: Day | None = None
-    weekday: int | None = Field(default=None, ge=0, le=6)
-
-
 class BudgetLeftOut(BaseModel):
     # An account that could be part of the budget but is not, and what it paid for this month.
     aid: UUID
@@ -52,19 +33,6 @@ class BudgetCard(BaseModel):
     paid: Decimal = Money
 
 
-class BudgetWeek(BaseModel):
-    """One week of a category with a weekly target (weeks start on the target's day), clipped to the month."""
-
-    start: Date
-    end: Date
-    # What was spent in it, and what the target allows for it. None for the days before the month's first such
-    # day: that week was funded last month.
-    spent: Decimal = Money
-    allowance: Decimal | None = None
-    # The week that includes today.
-    current: bool = False
-
-
 class BudgetLine(BaseModel):
     aid: UUID
     # The category's name, and its path below Expenses, e.g. "Food:Groceries".
@@ -82,17 +50,6 @@ class BudgetLine(BaseModel):
     # What the category was overspent by at the end of the previous month. It started this month at zero,
     # and that amount was taken out of what is ready to assign.
     overspent_last_month: Decimal = Money
-    # The category's target (none on groups), what it needs from this month's assigning, and what of that
-    # is still missing (zero when funded or without a target). A group sums its subcategories' missing money.
-    target: BudgetTargetRead | None = None
-    needed: Decimal = Money
-    underfunded: Decimal = Money
-    # A "by a month" target whose month has passed and is still short.
-    overdue: bool = False
-    # The category's note (the account's details), if it has one.
-    note: str | None = None
-    # With a weekly target: the month week by week.
-    weeks: list[BudgetWeek] = []
 
 
 class GoalLine(BaseModel):
@@ -137,15 +94,13 @@ class BudgetRead(BaseModel):
     goals: list[GoalLine] = []
     goal_assigned: Decimal = Money
     goal_available: Decimal = Money
-    # What the goals' targets still need this month.
+    # What the goals still need this month.
     goal_underfunded: Decimal = Money
     # Money in the budget's asset accounts and what is reserved for the cards' bills (sums of the cards' `owed`).
     # ready_to_assign = money_in_accounts - reserved_for_cards - available - goal_available - assigned_to_later_months.
     money_in_accounts: Decimal = Money
     reserved_for_cards: Decimal = Money
     cards: list[BudgetCard] = []
-    # What the targets still need this month, all categories (goals included).
-    underfunded: Decimal = Money
     # Spending this month that is not counted in the categories because it was paid from accounts outside the
     # budget (a credit card that was never switched on, for example), and those accounts.
     left_out: Decimal = Money

@@ -137,8 +137,9 @@ class BackupFile(BaseModel):
     transactions: list[BackupTransaction] = []
     recurring: list[BackupRecurring] = []
     allocations: list[BackupAllocation] = []
-    targets: list[BackupTarget] = []
-    # Goals (their own records since the goals table; a file from before has its goals as categories with a target).
+    # Budget targets were removed (2026-10-24): older files still carry them, they are read and ignored, never written.
+    targets: list[BackupTarget] = Field(default_factory=list, exclude=True)
+    # Goals (their own records since the goals table; a file from before has its goals as plain categories).
     goals: list[BackupGoal] = []
 
 
@@ -150,7 +151,6 @@ class RestoreSummary(BaseModel):
     transactions: int = 0
     recurring: int = 0
     allocations: int = 0
-    targets: int = 0
     goals: int = 0
     date_from: Date | None = None
     date_to: Date | None = None

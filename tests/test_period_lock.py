@@ -168,7 +168,6 @@ def test_a_closed_months_budget_is_frozen(client, books):
     assert assign(client, books, TODAY.replace(day=1), "70").status_code == 200
     assert move_budget(client, books["food"], books["rent"], "5", LAST_MONTH).status_code == 400
     assert press(client, "copy", LAST_MONTH).status_code == 400
-    assert press(client, "fund", LAST_MONTH).status_code == 400
 
 
 def test_a_month_only_part_of_which_is_locked_is_still_open(client, books):

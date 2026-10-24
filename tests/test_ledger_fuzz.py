@@ -222,7 +222,7 @@ def run_budget(session, seed: int, steps: int) -> int:
     for step in range(steps):
         s = services(session)
         month = month_of(local_today() + timedelta(days=31 * rng.randint(-2, 2)))
-        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy", "fund", "target"] + ["goal", "gassign", "gassign", "guse", "guse", "gdelete"])
+        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy"] + ["goal", "gassign", "gassign", "guse", "guse", "gdelete"])
         label = f"budget seed {seed} step {step} {op}"
         try:
             if op == "assign":
@@ -268,11 +268,6 @@ def run_budget(session, seed: int, steps: int) -> int:
                     s.budget.delete_goal(goal.gid)
             elif op == "copy":
                 s.budget.copy_previous(month)
-            elif op == "fund":
-                s.budget.fund(month)
-            elif op == "target":
-                kind = rng.choice(["monthly", "refill", "by_date", "weekly", "yearly"])
-                s.budget.set_target(rng.choice(cats).aid, kind, money(rng), month + timedelta(days=60), rng.randint(0, 6))
             done += 1
         except ValueError:
             session.rollback()

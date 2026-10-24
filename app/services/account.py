@@ -506,9 +506,7 @@ class AccountService:
         if rules:
             label = rules[0].payee or "a recurring transaction"
             raise AccountInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
-        budget = BudgetRepository(self.ar.db, self.ar.uid)
         for member in subtree:
-            budget.clear_target(member.aid)
             self.ar.clear_payment_category(member.aid)
         self.ar.set_closed([m.aid for m in subtree if m.closed_on is None], today)
         self.ar.db.commit()
@@ -945,7 +943,6 @@ class AccountService:
     def _deletion_snapshot(self, account: Account, all_accounts: list[Account], budget: BudgetRepository) -> dict:
         """What is needed to bring an unused account back (see models/account_deletion.py)."""
         by_id = {a.aid: a for a in all_accounts}
-        target = budget.targets().get(account.aid)
         return {
             "name": account.name,
             "details": account.details,
@@ -959,10 +956,6 @@ class AccountService:
                 {"month": row.month.isoformat(), "amount": str(row.amount)}
                 for row in budget.list() if row.account_id == account.aid
             ],
-            "target": None if target is None else {
-                "kind": target.kind, "amount": str(target.amount),
-                "target_date": target.target_date.isoformat() if target.target_date else None, "weekday": target.weekday,
-            },
             "linked": [str(a.aid) for a in all_accounts if a.payment_category_id == account.aid],
         }
 
@@ -1025,10 +1018,6 @@ class AccountService:
         budget = BudgetRepository(self.ar.db, self.ar.uid)
         for item in snap.get("plan", []):
             budget.set(date.fromisoformat(item["month"]), restored.aid, Decimal(item["amount"]))
-        if snap.get("target"):
-            t = snap["target"]
-            budget.set_target(restored.aid, t["kind"], Decimal(t["amount"]),
-                              date.fromisoformat(t["target_date"]) if t["target_date"] else None, t["weekday"])
         for linked in snap.get("linked", []):
             other = by_id.get(UUID(linked))
             if other is not None and other.payment_category_id is None:
