@@ -1457,3 +1457,5 @@ form[data-txn-kind="other"] .segmented.kinds::before { opacity: 0; }
 .segmented.kinds button { position: relative; transition: color .2s ease; }
 .segmented.kinds button[aria-pressed="true"] { background: transparent; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .segmented.kinds::before, .segmented.kinds button { transition: none; } }
+
+.chip.fit-hidden { display: none; }
