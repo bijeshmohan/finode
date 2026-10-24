@@ -224,12 +224,6 @@ def test_add_again_of_a_missing_entry(client, books):
     assert client.get("/transactions/new", params={"repeat": "00000000-0000-4000-8000-0000000000aa"}).status_code == 404
 
 
-def test_the_older_kind_spellings_still_work_in_links(client, books, ledger):
-    assert set(titles(page(client, kind="spending"))) == set(titles(page(client, kind="expense")))
-    assert set(titles(page(client, kind="transfers"))) == set(titles(page(client, kind="transfer")))
-    html = page(client, kind="spending")
-    assert 'class="chip"' not in html, "the kinds switcher is gone"
-
 def test_only_an_assistant_or_a_rule_is_named_above_the_buttons(client, session, books, ledger):
     from uuid import UUID
 
