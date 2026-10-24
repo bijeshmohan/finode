@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
-from ..limits import LimitReached
 from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, ClosedAccount, DeletedAccount, RegisterEntry
 from ..services.account import AccountInUseError, SystemAccountError
 
@@ -46,7 +45,7 @@ def restore_deleted_account(did: UUID, accounts: Accounts):
         return accounts.restore_deleted(did)
     except LookupError:
         raise HTTPException(status_code=404, detail="deleted account not found") from None
-    except (ValueError, LimitReached) as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
 
 

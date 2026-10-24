@@ -88,6 +88,7 @@ def recurring_page(request: Request, accounts: Accounts, recurring: Recurring):
 def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | None, **extra) -> dict:
     """The shared transaction rows (total, From and To) filled from the rule: simple and split alike."""
     total: Decimal | str
+    keep: set[UUID] | tuple[()]
     if rule is None:
         transaction, total, from_rows, to_rows = (
             None,
@@ -96,8 +97,10 @@ def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | N
             form_rows([], PostingSide.DEBIT),
         )
         kind = "expense"
+        keep = ()
     else:
         recorded = recurring.as_transaction(rule)
+        keep = {p.account for p in recorded.postings}
         transaction = None
         total = sum((p.amount for p in recorded.postings if p.side == PostingSide.DEBIT), Decimal(0))
         kind = infer_kind(
@@ -114,7 +117,7 @@ def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | N
         total=total,
         from_rows=from_rows,
         to_rows=to_rows,
-        keep={p.account for p in recorded.postings} if rule is not None else (),
+        keep=keep,
         frequencies=FREQUENCIES,
         today=local_today().isoformat(),
         **extra,

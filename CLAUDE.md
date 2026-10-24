@@ -22,9 +22,9 @@ Python 3.14+ is required (see `pyproject.toml`, `.python-version`).
 
 Code quality (all configured in `pyproject.toml`; the same checks run in the pre-commit hook and in CI, `.github/workflows/ci.yml`):
 - Lint and format: `uv run ruff check app tests migrations scripts` and `uv run ruff format --check app tests migrations scripts` (`make lint`); fix with `make format`. Line length is 120.
-- Types: `uv run mypy` (checks `app/`, must stay clean). SQLModel's column typing is silenced only in `app.models.*` and `app.repositories.*` (see `pyproject.toml`); do not add `# type: ignore` without the error code and a reason.
+- Types: `uv run pyrefly check` (Meta's checker, checks `app/` in under a second, must stay clean; replaced mypy 2026-10-25). SQLModel's column typing is silenced only in `app.models.*` and `app.repositories.*` (see `pyproject.toml`); do not add `# pyrefly: ignore[code]` without the code and a reason.
 - `make check` runs lint, types and tests; `make coverage`, `make hooks` (pre-commit), `make help`.
-- Rules the linter enforces: `raise ... from None` inside `except`, no mutable argument defaults (form lists default to `None` and are normalised at the top of the handler), no unused variables, no `assert` in `app/` (use a check or `cast`), every `# noqa` carries a reason. Run `ruff` and `mypy` before committing; do not commit code that fails them.
+- Rules the linter enforces: `raise ... from None` inside `except`, no mutable argument defaults (form lists default to `None` and are normalised at the top of the handler), no unused variables, no `assert` in `app/` (use a check or `cast`), every `# noqa` carries a reason. Run `ruff` and `pyrefly check` before committing; do not commit code that fails them.
 
 ## Architecture
 

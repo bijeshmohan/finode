@@ -181,7 +181,7 @@ class RecurringService:
             except IntegrityError:
                 self.repo.db.rollback()  # another worker recorded it a moment ago
                 rule = self._reread(rule)
-            except (ValueError, ValidationError) as e:
+            except ValueError as e:  # a ValidationError is one too
                 self.repo.db.rollback()
                 rule = self._reread(rule)
                 message = validation_message(e) if isinstance(e, ValidationError) else str(e)

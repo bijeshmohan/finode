@@ -49,8 +49,15 @@ class TransactionBase(BaseModel):
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
 
-    _tidy_payee = field_validator("payee")(lambda cls, v: _tidy_payee(v))
-    _tidy_comment = field_validator("comment")(lambda cls, v: _tidy_comment(v))
+    @field_validator("payee")
+    @classmethod
+    def _clean_payee(cls, value: str | None) -> str | None:
+        return _tidy_payee(value)
+
+    @field_validator("comment")
+    @classmethod
+    def _clean_comment(cls, value: str | None) -> str | None:
+        return _tidy_comment(value)
 
 
 class TransactionCreate(TransactionBase):
@@ -86,8 +93,15 @@ class TransactionUpdate(BaseModel):
     # Send null to remove the link; leave it out to keep it.
     related_id: UUID | None = None
 
-    _tidy_payee = field_validator("payee")(lambda cls, v: _tidy_payee(v))
-    _tidy_comment = field_validator("comment")(lambda cls, v: _tidy_comment(v))
+    @field_validator("payee")
+    @classmethod
+    def _clean_payee(cls, value: str | None) -> str | None:
+        return _tidy_payee(value)
+
+    @field_validator("comment")
+    @classmethod
+    def _clean_comment(cls, value: str | None) -> str | None:
+        return _tidy_comment(value)
 
     @model_validator(mode="after")
     def non_nullable_fields_must_not_be_null(self) -> TransactionUpdate:

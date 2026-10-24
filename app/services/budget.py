@@ -365,7 +365,12 @@ class BudgetService:
 
         def total(account: Account) -> tuple[Decimal, Decimal, Decimal, Decimal]:
             parts = [own.get(account.aid, zero)] + [total(c) for c in children.get(account.aid, [])]
-            return tuple(sum((p[i] for p in parts), ZERO) for i in range(4))  # type: ignore[return-value]
+            return (
+                sum((p[0] for p in parts), ZERO),
+                sum((p[1] for p in parts), ZERO),
+                sum((p[2] for p in parts), ZERO),
+                sum((p[3] for p in parts), ZERO),
+            )
 
         def visible(account: Account) -> bool:
             """A closed category disappears from the budget once nothing is left in it for the month."""
