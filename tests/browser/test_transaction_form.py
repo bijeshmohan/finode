@@ -384,3 +384,16 @@ def test_an_amount_loses_its_leading_zeros_as_typed_and_gets_its_decimals_when_l
     total.click()
     page.keyboard.press("Tab")
     assert total.input_value() == "", "an empty amount stays empty"
+
+
+def test_the_kind_pill_moves_to_the_chosen_button_and_fades_for_other(page: Page, books):
+    page.goto("/transactions/new")
+    pill = lambda: page.evaluate("""() => { const s = getComputedStyle(document.querySelector('.segmented.kinds'), '::before'); return [new DOMMatrix(s.transform).m41, Number(s.opacity)]; }""")
+    assert pill() == [0, 1], "Expense is first"
+    page.click('[data-kind="income"]')
+    income = pill()
+    page.click('[data-kind="transfer"]')
+    transfer = pill()
+    assert 0 < income[0] < transfer[0] and income[1] == transfer[1] == 1, (income, transfer)
+    page.click('[data-kind="transfer"]')  # tapping the chosen one again offers every account
+    assert pill()[1] == 0, "no pill for the empty choice"
