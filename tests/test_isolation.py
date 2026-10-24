@@ -55,6 +55,9 @@ LISTS = {
     ("GET", "/api/export"), ("GET", "/api/profile/"),
     ("GET", "/api/recurring/"), 
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"),
+    ("GET", "/api/accounts/closed"), ("GET", "/api/accounts/deleted"), ("GET", "/api/profile/currencies"),
+    ("GET", "/api/reports/breakdown"), ("GET", "/api/reports/summary"), ("GET", "/api/transactions/deleted"),
+    ("GET", "/api/transactions/payees"),
     ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/goal"), ("GET", "/budget/goal/preview"), ("GET", "/budget/move"), ("GET", "/export"),
     ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
     ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/more"), ("GET", "/transactions/related-picker"), ("GET", "/transactions/new"),
@@ -69,6 +72,7 @@ REFERENCES = {
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
     ("POST", "/recurring"), ("POST", "/restore"), ("POST", "/restore/preview"), ("POST", "/settings/currency"),
     ("POST", "/transactions/split"),
+    ("POST", "/api/budget/copy"), ("POST", "/api/budget/goals"), ("POST", "/api/budget/move"),
 }
 
 
@@ -311,6 +315,12 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         refused("recurring split with A's", "POST", "/api/recurring/", json={"start_date": "2999-01-01", "postings": [
             line({"aid": a["Groceries"]}, "debit", "5"), line({"aid": mine}, "credit", "5")]})
         refused("budget A's category", "PUT", f"/api/budget/categories/{a['Groceries']}", json={"amount": "5"})
+        refused("API budget move A's", "POST", "/api/budget/move", json={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
+        refused("API group budget for A's", "PUT", f"/api/budget/groups/{a['Groceries']}", json={"total": "5"})
+        refused("API include A's account", "POST", f"/api/budget/accounts/{a['HDFC']}/include")
+        refused("API reopen A's account", "POST", f"/api/accounts/{a['HDFC']}/reopen")
+        refused("API register of A's account", "GET", f"/api/accounts/{a['HDFC']}/register")
+        refused("API filter by A's category", "GET", "/api/transactions/", params={"category": a["Groceries"]})
         refused("budget move A's", "POST", "/budget/move", data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"})
         refused("restore into a used ledger", "POST", "/api/restore", files={"file": ("b.json", json.dumps(world.backup), "application/json")})
         # the web forms

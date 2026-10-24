@@ -2,11 +2,12 @@ from datetime import date
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
-from ..schemas.account import AccountCreate, AccountRead, AccountUpdate
+from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, ClosedAccount, DeletedAccount, RegisterEntry
+from ..limits import LimitReached
 from ..services.account import AccountInUseError, SystemAccountError
 
 
@@ -19,9 +20,34 @@ router = APIRouter(
 
 @router.post("/", response_model=AccountRead, status_code=201)
 def create_account(account: AccountCreate, accounts: Accounts):
+    """Create an account or category (an Expenses/Income account); `balance` sets an opening balance on an asset or liability."""
     try:
         return accounts.create(account)
     except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/closed", response_model=list[ClosedAccount])
+def closed_accounts(accounts: Accounts):
+    """Accounts that were closed (and categories "deleted" while they had a history): the outermost of each closed
+    branch, newest first. Reopen one with POST /accounts/{aid}/reopen."""
+    return accounts.closed()
+
+
+@router.get("/deleted", response_model=list[DeletedAccount])
+def deleted_accounts(accounts: Accounts):
+    """Accounts and categories deleted for good that can still be restored, newest first."""
+    return accounts.restorable()
+
+
+@router.post("/deleted/{did}/restore", response_model=AccountRead)
+def restore_deleted_account(did: UUID, accounts: Accounts):
+    """Bring back a deleted account or category (with its old id, plan and payment links)."""
+    try:
+        return accounts.restore_deleted(did)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="deleted account not found")
+    except (ValueError, LimitReached) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -46,6 +72,7 @@ def get_accounts(
 
 @router.patch("/{aid}", response_model=AccountRead, status_code=200)
 def update_account(aid: UUID, data: AccountUpdate, accounts: Accounts):
+    """Change an account: name, note, place (`parent_id`), budget flag or payment category."""
     try:
         account = accounts.update(aid, data)
     except ValueError as e:
@@ -60,6 +87,7 @@ def update_account(aid: UUID, data: AccountUpdate, accounts: Accounts):
 
 @router.delete("/{aid}", status_code=204)
 def delete_account(aid: UUID, accounts: Accounts):
+    """Delete an account for good; refused when it has entries, sub-accounts or a recurring rule (close it instead)."""
     try:
         account = accounts.delete(aid)
     except AccountInUseError as e:
@@ -89,3 +117,25 @@ def close_account(aid: UUID, accounts: Accounts):
     """Close an account (and everything inside it): its history stays, nothing more can be posted to it.
     Refused while it holds a balance or a recurring transaction still uses it."""
     return _closing(accounts.close, aid)
+
+
+@router.post("/{aid}/reopen", response_model=AccountRead, status_code=200)
+def reopen_account(aid: UUID, accounts: Accounts):
+    """Reopen a closed account with everything inside it, and the groups above it."""
+    return _closing(accounts.reopen, aid)
+
+
+@router.get("/{aid}/register", response_model=list[RegisterEntry])
+def account_register(
+    aid: UUID,
+    accounts: Accounts,
+    own_only: bool = False,
+    limit: int | None = Query(default=None, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+):
+    """The account's entries, oldest first, each with what it changed and the running balance. `own_only` leaves out
+    what was posted to its sub-accounts."""
+    entries = accounts.register(aid, own_only=own_only)
+    if entries is None:
+        raise HTTPException(status_code=404, detail="account not found")
+    return entries[offset : offset + limit] if limit else entries[offset:]
