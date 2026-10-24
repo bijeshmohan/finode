@@ -47,22 +47,11 @@ def test_chips_carry_the_accounts_used_the_last_time(client, books):
     assert (from_id, to_id) == (books["card"]["aid"], books["delivery"]["aid"])
 
 
-def test_chips_carry_the_last_amount_for_the_as_last_time_chip(client, books):
-    pay(client, "Swiggy", books["hdfc"], books["delivery"], "480")
-    pay(client, "Swiggy", books["card"], books["delivery"], "597.50")  # the newest is the one repeated
-    pay(client, "Rent", books["hdfc"], books["groceries"], "600")
-    html = client.get("/transactions/suggest").text
-    assert 'data-payee="Swiggy"' in html and 'data-amount="597.5"' in html
-    assert 'data-amount="600"' in html, "no exponent form for round numbers"
+def test_there_is_no_amount_suggestion(client, books):
+    pay(client, "Swiggy", books["card"], books["delivery"], "597.50")
+    assert "data-amount" not in client.get("/transactions/suggest").text
     form = client.get("/transactions/new").text
-    assert "data-amount-quick" in form and 'data-nudge="10"' in form and 'data-nudge="0.01"' in form and 'data-mul="5"' in form and 'data-nudge="100"' not in form and 'data-mul="1/2"' not in form and "data-quick-undo" in form and "data-last-amount" in form
-    assert "data-amount-quick" not in client.get("/recurring/new").text, "only the new-entry form has them"
-
-
-def test_the_quick_amounts_never_offer_steps_finer_than_the_currency(client, books):
-    assert client.patch("/api/profile/", json={"default_currency": "JPY"}).status_code == 200
-    form = client.get("/transactions/new").text
-    assert 'data-nudge="1"' in form and 'data-nudge="0.01"' not in form and 'data-nudge="0.1"' not in form and 'data-places="0"' in form
+    assert "data-amount-quick" not in form and "data-last-amount" not in form and "as last time" not in form
 
 
 def test_often_paid_people_come_first_and_typing_narrows(client, books):
@@ -153,12 +142,13 @@ def test_an_unknown_payee_still_fills_the_amount_and_name(client, books):
     assert 'value="180"' in page and 'value="chai point"' in page
 
 
-def test_the_form_starts_with_the_account_you_pay_from_most_lately(client, books):
+def test_the_form_starts_with_no_account_chosen_however_often_you_pay_from_one(client, books):
     for _ in range(3):
         pay(client, "A", books["card"], books["delivery"])
     pay(client, "B", books["hdfc"], books["groceries"])
     page = client.get("/transactions/new").text
-    assert f'<option value="{books["card"]["aid"]}" selected' in page
+    assert f'<option value="{books["card"]["aid"]}" selected' not in page
+    assert f'<option value="{books["hdfc"]["aid"]}" selected' not in page
     assert f'<option value="{books["delivery"]["aid"]}" selected' not in page
 
 

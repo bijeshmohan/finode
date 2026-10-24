@@ -6,19 +6,19 @@ A transaction is money moving from one or more places to one or more places. Eve
 
 Tap **+** (phone) or **New transaction** (wide screen).
 
-1. **Amount**: type it at the top. The amount field cleans itself as you type: only digits, one decimal point and a leading minus are kept, so `42.00.00` cannot happen. On a phone, tap the amount to open the keyboard.
+1. **Amount**: type it at the top. The amount field cleans itself as you type: only digits, one decimal point and a leading minus are kept, so `42.00.00` cannot happen. On a phone, tap the amount to open the keyboard. Amounts are grouped as you type (1,24,500 for rupees).
 2. **Kind**: **Expense** (the default), **Income** or **Transfer**. The kind only narrows the account lists:
    - Expense: from an account or card, to a category.
    - Income: from an income category, to an account.
    - Transfer: between your own accounts (including paying a card or a loan).
    - Tap the selected kind again to select *none*: every account is offered. Use this for anything unusual.
 3. **From** and **To**: pick the accounts. Choose *+ New account…* to create one without leaving the form.
-4. **Payee**, **note** and **date** (today by default).
+4. **Payee**, **note** and **date** (a chip that reads "Today, 24 Oct"; tap it to pick another day).
 5. **Save**, or **Save & add another** to keep entering.
 
 ### Payee chips
 
-Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly. Under the amount, a chip such as **₹597 as last time** puts that payee's last amount in with one tap, and a row of chips builds any amount without opening the keyboard: **+0.01, +0.1, +1, +10** add to whatever is there, the **+ / −** switch turns them into subtractions (₹9.99 is +10, then −0.01), **×2, ×5, ×10** scale it, and the arrow undoes the last tap. Typing in the amount still works and starts over.
+Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly.
 
 ### Splitting across accounts
 
@@ -30,7 +30,7 @@ Open a transaction and tap the **Repeat** circle (two overlapping squares) to st
 
 ### Related entries
 
-A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap the **Related** circle (a chain link): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **+ Related to an earlier entry** and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
+A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap the **Related** circle (a chain link): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **Related transaction** and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
 
 Both entries show the link in their details sheet: the new one says "Related to" the original, the original lists what is related to it, and tapping either opens the other. A link is only a link: it changes no amounts, balances or budget, and deleting the original simply drops it.
 

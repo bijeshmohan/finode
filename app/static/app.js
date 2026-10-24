@@ -16,19 +16,61 @@ function cleanAmount(text) {
     else if (ch === "." && !dot && places > 0) { dot = true; out += ch; }
     else if (ch === "-" && out === "") out += ch;
   }
-  return out;
+  return out.replace(/^(-?)0+(?=\d)/, "$1"); // no zeros in front: "01" is 1, "00.5" is 0.5
 }
+
+// When the person leaves an amount (or sends the form) it is written out whole: no commas or zeros in front, and the
+// decimals the currency keeps ("1." and "1.1" become 1.00 and 1.10 for rupees). Anything that is not a number stays as typed.
+function tidyAmount(text) {
+  const places = Number(document.documentElement.dataset.places ?? 2);
+  let t = text.replace(/[,\s]/g, "");
+  const sign = t.startsWith("-") ? "-" : "";
+  t = t.replace("-", "");
+  if (t === "" || t === "." || !/^\d*\.?\d*$/.test(t)) return text;
+  const [whole, fraction = ""] = t.split(".");
+  const digits = whole.replace(/^0+(?=\d)/, "") || "0";
+  return sign + digits + (places ? "." + fraction.slice(0, places).padEnd(places, "0") : "");
+}
+
+// The amount of a transaction is grouped as it is typed (12,34,567.00 for rupees): `groupAmount` puts the commas in
+// whatever number it is given and leaves anything else alone. Fields that carry `data-group` use it.
+function groupAmount(text) {
+  const match = /^(-?)(\d*)(\.\d*)?$/.exec(text.replace(/,/g, ""));
+  return match ? match[1] + groupDigits(match[2]) + (match[3] || "") : text;
+}
+
+function tidyField(field) {
+  const tidy = field.hasAttribute("data-group") ? groupAmount(tidyAmount(field.value)) : tidyAmount(field.value);
+  if (tidy === field.value) return false;
+  field.value = tidy;
+  return true;
+}
+
+const isAmountField = (el) => el && el.tagName === "INPUT" && el.getAttribute("inputmode") === "decimal";
+document.addEventListener("focusout", (event) => {
+  if (isAmountField(event.target) && tidyField(event.target)) event.target.dispatchEvent(new Event("input", { bubbles: true }));
+}, true);
+document.addEventListener("submit", (event) => {
+  if (event.target.querySelectorAll) event.target.querySelectorAll('input[inputmode="decimal"]').forEach(tidyField);
+}, true);
 
 document.addEventListener("input", (event) => {
   const field = event.target;
   if (!field || field.tagName !== "INPUT" || field.getAttribute("inputmode") !== "decimal") return;
-  const cleaned = cleanAmount(field.value);
+  const clean = cleanAmount(field.value);
+  const cleaned = field.hasAttribute("data-group") ? groupAmount(clean) : clean;
   if (cleaned === field.value) return;
-  // Keep the cursor where it was, minus what was taken out in front of it.
+  // Keep the cursor after the same digits as before (commas come and go as the number is grouped).
   const caret = field.selectionStart ?? field.value.length;
-  const kept = cleanAmount(field.value.slice(0, caret)).length;
+  const digits = cleanAmount(field.value.slice(0, caret)).replace(/,/g, "").length;
   field.value = cleaned;
-  try { field.setSelectionRange(kept, kept); } catch (e) { /* not every input type allows it */ }
+  let seen = 0;
+  let at = cleaned.length;
+  for (let i = 0; i < cleaned.length; i++) {
+    if (seen >= digits) { at = i; break; }
+    if (cleaned[i] !== ",") seen += 1;
+  }
+  try { field.setSelectionRange(at, at); } catch (e) { /* not every input type allows it */ }
 }, true);
 
 // Let htmx swap server-rendered validation messages (4xx) into the page.
@@ -442,13 +484,21 @@ document.addEventListener("click", (event) => {
 // sheet (and what was typed) away. The next tap outside closes it.
 // (The browser moves focus off the field when the press starts, so what was focused is noted then.)
 let wasTyping = false;
+// A press that began on the sheet's own content never closes it, even when the sheet moves under the finger before the
+// release (focusing the amount makes the sheet change shape) and the click lands on the dim area instead.
+let pressedInside = false;
 document.addEventListener("pointerdown", (event) => {
+  pressedInside = event.target instanceof Element && !(event.target instanceof HTMLDialogElement) && !!event.target.closest("dialog.sheet-bottom");
   const field = document.activeElement;
   wasTyping = event.target instanceof HTMLDialogElement && !!field && event.target.contains(field) && field.matches("input, select, textarea");
 }, true);
 document.body.addEventListener("click", (event) => {
   const dialog = event.target;
   if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains("sheet-bottom")) return;
+  if (pressedInside) {
+    pressedInside = false;
+    return;
+  }
   if (wasTyping) {
     wasTyping = false;
     if (document.activeElement && dialog.contains(document.activeElement)) document.activeElement.blur();
@@ -501,85 +551,6 @@ document.body.addEventListener("click", (event) => {
   });
 })();
 
-// "₹597 as last time" under the amount, once a payee you know is chosen; one tap puts it in. +100 / +500 / +1000 add to
-// whatever is there. Both go through the amount's own input handling, so the rows below follow.
-function showLastAmount(form, amount) {
-  const quick = form.querySelector("[data-amount-quick]");
-  const last = quick && quick.querySelector("[data-last-amount]");
-  if (!last) return;
-  const value = amount ? parseDec(amount) : null;
-  last.hidden = value === null;
-  if (value === null) return;
-  const [whole, fraction] = formatDec(value).split(".");
-  last.dataset.amount = amount;
-  last.textContent = `${quick.dataset.symbol}${groupDigits(whole)}${fraction === "00" ? "" : "." + fraction} as last time`;
-}
-
-// The quick-amount chips build any amount without the keyboard: + steps (or − steps with the +/− switch), × to move up or
-// halve, and an undo for the last tap. Typing in the amount forgets the undo history. Never finer than the currency
-// keeps, never past what the ledger accepts, never below zero.
-const QUICK_MAX = 10n ** BigInt(16 + SCALE);
-
-function quickApply(form, make) {
-  const total = form.querySelector("#total");
-  const quick = form.querySelector("[data-amount-quick]");
-  if (!total || !quick) return;
-  const before = total.value;
-  const current = parseDec(before) || 0n;
-  const places = Number(quick.dataset.places || 2);
-  const unit = 10n ** BigInt(SCALE - places);
-  let next = make(current, quick.dataset.sign === "-" ? -1n : 1n);
-  next = ((next + unit / 2n) / unit) * unit; // round to the places the currency keeps
-  if (next < 0n) next = 0n;
-  if (next >= QUICK_MAX) return;
-  form._quickUndo = (form._quickUndo || []).concat(before);
-  total.value = formatDec(next);
-  form._quickBusy = true;
-  total.dispatchEvent(new Event("input", { bubbles: true }));
-  form._quickBusy = false;
-  quick.querySelector("[data-quick-undo]").disabled = false;
-}
-
-document.body.addEventListener("click", (event) => {
-  const button = event.target.closest && event.target.closest("[data-last-amount], [data-nudge], [data-mul], [data-quick-sign], [data-quick-undo]");
-  if (!button) return;
-  const form = button.closest("form[data-txn-form]");
-  const quick = button.closest("[data-amount-quick]");
-  if (!form || !quick) return;
-  if (button.hasAttribute("data-quick-sign")) {
-    const minus = quick.dataset.sign !== "-";
-    quick.dataset.sign = minus ? "-" : "+";
-    button.setAttribute("aria-pressed", String(minus));
-  } else if (button.hasAttribute("data-quick-undo")) {
-    const history = form._quickUndo || [];
-    if (!history.length) return;
-    const total = form.querySelector("#total");
-    total.value = history.pop();
-    form._quickBusy = true;
-    total.dispatchEvent(new Event("input", { bubbles: true }));
-    form._quickBusy = false;
-    button.disabled = !history.length;
-  } else if (button.hasAttribute("data-mul")) {
-    const [top, bottom] = button.dataset.mul.split("/").map((n) => BigInt(n));
-    quickApply(form, (value) => (value * top) / (bottom || 1n));
-  } else if (button.hasAttribute("data-nudge")) {
-    const step = parseDec(button.dataset.nudge);
-    quickApply(form, (value, sign) => value + sign * step);
-  } else {
-    quickApply(form, () => parseDec(button.dataset.amount));
-  }
-});
-
-// Typing in the amount starts over: the undo history no longer matches what is there.
-document.addEventListener("input", (event) => {
-  if (!event.target.matches || !event.target.matches("#total")) return;
-  const form = event.target.closest("form[data-txn-form]");
-  if (!form || form._quickBusy) return;
-  form._quickUndo = [];
-  const undo = form.querySelector("[data-quick-undo]");
-  if (undo) undo.disabled = true;
-});
-
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
 function applySuggestion(form, chip, focus = true) {
   const payee = form.querySelector("#payee");
@@ -592,7 +563,6 @@ function applySuggestion(form, chip, focus = true) {
     select.dataset.previous = select.value;
   });
   form.querySelectorAll("[data-suggest]").forEach((c) => c.setAttribute("aria-pressed", c === chip ? "true" : "false"));
-  showLastAmount(form, chip.dataset.amount);
   recomputeTxn(form);
   if (!focus) return;
   const total = form.querySelector("#total");
@@ -634,13 +604,13 @@ function rowShare(row) {
 function setSuggestion(row, text) {
   const field = row.querySelector('[name="amount"]');
   if (document.activeElement === field) return; // never overwrite what is being typed
-  field.value = text;
+  field.value = groupAmount(text);
   field.classList.toggle("suggested", text !== "");
 }
 
 function recomputeTxn(form) {
   const field = form.querySelector("#total");
-  field.style.setProperty("--n", Math.max(field.value.length, 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
+  field.style.setProperty("--n", Math.max(field.value.length - 0.55 * (field.value.split(",").length - 1), 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
   const total = parseDec(field.value) || 0n;
   const currency = form.dataset.currency;
 
@@ -673,7 +643,7 @@ function recomputeTxn(form) {
     open.forEach((row, index) => setSuggestion(row, index === 0 && remaining > 0n ? formatDec(remaining) : ""));
     rows.forEach((row) => {
       const only = rows.length === 1;
-      row.querySelector("[data-remove-row]").hidden = only && !rowAccount(row).value && !row.hasAttribute("data-touched");
+      row.querySelector("[data-remove-row]").hidden = only; // one row has nothing to remove
     });
 
     const status = form.querySelector(`[data-status="${side}"]`);
@@ -683,7 +653,7 @@ function recomputeTxn(form) {
     status.classList.toggle("off", left !== 0n && total > 0n && rows.some((r) => rowShare(r) > 0n));
     status.textContent =
       total === 0n ? ""
-      : left === 0n ? `${money(total)} ${currency} allocated`
+      : left === 0n ? "" // balanced is the normal state, so nothing is said about it
       : left > 0n ? `${money(left)} ${currency} left to allocate`
       : `${money(-left)} ${currency} over`;
   });
@@ -694,6 +664,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!form) return;
   const first = form.querySelector("select[data-account-select]");
   form._all = first ? withoutSelection(first.innerHTML) : "";
+  form.querySelectorAll("[data-group]").forEach((field) => { if (field.value) tidyField(field); });
+  form.querySelectorAll("[data-rows]").forEach((list) => {
+    const rows = list.querySelectorAll("[data-row]");
+    rows.forEach((row) => { row.querySelector("[data-remove-row]").hidden = rows.length === 1; });
+  });
   applyKind(form, form.querySelector("[data-kind-input]").value);
 });
 
@@ -1071,3 +1046,38 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
     if (clear) set(clear.closest("[data-related]"), "", "");
   });
 })();
+
+// The payee suggestions are one row, on any width: chips that would wrap to a second row are left out (and come back when
+// the row has room, as the window changes size or the person types and the list is replaced).
+function fitPayeeChips() {
+  const box = document.getElementById("payee-chips");
+  if (!box) return;
+  const chips = [...box.querySelectorAll(".chip")];
+  chips.forEach((chip) => chip.classList.remove("fit-hidden"));
+  if (!chips.length) return;
+  const top = chips[0].offsetTop;
+  chips.forEach((chip) => { if (chip.offsetTop > top) chip.classList.add("fit-hidden"); });
+}
+document.body.addEventListener("htmx:afterSwap", (event) => { if (event.target && event.target.id === "payee-chips") fitPayeeChips(); });
+window.addEventListener("resize", fitPayeeChips);
+
+// The date chip on the Add screen: a native date picker under the day's name ("Today, 24 Oct"); choosing a day renames it.
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  const chip = input instanceof HTMLInputElement && input.closest("[data-date-chip]");
+  if (!chip || !input.value) return;
+  const [y, m, d] = input.value.split("-").map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d));
+  const today = chip.dataset.today;
+  const part = (options) => day.toLocaleDateString("en-GB", { timeZone: "UTC", ...options });
+  chip.querySelector("[data-date-label]").textContent =
+    input.value === today ? `Today, ${d} ${part({ month: "short" })}`
+    : input.value.slice(0, 4) === today.slice(0, 4) ? `${part({ weekday: "short" })}, ${d} ${part({ month: "short" })}`
+    : `${d} ${part({ month: "short", year: "numeric" })}`;
+});
+document.addEventListener("click", (event) => {
+  const input = event.target;
+  if (input instanceof HTMLInputElement && input.closest("[data-date-chip]") && typeof input.showPicker === "function") {
+    try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
+  }
+});

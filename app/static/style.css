@@ -810,21 +810,11 @@ form.copy-last button { margin: 0; }
   min-height: 4.5rem; padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 0;
 }
 .total-field .amount-field input::placeholder { color: var(--faint); opacity: .55; }
-/* The cursor sits alone in the middle while the field is empty, not on top of the grey 0.00. */
-.total-field .amount-field input:focus::placeholder { opacity: 0; }
+/* The grey 0.00 stays while the field is empty and focused, with the cursor at its start (the same on a phone and a computer). */
+.total-field .amount-field input:placeholder-shown { text-align: left; }
 .total-field .currency-code { padding-bottom: 1.2rem; font-weight: 500; font-size: .95rem; }
 
 /* Quick amounts under the amount: the last one for this payee, and nudges. */
-.amount-quick { display: flex; flex-direction: column; align-items: center; gap: .5rem; margin-top: -.25rem; }
-.amount-quick .qa-row { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
-.amount-quick button.chip { min-height: 2rem; font-size: .8125rem; font-variant-numeric: tabular-nums; }
-.amount-quick .qa-mul { background: var(--surface-2, var(--surface)); }
-.amount-quick .qa-undo .icon { width: 1rem; height: 1rem; }
-.amount-quick .qa-undo:disabled { opacity: .4; }
-.amount-quick .qa-sign[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
-.amount-quick .qa-s::before { content: "+"; }
-.amount-quick[data-sign="-"] .qa-s::before { content: "\2212"; }
-.amount-quick[data-sign="-"] .qa-add { color: var(--danger, var(--text)); }
 
 .payee-field { display: flex; flex-direction: column; gap: .75rem; }
 .payee-label { font-size: 0; }
@@ -1306,15 +1296,6 @@ main > :not(.page-head):not(.cat-bar) { animation: rise-in .22s ease-out; }
 @keyframes sk-pulse { from { opacity: .55; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { main > * { animation: none !important; } .sk { animation: none; } @view-transition { navigation: none; } }
 
-/* ---------- Wide screens: Home in two columns (the figure and bars, then the transactions) ---------- */
-@media (min-width: 60rem) {
-  body.app main:has(.home-cols) { max-width: 70rem; margin-left: max(calc(var(--sidebar-w) + 1rem), calc(50vw - 33rem)); }
-  .home-cols { display: grid; grid-template-columns: minmax(0, 24rem) minmax(0, 1fr); column-gap: 3rem; align-items: start; }
-  .home-cols > :not(.home-recent) { grid-column: 1; }
-  .home-cols > .home-recent { grid-column: 2; grid-row: 1 / span 8; }
-  .home-recent .section-head { margin-top: 0; }
-}
-
 /* Home's head with room to breathe (2026-10-23): looser gaps between label row, figure, bar, warning and the list */
 .glance { padding-top: 0; padding-bottom: .5rem; }
 .glance .box-top { margin-bottom: .6rem; }
@@ -1323,8 +1304,6 @@ main > :not(.page-head):not(.cat-bar) { animation: rise-in .22s ease-out; }
 .glance > .glance-note { margin-top: 1rem; }
 main:has(.glance) .section-head { margin-top: 2.5rem; }
 .home-recent .section-head { margin-top: 0; }
-/* From 60rem the Transactions heading shares a line with Left to spend (the month pill row), as the other pages' titles do (2026-10-23). */
-@media (min-width: 60rem) { main:has(.glance) .home-recent .section-head { margin-top: .6rem; } }
 
 /* Plans rows: a little more room under each bar so the notch clears the divider (2026-10-23) */
 .budget-list .crow.has-bar { padding: .9rem 0 1.15rem; }
@@ -1428,7 +1407,9 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 .ready-hero .hero-top { min-height: 1.75rem; }
 
 /* An entry related to an earlier one: the chip on the form, the picker rows and the list in the details sheet. */
-.related { margin: 1rem 0 0; }
+.related { margin: 0; }
+.related .related-add { margin-top: 0; }
+.side-status:empty { display: none; }
 .related-chip { display: flex; align-items: center; gap: .75rem; padding: .6rem .85rem; border-radius: var(--radius); background: var(--surface-2, var(--surface)); }
 .related-chip > span { flex: 1; min-width: 0; }
 .related-chip small { display: block; color: var(--muted); font-size: .75rem; }
@@ -1446,3 +1427,34 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 .sheet-related-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 3rem; margin: 0; padding: 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font-size: .9375rem; font-weight: 400; text-align: left; }
 .sheet-related-row > span:first-child { display: flex; flex-direction: column; min-width: 0; }
 .sheet-related-row small { font-size: .8125rem; }
+
+/* The swap button sits on the seam between the From and To tiles, so the two tiles are the same size (2026-10-24). */
+.txn-swap { position: relative; height: 0; margin-block: -.5rem; z-index: 2; }
+.txn-swap .swap { position: absolute; left: 50%; top: -1.125rem; margin-left: -1.125rem; width: 2.25rem; height: 2.25rem; min-height: 0; min-width: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--surface); border: 1px solid var(--tile-border); color: var(--muted); }
+.txn-swap .swap .icon { width: 1.1rem; height: 1.1rem; }
+@media (hover: hover) { .txn-swap .swap:hover { color: var(--text); background: var(--surface-2); } }
+
+/* Expense / Income / Transfer: one pill glides to the chosen button (the form's data-txn-kind says which; "other" has none, so
+   the pill fades out). Transform and opacity only, so Safari on iOS and macOS animate it too (2026-10-24). */
+.segmented.kinds { position: relative; isolation: isolate; }
+.segmented.kinds::before {
+  content: ""; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px;
+  width: calc((100% - 6px - 8px) / 3); border-radius: 9px; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+  transform: translateX(0); opacity: 1;
+  transition: transform .28s cubic-bezier(.3, .7, .2, 1), opacity .18s ease;
+}
+form[data-txn-kind="income"] .segmented.kinds::before { transform: translateX(calc(100% + 4px)); }
+form[data-txn-kind="transfer"] .segmented.kinds::before { transform: translateX(calc(200% + 8px)); }
+form[data-txn-kind="other"] .segmented.kinds::before { opacity: 0; }
+.segmented.kinds button { position: relative; transition: color .2s ease; }
+.segmented.kinds button[aria-pressed="true"] { background: transparent; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .segmented.kinds::before, .segmented.kinds button { transition: none; } }
+
+.chip.fit-hidden { display: none; }
+
+/* One row on a side has nothing to remove: no x, and the name gets its width back. The date is a chip over a native picker. */
+.txn-row:has([data-remove-row][hidden]) { grid-template-columns: minmax(0, 1fr) 7rem; }
+.txn-form label.date-chip { position: relative; display: inline-flex; flex-direction: row; align-self: flex-start; gap: .4rem; align-items: center; cursor: pointer; padding: 0 .9rem; min-height: 2.25rem; border-radius: 999px; font-size: .875rem; font-weight: 500; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+.date-chip .icon { width: 1rem; height: 1rem; }
+.date-chip input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
+.form-actions button.quiet { background: none; border: 0; color: var(--muted); text-decoration: underline; min-height: 2.5rem; font-size: .9375rem; font-weight: 500; }

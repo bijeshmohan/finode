@@ -9,28 +9,11 @@
 
   <div class="total-field">
     <label class="amount-field">Amount
-      <input type="text" name="total" id="total" inputmode="decimal" placeholder="0.00" required autocomplete="off"
+      <input type="text" name="total" id="total" inputmode="decimal" data-group placeholder="0.00" required autocomplete="off"
              value="{{ total }}" {{ "data-autofocus" if not editing }}>
     </label>
     <span class="currency-code muted {{ 'sym' if currency == 'INR' }}">{{ currency|symbol }}</span>
   </div>
-
-  {#- Quick amounts for a new entry: the last amount for the chosen payee, and nudges (see data-amount-quick in app.js). -#}
-  {% if with_payee and not editing %}
-  <div class="amount-quick" data-amount-quick data-symbol="{{ currency|symbol }}" data-places="{{ currency|places }}" data-sign="+">
-    <button type="button" class="chip" data-last-amount hidden></button>
-    {% set places = currency|places %}
-    {% set steps = (("0.01", 2), ("0.1", 1), ("1", 0), ("10", 0)) %}
-    <div class="qa-row">
-      <button type="button" class="chip qa-sign" data-quick-sign aria-pressed="false" aria-label="Subtract instead of add">+ / −</button>
-      {% for step, decimals in steps if decimals <= places %}<button type="button" class="chip qa-add" data-nudge="{{ step }}"><span class="qa-s" aria-hidden="true"></span>{{ step }}</button>{% endfor %}
-    </div>
-    <div class="qa-row">
-      {% for mul in (2, 5, 10) %}<button type="button" class="chip qa-mul" data-mul="{{ mul }}" aria-label="Multiply by {{ mul }}">×{{ mul }}</button>{% endfor %}
-      <button type="button" class="chip qa-undo" data-quick-undo aria-label="Undo the last tap" disabled>{{ icon("undo") }}</button>
-    </div>
-  </div>
-  {% endif %}
 
   {% if with_payee %}{% include "partials/txn_payee.html" %}{% endif %}
 
@@ -38,7 +21,6 @@
   <section class="txn-side" data-side-section="{{ side }}">
     <div class="txn-side-head">
       <h2>{{ title }} <span class="hint" data-side-hint>{{ hint }}</span></h2>
-      {% if loop.first %}<button type="button" class="icon-button swap" data-swap-sides title="Swap From and To">{{ icon("swap") }}<span class="sr-only">Swap From and To</span></button>{% endif %}
     </div>
     <div class="txn-rows" data-rows="{{ side }}">
       {% for r in rows %}
@@ -48,6 +30,7 @@
     </div>
     <p class="side-status" data-status="{{ side }}" aria-live="polite"></p>
   </section>
+  {% if loop.first %}<div class="txn-swap"><button type="button" class="swap" data-swap-sides title="Swap From and To">{{ icon("swap") }}<span class="sr-only">Swap From and To</span></button></div>{% endif %}
   {% endfor %}
 
   <template id="txn-row-template">

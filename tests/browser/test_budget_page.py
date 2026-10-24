@@ -285,7 +285,7 @@ def test_a_tap_beside_the_sheet_while_typing_only_puts_the_keyboard_away(page: P
     page.mouse.click(195, 20)  # the dim area above the sheet
     expect(page.locator("#cat-sheet")).to_be_visible()
     expect(box).not_to_be_focused()
-    assert box.input_value() == "77", "what was typed is kept"
+    assert box.input_value() == "77.00", "what was typed is kept, written out with its decimals"
     page.mouse.click(195, 20)
     expect(page.locator("#cat-sheet")).not_to_be_visible()
 
@@ -385,3 +385,34 @@ def test_the_month_pill_sits_on_the_same_line_on_home_and_the_other_pages(page: 
         assert page.locator(".month-pill").count() == 1, f"no month pill on {name}"
         tops[name] = page.locator(".month-pill").bounding_box()["y"]
     assert len({round(t) for t in tops.values()}) == 1, tops
+
+
+def test_tapping_the_amount_in_a_sheet_focuses_it_and_does_not_close_the_sheet(page: Page, books, api: Api, live_server: str):
+    """On a phone, focusing the amount makes the sheet change shape and the release can land on the dim area, which used to
+    close the sheet (a subcategory on a group's page lost the tap far more often than a top-level category)."""
+    dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
+    api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
+    phone = page.context.browser.new_context(base_url=live_server, has_touch=True, is_mobile=True, viewport={"width": 390, "height": 780})
+    try:
+        mobile = phone.new_page()
+        mobile.set_default_timeout(8000)
+
+        def tap_amount(label: str):
+            box = mobile.locator(f'#cat-sheet input[aria-label="Assigned to {label}"]')
+            expect(box).to_be_visible()
+            mobile.wait_for_timeout(700)  # the sheet has finished sliding in
+            box.tap()
+            mobile.wait_for_timeout(300)
+            expect(mobile.locator("#cat-sheet")).to_be_visible()
+            expect(box).to_be_focused()
+
+        mobile.goto("/budget")
+        mobile.locator("a.catrow", has_text="Groceries").first.tap()
+        tap_amount("Groceries")
+        mobile.goto("/budget")
+        mobile.locator("a.grow", has_text="Dining").tap()
+        mobile.wait_for_url("**/budget/group/**")
+        mobile.locator("a.catrow", has_text="Delivery").tap()
+        tap_amount("Delivery")
+    finally:
+        phone.close()

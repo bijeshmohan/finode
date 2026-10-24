@@ -69,7 +69,7 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
     page.click('[data-rows="credit"] [name="amount"]')  # a suggestion is selected on entry: typing replaces it
     page.keyboard.type("60")
     page.keyboard.press("Tab")
-    assert amounts(page, "credit") == ["60", "40.00"]
+    assert amounts(page, "credit") == ["60.00", "40.00"]
     assert page.eval_on_selector_all('[data-rows="credit"] [name="amount"]', "e => e.map(x => x.classList.contains('suggested'))") == [False, True]
     page.select_option('[data-rows="credit"] [data-row]:nth-child(2) select', label="Cash")
     page.select_option('[data-rows="debit"] select', label="Rent")
@@ -156,45 +156,6 @@ def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(p
         (books["card"]["aid"], "credit"), (books["food"]["aid"], "debit")}
 
 
-def test_the_last_amount_and_the_nudges_fill_the_amount(page: Page, books, api: Api):
-    history(api, books)
-    page.goto("/transactions/new")
-    last = page.locator("[data-last-amount]")
-    expect(last).to_be_hidden()
-    page.locator("#payee-chips .chip", has_text="Swiggy").click()
-    expect(last).to_be_visible()
-    expect(last).to_contain_text("as last time")
-    last.click()
-    amount = page.input_value("#total")
-    assert float(amount) > 0
-    page.locator('[data-nudge="10"]').click()
-    assert float(page.input_value("#total")) == float(amount) + 10
-    assert page.input_value('[data-rows="debit"] [name="amount"]').startswith(page.input_value("#total").split(".")[0]), "the rows follow the amount"
-
-
-def test_the_quick_chips_build_any_amount_and_undo(page: Page, books):
-    page.goto("/transactions/new")
-    tap = lambda sel: page.locator(sel).click()
-    total = lambda: float(page.input_value("#total"))
-    tap('[data-nudge="10"]'); tap('[data-mul="5"]'); tap('[data-mul="10"]')
-    assert total() == 500
-    tap('[data-mul="2"]')
-    assert total() == 1000
-    tap("[data-quick-undo]")
-    assert total() == 500
-    tap("[data-quick-sign]")
-    tap('[data-nudge="0.01"]')
-    assert page.input_value("#total") == "499.99", "the minus switch subtracts"
-    expect(page.locator('[data-rows="debit"] [name="amount"]').first).to_have_value("499.99")
-    tap("[data-quick-sign]")
-    tap('[data-nudge="10"]')
-    assert total() == 509.99
-    page.fill("#total", "12")
-    expect(page.locator("[data-quick-undo]")).to_be_disabled()
-    tap("[data-quick-sign]"); tap('[data-nudge="10"]'); tap('[data-nudge="10"]')
-    assert total() == 0, "never below zero"
-
-
 def test_a_chip_still_lets_you_split_the_amount_afterwards(page: Page, books, api: Api):
     history(api, books)
     page.goto("/transactions/new")
@@ -228,7 +189,7 @@ def test_the_chips_narrow_as_you_type(page: Page, books, api: Api):
     expect(page.locator("#payee-chips .chip")).to_have_text("DMart")
 
 
-def test_the_cursor_is_ink_coloured_and_alone_in_an_empty_amount(page: Page, books):
+def test_the_cursor_is_ink_coloured_and_the_grey_zero_stays_while_empty(page: Page, books):
     page.goto("/transactions/new")
     page.focus("#total")
     colours = page.eval_on_selector("#total", "e => [getComputedStyle(e).caretColor, getComputedStyle(e).color]")
@@ -236,9 +197,8 @@ def test_the_cursor_is_ink_coloured_and_alone_in_an_empty_amount(page: Page, boo
     if page.context.browser.browser_type.name == "webkit":
         return  # WebKit does not report the style of a ::placeholder; the screenshot check covers it
     placeholder = page.eval_on_selector("#total", "e => getComputedStyle(e, '::placeholder').opacity")
-    assert placeholder == "0", "the grey 0.00 steps aside while typing"
-    page.evaluate("document.activeElement.blur()")
-    assert page.eval_on_selector("#total", "e => getComputedStyle(e, '::placeholder').opacity") != "0"
+    assert placeholder != "0", "the grey 0.00 stays, with the cursor at its start, on a computer and a phone alike"
+    assert page.eval_on_selector("#total", "e => getComputedStyle(e).textAlign") in ("left", "start")
 
 
 def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(page: Page, books):
@@ -264,7 +224,7 @@ def test_an_amount_cannot_be_typed_with_two_decimal_points_or_letters(page: Page
     assert total.input_value() == "42.00", "the second point is ignored and rupees keep two decimals"
     total.fill("")
     page.keyboard.type("1a2b,5.5x")
-    assert total.input_value() == "12,5.5", "letters are ignored, commas and one point stay"
+    assert total.input_value() == "125.5", "letters are ignored, one point stays, commas are put where they belong"
     total.fill("")
     page.keyboard.type("9.999")
     assert total.input_value() == "9.99", "no third decimal for rupees"
@@ -281,7 +241,7 @@ def test_pasting_a_messy_amount_keeps_the_good_part_and_the_cursor(page: Page, b
     total.fill("123")
     total.evaluate("e => { e.focus(); e.setSelectionRange(1, 1); }")
     page.keyboard.type("x4")
-    assert total.input_value() == "1423", "the cursor stayed after the 1"
+    assert total.input_value() == "1,423", "the cursor stayed after the 1"
 
 
 def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, books):
@@ -295,8 +255,10 @@ def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, book
 def test_the_allocation_status_groups_rupees_in_lakhs(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "1500000")
-    page.fill('[data-rows="debit"] [name="amount"]', "500000")
-    expect(page.locator('[data-status="debit"]')).to_contain_text("15,00,000.00 INR allocated")
+    page.fill('[data-rows="debit"] [name="amount"]', "2000000")
+    expect(page.locator('[data-status="debit"]')).to_contain_text("5,00,000.00 INR over")
+    page.fill('[data-rows="debit"] [name="amount"]', "1500000")
+    expect(page.locator('[data-status="debit"]')).to_have_text("")  # balanced: nothing is said
     assert page.evaluate("document.documentElement.dataset.grouping") == "indian"
 
 
@@ -337,8 +299,16 @@ def test_the_picker_relates_an_entry_and_the_chip_removes_it(page: Page, books, 
     expect(page.locator("[data-related-chip]")).to_be_hidden()
     page.locator("[data-related-add]").click()
     expect(page.locator("[data-related-pick]")).to_have_count(2)  # the newest first, once the sheet has loaded
-    page.fill("#related-picker input[type=search]", "swig")
-    expect(page.locator("[data-related-pick]")).to_have_count(1)
+    search = page.locator("#related-picker input[type=search]")
+    for attempt in range(4):  # htmx may not have wired the freshly swapped-in field yet (slow WebKit runs): type again
+        search.fill("")
+        search.fill("swig")
+        try:
+            expect(page.locator("[data-related-pick]")).to_have_count(1, timeout=1500)
+            break
+        except AssertionError:
+            if attempt == 3:
+                raise
     page.locator("[data-related-pick]").click()
     expect(page.locator("#related-picker")).not_to_be_visible()
     expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy")
@@ -347,3 +317,112 @@ def test_the_picker_relates_an_entry_and_the_chip_removes_it(page: Page, books, 
     expect(page.locator("[data-related-chip]")).to_be_hidden()
     expect(page.locator("[data-related-add]")).to_be_visible()
     assert page.input_value("[data-related-value]") == ""
+
+
+def test_from_and_to_are_the_same_size_and_the_swap_sits_between_them(page: Page, books):
+    page.goto("/transactions/new")
+    page.fill("#total", "100")
+    heights = page.eval_on_selector_all(".txn-side", "els => els.map(e => Math.round(e.getBoundingClientRect().height))")
+    assert len(heights) == 2 and heights[0] == heights[1], f"the swap button must not make From taller than To: {heights}"
+    seam = page.evaluate("""() => {
+      const [from, to] = [...document.querySelectorAll('.txn-side')].map(e => e.getBoundingClientRect());
+      const b = document.querySelector('[data-swap-sides]').getBoundingClientRect();
+      return [b.top + b.height / 2, from.bottom, to.top];
+    }""")
+    assert seam[1] - 1 <= seam[0] <= seam[2] + 1, f"the button is on the seam between the tiles: {seam}"
+
+
+def test_an_amount_loses_its_leading_zeros_as_typed_and_gets_its_decimals_when_left(page: Page, books):
+    page.goto("/transactions/new")
+    total = page.locator("#total")
+    total.click()
+    page.keyboard.type("007")
+    assert total.input_value() == "7", "no zeros in front"
+    total.fill("")
+    page.keyboard.type("0.5")
+    assert total.input_value() == "0.5", "a lone zero before the point stays"
+    page.keyboard.press("Tab")
+    assert total.input_value() == "0.50", "written out with two decimals on leaving"
+    for typed, tidy in (("1.", "1.00"), ("1.1", "1.10"), ("12", "12.00"), (".5", "0.50"), ("1,200", "1,200.00")):
+        total.fill("")
+        total.click()
+        page.keyboard.type(typed)
+        page.keyboard.press("Tab")
+        assert total.input_value() == tidy, typed
+    assert page.input_value('[data-rows="debit"] [name="amount"]') == "1,200.00", "the rows follow the tidied amount"
+    total.fill("")
+    total.click()
+    page.keyboard.press("Tab")
+    assert total.input_value() == "", "an empty amount stays empty"
+
+
+def test_the_kind_pill_moves_to_the_chosen_button_and_fades_for_other(page: Page, books):
+    page.goto("/transactions/new")
+    pill = lambda: page.evaluate("""() => { const s = getComputedStyle(document.querySelector('.segmented.kinds'), '::before'); return [new DOMMatrix(s.transform).m41, Number(s.opacity)]; }""")
+    assert pill() == [0, 1], "Expense is first"
+    page.click('[data-kind="income"]')
+    income = pill()
+    page.click('[data-kind="transfer"]')
+    transfer = pill()
+    assert 0 < income[0] < transfer[0] and income[1] == transfer[1] == 1, (income, transfer)
+    page.click('[data-kind="transfer"]')  # tapping the chosen one again offers every account
+    assert pill()[1] == 0, "no pill for the empty choice"
+
+
+def test_the_payee_suggestions_stay_on_one_row_on_a_phone_and_a_wide_screen(page: Page, books, api: Api):
+    for name in ("Swiggy", "Zomato Gold", "Big Basket", "Blinkit", "Chai Point", "Metro Card", "Pharmacy"):
+        history(api, books, payee=name)
+    for width in (390, 1280):
+        page.set_viewport_size({"width": width, "height": 800})
+        page.goto("/transactions/new")
+        expect(page.locator("#payee-chips .chip").first).to_be_visible()
+        tops = page.eval_on_selector_all("#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).map(e => e.offsetTop)")
+        assert tops and len(set(tops)) == 1, f"every suggestion on one row at {width}px: {tops}"
+    expect(page.locator("#payee")).to_have_attribute("placeholder", "Payee or Merchant?")
+    page.set_viewport_size({"width": 390, "height": 800})
+    page.goto("/transactions/new")
+    shown = page.eval_on_selector_all("#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).length")
+    assert 0 < shown < 7, "a phone fits fewer chips than there are habits"
+
+
+def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(page: Page, books):
+    page.goto("/transactions/new")
+    total = page.locator("#total")
+    total.click()
+    page.keyboard.type("124500")
+    assert total.input_value() == "1,24,500", "lakhs for rupees, as it is typed"
+    page.keyboard.press("Home")
+    page.keyboard.type("9")
+    assert total.input_value() == "91,24,500", "typing in front regroups and the cursor stays after the 9"
+    page.keyboard.type("8")
+    assert total.input_value() == "9,81,24,500"
+    total.fill("")
+    page.keyboard.type("1234567.5")
+    page.keyboard.press("Tab")
+    assert total.input_value() == "12,34,567.50"
+    assert page.input_value('[data-rows="debit"] [name="amount"]') == "12,34,567.50", "the rows are grouped too"
+    page.fill('[data-rows="debit"] [name="amount"]', "")
+    page.keyboard.type("1000")
+    assert page.input_value('[data-rows="debit"] [name="amount"]') == "1,000"
+
+
+def test_a_lone_row_has_no_cross_and_a_split_has_one_on_every_row(page: Page, books):
+    page.goto("/transactions/new")
+    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
+    page.fill("#total", "100")
+    page.locator('[data-rows="debit"] select').first.select_option(books["food"]["aid"])
+    page.fill('[data-rows="debit"] [name="amount"]', "60")
+    expect(page.locator('[data-rows="debit"] [data-remove-row]:visible')).to_have_count(2)
+    expect(page.locator('[data-rows="credit"] [data-remove-row]:visible')).to_have_count(0), "the other side is still one row"
+    page.fill('[data-rows="debit"] [name="amount"]', "100")
+    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
+
+
+def test_the_date_is_a_chip_that_names_the_day(page: Page, books):
+    page.goto("/transactions/new")
+    chip = page.locator("[data-date-label]")
+    expect(chip).to_contain_text("Today, ")
+    page.fill('input[name="date"]', "2020-03-04")
+    expect(chip).to_have_text("4 Mar 2020")
+    page.fill('input[name="date"]', page.locator("[data-date-chip]").get_attribute("data-today"))
+    expect(chip).to_contain_text("Today, ")
