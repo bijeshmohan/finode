@@ -52,7 +52,7 @@ def test_add_again_opens_the_form_filled_in(page: Page, books, api: Api):
     add(api, books, "DMart", "food", "checking", "1286")
     page.goto("/transactions")
     page.locator("a.tx", has_text="DMart").click()
-    page.get_by_role("link", name="Add again").click()
+    page.get_by_role("link", name="Repeat").click()
     page.wait_for_url("**/transactions/new?repeat=*")
     assert page.input_value("#total") == "1286.00" and page.input_value("#payee") == "DMart"
     assert page.input_value('[data-rows="credit"] select') == books["checking"]["aid"]

@@ -285,7 +285,7 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books,
     first = _spend(api, books, "Swiggy", "1000", "2026-10-10")
     page.goto("/transactions")
     page.locator("a.tx", has_text="Swiggy").click()
-    page.get_by_role("link", name="Add related").click()
+    page.get_by_role("link", name="Related").click()
     expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy · 10 Oct · 1,000.00")
     expect(page.locator("[data-related-add]")).to_be_hidden()
     page.fill("#total", "300")
