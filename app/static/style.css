@@ -1446,3 +1446,9 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 .sheet-related-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 3rem; margin: 0; padding: 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font-size: .9375rem; font-weight: 400; text-align: left; }
 .sheet-related-row > span:first-child { display: flex; flex-direction: column; min-width: 0; }
 .sheet-related-row small { font-size: .8125rem; }
+
+/* The swap button sits on the seam between the From and To tiles, so the two tiles are the same size (2026-10-24). */
+.txn-swap { position: relative; height: 0; margin-block: -.5rem; z-index: 2; }
+.txn-swap .swap { position: absolute; left: 50%; top: -1.125rem; margin-left: -1.125rem; width: 2.25rem; height: 2.25rem; min-height: 0; min-width: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--surface); border: 1px solid var(--tile-border); color: var(--muted); }
+.txn-swap .swap .icon { width: 1.1rem; height: 1.1rem; }
+@media (hover: hover) { .txn-swap .swap:hover { color: var(--text); background: var(--surface-2); } }

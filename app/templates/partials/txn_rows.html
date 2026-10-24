@@ -38,7 +38,6 @@
   <section class="txn-side" data-side-section="{{ side }}">
     <div class="txn-side-head">
       <h2>{{ title }} <span class="hint" data-side-hint>{{ hint }}</span></h2>
-      {% if loop.first %}<button type="button" class="icon-button swap" data-swap-sides title="Swap From and To">{{ icon("swap") }}<span class="sr-only">Swap From and To</span></button>{% endif %}
     </div>
     <div class="txn-rows" data-rows="{{ side }}">
       {% for r in rows %}
@@ -48,6 +47,7 @@
     </div>
     <p class="side-status" data-status="{{ side }}" aria-live="polite"></p>
   </section>
+  {% if loop.first %}<div class="txn-swap"><button type="button" class="swap" data-swap-sides title="Swap From and To">{{ icon("swap") }}<span class="sr-only">Swap From and To</span></button></div>{% endif %}
   {% endfor %}
 
   <template id="txn-row-template">
