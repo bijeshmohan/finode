@@ -218,3 +218,18 @@ def test_home_starts_short_and_show_more_finishes_the_month(page: Page, books, a
     expect(page.locator(".tx-end")).to_contain_text("That is all of January")
     page.locator("a.tx").first.click()  # rows that arrived later open the details sheet too
     expect(page.locator("#txn-sheet")).to_be_visible()
+
+
+def test_the_sheet_opens_on_an_account_page_and_a_category_page_and_edit_comes_back(page: Page, books, api: Api):
+    add(api, books, "Swiggy", "food", "card")
+    for url in (f"/accounts/{books['card']['aid']}", f"/categories/{books['food']['aid']}"):
+        page.goto(url)
+        page.locator("a.tx", has_text="Swiggy").click()
+        expect(page.locator("#txn-sheet")).to_be_visible()
+        expect(page.locator("#txn-sheet-body h2")).to_have_text("Swiggy")
+        assert page.url.endswith(url), "the page itself did not change"
+        page.locator("#txn-sheet a.button", has_text="Edit").click()
+        page.wait_for_url(re.compile(r"/transactions/[^/]+/edit"))
+        page.get_by_role("button", name="Save changes").click()
+        page.wait_for_url(re.compile(re.escape(url) + r"$"))
+        expect(page.locator("a.tx", has_text="Swiggy")).to_be_visible()  # the account page is fully back

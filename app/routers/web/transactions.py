@@ -313,7 +313,7 @@ def more_transactions(
 
 
 @router.get("/{tid}/sheet")
-def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transactions: Transactions):
+def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transactions: Transactions, back: str = ""):
     """The details of one transaction, for the sheet that opens over a list (the edit page has the rest)."""
     transaction = transactions.read(tid)
     if transaction is None:
@@ -334,6 +334,7 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
             "row": row,
             "t": transaction,
             "currency": accounts.currency().code,
+            "back": safe_back(back, ""),  # the page to return to after Edit, Repeat or Related (an account's page, say)
             "from_label": labels[0],
             "to_label": labels[1],
             "from_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
