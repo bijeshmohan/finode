@@ -238,6 +238,16 @@ class TransactionRepository:
             grouped.setdefault(posting.transaction, []).append(posting)
         return grouped
 
+    def posting_rows(self, date_to: date):
+        """Every posting of transactions dated up to a day, as (transaction, account, side, amount, date) rows: what the
+        budget is worked out from, without payees, notes or timestamps. One query, remembered for the request."""
+        statement = (
+            select(Posting.transaction, Posting.account, Posting.side, Posting.amount, Transaction.date)
+            .join(Transaction, Transaction.tid == Posting.transaction)
+            .where(Posting.user == self.uid, Transaction.user == self.uid, Transaction.date <= date_to)
+        )
+        return list(remembered(self.db, ("posting_rows", self.uid, date_to), lambda: self.db.exec(statement).all()))
+
     def all_postings(self) -> list[Posting]:
         return self.db.exec(select(Posting).where(Posting.user == self.uid)).all()
 
