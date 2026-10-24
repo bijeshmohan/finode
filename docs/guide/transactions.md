@@ -30,7 +30,7 @@ Open a transaction and tap the **Repeat** circle (two overlapping squares) to st
 
 ### Related entries
 
-A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap the **Related** circle (a chain link): the form opens as a copy (same accounts, payee, note and the full amount) with a "Related to…" line above Save. Change what differs (swap From and To for a reversal, type the smaller amount for a part refund) and save. From the form you can also tap **+ Related to an earlier entry** and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
+A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap the **Related** circle (a chain link): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **+ Related to an earlier entry** and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
 
 Both entries show the link in their details sheet: the new one says "Related to" the original, the original lists what is related to it, and tapping either opens the other. A link is only a link: it changes no amounts, balances or budget, and deleting the original simply drops it.
 

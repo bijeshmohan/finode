@@ -594,12 +594,12 @@ def new_transaction_page(
     back: str = "",
     q: str = "",  # what was typed in the quick-add bar: "250 swiggy"
     repeat: UUID | None = None,  # "add again": a copy of this transaction, dated today
-    related: UUID | None = None,  # "add related": the same copy, linked to that transaction
+    related: UUID | None = None,  # "related": a blank new entry linked to that transaction
     mode: str = "",  # old links; the form is one page now
 ):
     all_accounts = accounts.list()
-    if repeat is not None or related is not None:
-        again = transactions.read(repeat or related)
+    if repeat is not None:
+        again = transactions.read(repeat)
         if again is None:
             raise HTTPException(status_code=404, detail="transaction not found")
         roots = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
@@ -611,7 +611,6 @@ def new_transaction_page(
                 today=local_today().isoformat(),
                 transaction=None,
                 copy_of=again,
-                related=to_row(again, AccountIndex.build(all_accounts)) if related is not None else None,
                 total=sum((p.amount for p in again.postings if p.side == PostingSide.DEBIT), Decimal(0)),
                 new_payee=again.payee or "",
                 new_note=again.comment or "",
@@ -623,6 +622,11 @@ def new_transaction_page(
                 back_url=safe_back(back),
             ),
         )
+    linked = None
+    if related is not None:
+        linked = related_info(transactions, AccountIndex.build(all_accounts), related)
+        if linked is None:
+            raise HTTPException(status_code=404, detail="transaction not found")
     from_id = to_id = None
     roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
     amount_text, payee_text = split_quick_entry(q)
@@ -653,6 +657,7 @@ def new_transaction_page(
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
             kind=kind,
+            related=linked,
             account=account,
             back=safe_back(back, ""),
             back_url=safe_back(back),
