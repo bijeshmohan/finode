@@ -142,9 +142,8 @@ class BudgetService:
         budget_accounts.sort()
         ignored.sort()
 
-        transactions = {t.tid: t for t in self.tr.list(date_to=through)}
         touching: set[UUID] = set()
-        postings = [p for p in self.tr.all_postings() if p.transaction in transactions]
+        postings = self.tr.posting_rows(through)
         for p in postings:
             if p.account in in_budget:
                 touching.add(p.transaction)
@@ -154,8 +153,7 @@ class BudgetService:
         for p in postings:
             if p.transaction in touching:
                 continue
-            transaction = transactions[p.transaction]
-            if p.account in categories and first_of_month(transaction.date) == month:
+            if p.account in categories and first_of_month(p.date) == month:
                 value = p.amount if p.side == PostingSide.DEBIT else -p.amount
                 outside.setdefault(p.transaction, [ZERO, set()])[0] += value
         for p in postings:
@@ -204,16 +202,15 @@ class BudgetService:
                 if p.account in liabilities:
                     book_ = card_books[p.account]
                     book_[0] += p.amount if p.side == PostingSide.DEBIT else -p.amount
-                    if first_of_month(transactions[p.transaction].date) == month:
+                    if first_of_month(p.date) == month:
                         book_[2 if p.side == PostingSide.DEBIT else 1] += p.amount
             # Spending is what is posted to a category, and what is paid into an account that has one.
             target = p.account if p.account in categories else (payments.get(p.account) if p.side == PostingSide.DEBIT else None)
             if target is not None and p.transaction in touching:
-                transaction = transactions[p.transaction]
-                if first_of_month(transaction.date) < start:
+                if first_of_month(p.date) < start:
                     continue
                 value = p.amount if p.side == PostingSide.DEBIT else -p.amount
-                figures = by_category.setdefault(target, {}).setdefault(first_of_month(transaction.date), [ZERO, ZERO])
+                figures = by_category.setdefault(target, {}).setdefault(first_of_month(p.date), [ZERO, ZERO])
                 figures[1] += value
         for row in allocations:
             if row.account_id in categories:

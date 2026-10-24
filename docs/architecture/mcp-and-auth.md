@@ -50,9 +50,9 @@ Sign-up is invite-only (`app/signup.py`): the invite code is compared in constan
 
 ### Tools
 
-Nine read tools: `get_overview`, `list_accounts`, `get_account`, `search_transactions`, `get_transaction`, `spending_breakdown`, `list_recurring`, `check_books`, `get_budget`.
+Ten read tools: `get_overview`, `list_accounts`, `get_account`, `search_transactions`, `get_transaction`, `spending_breakdown`, `list_recurring`, `check_books`, `get_budget`, `list_deleted_transactions`.
 
-Eleven write tools: `record_transaction`, `record_split`, `update_transaction`, `delete_transaction` (marked destructive), `create_account`, `create_recurring`, `stop_recurring`, `skip_recurring_occurrence`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`.
+Eighteen write tools: `record_transaction`, `record_split`, `update_transaction`, `delete_transaction` (marked destructive), `create_account`, `create_recurring`, `stop_recurring`, `resume_recurring`, `skip_recurring_occurrence`, `restore_transaction`, `create_goal`, `update_goal`, `delete_goal` (marked destructive), `assign_to_category`, `assign_to_goal`, `use_goal`, `move_budget_money`, `copy_budget_from_previous_month`. `record_transaction`, `record_split` and `update_transaction` take `related_to` (an earlier transaction's id; an empty string removes the link on update).
 
 One prompt, `monthly_review`. Assistants can create accounts but never delete or edit them. Amounts go out as strings. A service error becomes a `ToolError` with the service's message. `INSTRUCTIONS` in `tools.py` must be kept in step with the ledger rules.
 

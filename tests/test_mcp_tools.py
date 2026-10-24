@@ -426,3 +426,95 @@ async def test_only_expense_categories_can_be_planned(session, root_accounts, cl
         for name in ("Bank", "Fund", "Salary"):
             with pytest.raises(ToolFailed, match="not an expense account"):
                 payload(await c.call_tool("assign_to_category", {"category": name, "amount": "5"}))
+
+
+# ---- related entries, deleted entries, resuming, goals -------------------------------------------------------------
+
+
+async def test_assistants_can_link_a_refund_to_the_purchase(session, books, secret):
+    async with running_app(session), mcp_client(secret) as c:
+        bought = (await call(c, "record_transaction", amount="1200", from_account="HDFC", to_account="Groceries", payee="DMart"))["recorded"]
+        assert bought["related_to"] is None
+        refund = (await call(c, "record_transaction", amount="400", from_account="Groceries", to_account="HDFC",
+                             payee="DMart", related_to=bought["id"]))["recorded"]
+        assert refund["related_to"] == bought["id"]
+        original = await call(c, "get_transaction", transaction_id=bought["id"])
+        assert [r["id"] for r in original["related"]] == [refund["id"]]
+        # a split can be linked too, and the link can be changed and removed
+        split = (await call(c, "record_split", postings=[
+            {"account": "Groceries", "side": "credit", "amount": "50"}, {"account": "HDFC", "side": "debit", "amount": "50"}],
+            related_to=bought["id"]))["recorded"]
+        assert split["related_to"] == bought["id"]
+        moved = (await call(c, "update_transaction", transaction_id=split["id"], related_to=refund["id"]))["updated"]
+        assert moved["related_to"] == refund["id"]
+        cleared = (await call(c, "update_transaction", transaction_id=split["id"], related_to=""))["updated"]
+        assert cleared["related_to"] is None
+        with pytest.raises(ToolFailed, match="related transaction was not found"):
+            await call(c, "update_transaction", transaction_id=split["id"], related_to="00000000-0000-4000-8000-0000000000aa")
+        with pytest.raises(ToolFailed, match="relate"):
+            await call(c, "update_transaction", transaction_id=bought["id"], related_to=bought["id"])
+        with pytest.raises(ToolFailed, match="not a transaction id"):
+            await call(c, "record_transaction", amount="1", from_account="HDFC", to_account="Groceries", related_to="abc")
+
+
+async def test_assistants_can_list_and_restore_deleted_transactions(session, books, secret):
+    async with running_app(session), mcp_client(secret) as c:
+        assert (await call(c, "list_deleted_transactions"))["deleted"] == []
+        made = (await call(c, "record_transaction", amount="75", from_account="HDFC", to_account="Groceries", payee="Milk"))["recorded"]
+        await call(c, "delete_transaction", transaction_id=made["id"])
+        gone = (await call(c, "list_deleted_transactions"))["deleted"]
+        assert len(gone) == 1 and gone[0]["payee"] == "Milk" and gone[0]["total"] == "75.00" and gone[0]["transaction_id"] == made["id"]
+        back = (await call(c, "restore_transaction", deleted_id=gone[0]["deleted_id"]))["restored"]
+        assert back["id"] == made["id"] and back["total"] == "75.00"
+        assert (await call(c, "list_deleted_transactions"))["deleted"] == []
+        with pytest.raises(ToolFailed, match="already back"):
+            await call(c, "restore_transaction", deleted_id=gone[0]["deleted_id"])
+        with pytest.raises(ToolFailed, match="no deleted transaction"):
+            await call(c, "restore_transaction", deleted_id="00000000-0000-4000-8000-0000000000aa")
+        with pytest.raises(ToolFailed, match="not a deleted-transaction id"):
+            await call(c, "restore_transaction", deleted_id="abc")
+
+
+async def test_assistants_can_resume_a_paused_recurring_transaction(session, books, secret):
+    async with running_app(session), mcp_client(secret) as c:
+        made = (await call(c, "create_recurring", from_account="HDFC", to_account="Groceries", amount="10",
+                           frequency="monthly", start_date="2999-01-01"))["created"]
+        await call(c, "stop_recurring", recurring_id=made["id"])
+        assert (await call(c, "list_recurring"))["recurring"][0]["next_due"] is None
+        resumed = await call(c, "resume_recurring", recurring_id=made["id"])
+        assert resumed["resumed"] == made["id"] and resumed["next_due"] == "2999-01-01"
+        with pytest.raises(ToolFailed, match="no recurring transaction"):
+            await call(c, "resume_recurring", recurring_id="00000000-0000-4000-8000-0000000000aa")
+
+
+async def test_assistants_can_create_change_and_delete_a_goal(session, books, secret):
+    async with running_app(session), mcp_client(secret) as c:
+        made = await call(c, "create_goal", name="Laptop", amount="60000", by="2999-12")
+        goal = next(g for g in made["goals"] if g["goal"] == "Laptop")
+        assert goal["target"] == "60000.00" and goal["by"] == "2999-12-01"
+        changed = await call(c, "update_goal", goal="laptop", name="New laptop", amount="70000")
+        goal = next(g for g in changed["goals"] if g["goal"] == "New laptop")
+        assert goal["target"] == "70000.00" and goal["by"] == "2999-12-01"
+        with pytest.raises(ToolFailed, match="nothing to change"):
+            await call(c, "update_goal", goal="New laptop")
+        with pytest.raises(ToolFailed, match="already have a goal"):
+            await call(c, "create_goal", name="new LAPTOP", amount="1", by="2999-12")
+        with pytest.raises(ToolFailed, match="YYYY-MM"):
+            await call(c, "create_goal", name="Trip", amount="1", by="soon")
+        gone = await call(c, "delete_goal", goal="New laptop")
+        assert gone["deleted"] == "New laptop"
+        assert "goals" not in await call(c, "get_budget")
+        with pytest.raises(ToolFailed, match="no goal is called"):
+            await call(c, "delete_goal", goal="New laptop")
+
+
+async def test_a_read_only_connection_refuses_the_new_tools(session, books):
+    read_only = make_token(session, TEST_USER_ID, scope="read")
+    async with running_app(session), mcp_client(read_only) as c:
+        assert "list_deleted_transactions" in {t.name for t in (await c.list_tools()).tools}
+        assert (await call(c, "list_deleted_transactions"))["deleted"] == []
+        for tool, args in (("restore_transaction", {"deleted_id": "x"}), ("resume_recurring", {"recurring_id": "x"}),
+                           ("create_goal", {"name": "a", "amount": "1", "by": "2999-12"}),
+                           ("update_goal", {"goal": "a", "name": "b"}), ("delete_goal", {"goal": "a"})):
+            with pytest.raises(ToolFailed, match="read-only"):
+                await call(c, tool, **args)

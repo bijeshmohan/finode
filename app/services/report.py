@@ -41,8 +41,7 @@ class ReportService:
         assets = roots["Assets"].balance
         liabilities = roots["Liabilities"].balance
 
-        income = self._period_total("Income", PostingSide.CREDIT, roots, period_start, period_end)
-        expenses = self._period_total("Expenses", PostingSide.DEBIT, roots, period_start, period_end)
+        income, expenses = self._period_totals(roots, period_start, period_end)
         # Paying into a loan budgeted under a category spends that category: as on the Budget and the Categories page.
         expenses += sum(
             (p.amount for _, p in self.accounts.payments_into_loans(accounts, period_start, period_end)), Decimal("0.00")
@@ -60,12 +59,17 @@ class ReportService:
             net_income=income - expenses,
         )
 
-    def _period_total(self, root_name, normal_side, roots, period_start, period_end) -> Decimal:
-        subtree = self.accounts.subtree_ids(roots[root_name].aid)
-        total = Decimal("0.00")
-        for posting in self.tr.postings_for_accounts(subtree, period_start, period_end):
-            total += posting.amount if posting.side == normal_side else -posting.amount
-        return total
+    def _period_totals(self, roots, period_start, period_end) -> tuple[Decimal, Decimal]:
+        """(income, expenses) for a period from one query: what came in on the Income accounts and went out on the Expenses ones."""
+        income_ids = set(self.accounts.subtree_ids(roots["Income"].aid))
+        expense_ids = set(self.accounts.subtree_ids(roots["Expenses"].aid))
+        income = expenses = Decimal("0.00")
+        for posting in self.tr.postings_for_accounts(list(income_ids | expense_ids), period_start, period_end):
+            if posting.account in income_ids:
+                income += posting.amount if posting.side == PostingSide.CREDIT else -posting.amount
+            else:
+                expenses += posting.amount if posting.side == PostingSide.DEBIT else -posting.amount
+        return income, expenses
 
     def account_totals(self, root_name: str, period_start: date, period_end: date) -> dict:
         """What each account under Income or Expenses took in a period (what was posted to the account itself:
