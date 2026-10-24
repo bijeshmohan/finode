@@ -146,7 +146,8 @@ def test_the_sheet_shows_the_entry(client, books, ledger):
     text = flat(sheet(client, ledger["swiggy"]))
     assert "Swiggy" in text and "597.00" in text and "−597.00" not in text, "an ordinary expense has no minus"
     assert "Paid from Regalia Gold" in text and "Spent on Delivery" in text
-    assert "Note None" in text and "Added By the API" in text
+    assert "Note" not in text and "Added" not in text, "no empty note row, and nothing about who the app or API is"
+    assert "weekly shop" in flat(sheet(client, ledger["dmart"])) and "Note weekly shop" in flat(sheet(client, ledger["dmart"]))
 
 
 def test_a_date_is_not_said_twice(client, books, ledger):
@@ -154,7 +155,7 @@ def test_a_date_is_not_said_twice(client, books, ledger):
 
     day = local_today().strftime("%d %b %Y")
     text = flat(sheet(client, ledger["swiggy"]))  # dated today and recorded today
-    assert text.count(day) == 1 and "Today · " + day in text and "Added By the API" in text and "Added By the API," not in text
+    assert text.count(day) == 1 and "Today · " + day in text
 
 
 def test_the_labels_follow_the_kind(client, books, ledger):
@@ -237,3 +238,22 @@ def test_the_older_kind_spellings_still_work_in_links(client, books, ledger):
     assert set(titles(page(client, kind="transfers"))) == set(titles(page(client, kind="transfer")))
     html = page(client, kind="spending")
     assert 'class="chip"' not in html, "the kinds switcher is gone"
+
+def test_only_an_assistant_or_a_rule_is_named_above_the_buttons(client, session, books, ledger):
+    from uuid import UUID
+
+    from app.models.transaction import Transaction
+
+    html = sheet(client, ledger["swiggy"])
+    assert "sheet-by" not in html, "an entry made through the API says nothing about who added it"
+    made = session.get(Transaction, UUID(ledger["swiggy"]["tid"]))
+    made.created_via = "mcp:Claude"
+    session.add(made)
+    session.commit()
+    html = sheet(client, ledger["swiggy"])
+    assert "Added by Claude" in flat(html) and html.index("sheet-by") < html.index("sheet-actions")
+    made.created_via = "recurring"
+    session.add(made)
+    session.commit()
+    html = sheet(client, ledger["swiggy"])
+    assert 'href="/recurring"' in html and "Recurring" in flat(html) and "Added by" not in flat(html)

@@ -24,9 +24,15 @@ Under the payee field, finode suggests the payees you use most. Tapping one fill
 
 When you need more than one account on a side (a bill paid half by cash and half by card, or a shop receipt with Food and Household), add rows. Each side starts with one row; when you type a different amount in a row, a new row appears with the remainder suggested, until the side adds up to the total. Both sides must add up to the same total. The same account cannot be on both sides of one entry (money cannot move from an account to itself); it can appear on several rows of the same side.
 
-### Add again
+### Repeat
 
-Open a transaction and tap **Add again** to start a new one pre-filled with the same accounts, payee and note, dated today.
+Open a transaction and tap the **Repeat** circle (two overlapping squares) to start a new one pre-filled with the same accounts, payee and note, dated today.
+
+### Related entries
+
+A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap the **Related** circle (a chain link): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **+ Related to an earlier entry** and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
+
+Both entries show the link in their details sheet: the new one says "Related to" the original, the original lists what is related to it, and tapping either opens the other. A link is only a link: it changes no amounts, balances or budget, and deleting the original simply drops it.
 
 ## The Transactions page
 
@@ -34,9 +40,9 @@ Open a transaction and tap **Add again** to start a new one pre-filled with the 
 
 - The **month pill** at the top right (the same place as on Budgets and Categories) picks the month: the arrows go back or forward, and tapping the month opens a month and year picker. Entries dated ahead wait in the *upcoming* card on the current month.
 - **Filter** (the word at the right of the line under the title): opens a sheet with **Account**, **Category** and **Merchant**; each opens a searchable list, **Show transactions** applies them (a field left on Any is not sent). What is set shows under the line with a ✕ to remove it, and the line says how many entries match and what they come to when they all go one way ("3 transactions · ₹2,338 spent"). The filters apply to the month in the pill. Recurring transactions and Recently deleted are in Settings › Your data.
-- **Tap a row** to see its details in a sheet: the accounts (*Paid from* and *Spent on* for an expense), the note, who added it (*By the app* for what you entered, or *Recurring* or the assistant's name), and the buttons **Edit**, **Add again** and **Delete**.
+- **Tap a row** (on this page, Home, and on an account's or a category's own page) to see its details in a sheet: the accounts (*Paid from* and *Spent on* for an expense), the note (only when there is one), the entries related to it, a quiet line above the buttons when an assistant added it (*Added by Claude*, with a sparkle) or a recurring rule did (*Recurring*; nothing is said for what you entered yourself), the **Edit** button, two round icon buttons (**Repeat** and **Related**, named for screen readers and as a hover tip) and **Delete**.
 
-<img src="img/transaction-sheet.png" alt="A transaction's details sheet with Edit, Add again and Delete" width="300">
+<img src="img/transaction-sheet.png" alt="A transaction's details sheet with Edit, Repeat, Related and Delete" width="300">
 - A month starts with its newest 25 entries (a day is never cut in two); **Show 25 more** at the bottom of the list adds the next ones in place, with how many are left beside it, until the whole month is on the page. **Home** does the same, starting with the newest 8 and adding 10 at a time.
 
 ### Upcoming entries

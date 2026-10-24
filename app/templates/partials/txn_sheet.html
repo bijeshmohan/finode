@@ -1,5 +1,7 @@
 {#- The details of one transaction in the sheet over a list. Expects row (TransactionRow), t, from_label, to_label, from_postings, to_postings, locked_by. -#}
 {% from "partials/icons.html" import icon %}
+{% set bq = "?back=" ~ (back|urlencode) if back else "" %}
+{% set bx = "&back=" ~ (back|urlencode) if back else "" %}
 <div class="sheet-grab" aria-hidden="true"></div>
 <div class="sheet-title">
   <div>
@@ -12,16 +14,33 @@
 <dl class="sheet-facts">
   <div><dt>{{ from_label }}</dt><dd>{% for name, p in from_postings %}<span>{{ name }}{% if from_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
   <div><dt>{{ to_label }}</dt><dd>{% for name, p in to_postings %}<span>{{ name }}{% if to_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
-  <div><dt>Note</dt><dd>{% if t.comment %}{{ t.comment }}{% else %}<span class="muted">None</span>{% endif %}</dd></div>
-  <div><dt>Added</dt><dd class="{{ 'auto' if t.created_via and t.created_via not in ('web', 'api', 'import') }}">{% if t.created_via %}By {{ t.created_via|origin_label }}{% else %}Recorded{% endif %}{% if t.created.date() != t.date %}, {{ t.created.strftime("%d %b %Y") }}{% endif %}</dd></div>
-  {% if t.recurring_id or t.created_via == "recurring" %}<div><dt>Repeats</dt><dd class="auto"><a href="/recurring">Part of a recurring transaction</a></dd></div>{% endif %}
+  {% if t.comment %}<div><dt>Note</dt><dd>{{ t.comment }}</dd></div>{% endif %}
 </dl>
+
+{% if related_to or related %}
+<div class="sheet-related">
+  <p class="sheet-related-head">{{ "Related to" if related_to else "Related · " ~ related|length }}</p>
+  {% for r in ([related_to] if related_to else related) %}
+  <button type="button" class="sheet-related-row" hx-get="/transactions/{{ r.transaction.tid }}/sheet{{ bq }}" hx-target="#txn-sheet-body" hx-swap="innerHTML">
+    <span>{{ r.transaction.payee or (r.credits|join(", ") if r.kind == "income" else r.debits|join(", ")) }}<small class="muted">{{ r.transaction.date|friendly_date }}</small></span>
+    <span class="tx-amount {{ r.kind }}">{{ "+" if r.kind == "income" }}{{ r.amount|money }}</span>
+  </button>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if t.created_via and t.created_via.startswith("mcp:") %}
+<p class="sheet-by">{{ icon("spark") }}<span>Added by {{ t.created_via[4:] }}</span></p>
+{% elif t.recurring_id or t.created_via == "recurring" %}
+<p class="sheet-by">{{ icon("repeat") }}<a href="/recurring">Recurring</a></p>
+{% endif %}
 
 {% if locked_by %}<p class="notice" role="status">In a locked period (everything up to {{ locked_by.strftime("%d %b %Y") }} is closed): it can't be changed or deleted.</p>{% endif %}
 <p id="sheet-error" class="error" role="alert"></p>
 <div class="sheet-actions">
-  {% if locked_by %}<span class="button" aria-disabled="true">Edit</span>{% else %}<a class="button" href="/transactions/{{ t.tid }}/edit">Edit</a>{% endif %}
-  <a class="button secondary" href="/transactions/new?repeat={{ t.tid }}">Add again</a>
+  {% if locked_by %}<span class="button" aria-disabled="true">Edit</span>{% else %}<a class="button" href="/transactions/{{ t.tid }}/edit{{ bq }}">Edit</a>{% endif %}
+  <a class="circ-button" href="/transactions/new?repeat={{ t.tid }}{{ bx }}" aria-label="Repeat" title="Repeat">{{ icon("copy") }}</a>
+  <a class="circ-button" href="/transactions/new?related={{ t.tid }}{{ bx }}" aria-label="Related" title="Related">{{ icon("link") }}</a>
 </div>
 <button type="button" class="sheet-delete" {{ "disabled" if locked_by }}
         hx-post="/transactions/{{ t.tid }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>

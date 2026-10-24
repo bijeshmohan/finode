@@ -1,7 +1,7 @@
 /* ---------- Design tokens ---------- */
 /* Calm and minimal: one ink colour for actions, warm neutral greys, green and red only where money is in or out. */
 :root {
-  --bar-h: 6px; /* every progress bar: Home, Budget, Categories */
+  --bar-h: 3px; /* every progress bar: Home, Budget, Categories */
   --bg: #fafaf8;
   --surface: #ffffff;
   --surface-2: #f1f0ec;
@@ -708,12 +708,6 @@ h2.choose { font-size: 1rem; margin: 0; }
 .copy-row { display: flex; gap: .5rem; align-items: stretch; }
 .copy-row .secret { flex: 1; margin: 0; }
 
-.history { margin-top: 1rem; }
-.history > summary { cursor: pointer; font-weight: 600; }
-.history-list { list-style: none; margin: .75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .9rem; }
-.history-list li { border-top: 1px solid var(--border); padding-top: .6rem; }
-.history-list li:first-child { border-top: 0; padding-top: 0; }
-.history-posting { font-size: .9rem; display: flex; justify-content: space-between; gap: 1rem; }
 
 /* ---------- Budget ---------- */
 label.check {
@@ -917,7 +911,9 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
 .sheet-facts dd { margin: 0; text-align: right; font-weight: 500; display: flex; flex-direction: column; align-items: flex-end; gap: .15rem; }
 .sheet-actions { display: flex; gap: .625rem; margin-top: 1.1rem; }
 .sheet-stack { margin-top: 1.1rem; }
-.sheet-actions .button { flex: 1; min-height: 3.125rem; }
+.sheet-actions .button { flex: 1; min-height: 3.125rem; padding-inline: .5rem; white-space: nowrap; }
+.sheet-actions { align-items: center; }
+.sheet-actions .circ-button { flex: none; width: 3.125rem; height: 3.125rem; }
 .sheet-actions .button[aria-disabled="true"] { opacity: .45; }
 .sheet-delete { display: block; width: 100%; margin-top: .4rem; min-height: 3rem; color: var(--danger); background: transparent; border: 0; font-weight: 500; }
 .sheet-delete:hover { background: transparent; text-decoration: underline; }
@@ -1429,3 +1425,23 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 
 /* The head of Accounts, Categories and Budgets is the same: the label row is as tall with or without the ⓘ, so the figure sits at one height. */
 .ready-hero .hero-top { min-height: 1.75rem; }
+
+/* An entry related to an earlier one: the chip on the form, the picker rows and the list in the details sheet. */
+.related { margin: 1rem 0 0; }
+.related-chip { display: flex; align-items: center; gap: .75rem; padding: .6rem .85rem; border-radius: var(--radius); background: var(--surface-2, var(--surface)); }
+.related-chip > span { flex: 1; min-width: 0; }
+.related-chip small { display: block; color: var(--muted); font-size: .75rem; }
+.related-chip b { font-weight: 500; overflow-wrap: anywhere; }
+.related-chip .link { flex: none; min-width: 2rem; min-height: 2rem; color: var(--muted); }
+.related-add { width: 100%; background: none; font: inherit; cursor: pointer; }
+.filter-options button small { display: block; }
+.filter-options button > span:first-child { display: flex; flex-direction: column; min-width: 0; text-align: left; }
+.related-none { padding: .9rem 0; list-style: none; }
+.sheet-by { display: flex; align-items: center; gap: .4rem; margin: .9rem 0 0; color: var(--auto); font-size: .8125rem; }
+.sheet-by a { color: inherit; text-decoration: none; }
+.sheet-by .icon { width: .9rem; height: .9rem; flex: none; }
+.sheet-related { margin-top: 1rem; }
+.sheet-related-head { margin: 0 0 .25rem; color: var(--muted); font-size: .8125rem; }
+.sheet-related-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 3rem; margin: 0; padding: 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font-size: .9375rem; font-weight: 400; text-align: left; }
+.sheet-related-row > span:first-child { display: flex; flex-direction: column; min-width: 0; }
+.sheet-related-row small { font-size: .8125rem; }

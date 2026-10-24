@@ -66,6 +66,7 @@ class BackupTransaction(BaseModel):
     updated_via: str | None = None
     recurring_id: UUID | None = None
     recurring_date: Day | None = None
+    related_id: UUID | None = None
     postings: list[BackupPosting]
 
 

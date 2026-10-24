@@ -36,6 +36,7 @@ def test_the_sheet_closes_with_escape_and_with_a_tap_outside(page: Page, books, 
     expect(page.locator("#txn-sheet")).to_be_hidden()
     page.locator("a.tx", has_text="Swiggy").click()
     expect(page.locator("#txn-sheet")).to_be_visible()
+    page.wait_for_function("() => document.getAnimations().length === 0")  # the sheet has finished sliding up
     page.mouse.click(20, 60)  # on the dimmed page behind it
     expect(page.locator("#txn-sheet")).to_be_hidden()
 
@@ -52,7 +53,7 @@ def test_add_again_opens_the_form_filled_in(page: Page, books, api: Api):
     add(api, books, "DMart", "food", "checking", "1286")
     page.goto("/transactions")
     page.locator("a.tx", has_text="DMart").click()
-    page.get_by_role("link", name="Add again").click()
+    page.get_by_role("link", name="Repeat").click()
     page.wait_for_url("**/transactions/new?repeat=*")
     assert page.input_value("#total") == "1286.00" and page.input_value("#payee") == "DMart"
     assert page.input_value('[data-rows="credit"] select') == books["checking"]["aid"]
@@ -217,3 +218,18 @@ def test_home_starts_short_and_show_more_finishes_the_month(page: Page, books, a
     expect(page.locator(".tx-end")).to_contain_text("That is all of January")
     page.locator("a.tx").first.click()  # rows that arrived later open the details sheet too
     expect(page.locator("#txn-sheet")).to_be_visible()
+
+
+def test_the_sheet_opens_on_an_account_page_and_a_category_page_and_edit_comes_back(page: Page, books, api: Api):
+    add(api, books, "Swiggy", "food", "card")
+    for url in (f"/accounts/{books['card']['aid']}", f"/categories/{books['food']['aid']}"):
+        page.goto(url)
+        page.locator("a.tx", has_text="Swiggy").click()
+        expect(page.locator("#txn-sheet")).to_be_visible()
+        expect(page.locator("#txn-sheet-body h2")).to_have_text("Swiggy")
+        assert page.url.endswith(url), "the page itself did not change"
+        page.locator("#txn-sheet a.button", has_text="Edit").click()
+        page.wait_for_url(re.compile(r"/transactions/[^/]+/edit"))
+        page.get_by_role("button", name="Save changes").click()
+        page.wait_for_url(re.compile(re.escape(url) + r"$"))
+        expect(page.locator("a.tx", has_text="Swiggy")).to_be_visible()  # the account page is fully back
