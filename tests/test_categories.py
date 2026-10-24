@@ -41,9 +41,9 @@ def rows(page: str) -> list[tuple[str, str, str]]:
     import re
 
     found = re.findall(
-        r'<span class="crow-name">(.*?)</span>(?:<span class="crow-sub">(.*?)</span>)?</span>\s*<span class="crow-amt"><span class="[^"]*">(.*?)</span>(?:<span class="crow-share">(.*?)</span>)?',
+        r'<span class="crow-name">(.*?)</span><span class="crow-sub">(.*?)</span></span>\s*<span class="crow-amt"><span class="[^"]*">(.*?)</span>',
         page, flags=re.S)
-    return [(name, hint, f"{amount} {share}".strip()) for name, hint, amount, share in found]
+    return [(name, line, amount) for name, line, amount in found]
 
 
 def test_categories_are_ranked_by_what_they_came_to_with_their_share_and_what_is_inside(client, books):
@@ -52,7 +52,7 @@ def test_categories_are_ranked_by_what_they_came_to_with_their_share_and_what_is
     entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
     page = client.get("/categories").text
     assert "1,500.00" in page, "the month's spending"
-    assert rows(page)[:2] == [("Rent", "", "1,000.00 67%"), ("Food", "Groceries · Dining", "500.00 33%")], "biggest first"
+    assert rows(page)[:2] == [("Rent", "67% of spending", "1,000.00"), ("Food", "Groceries · Dining · 33%", "500.00")], "biggest first"
     assert "cgrp" not in page and "<details" not in page.split('data-categories')[1], "nothing folds"
 
 
@@ -60,19 +60,19 @@ def test_the_hint_names_the_three_biggest_and_counts_the_rest(client, books):
     for name, amount in (("A1", "50"), ("A2", "40"), ("A3", "30"), ("A4", "20")):
         made = client.post("/api/accounts/", json={"name": name, "parent_id": books["travel"]["aid"]}).json()
         entry(client, made, books["bank"], amount, THIS_MONTH)
-    assert rows(client.get("/categories").text)[0] == ("Travel", "A1 · A2 · A3 · +1", "140.00 100%")
+    assert rows(client.get("/categories").text)[0] == ("Travel", "A1 · A2 · A3 · +1 · 100%", "140.00")
 
 
 def test_a_small_share_says_less_than_one_percent(client, books):
     entry(client, books["rent"], books["bank"], "10000", THIS_MONTH)
     entry(client, books["travel"], books["bank"], "5", THIS_MONTH)
-    assert ("Travel", "", "5.00 &lt;1%") in rows(client.get("/categories").text)
+    assert ("Travel", "&lt;1% of spending", "5.00") in rows(client.get("/categories").text)
 
 
 def test_money_posted_to_a_group_itself_is_its_everything_else_row(client, books):
     entry(client, books["food"], books["bank"], "40", THIS_MONTH)
     entry(client, books["groceries"], books["bank"], "60", THIS_MONTH)
-    assert ("Food", "Groceries", "100.00 100%") in rows(client.get("/categories").text)
+    assert ("Food", "Groceries · 100%", "100.00") in rows(client.get("/categories").text)
     page = client.get(f"/categories/{books['food']['aid']}").text
     assert "Subcategories" in page and "Everything else" in page and "posted to Food itself" in page and "40.00" in page
 
@@ -189,7 +189,7 @@ def test_a_closed_sub_category_is_not_listed_under_its_group(client, books):
     client.post(f"/api/accounts/{books['dining']['aid']}/close")
     page = client.get(f"/categories/{books['food']['aid']}").text
     assert "Groceries" in page and "Dining" not in page.split("Subcategories")[1].split("Transactions")[0]
-    assert rows(client.get("/categories").text)[0] == ("Food", "Groceries", "300.00 100%")
+    assert rows(client.get("/categories").text)[0] == ("Food", "Groceries · 100%", "300.00")
 
 
 def test_a_category_that_was_spent_in_can_be_deleted_without_emptying_it_first(client, books):
@@ -224,20 +224,16 @@ def test_the_page_ends_with_its_list_not_with_a_hint(client, books):
     assert "Tap a category" not in client.get("/categories").text
 
 
-def test_every_row_has_a_share_the_unused_ones_say_0_percent(client, books):
+def test_every_row_has_one_quiet_line_and_the_unused_ones_say_nothing_yet(client, books):
     entry(client, books["rent"], books["bank"], "1000", THIS_MONTH)
-    page = client.get("/categories").text
-    rows = page.split('data-cat-tree>', 1)[1].split("</main>", 1)[0].split('<div class="top')[1:]
-    assert len(rows) == 3
-    assert all('class="crow-share"' in row for row in rows), "no row is left without a share"
-    used = [r for r in rows if ">100%<" in r]
-    quiet = [r for r in rows if ">0%<" in r]
-    assert len(used) == 1 and len(quiet) == 2, "one row has everything, the others say 0%"
+    found = rows(client.get("/categories").text)
+    assert len(found) == 3
+    assert [r for r in found if r[1] == "100% of spending"] and len([r for r in found if r[1] == "Nothing yet" and r[2] == "–"]) == 2, "one row has everything, the others a quiet dash"
 
 
-def test_with_nothing_in_the_month_every_row_reads_0_percent_and_still_has_one(client, books):
-    page = client.get("/categories").text
-    assert page.count('class="crow-share"') == page.count('class="r crow"') and ">0%<" in page
+def test_with_nothing_in_the_month_every_row_is_a_dash(client, books):
+    found = rows(client.get("/categories").text)
+    assert found and all(r[1] == "Nothing yet" and r[2] == "–" for r in found)
 
 
 def test_share_rounding_edges():
