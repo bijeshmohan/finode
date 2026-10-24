@@ -397,3 +397,19 @@ def test_the_kind_pill_moves_to_the_chosen_button_and_fades_for_other(page: Page
     assert 0 < income[0] < transfer[0] and income[1] == transfer[1] == 1, (income, transfer)
     page.click('[data-kind="transfer"]')  # tapping the chosen one again offers every account
     assert pill()[1] == 0, "no pill for the empty choice"
+
+
+def test_the_payee_suggestions_stay_on_one_row_on_a_phone_and_a_wide_screen(page: Page, books, api: Api):
+    for name in ("Swiggy", "Zomato Gold", "Big Basket", "Blinkit", "Chai Point", "Metro Card", "Pharmacy"):
+        history(api, books, payee=name)
+    for width in (390, 1280):
+        page.set_viewport_size({"width": width, "height": 800})
+        page.goto("/transactions/new")
+        expect(page.locator("#payee-chips .chip").first).to_be_visible()
+        tops = page.eval_on_selector_all("#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).map(e => e.offsetTop)")
+        assert tops and len(set(tops)) == 1, f"every suggestion on one row at {width}px: {tops}"
+    expect(page.locator("#payee")).to_have_attribute("placeholder", "Payee or Merchant?")
+    page.set_viewport_size({"width": 390, "height": 800})
+    page.goto("/transactions/new")
+    shown = page.eval_on_selector_all("#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).length")
+    assert 0 < shown < 7, "a phone fits fewer chips than there are habits"

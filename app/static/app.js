@@ -1107,3 +1107,17 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
     if (clear) set(clear.closest("[data-related]"), "", "");
   });
 })();
+
+// The payee suggestions are one row, on any width: chips that would wrap to a second row are left out (and come back when
+// the row has room, as the window changes size or the person types and the list is replaced).
+function fitPayeeChips() {
+  const box = document.getElementById("payee-chips");
+  if (!box) return;
+  const chips = [...box.querySelectorAll(".chip")];
+  chips.forEach((chip) => chip.classList.remove("fit-hidden"));
+  if (!chips.length) return;
+  const top = chips[0].offsetTop;
+  chips.forEach((chip) => { if (chip.offsetTop > top) chip.classList.add("fit-hidden"); });
+}
+document.body.addEventListener("htmx:afterSwap", (event) => { if (event.target && event.target.id === "payee-chips") fitPayeeChips(); });
+window.addEventListener("resize", fitPayeeChips);

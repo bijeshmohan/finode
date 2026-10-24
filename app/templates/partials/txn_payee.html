@@ -1,7 +1,7 @@
 {#- The payee field with the chips of people you pay. The chips come from /transactions/suggest as you type. -#}
 <div class="payee-field">
   <label class="payee-label">Payee
-    <input type="text" id="payee" name="payee" maxlength="40" placeholder="Who or what?" autocomplete="off" autocapitalize="words"
+    <input type="text" id="payee" name="payee" maxlength="40" placeholder="Payee or Merchant?" autocomplete="off" autocapitalize="words"
            value="{{ (transaction.payee or '') if editing else (new_payee or '') }}">
   </label>
   {% if not editing %}
