@@ -94,7 +94,7 @@ class BackupService:
                 BackupTransaction(
                     id=t.tid, date=t.date, payee=t.payee, comment=t.comment,
                     created_via=t.created_via, updated_via=t.updated_via,
-                    recurring_id=t.recurring_id, recurring_date=t.recurring_date,
+                    recurring_id=t.recurring_id, recurring_date=t.recurring_date, related_id=t.related_id,
                     postings=[
                         BackupPosting(account=p.account, side=p.side, amount=p.amount)
                         for p in postings.get(t.tid, [])
@@ -389,6 +389,7 @@ class BackupService:
                 )
                 rules[r.id] = rule.rid
 
+            made: dict[UUID, UUID] = {}
             for t in file.transactions:
                 postings = [
                     PostingCreate(account=ids[p.account], side=p.side, amount=p.amount) for p in t.postings
@@ -398,9 +399,15 @@ class BackupService:
                     origin=t.created_via,
                     recurring=(rules[t.recurring_id], t.recurring_date) if t.recurring_id and t.recurring_date else None,
                 )
+                made[t.id] = created.tid
                 if t.updated_via != t.created_via:
                     created.updated_via = t.updated_via
                     db.add(created)
+            for t in file.transactions:  # links last: every entry has its new id by now
+                if t.related_id in made:
+                    linked = self.tr.read(made[t.id])
+                    linked.related_id = made[t.related_id]
+                    db.add(linked)
             allocations, targets = self._expense_plan(file)
             for row in allocations:
                 self.br.set(row.month, ids[row.account_id], row.amount)

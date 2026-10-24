@@ -19,6 +19,7 @@ from ...schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
+from ...repositories.transaction import SYSTEM_PAYEES
 from ...templating import templates
 from .accounts import build_tree, posting_groups
 from .budget import parse_month
@@ -256,6 +257,7 @@ def transactions_page(
     )
 
 
+RELATED_PICKER_LIMIT = 30
 HOME_FIRST = 8  # Home starts with this many entries (a day is finished) and "Show more" brings this many each time
 HOME_MORE = 10
 
@@ -316,8 +318,9 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
     transaction = transactions.read(tid)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
-    row = to_row(transaction, AccountIndex.build(accounts.list()))
-    names = AccountIndex.build(accounts.list()).names
+    index = AccountIndex.build(accounts.list())
+    row = to_row(transaction, index)
+    names = index.names
     lock = locked_through(transactions.tr.db, transactions.tr.uid)
     labels = {
         "expense": ("Paid from", "Spent on"),
@@ -336,6 +339,8 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
             "from_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
             "to_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.DEBIT],
             "locked_by": lock if lock is not None and transaction.date <= lock else None,
+            "related_to": related_info(transactions, index, transaction.related_id),
+            "related": [to_row(r, index) for r in transactions.related(tid)],
         },
     )
 
@@ -546,6 +551,34 @@ def suggest_payees(request: Request, accounts: Accounts, transactions: Transacti
     return templates.TemplateResponse(request, "partials/payee_chips.html", {"habits": habits})
 
 
+def related_info(transactions: Transactions, index: AccountIndex, tid: UUID | None) -> TransactionRow | None:
+    """The entry a form or sheet says another is related to, as a row (payee, date, amount); None when there is none."""
+    if tid is None:
+        return None
+    found = transactions.read(tid)
+    return to_row(found, index) if found is not None else None
+
+
+def parse_related(value: str) -> UUID | None:
+    try:
+        return UUID(value) if value.strip() else None
+    except ValueError:
+        raise ValueError("the related transaction was not found!") from None
+
+
+@router.get("/related-picker")
+def related_picker(request: Request, accounts: Accounts, transactions: Transactions, q: str = "", exclude: UUID | None = None, results: str = ""):
+    """The sheet that lists earlier entries to relate a new one to: the newest first, narrowed by what is typed."""
+    index = AccountIndex.build(accounts.list())
+    found = transactions.list(text=q, limit=RELATED_PICKER_LIMIT + 1, date_to=local_today())
+    rows = [to_row(t, index) for t in found if t.tid != exclude and t.payee not in SYSTEM_PAYEES][:RELATED_PICKER_LIMIT]
+    return templates.TemplateResponse(
+        request,
+        "partials/related_results.html" if results else "partials/related_picker.html",
+        {"rows": rows, "q": q, "exclude": exclude, "currency": accounts.currency().code},
+    )
+
+
 def form_rows(postings, side: PostingSide, account_id: UUID | None = None) -> list[dict]:
     """The rows of one side of the form: the transaction's own postings, or one blank row (maybe with an account)."""
     found = [{"posting": p, "account": p.account} for p in postings if p.side == side]
@@ -561,11 +594,12 @@ def new_transaction_page(
     back: str = "",
     q: str = "",  # what was typed in the quick-add bar: "250 swiggy"
     repeat: UUID | None = None,  # "add again": a copy of this transaction, dated today
+    related: UUID | None = None,  # "add related": the same copy, linked to that transaction
     mode: str = "",  # old links; the form is one page now
 ):
     all_accounts = accounts.list()
-    if repeat is not None:
-        again = transactions.read(repeat)
+    if repeat is not None or related is not None:
+        again = transactions.read(repeat or related)
         if again is None:
             raise HTTPException(status_code=404, detail="transaction not found")
         roots = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
@@ -577,6 +611,7 @@ def new_transaction_page(
                 today=local_today().isoformat(),
                 transaction=None,
                 copy_of=again,
+                related=to_row(again, AccountIndex.build(all_accounts)) if related is not None else None,
                 total=sum((p.amount for p in again.postings if p.side == PostingSide.DEBIT), Decimal(0)),
                 new_payee=again.payee or "",
                 new_note=again.comment or "",
@@ -636,6 +671,7 @@ def create_split_transaction(
     comment: Annotated[str, Form()] = "",
     back: Annotated[str, Form()] = "",
     another: Annotated[str, Form()] = "",
+    related: Annotated[str, Form()] = "",
 ):
     try:
         made = transactions.create(
@@ -644,6 +680,7 @@ def create_split_transaction(
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
                 postings=split_postings(account, side, amount),
+                related_id=parse_related(related),
             )
         )
     except ValidationError as e:
@@ -682,6 +719,7 @@ def edit_transaction_page(
             total=total,
             from_rows=form_rows(transaction.postings, PostingSide.CREDIT),
             to_rows=form_rows(transaction.postings, PostingSide.DEBIT),
+            related=related_info(transactions, AccountIndex.build(accounts.list()), transaction.related_id),
             account=None,
             back=safe_back(back, ""),
             back_url=safe_back(back),
@@ -689,7 +727,7 @@ def edit_transaction_page(
     )
 
 
-def _update(transactions: Transactions, tid: UUID, date_: str, payee: str, comment: str, postings_fn, back: str):
+def _update(transactions: Transactions, tid: UUID, date_: str, payee: str, comment: str, postings_fn, back: str, related: str = ""):
     try:
         transactions.update(
             tid,
@@ -698,6 +736,7 @@ def _update(transactions: Transactions, tid: UUID, date_: str, payee: str, comme
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
                 postings=postings_fn(),
+                related_id=parse_related(related),
             ),
         )
     except ValidationError as e:
@@ -720,6 +759,7 @@ def update_transaction(
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     back: Annotated[str, Form()] = "",
+    related: Annotated[str, Form()] = "",
 ):
     return _update(
         transactions,
@@ -729,4 +769,5 @@ def update_transaction(
         comment,
         lambda: split_postings(account, side, amount),
         back,
+        related,
     )

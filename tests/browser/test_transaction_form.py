@@ -272,3 +272,49 @@ def test_the_allocation_status_groups_rupees_in_lakhs(page: Page, books):
     page.fill('[data-rows="debit"] [name="amount"]', "500000")
     expect(page.locator('[data-status="debit"]')).to_contain_text("15,00,000.00 INR allocated")
     assert page.evaluate("document.documentElement.dataset.grouping") == "indian"
+
+
+def _spend(api: Api, books, payee: str, amount: str, on: str, **extra):
+    return api.post("/transactions/", date=on, payee=payee, postings=[
+        {"account": books["food"]["aid"], "side": "debit", "amount": amount},
+        {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
+    ], **extra)
+
+
+def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books, api: Api):
+    first = _spend(api, books, "Swiggy", "1000", "2026-10-10")
+    page.goto("/transactions")
+    page.locator("a.tx", has_text="Swiggy").click()
+    page.get_by_role("link", name="Add related").click()
+    expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy · 10 Oct · 1,000.00")
+    expect(page.locator("[data-related-add]")).to_be_hidden()
+    page.fill("#total", "300")
+    page.fill('input[name="payee"]', "Swiggy cash-back")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url("**/transactions")
+    [new] = [t for t in api.get("/transactions/") if t["payee"] == "Swiggy cash-back"]
+    assert new["related_id"] == first["tid"]
+    page.locator("a.tx", has_text="Swiggy").last.click()  # the original now lists it, and the sheet of one opens the other
+    expect(page.locator("#txn-sheet .sheet-related-head")).to_have_text("Related · 1")
+    page.locator("#txn-sheet .sheet-related-row").click()
+    expect(page.locator("#txn-sheet-body h2")).to_have_text("Swiggy cash-back")
+    expect(page.locator("#txn-sheet .sheet-related-head")).to_have_text("Related to")
+
+
+def test_the_picker_relates_an_entry_and_the_chip_removes_it(page: Page, books, api: Api):
+    first = _spend(api, books, "Swiggy", "1000", "2026-10-10")
+    _spend(api, books, "DMart", "420", "2026-10-11")
+    page.goto("/transactions/new")
+    expect(page.locator("[data-related-chip]")).to_be_hidden()
+    page.locator("[data-related-add]").click()
+    expect(page.locator("[data-related-pick]")).to_have_count(2)  # the newest first, once the sheet has loaded
+    page.fill("#related-picker input[type=search]", "swig")
+    expect(page.locator("[data-related-pick]")).to_have_count(1)
+    page.locator("[data-related-pick]").click()
+    expect(page.locator("#related-picker")).not_to_be_visible()
+    expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy")
+    assert page.input_value("[data-related-value]") == first["tid"]
+    page.locator("[data-related-clear]").click()
+    expect(page.locator("[data-related-chip]")).to_be_hidden()
+    expect(page.locator("[data-related-add]")).to_be_visible()
+    assert page.input_value("[data-related-value]") == ""

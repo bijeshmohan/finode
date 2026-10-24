@@ -33,6 +33,8 @@ class Transaction(TimestampMixin, table=True):
     # Set when a recurring rule recorded it: the rule and the occurrence it stands for.
     recurring_id: UUID | None = Field(default=None, foreign_key="recurring_transactions.rid", index=True)
     recurring_date: Date | None = Field(default=None)
+    # The earlier entry this one belongs with (a refund, a reversal, a cash-back…): just a link, no meaning yet.
+    related_id: UUID | None = Field(default=None, foreign_key="transactions.tid", index=True)
 
 
 class Posting(TimestampMixin, table=True):

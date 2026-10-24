@@ -58,7 +58,7 @@ LISTS = {
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"),
     ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/goal"), ("GET", "/budget/goal/preview"), ("GET", "/budget/move"), ("GET", "/export"),
     ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
-    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/settings/groups"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/more"), ("GET", "/transactions/new"),
+    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/advanced"), ("GET", "/settings/groups"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/more"), ("GET", "/transactions/related-picker"), ("GET", "/transactions/new"),
 }
 
 # Routes that take A's ids or names inside the request: refused (see `test_b_cannot_use_a_s_things_in_requests`).

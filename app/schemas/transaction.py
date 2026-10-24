@@ -55,6 +55,8 @@ class TransactionBase(BaseModel):
 
 class TransactionCreate(TransactionBase):
     postings: list[PostingCreate]
+    # An earlier entry of the person's own that this one is related to.
+    related_id: UUID | None = None
 
     @model_validator(mode="after")
     def postings_must_balance(self) -> "TransactionCreate":
@@ -69,6 +71,8 @@ class TransactionRead(TransactionBase):
     updated_via: str | None = None
     # The recurring rule that recorded it, if one did and still exists.
     recurring_id: UUID | None = None
+    # The entry this one is related to, if it still exists.
+    related_id: UUID | None = None
     postings: list[PostingRead]
     created: datetime
     updated: datetime
@@ -79,6 +83,8 @@ class TransactionUpdate(BaseModel):
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
     postings: list[PostingCreate] | None = Field(default=None)
+    # Send null to remove the link; leave it out to keep it.
+    related_id: UUID | None = None
 
     _tidy_payee = field_validator("payee")(lambda cls, v: _tidy_payee(v))
     _tidy_comment = field_validator("comment")(lambda cls, v: _tidy_comment(v))
