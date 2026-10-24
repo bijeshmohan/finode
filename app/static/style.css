@@ -1306,15 +1306,6 @@ main > :not(.page-head):not(.cat-bar) { animation: rise-in .22s ease-out; }
 @keyframes sk-pulse { from { opacity: .55; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { main > * { animation: none !important; } .sk { animation: none; } @view-transition { navigation: none; } }
 
-/* ---------- Wide screens: Home in two columns (the figure and bars, then the transactions) ---------- */
-@media (min-width: 60rem) {
-  body.app main:has(.home-cols) { max-width: 70rem; margin-left: max(calc(var(--sidebar-w) + 1rem), calc(50vw - 33rem)); }
-  .home-cols { display: grid; grid-template-columns: minmax(0, 24rem) minmax(0, 1fr); column-gap: 3rem; align-items: start; }
-  .home-cols > :not(.home-recent) { grid-column: 1; }
-  .home-cols > .home-recent { grid-column: 2; grid-row: 1 / span 8; }
-  .home-recent .section-head { margin-top: 0; }
-}
-
 /* Home's head with room to breathe (2026-10-23): looser gaps between label row, figure, bar, warning and the list */
 .glance { padding-top: 0; padding-bottom: .5rem; }
 .glance .box-top { margin-bottom: .6rem; }
@@ -1323,8 +1314,6 @@ main > :not(.page-head):not(.cat-bar) { animation: rise-in .22s ease-out; }
 .glance > .glance-note { margin-top: 1rem; }
 main:has(.glance) .section-head { margin-top: 2.5rem; }
 .home-recent .section-head { margin-top: 0; }
-/* From 60rem the Transactions heading shares a line with Left to spend (the month pill row), as the other pages' titles do (2026-10-23). */
-@media (min-width: 60rem) { main:has(.glance) .home-recent .section-head { margin-top: .6rem; } }
 
 /* Plans rows: a little more room under each bar so the notch clears the divider (2026-10-23) */
 .budget-list .crow.has-bar { padding: .9rem 0 1.15rem; }
