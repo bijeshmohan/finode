@@ -1,6 +1,6 @@
 # Install once with:  uv run pre-commit install
 # Run on everything:  uv run pre-commit run --all-files
-# ruff and mypy come from the project's own lock file (uv run), so the hooks and CI always agree.
+# ruff and pyrefly come from the project's own lock file (uv run), so the hooks and CI always agree.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -28,9 +28,9 @@ repos:
         entry: uv run ruff format
         language: system
         types: [python]
-      - id: mypy
-        name: mypy
-        entry: uv run mypy
+      - id: pyrefly
+        name: pyrefly
+        entry: uv run pyrefly check
         language: system
         types: [python]
         pass_filenames: false

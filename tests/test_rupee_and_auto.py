@@ -8,7 +8,9 @@ from .test_budget import account, assign
 def test_the_rupee_sign_goes_in_front_and_other_currencies_keep_their_code():
     assert symbol("INR") == "\u20b9" and symbol("USD") == "USD" and symbol(None) == ""
     assert amount("1,200.00", "INR") == "\u20b91,200.00"
-    assert amount("\u22125.00", "INR") == "\u2212\u20b95.00", "a negative keeps its minus in front of the sign"
+    assert amount("\u22125.00", "INR") == "\u20b9\u22125.00", (
+        "a negative keeps its minus next to the digits, after the sign"
+    )
     assert amount("40.00", "USD") == "40.00 USD"
 
 
@@ -59,7 +61,8 @@ def test_an_account_page_shows_the_rupee_sign_like_a_category_page(client, root_
     )
     client.patch(f"/api/accounts/{bank['aid']}", json={"balance": "-75"})
     overdrawn = client.get(f"/accounts/{bank['aid']}").text
-    assert '&minus;<span class="cur">&#8377;</span>' in overdrawn, "a negative keeps its minus in front of the sign"
+    assert '<span class="cur">&#8377;</span>\u2212' in overdrawn, "a negative keeps its minus after the sign"
+    assert '&minus;<span class="cur">' not in overdrawn
 
 
 def test_another_currency_keeps_its_code_after_the_figure_on_an_account_page(client, root_accounts):

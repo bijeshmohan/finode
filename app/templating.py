@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
+from typing import Any, cast
 
 from fastapi.templating import Jinja2Templates
 
@@ -68,13 +69,14 @@ def places(code: str | None) -> int:
 
 
 def amount(text: str, code: str | None) -> str:
-    """An amount with its currency: the sign in front where there is one (₹1,200.00, −₹5.00), else the code after it."""
+    """An amount with its currency: the sign in front where there is one (₹1,200.00, ₹−5.00: a minus stays next to the
+    digits), else the code after it."""
     if not code:
         return text
     sign = SYMBOLS.get(code)
     if sign is None:
         return f"{text} {code}"
-    return f"\u2212{sign}{text[1:]}" if text.startswith("\u2212") else f"{sign}{text}"
+    return f"{sign}{text}"
 
 
 @lru_cache
@@ -124,18 +126,19 @@ def origin_label(origin: str | None) -> str | None:
 
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+_globals = cast(dict[str, Any], templates.env.globals)  # Jinja types its globals too narrowly for plain functions
 templates.env.filters["money"] = money
-templates.env.globals["grouping"] = lambda: _grouping.get()
-templates.env.globals["decimals"] = lambda: _places.get()
+_globals["grouping"] = lambda: _grouping.get()
+_globals["decimals"] = lambda: _places.get()
 templates.env.filters["symbol"] = symbol
 templates.env.filters["amount"] = amount
 templates.env.filters["friendly_date"] = friendly_date
 templates.env.filters["date_chip"] = date_chip
 templates.env.filters["local_day"] = local_day
 templates.env.filters["origin_label"] = origin_label
-templates.env.globals["flash_message"] = flash_message
-templates.env.globals["flash_undo"] = flash_undo
-templates.env.globals["asset_url"] = asset_url
+_globals["flash_message"] = flash_message
+_globals["flash_undo"] = flash_undo
+_globals["asset_url"] = asset_url
 
 
 # A page is rendered inside TemplateResponse, in the thread that handled the request, so the person's grouping can be
@@ -154,4 +157,4 @@ def _template_response(request, *args, **kwargs):
 
 
 # Deliberate: every render sets the grouping style first (see _template_response).
-templates.TemplateResponse = _template_response  # type: ignore[method-assign]
+templates.TemplateResponse = _template_response
