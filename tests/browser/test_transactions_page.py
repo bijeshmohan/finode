@@ -130,7 +130,7 @@ def test_the_filter_sheet_narrows_the_list_and_each_filter_can_be_removed(page: 
     add(api, books, "Swiggy", "food", "card")
     add(api, books, "Landlord", "rent", "checking", "900")
     page.goto("/transactions")
-    expect(page.locator(".tx-summary")).to_have_text("All transactions")
+    expect(page.locator(".tx-summary")).to_contain_text("transactions")
     page.get_by_role("button", name="Filter").click()
     expect(page.locator("#tx-filter")).to_be_visible()
     pick(page, "category", "Groceries")

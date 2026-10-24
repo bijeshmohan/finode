@@ -11,7 +11,7 @@
 <p id="page-error" class="error" role="alert">{{ error or "" }}</p>
 
 <div class="tx-filterbar">
-  <span class="tx-summary">{% if summary %}<b>{{ summary.count }}</b> transaction{{ "" if summary.count == 1 else "s" }}{% if summary.total is not none %} · {{ summary.total|money }} {{ summary.word }}{% endif %}{% else %}All transactions{% endif %}</span>
+  <span class="tx-summary">{% if summary %}<b>{{ summary.count }}</b> transaction{{ "" if summary.count == 1 else "s" }}{% if summary.total is not none %} · {{ summary.total|money }} {{ summary.word }}{% endif %}{% elif total %}<b>{{ total }}</b> transaction{{ "" if total == 1 else "s" }}{% else %}No transactions{% endif %}</span>
   <button type="button" class="tx-filter-open" data-open-filter>{{ icon("filter") }}Filter{% if applied %} · {{ applied|length }}{% endif %}</button>
 </div>
 {% if applied %}

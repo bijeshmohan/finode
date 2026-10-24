@@ -26,7 +26,7 @@ When you need more than one account on a side (a bill paid half by cash and half
 
 ### Repeat
 
-Open a transaction and tap the **Repeat** circle (two overlapping squares) to start a new one pre-filled with the same accounts, payee and note, dated today.
+Open a transaction and tap **Repeat** (under Edit) to start a new one pre-filled with the same accounts, payee and note, dated today.
 
 ### Related entries
 

@@ -1445,3 +1445,12 @@ main > section.card.stack + section.card.stack, main > section.card.stack + deta
 .danger-card details.more > summary { color: var(--danger); }
 .danger-card details.more[open] > summary { margin-bottom: .25rem; }
 section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bottom: 0; }
+
+/* Transactions polish (2026-10-24): the sheet's Repeat, Related and Delete are one line of words; the Filter sheet's names are dark
+   like Settings' (the choice is quiet); opening balances and adjustments are quieter than the spending around them. */
+.sheet-links { display: flex; justify-content: center; align-items: center; gap: 1.5rem; margin-top: .6rem; }
+.sheet-links a, .sheet-links .sheet-delete { display: inline-flex; align-items: center; width: auto; min-height: 2.5rem; margin: 0; padding: 0 .25rem; color: var(--muted); font-size: .9375rem; font-weight: 500; text-decoration: none; background: none; border: 0; }
+.sheet-links .sheet-delete { color: var(--danger); }
+.sheet-links a:hover { color: var(--text); }
+.filter-row > span:first-child { color: var(--text); }
+.tx.tx-system .tx-title, .tx.tx-system .tx-amount { color: var(--muted); }

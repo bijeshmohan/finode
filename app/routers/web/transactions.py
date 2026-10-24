@@ -244,6 +244,7 @@ def transactions_page(
             "filters": filters,
             "active_filters": len(query),
             "summary": summary,
+            "total": total,
             "applied": _applied(filters, index, {"month": when.strftime("%Y-%m"), **({"q": q.strip()} if q.strip() else {}), **({"kind": kind} if kind else {})}),
             "options": options,
             "q": q.strip(),
