@@ -537,28 +537,6 @@ document.body.addEventListener("click", (event) => {
   });
 })();
 
-// "₹597 as last time" under the amount, once a payee you know is chosen; one tap puts it in, through the amount's own input
-// handling, so the rows below follow.
-function showLastAmount(form, amount) {
-  const quick = form.querySelector("[data-amount-quick]");
-  const last = quick && quick.querySelector("[data-last-amount]");
-  if (!last) return;
-  const value = amount ? parseDec(amount) : null;
-  last.hidden = value === null;
-  if (value === null) return;
-  const [whole, fraction] = formatDec(value).split(".");
-  last.dataset.amount = amount;
-  last.textContent = `${quick.dataset.symbol}${groupDigits(whole)}${fraction === "00" ? "" : "." + fraction} as last time`;
-}
-
-document.body.addEventListener("click", (event) => {
-  const button = event.target.closest && event.target.closest("[data-last-amount]");
-  const total = button && button.closest("form[data-txn-form]") && button.closest("form[data-txn-form]").querySelector("#total");
-  if (!total) return;
-  total.value = tidyAmount(formatDec(parseDec(button.dataset.amount) || 0n));
-  total.dispatchEvent(new Event("input", { bubbles: true }));
-});
-
 // A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
 function applySuggestion(form, chip, focus = true) {
   const payee = form.querySelector("#payee");
@@ -571,7 +549,6 @@ function applySuggestion(form, chip, focus = true) {
     select.dataset.previous = select.value;
   });
   form.querySelectorAll("[data-suggest]").forEach((c) => c.setAttribute("aria-pressed", c === chip ? "true" : "false"));
-  showLastAmount(form, chip.dataset.amount);
   recomputeTxn(form);
   if (!focus) return;
   const total = form.querySelector("#total");

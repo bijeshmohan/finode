@@ -815,8 +815,6 @@ form.copy-last button { margin: 0; }
 .total-field .currency-code { padding-bottom: 1.2rem; font-weight: 500; font-size: .95rem; }
 
 /* Quick amounts under the amount: the last one for this payee, and nudges. */
-.amount-quick { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: -.25rem; }
-.amount-quick button.chip { min-height: 2rem; font-size: .8125rem; }
 
 .payee-field { display: flex; flex-direction: column; gap: .75rem; }
 .payee-label { font-size: 0; }

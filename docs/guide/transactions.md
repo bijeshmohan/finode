@@ -18,7 +18,7 @@ Tap **+** (phone) or **New transaction** (wide screen).
 
 ### Payee chips
 
-Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly. Under the amount, a chip such as **₹597 as last time** puts that payee's last amount in with one tap.
+Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly.
 
 ### Splitting across accounts
 
