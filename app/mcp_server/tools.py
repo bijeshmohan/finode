@@ -887,8 +887,8 @@ def list_deleted_transactions() -> dict[str, Any]:
 def restore_transaction(
     deleted_id: Annotated[str, Field(description="The deleted_id from list_deleted_transactions")],
 ) -> dict[str, Any]:
-    """Bring a deleted transaction back as it was. It returns as an ordinary entry (a link to a recurring rule or to a
-    related entry is not restored)."""
+    """Bring a deleted transaction back as it was. It returns as an ordinary entry (a link to a recurring rule is not
+    restored; its related links are, where the other entry is still there)."""
     try:
         hid = UUID(deleted_id.strip())
     except ValueError:

@@ -2,6 +2,7 @@
 
 import builtins
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, not_, or_
@@ -18,6 +19,7 @@ from .cache import remembered
 def _comparable(snapshot: dict) -> dict:
     """A stored snapshot without what entries made before finode kept one currency also recorded (the currency, each worth)."""
     return {
+        "related_id": None,  # snapshots written before the link was kept have no such key
         **{key: value for key, value in snapshot.items() if key != "currency_id"},
         "postings": [{key: value for key, value in p.items() if key != "value"} for p in snapshot.get("postings", [])],
     }
@@ -54,16 +56,20 @@ class TransactionRepository:
 
     def _record(self, transaction: Transaction, action: str, origin: str | None) -> None:
         """Append what the transaction looks like now to its history."""
-        snapshot = {
+        snapshot: dict[str, Any] = {
             "date": transaction.date.isoformat(),
             "payee": transaction.payee,
             "comment": transaction.comment,
             "recurring_id": str(transaction.recurring_id) if transaction.recurring_id else None,
+            "related_id": str(transaction.related_id) if transaction.related_id else None,
             "postings": [
                 {"account": str(p.account), "side": p.side.value, "amount": str(p.amount)}
                 for p in sorted(self.postings(transaction.tid), key=lambda p: (p.created, str(p.pid)))
             ],
         }
+        if action == "deleted":
+            # What pointed at it is unlinked below; remember which entries, so restoring it can link them again.
+            snapshot["related_from"] = [str(other.tid) for other in self.related_to(transaction.tid)]
         if action == "updated":
             previous = self.history(transaction.tid)
             if previous and _comparable(previous[-1].snapshot) == snapshot:

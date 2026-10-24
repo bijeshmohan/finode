@@ -200,7 +200,8 @@ class TransactionService:
 
     def restore(self, hid: UUID) -> TransactionRead:
         """Bring a deleted entry back as it was, with its old id (so its history carries on). It becomes an
-        ordinary entry: the link to a recurring rule is not restored, so the rule cannot record the day twice."""
+        ordinary entry: the link to a recurring rule is not restored, so the rule cannot record the day twice. Its
+        related links come back (to an earlier entry that is still there, and from the entries that were linked to it)."""
         row = self.tr.deleted_row(hid)
         if row is None:
             raise LookupError("deleted transaction not found!")
@@ -220,13 +221,36 @@ class TransactionService:
                 {"account": UUID(p["account"]), "side": p["side"], "amount": Decimal(p["amount"])}
                 for p in snapshot["postings"]
             ],
+            related_id=self._restorable_link(snapshot.get("related_id")),
         )
         self._check_limits()
         self._resolve(data)
         transaction = self.tr.create(data, self.origin, None, tid=row.transaction_id)
+        self._relink(transaction.tid, snapshot.get("related_from", []))
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
         return self._to_read(transaction)
+
+    def _restorable_link(self, value: str | None) -> UUID | None:
+        """The entry a restored one was related to, if it is still there (otherwise the link is simply not restored)."""
+        if not value:
+            return None
+        target = UUID(value)
+        return target if self.tr.read(target) is not None else None
+
+    def _relink(self, restored: UUID, former: list[str]) -> None:
+        """Point the entries that were related to a restored one at it again, unless they have a link of their own by
+        now or it would make a circle."""
+        for value in former:
+            other = self.tr.read(UUID(value))
+            if other is None or other.related_id is not None:
+                continue
+            try:
+                self._check_related(restored, other.tid)
+            except InvalidPostingError:
+                continue
+            other.related_id = restored
+            self.tr.db.add(other)
 
     def validate(self, data: TransactionCreate) -> None:
         """Raise what create would raise, without saving anything."""

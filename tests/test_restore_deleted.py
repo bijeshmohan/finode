@@ -125,3 +125,69 @@ def test_the_deleted_page_is_reached_from_settings_and_leads_back_there(client):
 
 def test_nothing_deleted_says_so(client):
     assert "Nothing deleted" in client.get("/transactions/deleted").text
+
+
+# ---- related links -------------------------------------------------------------------------------------------------
+
+
+def related_of(client, tid):
+    return client.get(f"/api/transactions/{tid}").json()["related_id"]
+
+
+def test_a_restored_entry_is_related_to_the_same_earlier_entry_again(client, ledger, svc):
+    bank, food = ledger
+    original = record(client, bank, food, "Shop")
+    refund = record(client, bank, food, "Shop refund", related_id=original)
+    client.delete(f"/api/transactions/{refund}")
+    assert restore(client, hid_of(svc, refund)).status_code == 200
+    assert related_of(client, refund) == original
+    assert [t["tid"] for t in client.get(f"/api/transactions/{original}/related").json()] == [refund]
+
+
+def test_entries_that_pointed_at_a_restored_one_point_at_it_again(client, ledger, svc):
+    bank, food = ledger
+    original = record(client, bank, food, "Shop")
+    refund = record(client, bank, food, "Refund", related_id=original)
+    other = record(client, bank, food, "Other refund", related_id=original)
+    client.delete(f"/api/transactions/{original}")
+    assert related_of(client, refund) is None and related_of(client, other) is None, "deleting unlinks them"
+    assert restore(client, hid_of(svc, original)).status_code == 200
+    assert related_of(client, refund) == original and related_of(client, other) == original
+
+
+def test_a_link_is_not_restored_when_it_would_be_wrong(client, ledger, svc):
+    bank, food = ledger
+    original = record(client, bank, food, "Shop")
+    refund = record(client, bank, food, "Refund", related_id=original)
+    # the earlier entry is gone: the restored refund is simply not related to anything
+    client.delete(f"/api/transactions/{refund}")
+    client.delete(f"/api/transactions/{original}")
+    assert restore(client, hid_of(svc, refund)).status_code == 200
+    assert related_of(client, refund) is None
+    # an entry that got another link meanwhile keeps it; so does one that would make a circle
+    a = record(client, bank, food, "A")
+    b = record(client, bank, food, "B", related_id=a)
+    c = record(client, bank, food, "C", related_id=b)
+    client.delete(f"/api/transactions/{b}")  # c is unlinked
+    assert client.patch(f"/api/transactions/{a}", json={"related_id": c}).status_code == 200  # a -> c
+    assert (
+        restore(client, hid_of(svc, b)).status_code == 200
+    )  # b -> a; c would point at b: c -> b -> a -> c is a circle
+    assert related_of(client, b) == a and related_of(client, c) is None
+    other = record(client, bank, food, "Own link")
+    d = record(client, bank, food, "D", related_id=other)
+    client.delete(f"/api/transactions/{other}")
+    e = record(client, bank, food, "E")
+    assert client.patch(f"/api/transactions/{d}", json={"related_id": e}).status_code == 200
+    assert restore(client, hid_of(svc, other)).status_code == 200
+    assert related_of(client, d) == e, "it keeps the link it has now"
+
+
+def test_history_notes_a_changed_link_but_not_an_unchanged_one(client, ledger, svc):
+    bank, food = ledger
+    a = record(client, bank, food, "A")
+    b = record(client, bank, food, "B")
+    client.patch(f"/api/transactions/{b}", json={"payee": "B"})  # nothing changed
+    assert [h.action for h in svc.transactions.history(UUID(b))] == ["created"]
+    client.patch(f"/api/transactions/{b}", json={"related_id": a})
+    assert [h.action for h in svc.transactions.history(UUID(b))] == ["created", "updated"]
