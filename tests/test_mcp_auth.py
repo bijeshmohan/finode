@@ -71,7 +71,7 @@ async def test_a_read_only_token_can_see_but_not_use_write_tools(session, root_a
     async with running_app(session), mcp_client(secret) as c:
         names = {t.name for t in (await c.list_tools()).tools}
         assert "get_overview" in names and "list_accounts" in names
-        writers = {"record_transaction", "record_split", "update_transaction", "delete_transaction", "create_account", "assign_to_category", "assign_to_goal", "use_goal", "move_budget_money", "set_budget_target", "fund_budget_targets", "copy_budget_from_previous_month"}
+        writers = {"record_transaction", "record_split", "update_transaction", "delete_transaction", "create_account", "assign_to_category", "assign_to_goal", "use_goal", "move_budget_money", "copy_budget_from_previous_month"}
         assert writers <= names, "listed so the assistant can explain, but they only refuse"
         calls = {
             "record_transaction": {"amount": "1", "from_account": "a", "to_account": "b"},
@@ -83,8 +83,6 @@ async def test_a_read_only_token_can_see_but_not_use_write_tools(session, root_a
             "assign_to_goal": {"goal": "Trip", "amount": "1"},
             "use_goal": {"goal": "Trip", "category": "Food", "amount": "1"},
             "move_budget_money": {"from_category": "Food", "to_category": "Rent", "amount": "1"},
-            "set_budget_target": {"category": "Food", "kind": "monthly", "amount": "1"},
-            "fund_budget_targets": {},
             "copy_budget_from_previous_month": {},
         }
         assert set(calls) == writers

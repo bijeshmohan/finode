@@ -45,13 +45,6 @@ def test_a_goal_is_not_money_to_spend_but_still_has_a_job(client, books):
     assert "Left to spend" in home and "2,900" in home and "19,566" not in home, "Home's Left to spend leaves the goal out too"
 
 
-def test_a_by_date_target_on_a_category_stays_a_category(client, books):
-    other = account(client, books["roots"], "Rent", "Expenses")
-    client.put(f"/api/budget/categories/{other['aid']}/target", json={"kind": "by_date", "amount": "9000", "target_date": f"{months_ahead(3)}-01"})
-    data = api(client)
-    assert data["goals"] == [] and "Rent" in {l["name"] for l in data["lines"]}, "only a goal is a goal"
-
-
 def test_the_goals_chip_lists_goals_and_budgets_does_not(client, books):
     goal(client)
     goals = client.get(f"/budget?tab=save&month={MONTH}").text
@@ -154,13 +147,6 @@ def test_the_goal_pages_refuse_what_is_not_a_goal(client, books):
     assert client.post(f"/budget/goal/{food}/delete").status_code == 400
     assert client.post(f"/budget/goal/{food}/assign", data={"amount": "5"}).status_code == 400
     assert "Food" in {a["name"] for a in client.get("/api/accounts/").json()}
-
-
-def test_assign_what_is_needed_also_funds_goals(client, books):
-    goal(client, assign_now=None)
-    funded = client.post("/budget/fund", data={"month": MONTH, "tab": "save"})
-    assert funded.status_code == 200 and "This month done" in funded.text
-    assert the_goal(client)["assigned"] == "16666.67"
 
 
 def test_copying_last_months_amounts_includes_goals(session, books, client):

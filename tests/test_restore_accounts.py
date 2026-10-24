@@ -39,7 +39,6 @@ def test_deleting_an_unused_category_leaves_a_record_and_restoring_brings_it_bac
     snacks = books["snacks"]
     client.patch(f"/api/accounts/{snacks}", json={"details": "treats"})
     client.put(f"/api/budget/categories/{snacks}", json={"month": THIS_MONTH.isoformat(), "amount": "250"})
-    client.put(f"/api/budget/categories/{snacks}/target", json={"kind": "monthly", "amount": "300"})
     loan = books["make"]("Bike loan", books["roots"]["Liabilities"], on_budget=False)
     client.patch(f"/api/accounts/{loan}", json={"payment_category_id": snacks})
     assert client.delete(f"/api/accounts/{snacks}").status_code == 204
@@ -52,7 +51,7 @@ def test_deleting_an_unused_category_leaves_a_record_and_restoring_brings_it_bac
     assert restored["name"] == "Snacks" and restored["parent_id"] == books["food"] and restored["details"] == "treats"
     budget = client.get(f"/api/budget/?month={THIS_MONTH.isoformat()}").json()
     line = next(l for l in budget["lines"] if l["name"] == "Snacks")
-    assert line["assigned"] == "250.00" and line["target"]["amount"] == "300.00"
+    assert line["assigned"] == "250.00"
     assert client.get(f"/api/accounts/{loan}").json()["payment_category_id"] == snacks, "the payment link is back"
     assert deleted(svc) == [], "what is back leaves the list"
 

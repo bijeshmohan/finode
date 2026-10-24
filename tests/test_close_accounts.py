@@ -174,12 +174,6 @@ def test_a_closed_category_leaves_the_budget_once_it_is_empty(client, books):
     assert "Groceries" not in names and names == ["Food"], "its open group stays, now a plain row"
 
 
-def test_closing_a_category_clears_its_target(client, books):
-    client.put(f"/api/budget/categories/{books['groceries']['aid']}/target", json={"kind": "monthly", "amount": "5"})
-    close(client, books["groceries"])
-    assert budget(client)["underfunded"] == "0.00"
-
-
 @pytest.mark.anyio
 async def test_assistants_do_not_see_or_post_to_closed_accounts(session, client, books):
     from .conftest import TEST_USER_ID

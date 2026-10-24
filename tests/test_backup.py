@@ -65,9 +65,6 @@ def rich(client, root_accounts):
     assert client.post(f"/api/recurring/{rid}/skip").status_code == 200  # a skipped occurrence is part of the rule's state
     client.put(f"/api/budget/categories/{groceries['aid']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}", json={"month": "2026-09-01", "amount": "15000"})
-    client.put(f"/api/budget/categories/{groceries['aid']}/target", json={"kind": "monthly", "amount": "3000"})
-    client.put(f"/api/budget/categories/{emi['aid']}/target", json={"kind": "weekly", "amount": "250", "weekday": 2})
-    client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "yearly", "amount": "1200", "target_date": "2019-09-01"})
     assert client.post("/budget/goal", data={"name": "Emergency fund", "amount": "100000", "by": "2999-12", "assign_now": "1"}).status_code == 200
     assert client.patch("/api/profile/", json={"locked_through": "2026-08-31"}).status_code == 200  # the books are closed up to then
     return {"bank": bank, "groceries": groceries}
@@ -110,7 +107,6 @@ def canonical(doc: dict) -> dict:
             for r in doc["recurring"]
         ),
         "allocations": sorted((a["month"], paths[a["account_id"]], a["amount"]) for a in doc["allocations"]),
-        "targets": sorted((paths[t["account_id"]], t["kind"], t["amount"], t["target_date"], t["weekday"]) for t in doc["targets"]),
         "goals": sorted(
             (g["name"], g["amount"], g["target_date"], sorted((r["month"], r["amount"]) for r in g["allocations"])) for g in doc["goals"]
         ),
@@ -129,9 +125,9 @@ def test_the_backup_has_everything(client, rich):
     assert any(a["on_budget"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
-    assert len(doc["allocations"]) == 2 and len(doc["targets"]) == 3
+    assert len(doc["allocations"]) == 2
     assert [g["name"] for g in doc["goals"]] == ["Emergency fund"] and len(doc["goals"][0]["allocations"]) == 1, "goals are their own records"
-    assert set(doc) == {"format", "version", "exported_at", "profile", "accounts", "transactions", "recurring", "allocations", "targets", "goals"}, "no tokens or connected apps"
+    assert set(doc) == {"format", "version", "exported_at", "profile", "accounts", "transactions", "recurring", "allocations", "goals"}, "no tokens or connected apps"
     assert not any("commodity" in a for a in doc["accounts"]) and not any("value" in p for t in doc["transactions"] for p in t["postings"])
 
 
@@ -178,7 +174,7 @@ def test_an_older_backup_with_build_and_earn_rows_restores_without_them(client, 
     doc["profile"].update(plan_build=True, plan_earn=True)
     for account in (fund, salary):
         doc["allocations"].append({"month": "2026-09-01", "account_id": account["id"], "amount": "700"})
-    doc["targets"].append({"account_id": fund["id"], "kind": "monthly", "amount": "700", "target_date": None, "weekday": None})
+    doc["targets"] = [{"account_id": fund["id"], "kind": "monthly", "amount": "700", "target_date": None, "weekday": None}]  # a file from before targets were removed
     try:
         as_user(OTHER)
         done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
@@ -186,7 +182,7 @@ def test_an_older_backup_with_build_and_earn_rows_restores_without_them(client, 
         again = client.get("/api/backup").json()
     finally:
         as_user(TEST_USER_ID)
-    assert len(again["allocations"]) == 2 and len(again["targets"]) == 3
+    assert len(again["allocations"]) == 2 and "targets" not in again, "old targets are read and dropped"
     assert not any("saving" in a for a in again["accounts"]) and "plan_build" not in again["profile"]
 
 

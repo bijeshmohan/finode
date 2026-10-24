@@ -11,7 +11,6 @@ def books(client, root_accounts):
         return response.json()
 
     bank, food = make("Bank", "Assets", balance="1000"), make("Food", "Expenses")
-    client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "monthly", "amount": "300"})
     return {"bank": bank, "food": food}
 
 
@@ -50,19 +49,6 @@ def test_off_hides_the_lock_but_explains_it(client):
     switch(client, True)
     page = client.get("/settings/advanced").text
     assert 'aria-checked="true"' in page and 'id="lock"' in page
-
-
-def test_off_hides_targets_on_the_budget_and_keeps_the_money(client, books):
-    food = books["food"]["aid"]
-    on = client.get("/budget").text
-    assert "needs 300.00 more" in on and "Assign what is needed" in on
-    assert "Monthly 300.00" in client.get(f"/budget/category/{food}/sheet").text
-    switch(client, False)
-    off = client.get("/budget").text
-    assert "needs 300.00 more" not in off and "Assign what is needed" not in off
-    sheet = client.get(f"/budget/category/{food}/sheet").text
-    assert "Monthly 300.00" not in sheet and "Target and note" not in sheet and f'aria-label="Assigned to Food"' in sheet, "assigning stays"
-    assert client.get("/api/budget/").json()["underfunded"] == "300.00", "the data is untouched"
 
 
 def test_off_hides_order_and_close_on_an_account(client, books):
