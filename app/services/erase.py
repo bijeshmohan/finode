@@ -10,7 +10,6 @@ from uuid import UUID
 from sqlalchemy import delete
 from sqlmodel import Session, SQLModel
 
-from ..models.profile import Profile
 
 # Kept when only the books are cleared.
 KEPT_WITH_THE_BOOKS = {"profiles", "api_tokens", "oauth_grants"}
@@ -39,12 +38,6 @@ class EraseService:
     def erase_books(self) -> dict[str, int]:
         """Accounts, transactions, budget, recurring rules and the audit trail."""
         removed = self._erase(KEPT_WITH_THE_BOOKS)
-        # A lock closes the books that were just erased: it goes with them (the rest of the profile stays).
-        profile = self.db.get(Profile, self.uid)
-        if profile is not None and profile.locked_through is not None:
-            profile.locked_through = None
-            self.db.add(profile)
-            self.db.commit()
         return removed
 
     def erase_everything(self) -> dict[str, int]:

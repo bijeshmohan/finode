@@ -15,7 +15,7 @@ from ..schemas.transaction import PostingCreate, TransactionCreate
 from . import schedule
 from .account import AccountService
 from .simple import simple_postings
-from .transaction import LockedPeriodError, TransactionService
+from .transaction import TransactionService
 from .validation import validation_message
 from ..clock import local_today
 
@@ -170,13 +170,10 @@ class RecurringService:
             if rule.end_date is not None and rule.next_date > rule.end_date:
                 break
             day = rule.next_date
-            locked = False
             try:
                 if not self.repo.recorded(rule.rid, day):
                     self.transactions.create(self._transaction(self._to_read(rule), day), recurring=(rule.rid, day))
                     recorded += 1
-            except LockedPeriodError:
-                locked = True  # the period is closed: that occurrence is left out, like a skipped one
             except IntegrityError:
                 self.repo.db.rollback()  # another worker recorded it a moment ago
                 rule = self.repo.read(rule.rid)
@@ -188,10 +185,7 @@ class RecurringService:
                 self.repo.add(rule)
                 self.repo.db.commit()
                 return recorded
-            if locked:
-                rule.skipped_date = day
-            else:
-                rule.last_date = day
+            rule.last_date = day
             rule.next_date = schedule.first_after(rule.start_date, rule.frequency, rule.every, day)
             rule.last_error = None
         if rule.end_date is not None and rule.next_date > rule.end_date:

@@ -52,8 +52,6 @@ class AccountRead(AccountBase):
     payment_category_id: UUID | None = None
     # The day it was closed (no more postings; its history stays), or null while it is open.
     closed_on: Date | None = None
-    # The place among its siblings when ordered by hand (0 first); null while they are in alphabetical order.
-    position: int | None = None
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); they cannot be changed or removed.
     system_key: str | None = None
     created: datetime

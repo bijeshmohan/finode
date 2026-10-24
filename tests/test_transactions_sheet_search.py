@@ -187,15 +187,6 @@ def test_the_sheet_offers_edit_add_again_and_delete(client, books, ledger):
     assert f'hx-post="/transactions/{ledger["dmart"]["tid"]}/delete"' in html and "hx-confirm" not in html, "undo replaces the confirmation"
 
 
-def test_an_entry_in_a_locked_period_cannot_be_changed_from_the_sheet(client, books):
-    old = post(client, "Old", books["groceries"], books["cash"], date=(date.today() - timedelta(days=40)).isoformat())
-    client.patch("/api/profile/", json={"locked_through": (date.today() - timedelta(days=30)).isoformat()})
-    html = sheet(client, old)
-    assert "locked period" in html and 'aria-disabled="true"' in html and "disabled" in html
-    refused = client.post(f"/transactions/{old['tid']}/delete", data={"sheet": "1"})
-    assert refused.status_code == 400 and refused.headers["HX-Retarget"] == "#sheet-error"
-
-
 def test_a_missing_entry_has_no_sheet(client, books, ledger):
     assert client.get("/transactions/00000000-0000-4000-8000-0000000000aa/sheet").status_code == 404
 

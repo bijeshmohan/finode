@@ -42,8 +42,6 @@ class Account(TimestampMixin, table=True):
     # For an asset or liability account outside the budget (a loan): the expense category its payments are
     # budgeted under, so paying the EMI spends that category (see services/budget.py).
     payment_category_id: UUID | None = Field(default=None, foreign_key="accounts.aid", nullable=True)
-    # The place among its siblings when the user ordered them by hand; empty means alphabetical, after the placed ones.
-    position: int | None = Field(default=None)
     # Set on the built-in groups under Assets and Liabilities (Bank Accounts, Cash, Investments, Credit Cards, Loans):
     # they cannot be renamed, moved, closed or deleted, and what is made under them starts as the key says.
     system_key: str | None = Field(default=None, max_length=40)

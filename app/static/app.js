@@ -234,7 +234,7 @@ document.body.addEventListener("account-added", async (event) => {
 document.body.addEventListener("htmx:afterSwap", rememberAccountChoices);
 document.addEventListener("DOMContentLoaded", rememberAccountChoices);
 
-// Open the profile section named in the URL (#currency, #lock ...).
+// Open the profile section named in the URL (#currency, #appearance ...).
 function openHashSection() {
   const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
   if (target && target.tagName === "DETAILS") target.open = true;
@@ -399,7 +399,7 @@ function applyKind(form, kind) {
 
 // A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
 // if it never does (an error, no connection) the sheet closes again.
-const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "groups-sheet-body", "related-picker-body"];
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body"];
 const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
 document.body.addEventListener("htmx:beforeRequest", (event) => {
   const body = event.detail && event.detail.target;

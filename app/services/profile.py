@@ -1,8 +1,5 @@
-"""The person's profile and settings: names, currency and the period lock."""
+"""The person's profile and settings: names and currency."""
 
-from datetime import timedelta
-
-from ..clock import local_today
 from ..currencies import find as find_currency
 from ..repositories import ProfileRepository
 from ..schemas.profile import ProfileRead, ProfileUpdate
@@ -19,7 +16,6 @@ class ProfileService:
             first_name=profile.first_name,
             last_name=profile.last_name,
             default_currency=profile.currency,
-            locked_through=profile.locked_through,
             created=profile.created,
             updated=profile.updated,
         )
@@ -36,15 +32,7 @@ class ProfileService:
             raise ValueError(f"unknown currency '{data.default_currency}'!")
         return currency.code
 
-    @staticmethod
-    def _validate_lock(data: ProfileUpdate) -> None:
-        if data.locked_through is not None and data.locked_through >= local_today():
-            raise ValueError(
-                f"the books can be locked up to yesterday ({local_today() - timedelta(days=1):%d %b %Y}) at the latest!"
-            )
-
     def update(self, data: ProfileUpdate) -> ProfileRead:
-        self._validate_lock(data)
         currency = self._resolve_currency(data)
         profile = self.pr.update(data, currency)
         self.accounts.reset_defaults()

@@ -65,7 +65,7 @@ An account cannot be on both sides of one entry (money cannot move from an accou
 
 So buying groceries with cash is: debit `Expenses:Food:Groceries`, credit `Assets:Cash`, same amount.
 
-`TransactionService._resolve` is where the invariants live: it checks that postings balance, that every account belongs to the person, that none is closed, deleted or a forbidden target, the decimal places the currency allows, the per-person limits, and the period lock. The web form, the API, imports, recurring rules and the assistants all create transactions through this one service.
+`TransactionService._resolve` is where the invariants live: it checks that postings balance, that every account belongs to the person, that none is closed, deleted or a forbidden target, the decimal places the currency allows, and the per-person limits. The web form, the API, imports, recurring rules and the assistants all create transactions through this one service.
 
 ## Balances are derived
 
@@ -76,7 +76,6 @@ No balance is stored. An account's balance is computed from its postings (`Accou
 - **Database checks.** `postings` has `CHECK` constraints (`amount > 0`, `side IN ('DEBIT','CREDIT')`). Balance and "at least two postings" cannot be a plain check, so they are enforced in the service and re-verified by `ReportService.trial_balance` (the `check_books` tool in MCP), which re-reads every stored transaction and names any that fail.
 - **Stable posting ids.** Editing a transaction updates postings in place where it can, so anything pointing at a posting keeps working.
 - **Append-only history.** `transaction_history` gets a row on every create, update and delete, holding the transaction as it stood afterwards. It has no foreign key, so a deleted transaction's trace survives. The edit page does not show it; **Recently deleted** reads it to restore an entry (with its old id). Account deletions have a similar log (`account_deletions`).
-- **Period lock.** `profiles.locked_through` closes the books up to a day. `services/lock.py` is the single check; transactions in the locked period cannot be created, changed or deleted, and the budget refuses to change months that end inside it.
 - **Related entries.** `transactions.related_id` points at an earlier entry of the same person (a refund, a reversal, a cash-back…). It is only a link: nothing in the ledger, budget or reports reads it. The service refuses an id that is not the person's own, an entry related to itself and a circle; deleting the original clears the link; a backup carries it and a restore maps it to the new ids. It is not in the history snapshot, so restoring a deleted entry does not bring its links back.
 - **Recurring entries are recorded once.** A unique index on `(recurring_id, recurring_date)` makes repeated or concurrent runs safe.
 

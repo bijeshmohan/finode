@@ -4,7 +4,6 @@ import re
 
 import pytest
 
-from app.routers.web.transactions import split_quick_entry
 
 
 @pytest.fixture
@@ -107,39 +106,8 @@ def test_the_add_page_loads_the_chips_and_keeps_edit_free_of_them(client, books)
     assert 'id="payee-chips"' not in client.get(f"/transactions/{tid}/edit").text
 
 
-# ---- the quick-add bar -----------------------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("typed, expected", [
-    ("250 swiggy", ("250", "swiggy")),
-    ("swiggy 250", ("250", "swiggy")),
-    ("1,250.50 dmart groceries", ("1250.50", "dmart groceries")),
-    ("450", ("450", "")),
-    ("swiggy", ("", "swiggy")),
-    ("  ", ("", "")),
-    ("", ("", "")),
-    ("2 for 1 pizza", ("2", "for 1 pizza")),
-])
-def test_what_is_typed_in_the_bar(typed, expected):
-    assert split_quick_entry(typed) == expected
-
-
 def field(html, name):
     return re.search(rf'name="{name}"[^>]*value="([^"]*)"', html).group(1)
-
-
-def test_the_quick_bar_opens_the_form_filled_in(client, books):
-    pay(client, "Swiggy", books["card"], books["delivery"])
-    page = client.get("/transactions/new", params={"q": "250 swiggy"}).text
-    assert field(page, "total") == "250" and field(page, "payee") == "Swiggy"  # spelled as before
-    assert f'<option value="{books["card"]["aid"]}" selected' in page, "paid from the same card"
-    assert f'<option value="{books["delivery"]["aid"]}" selected' in page
-    assert 'name="kind" value="expense"' in page
-
-
-def test_an_unknown_payee_still_fills_the_amount_and_name(client, books):
-    page = client.get("/transactions/new", params={"q": "180 chai point"}).text
-    assert 'value="180"' in page and 'value="chai point"' in page
 
 
 def test_the_form_starts_with_no_account_chosen_however_often_you_pay_from_one(client, books):

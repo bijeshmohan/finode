@@ -20,7 +20,6 @@ from .budget import parse_month, shift
 router = APIRouter(prefix="/categories")
 
 TABS = {"expense": "Expenses", "income": "Income"}
-OLD_TABS = {"spending": "expense"}  # the earlier spelling of the tab keeps working in saved links
 ZERO = Decimal("0.00")
 
 
@@ -90,7 +89,6 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
     when, end, is_current = _period(month)
     if when is None:
         return RedirectResponse(f"/categories?tab={tab}", status_code=303)
-    tab = OLD_TABS.get(tab, tab)
     tab = tab if tab in TABS else "expense"
     root_name = TABS[tab]
     top, own, totals = _figures(accounts, reports, root_name, when, end)

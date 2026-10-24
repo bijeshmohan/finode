@@ -46,7 +46,6 @@ PUBLIC = {
     ("GET", "/.well-known/oauth-protected-resource"), ("GET", "/.well-known/oauth-protected-resource/mcp"),
     ("DELETE", "/mcp"), ("GET", "/mcp"), ("HEAD", "/mcp"), ("POST", "/mcp"),  # bearer tokens, tested below
     ("GET", "/oauth/consent"), ("POST", "/oauth/consent"),  # a Supabase authorization id of the signed-in user
-    ("GET", "/plan"), ("GET", "/plan/{rest:path}"),  # the old address of the Budgets page: only redirects (301), shows nothing
 }
 
 # Routes without an id in the path: what they list is scoped to whoever asks.
@@ -57,8 +56,8 @@ LISTS = {
     ("GET", "/api/recurring/"), 
     ("GET", "/api/reports/trial-balance"), ("GET", "/api/transactions/"),
     ("GET", "/backup"), ("GET", "/budget"), ("GET", "/budget/goal"), ("GET", "/budget/goal/preview"), ("GET", "/budget/move"), ("GET", "/export"),
-    ("GET", "/profile"), ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
-    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/settings/groups"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/more"), ("GET", "/transactions/related-picker"), ("GET", "/transactions/new"),
+    ("GET", "/profile/assistants"), ("GET", "/profile/data"), ("GET", "/recurring"),
+    ("GET", "/recurring/new"), ("GET", "/categories"), ("GET", "/categories/new"), ("GET", "/settings"), ("GET", "/transactions"), ("GET", "/transactions/deleted"), ("GET", "/accounts/deleted"), ("GET", "/categories/deleted"), ("GET", "/transactions/suggest"), ("GET", "/transactions/more"), ("GET", "/transactions/related-picker"), ("GET", "/transactions/new"),
 }
 
 # Routes that take A's ids or names inside the request: refused (see `test_b_cannot_use_a_s_things_in_requests`).
@@ -69,7 +68,7 @@ REFERENCES = {
     ("POST", "/budget/move"),
     ("POST", "/import"), ("POST", "/import/preview"), ("POST", "/profile"), ("POST", "/profile/assistants"),
     ("POST", "/recurring"), ("POST", "/restore"), ("POST", "/restore/preview"), ("POST", "/settings/currency"),
-    ("POST", "/settings/groups"), ("POST", "/settings/lock"), ("POST", "/transactions/split"),
+    ("POST", "/transactions/split"),
 }
 
 

@@ -41,8 +41,16 @@ def test_a_new_person_starts_with_the_five_groups_in_order(client):
     assert set(found) == {"assets.bank", "assets.cash", "assets.investments", "liabilities.cards", "liabilities.loans"}
     roots = {a["aid"]: a["name"] for a in accounts(client) if a["parent_id"] is None}
     for root, names in NAMES.items():
-        mine = sorted((a for a in found.values() if roots[a["parent_id"]] == root), key=lambda a: a["position"])
+        mine = sorted((a for a in found.values() if roots[a["parent_id"]] == root), key=lambda a: account_service.FIXED_ORDER[a["system_key"]])
         assert [a["name"] for a in mine] == names
+
+
+def test_the_groups_come_first_and_everything_else_by_name(client, root_accounts):
+    for name in ("Zeta", "Alpha"):
+        assert client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts["Assets"]}).status_code == 201
+    mine = [a for a in accounts(client) if a["parent_id"] == root_accounts["Assets"]]
+    ordered = sorted(mine, key=lambda a: account_service.AccountService.order_key(type("A", (), a)))
+    assert [a["name"] for a in ordered] == ["Bank Accounts", "Cash", "Investments", "Alpha", "Zeta"]
 
 
 def test_the_groups_cannot_be_renamed_moved_closed_or_deleted(client, root_accounts):
