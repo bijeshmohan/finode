@@ -815,16 +815,8 @@ form.copy-last button { margin: 0; }
 .total-field .currency-code { padding-bottom: 1.2rem; font-weight: 500; font-size: .95rem; }
 
 /* Quick amounts under the amount: the last one for this payee, and nudges. */
-.amount-quick { display: flex; flex-direction: column; align-items: center; gap: .5rem; margin-top: -.25rem; }
-.amount-quick .qa-row { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
-.amount-quick button.chip { min-height: 2rem; font-size: .8125rem; font-variant-numeric: tabular-nums; }
-.amount-quick .qa-mul { background: var(--surface-2, var(--surface)); }
-.amount-quick .qa-undo .icon { width: 1rem; height: 1rem; }
-.amount-quick .qa-undo:disabled { opacity: .4; }
-.amount-quick .qa-sign[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
-.amount-quick .qa-s::before { content: "+"; }
-.amount-quick[data-sign="-"] .qa-s::before { content: "\2212"; }
-.amount-quick[data-sign="-"] .qa-add { color: var(--danger, var(--text)); }
+.amount-quick { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: -.25rem; }
+.amount-quick button.chip { min-height: 2rem; font-size: .8125rem; }
 
 .payee-field { display: flex; flex-direction: column; gap: .75rem; }
 .payee-label { font-size: 0; }

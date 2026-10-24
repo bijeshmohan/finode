@@ -18,7 +18,7 @@ Tap **+** (phone) or **New transaction** (wide screen).
 
 ### Payee chips
 
-Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly. Under the amount, a chip such as **₹597 as last time** puts that payee's last amount in with one tap, and a row of chips builds any amount without opening the keyboard: **+0.01, +0.1, +1, +10** add to whatever is there, the **+ / −** switch turns them into subtractions (₹9.99 is +10, then −0.01), **×2, ×5, ×10** scale it, and the arrow undoes the last tap. Typing in the amount still works and starts over.
+Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly. Under the amount, a chip such as **₹597 as last time** puts that payee's last amount in with one tap.
 
 ### Splitting across accounts
 
