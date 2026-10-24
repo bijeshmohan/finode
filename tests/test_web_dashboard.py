@@ -101,7 +101,7 @@ def test_dashboard_says_over_budget_when_a_category_is_overspent(
     text = " ".join(client.get("/").text.split())
     assert (
         "Over budget" in text
-        and '&minus;<span class="cur">&#8377;</span>30.00' in text
+        and '<span class="cur">&#8377;</span>\u221230.00' in text
         and 'style="width: 100%"' in text
     )
 

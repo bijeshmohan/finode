@@ -21,8 +21,8 @@ format:  ## ruff: fix what can be fixed and format the code
 	uv run ruff check --fix app tests migrations scripts
 	uv run ruff format app tests migrations scripts
 
-typecheck:  ## mypy over app/
-	uv run mypy
+typecheck:  ## pyrefly over app/
+	uv run pyrefly check
 
 test:  ## the unit and web tests (the browser tests are skipped without a browser)
 	uv run pytest -q

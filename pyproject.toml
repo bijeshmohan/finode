@@ -20,9 +20,9 @@ entrypoint = "app.main:app"
 
 [dependency-groups]
 dev = [
-    "mypy>=2.4.0",
     "playwright==1.55.0",
     "pre-commit>=4.7.0",
+    "pyrefly>=1.4.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "ruff>=0.17.2",
@@ -84,33 +84,36 @@ known-first-party = ["app"]
 [tool.ruff.format]
 quote-style = "double"
 
-[tool.mypy]
-python_version = "3.14"
-files = ["app"]
-plugins = ["pydantic.mypy"]
-check_untyped_defs = true
-warn_unused_ignores = true
-warn_redundant_casts = true
-warn_unreachable = false
-no_implicit_optional = true
-show_error_codes = true
-pretty = false
+[tool.pyrefly]
+# Meta's type checker: one binary, checks all of app/ in under a second (mypy needed about 12 s from cold).
+project-includes = ["app"]
+python-version = "3.14"
+check-unannotated-defs = true
+infer-return-types = "never"
 
-[tool.pydantic-mypy]
-init_forbid_extra = true
-init_typed = false
-warn_required_dynamic_aliases = true
+[tool.pyrefly.errors]
+redundant-cast = "warn"
 
-# SQLModel's column attributes are typed as their Python values (Posting.amount is a Decimal to the checker, a column
-# to SQLAlchemy), and its Field() has no overload for our custom column types. The persistence layers are thin SQL
-# over those, so the noise is switched off there and nowhere else.
-[[tool.mypy.overrides]]
-module = ["app.models.*"]
-disable_error_code = ["call-overload", "assignment"]
+# SQLModel types a column as its Python value and declares __tablename__ in a way the checker reads as an override;
+# the persistence layers are thin SQL over that, so these codes are switched off there and nowhere else.
+[[tool.pyrefly.sub-config]]
+matches = "app/models/**/*"
 
-[[tool.mypy.overrides]]
-module = ["app.repositories.*"]
-disable_error_code = ["arg-type", "call-overload", "return-value", "attr-defined", "assignment", "valid-type"]
+[tool.pyrefly.sub-config.errors]
+bad-assignment = "ignore"
+bad-override = "ignore"
+no-matching-overload = "ignore"
+
+[[tool.pyrefly.sub-config]]
+matches = "app/repositories/**/*"
+
+[tool.pyrefly.sub-config.errors]
+invalid-annotation = "ignore"
+bad-assignment = "ignore"
+missing-attribute = "ignore"
+bad-return = "ignore"
+no-matching-overload = "ignore"
+bad-argument-type = "ignore"
 
 [tool.coverage.run]
 source = ["app"]

@@ -11,10 +11,10 @@ The rules the code follows, and the steps for the common changes. `CLAUDE.md` in
 | Unit tests | `uv run pytest` (`make test`) |
 | Lint and format check | `uv run ruff check app tests migrations scripts` and `uv run ruff format --check …` (`make lint`) |
 | Fix and format | `make format` |
-| Type check | `uv run mypy` (`make typecheck`) |
+| Type check | `uv run pyrefly check` (`make typecheck`) |
 | Everything CI runs | `make check` (lint, types, tests); `make help` lists every target |
 | Coverage | `make coverage` |
-| Git hook | `make hooks` (installs pre-commit: ruff, ruff format, mypy and file hygiene on each commit) |
+| Git hook | `make hooks` (installs pre-commit: ruff, ruff format, pyrefly and file hygiene on each commit) |
 | Browser tests | `scripts/browser-tests.sh` (needs Docker); `FINODE_BROWSER=webkit …` for WebKit |
 | New migration | `uv run alembic revision --autogenerate -m "description"` (always read it before applying) |
 | Add a dependency | `uv add <pkg>` (do not edit `pyproject.toml` by hand) |
@@ -27,7 +27,7 @@ Python 3.14 or newer is required (`.python-version` pins it for uv and pyenv).
 All of it is configured in `pyproject.toml` and runs the same on a laptop, in the pre-commit hook and in CI (`.github/workflows/ci.yml`: lint and types, the unit tests with coverage, the browser tests, the Docker build). Dependabot keeps the dependencies, the actions and the base image current.
 
 - **ruff** lints and formats (line length 120). The rule sets are pycodestyle, pyflakes, isort, pyupgrade, bugbear, comprehensions, simplify, pie, ruff-specific, bandit (security), no stray `print` and pytest style; `tests/` also allows `assert`, short names and fake secrets, and `migrations/` allows its fixed-name SQL. A `# noqa: CODE` needs a reason after it. The whole-codebase format commit is listed in `.git-blame-ignore-revs` (run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once so `git blame` skips it).
-- **mypy** checks `app/` (with the pydantic plugin, `check_untyped_defs`, unused ignores reported). SQLModel types a column as its Python value, so the model and repository layers switch off the few error codes that causes (see the comment in `pyproject.toml`); everywhere else it is clean and should stay clean. Prefer a real fix over `# type: ignore`; when an ignore is right, give the code and the reason.
+- **pyrefly** (Meta's type checker) checks `app/` in under a second; it reads pydantic models natively. We tried mypy first: it was clean too but took about 12 seconds from a cold start, and `ty` (Astral) is still 0.x and flagged 89 things that are not bugs. SQLModel types a column as its Python value and declares `__tablename__` in a way the checker reads as an override, so the model and repository layers switch off the few error codes that causes (see the comment in `pyproject.toml`); everywhere else it is clean and should stay clean. Prefer a real fix over an ignore; when one is right, use `# pyrefly: ignore[code]` and say why.
 - **pytest-cov** measures coverage (`make coverage`); there is no threshold yet.
 - **pre-commit** also trims whitespace, checks YAML and TOML, refuses merge-conflict markers, big files and private keys.
 

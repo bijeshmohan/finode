@@ -18,7 +18,7 @@ class RecurringPostingData(BaseModel):
 
     account: UUID
     side: PostingSide
-    amount: Decimal = Field(gt=0, decimal_places=8, max_digits=24)
+    amount: Decimal = Field(gt=Decimal(0), decimal_places=8, max_digits=24)
 
 
 class RecurringBase(BaseModel):

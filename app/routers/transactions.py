@@ -56,7 +56,7 @@ def restore_transaction(hid: UUID, transactions: Transactions):
         return transactions.restore(hid)
     except LookupError:
         raise HTTPException(status_code=404, detail="deleted transaction not found") from None
-    except (ValueError, LimitReached) as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
 
 

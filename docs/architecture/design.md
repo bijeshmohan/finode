@@ -66,7 +66,7 @@ The new-transaction page is the most used and the most designed:
 ## Amounts
 
 - **Typed amounts are cleaned as they are typed** (`cleanAmount` in `app.js`): digits, commas, one decimal point, a leading minus; leading zeros dropped; decimals stop at what the currency keeps. The form's amounts are grouped as typed (`groupAmount`: `1,24,500` for rupees) with the cursor staying after the same digits; the server strips commas.
-- **Shown amounts**: ordinary spending has no minus sign, income is `+` and green, transfers plain; a real negative keeps its `−` in red. On an account's own page green and `+` mean what raises an asset or pays into a liability. For INR the whole part is grouped as lakhs and crores and large figures carry `₹` in front; other currencies are grouped in thousands with the code after.
+- **Shown amounts**: ordinary spending has no minus sign, income is `+` and green, transfers plain; a real negative keeps its `−` in red, and in a large figure the minus sits after the rupee sign, right in front of the digits (`₹−1,200.00`, never `−₹1,200.00`: the small raised `₹` would leave the minus adrift). On an account's own page green and `+` mean what raises an asset or pays into a liability. For INR the whole part is grouped as lakhs and crores and large figures carry `₹` in front; other currencies are grouped in thousands with the code after.
 - Amounts that touch the system's Opening Balances (`tx-system`) are muted and name only the other account.
 
 ## Motion
