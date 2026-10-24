@@ -1,9 +1,11 @@
 """Persistence for accounts, always filtered by the user's id."""
 
+import builtins
 from datetime import date
+from types import EllipsisType
 from uuid import UUID
 
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
 from ..models.account_deletion import AccountDeletion
@@ -34,7 +36,7 @@ class AccountRepository:
         account = self.db.exec(statement).first()
         return account
 
-    def list(self) -> list[Account]:
+    def list(self) -> builtins.list[Account]:
         """Every account of the person, loaded once per session (see repositories/cache.py)."""
         statement = select(Account).where(Account.user == self.uid)
         return list(remembered(self.db, ("accounts", self.uid), lambda: self.db.exec(statement).all()))
@@ -57,7 +59,7 @@ class AccountRepository:
         aid: UUID,
         data: AccountUpdate,
         on_budget: bool | None = None,
-        payment_category: UUID | type(...) | None = ...,
+        payment_category: UUID | EllipsisType | None = ...,
     ) -> Account | None:
         account = self.read(aid)
         if not account:
@@ -85,10 +87,10 @@ class AccountRepository:
         self.db.add(AccountDeletion(user=self.uid, account_id=account_id, snapshot=snapshot))
         self.db.flush()
 
-    def deletions(self) -> list[AccountDeletion]:
+    def deletions(self) -> builtins.list[AccountDeletion]:
         """Every deletion, newest first."""
         return self.db.exec(
-            select(AccountDeletion).where(AccountDeletion.user == self.uid).order_by(AccountDeletion.at.desc())
+            select(AccountDeletion).where(AccountDeletion.user == self.uid).order_by(col(AccountDeletion.at).desc())
         ).all()
 
     def deletion(self, did: UUID) -> AccountDeletion | None:
@@ -103,8 +105,8 @@ class AccountRepository:
         self.db.flush()
         return account
 
-    def set_closed(self, aids: list[UUID], day: date | None) -> None:
-        for account in self.db.exec(select(Account).where(Account.user == self.uid, Account.aid.in_(aids))).all():
+    def set_closed(self, aids: builtins.list[UUID], day: date | None) -> None:
+        for account in self.db.exec(select(Account).where(Account.user == self.uid, col(Account.aid).in_(aids))).all():
             account.closed_on = day
             self.db.add(account)
         self.db.flush()

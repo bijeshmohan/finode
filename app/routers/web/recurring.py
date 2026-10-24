@@ -58,9 +58,9 @@ def _row(rule: RecurringRead, paths: dict[UUID, str]) -> RuleRow:
         )
     return RuleRow(
         rule=rule,
-        from_name=paths.get(rule.from_account, "?"),
-        to_name=paths.get(rule.to_account, "?"),
-        amount=rule.amount,
+        from_name=paths.get(rule.from_account, "?") if rule.from_account else "?",
+        to_name=paths.get(rule.to_account, "?") if rule.to_account else "?",
+        amount=rule.amount or Decimal(0),
         schedule=describe(rule.frequency, rule.every),
         status=_status(rule),
     )
@@ -87,6 +87,7 @@ def recurring_page(request: Request, accounts: Accounts, recurring: Recurring):
 
 def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | None, **extra) -> dict:
     """The shared transaction rows (total, From and To) filled from the rule: simple and split alike."""
+    total: Decimal | str
     if rule is None:
         transaction, total, from_rows, to_rows = (
             None,

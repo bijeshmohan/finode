@@ -1,8 +1,11 @@
 """Accounts: the tree and its rules (two levels, no posting to roots or groups), balances derived from postings, closing, deleting, restoring, ordering and the account register."""
 
+import builtins
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from types import EllipsisType
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -12,7 +15,7 @@ from ..config import settings
 from ..currencies import Currency
 from ..currencies import find as find_currency
 from ..limits import ensure_room
-from ..models import Account
+from ..models import Account, AccountDeletion
 from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
 from ..repositories.budget import BudgetRepository
@@ -111,7 +114,7 @@ class AccountService:
         return account.parent_id is None and account.name in ROOT_ACCOUNT_NAMES
 
     @staticmethod
-    def is_opening_balances(account: Account, all_accounts: list[Account]) -> bool:
+    def is_opening_balances(account: Account | AccountRead, all_accounts: Sequence[Account | AccountRead]) -> bool:
         if account.name != OPENING_BALANCES_ACCOUNT_NAME or account.parent_id is None:
             return False
         parent = next((a for a in all_accounts if a.aid == account.parent_id), None)
@@ -432,10 +435,10 @@ class AccountService:
             self.ar.clear_payment_category(member.aid)
         self.ar.set_closed([m.aid for m in subtree if m.closed_on is None], today)
         self.ar.db.commit()
-        return self._to_read(self.ar.read(aid), self._ensure_roots())
+        return self._to_read(self._read(aid), self._ensure_roots())
 
     @staticmethod
-    def order_key(account: Account) -> tuple:
+    def order_key(account: Account | AccountRead) -> tuple:
         """How siblings are listed: the built-in groups first, in their fixed order, then the rest by name."""
         return (FIXED_ORDER.get(account.system_key or "", len(FIXED_ORDER)), account.name.lower())
 
@@ -452,7 +455,7 @@ class AccountService:
             ids.append(current.aid)
         self.ar.set_closed([i for i in ids if by_id[i].closed_on is not None], None)
         self.ar.db.commit()
-        return self._to_read(self.ar.read(aid), self._ensure_roots())
+        return self._to_read(self._read(aid), self._ensure_roots())
 
     def _check_budgetable(self, parent: Account | None, accounts_by_id: dict) -> None:
         """Only an asset or liability account can be part of the budget."""
@@ -462,7 +465,7 @@ class AccountService:
     def _detect_cycle(self, account_id: UUID, proposed_parent_id: UUID | None) -> bool:
         if proposed_parent_id is None:
             return False
-        current_id = proposed_parent_id
+        current_id: UUID | None = proposed_parent_id
         while current_id is not None:
             if current_id == account_id:
                 return True
@@ -553,7 +556,7 @@ class AccountService:
             return None
         return self._to_read(account, all_accounts, as_of)
 
-    def list(self, root_name: str | None = None, as_of: date | None = None) -> list[AccountRead]:
+    def list(self, root_name: str | None = None, as_of: date | None = None) -> builtins.list[AccountRead]:
         all_accounts = self._ensure_roots()
         accounts_by_id = {acc.aid: acc for acc in all_accounts}
 
@@ -564,8 +567,8 @@ class AccountService:
         return [self._to_read(account, all_accounts, as_of, postings) for account in filtered]
 
     def payments_into_loans(
-        self, all_accounts: list[Account], date_from: date | None = None, date_to: date | None = None
-    ) -> list[tuple[UUID, Posting]]:
+        self, all_accounts: Sequence[Account | AccountRead], date_from: date | None = None, date_to: date | None = None
+    ) -> builtins.list[tuple[UUID, Posting]]:
         """What was paid into accounts outside the budget (a loan) that name a payment category: (category, posting),
         debits only and only in transactions that touch a budget account, which is what the Budget counts as
         spending in that category too."""
@@ -582,7 +585,7 @@ class AccountService:
         touching = {tid for tid, rows in postings_of.items() if any(r.account in budget_accounts for r in rows)}
         return [(linked[p.account], p) for p in into if p.transaction in touching]
 
-    def register(self, aid: UUID, own_only: bool = False) -> list[RegisterEntry] | None:
+    def register(self, aid: UUID, own_only: bool = False) -> builtins.list[RegisterEntry] | None:
         """Return the account's activity oldest first with a running balance.
 
         Postings on sub-accounts count towards the account, matching how its
@@ -599,7 +602,7 @@ class AccountService:
         normal_side = self._normal_side(account, accounts_by_id)
 
         changes: dict[UUID, Decimal] = {}
-        rows = self.tr.postings_for_accounts(target_ids)
+        rows = self.tr.postings_for_accounts(list(target_ids))
         # What was paid into a loan that is budgeted under this category (or one inside it) counts here too.
         paid = [p for category, p in self.payments_into_loans(all_accounts) if category in target_ids]
         loaded = self.tr.read_many(
@@ -676,7 +679,7 @@ class AccountService:
 
         def entry(tid: UUID) -> RegisterEntry:
             transaction = loaded[tid]
-            counter: list[str] = []
+            counter: builtins.list[str] = []
             for posting in postings_of.get(tid, []):
                 if posting.account in target_ids:
                     continue
@@ -787,7 +790,7 @@ class AccountService:
             if new_home is not None and new_home.closed_on is not None:
                 raise ValueError(f"'{new_home.name}' is closed: reopen it to move accounts into it!")
 
-        payment_category: UUID | type(...) | None = ...
+        payment_category: UUID | EllipsisType | None = ...
         if "payment_category_id" in data.model_fields_set:
             payment_category = data.payment_category_id
             if payment_category is not None:
@@ -838,15 +841,26 @@ class AccountService:
         self.ar.db.refresh(updated)
         return self._to_read(updated, all_accounts)
 
+    def _read(self, aid: UUID) -> Account:
+        """The account, which must exist (it was just found or changed)."""
+        account = self.ar.read(aid)
+        if account is None:
+            raise ValueError("account not found!")
+        return account
+
     def _path(self, account: Account, by_id: dict[UUID, Account]) -> str:
-        names, seen = [], set()
-        while account is not None and account.aid not in seen:
-            seen.add(account.aid)
-            names.append(account.name)
-            account = by_id.get(account.parent_id) if account.parent_id else None
+        names: builtins.list[str] = []
+        seen: set[UUID] = set()
+        current: Account | None = account
+        while current is not None and current.aid not in seen:
+            seen.add(current.aid)
+            names.append(current.name)
+            current = by_id.get(current.parent_id) if current.parent_id else None
         return ":".join(reversed(names))
 
-    def _deletion_snapshot(self, account: Account, all_accounts: list[Account], budget: BudgetRepository) -> dict:
+    def _deletion_snapshot(
+        self, account: Account, all_accounts: builtins.list[Account], budget: BudgetRepository
+    ) -> dict:
         """What is needed to bring an unused account back (see models/account_deletion.py)."""
         by_id = {a.aid: a for a in all_accounts}
         return {
@@ -865,10 +879,10 @@ class AccountService:
             "linked": [str(a.aid) for a in all_accounts if a.payment_category_id == account.aid],
         }
 
-    def restorable(self, limit: int = 50) -> list[dict]:
+    def restorable(self, limit: int = 50) -> builtins.list[dict]:
         """Accounts and categories deleted for good and not back, newest first (one per account, the latest deletion)."""
         by_id = {a.aid: a for a in self._ensure_roots()}
-        latest: dict[UUID, object] = {}
+        latest: dict[UUID, AccountDeletion] = {}
         for row in self.ar.deletions():
             latest.setdefault(row.account_id, row)
         return [
@@ -882,7 +896,7 @@ class AccountService:
             if aid not in by_id
         ][:limit]
 
-    def closed(self) -> list[dict]:
+    def closed(self) -> builtins.list[dict]:
         """The accounts that were closed (a category that was deleted but had a history is closed): the outermost of
         each closed branch, newest first."""
         all_accounts = self._ensure_roots()

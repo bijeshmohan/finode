@@ -1,5 +1,6 @@
 """Persistence for the budget plan and goals, always filtered by the user's id."""
 
+import builtins
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -15,7 +16,7 @@ class BudgetRepository:
         self.db = db
         self.uid = uid
 
-    def list(self, up_to: date | None = None) -> list[BudgetAllocation]:
+    def list(self, up_to: date | None = None) -> builtins.list[BudgetAllocation]:
         statement = select(BudgetAllocation).where(BudgetAllocation.user == self.uid)
         if up_to is not None:
             statement = statement.where(BudgetAllocation.month <= up_to)
@@ -62,7 +63,7 @@ class BudgetRepository:
 
     # ---- goals -----------------------------------------------------------------------------------
 
-    def _goal_books(self) -> tuple[list[Goal], list[GoalAllocation]]:
+    def _goal_books(self) -> tuple[builtins.list[Goal], builtins.list[GoalAllocation]]:
         """The goals and everything set aside for them, in one round trip."""
 
         def load():
@@ -76,7 +77,7 @@ class BudgetRepository:
 
         return remembered(self.db, ("goal-books", self.uid), load)
 
-    def goals(self) -> list[Goal]:
+    def goals(self) -> builtins.list[Goal]:
         return list(self._goal_books()[0])
 
     def goal(self, gid: UUID) -> Goal | None:
@@ -92,7 +93,7 @@ class BudgetRepository:
         self.db.add(goal)
         self.db.flush()
 
-    def goal_allocations(self, up_to: date | None = None) -> list[GoalAllocation]:
+    def goal_allocations(self, up_to: date | None = None) -> builtins.list[GoalAllocation]:
         rows = self._goal_books()[1]
         return [r for r in rows if up_to is None or r.month <= up_to]
 

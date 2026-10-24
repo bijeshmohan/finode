@@ -1,5 +1,7 @@
 """Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits), plus history, deleted entries and restoring."""
 
+import builtins
+from collections.abc import Collection
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -9,6 +11,7 @@ from ..config import settings
 from ..currencies import Currency
 from ..currencies import find as find_currency
 from ..limits import ensure_room
+from ..models import Account
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
 from ..schemas.transaction import (
@@ -58,7 +61,9 @@ class TransactionService:
                 raise RuntimeError("the profile names a currency finode does not know")
         return self._currency
 
-    def _resolve(self, data: TransactionCreate | TransactionUpdate, keep_closed: set[UUID] = frozenset()) -> None:
+    def _resolve(
+        self, data: TransactionCreate | TransactionUpdate, keep_closed: Collection[UUID] = frozenset()
+    ) -> None:
         """Check the postings: the accounts can be posted to, the amounts fit the currency and the entry balances."""
         postings = data.postings
         if postings is None:
@@ -163,11 +168,13 @@ class TransactionService:
         accounts = {a.aid: a for a in self.ar.list()}
         paths: dict[UUID, str] = {}
         for aid, account in accounts.items():
-            chain, seen = [], set()
-            while account is not None and account.aid not in seen:
-                seen.add(account.aid)
-                chain.append(account.name)
-                account = accounts.get(account.parent_id) if account.parent_id else None
+            chain: builtins.list[str] = []
+            seen: set[UUID] = set()
+            current: Account | None = account
+            while current is not None and current.aid not in seen:
+                seen.add(current.aid)
+                chain.append(current.name)
+                current = accounts.get(current.parent_id) if current.parent_id else None
             paths[aid] = ":".join(reversed(chain))
         return paths
 
@@ -310,7 +317,7 @@ class TransactionService:
         kind: str | None = None,
         also: UUID | None = None,
         payee: str | None = None,
-    ) -> list[TransactionRead]:
+    ) -> builtins.list[TransactionRead]:
         account_ids, kind_accounts, also_ids = self._args(account, kind, also)
         transactions = self.tr.list(
             account_ids,
@@ -338,7 +345,7 @@ class TransactionService:
         kind: str | None = None,
         also: UUID | None = None,
         payee: str | None = None,
-    ) -> tuple[list[TransactionRead], int]:
+    ) -> tuple[builtins.list[TransactionRead], int]:
         """A chunk of the list for "Show more" and how many entries match in all. A day is never split between two
         chunks: the chunk runs on to the end of the day its last entry falls on."""
         account_ids, kind_accounts, also_ids = self._args(account, kind, also)
@@ -368,7 +375,7 @@ class TransactionService:
         found = [self._to_read(t, postings.get(t.tid, [])) for t in found]
         return found, total
 
-    def payees(self) -> list[tuple[str, int]]:
+    def payees(self) -> builtins.list[tuple[str, int]]:
         """Who you have paid or been paid by, most used first, for the transactions filter."""
         return self.tr.payees()
 

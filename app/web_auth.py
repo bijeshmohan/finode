@@ -1,6 +1,7 @@
 """Web sign-in through Supabase's password grant, with the tokens kept in HttpOnly cookies and refreshed when they expire."""
 
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
@@ -72,7 +73,7 @@ def refresh_session(refresh_token: str) -> SessionTokens:
 
 
 def set_auth_cookies(response: Response, tokens: SessionTokens) -> None:
-    options = {
+    options: dict[str, Any] = {
         "httponly": True,
         "samesite": "lax",
         "secure": settings.cookie_secure,

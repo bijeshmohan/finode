@@ -86,17 +86,17 @@ def dashboard(
             "hint": "Open Budgets and set aside rent and food",
         },
     ]
-    month = budget.view(when)
+    plan = budget.view(when)
     # What is left of this month's budget: the money still to spend, out of what there was to spend.
-    to_spend = month.activity + max(month.available, Decimal(0))
+    to_spend = plan.activity + max(plan.available, Decimal(0))
     glance = {
-        "has_budget": month.assigned > 0 or month.available > 0,  # spending with no plan at all is not "over budget"
-        "left": month.available,
-        "spent": month.activity,
-        "assigned": month.assigned,
-        "carried": month.available - month.assigned + month.activity,  # what earlier months left in the categories
+        "has_budget": plan.assigned > 0 or plan.available > 0,  # spending with no plan at all is not "over budget"
+        "left": plan.available,
+        "spent": plan.activity,
+        "assigned": plan.assigned,
+        "carried": plan.available - plan.assigned + plan.activity,  # what earlier months left in the categories
         "of": to_spend,
-        "percent": int(min(max(month.activity / to_spend, Decimal(0)), Decimal(1)) * 100) if to_spend > 0 else 0,
+        "percent": int(min(max(plan.activity / to_spend, Decimal(0)), Decimal(1)) * 100) if to_spend > 0 else 0,
         "pace": month_progress()
         if is_current
         else None,  # how far through the month today is: the tick on the bar (none for a past month)

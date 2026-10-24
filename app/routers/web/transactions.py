@@ -73,7 +73,8 @@ def _summary(found: list, index: AccountIndex) -> dict:
 
 def _filter_options(all_accounts, transactions) -> dict:
     """The choices behind the Filter sheet: accounts (assets, liabilities, equity), categories (expenses, income), payees."""
-    accounts, categories = [], []
+    accounts: list[dict] = []
+    categories: list[dict] = []
     for root in build_tree(all_accounts):
         target = categories if root.account.name in ("Expenses", "Income") else accounts
         parents: dict[int, str] = {}
@@ -710,7 +711,7 @@ def new_transaction_page(
             raise HTTPException(status_code=404, detail="transaction not found")
     from_id = to_id = None
     roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
-    kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account), "expense")
+    kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account, ""), "expense")
     if account is not None:
         # From an expense category the money arrives there; from anything else it leaves.
         if roots_of.get(account) == "Expenses":

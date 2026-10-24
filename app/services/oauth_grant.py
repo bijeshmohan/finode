@@ -1,5 +1,6 @@
 """What a connected app (an OAuth client of Supabase) may do: its read-only or read & write grant for one user."""
 
+import builtins
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -16,7 +17,7 @@ class OAuthGrantService:
     def __init__(self, repo: OAuthGrantRepository):
         self.repo = repo
 
-    def list(self) -> list[OAuthGrant]:
+    def list(self) -> builtins.list[OAuthGrant]:
         return [g for g in self.repo.list() if g.revoked is None]
 
     def allow(self, client_id: str, client_name: str, scope: str) -> OAuthGrant:

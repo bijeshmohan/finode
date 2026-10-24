@@ -85,9 +85,9 @@ def login(
         error, status_code = "Sign-in is currently unavailable. Please try again later.", 503
     else:
         attempts.reset(keys[1])
-        response = RedirectResponse(safe_next(next) or "/", status_code=303)
-        set_auth_cookies(response, tokens)
-        return response
+        redirect = RedirectResponse(safe_next(next) or "/", status_code=303)
+        set_auth_cookies(redirect, tokens)
+        return redirect
     return templates.TemplateResponse(
         request, "login.html", _login_context(request, error, email, next), status_code=status_code
     )

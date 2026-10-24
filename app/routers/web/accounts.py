@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Annotated
@@ -79,7 +80,7 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
     return roots
 
 
-def posting_groups(roots: list[Node], keep: set[UUID] = frozenset()) -> list[tuple[str, list[Node]]]:
+def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> list[tuple[str, list[Node]]]:
     """Accounts that transactions may post to, grouped by root. Closed accounts are left out, except those in
     `keep` (what an entry being edited already uses)."""
     groups = []
@@ -478,7 +479,7 @@ def _list_for_root(root: str | None) -> str:
     """The list a root's accounts are on, on the chip they are under (so going back lands where the person came from)."""
     if root in CATEGORY_ROOTS:
         return "/categories" + ("?tab=income" if root == "Income" else "")
-    return f"/accounts?tab={root.lower()}" if root in ACCOUNT_TABS.values() else "/accounts"
+    return f"/accounts?tab={root.lower()}" if root and root in ACCOUNT_TABS.values() else "/accounts"
 
 
 def list_url(accounts: AccountService, aid: UUID) -> str:

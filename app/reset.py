@@ -21,7 +21,7 @@ class PasswordRejectedError(Exception):
 
 
 def _url(path: str) -> str:
-    return f"{settings.supabase_url.rstrip('/')}/auth/v1/{path}"
+    return f"{(settings.supabase_url or '').rstrip('/')}/auth/v1/{path}"
 
 
 def _headers(token: str | None = None) -> dict[str, str]:

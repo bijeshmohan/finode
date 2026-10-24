@@ -9,6 +9,7 @@ Restoring creates everything with new ids, all or nothing in one database transa
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -250,7 +251,7 @@ class BackupService:
         if any(self._depth(a, accounts) is None for a in file.accounts):
             errors.append("the accounts contain a cycle.")
             return
-        too_deep = [a.name for a in file.accounts if self._depth(a, accounts) > MAX_ACCOUNT_DEPTH]
+        too_deep = [a.name for a in file.accounts if (self._depth(a, accounts) or 0) > MAX_ACCOUNT_DEPTH]
         if too_deep:
             errors.append(
                 f"accounts can be at most {MAX_ACCOUNT_DEPTH} levels deep (a category and a subcategory), "
@@ -305,10 +306,10 @@ class BackupService:
                 errors.append(f"the goal '{g.name}' has an amount that is not positive, or a name that is too long.")
                 break
             saved = Decimal(0)
-            for r in sorted(g.allocations, key=lambda r: r.month):
-                saved += r.amount
+            for alloc in sorted(g.allocations, key=lambda x: x.month):
+                saved += alloc.amount
                 if saved < 0:
-                    errors.append(f"the goal '{g.name}' would hold less than nothing in {r.month:%B %Y}.")
+                    errors.append(f"the goal '{g.name}' would hold less than nothing in {alloc.month:%B %Y}.")
                     break
         for row in file.allocations:
             if row.account_id not in postable:
@@ -347,7 +348,10 @@ class BackupService:
             profile = self.pr.get_or_create()
             fields = file.profile
             profile.first_name, profile.last_name = fields.first_name, fields.last_name
-            profile.currency = find_currency(fields.default_currency).code
+            currency = find_currency(fields.default_currency)
+            if currency is None:
+                raise ValueError(f"unknown currency '{fields.default_currency}'!")
+            profile.currency = currency.code
             db.add(profile)
             self.accounts.reset_defaults()
 
@@ -375,11 +379,11 @@ class BackupService:
                 [
                     f.aid
                     for f in fixed.values()
-                    if (by_id_now[f.parent_id].name, f.name) in taken and f.aid not in ids.values()
+                    if (by_id_now[cast(UUID, f.parent_id)].name, f.name) in taken and f.aid not in ids.values()
                 ]
             )
             opening = None
-            for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old)):
+            for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old) or 0):
                 if a.parent_id is None or a.id in kept:
                     continue
                 if (
@@ -399,6 +403,8 @@ class BackupService:
                 if a.parent_id is None or a.id in kept or ids[a.id] == (opening.aid if opening else None):
                     continue
                 account = self.ar.read(ids[a.id])
+                if account is None:
+                    continue
                 account.closed_on = a.closed_on
                 account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)
@@ -433,28 +439,30 @@ class BackupService:
             made: dict[UUID, UUID] = {}
             for t in file.transactions:
                 postings = [PostingCreate(account=ids[p.account], side=p.side, amount=p.amount) for p in t.postings]
-                created = self.tr.create(
+                entry = self.tr.create(
                     TransactionCreate(date=t.date, payee=t.payee, comment=t.comment, postings=postings),
                     origin=t.created_via,
                     recurring=(rules[t.recurring_id], t.recurring_date)
                     if t.recurring_id and t.recurring_date
                     else None,
                 )
-                made[t.id] = created.tid
+                made[t.id] = entry.tid
                 if t.updated_via != t.created_via:
-                    created.updated_via = t.updated_via
-                    db.add(created)
+                    entry.updated_via = t.updated_via
+                    db.add(entry)
             for t in file.transactions:  # links last: every entry has its new id by now
                 if t.related_id in made:
                     linked = self.tr.read(made[t.id])
+                    if linked is None:
+                        continue
                     linked.related_id = made[t.related_id]
                     db.add(linked)
             for row in self._expense_plan(file):
                 self.br.set(row.month, ids[row.account_id], row.amount)
             for g in file.goals:
                 goal = self.br.add_goal(g.name, g.amount, g.target_date)
-                for r in g.allocations:
-                    self.br.set_goal(r.month, goal.gid, r.amount)
+                for alloc in g.allocations:
+                    self.br.set_goal(alloc.month, goal.gid, alloc.amount)
             db.commit()
         except Exception:
             db.rollback()

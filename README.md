@@ -156,11 +156,18 @@ gzip -dc backups/finode-<time>.sql.gz | psql "$URL" -v ON_ERROR_STOP=1
 A plain Postgres has no `auth.users`, so create a stand-in table with the
 users' ids first or the foreign keys fail.
 
-## Tests
+## Tests and code quality
 
 ```bash
-uv run pytest
+uv run pytest                  # unit and web tests (about 1,000, a few minutes)
+scripts/browser-tests.sh       # the browser tests in Docker (FINODE_BROWSER=webkit for Safari's engine)
+uv run ruff check app tests migrations scripts && uv run ruff format --check app tests migrations scripts
+uv run mypy                    # type checks app/
+make check                     # lint + types + tests; `make help` lists every target
+make hooks                     # install the pre-commit hook (ruff, mypy, file hygiene)
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint, types, the tests with coverage, the browser tests and the Docker build on every push and pull request. See [docs/developer/conventions.md](docs/developer/conventions.md) for the rules and tool settings.
 
 ## Project layout
 

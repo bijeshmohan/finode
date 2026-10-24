@@ -92,17 +92,19 @@ class BudgetService:
         }
 
     def _path(self, account: Account, by_id: dict[UUID, Account]) -> list[str]:
-        names, seen = [], set()
-        while account is not None and account.parent_id is not None and account.aid not in seen:
-            seen.add(account.aid)
-            names.append(account.name)
-            account = by_id.get(account.parent_id)
+        names: list[str] = []
+        seen: set[UUID] = set()
+        current: Account | None = account
+        while current is not None and current.parent_id is not None and current.aid not in seen:
+            seen.add(current.aid)
+            names.append(current.name)
+            current = by_id.get(current.parent_id)
         return list(reversed(names))
 
     def view(self, month: date | None = None) -> BudgetRead:
         return self._compute(month)[0]
 
-    def _compute(self, month: date | None) -> tuple[BudgetRead, dict[UUID, tuple[Decimal, Decimal, Decimal]]]:
+    def _compute(self, month: date | None) -> tuple[BudgetRead, dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]]]:
         month = month_start(month)
         through = month_end(month)
         currency = self.accounts.currency()
@@ -545,7 +547,7 @@ class BudgetService:
             available = self._compute(month)[1][aid][2]
             taken = self.assigned(month, aid) - amount
             if taken > available:
-                name = self.accounts.ar.read(aid).name
+                name = self.accounts._read(aid).name
                 raise BudgetError(
                     f"only {max(available, ZERO):f} is available in '{name}' to take out: assign at least "
                     f"{self.assigned(month, aid) - max(available, ZERO):f}!"
@@ -601,13 +603,13 @@ class BudgetService:
         if not wanted and not goal_wanted:
             raise BudgetError(
                 "last month has nothing assigned to copy!"
-                if not any(row.month == previous for row in [*rows, *goal_rows])
+                if not any(month_ == previous for month_ in [*(r.month for r in rows), *(r.month for r in goal_rows)])
                 else "everything last month had is already assigned this month!"
             )
         for row in wanted:
             self.br.set(month, row.account_id, row.amount)
-        for row in goal_wanted:
-            self.br.set_goal(month, row.goal_id, row.amount)
+        for goal_row in goal_wanted:
+            self.br.set_goal(month, goal_row.goal_id, goal_row.amount)
         self.br.db.commit()
         return self.view(month)
 

@@ -42,7 +42,7 @@ def delete_user(user_id) -> None:
         raise AuthUnavailableError("deleting logins is not configured")
     try:
         response = httpx.delete(
-            f"{settings.supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}",
+            f"{(settings.supabase_url or '').rstrip('/')}/auth/v1/admin/users/{user_id}",
             headers=_admin_headers(),
             timeout=10,
         )
@@ -62,7 +62,7 @@ def create_user(email: str, password: str) -> None:
         raise AuthUnavailableError("sign-up is not configured")
     try:
         response = httpx.post(
-            f"{settings.supabase_url.rstrip('/')}/auth/v1/admin/users",
+            f"{(settings.supabase_url or '').rstrip('/')}/auth/v1/admin/users",
             json={"email": email, "password": password, "email_confirm": True},
             headers=_admin_headers(),
             timeout=10,

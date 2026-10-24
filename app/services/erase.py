@@ -5,9 +5,10 @@ parents) instead of a list that a new feature could forget. Clearing the books k
 rather than the books: their settings (the profile) and their assistants' tokens and connections.
 """
 
+from typing import cast
 from uuid import UUID
 
-from sqlalchemy import delete
+from sqlalchemy import CursorResult, delete
 from sqlmodel import Session, SQLModel
 
 # Kept when only the books are cleared.
@@ -26,8 +27,9 @@ class EraseService:
                 if "user" not in table.c or table.name in keep:
                     continue
                 result = self.db.execute(delete(table).where(table.c.user == self.uid))
-                if result.rowcount:
-                    removed[table.name] = result.rowcount
+                count = cast(CursorResult, result).rowcount  # a DELETE returns a CursorResult
+                if count:
+                    removed[table.name] = count
             self.db.commit()
         except Exception:
             self.db.rollback()

@@ -31,7 +31,7 @@ def group_digits(digits: str, style: str) -> str:
     """Put commas into a run of digits: 1,234,567 (western) or 12,34,567 (indian)."""
     if style == "indian" and len(digits) > 3:
         head, tail = digits[:-3], digits[-3:]
-        pairs = []
+        pairs: list[str] = []
         while len(head) > 2:
             pairs.insert(0, head[-2:])
             head = head[:-2]
@@ -153,4 +153,5 @@ def _template_response(request, *args, **kwargs):
         _places.reset(places_token)
 
 
-templates.TemplateResponse = _template_response
+# Deliberate: every render sets the grouping style first (see _template_response).
+templates.TemplateResponse = _template_response  # type: ignore[method-assign]

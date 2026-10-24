@@ -44,7 +44,7 @@ for api_router in (accounts, budget, recurring, transactions, data, profile, rep
     app.include_router(api_router.router, prefix="/api")
 app.include_router(web.router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
-app.add_exception_handler(LoginRequired, login_required_handler)
+app.add_exception_handler(LoginRequired, login_required_handler)  # type: ignore[arg-type]  # Starlette types handlers as taking any Exception
 app.middleware("http")(refreshed_cookies_middleware)
 app.middleware("http")(clear_shown_flash_middleware)
 app.middleware("http")(cache_headers_middleware)

@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from typing import cast
 
 from .model import AccountDecl, Journal, LedgerPosting, LedgerTransaction
 
@@ -64,7 +65,8 @@ def _parse_amount(text: str, state: _State, line: int) -> tuple[Decimal, str | N
     except InvalidOperation:
         state.error(line, f"cannot read the amount '{text.strip()}'")
         return None
-    if -amount.as_tuple().exponent > MAX_PLACES:
+    exponent = amount.as_tuple().exponent
+    if isinstance(exponent, int) and -exponent > MAX_PLACES:
         state.error(line, f"'{text.strip()}' has more than {MAX_PLACES} decimal places")
         return None
     negative = "-" in (match["s1"] or "") + (match["s2"] or "")
@@ -160,8 +162,9 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
     postings = []
     running = dict(state.balances)
     for entry in entries:
+        amount = cast(Decimal, entry.amount)  # the one that left its amount out was filled in above
         key = (entry.account, entry.assertion_commodity or entry.commodity)
-        running[key] = running.get(key, Decimal(0)) + entry.amount
+        running[key] = running.get(key, Decimal(0)) + amount
         if entry.assertion is not None and running[key] != entry.assertion:
             state.error(
                 entry.number,
@@ -171,7 +174,7 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
         postings.append(
             LedgerPosting(
                 account=entry.account,
-                amount=entry.amount,
+                amount=amount,
                 line=entry.number,
                 commodity=entry.commodity,
             )

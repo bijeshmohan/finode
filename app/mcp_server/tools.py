@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 from functools import wraps
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 from uuid import UUID
 
 from mcp.server.mcpserver import MCPServer
@@ -240,7 +240,7 @@ def search_transactions(
         index = _index(s)
         aid = index.find(account, allow_root=True).account.aid if account else None
         needle = (text_contains or "").casefold().strip()
-        found = []
+        found: list[dict[str, Any]] = []
         truncated = False
         for t in s.transactions.list(account=aid, date_from=date_from, date_to=date_to):
             total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
@@ -314,8 +314,8 @@ def list_recurring() -> dict[str, Any]:
                         }
                         if r.postings
                         else {
-                            "from": index.path(r.from_account),
-                            "to": index.path(r.to_account),
+                            "from": index.path(cast(UUID, r.from_account)),
+                            "to": index.path(cast(UUID, r.to_account)),
                             "amount": text(r.amount),
                         }
                     ),
@@ -453,6 +453,8 @@ def update_transaction(
         if not changes:
             raise ToolError("nothing to change: pass a date, payee, note, postings or related_to!")
         saved = s.transactions.update(tid, TransactionUpdate(**changes))
+        if saved is None:
+            raise ToolError("transaction not found")
         return {"updated": _transaction(saved, index, s)}
 
 
@@ -545,13 +547,13 @@ def create_recurring(
             if any(v is not None for v in (amount, from_account, to_account)):
                 raise ToolError("give either from_account, to_account and amount, or postings, not both!")
             source = target = None
-            shape = {
+            shape: dict[str, Any] = {
                 "postings": [
                     p.model_dump() | {"account": index.find(p.account, postable=True).account.aid} for p in postings
                 ]
             }
         else:
-            if None in (amount, from_account, to_account):
+            if amount is None or from_account is None or to_account is None:
                 raise ToolError("give from_account, to_account and amount, or postings!")
             source = index.find(from_account, postable=True)
             target = index.find(to_account, postable=True)
@@ -569,9 +571,11 @@ def create_recurring(
         )
         s.recurring.process_due()
         rule = s.recurring.read(created.rid)
+        if rule is None:
+            raise ToolError("the recurring transaction was not saved")
         what = (
             {"from": source.path, "to": target.path, "amount": text(rule.amount)}
-            if source is not None
+            if source is not None and target is not None
             else {
                 "postings": [
                     {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)}
@@ -625,6 +629,8 @@ def skip_recurring_occurrence(
         if before is None:
             raise ToolError("no recurring transaction has that id!")
         rule = s.recurring.skip_next(rid)
+        if rule is None:
+            raise ToolError("no recurring transaction has that id!")
         return {
             "skipped": before.next_date.isoformat(),
             "next_due": rule.next_date.isoformat() if rule.active else None,

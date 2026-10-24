@@ -232,9 +232,9 @@ class DataService:
         # it builds on ("Assets:Bank Accounts:HDFC") and the ones it does not mention stay.
         parents_wanted = {key[:depth] for key in (*declared, *used) for depth in range(2, len(key))}
         for account in self.accounts.empty_fixed_parents():
-            key = next((k for k, aid in existing.items() if aid == account.aid), None)
-            if key is not None and key in {*declared, *used} and key not in parents_wanted:
-                existing.pop(key)
+            found: tuple[str, ...] | None = next((k for k, aid in existing.items() if aid == account.aid), None)
+            if found is not None and found in {*declared, *used} and found not in parents_wanted:
+                existing.pop(found)
                 plan.release.append(account.aid)
 
         known: set[Key] = set(existing) | set(declared) | set(used)
