@@ -189,7 +189,7 @@ def test_the_chips_narrow_as_you_type(page: Page, books, api: Api):
     expect(page.locator("#payee-chips .chip")).to_have_text("DMart")
 
 
-def test_the_cursor_is_ink_coloured_and_alone_in_an_empty_amount(page: Page, books):
+def test_the_cursor_is_ink_coloured_and_the_grey_zero_stays_while_empty(page: Page, books):
     page.goto("/transactions/new")
     page.focus("#total")
     colours = page.eval_on_selector("#total", "e => [getComputedStyle(e).caretColor, getComputedStyle(e).color]")
@@ -197,9 +197,8 @@ def test_the_cursor_is_ink_coloured_and_alone_in_an_empty_amount(page: Page, boo
     if page.context.browser.browser_type.name == "webkit":
         return  # WebKit does not report the style of a ::placeholder; the screenshot check covers it
     placeholder = page.eval_on_selector("#total", "e => getComputedStyle(e, '::placeholder').opacity")
-    assert placeholder == "0", "the grey 0.00 steps aside while typing"
-    page.evaluate("document.activeElement.blur()")
-    assert page.eval_on_selector("#total", "e => getComputedStyle(e, '::placeholder').opacity") != "0"
+    assert placeholder != "0", "the grey 0.00 stays, with the cursor at its start, on a computer and a phone alike"
+    assert page.eval_on_selector("#total", "e => getComputedStyle(e).textAlign") in ("left", "start")
 
 
 def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(page: Page, books):
@@ -225,7 +224,7 @@ def test_an_amount_cannot_be_typed_with_two_decimal_points_or_letters(page: Page
     assert total.input_value() == "42.00", "the second point is ignored and rupees keep two decimals"
     total.fill("")
     page.keyboard.type("1a2b,5.5x")
-    assert total.input_value() == "12,5.5", "letters are ignored, commas and one point stay"
+    assert total.input_value() == "125.5", "letters are ignored, one point stays, commas are put where they belong"
     total.fill("")
     page.keyboard.type("9.999")
     assert total.input_value() == "9.99", "no third decimal for rupees"
@@ -242,7 +241,7 @@ def test_pasting_a_messy_amount_keeps_the_good_part_and_the_cursor(page: Page, b
     total.fill("123")
     total.evaluate("e => { e.focus(); e.setSelectionRange(1, 1); }")
     page.keyboard.type("x4")
-    assert total.input_value() == "1423", "the cursor stayed after the 1"
+    assert total.input_value() == "1,423", "the cursor stayed after the 1"
 
 
 def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, books):
@@ -344,13 +343,13 @@ def test_an_amount_loses_its_leading_zeros_as_typed_and_gets_its_decimals_when_l
     assert total.input_value() == "0.5", "a lone zero before the point stays"
     page.keyboard.press("Tab")
     assert total.input_value() == "0.50", "written out with two decimals on leaving"
-    for typed, tidy in (("1.", "1.00"), ("1.1", "1.10"), ("12", "12.00"), (".5", "0.50"), ("1,200", "1200.00")):
+    for typed, tidy in (("1.", "1.00"), ("1.1", "1.10"), ("12", "12.00"), (".5", "0.50"), ("1,200", "1,200.00")):
         total.fill("")
         total.click()
         page.keyboard.type(typed)
         page.keyboard.press("Tab")
         assert total.input_value() == tidy, typed
-    assert page.input_value('[data-rows="debit"] [name="amount"]') == "1200.00", "the rows follow the tidied amount"
+    assert page.input_value('[data-rows="debit"] [name="amount"]') == "1,200.00", "the rows follow the tidied amount"
     total.fill("")
     total.click()
     page.keyboard.press("Tab")
@@ -384,3 +383,46 @@ def test_the_payee_suggestions_stay_on_one_row_on_a_phone_and_a_wide_screen(page
     page.goto("/transactions/new")
     shown = page.eval_on_selector_all("#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).length")
     assert 0 < shown < 7, "a phone fits fewer chips than there are habits"
+
+
+def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(page: Page, books):
+    page.goto("/transactions/new")
+    total = page.locator("#total")
+    total.click()
+    page.keyboard.type("124500")
+    assert total.input_value() == "1,24,500", "lakhs for rupees, as it is typed"
+    page.keyboard.press("Home")
+    page.keyboard.type("9")
+    assert total.input_value() == "91,24,500", "typing in front regroups and the cursor stays after the 9"
+    page.keyboard.type("8")
+    assert total.input_value() == "9,81,24,500"
+    total.fill("")
+    page.keyboard.type("1234567.5")
+    page.keyboard.press("Tab")
+    assert total.input_value() == "12,34,567.50"
+    assert page.input_value('[data-rows="debit"] [name="amount"]') == "12,34,567.50", "the rows are grouped too"
+    page.fill('[data-rows="debit"] [name="amount"]', "")
+    page.keyboard.type("1000")
+    assert page.input_value('[data-rows="debit"] [name="amount"]') == "1,000"
+
+
+def test_a_lone_row_has_no_cross_and_a_split_has_one_on_every_row(page: Page, books):
+    page.goto("/transactions/new")
+    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
+    page.fill("#total", "100")
+    page.locator('[data-rows="debit"] select').first.select_option(books["food"]["aid"])
+    page.fill('[data-rows="debit"] [name="amount"]', "60")
+    expect(page.locator('[data-rows="debit"] [data-remove-row]:visible')).to_have_count(2)
+    expect(page.locator('[data-rows="credit"] [data-remove-row]:visible')).to_have_count(0), "the other side is still one row"
+    page.fill('[data-rows="debit"] [name="amount"]', "100")
+    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
+
+
+def test_the_date_is_a_chip_that_names_the_day(page: Page, books):
+    page.goto("/transactions/new")
+    chip = page.locator("[data-date-label]")
+    expect(chip).to_contain_text("Today, ")
+    page.fill('input[name="date"]', "2020-03-04")
+    expect(chip).to_have_text("4 Mar 2020")
+    page.fill('input[name="date"]', page.locator("[data-date-chip]").get_attribute("data-today"))
+    expect(chip).to_contain_text("Today, ")

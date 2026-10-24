@@ -810,8 +810,8 @@ form.copy-last button { margin: 0; }
   min-height: 4.5rem; padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 0;
 }
 .total-field .amount-field input::placeholder { color: var(--faint); opacity: .55; }
-/* The cursor sits alone in the middle while the field is empty, not on top of the grey 0.00. */
-.total-field .amount-field input:focus::placeholder { opacity: 0; }
+/* The grey 0.00 stays while the field is empty and focused, with the cursor at its start (the same on a phone and a computer). */
+.total-field .amount-field input:placeholder-shown { text-align: left; }
 .total-field .currency-code { padding-bottom: 1.2rem; font-weight: 500; font-size: .95rem; }
 
 /* Quick amounts under the amount: the last one for this payee, and nudges. */
@@ -1451,3 +1451,10 @@ form[data-txn-kind="other"] .segmented.kinds::before { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .segmented.kinds::before, .segmented.kinds button { transition: none; } }
 
 .chip.fit-hidden { display: none; }
+
+/* One row on a side has nothing to remove: no x, and the name gets its width back. The date is a chip over a native picker. */
+.txn-row:has([data-remove-row][hidden]) { grid-template-columns: minmax(0, 1fr) 7rem; }
+.txn-form label.date-chip { position: relative; display: inline-flex; flex-direction: row; align-self: flex-start; gap: .4rem; align-items: center; cursor: pointer; padding: 0 .9rem; min-height: 2.25rem; border-radius: 999px; font-size: .875rem; font-weight: 500; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+.date-chip .icon { width: 1rem; height: 1rem; }
+.date-chip input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
+.form-actions button.quiet { background: none; border: 0; color: var(--muted); text-decoration: underline; min-height: 2.5rem; font-size: .9375rem; font-weight: 500; }
