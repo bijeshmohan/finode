@@ -38,7 +38,7 @@ The decisions that look odd until you know the reason. Each entry says what was 
 ## History is append-only and has no foreign key
 
 **Decision.** `transaction_history` and `account_deletions` only ever get new rows.
-**Why.** A deleted transaction's trace survives it, which is what makes *Recently deleted* and the edit page's history possible with no extra storage. Restoring recreates the entry with its old id.
+**Why.** A deleted transaction's trace survives it, which is what makes *Recently deleted* possible with no extra storage. Restoring recreates the entry with its old id.
 
 ## The budget sits on top of the ledger
 

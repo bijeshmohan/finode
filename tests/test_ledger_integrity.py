@@ -308,11 +308,8 @@ def test_recurring_occurrences_balance(client, root_accounts, account, expense_a
     assert result["balanced"] and result["debit"] != "0.00", result
 
 
-def test_the_edit_page_shows_the_history(client, account, expense_account):
+def test_the_edit_page_shows_no_history(client, account, expense_account):
     made = post(client, account, expense_account, "10", payee="Shop")
     client.patch(f"/api/transactions/{made['tid']}", json={"payee": "Market"})
     page = client.get(f"/transactions/{made['tid']}/edit").text
-    assert "History" in page and "2 entries" in page
-    section = page[page.index('class="card history"'):]
-    assert section.index("Changed") < section.index("Added"), "newest first"
-    assert "Market" in page and "Shop" in page
+    assert "History" not in page and "history" not in page
