@@ -68,13 +68,14 @@ def places(code: str | None) -> int:
 
 
 def amount(text: str, code: str | None) -> str:
-    """An amount with its currency: the sign in front where there is one (₹1,200.00, −₹5.00), else the code after it."""
+    """An amount with its currency: the sign in front where there is one (₹1,200.00, ₹−5.00: a minus stays next to the
+    digits), else the code after it."""
     if not code:
         return text
     sign = SYMBOLS.get(code)
     if sign is None:
         return f"{text} {code}"
-    return f"\u2212{sign}{text[1:]}" if text.startswith("\u2212") else f"{sign}{text}"
+    return f"{sign}{text}"
 
 
 @lru_cache
