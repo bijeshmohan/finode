@@ -62,7 +62,7 @@ UI conventions (keep pages working on phones first):
 
 ### What an amount field accepts
 
-Every `input[inputmode="decimal"]` (the transaction form, the budget's sheet, move and target, account balances) is cleaned as it is typed or pasted (`cleanAmount` at the top of `app.js`, a capturing `input` listener so the other handlers read the clean value): digits, commas to group them, **one** decimal point (a second one is ignored, so `42.00.00` becomes `42.0000`, which is 42) and a minus sign only first; letters and anything else are dropped and the cursor stays where it was. The number of decimals is still the server's job (`check_places`: it normalizes first, so trailing zeros pass and `42.005` in rupees is refused with a message), because the page does not know the currency's places. `parse_amount` refuses anything left that is not a number.
+Every `input[inputmode="decimal"]` (the transaction form, the budget's sheet, move and target, account balances) is cleaned as it is typed or pasted (`cleanAmount` at the top of `app.js`, a capturing `input` listener so the other handlers read the clean value): digits, commas to group them, **one** decimal point (a second one is ignored, so `42.00.00` becomes `42.00`) and a minus sign only first; letters and anything else are dropped and the cursor stays where it was. **Decimals stop at what the currency keeps** (`<html data-places>`, from `templating.places`: rupees 2, yen 0, so a third digit or any point for yen is not typed; 2026-10-24); the server still checks (`check_places`: it normalizes first, so trailing zeros pass and `42.005` in rupees is refused with a message) for the API and pasted values. `parse_amount` refuses anything left that is not a number.
 
 ### The amount field's focus
 

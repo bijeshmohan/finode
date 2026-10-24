@@ -54,3 +54,9 @@ def test_budget_hints_follow_the_grouping(client, lakhs):
     client.put(f"/api/budget/categories/{food['aid']}/target", json={"kind": "monthly", "amount": "250000"})
     page = client.get("/budget").text
     assert "needs 2,49,900.00 more" in page
+
+
+def test_the_page_tells_the_scripts_how_many_decimals_the_currency_keeps(client):
+    assert 'data-places="2"' in client.get("/").text
+    assert client.patch("/api/profile/", json={"default_currency": "JPY"}).status_code == 200
+    assert 'data-places="0"' in client.get("/").text
