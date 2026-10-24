@@ -153,12 +153,13 @@ def test_an_unknown_payee_still_fills_the_amount_and_name(client, books):
     assert 'value="180"' in page and 'value="chai point"' in page
 
 
-def test_the_form_starts_with_the_account_you_pay_from_most_lately(client, books):
+def test_the_form_starts_with_no_account_chosen_however_often_you_pay_from_one(client, books):
     for _ in range(3):
         pay(client, "A", books["card"], books["delivery"])
     pay(client, "B", books["hdfc"], books["groceries"])
     page = client.get("/transactions/new").text
-    assert f'<option value="{books["card"]["aid"]}" selected' in page
+    assert f'<option value="{books["card"]["aid"]}" selected' not in page
+    assert f'<option value="{books["hdfc"]["aid"]}" selected' not in page
     assert f'<option value="{books["delivery"]["aid"]}" selected' not in page
 
 
