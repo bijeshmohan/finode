@@ -10,7 +10,7 @@ from .svc import plain
 
 
 def test_profile_links_to_the_assistants_page(client):
-    assert 'href="/profile/assistants"' in client.get("/profile").text
+    assert 'href="/profile/assistants"' in client.get("/settings").text
 
 
 def test_page_shows_setup_with_this_servers_address(client):

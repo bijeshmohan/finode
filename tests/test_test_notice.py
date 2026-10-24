@@ -31,7 +31,7 @@ def test_sign_up_shows_the_notice_and_wants_it_accepted(raw_client, signup_on, s
 def test_the_profile_has_the_notice_and_a_feedback_link(client, monkeypatch):
     monkeypatch.setattr(settings, "test_notice", True)
     monkeypatch.setattr(settings, "feedback_email", "owner@example.com")
-    page = client.get("/profile").text
+    page = client.get("/settings").text
     assert "About this test" in page and "Nothing here is financial advice" in page
     assert 'id="feedback"' in page
     link = page.split('id="feedback" href="')[1].split('"')[0].replace("&amp;", "&")
@@ -46,7 +46,7 @@ def test_the_profile_has_the_notice_and_a_feedback_link(client, monkeypatch):
 def test_without_settings_the_profile_is_as_before(client, monkeypatch):
     monkeypatch.setattr(settings, "test_notice", False)
     monkeypatch.setattr(settings, "feedback_email", None)
-    page = client.get("/profile").text
+    page = client.get("/settings").text
     assert "About this test" not in page and "Send feedback" not in page
 
 

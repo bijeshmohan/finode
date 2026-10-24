@@ -63,8 +63,6 @@ class AccountRepository:
         if not account:
             return None
         values = data.model_dump(exclude_unset=True, exclude={"balance", "on_budget", "payment_category_id"})
-        if "parent_id" in values and values["parent_id"] != account.parent_id:
-            account.position = None  # in a new group it starts alphabetically, after the ones placed by hand
         for key, value in values.items():
             setattr(account, key, value)
         if on_budget is not None:
@@ -108,14 +106,6 @@ class AccountRepository:
     def set_closed(self, aids: list[UUID], day: date | None) -> None:
         for account in self.db.exec(select(Account).where(Account.user == self.uid, Account.aid.in_(aids))).all():
             account.closed_on = day
-            self.db.add(account)
-        self.db.flush()
-
-    def set_positions(self, positions: dict[UUID, int | None]) -> None:
-        for account in self.db.exec(
-            select(Account).where(Account.user == self.uid, Account.aid.in_(list(positions)))
-        ).all():
-            account.position = positions[account.aid]
             self.db.add(account)
         self.db.flush()
 

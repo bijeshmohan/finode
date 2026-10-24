@@ -9,7 +9,7 @@ def _post(client: TestClient, path: str, text: str):
 
 
 def test_profile_page_links_to_data_page(client: TestClient):
-    text = client.get("/profile").text
+    text = client.get("/settings").text
     assert 'href="/profile/data"' in text and "/export" not in text and 'id="import-file"' not in text
 
 

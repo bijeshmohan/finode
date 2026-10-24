@@ -44,7 +44,6 @@ def rich(client, root_accounts):
     salary = acct(client, "Salary", root_accounts["Income"])
     client.patch(f"/api/accounts/{loan['aid']}", json={"payment_category_id": emi["aid"]})
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
-    assert client.post(f"/accounts/{loan['aid']}/move", data={"direction": "up"}).status_code == 200  # Liabilities: Home Loan before Visa
 
     dmart = tx(client, [line(groceries, "debit", "250"), line(card, "credit", "250")], date="2026-09-03", payee="DMart")
     tx(client, [line(card, "debit", "40"), line(groceries, "credit", "40")], date="2026-09-04", payee="DMart", related_id=dmart["tid"])
@@ -66,7 +65,6 @@ def rich(client, root_accounts):
     client.put(f"/api/budget/categories/{groceries['aid']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['aid']}", json={"month": "2026-09-01", "amount": "15000"})
     assert client.post("/budget/goal", data={"name": "Emergency fund", "amount": "100000", "by": "2999-12", "assign_now": "1"}).status_code == 200
-    assert client.patch("/api/profile/", json={"locked_through": "2026-08-31"}).status_code == 200  # the books are closed up to then
     return {"bank": bank, "groceries": groceries}
 
 
@@ -92,7 +90,7 @@ def canonical(doc: dict) -> dict:
         "profile": doc["profile"],
         "accounts": sorted(
             (paths[a["id"]], a["details"], a["on_budget"], a["closed_on"] is not None,
-             paths.get(a["payment_category_id"]), a["position"])
+             paths.get(a["payment_category_id"]))
             for a in doc["accounts"]
         ),
         "transactions": [
@@ -160,6 +158,21 @@ def test_an_older_backup_with_pinned_accounts_still_restores(client, rich):
         done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
         assert done.status_code == 200, done.text
         assert not any("pinned" in a for a in client.get("/api/backup").json()["accounts"]), "read, never written"
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_an_older_backup_with_a_lock_and_hand_set_places_still_restores(client, rich):
+    doc = client.get("/api/backup").json()
+    doc["profile"]["locked_through"] = "2026-08-31"  # the period lock and the account order were removed (2026-10-25)
+    for place, account in enumerate(doc["accounts"]):
+        account["position"] = place
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert done.status_code == 200, done.text
+        again = client.get("/api/backup").json()
+        assert "locked_through" not in again["profile"] and not any("position" in a for a in again["accounts"]), "read, never written"
     finally:
         as_user(TEST_USER_ID)
 

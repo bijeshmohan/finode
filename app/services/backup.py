@@ -78,13 +78,12 @@ class BackupService:
                 first_name=profile.first_name,
                 last_name=profile.last_name,
                 default_currency=profile.currency,
-                locked_through=profile.locked_through,
             ),
             accounts=[
                 BackupAccount(
                     id=a.aid, parent_id=a.parent_id, name=a.name, details=a.details,
                     on_budget=a.on_budget, closed_on=a.closed_on, payment_category_id=a.payment_category_id,
-                    position=a.position, system_key=a.system_key,
+                    system_key=a.system_key,
                 )
                 for a in accounts
             ],
@@ -310,7 +309,6 @@ class BackupService:
             profile = self.pr.get_or_create()
             fields = file.profile
             profile.first_name, profile.last_name = fields.first_name, fields.last_name
-            profile.locked_through = fields.locked_through
             profile.currency = find_currency(fields.default_currency).code
             db.add(profile)
             self.accounts.reset_defaults()
@@ -355,7 +353,6 @@ class BackupService:
                     continue
                 account = self.ar.read(ids[a.id])
                 account.closed_on = a.closed_on
-                account.position = a.position
                 account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)
             db.flush()

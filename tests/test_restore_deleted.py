@@ -101,14 +101,6 @@ def test_an_account_that_is_gone_blocks_the_restore_with_a_reason(client, ledger
     assert refused.status_code == 400 and "no longer exists" in refused.text
 
 
-def test_a_locked_period_blocks_the_restore(client, ledger, svc):
-    bank, food = ledger
-    tid = record(client, bank, food, on=local_today() - timedelta(days=10))
-    client.delete(f"/api/transactions/{tid}")
-    client.patch("/api/profile/", json={"locked_through": str(local_today() - timedelta(days=5))})
-    assert restore(client, hid_of(svc, tid)).status_code == 400
-
-
 def test_the_deleted_page_is_reached_from_settings_and_leads_back_there(client):
     assert 'href="/accounts/deleted"' in client.get("/settings").text
     page = client.get("/transactions/deleted").text

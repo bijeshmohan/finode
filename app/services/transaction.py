@@ -1,4 +1,4 @@
-"""Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits, the period lock), plus history, deleted entries and restoring."""
+"""Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits), plus history, deleted entries and restoring."""
 
 from datetime import date
 from decimal import Decimal
@@ -6,7 +6,6 @@ from uuid import UUID
 
 from ..config import settings
 from ..clock import local_midnight_utc
-from .lock import LockedPeriodError as _LockedPeriodError, refuse_locked
 from ..limits import ensure_room
 from ..currencies import Currency, find as find_currency
 from ..models.transaction import Transaction, Posting, PostingSide
@@ -27,10 +26,6 @@ RESTORABLE_LIMIT = 50
 
 class InvalidPostingError(ValueError):
     ...
-
-
-class LockedPeriodError(InvalidPostingError, _LockedPeriodError):
-    """The date is inside the locked period (a 400 for the API, like any other invalid entry)."""
 
 
 class InvalidPostingAccountError(InvalidPostingError):
@@ -215,7 +210,6 @@ class TransactionService:
             comment=snapshot.get("comment"),
             postings=[{"account": UUID(p["account"]), "side": p["side"], "amount": Decimal(p["amount"])} for p in snapshot["postings"]],
         )
-        self._refuse_locked(data.date)
         self._check_limits()
         self._resolve(data)
         transaction = self.tr.create(data, self.origin, None, tid=row.transaction_id)
@@ -251,14 +245,7 @@ class TransactionService:
             made = self.tr.count_since(midnight, leaving_out=("recurring", "import"))
             ensure_room(made, settings.max_transactions_per_day, "new transactions a day")
 
-    def _refuse_locked(self, *days: date | None) -> None:
-        try:
-            refuse_locked(self.tr.db, self.tr.uid, *days)
-        except _LockedPeriodError as e:
-            raise LockedPeriodError(str(e)) from None
-
     def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
-        self._refuse_locked(data.date)
         self._check_limits()
         self._resolve(data)
         self._check_related(data.related_id)
@@ -373,7 +360,6 @@ class TransactionService:
         existing = self.tr.read(tid)
         if not existing:
             raise ValueError(f"transaction with tid '{tid}' not found!")
-        self._refuse_locked(existing.date, getattr(data, "date", None) if "date" in data.model_fields_set else None)
         # Postings an entry already has on an account that was closed since stay allowed, so it can still be edited.
         kept = {p.account for p in self.tr.postings(tid)}
         self._resolve(data, kept)
@@ -388,8 +374,6 @@ class TransactionService:
 
     def delete(self, tid: UUID) -> TransactionRead | None:
         transaction = self.read(tid)
-        if transaction is not None:
-            self._refuse_locked(transaction.date)
         deleted = self.tr.delete(tid, self.origin)
         if not deleted:
             raise ValueError(f"transaction with tid '{tid}' not found!")

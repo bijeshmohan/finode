@@ -5,7 +5,6 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
 
 from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
 from ...dependencies import Budget
@@ -17,22 +16,8 @@ from .utils import htmx_error, htmx_redirect, parse_amount
 
 router = APIRouter(prefix="/budget")
 
-# The page was called Plans (/plan) for a while, and Budget before that: old links and bookmarks still arrive (GET only; the
-# page itself and its forms live under /budget).
-legacy = APIRouter()
-
-
-@legacy.get("/plan")
-@legacy.get("/plan/{rest:path}")
-def plan_moved(request: Request, rest: str = ""):
-    query = request.url.query
-    return RedirectResponse(f"/budget{'/' + rest if rest else ''}{'?' + query if query else ''}", status_code=301)
-
-
 # The two chips of the page.
 TABS = {"spend": "Spend", "save": "Save"}
-# The chips were called Budgets and Goals: an old link's tab still lands on the right one.
-OLD_TABS = {"budgets": "spend", "goals": "save"}
 
 
 def parse_month(value: str) -> date:
@@ -170,7 +155,7 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     unused = [n for n in tree if n.is_group and not n.used] if any(n.used for n in tree) else []
     return {
         "budget": data,
-        "tab": OLD_TABS.get(tab, tab) if OLD_TABS.get(tab, tab) in TABS else "spend",
+        "tab": tab if tab in TABS else "spend",
         "tabs": TABS,
         "goal_rows": _goal_rows(data),
         # A short welcome until the first amount is assigned.

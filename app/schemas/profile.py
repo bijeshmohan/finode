@@ -17,7 +17,6 @@ class ProfileUpdate(BaseModel):
     # Code of the currency the whole ledger is kept in (ISO 4217, e.g. "INR"). Changing it relabels every amount; nothing is converted.
     default_currency: str | None = Field(default=None, max_length=20)
     # Close the books up to and including this day (a day before today at the latest); null opens them again.
-    locked_through: Day | None = None
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -35,6 +34,5 @@ class ProfileRead(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     default_currency: str | None = None
-    locked_through: date | None = None
     created: datetime
     updated: datetime

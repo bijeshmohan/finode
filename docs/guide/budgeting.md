@@ -1,6 +1,6 @@
 # Budgeting and Budgets
 
-The tab is called **Budgets** (it was the Budget tab, then Plans; old `/plan` addresses still arrive there). It has two chips: **Spend** (the categories you spend from) and **Save** (your goals).
+The tab is called **Budgets**. It has two chips: **Spend** (the categories you spend from) and **Save** (your goals).
 
 finode uses **envelope budgeting**: you give every rupee in your budget accounts a job (a category), and you spend from the category. When a category is empty you either move money in from another one or you overspend, and the app shows it.
 

@@ -26,7 +26,6 @@ from .budget import parse_month
 from .categories import _month_context
 from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
 from ...clock import local_today
-from ...services.lock import locked_through
 
 
 router = APIRouter(prefix="/transactions")
@@ -322,7 +321,6 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
     index = AccountIndex.build(accounts.list())
     row = to_row(transaction, index)
     names = index.names
-    lock = locked_through(transactions.tr.db, transactions.tr.uid)
     labels = {
         "expense": ("Paid from", "Spent on"),
         "income": ("From", "Received in"),
@@ -340,7 +338,6 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
             "to_label": labels[1],
             "from_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
             "to_postings": [(names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.DEBIT],
-            "locked_by": lock if lock is not None and transaction.date <= lock else None,
             "related_to": related_info(transactions, index, transaction.related_id),
             "related": [to_row(r, index) for r in transactions.related(tid)],
         },
@@ -527,19 +524,6 @@ class _P:
     side: PostingSide
 
 
-def split_quick_entry(text: str) -> tuple[str, str]:
-    """What was typed in the quick-add bar: "250 swiggy" -> ("250", "swiggy"); "swiggy 250" works too."""
-    import re
-
-    text = (text or "").strip()
-    found = re.match(r"^(\d[\d,]*(?:\.\d+)?)\s*(.*)$", text) or re.match(r"^(.*?)\s+(\d[\d,]*(?:\.\d+)?)$", text)
-    if not found:
-        return "", text
-    first, second = found.groups()
-    number, words = (first, second) if first[:1].isdigit() else (second, first)
-    return number.replace(",", ""), words.strip()
-
-
 @router.get("/suggest")
 def suggest_payees(request: Request, accounts: Accounts, transactions: Transactions, payee: str = ""):
     """The chips under the payee field: people you pay, with the accounts you used the last time."""
@@ -588,10 +572,8 @@ def new_transaction_page(
     transactions: Transactions,
     account: UUID | None = None,
     back: str = "",
-    q: str = "",  # what was typed in the quick-add bar: "250 swiggy"
     repeat: UUID | None = None,  # "add again": a copy of this transaction, dated today
     related: UUID | None = None,  # "related": a blank new entry linked to that transaction
-    mode: str = "",  # old links; the form is one page now
 ):
     all_accounts = accounts.list()
     if repeat is not None:
@@ -625,20 +607,13 @@ def new_transaction_page(
             raise HTTPException(status_code=404, detail="transaction not found")
     from_id = to_id = None
     roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
-    amount_text, payee_text = split_quick_entry(q)
     kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account), "expense")
-    habits = payee_habits(transactions, accounts, payee_text) if (payee_text or account is None) else []
     if account is not None:
         # From an expense category the money arrives there; from anything else it leaves.
         if roots_of.get(account) == "Expenses":
             to_id = account
         elif account in roots_of:
             from_id = account
-    else:
-        match = next((h for h in habits if h.exact), None)
-        if match is not None:  # a payee you have paid before: the same accounts as last time
-            from_id, to_id, kind = match.from_id, match.to_id, match.kind
-            payee_text = match.payee  # spelled the way you wrote it before
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
@@ -646,8 +621,6 @@ def new_transaction_page(
             accounts,
             today=local_today().isoformat(),
             transaction=None,
-            total=amount_text,
-            new_payee=payee_text,
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
             kind=kind,
@@ -700,20 +673,17 @@ def edit_transaction_page(
     accounts: Accounts,
     transactions: Transactions,
     back: str = "",
-    mode: str = "",  # old links; the form is one page now
 ):
     transaction = transactions.read(tid)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
     total = sum((p.amount for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
-    lock = locked_through(transactions.tr.db, transactions.tr.uid)
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
         form_context(
             accounts,
             editing=True,
-            locked_by=lock if lock is not None and transaction.date <= lock else None,
             transaction=transaction,
             total=total,
             from_rows=form_rows(transaction.postings, PostingSide.CREDIT),

@@ -44,6 +44,7 @@ FIXED_PARENTS = (
     ("Liabilities", "Loans", "liabilities.loans", "outside"),
 )
 FIXED_DEFAULTS = {key: start for _, _, key, start in FIXED_PARENTS}
+FIXED_ORDER = {key: place for place, (_, _, key, _) in enumerate(FIXED_PARENTS)}
 # New people get the groups; tests switch this off (most of them build their own accounts) and a few switch it on.
 NEW_PROFILE_FIXED_PARENTS = True
 
@@ -173,72 +174,6 @@ class AccountService:
             if aid in empty:
                 self.ar.delete(aid)
 
-    def fixed_parents_plan(self) -> list[dict]:
-        """What adding the standard groups to a ledger that already exists would do, group by group, without doing it.
-
-        Each entry has `key`, `name`, `root`, `start` and an `action`: "add" (made new), "adopt" (an account of the person's
-        with exactly that name, open, that is a group or an empty account nothing refers to, becomes the built-in group
-        without being renamed or moved), "have" (already there) or "skip" (an account of theirs in the way, with a `reason`)."""
-        all_accounts = self._ensure_roots()
-        roots = {a.name: a for a in all_accounts if a.parent_id is None}
-        keyed = {a.system_key for a in all_accounts if a.system_key}
-        budget = BudgetRepository(self.ar.db, self.ar.uid)
-        has_children = {a.parent_id for a in all_accounts}
-        plan = []
-        for root, name, key, start in FIXED_PARENTS:
-            entry = {"key": key, "name": name, "root": root, "start": start, "action": "add", "aid": None, "reason": ""}
-            plan.append(entry)
-            if key in keyed:
-                entry["action"] = "have"
-                continue
-            clash = next(
-                (a for a in all_accounts if a.parent_id == roots[root].aid and a.name.casefold() == name.casefold()), None
-            )
-            if clash is None:
-                continue
-            entry["aid"] = clash.aid
-            usable = (
-                clash.name == name
-                and clash.system_key is None
-                and clash.closed_on is None
-                and (
-                    clash.aid in has_children
-                    or not (
-                        self.tr.postings_for_account(clash.aid)
-                        or RecurringRepository.uses_account(self.ar.db, clash.aid)
-                        or budget.uses_account(clash.aid)
-                        or clash.payment_category_id is not None
-                    )
-                )
-            )
-            if usable:
-                entry["action"] = "adopt"
-            else:
-                entry["action"] = "skip"
-                entry["reason"] = f"you already have an account called {clash.name} under {root}. Rename it first to add this group."
-        return plan
-
-    def add_fixed_parents(self) -> list[dict]:
-        """Add the standard groups to a ledger that already exists (nothing is moved, renamed or hidden); returns the plan as done."""
-        plan = self.fixed_parents_plan()
-        all_accounts = self._ensure_roots()
-        roots = {a.name: a for a in all_accounts if a.parent_id is None}
-        for entry in plan:
-            if entry["action"] == "add":
-                self.ar.db.add(Account(name=entry["name"], parent_id=roots[entry["root"]].aid, user=self.ar.uid, system_key=entry["key"]))
-            elif entry["action"] == "adopt":
-                account = self.ar.read(entry["aid"])
-                account.system_key = entry["key"]
-                if not any(a.parent_id == account.aid for a in all_accounts):  # an empty account becomes a group: flags mean nothing
-                    account.on_budget, account.payment_category_id = False, None
-                self.ar.db.add(account)
-        try:
-            self.ar.db.commit()
-        except IntegrityError:
-            self.ar.db.rollback()
-            raise ValueError("the groups were added a moment ago: reload the page!")
-        return plan
-
     def ensure_roots(self) -> list[Account]:
         return self._ensure_roots()
 
@@ -266,11 +201,8 @@ class AccountService:
             self.ar.db.add(new_roots[name])
         if len(missing) == len(ROOT_ACCOUNT_NAMES) and NEW_PROFILE_FIXED_PARENTS:
             # A brand-new person: the built-in groups come with the roots (same transaction, so a lost race makes none twice).
-            for place, (root, name, key, _) in enumerate(FIXED_PARENTS):
-                self.ar.db.add(Account(
-                    name=name, parent_id=new_roots[root].aid, user=self.ar.uid, system_key=key,
-                    position=sum(1 for r, *_ in FIXED_PARENTS[:place] if r == root),
-                ))
+            for root, name, key, _ in FIXED_PARENTS:
+                self.ar.db.add(Account(name=name, parent_id=new_roots[root].aid, user=self.ar.uid, system_key=key))
         try:
             self.ar.db.commit()
         except IntegrityError:
@@ -402,7 +334,6 @@ class AccountService:
             on_budget=account.on_budget,
             payment_category_id=account.payment_category_id,
             closed_on=account.closed_on,
-            position=account.position,
             system_key=account.system_key,
             created=account.created,
             updated=account.updated,
@@ -512,43 +443,10 @@ class AccountService:
         self.ar.db.commit()
         return self._to_read(self.ar.read(aid), self._ensure_roots())
 
-    def _own(self, aid: UUID) -> tuple[Account, list[Account]]:
-        """An account the person made themselves (not a top-level type or the system's Opening Balances) and all accounts."""
-        all_accounts = self._ensure_roots()
-        account = next((a for a in all_accounts if a.aid == aid), None)
-        if account is None:
-            raise ValueError("account not found!")
-        if self._is_root(account) or self.is_opening_balances(account, all_accounts):
-            raise SystemAccountError("only accounts you made yourself can be placed!")
-        self._refuse_fixed(account, "moved")
-        return account, all_accounts
-
     @staticmethod
     def order_key(account: Account) -> tuple:
-        """How siblings are listed: the ones placed by hand first, in their order, then the rest by name."""
-        return (account.position is None, account.position or 0, account.name.lower())
-
-    def move(self, aid: UUID, direction: str) -> AccountRead:
-        """Move an account one place up or down among the accounts in the same group. The first time, the
-        current order of the group is written down, so what you see is what stays."""
-        if direction not in ("up", "down"):
-            raise ValueError("direction must be up or down!")
-        account, all_accounts = self._own(aid)
-        siblings = sorted((a for a in all_accounts if a.parent_id == account.parent_id), key=self.order_key)
-        at = next(i for i, a in enumerate(siblings) if a.aid == aid)
-        other = at - 1 if direction == "up" else at + 1
-        if 0 <= other < len(siblings):
-            siblings[at], siblings[other] = siblings[other], siblings[at]
-        self.ar.set_positions({a.aid: i for i, a in enumerate(siblings)})
-        self.ar.db.commit()
-        return self._to_read(self.ar.read(aid), self._ensure_roots())
-
-    def reset_order(self, aid: UUID) -> AccountRead:
-        """Put the account's group back in alphabetical order."""
-        account, all_accounts = self._own(aid)
-        self.ar.set_positions({a.aid: None for a in all_accounts if a.parent_id == account.parent_id})
-        self.ar.db.commit()
-        return self._to_read(self.ar.read(aid), self._ensure_roots())
+        """How siblings are listed: the built-in groups first, in their fixed order, then the rest by name."""
+        return (FIXED_ORDER.get(account.system_key or "", len(FIXED_ORDER)), account.name.lower())
 
     def reopen(self, aid: UUID) -> AccountRead:
         """Reopen an account with everything inside it, and the groups above it (an open account sits in open groups)."""
@@ -951,7 +849,6 @@ class AccountService:
             "root": self._get_root_name(account, by_id),
             "on_budget": account.on_budget,
             "payment_category_id": str(account.payment_category_id) if account.payment_category_id else None,
-            "position": account.position,
             "plan": [
                 {"month": row.month.isoformat(), "amount": str(row.amount)}
                 for row in budget.list() if row.account_id == account.aid
@@ -1012,7 +909,7 @@ class AccountService:
         payment = UUID(snap["payment_category_id"]) if snap.get("payment_category_id") else None
         restored = self.ar.restore(row.account_id, {
             "name": snap["name"], "details": snap.get("details"), "parent_id": parent.aid,
-            "on_budget": bool(snap.get("on_budget")), "position": snap.get("position"),
+            "on_budget": bool(snap.get("on_budget")),
             "payment_category_id": payment if payment in by_id else None,
         })
         budget = BudgetRepository(self.ar.db, self.ar.uid)

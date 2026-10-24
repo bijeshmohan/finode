@@ -4,7 +4,6 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
 from ...auth import CurrentUser, require_authenticated_user
@@ -28,12 +27,6 @@ def _feedback_url() -> str | None:
         return None
     body = f"What happened, or what would help?\n\n\n\n--\nfinode {VERSION}"
     return f"mailto:{settings.feedback_email}?subject={quote('finode feedback')}&body={quote(body)}"
-
-
-@router.get("")
-def profile_page():
-    """The profile lives on the Settings page now; the old address (and its #about) lands there."""
-    return RedirectResponse("/settings", status_code=301)
 
 
 @router.get("/data")

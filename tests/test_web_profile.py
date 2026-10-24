@@ -49,11 +49,6 @@ def test_tab_bar_has_four_tabs_and_the_docked_plus(client: TestClient):
     assert 'href="/transactions"' in text, "Transactions is reached from the sidebar on wide screens (and 'View all' on Home once there is something)"
 
 
-def test_the_old_profile_address_lands_on_settings(client: TestClient):
-    old = client.get("/profile", follow_redirects=False)
-    assert old.status_code == 301 and old.headers["location"] == "/settings"
-
-
 def test_settings_page_has_sign_out(client: TestClient):
     text = client.get("/settings").text
     assert 'action="/logout"' in text and "Sign out" in text
@@ -73,7 +68,7 @@ def test_the_profile_row_falls_back_to_a_plain_label(client: TestClient):
 
 def test_sections_are_collapsible_and_summarise_values(client: TestClient):
     text = client.get("/settings").text
-    for section in ("name", "currency", "appearance", "lock"):
+    for section in ("name", "currency", "appearance"):
         assert f'<details id="{section}" class="setting">' in text
     assert "Currency</span><span class=\"setting-value\">INR" in text
 
@@ -88,7 +83,7 @@ def test_theme_cookie_sets_data_theme(client: TestClient):
 
 def test_settings_page_holds_application_settings_not_profile(client: TestClient):
     settings = client.get("/settings").text
-    for title in ("Currency", "Appearance", "Recurring transactions", "AI assistants", "Period lock"):
+    for title in ("Currency", "Appearance", "Recurring transactions", "AI assistants"):
         assert title in settings, title
     assert "Advanced" not in settings, "the Advanced switch is gone"
     assert "MCP tokens" not in settings
