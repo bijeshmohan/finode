@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from .currencies import find
 from .flash import flash_message, flash_undo
 from .models.utils import normalize_amount
 from .clock import local_day, local_today
@@ -19,6 +20,7 @@ BASE_DIR = Path(__file__).parent
 
 # How the whole part of an amount is grouped: thousands (1,234,567.00) or, for rupees, lakhs and crores (12,34,567.00).
 _grouping: ContextVar[str] = ContextVar("grouping", default="western")
+_places: ContextVar[int] = ContextVar("places", default=2)
 
 
 def grouping_for(code: str | None) -> str:
@@ -58,6 +60,12 @@ SYMBOLS = {"INR": "\u20b9"}
 def symbol(code: str | None) -> str:
     """The sign people write for a currency (the rupee sign for INR), else its code."""
     return SYMBOLS.get(code or "", code or "")
+
+
+def places(code: str | None) -> int:
+    """How many decimals the currency keeps (rupees 2, yen 0): the quick-amount chips never go finer."""
+    found = find(code)
+    return found.decimals if found else 2
 
 
 def amount(text: str, code: str | None) -> str:
@@ -105,7 +113,9 @@ def origin_label(origin: str | None) -> str | None:
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["money"] = money
 templates.env.globals["grouping"] = lambda: _grouping.get()
+templates.env.globals["decimals"] = lambda: _places.get()
 templates.env.filters["symbol"] = symbol
+templates.env.filters["places"] = places
 templates.env.filters["amount"] = amount
 templates.env.filters["friendly_date"] = friendly_date
 templates.env.filters["local_day"] = local_day
@@ -121,11 +131,13 @@ _render = templates.TemplateResponse
 
 
 def _template_response(request, *args, **kwargs):
-    token = _grouping.set(grouping_for(getattr(request.state, "currency", None)))
+    code = getattr(request.state, "currency", None)
+    token, places_token = _grouping.set(grouping_for(code)), _places.set(places(code))
     try:
         return _render(request, *args, **kwargs)
     finally:
         _grouping.reset(token)
+        _places.reset(places_token)
 
 
 templates.TemplateResponse = _template_response

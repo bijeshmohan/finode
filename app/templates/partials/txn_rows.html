@@ -1,4 +1,5 @@
 {#- The total, then rows on each side, until both add up (see recomputeTxn in app.js). Shared by the transaction and recurring forms. -#}
+{% from "partials/icons.html" import icon %}
   <div class="segmented kinds" role="group" aria-label="What kind of entry (tap the selected one again to offer every account)">
     <input type="hidden" name="kind" value="{{ kind }}" data-kind-input>
     {% for value, label in (("expense", "Expense"), ("income", "Income"), ("transfer", "Transfer")) %}
@@ -16,9 +17,18 @@
 
   {#- Quick amounts for a new entry: the last amount for the chosen payee, and nudges (see data-amount-quick in app.js). -#}
   {% if with_payee and not editing %}
-  <div class="amount-quick" data-amount-quick data-symbol="{{ currency|symbol }}">
+  <div class="amount-quick" data-amount-quick data-symbol="{{ currency|symbol }}" data-places="{{ currency|places }}" data-sign="+">
     <button type="button" class="chip" data-last-amount hidden></button>
-    {% for n in (100, 500, 1000) %}<button type="button" class="chip" data-nudge="{{ n }}">+{{ n }}</button>{% endfor %}
+    {% set places = currency|places %}
+    {% set steps = (("0.01", 2), ("0.1", 1), ("1", 0), ("10", 0)) %}
+    <div class="qa-row">
+      <button type="button" class="chip qa-sign" data-quick-sign aria-pressed="false" aria-label="Subtract instead of add">+ / −</button>
+      {% for step, decimals in steps if decimals <= places %}<button type="button" class="chip qa-add" data-nudge="{{ step }}"><span class="qa-s" aria-hidden="true"></span>{{ step }}</button>{% endfor %}
+    </div>
+    <div class="qa-row">
+      {% for mul in (2, 5, 10) %}<button type="button" class="chip qa-mul" data-mul="{{ mul }}" aria-label="Multiply by {{ mul }}">×{{ mul }}</button>{% endfor %}
+      <button type="button" class="chip qa-undo" data-quick-undo aria-label="Undo the last tap" disabled>{{ icon("undo") }}</button>
+    </div>
   </div>
   {% endif %}
 

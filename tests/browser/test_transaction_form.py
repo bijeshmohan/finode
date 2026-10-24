@@ -167,9 +167,32 @@ def test_the_last_amount_and_the_nudges_fill_the_amount(page: Page, books, api: 
     last.click()
     amount = page.input_value("#total")
     assert float(amount) > 0
-    page.locator('[data-nudge="100"]').click()
-    assert float(page.input_value("#total")) == float(amount) + 100
+    page.locator('[data-nudge="10"]').click()
+    assert float(page.input_value("#total")) == float(amount) + 10
     assert page.input_value('[data-rows="debit"] [name="amount"]').startswith(page.input_value("#total").split(".")[0]), "the rows follow the amount"
+
+
+def test_the_quick_chips_build_any_amount_and_undo(page: Page, books):
+    page.goto("/transactions/new")
+    tap = lambda sel: page.locator(sel).click()
+    total = lambda: float(page.input_value("#total"))
+    tap('[data-nudge="10"]'); tap('[data-mul="5"]'); tap('[data-mul="10"]')
+    assert total() == 500
+    tap('[data-mul="2"]')
+    assert total() == 1000
+    tap("[data-quick-undo]")
+    assert total() == 500
+    tap("[data-quick-sign]")
+    tap('[data-nudge="0.01"]')
+    assert page.input_value("#total") == "499.99", "the minus switch subtracts"
+    expect(page.locator('[data-rows="debit"] [name="amount"]').first).to_have_value("499.99")
+    tap("[data-quick-sign]")
+    tap('[data-nudge="10"]')
+    assert total() == 509.99
+    page.fill("#total", "12")
+    expect(page.locator("[data-quick-undo]")).to_be_disabled()
+    tap("[data-quick-sign]"); tap('[data-nudge="10"]'); tap('[data-nudge="10"]')
+    assert total() == 0, "never below zero"
 
 
 def test_a_chip_still_lets_you_split_the_amount_afterwards(page: Page, books, api: Api):
@@ -238,10 +261,13 @@ def test_an_amount_cannot_be_typed_with_two_decimal_points_or_letters(page: Page
     total = page.locator("#total")
     total.click()
     page.keyboard.type("42.00.00")
-    assert total.input_value() == "42.0000", "the second point is ignored"
+    assert total.input_value() == "42.00", "the second point is ignored and rupees keep two decimals"
     total.fill("")
     page.keyboard.type("1a2b,5.5x")
     assert total.input_value() == "12,5.5", "letters are ignored, commas and one point stay"
+    total.fill("")
+    page.keyboard.type("9.999")
+    assert total.input_value() == "9.99", "no third decimal for rupees"
     total.fill("")
     page.keyboard.type("--7")
     assert total.input_value() == "-7", "a minus only at the start"
@@ -251,7 +277,7 @@ def test_pasting_a_messy_amount_keeps_the_good_part_and_the_cursor(page: Page, b
     page.goto("/transactions/new")
     total = page.locator("#total")
     total.evaluate("e => { e.focus(); document.execCommand('insertText', false, '1,200.50.25 INR'); }")
-    assert total.input_value() == "1,200.5025"
+    assert total.input_value() == "1,200.50"
     total.fill("123")
     total.evaluate("e => { e.focus(); e.setSelectionRange(1, 1); }")
     page.keyboard.type("x4")
