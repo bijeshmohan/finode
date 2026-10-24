@@ -442,13 +442,21 @@ document.addEventListener("click", (event) => {
 // sheet (and what was typed) away. The next tap outside closes it.
 // (The browser moves focus off the field when the press starts, so what was focused is noted then.)
 let wasTyping = false;
+// A press that began on the sheet's own content never closes it, even when the sheet moves under the finger before the
+// release (focusing the amount makes the sheet change shape) and the click lands on the dim area instead.
+let pressedInside = false;
 document.addEventListener("pointerdown", (event) => {
+  pressedInside = event.target instanceof Element && !(event.target instanceof HTMLDialogElement) && !!event.target.closest("dialog.sheet-bottom");
   const field = document.activeElement;
   wasTyping = event.target instanceof HTMLDialogElement && !!field && event.target.contains(field) && field.matches("input, select, textarea");
 }, true);
 document.body.addEventListener("click", (event) => {
   const dialog = event.target;
   if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains("sheet-bottom")) return;
+  if (pressedInside) {
+    pressedInside = false;
+    return;
+  }
   if (wasTyping) {
     wasTyping = false;
     if (document.activeElement && dialog.contains(document.activeElement)) document.activeElement.blur();
