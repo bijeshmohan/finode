@@ -1,13 +1,19 @@
 // ---- Amount fields only take what makes an amount ----
 // Digits, commas to group them, one decimal point and (first only) a minus sign: "42.00.00" or "12a" cannot be typed or
-// pasted. This runs before the other input handlers (capture), so what they read is already clean.
+// pasted, nor more decimals than the currency keeps (<html data-places>: two for rupees). This runs before the other input handlers (capture), so what they read is already clean.
 function cleanAmount(text) {
+  const places = Number(document.documentElement.dataset.places ?? 2);
   let out = "";
   let dot = false;
+  let fraction = 0;
   for (const ch of text) {
-    if (ch >= "0" && ch <= "9") out += ch;
+    if (ch >= "0" && ch <= "9") {
+      if (dot && fraction >= places) continue;
+      if (dot) fraction += 1;
+      out += ch;
+    }
     else if (ch === ",") out += ch;
-    else if (ch === "." && !dot) { dot = true; out += ch; }
+    else if (ch === "." && !dot && places > 0) { dot = true; out += ch; }
     else if (ch === "-" && out === "") out += ch;
   }
   return out;

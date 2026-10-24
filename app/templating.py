@@ -20,6 +20,7 @@ BASE_DIR = Path(__file__).parent
 
 # How the whole part of an amount is grouped: thousands (1,234,567.00) or, for rupees, lakhs and crores (12,34,567.00).
 _grouping: ContextVar[str] = ContextVar("grouping", default="western")
+_places: ContextVar[int] = ContextVar("places", default=2)
 
 
 def grouping_for(code: str | None) -> str:
@@ -112,6 +113,7 @@ def origin_label(origin: str | None) -> str | None:
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["money"] = money
 templates.env.globals["grouping"] = lambda: _grouping.get()
+templates.env.globals["decimals"] = lambda: _places.get()
 templates.env.filters["symbol"] = symbol
 templates.env.filters["places"] = places
 templates.env.filters["amount"] = amount
@@ -129,11 +131,13 @@ _render = templates.TemplateResponse
 
 
 def _template_response(request, *args, **kwargs):
-    token = _grouping.set(grouping_for(getattr(request.state, "currency", None)))
+    code = getattr(request.state, "currency", None)
+    token, places_token = _grouping.set(grouping_for(code)), _places.set(places(code))
     try:
         return _render(request, *args, **kwargs)
     finally:
         _grouping.reset(token)
+        _places.reset(places_token)
 
 
 templates.TemplateResponse = _template_response

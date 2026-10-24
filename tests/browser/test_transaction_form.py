@@ -261,10 +261,13 @@ def test_an_amount_cannot_be_typed_with_two_decimal_points_or_letters(page: Page
     total = page.locator("#total")
     total.click()
     page.keyboard.type("42.00.00")
-    assert total.input_value() == "42.0000", "the second point is ignored"
+    assert total.input_value() == "42.00", "the second point is ignored and rupees keep two decimals"
     total.fill("")
     page.keyboard.type("1a2b,5.5x")
     assert total.input_value() == "12,5.5", "letters are ignored, commas and one point stay"
+    total.fill("")
+    page.keyboard.type("9.999")
+    assert total.input_value() == "9.99", "no third decimal for rupees"
     total.fill("")
     page.keyboard.type("--7")
     assert total.input_value() == "-7", "a minus only at the start"
@@ -274,7 +277,7 @@ def test_pasting_a_messy_amount_keeps_the_good_part_and_the_cursor(page: Page, b
     page.goto("/transactions/new")
     total = page.locator("#total")
     total.evaluate("e => { e.focus(); document.execCommand('insertText', false, '1,200.50.25 INR'); }")
-    assert total.input_value() == "1,200.5025"
+    assert total.input_value() == "1,200.50"
     total.fill("123")
     total.evaluate("e => { e.focus(); e.setSelectionRange(1, 1); }")
     page.keyboard.type("x4")
