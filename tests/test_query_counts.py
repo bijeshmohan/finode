@@ -14,8 +14,8 @@ PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/ca
 # Home asks 13 since goals became their own table: the budget reads them (with what is set aside) in one more query.
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
 CEILING = {
-    "/transactions/new": 6, "/transactions": 10, "/": 15, "/accounts": 9, "/budget": 7,
-    "/categories": 5, "/categories?tab=income": 5,
+    "/transactions/new": 3, "/transactions": 10, "/": 12, "/accounts": 3, "/budget": 5,
+    "/categories": 4, "/categories?tab=income": 4,
 }
 
 
