@@ -12,7 +12,7 @@ erDiagram
     TRANSACTIONS ||--|{ POSTINGS : has
     TRANSACTIONS ||--o{ TRANSACTION_HISTORY : "append-only trace"
     ACCOUNTS ||--o{ BUDGET_ALLOCATIONS : "plan per month"
-    ACCOUNTS ||--o| BUDGET_TARGETS : "wish"
+    GOALS ||--o{ GOAL_ALLOCATIONS : "set aside per month"
     RECURRING_TRANSACTIONS ||--o{ RECURRING_POSTINGS : "split rules"
     RECURRING_TRANSACTIONS ||--o{ TRANSACTIONS : "records"
     ACCOUNTS ||--o{ ACCOUNT_DELETIONS : "snapshot when deleted"
@@ -23,7 +23,7 @@ erDiagram
 | Table | Holds |
 |---|---|
 | `profiles` | one row per person: names and currency. Per-person settings are typed columns here, not a key-value store. |
-| `accounts` | the account tree (parent, `on_budget`, `closed_on`, `payment_category_id`, `position`, note) |
+| `accounts` | the account tree (parent, `on_budget`, `closed_on`, `payment_category_id`, `system_key` for the built-in groups, note) |
 | `transactions`, `postings` | the ledger (see [The ledger](ledger.md)) |
 | `transaction_history` | append-only snapshots after every create, update and delete |
 | `account_deletions` | append-only snapshots of accounts deleted for good, used by *Recently deleted* |
