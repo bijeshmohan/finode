@@ -5,7 +5,7 @@
 <div class="sheet-grab" aria-hidden="true"></div>
 <div class="sheet-title">
   <div>
-    <h2>{{ t.payee or "No payee" }}</h2>
+    <h2>{{ t.payee or row.debits|join(", ") }}</h2>
     <p class="muted">{{ t.date|friendly_date }}{% if t.date|friendly_date in ("Today", "Yesterday") %} · {{ t.date.strftime("%d %b %Y") }}{% endif %}</p>
   </div>
   <div class="sheet-amount {{ row.kind }}">{{ "+" if row.kind == "income" }}{{ row.amount|money }}</div>
@@ -39,8 +39,10 @@
 <p id="sheet-error" class="error" role="alert"></p>
 <div class="sheet-actions">
   {% if locked_by %}<span class="button" aria-disabled="true">Edit</span>{% else %}<a class="button" href="/transactions/{{ t.tid }}/edit{{ bq }}">Edit</a>{% endif %}
-  <a class="circ-button" href="/transactions/new?repeat={{ t.tid }}{{ bx }}" aria-label="Repeat" title="Repeat">{{ icon("copy") }}</a>
-  <a class="circ-button" href="/transactions/new?related={{ t.tid }}{{ bx }}" aria-label="Related" title="Related">{{ icon("link") }}</a>
 </div>
-<button type="button" class="sheet-delete" {{ "disabled" if locked_by }}
-        hx-post="/transactions/{{ t.tid }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>
+<div class="sheet-links">
+  <a href="/transactions/new?repeat={{ t.tid }}{{ bx }}">Repeat</a>
+  <a href="/transactions/new?related={{ t.tid }}{{ bx }}">Related</a>
+  <button type="button" class="sheet-delete" {{ "disabled" if locked_by }}
+          hx-post="/transactions/{{ t.tid }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>
+</div>
