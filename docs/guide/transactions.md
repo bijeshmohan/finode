@@ -26,6 +26,10 @@ When you need more than one account on a side (a bill paid half by cash and half
 
 ### Repeat
 
+**Tags.** Write a `#word` in a note (`Dinner with Ravi #reimbursable`, `#goa-trip`) to tag an entry. Nothing to set up: finode reads the tags out of your notes, and an assistant can list them and find the entries that carry one (see *AI assistants*). A tag is a `#` that starts a word, then letters, digits, `-` or `_`; `#1` is not a tag.
+
+**Where an entry came from.** An entry that an assistant recorded from a bank message or a mail can carry its source and reference; the details sheet then shows a quiet *Source* line (a link when there is one). A source's reference is used once, so the same message is never recorded twice.
+
 Open a transaction and tap **Repeat** (under Edit) to start a new one pre-filled with the same accounts, payee and note, dated today.
 
 ### Related entries
