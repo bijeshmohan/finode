@@ -258,7 +258,9 @@ async def test_accounts_cannot_be_deleted_and_prompts_exist(session, secret):
     async with running_app(session), mcp_client(secret) as c:
         names = {t.name for t in (await c.list_tools()).tools}
         assert "delete_transaction" in names
-        assert not any("account" in n and n.startswith(("delete", "remove", "update")) for n in names)
+        assert not any("account" in n and n.startswith(("delete", "remove")) for n in names), (
+            "accounts are never deleted"
+        )
         tools = {t.name: t for t in (await c.list_tools()).tools}
         assert tools["delete_transaction"].annotations.destructive_hint is True
         assert tools["get_overview"].annotations.read_only_hint is True

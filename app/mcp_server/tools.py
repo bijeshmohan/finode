@@ -18,7 +18,7 @@ from ..models.api_token import TokenScope
 from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
-from ..schemas import AccountCreate
+from ..schemas import AccountCreate, AccountUpdate
 from ..schemas.account import AccountChangeRead
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import (
@@ -241,21 +241,26 @@ def list_accounts(
         return {
             "currency": s.accounts.currency().code,
             "accounts": [
-                {
-                    "id": str(e.account.aid),
-                    "path": e.path,
-                    "type": e.root,
-                    "balance": text(e.account.balance),
-                    "can_post": e.postable and e.account.closed_on is None,
-                    "details": None if e.is_root else e.account.details,
-                    **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
-                    **(_budget_facts(e, index) if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
-                    **({"group": e.account.system_key} if e.account.system_key else {}),
-                }
+                _account_row(e, index)
                 for e in index.sorted()
                 if (type is None or e.root == type) and (include_closed or e.account.closed_on is None)
             ],
         }
+
+
+def _account_row(e, index: AccountIndex) -> dict[str, Any]:
+    """One account as list_accounts and the account tools show it."""
+    return {
+        "id": str(e.account.aid),
+        "path": e.path,
+        "type": e.root,
+        "balance": text(e.account.balance),
+        "can_post": e.postable and e.account.closed_on is None,
+        "details": None if e.is_root else e.account.details,
+        **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
+        **(_budget_facts(e, index) if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
+        **({"group": e.account.system_key} if e.account.system_key else {}),
+    }
 
 
 def _budget_facts(e, index: AccountIndex) -> dict[str, Any]:
@@ -1019,6 +1024,71 @@ def create_account(
 
 
 @_tool_errors
+def update_account(
+    account: AccountRef,
+    name: Annotated[str | None, Field(max_length=40, description="New name, without ':'")] = None,
+    details: Annotated[
+        str | None, Field(max_length=200, description="New 'use this for…' note; empty clears it")
+    ] = None,
+    parent: Annotated[
+        str | None, Field(description="Move it under this account (same top-level account; at most two levels deep)")
+    ] = None,
+    on_budget: Annotated[bool | None, Field(description="Assets and liabilities: part of the budget or not")] = None,
+    payment_category: Annotated[
+        str | None,
+        Field(description="Outside the budget: the expense category its payments count under; empty removes it"),
+    ] = None,
+) -> dict[str, Any]:
+    """Rename an account, change its note, move it under another account, or change its budget settings. Its history
+    stays with it and its id never changes (only its path does). The built-in groups, the top-level accounts and
+    Opening Balances cannot be changed. Tell the user what you are changing first."""
+    with services() as s:
+        index = _index(s)
+        entry = index.find(account)
+        changes: dict[str, Any] = {}
+        if name is not None:
+            changes["name"] = name
+        if details is not None:
+            changes["details"] = details.strip() or None
+        if parent is not None:
+            changes["parent_id"] = index.find(parent, allow_root=True).account.aid
+        if on_budget is not None:
+            changes["on_budget"] = on_budget
+        if payment_category is not None:
+            changes["payment_category_id"] = (
+                _category(index, payment_category).account.aid if payment_category.strip() else None
+            )
+        if not changes:
+            raise ToolError("nothing to change: pass a name, details, parent, on_budget or payment_category!")
+        before = entry.path
+        s.accounts.update(entry.account.aid, AccountUpdate(**changes))
+        fresh = _index(s)
+        return {"updated": _account_row(fresh.entries[entry.account.aid], fresh), "was": before}
+
+
+@_tool_errors
+def close_account(account: AccountRef) -> dict[str, Any]:
+    """Close an account (or category) and everything inside it: nothing more can be posted to it and it leaves the
+    pickers, but its history stays and the user can reopen it. Refused while anything inside still holds money or
+    a recurring transaction still uses it."""
+    with services() as s:
+        entry = _index(s).find(account)
+        s.accounts.close(entry.account.aid)
+        fresh = _index(s)
+        return {"closed": _account_row(fresh.entries[entry.account.aid], fresh)}
+
+
+@_tool_errors
+def reopen_account(account: AccountRef) -> dict[str, Any]:
+    """Reopen a closed account with everything inside it, and the groups above it."""
+    with services() as s:
+        entry = _index(s).find(account)
+        s.accounts.reopen(entry.account.aid)
+        fresh = _index(s)
+        return {"reopened": _account_row(fresh.entries[entry.account.aid], fresh)}
+
+
+@_tool_errors
 def create_recurring(
     amount: Annotated[
         Amount | None,
@@ -1519,7 +1589,11 @@ def delete_goal(goal: Annotated[str, Field(description="The goal's name")]) -> d
 
 
 # Changing accounts: only on a connection allowed to manage them (the others list these tools but they refuse).
-MANAGE_TOOLS: list[tuple[Callable, ToolAnnotations]] = []
+MANAGE_TOOLS: list[tuple[Callable, ToolAnnotations]] = [
+    (update_account, IDEMPOTENT_WRITE),
+    (close_account, IDEMPOTENT_WRITE),
+    (reopen_account, IDEMPOTENT_WRITE),
+]
 
 READ_TOOLS = [
     get_status,

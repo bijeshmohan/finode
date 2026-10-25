@@ -26,6 +26,8 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 
 There is also a ready-made prompt, `monthly_review`, which asks the assistant for a short review of a month.
 
+**Account tools** (only on a *read, write & manage accounts* connection): `update_account` (rename, change the note, move under another account, budget settings), `close_account`, `reopen_account`. An account's id never changes when it is renamed or moved, so an assistant that remembers the id keeps working.
+
 What it **cannot** do: delete accounts, change settings, make tokens, or reach another person's data. There are three access levels: **read only**, **read & write** (transactions, budget and goals; it can add accounts but not change them) and **read, write & manage accounts** (also rename, move, close, reopen and merge accounts; it still never deletes one). A tool a connection may not use is listed but refuses, and the assistant tells you which level to allow. Account changes reorganise your whole history, so the last level is for assistants you trust; each one is recorded with the assistant's name.
 
 Anything an assistant records is marked on the transaction ("Added by Claude" in blue), and the edit page says who added and last changed it.
