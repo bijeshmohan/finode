@@ -62,7 +62,7 @@ Open a row and tap **Edit**.  **Delete** removes it at once and the toast offers
 
 ### Recently deleted
 
-Deleted by accident? Open **Settings › Your data › Recently deleted** (it also lists accounts and categories): it lists what was deleted, newest first, each with **Restore**. A restored entry comes back with its old details (it is checked again, so a closed account will stop it, and tell you why). Only the latest deletion of an entry can be restored, and a restored entry is no longer linked to the recurring rule that made it.
+Deleted by accident? Open **Settings › Your data › Recently deleted** (it also lists accounts and categories): it lists what was deleted, newest first, each with **Restore**. A restored entry comes back with its old details (it is checked again, so a closed account will stop it, and tell you why). Only the latest deletion of an entry can be restored, and a restored entry is no longer linked to the recurring rule that made it. Its **related** links come back: to the earlier entry it was related to, and from the entries that were related to it (unless that entry is gone, got another link meanwhile, or the link would make a circle).
 
 ## How amounts look
 
