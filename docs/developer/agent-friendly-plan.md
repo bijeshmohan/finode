@@ -1,6 +1,6 @@
 # Making finode friendlier to AI assistants: evaluation and plan
 
-Branch: `feature/agent-friendly`. **Status: phase 1 done; phase 2 next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
+Branch: `feature/agent-friendly`. **Status: phases 1 and 2a done; 2b (dry run) next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
 checks each against what the code does today, decides, and orders the work. Nothing here is built yet.
 
 ## Verdicts at a glance
@@ -49,7 +49,7 @@ capped at 200. Keep `truncated` for compatibility.
 
 ## Phase 2: safe writes
 
-**2a. External reference (#1, #4).** Migration adds to `transactions`:
+**2a. External reference (#1, #4) — done.** Migration adds to `transactions`:
 `source` (varchar 40, e.g. `gmail`, `upi`, `bank-sms`), `external_id` (varchar 120) and `source_url` (varchar 500),
 all nullable, with a partial unique index on `(user, source, external_id)` where `external_id IS NOT NULL`.
 - `TransactionCreate` / `TransactionUpdate` / `TransactionRead` carry them (JSON API and MCP: `record_transaction`,

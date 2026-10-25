@@ -34,6 +34,19 @@ class InvalidPostingError(ValueError): ...
 class InvalidPostingAccountError(InvalidPostingError): ...
 
 
+class DuplicateReferenceError(InvalidPostingError):
+    """A source's reference is already used by another entry."""
+
+
+def _rows(postings) -> list[tuple[str, str, Decimal]]:
+    return sorted((str(p.account), PostingSide(p.side).value, p.amount) for p in postings)
+
+
+def _same_content(existing: TransactionRead, data: TransactionCreate) -> bool:
+    """Whether recording `data` again would only repeat `existing`: the same day and the same rows."""
+    return existing.date == data.date and _rows(existing.postings) == _rows(data.postings)
+
+
 def decimal_places(value: Decimal) -> int:
     exponent = value.normalize().as_tuple().exponent
     return max(0, -exponent) if isinstance(exponent, int) else 0
@@ -135,6 +148,9 @@ class TransactionService:
             updated_via=transaction.updated_via,
             recurring_id=transaction.recurring_id,
             related_id=transaction.related_id,
+            source=transaction.source,
+            external_id=transaction.external_id,
+            source_url=transaction.source_url,
             postings=[
                 self._posting_to_read(posting)
                 for posting in (postings if postings is not None else self.tr.postings(transaction.tid))
@@ -216,6 +232,9 @@ class TransactionService:
             date=date.fromisoformat(snapshot["date"]),
             payee=snapshot.get("payee"),
             comment=snapshot.get("comment"),
+            source=snapshot.get("source"),
+            external_id=snapshot.get("external_id"),
+            source_url=snapshot.get("source_url"),
             postings=[
                 {"account": UUID(p["account"]), "side": p["side"], "amount": Decimal(p["amount"])}
                 for p in snapshot["postings"]
@@ -223,6 +242,7 @@ class TransactionService:
         )
         self._check_limits()
         self._resolve(data)
+        self._check_reference(data.source, data.external_id)
         transaction = self.tr.create(data, self.origin, None, tid=row.transaction_id)
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
@@ -266,10 +286,41 @@ class TransactionService:
     def last_change(self) -> datetime | None:
         return self.tr.last_change()
 
+    def _check_reference(self, source: str | None, external_id: str | None, tid: UUID | None = None) -> None:
+        """A source's reference is used once: another entry with it (not the one being changed) is refused."""
+        if not external_id:
+            return
+        if not source:
+            raise InvalidPostingError("a reference (external_id) needs a source, for example 'gmail' or 'upi'!")
+        found = self.tr.find_by_reference(source, external_id)
+        if found is not None and found.tid != tid:
+            raise DuplicateReferenceError(
+                f"source '{source}' reference '{external_id}' is already used by the entry {found.tid}!"
+            )
+
+    def create_once(
+        self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None
+    ) -> tuple[TransactionRead, bool]:
+        """Record an entry, or, when its source and reference are already recorded with the same date and rows,
+        return that entry and change nothing. The flag is True when a new entry was made. The same reference with
+        different content is an error (the reference is for one entry)."""
+        if data.source and data.external_id:
+            found = self.tr.find_by_reference(data.source, data.external_id)
+            if found is not None:
+                existing = self._to_read(found)
+                if _same_content(existing, data):
+                    return existing, False
+                raise DuplicateReferenceError(
+                    f"source '{data.source}' reference '{data.external_id}' is already recorded as the entry "
+                    f"{found.tid} with a different date or rows: change that entry, or use another reference!"
+                )
+        return self.create(data, recurring), True
+
     def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
         self._check_limits()
         self._resolve(data)
         self._check_related(data.related_id)
+        self._check_reference(data.source, data.external_id)
         transaction = self.tr.create(data, self.origin, recurring)
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
@@ -327,6 +378,8 @@ class TransactionService:
         kind: str | None = None,
         also: UUID | None = None,
         payee: str | None = None,
+        source: str | None = None,
+        external_id: str | None = None,
     ) -> builtins.list[TransactionRead]:
         account_ids, kind_accounts, also_ids = self._args(account, kind, also)
         transactions = self.tr.list(
@@ -340,6 +393,8 @@ class TransactionService:
             kind_accounts,
             also_ids,
             (payee or "").strip() or None,
+            (source or "").strip().lower() or None,
+            (external_id or "").strip() or None,
         )
         postings = self.tr.postings_for_transactions([t.tid for t in transactions])  # one query, not one per row
         return [self._to_read(transaction, postings.get(transaction.tid, [])) for transaction in transactions]
@@ -402,6 +457,12 @@ class TransactionService:
         self._resolve(data, kept)
         if "related_id" in data.model_fields_set:
             self._check_related(data.related_id, tid)
+        if data.model_fields_set & {"source", "external_id"}:
+            self._check_reference(
+                data.source if "source" in data.model_fields_set else existing.source,
+                data.external_id if "external_id" in data.model_fields_set else existing.external_id,
+                tid,
+            )
         transaction = self.tr.update(tid, data, self.origin)
         if not transaction:
             raise RuntimeError(f"failed to update transaction with tid '{tid}'!")

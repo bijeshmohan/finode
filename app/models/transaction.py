@@ -4,7 +4,7 @@ from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pydantic import field_validator
-from sqlalchemy import CheckConstraint, Index
+from sqlalchemy import CheckConstraint, Index, text
 from sqlmodel import Field
 
 from ..clock import local_today
@@ -19,7 +19,18 @@ class PostingSide(StrEnum):
 class Transaction(TimestampMixin, table=True):
     __tablename__ = "transactions"
     # A recurring rule records each of its occurrences once, even if two workers race to do it.
-    __table_args__ = (Index("uq_transactions_recurring", "recurring_id", "recurring_date", unique=True),)
+    __table_args__ = (
+        Index("uq_transactions_recurring", "recurring_id", "recurring_date", unique=True),
+        Index(
+            "uq_transactions_reference",
+            "user",
+            "source",
+            "external_id",
+            unique=True,
+            sqlite_where=text("external_id IS NOT NULL"),
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
+    )
 
     tid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")
@@ -35,6 +46,12 @@ class Transaction(TimestampMixin, table=True):
     recurring_date: Date | None = Field(default=None)
     # The earlier entry this one belongs with (a refund, a reversal, a cash-back…): just a link, no meaning yet.
     related_id: UUID | None = Field(default=None, foreign_key="transactions.tid", index=True)
+    # Where the entry came from outside finode (a bank, a mail, a UPI app): a short kind ("gmail", "upi"), the
+    # reference that source gave it and a link back. A source's reference is used once per person, so recording the
+    # same one again finds the entry instead of making a copy.
+    source: str | None = Field(default=None, max_length=40)
+    external_id: str | None = Field(default=None, max_length=120)
+    source_url: str | None = Field(default=None, max_length=500)
 
 
 class Posting(TimestampMixin, table=True):

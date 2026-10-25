@@ -18,6 +18,9 @@ from .cache import remembered
 def _comparable(snapshot: dict) -> dict:
     """A stored snapshot without what entries made before finode kept one currency also recorded (the currency, each worth)."""
     return {
+        "source": None,  # snapshots written before references existed have none
+        "external_id": None,
+        "source_url": None,
         **{key: value for key, value in snapshot.items() if key != "currency_id"},
         "postings": [{key: value for key, value in p.items() if key != "value"} for p in snapshot.get("postings", [])],
     }
@@ -59,6 +62,9 @@ class TransactionRepository:
             "payee": transaction.payee,
             "comment": transaction.comment,
             "recurring_id": str(transaction.recurring_id) if transaction.recurring_id else None,
+            "source": transaction.source,
+            "external_id": transaction.external_id,
+            "source_url": transaction.source_url,
             "postings": [
                 {"account": str(p.account), "side": p.side.value, "amount": str(p.amount)}
                 for p in sorted(self.postings(transaction.tid), key=lambda p: (p.created, str(p.pid)))
@@ -140,6 +146,8 @@ class TransactionRepository:
         kind_accounts: tuple[list[UUID], list[UUID]] | None = None,
         also_ids: list[UUID] | None = None,
         payee: str | None = None,
+        source: str | None = None,
+        external_id: str | None = None,
     ):
         """The transactions that match, unordered (what `list` pages through and `count` counts)."""
         statement = select(Transaction).where(Transaction.user == self.uid)
@@ -194,6 +202,10 @@ class TransactionRepository:
             )
         if payee:  # exactly this payee, capitals aside
             statement = statement.where(func.lower(Transaction.payee) == without_nul(payee).strip().lower())
+        if source:
+            statement = statement.where(Transaction.source == without_nul(source).strip().lower())
+        if external_id:
+            statement = statement.where(Transaction.external_id == without_nul(external_id).strip())
         if date_from is not None:
             statement = statement.where(Transaction.date >= date_from)
         if date_to is not None:
@@ -217,10 +229,14 @@ class TransactionRepository:
         kind_accounts: tuple[builtins.list[UUID], builtins.list[UUID]] | None = None,
         also_ids: builtins.list[UUID] | None = None,
         payee: str | None = None,
+        source: str | None = None,
+        external_id: str | None = None,
     ) -> builtins.list[Transaction]:
         """Transactions, newest first. `text` matches the payee, the note or the name of an account used; `kind`
         (expense, income or transfer) is told by `kind_accounts`, the ids under Expenses and under Income."""
-        statement = self._matching(account_ids, date_from, date_to, text, kind, kind_accounts, also_ids, payee)
+        statement = self._matching(
+            account_ids, date_from, date_to, text, kind, kind_accounts, also_ids, payee, source, external_id
+        )
         statement = statement.order_by(
             col(Transaction.date).desc(),
             col(Transaction.created).desc(),
@@ -279,6 +295,14 @@ class TransactionRepository:
 
     def count(self) -> int:
         return self.db.exec(select(func.count()).select_from(Transaction).where(Transaction.user == self.uid)).one()
+
+    def find_by_reference(self, source: str, external_id: str) -> Transaction | None:
+        """The person's entry that a source gave this reference, if there is one."""
+        return self.db.exec(
+            select(Transaction).where(
+                Transaction.user == self.uid, Transaction.source == source, Transaction.external_id == external_id
+            )
+        ).first()
 
     def last_change(self) -> datetime | None:
         """When any transaction was last made or changed."""

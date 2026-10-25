@@ -40,6 +40,10 @@ finode is the user's personal double-entry ledger.
   ids when you remember an account, and give either to any tool that takes an account.
 - Call get_status first when unsure what this connection may do, how much room is left today, or when the books
   last changed.
+- Entries that come from outside finode (a bank SMS, a mail, a UPI app) should carry source (a short kind: gmail,
+  upi...) and external_id (the reference that source gave it) when you record them. Recording the same pair again
+  returns the entry already made (already_recorded) instead of a copy, so retrying is safe; search_transactions
+  finds an entry by them. Search before recording something that may be there already.
 - Money moves from one account to another. Spending is from an asset or liability (a bank, a
   card) to an expense; a salary is from Income to an asset. Use record_transaction for these, and
   record_split only when more than two accounts are involved.
@@ -77,6 +81,20 @@ DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idemp
 AccountType = Literal["Assets", "Liabilities", "Equity", "Income", "Expenses"]
 Amount = Annotated[Decimal, Field(gt=0, description="A positive amount, e.g. 450 or 0.0125")]
 AccountRef = Annotated[str, Field(description="Account path such as Assets:Bank:HDFC, or a unique end of one (HDFC)")]
+Source = Annotated[
+    str | None,
+    Field(max_length=40, description="Where it came from outside finode, a short kind such as gmail, upi or bank-sms"),
+]
+ExternalId = Annotated[
+    str | None,
+    Field(
+        max_length=120,
+        description="The reference that source gave it (a UPI reference, a card authorisation code, a message id). "
+        "It needs a source. Recording the same source and reference again returns the entry already made "
+        "instead of a copy",
+    ),
+]
+SourceUrl = Annotated[str | None, Field(max_length=500, description="A web link back to the source")]
 OptionalDate = Annotated[date | None, Field(description="YYYY-MM-DD; today when left out")]
 
 
@@ -122,6 +140,9 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
             for p in t.postings
         ],
         "related_to": str(t.related_id) if t.related_id else None,
+        "reference": {"source": t.source, "external_id": t.external_id, "url": t.source_url}
+        if t.source or t.external_id or t.source_url
+        else None,
         "created_via": _via(t.created_via),
         "updated_via": _via(t.updated_via),
     }
@@ -259,6 +280,10 @@ def search_transactions(
     ] = None,
     min_amount: Annotated[Decimal | None, Field(ge=0, description="Smallest transaction total")] = None,
     max_amount: Annotated[Decimal | None, Field(ge=0, description="Largest transaction total")] = None,
+    source: Annotated[str | None, Field(description="Only entries from this source (gmail, upi...)")] = None,
+    external_id: Annotated[
+        str | None, Field(description="Only the entry with this reference (use with source)")
+    ] = None,
     limit: Annotated[int, Field(ge=1, le=200)] = 25,
     offset: Annotated[int, Field(ge=0, description="How many matches to skip, to read the next page")] = 0,
 ) -> dict[str, Any]:
@@ -271,7 +296,13 @@ def search_transactions(
         needle = (text_contains or "").casefold().strip()
         matches: list[tuple[TransactionRead, Decimal]] = []
         for t in s.transactions.list(
-            account=entry.account.aid if entry else None, date_from=date_from, date_to=date_to, kind=kind, payee=payee
+            account=entry.account.aid if entry else None,
+            date_from=date_from,
+            date_to=date_to,
+            kind=kind,
+            payee=payee,
+            source=source,
+            external_id=external_id,
         ):
             total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
             if needle and needle not in f"{t.payee or ''} {t.comment or ''}".casefold():
@@ -417,23 +448,38 @@ def record_transaction(
             description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions"
         ),
     ] = None,
+    source: Source = None,
+    external_id: ExternalId = None,
+    source_url: SourceUrl = None,
 ) -> dict[str, Any]:
-    """Record money moving from one account to another: spending, income or a transfer."""
+    """Record money moving from one account to another: spending, income or a transfer. When the entry comes from
+    something outside finode (a bank message, a mail), pass its source and external_id: sending the same pair
+    again is safe, it answers with the entry already recorded (`already_recorded`) and makes no copy."""
     with services() as s:
         index = _index(s)
-        source = index.find(from_account, postable=True)
+        payer = index.find(from_account, postable=True)
         target = index.find(to_account, postable=True)
-        postings = simple_postings(amount, source.account.aid, target.account.aid)
-        saved = s.transactions.create(
+        postings = simple_postings(amount, payer.account.aid, target.account.aid)
+        saved, made = s.transactions.create_once(
             TransactionCreate(
                 date=date or _today(),
                 payee=(payee or "").strip() or None,
                 comment=(note or "").strip() or None,
                 postings=postings,
                 related_id=_related_id(related_to),
+                source=source,
+                external_id=external_id,
+                source_url=source_url,
             )
         )
-        return {"recorded": _transaction(saved, index, s)}
+        return _recorded(saved, made, index, s)
+
+
+def _recorded(saved: TransactionRead, made: bool, index: AccountIndex, s: Services) -> dict[str, Any]:
+    result: dict[str, Any] = {"recorded": _transaction(saved, index, s)}
+    if not made:
+        result["already_recorded"] = True
+    return result
 
 
 class PostingIn(BaseModel):
@@ -467,21 +513,27 @@ def record_split(
             description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions"
         ),
     ] = None,
+    source: Source = None,
+    external_id: ExternalId = None,
+    source_url: SourceUrl = None,
 ) -> dict[str, Any]:
     """Record a transaction with several rows, e.g. a bill split across categories or a salary
-    with deductions. Debits must equal credits."""
+    with deductions. Debits must equal credits. source and external_id work as for record_transaction."""
     with services() as s:
         index = _index(s)
-        saved = s.transactions.create(
+        saved, made = s.transactions.create_once(
             TransactionCreate(
                 date=date or _today(),
                 payee=(payee or "").strip() or None,
                 comment=(note or "").strip() or None,
                 postings=_postings(index, postings),
                 related_id=_related_id(related_to),
+                source=source,
+                external_id=external_id,
+                source_url=source_url,
             )
         )
-        return {"recorded": _transaction(saved, index, s)}
+        return _recorded(saved, made, index, s)
 
 
 @_tool_errors
@@ -497,6 +549,11 @@ def update_transaction(
         str | None,
         Field(description="Id of an earlier transaction this one is related to; an empty string removes the link"),
     ] = None,
+    source: Annotated[Source, Field(description="New source; an empty string clears it")] = None,
+    external_id: Annotated[
+        ExternalId, Field(description="New reference (needs a source); an empty string clears it")
+    ] = None,
+    source_url: Annotated[SourceUrl, Field(description="New link; an empty string clears it")] = None,
 ) -> dict[str, Any]:
     """Change a transaction. Only what you pass changes."""
     tid = _transaction_id(transaction_id)
@@ -515,8 +572,13 @@ def update_transaction(
             changes["postings"] = _postings(index, postings)
         if related_to is not None:
             changes["related_id"] = _related_id(related_to)
+        for key, value in (("source", source), ("external_id", external_id), ("source_url", source_url)):
+            if value is not None:
+                changes[key] = value
         if not changes:
-            raise ToolError("nothing to change: pass a date, payee, note, postings or related_to!")
+            raise ToolError(
+                "nothing to change: pass a date, payee, note, postings, related_to, source, external_id or source_url!"
+            )
         saved = s.transactions.update(tid, TransactionUpdate(**changes))
         if saved is None:
             raise ToolError("transaction not found")

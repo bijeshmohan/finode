@@ -52,6 +52,9 @@ def rich(client, root_accounts):
         date="2026-09-04",
         payee="DMart",
         related_id=dmart["tid"],
+        source="gmail",
+        external_id="msg-9",
+        source_url="https://mail.example.com/9",
     )
     tx(client, [line(bank, "debit", "90000"), line(salary, "credit", "90000")], date="2026-09-01", payee="Employer")
     tx(client, [line(loan, "debit", "15000"), line(bank, "credit", "15000")], date="2026-09-05", payee="EMI")
@@ -138,6 +141,7 @@ def canonical(doc: dict) -> dict:
                 rules.get(t["recurring_id"]),
                 t["recurring_date"],
                 entries.get(t["related_id"]),
+                (t["source"], t["external_id"], t["source_url"]),
                 sorted((paths[p["account"]], p["side"], p["amount"]) for p in t["postings"]),
             )
             for t in doc["transactions"]

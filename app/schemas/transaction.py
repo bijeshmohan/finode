@@ -44,6 +44,45 @@ def _tidy_comment(value: str | None) -> str | None:
     return value.strip() or None if value is not None else None
 
 
+def _tidy_source(value: str | None) -> str | None:
+    return (value.strip().lower() or None) if value is not None else None
+
+
+def _tidy_reference(value: str | None) -> str | None:
+    return (value.strip() or None) if value is not None else None
+
+
+def _tidy_url(value: str | None) -> str | None:
+    value = _tidy_reference(value)
+    if value is not None and not value.lower().startswith(("http://", "https://")):
+        raise ValueError("source_url must be a web address starting with http:// or https://!")
+    return value
+
+
+class ReferenceFields(BaseModel):
+    """Where an entry came from outside finode: a short kind, the reference that source gave it and a link back.
+    A person's (source, external_id) is used once, so recording it again finds the entry."""
+
+    source: str | None = Field(default=None, max_length=40)
+    external_id: str | None = Field(default=None, max_length=120)
+    source_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("source")
+    @classmethod
+    def _clean_source(cls, value: str | None) -> str | None:
+        return _tidy_source(value)
+
+    @field_validator("external_id")
+    @classmethod
+    def _clean_external_id(cls, value: str | None) -> str | None:
+        return _tidy_reference(value)
+
+    @field_validator("source_url")
+    @classmethod
+    def _clean_source_url(cls, value: str | None) -> str | None:
+        return _tidy_url(value)
+
+
 class TransactionBase(BaseModel):
     date: Day = Field(default_factory=local_today)
     payee: str | None = Field(default=None, max_length=40)
@@ -60,10 +99,16 @@ class TransactionBase(BaseModel):
         return _tidy_comment(value)
 
 
-class TransactionCreate(TransactionBase):
+class TransactionCreate(TransactionBase, ReferenceFields):
     postings: list[PostingCreate]
     # An earlier entry of the person's own that this one is related to.
     related_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def reference_needs_a_source(self) -> TransactionCreate:
+        if self.external_id and not self.source:
+            raise ValueError("a reference (external_id) needs a source, for example 'gmail' or 'upi'!")
+        return self
 
     @model_validator(mode="after")
     def postings_must_balance(self) -> TransactionCreate:
@@ -71,7 +116,7 @@ class TransactionCreate(TransactionBase):
         return self
 
 
-class TransactionRead(TransactionBase):
+class TransactionRead(TransactionBase, ReferenceFields):
     tid: UUID
     # Where it was entered and last changed: "web", "api", "import" or "mcp:<token name>"; None if unknown.
     created_via: str | None = None
@@ -85,7 +130,7 @@ class TransactionRead(TransactionBase):
     updated: datetime
 
 
-class TransactionUpdate(BaseModel):
+class TransactionUpdate(ReferenceFields):
     date: Day | None = Field(default=None)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)

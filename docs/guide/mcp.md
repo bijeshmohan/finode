@@ -18,7 +18,7 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 | `list_deleted_transactions` | deleted transactions that can still be brought back |
 | `check_books` | re-checks that every transaction balances |
 
-**Write** (only on a read & write connection): `record_transaction`, `record_split`, `update_transaction`, `delete_transaction`, `create_account`, `create_recurring`, `stop_recurring`, `resume_recurring`, `skip_recurring_occurrence`, `restore_transaction`, `create_goal`, `update_goal`, `delete_goal`, `assign_to_category`, `assign_to_goal`, `use_goal`, `move_budget_money`, `copy_budget_from_previous_month`. Recording or changing a transaction can link it to an earlier one (`related_to`, for a refund or reversal).
+**Write** (only on a read & write connection): `record_transaction`, `record_split`, `update_transaction`, `delete_transaction`, `create_account`, `create_recurring`, `stop_recurring`, `resume_recurring`, `skip_recurring_occurrence`, `restore_transaction`, `create_goal`, `update_goal`, `delete_goal`, `assign_to_category`, `assign_to_goal`, `use_goal`, `move_budget_money`, `copy_budget_from_previous_month`. Recording or changing a transaction can link it to an earlier one (`related_to`, for a refund or reversal). They also take `source`, `external_id` and `source_url` for an entry that comes from outside finode (a bank message, a mail): sending the same source and reference again returns the entry already made instead of a copy, and `search_transactions` finds an entry by them.
 
 There is also a ready-made prompt, `monthly_review`, which asks the assistant for a short review of a month.
 

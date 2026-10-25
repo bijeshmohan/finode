@@ -2,7 +2,7 @@ from datetime import date
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from ..auth import require_authenticated_user
 from ..dependencies import Transactions
@@ -27,10 +27,17 @@ router = APIRouter(
 def create_transaction(
     transaction: TransactionCreate,
     transactions: Transactions,
+    response: Response,
 ):
-    """Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`."""
+    """Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`.
+    `source`, `external_id` and `source_url` say where it came from (a bank, a mail); a source's reference is used once,
+    so sending the same one again with the same date and rows answers 200 with the entry already recorded, and
+    nothing is created. The same reference with a different date or rows is a 400."""
     try:
-        return transactions.create(transaction)
+        created, made = transactions.create_once(transaction)
+        if not made:
+            response.status_code = 200
+        return created
     except (InvalidPostingError, LimitReached) as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError as e:
@@ -81,12 +88,16 @@ def get_transactions(
     kind: Literal["expense", "income", "transfer"] | None = None,
     category: UUID | None = None,
     payee: str | None = None,
+    source: str | None = None,
+    external_id: str | None = None,
 ):
     """Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts
     used (spending, income or a transfer); `category` is an Expenses or Income account the entry must also touch;
-    `payee` is exact, capitals aside."""
+    `payee` is exact, capitals aside; `source` and `external_id` find the entry a source's reference stands for."""
     try:
-        return transactions.list(account, date_from, date_to, limit, offset, text, kind, category, payee)
+        return transactions.list(
+            account, date_from, date_to, limit, offset, text, kind, category, payee, source, external_id
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from None
 
@@ -97,7 +108,7 @@ def update_transaction(
     data: TransactionUpdate,
     transactions: Transactions,
 ):
-    """Change a transaction; only the fields sent change (`related_id: null` removes the link)."""
+    """Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or, with null, cleared)."""
     try:
         transaction = transactions.update(tid, data)
     except InvalidPostingError as e:
