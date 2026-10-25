@@ -122,6 +122,7 @@ REFERENCES = {
     ("POST", "/api/recurring/"),
     ("POST", "/api/restore"),
     ("POST", "/api/transactions/"),
+    ("POST", "/api/transactions/batch"),
     ("POST", "/budget/assign"),
     ("POST", "/budget/copy"),
     ("POST", "/budget/goal"),
@@ -419,6 +420,27 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                 "postings": [
                     {"account": a["Groceries"], "side": "debit", "amount": "5"},
                     {"account": mine, "side": "credit", "amount": "5"},
+                ]
+            },
+        )
+        refused(
+            "batch with A's account",
+            "POST",
+            "/api/transactions/batch",
+            json={
+                "transactions": [
+                    {
+                        "postings": [
+                            {"account": bills, "side": "debit", "amount": "5"},
+                            {"account": mine, "side": "credit", "amount": "5"},
+                        ]
+                    },
+                    {
+                        "postings": [
+                            {"account": a["Groceries"], "side": "debit", "amount": "5"},
+                            {"account": mine, "side": "credit", "amount": "5"},
+                        ]
+                    },
                 ]
             },
         )

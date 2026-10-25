@@ -145,6 +145,30 @@ class TransactionPreview(ReferenceFields):
     already_recorded: UUID | None = None
 
 
+# How many entries one batch may hold.
+MAX_BATCH = 50
+
+
+class TransactionBatch(BaseModel):
+    transactions: list[TransactionCreate] = Field(min_length=1, max_length=MAX_BATCH)
+
+
+class BatchEntryResult(BaseModel):
+    # Which entry of the batch this is (1 is the first).
+    item: int
+    status: Literal["recorded", "already_recorded", "would_record"]
+    transaction: TransactionRead | TransactionPreview
+
+
+class BatchResult(BaseModel):
+    dry_run: bool
+    # False for a dry run (nothing was saved).
+    saved: bool
+    created: int
+    already_recorded: int
+    entries: list[BatchEntryResult]
+
+
 class TransactionUpdate(ReferenceFields):
     date: Day | None = Field(default=None)
     payee: str | None = Field(default=None, max_length=40)

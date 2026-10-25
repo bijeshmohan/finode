@@ -1,9 +1,10 @@
 """Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits), plus history, deleted entries and restoring."""
 
 import builtins
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from datetime import date, datetime
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from ..clock import local_midnight_utc
@@ -15,6 +16,9 @@ from ..models import Account
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
 from ..schemas.transaction import (
+    MAX_BATCH,
+    BatchEntryResult,
+    BatchResult,
     HistoryPosting,
     HistoryRead,
     PostingCreate,
@@ -34,6 +38,10 @@ class InvalidPostingError(ValueError): ...
 
 
 class InvalidPostingAccountError(InvalidPostingError): ...
+
+
+class BatchError(InvalidPostingError):
+    """A batch was refused as a whole: nothing was saved."""
 
 
 class DuplicateReferenceError(InvalidPostingError):
@@ -330,6 +338,82 @@ class TransactionService:
             already_recorded=found.tid if found else None,
             **data.model_dump(exclude={"postings"}),
             postings=data.postings,
+        )
+
+    def record_batch(self, items: Sequence[TransactionCreate], dry_run: bool = False) -> BatchResult:
+        """Record several entries as one: either all of them are saved or none is. An entry whose source and
+        reference are already recorded with the same date and rows is skipped (it is not an error, so retrying a
+        batch is safe). Every problem is collected and reported by its place in the batch."""
+        if not items:
+            raise BatchError("a batch needs at least one entry!")
+        if len(items) > MAX_BATCH:
+            raise BatchError(f"a batch can hold at most {MAX_BATCH} entries: send it in parts!")
+        problems: list[str] = []
+        previews: list[TransactionPreview | None] = []
+        seen: dict[tuple[str, str], int] = {}
+        for number, item in enumerate(items, start=1):
+            try:
+                if item.source and item.external_id:
+                    key = (item.source, item.external_id)
+                    if key in seen:
+                        raise InvalidPostingError(
+                            f"it repeats the reference '{item.external_id}' of source '{item.source}' that "
+                            f"entry {seen[key]} has!"
+                        )
+                    seen[key] = number
+                previews.append(self.preview_create(item))
+            except (ValueError, LookupError) as e:
+                problems.append(f"entry {number}: {e}")
+                previews.append(None)
+        new = sum(1 for p in previews if p is not None and p.already_recorded is None)
+        if not problems and new:
+            try:
+                ensure_room(self.tr.count(), settings.max_transactions, "transactions", adding=new)
+                if settings.max_transactions_per_day and self.origin not in ("recurring", "import"):
+                    ensure_room(
+                        self.recorded_today(), settings.max_transactions_per_day, "new transactions a day", adding=new
+                    )
+            except ValueError as e:
+                problems.append(str(e))
+        if problems:
+            raise BatchError("nothing was saved. " + " ".join(problems))
+        if dry_run:
+            entries = [
+                BatchEntryResult(
+                    item=number,
+                    status="already_recorded" if preview.already_recorded else "would_record",
+                    transaction=preview,
+                )
+                for number, preview in enumerate(cast(list[TransactionPreview], previews), start=1)
+            ]
+            return BatchResult(dry_run=True, saved=False, created=0, already_recorded=len(items) - new, entries=entries)
+        made: dict[int, Transaction] = {}
+        try:
+            for number, (item, preview) in enumerate(
+                zip(items, cast(list[TransactionPreview], previews), strict=True), start=1
+            ):
+                if preview.already_recorded is None:
+                    made[number] = self.tr.create(item, self.origin)
+            self.tr.db.commit()
+        except Exception:
+            self.tr.db.rollback()
+            raise
+        entries = []
+        for number, preview in enumerate(cast(list[TransactionPreview], previews), start=1):
+            if number in made:
+                self.tr.db.refresh(made[number])
+                entries.append(
+                    BatchEntryResult(item=number, status="recorded", transaction=self._to_read(made[number]))
+                )
+            else:
+                existing = self.read(cast(UUID, preview.already_recorded))
+                entries.append(
+                    BatchEntryResult(
+                        item=number, status="already_recorded", transaction=cast(TransactionRead, existing)
+                    )
+                )
+        return BatchResult(
+            dry_run=False, saved=True, created=len(made), already_recorded=len(items) - len(made), entries=entries
         )
 
     def preview_update(self, tid: UUID, data: TransactionUpdate) -> TransactionPreview:

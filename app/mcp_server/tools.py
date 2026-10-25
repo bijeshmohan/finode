@@ -20,6 +20,7 @@ from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import (
+    MAX_BATCH,
     PostingCreate,
     TransactionCreate,
     TransactionPreview,
@@ -50,6 +51,9 @@ finode is the user's personal double-entry ledger.
   upi...) and external_id (the reference that source gave it) when you record them. Recording the same pair again
   returns the entry already made (already_recorded) instead of a copy, so retrying is safe; search_transactions
   finds an entry by them. Search before recording something that may be there already.
+- To record many entries at once (a statement, an EMI schedule), use record_transactions: up to 50, all saved or
+  none, each with its own source and external_id so sending it again skips what is already there. Its dry_run
+  shows the whole batch first.
 - To show the user what a change would do before making it, pass dry_run=true to record_transaction, record_split,
   update_transaction or delete_transaction: every rule is checked and the answer says what would be saved, with
   nothing saved. It also works when the connection may only read.
@@ -583,6 +587,87 @@ def record_split(
             return _dry_run("would_record", s.transactions.preview_create(data), index)
         saved, made = s.transactions.create_once(data)
         return _recorded(saved, made, index, s)
+
+
+class BatchItem(BaseModel):
+    """One entry of record_transactions: either amount, from_account and to_account, or postings."""
+
+    amount: Amount | None = None
+    from_account: AccountRef | None = None
+    to_account: AccountRef | None = None
+    postings: list[PostingIn] | None = Field(default=None, description="For a split, instead of amount/from/to")
+    date: OptionalDate = None
+    payee: Annotated[str | None, Field(max_length=40)] = None
+    note: Annotated[str | None, Field(max_length=200)] = None
+    related_to: str | None = Field(default=None, description="Id of an earlier transaction this one is related to")
+    source: Source = None
+    external_id: ExternalId = None
+    source_url: SourceUrl = None
+
+
+@_tool_errors
+def record_transactions(
+    entries: Annotated[
+        list[BatchItem],
+        Field(min_length=1, max_length=MAX_BATCH, description="Up to 50 entries; each is a simple one or a split"),
+    ],
+    dry_run: DryRun = False,
+) -> dict[str, Any]:
+    """Record several transactions as one: all are saved or none (one approval, one check). Give each entry a
+    source and external_id so the batch can be sent again safely: entries already recorded are skipped
+    (`already_recorded`). Any problem refuses the whole batch and names the entries at fault by their number
+    (1 is the first)."""
+    with services() as s:
+        index = _index(s)
+        data: list[TransactionCreate] = []
+        problems: list[str] = []
+        for number, e in enumerate(entries, start=1):
+            try:
+                data.append(_batch_entry(e, index))
+            except (ValueError, LookupError, ValidationError) as err:
+                message = validation_message(err) if isinstance(err, ValidationError) else str(err)
+                problems.append(f"entry {number}: {message}")
+        if problems:
+            raise ToolError("nothing was saved. " + " ".join(problems))
+        result = s.transactions.record_batch(data, dry_run)
+        out: list[dict[str, Any]] = []
+        for r in result.entries:
+            if isinstance(r.transaction, TransactionPreview):
+                shown = _dry_run("entry", r.transaction, index)["entry"]
+            else:
+                shown = _transaction(r.transaction, index, s)
+            out.append({"entry": r.item, "status": r.status, "transaction": shown})
+        return {
+            "dry_run": result.dry_run,
+            "saved": result.saved,
+            "recorded": result.created,
+            "already_recorded": result.already_recorded,
+            "entries": out,
+        }
+
+
+def _batch_entry(e: BatchItem, index: AccountIndex) -> TransactionCreate:
+    simple = (e.amount, e.from_account, e.to_account)
+    if e.postings is not None:
+        if any(v is not None for v in simple):
+            raise ValueError("give either amount, from_account and to_account, or postings, not both!")
+        postings = _postings(index, e.postings)
+    else:
+        if any(v is None for v in simple):
+            raise ValueError("give amount, from_account and to_account, or postings!")
+        payer = index.find(cast(str, e.from_account), postable=True)
+        target = index.find(cast(str, e.to_account), postable=True)
+        postings = simple_postings(cast(Decimal, e.amount), payer.account.aid, target.account.aid)
+    return TransactionCreate(
+        date=e.date or _today(),
+        payee=(e.payee or "").strip() or None,
+        comment=(e.note or "").strip() or None,
+        postings=postings,
+        related_id=_related_id(e.related_to),
+        source=e.source,
+        external_id=e.external_id,
+        source_url=e.source_url,
+    )
 
 
 @_tool_errors
@@ -1217,6 +1302,7 @@ READ_TOOLS = [
 WRITE_TOOLS = [
     (record_transaction, WRITE),
     (record_split, WRITE),
+    (record_transactions, WRITE),
     (update_transaction, IDEMPOTENT_WRITE),
     (delete_transaction, DESTRUCTIVE),
     (create_account, WRITE),

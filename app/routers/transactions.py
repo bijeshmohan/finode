@@ -8,8 +8,10 @@ from ..auth import require_authenticated_user
 from ..dependencies import Transactions
 from ..limits import LimitReached
 from ..schemas.transaction import (
+    BatchResult,
     HistoryRead,
     PayeeRead,
+    TransactionBatch,
     TransactionCreate,
     TransactionPreview,
     TransactionRead,
@@ -48,6 +50,23 @@ def create_transaction(
         raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from None
+
+
+@router.post("/batch", response_model=BatchResult, status_code=201)
+def create_transactions(batch: TransactionBatch, transactions: Transactions, response: Response, dry_run: bool = False):
+    """Record up to 50 transactions as one: all are saved or none. An entry whose `source` and `external_id` are already
+    recorded with the same date and rows is skipped (status `already_recorded`), so a batch can be sent again safely.
+    Any problem refuses the whole batch (400) naming the entries at fault. With `dry_run=true` nothing is saved and the
+    answer (200) shows what would be."""
+    try:
+        result = transactions.record_batch(batch.transactions, dry_run)
+    except (InvalidPostingError, LimitReached) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    if not result.created:
+        response.status_code = 200
+    return result
 
 
 @router.get("/payees", response_model=list[PayeeRead])

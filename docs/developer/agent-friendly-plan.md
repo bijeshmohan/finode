@@ -1,6 +1,6 @@
 # Making finode friendlier to AI assistants: evaluation and plan
 
-Branch: `feature/agent-friendly`. **Status: phases 1, 2a and 2b done; 2c (batch) next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
+Branch: `feature/agent-friendly`. **Status: phases 1 and 2 done; phase 3 next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
 checks each against what the code does today, decides, and orders the work. Nothing here is built yet.
 
 ## Verdicts at a glance
@@ -68,7 +68,7 @@ closed accounts, direction, decimals) applies, and returns the transaction it wo
 check from 2a (`would_duplicate: <id>`). JSON API: `?dry_run=true`, as import does. Dry runs are allowed on **read-only** connections (decided: they change nothing, and an assistant can prepare a
 confirmation before the person grants write access).
 
-**2c. Batch (#9).** `record_transactions(items: list, dry_run=False)` for up to 50 entries, **all or nothing in one
+**2c. Batch (#9) — done.** `record_transactions(items: list, dry_run=False)` for up to 50 entries, **all or nothing in one
 database transaction**, each item shaped like `record_split` (with `external_id`). Counts once toward limits per
 entry, not once per call. One approval for the person. The result lists each entry's id or the item number and the
 reason it failed. This also covers EMI schedules (#11): one item per instalment with `external_id="emi-2026-11"`.
