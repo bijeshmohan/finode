@@ -95,3 +95,35 @@ def test_tapping_a_suggestion_with_a_finger_finishes_the_tag(touch_page: Page, b
     suggestion.tap()
     expect(note).to_have_value("Dinner with Ravi #goa-trip ")
     expect(touch_page.locator(".tag-pop")).to_be_hidden()
+
+
+def test_choosing_a_suggestion_does_not_press_what_is_under_it(touch_page: Page, books, api: Api):
+    """The list covers the "Related transaction" row; the click that ends the tap must not reach that row."""
+    add(api, books, "Taj", "Hotel #goa-trip", "840")
+    touch_page.goto("/transactions/new")
+    note = touch_page.get_by_label("Note")
+    note.tap()
+    note.press_sequentially("Dinner #g")
+    suggestion = touch_page.locator(".tag-pop button", has_text="#goa-trip")
+    related = touch_page.locator("[data-related-add]")
+    expect(suggestion).to_be_visible()
+    pop_box, related_box = suggestion.bounding_box(), related.bounding_box()
+    assert pop_box["y"] + pop_box["height"] > related_box["y"], "the suggestion sits over the Related row"
+    suggestion.tap()
+    expect(note).to_have_value("Dinner #goa-trip ")
+    touch_page.wait_for_timeout(700)  # long enough for a stray click to open the picker
+    expect(touch_page.locator("#related-picker")).not_to_be_visible()
+    expect(touch_page.locator("[data-related-chip]")).to_be_hidden()
+    related.tap()  # a real tap on the Related row afterwards still works
+    expect(touch_page.locator("#related-picker")).to_be_visible()
+
+
+def test_a_mouse_click_on_a_suggestion_does_not_press_what_is_under_it(page: Page, books, api: Api):
+    add(api, books, "Taj", "Hotel #goa-trip", "840")
+    page.goto("/transactions/new")
+    note = page.get_by_label("Note")
+    note.fill("Dinner #g")
+    page.locator(".tag-pop button", has_text="#goa-trip").click()
+    expect(note).to_have_value("Dinner #goa-trip ")
+    page.wait_for_timeout(500)
+    expect(page.locator("#related-picker")).not_to_be_visible()
