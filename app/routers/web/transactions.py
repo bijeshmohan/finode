@@ -20,6 +20,7 @@ from ...schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
+from ...tags import clean_tag
 from ...templating import templates
 from .accounts import build_tree, posting_groups
 from .budget import parse_month
@@ -50,12 +51,15 @@ def _more(params: dict, shown: int, total: int, step: int, size: int) -> dict | 
 def _applied(filters: dict, index: AccountIndex, rest: dict) -> list[dict]:
     """What is filtered, each with the page's own address without it (the ✕ beside it)."""
     out = []
-    for key, label in (("account", "Account"), ("category", "Category"), ("merchant", "Merchant")):
+    for key, label in (("account", "Account"), ("category", "Category"), ("merchant", "Merchant"), ("tag", "Tag")):
         value = filters.get(key)
         if not value:
             continue
         try:
-            name = index.names.get(UUID(value), "?") if key != "merchant" else value
+            if key == "tag":
+                name = f"#{value}"
+            else:
+                name = index.names.get(UUID(value), "?") if key != "merchant" else value
         except ValueError:
             name = "?"
         keep = {**rest, **{k: v for k, v in filters.items() if v and k != key}}
@@ -154,6 +158,7 @@ def transactions_page(
     account: str = "",
     category: str = "",
     merchant: str = "",
+    tag: str = "",
     date_from: str = "",
     date_to: str = "",
     q: str = "",
@@ -185,6 +190,7 @@ def transactions_page(
         # What is dated ahead is not history: it waits in its own row ("N upcoming"), soonest first, on the first page.
         also = UUID(category) if category else None
         who = merchant.strip() or None
+        tag = clean_tag(tag)
         # With a filter set the whole match is read (it is one month), so the line above the list can say what it comes to.
         everything = (
             transactions.list(
@@ -197,8 +203,9 @@ def transactions_page(
                 KIND_FILTERS.get(kind),
                 also,
                 who,
+                tag=tag or None,
             )
-            if (account or category or who)
+            if (account or category or who or tag)
             else None
         )
         chunk, total = transactions.page(
@@ -211,6 +218,7 @@ def transactions_page(
             KIND_FILTERS.get(kind),
             also,
             who,
+            tag or None,
         )
         if last is None or last > today:
             ahead = transactions.list(
@@ -223,6 +231,7 @@ def transactions_page(
                 KIND_FILTERS.get(kind),
                 also,
                 who,
+                tag=tag or None,
             )
             for t in sorted(ahead, key=lambda t: (t.date, t.created)):
                 r = to_row(t, index)
@@ -246,6 +255,7 @@ def transactions_page(
         "account": account,
         "category": category,
         "merchant": merchant.strip(),
+        "tag": tag,
         "date_from": date_from,
         "date_to": date_to,
     }
@@ -323,6 +333,7 @@ def more_transactions(
     account: str = "",
     category: str = "",
     merchant: str = "",
+    tag: str = "",
     date_from: str = "",
     date_to: str = "",
     q: str = "",
@@ -348,6 +359,7 @@ def more_transactions(
             kind or None,
             UUID(category) if category else None,
             merchant.strip() or None,
+            clean_tag(tag) or None,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
@@ -360,6 +372,7 @@ def more_transactions(
             "account": account,
             "category": category,
             "merchant": merchant.strip(),
+            "tag": clean_tag(tag),
             "date_from": date_from,
             "date_to": date_to,
             "q": q.strip(),
@@ -588,6 +601,33 @@ def suggest_payees(request: Request, accounts: Accounts, transactions: Transacti
     """The chips under the payee field: people you pay, with the accounts you used the last time."""
     habits = payee_habits(transactions, accounts, payee)
     return templates.TemplateResponse(request, "partials/payee_chips.html", {"habits": habits})
+
+
+@router.get("/tag-options")
+def tag_options(request: Request, accounts: Accounts, transactions: Transactions):
+    """The tags for the Filter sheet's Tag list, loaded when the list is opened: how many entries carry each, the last
+    day, and what they come to when they all go one way (spending or income)."""
+    index = AccountIndex.build(accounts.list())
+    stats: dict[str, dict] = {}
+    for t in transactions.tagged():
+        row = to_row(t, index)
+        for name in t.tags:
+            s = stats.setdefault(name, {"tag": name, "uses": 0, "last": t.date, "kinds": set(), "sum": Decimal(0)})
+            s["uses"] += 1
+            s["last"] = max(s["last"], t.date)
+            s["kinds"].add(row.kind)
+            s["sum"] += row.amount
+    items = sorted(stats.values(), key=lambda s: (-s["uses"], s["tag"]))
+    for s in items:
+        only = next(iter(s["kinds"])) if len(s["kinds"]) == 1 else ""
+        s["total"] = s["sum"] if only in ("expense", "income") else None
+    return templates.TemplateResponse(request, "partials/tag_options.html", {"items": items})
+
+
+@router.get("/tag-names")
+def tag_names(transactions: Transactions):
+    """The tags in use, most used first, for the Add screen's suggestions after a # (loaded once, filtered in the page)."""
+    return [{"tag": t.tag, "uses": t.uses} for t in transactions.tags()]
 
 
 def related_info(transactions: Transactions, index: AccountIndex, tid: UUID | None) -> TransactionRow | None:

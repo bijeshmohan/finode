@@ -257,6 +257,15 @@ class TransactionRepository:
         wanted = clean_tag(tag)
         return [t for t in rows if wanted in tags_in(t.comment)]
 
+    def tagged(self) -> builtins.list[Transaction]:
+        """The entries whose note has a # in it (the candidates for carrying a tag), newest first."""
+        statement = (
+            select(Transaction)
+            .where(Transaction.user == self.uid, col(Transaction.comment).contains("#", autoescape=True))
+            .order_by(col(Transaction.date).desc(), col(Transaction.created).desc())
+        )
+        return self.db.exec(statement).all()
+
     def tag_notes(self) -> builtins.list[tuple[str, date]]:
         """The note and day of every entry whose note has a # in it (to find the tags in use)."""
         return [

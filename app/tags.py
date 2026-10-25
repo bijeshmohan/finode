@@ -25,3 +25,12 @@ def tags_in(note: str | None) -> list[str]:
 def clean_tag(value: str) -> str:
     """A tag as typed by someone searching ("#Goa-Trip", " goa-trip "): the bare lower-case name."""
     return value.strip().lstrip("#").strip().lower()
+
+
+def without_tags(note: str | None) -> str:
+    """The note with its tags taken out, for places that show the tags apart from the words ("Dinner #goa-trip" -> "Dinner")."""
+    kept = note or ""
+    for match in reversed(list(_TAG.finditer(kept))):
+        if any(c.isalpha() for c in match.group(1)):
+            kept = kept[: match.start()] + kept[match.end() :]
+    return " ".join(kept.split())

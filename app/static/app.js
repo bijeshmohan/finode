@@ -977,6 +977,10 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
     if (pick) {
       const list = form.querySelector(`[data-filter-list="${pick.dataset.pick}"]`);
       show(list);
+      if (pick.dataset.pick === "tag" && window.htmx) {  // the tags are fetched the first time the list is opened
+        const loader = list.querySelector("[hx-trigger]");
+        if (loader) window.htmx.trigger(loader, "tags-open");
+      }
       const search = list.querySelector("[data-filter-search]");
       search.value = "";
       list.querySelectorAll("li").forEach((li) => { li.hidden = false; });
@@ -1002,6 +1006,79 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
   });
   form.addEventListener("submit", () => {
     form.querySelectorAll("[data-filter-value]").forEach((input) => { if (!input.value) input.disabled = true; });
+  });
+})();
+
+// ---- Tags on the Add screen: after a # in the note, the tags already in use are offered (what is typed narrows them) ----
+(() => {
+  let names = null;
+  let loading = null;
+  const load = () => {
+    if (names) return Promise.resolve(names);
+    loading ||= fetch("/transactions/tag-names", { headers: { Accept: "application/json" } })
+      .then((response) => (response.ok ? response.json() : []))
+      .catch(() => [])
+      .then((list) => (names = list));
+    return loading;
+  };
+  // The #word being typed at the caret: where it starts and the letters after the #.
+  const wordAt = (input) => {
+    const upto = input.value.slice(0, input.selectionStart ?? input.value.length);
+    const found = /(^|\s)#([A-Za-z0-9_-]*)$/.exec(upto);
+    return found ? { start: upto.length - found[2].length - 1, end: upto.length, text: found[2].toLowerCase() } : null;
+  };
+  const close = (pop) => { pop.hidden = true; pop.replaceChildren(); };
+  document.addEventListener("input", async (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.matches("[data-tag-note]")) return;
+    const pop = input.parentElement.querySelector(".tag-pop");
+    if (!wordAt(input)) { close(pop); return; }
+    const list = await load();
+    const word = wordAt(input);
+    if (!word) { close(pop); return; }
+    const shown = list.filter((tag) => tag.tag.startsWith(word.text) && tag.tag !== word.text).slice(0, 5);
+    pop.replaceChildren(...shown.map((tag) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("role", "option");
+      button.dataset.tag = tag.tag;
+      button.append(`#${tag.tag}`);
+      const uses = document.createElement("small");
+      uses.className = "muted";
+      uses.textContent = String(tag.uses);
+      button.append(uses);
+      return button;
+    }));
+    pop.hidden = !shown.length;
+  });
+  // Pressing a suggestion must not take the focus (and the keyboard) away from the note.
+  document.addEventListener("pointerdown", (event) => {
+    if (event.target instanceof Element && event.target.closest(".tag-pop")) event.preventDefault();
+  });
+  document.addEventListener("click", (event) => {
+    const button = event.target instanceof Element && event.target.closest(".tag-pop [data-tag]");
+    if (!button) return;
+    const pop = button.closest(".tag-pop");
+    const input = pop.parentElement.querySelector("[data-tag-note]");
+    const word = wordAt(input);
+    if (word) {
+      input.value = `${input.value.slice(0, word.start)}#${button.dataset.tag} ${input.value.slice(word.end)}`;
+      const caret = word.start + button.dataset.tag.length + 2;
+      input.setSelectionRange(caret, caret);
+    }
+    close(pop);
+    input.focus();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !(event.target instanceof HTMLInputElement) || !event.target.matches("[data-tag-note]")) return;
+    const pop = event.target.parentElement.querySelector(".tag-pop");
+    if (pop && !pop.hidden) { close(pop); event.stopPropagation(); }
+  });
+  document.addEventListener("focusout", (event) => {
+    if (event.target instanceof HTMLInputElement && event.target.matches("[data-tag-note]")) {
+      const pop = event.target.parentElement.querySelector(".tag-pop");
+      if (pop) close(pop);
+    }
   });
 })();
 

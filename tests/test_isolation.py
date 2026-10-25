@@ -111,6 +111,8 @@ LISTS = {
     ("GET", "/accounts/deleted"),
     ("GET", "/categories/deleted"),
     ("GET", "/transactions/suggest"),
+    ("GET", "/transactions/tag-options"),
+    ("GET", "/transactions/tag-names"),
     ("GET", "/transactions/more"),
     ("GET", "/transactions/related-picker"),
     ("GET", "/transactions/new"),
