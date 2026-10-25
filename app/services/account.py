@@ -21,7 +21,7 @@ from ..repositories import AccountRepository, ProfileRepository, TransactionRepo
 from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
-from ..schemas.account import AccountChangeRead, BalanceCheck
+from ..schemas.account import AccountChangeRead, BalanceCheck, MergeResult
 from ..schemas.transaction import PostingCreate, TransactionCreate
 
 # Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
@@ -644,6 +644,80 @@ class AccountService:
             )
         return entries
 
+    def merge(self, source_id: UUID, target_id: UUID, dry_run: bool = False) -> MergeResult:
+        """Make one account part of another: every entry, planned amount, recurring rule and payment link of
+        `source` becomes the target's, and `source` is deleted. All or nothing. The source must be a plain account
+        (no sub-accounts) under the same top-level account as the target, which must be open and able to take
+        postings. Refused when an entry or rule has both accounts on opposite sides (it would pay an account from
+        itself) or when only one of them is part of the budget (that would change Ready to assign)."""
+        all_accounts = self._ensure_roots()
+        by_id = {a.aid: a for a in all_accounts}
+        source, target = by_id.get(source_id), by_id.get(target_id)
+        if source is None or target is None:
+            raise ValueError("account not found!")
+        if source_id == target_id:
+            raise ValueError("an account cannot be merged into itself!")
+        for account in (source, target):
+            if self._is_root(account):
+                raise RootAccountError("cannot merge a top-level account!")
+            if self.is_opening_balances(account, all_accounts):
+                raise SystemAccountError(f"cannot merge system account '{account.name}'!")
+        self._refuse_fixed(source, "merged")
+        self._refuse_fixed(target, "merged")
+        if self._get_root_name(source, by_id) != self._get_root_name(target, by_id):
+            raise ValueError("cannot merge accounts of different kinds (an asset into an expense, say)!")
+        if self.ar.has_children(source_id):
+            raise ValueError(f"'{source.name}' has sub-accounts: merge or move them first!")
+        root = self._get_root_name(target, by_id)
+        if self.ar.has_children(target_id) and root not in GROUP_POSTING_ROOT_NAMES:
+            raise ValueError(f"'{target.name}' has sub-accounts, so nothing can be merged into it: pick one of them!")
+        if target.closed_on is not None:
+            raise ValueError(f"'{target.name}' is closed: reopen it first!")
+        if root in ("Assets", "Liabilities") and source.on_budget != target.on_budget:
+            raise ValueError(
+                f"only one of '{source.name}' and '{target.name}' is part of the budget: make them the same first, "
+                "or the money that is ready to assign would change!"
+            )
+        both = self.tr.opposite_sides(source_id, target_id)
+        if both:
+            raise ValueError(
+                f"{both} entries move money between '{source.name}' and '{target.name}': edit or delete them first, "
+                "or they would pay an account from itself!"
+            )
+        clashing = RecurringRepository.merge_conflicts(self.ar.db, self.ar.uid, source_id, target_id)
+        if clashing:
+            raise ValueError(f"the recurring transaction '{clashing[0]}' uses both accounts: change it first!")
+        budget = BudgetRepository(self.ar.db, self.ar.uid)
+        balance = self._to_read(source, all_accounts).balance
+        tids = self.tr.transactions_touching(source_id)
+        months = budget.months_for_account(source_id)
+        rules = RecurringRepository.rules_using(self.ar.db, self.ar.uid, source_id)
+        links = sum(1 for a in all_accounts if a.payment_category_id == source_id)
+        result = MergeResult(
+            dry_run=dry_run,
+            merged=not dry_run,
+            source=self._path(source, by_id),
+            into=self._path(target, by_id),
+            balance_moved=balance,
+            entries_moved=len(tids),
+            plan_months_moved=months,
+            recurring_rules_moved=rules,
+            payment_links_moved=links,
+        )
+        if dry_run:
+            return result
+        try:
+            self.tr.repoint_account(source_id, target_id, self.ar.origin)
+            budget.merge_account(source_id, target_id)
+            RecurringRepository.repoint_account(self.ar.db, self.ar.uid, source_id, target_id)
+            self.ar.repoint_payment_category(source_id, target_id)
+            self.ar._record(self._read(target_id), "updated", merged_from=result.source)
+            self.delete(source_id, merged_into=result.into)  # commits
+        except Exception:
+            self.ar.db.rollback()
+            raise
+        return result
+
     def changes(self, aid: UUID) -> builtins.list[AccountChangeRead]:
         """An account's history, oldest first, each step with what it changed (works for a deleted account too)."""
         rows = self.ar.history(aid)
@@ -705,7 +779,10 @@ class AccountService:
             at=row.at,
             via=row.via,
             entry=entry,
-            changes=changes,
+            changes={
+                **changes,
+                **({"merged_in": row.snapshot["merged_from"]} if row.snapshot.get("merged_from") else {}),
+            },
         )
 
     def check_balance(
@@ -1057,7 +1134,7 @@ class AccountService:
         self.ar.db.refresh(restored)
         return self._to_read(restored, self._ensure_roots())
 
-    def delete(self, aid: UUID) -> AccountRead | None:
+    def delete(self, aid: UUID, merged_into: str | None = None) -> AccountRead | None:
         all_accounts = self._ensure_roots()
         account = next((a for a in all_accounts if a.aid == aid), None)
         if not account:
@@ -1083,7 +1160,7 @@ class AccountService:
         self.ar.record_deletion(aid, self._deletion_snapshot(account, all_accounts, budget))
         budget.delete_for_account(aid)  # only a plan: it goes with the category
         self.ar.clear_payment_category(aid)
-        deleted = self.ar.delete(aid)
+        deleted = self.ar.delete(aid, **({"merged_into": merged_into} if merged_into else {}))
         if not deleted:
             raise ValueError(f"account with aid '{aid}' not found!")
         self.ar.db.commit()

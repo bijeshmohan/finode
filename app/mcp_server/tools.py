@@ -1089,6 +1089,37 @@ def reopen_account(account: AccountRef) -> dict[str, Any]:
 
 
 @_tool_errors
+def merge_accounts(
+    from_account: Annotated[AccountRef, Field(description="The account to fold away (it is deleted afterwards)")],
+    into_account: Annotated[AccountRef, Field(description="The account that takes over everything")],
+    dry_run: DryRun = False,
+) -> dict[str, Any]:
+    """Make one account part of another, e.g. two categories that mean the same: all its entries, planned amounts,
+    recurring rules and payment links become the other's, its balance moves with them, and it is deleted. Both
+    must be plain accounts under the same top-level account. It cannot be undone, so call it with dry_run=true
+    first, tell the user what would move, and only merge after their go-ahead."""
+    with services() as s:
+        index = _index(s)
+        source = index.find(from_account)
+        target = index.find(into_account)
+        done = s.accounts.merge(source.account.aid, target.account.aid, dry_run)
+        out = {
+            "dry_run": done.dry_run,
+            "merged": done.merged,
+            "from": done.source,
+            "into": done.into,
+            "balance_moved": text(done.balance_moved),
+            "entries_moved": done.entries_moved,
+            "plan_months_moved": done.plan_months_moved,
+            "recurring_rules_moved": done.recurring_rules_moved,
+            "payment_links_moved": done.payment_links_moved,
+        }
+        if done.merged:
+            out["into_id"] = str(target.account.aid)
+        return out
+
+
+@_tool_errors
 def create_recurring(
     amount: Annotated[
         Amount | None,
@@ -1593,6 +1624,7 @@ MANAGE_TOOLS: list[tuple[Callable, ToolAnnotations]] = [
     (update_account, IDEMPOTENT_WRITE),
     (close_account, IDEMPOTENT_WRITE),
     (reopen_account, IDEMPOTENT_WRITE),
+    (merge_accounts, DESTRUCTIVE),
 ]
 
 READ_TOOLS = [

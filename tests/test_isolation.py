@@ -322,6 +322,7 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("POST", "/budget/goal/{goal_id}"): {"data": {"name": "hacked", "amount": "5", "by": "2999-12"}},
         ("POST", "/budget/goal/{goal_id}/use"): {"data": {"category": bills, "amount": "1"}},
         ("POST", "/budget/goal/{goal_id}/assign"): {"data": {"amount": "5"}},
+        ("POST", "/api/accounts/{aid}/merge"): {"json": {"into": bills}},
         ("POST", "/oauth/apps/{gid}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{tkid}/access"): {"data": {"scope": "read"}},
     }
@@ -427,6 +428,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                 ]
             },
         )
+        refused("merge into A's account", "POST", f"/api/accounts/{mine}/merge", json={"into": a["Groceries"]})
         refused(
             "batch with A's account",
             "POST",

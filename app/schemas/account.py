@@ -103,6 +103,26 @@ class AccountChangeRead(BaseModel):
     changes: dict[str, Any] = Field(default_factory=dict)
 
 
+class MergeRequest(BaseModel):
+    # The account that takes over everything (this one is merged into it).
+    into: UUID
+
+
+class MergeResult(BaseModel):
+    """What merging one account into another did (or, for a dry run, would do)."""
+
+    dry_run: bool
+    merged: bool
+    source: str
+    into: str
+    # What the merged account held, now held by the other.
+    balance_moved: Decimal
+    entries_moved: int
+    plan_months_moved: int
+    recurring_rules_moved: int
+    payment_links_moved: int
+
+
 class BalanceCheck(BaseModel):
     """A statement's balance set against the books on the same day (nothing is changed)."""
 

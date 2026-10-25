@@ -51,6 +51,39 @@ class BudgetRepository:
             self.db.delete(row)
         self.db.flush()
 
+    def months_for_account(self, account_id: UUID) -> int:
+        return len(
+            self.db.exec(
+                select(BudgetAllocation.bid).where(
+                    BudgetAllocation.user == self.uid, BudgetAllocation.account_id == account_id
+                )
+            ).all()
+        )
+
+    def merge_account(self, source: UUID, target: UUID) -> int:
+        """The amounts planned for `source` become the target's (added to a month the target already has one for).
+        Returns how many months moved. Nothing is committed."""
+        rows = self.db.exec(
+            select(BudgetAllocation).where(BudgetAllocation.user == self.uid, BudgetAllocation.account_id == source)
+        ).all()
+        for row in rows:
+            existing = self.db.exec(
+                select(BudgetAllocation).where(
+                    BudgetAllocation.user == self.uid,
+                    BudgetAllocation.account_id == target,
+                    BudgetAllocation.month == row.month,
+                )
+            ).first()
+            if existing is None:
+                row.account_id = target
+                self.db.add(row)
+            else:
+                existing.amount = existing.amount + row.amount
+                self.db.add(existing)
+                self.db.delete(row)
+            self.db.flush()
+        return len(rows)
+
     def uses_account(self, account_id: UUID) -> bool:
         return (
             self.db.exec(

@@ -53,9 +53,9 @@ class AccountRepository:
     def _record(self, account: Account, action: str, **extra) -> None:
         """Append what the account looks like now to its history (an unchanged save adds nothing)."""
         snapshot = {**self._snapshot(account), **extra}
-        if action == "updated":
+        if action == "updated" and not extra:
             previous = self.history(account.aid)
-            if previous and previous[-1].snapshot == snapshot:
+            if previous and {k: v for k, v in previous[-1].snapshot.items() if not k.startswith("merged_")} == snapshot:
                 return
         self.db.add(
             AccountHistory(user=self.uid, account_id=account.aid, action=action, via=self.origin, snapshot=snapshot)
@@ -193,6 +193,19 @@ class AccountRepository:
             self.db.flush()
             self._record(account, "updated")
         self.db.flush()
+
+    def repoint_payment_category(self, source: UUID, target: UUID) -> int:
+        """Accounts whose payments were budgeted under `source` use `target` instead (a merge)."""
+        moved = 0
+        for account in self.db.exec(
+            select(Account).where(Account.user == self.uid, Account.payment_category_id == source)
+        ).all():
+            account.payment_category_id = target
+            self.db.add(account)
+            self.db.flush()
+            self._record(account, "updated")
+            moved += 1
+        return moved
 
     def has_children(self, aid: UUID) -> bool:
         statement = select(Account).where(

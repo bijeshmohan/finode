@@ -16,6 +16,8 @@ from ..schemas.account import (
     BalanceCheck,
     ClosedAccount,
     DeletedAccount,
+    MergeRequest,
+    MergeResult,
     RegisterEntry,
 )
 from ..services.account import AccountInUseError, SystemAccountError
@@ -144,6 +146,19 @@ def close_account(aid: UUID, accounts: Accounts):
 def reopen_account(aid: UUID, accounts: Accounts):
     """Reopen a closed account with everything inside it, and the groups above it."""
     return _closing(accounts.reopen, aid)
+
+
+@router.post("/{aid}/merge", response_model=MergeResult, status_code=200)
+def merge_account(aid: UUID, data: MergeRequest, accounts: Accounts, dry_run: bool = False):
+    """Make this account part of another (`into`): its entries, planned amounts, recurring rules and payment links
+    become the other's and it is deleted, all or nothing. Both must be plain accounts of the same top-level account
+    (this one without sub-accounts, the other open and able to take entries). Refused when an entry or rule has both on
+    opposite sides, or only one is part of the budget. With `dry_run=true` nothing changes and the answer says what
+    would move."""
+    try:
+        return accounts.merge(aid, data.into, dry_run)
+    except ValueError as e:
+        raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e)) from None
 
 
 @router.get("/{aid}/changes", response_model=list[AccountChangeRead])

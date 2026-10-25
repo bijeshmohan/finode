@@ -4,7 +4,8 @@ import builtins
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import and_, not_, or_
+from sqlalchemy import and_, not_, or_, update
+from sqlalchemy.orm import aliased
 from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
@@ -56,9 +57,9 @@ class TransactionRepository:
         self._record(transaction, "created", origin)
         return transaction
 
-    def _record(self, transaction: Transaction, action: str, origin: str | None) -> None:
-        """Append what the transaction looks like now to its history."""
-        snapshot = {
+    @staticmethod
+    def _snapshot(transaction: Transaction, postings: builtins.list[Posting]) -> dict:
+        return {
             "date": transaction.date.isoformat(),
             "payee": transaction.payee,
             "comment": transaction.comment,
@@ -68,9 +69,13 @@ class TransactionRepository:
             "source_url": transaction.source_url,
             "postings": [
                 {"account": str(p.account), "side": p.side.value, "amount": str(p.amount)}
-                for p in sorted(self.postings(transaction.tid), key=lambda p: (p.created, str(p.pid)))
+                for p in sorted(postings, key=lambda p: (p.created, str(p.pid)))
             ],
         }
+
+    def _record(self, transaction: Transaction, action: str, origin: str | None) -> None:
+        """Append what the transaction looks like now to its history."""
+        snapshot = self._snapshot(transaction, self.postings(transaction.tid))
         if action == "updated":
             previous = self.history(transaction.tid)
             if previous and comparable_snapshot(previous[-1].snapshot) == snapshot:
@@ -352,6 +357,58 @@ class TransactionRepository:
                 Transaction.user == self.uid, Transaction.source == source, Transaction.external_id == external_id
             )
         ).first()
+
+    def transactions_touching(self, aid: UUID) -> builtins.list[UUID]:
+        """The entries that have a posting on the account."""
+        return list(
+            self.db.exec(
+                select(Posting.transaction).where(Posting.user == self.uid, Posting.account == aid).distinct()
+            ).all()
+        )
+
+    def opposite_sides(self, a: UUID, b: UUID) -> int:
+        """How many entries have one account on one side and the other on the opposite side."""
+        first, second = aliased(Posting), aliased(Posting)
+        return self.db.exec(
+            select(func.count(func.distinct(first.transaction)))
+            .select_from(first)
+            .join(second, second.transaction == first.transaction)
+            .where(
+                first.user == self.uid,
+                second.user == self.uid,
+                first.account == a,
+                second.account == b,
+                first.side != second.side,
+            )
+        ).one()
+
+    def repoint_account(self, source: UUID, target: UUID, origin: str | None) -> builtins.list[UUID]:
+        """Move every posting from one account to another (a merge). Each entry it touches gets an "updated" history
+        row saying who did it. Returns the entries that moved. Nothing is committed."""
+        tids = self.transactions_touching(source)
+        if not tids:
+            return []
+        self.db.exec(update(Posting).where(Posting.user == self.uid, Posting.account == source).values(account=target))
+        self.db.exec(
+            update(Transaction)
+            .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
+            .values(updated_via=origin)
+        )
+        self.db.expire_all()
+        moved = self.read_many(tids)
+        postings = self.postings_for_transactions(tids)
+        for tid in tids:
+            self.db.add(
+                TransactionHistory(
+                    user=self.uid,
+                    transaction_id=tid,
+                    action="updated",
+                    via=origin,
+                    snapshot=self._snapshot(moved[tid], postings.get(tid, [])),
+                )
+            )
+        self.db.flush()
+        return tids
 
     def last_change(self) -> datetime | None:
         """When any transaction was last made or changed."""
