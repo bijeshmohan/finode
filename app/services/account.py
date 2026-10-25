@@ -3,7 +3,7 @@
 import builtins
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from types import EllipsisType
 from uuid import UUID
@@ -21,7 +21,7 @@ from ..repositories import AccountRepository, ProfileRepository, TransactionRepo
 from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
-from ..schemas.account import BalanceCheck
+from ..schemas.account import AccountChangeRead, BalanceCheck
 from ..schemas.transaction import PostingCreate, TransactionCreate
 
 # Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
@@ -349,6 +349,7 @@ class AccountService:
                 details="System account for opening balance adjustments",
                 parent_id=equity_root.aid,
             ),
+            record=False,  # finode's own account: not part of anyone's history
         )
 
     def _post_balance_adjustment(
@@ -642,6 +643,70 @@ class AccountService:
                 )
             )
         return entries
+
+    def changes(self, aid: UUID) -> builtins.list[AccountChangeRead]:
+        """An account's history, oldest first, each step with what it changed (works for a deleted account too)."""
+        rows = self.ar.history(aid)
+        paths = self._paths_by_id()
+        return [self._change(row, rows[i - 1] if i else None, paths) for i, row in enumerate(rows)]
+
+    def recent_changes(
+        self, since: datetime | None = None, via: str | None = None, limit: int = 50
+    ) -> builtins.list[AccountChangeRead]:
+        """The latest steps across every account, newest first, each with what it changed."""
+        newest = self.ar.history_since(since, via, limit)
+        by_account: dict[UUID, builtins.list] = {}
+        for row in self.ar.histories_for(list({r.account_id for r in newest})):
+            by_account.setdefault(row.account_id, []).append(row)
+        paths = self._paths_by_id()
+        result = []
+        for row in newest:
+            steps = by_account[row.account_id]
+            position = next(i for i, step in enumerate(steps) if step.hid == row.hid)
+            result.append(self._change(row, steps[position - 1] if position else None, paths))
+        return result
+
+    def _paths_by_id(self) -> dict[UUID, str]:
+        by_id = {a.aid: a for a in self.ar.list()}
+        return {aid: self._path(a, by_id) for aid, a in by_id.items()}
+
+    @staticmethod
+    def _change(row, before, paths: dict[UUID, str]) -> AccountChangeRead:
+        changes: dict = {}
+        if before is not None and row.action == "updated":
+            old, new = before.snapshot, row.snapshot
+            for key, label in (
+                ("name", "name"),
+                ("path", "path"),
+                ("details", "note"),
+                ("on_budget", "on_budget"),
+                ("closed_on", "closed_on"),
+            ):
+                if old.get(key) != new.get(key):
+                    changes[label] = {"from": old.get(key), "to": new.get(key)}
+            if old.get("payment_category_id") != new.get("payment_category_id"):
+
+                def name(value):
+                    return paths.get(UUID(value), value) if value else None
+
+                changes["payment_category"] = {
+                    "from": name(old.get("payment_category_id")),
+                    "to": name(new.get("payment_category_id")),
+                }
+        entry = {k: v for k, v in row.snapshot.items() if k != "parent_id" and k != "payment_category_id"}
+        if row.snapshot.get("payment_category_id"):
+            entry["payment_category"] = paths.get(
+                UUID(row.snapshot["payment_category_id"]), row.snapshot["payment_category_id"]
+            )
+        return AccountChangeRead(
+            hid=row.hid,
+            account=row.account_id,
+            action=row.action,
+            at=row.at,
+            via=row.via,
+            entry=entry,
+            changes=changes,
+        )
 
     def check_balance(
         self, aid: UUID, statement_balance: Decimal, as_of: date | None = None, days: int = 14

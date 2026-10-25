@@ -2,6 +2,7 @@ import unicodedata
 from datetime import date as Date
 from datetime import datetime
 from decimal import Decimal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -85,6 +86,21 @@ class RegisterEntry(BaseModel):
     counter_accounts: list[str]
     change: Decimal
     balance: Decimal
+
+
+class AccountChangeRead(BaseModel):
+    """One step in an account's life, with what it changed compared with the step before."""
+
+    hid: UUID
+    account: UUID
+    action: Literal["created", "updated", "closed", "reopened", "restored", "deleted"]
+    at: datetime
+    # "web", "api" or "mcp:<token name>"; None if unknown.
+    via: str | None = None
+    # The account as it stood after this step: name, path, note, budget flag, payment category, closing day.
+    entry: dict[str, Any]
+    # For an update: {field: {"from", "to"}} for name, path, note, on_budget, payment_category and closed_on.
+    changes: dict[str, Any] = Field(default_factory=dict)
 
 
 class BalanceCheck(BaseModel):

@@ -1,6 +1,6 @@
 # Making finode friendlier to AI assistants: evaluation and plan
 
-Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) 3b (payee defaults), 3c (statement check) and 3d (tags) done: phase 3 is complete. Phase 4: 4a (the `manage` access level) done; 4b account history, 4c the account tools and 4d merge next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
+Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) 3b (payee defaults), 3c (statement check) and 3d (tags) done: phase 3 is complete. Phase 4: 4a (the `manage` access level) and 4b (account history) done; 4c the account tools and 4d merge next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
 checks each against what the code does today, decides, and orders the work. Nothing here is built yet.
 
 ## Verdicts at a glance
@@ -93,7 +93,7 @@ valuation in a one-currency ledger is rare enough to wait for a real need.
 
 ## Phase 4: account management and permissions (decided)
 
-Order: **4a** the access level (done), **4b** account history (with an origin on `AccountService`), **4c** `update_account`, `close_account`, `reopen_account`, **4d** merge.
+Order: **4a** the access level (done), **4b** account history (done, origin on `AccountRepository`), **4c** `update_account`, `close_account`, `reopen_account`, **4d** merge.
 
 Owner's answers: assistants may manage accounts **only with the right permissions**; tags are wanted, as #hashtags;
 dry runs are allowed on read-only connections.

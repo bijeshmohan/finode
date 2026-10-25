@@ -39,10 +39,12 @@ def get_db_session():
 
 
 def get_account_repository(
+    request: Request,
     db: Session = Depends(get_db_session),
     user: CurrentUser = Depends(require_authenticated_user),
 ) -> AccountRepository:
-    return AccountRepository(db, user.id)
+    origin = "api" if request.url.path.startswith("/api/") else "web"
+    return AccountRepository(db, user.id, origin=origin)
 
 
 def get_transaction_repository(

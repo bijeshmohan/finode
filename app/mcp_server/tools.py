@@ -19,6 +19,7 @@ from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate
+from ..schemas.account import AccountChangeRead
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import (
     MAX_BATCH,
@@ -54,6 +55,7 @@ finode is the user's personal double-entry ledger.
   search_transactions(tag=) finds the entries. Reuse an existing tag instead of inventing a near-duplicate.
 - check_balance sets a statement's balance against the books and points at the entries that could explain a gap.
 - payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
+- get_account_history shows what happened to one account and who did it (renames, moves, closings); recent_changes(what='accounts') lists the latest across all of them.
 - get_transaction_history shows what happened to one transaction and who did it, with each edit's exact changes;
   recent_changes lists the latest changes of all of them (by='assistant' for what assistants did). Look there
   before assuming who changed something.
@@ -548,6 +550,47 @@ def get_transaction_history(
         }
 
 
+def _account_step(c: AccountChangeRead) -> dict[str, Any]:
+    step: dict[str, Any] = {
+        "at": c.at.isoformat(),
+        "action": c.action,
+        "by": _via(c.via),
+        "account_id": str(c.account),
+        "entry": _plain(c.entry),
+    }
+    if c.changes:
+        step["changes"] = _plain(c.changes)
+    return step
+
+
+@_tool_errors
+def get_account_history(
+    account: Annotated[str, Field(description="Account path or id; the id for one that was deleted or merged away")],
+) -> dict[str, Any]:
+    """Everything that happened to one account or category, oldest first: when it was made, each rename, move,
+    closing or reopening with what changed, who did it (web, api or an assistant), and its deletion if any.
+    Changes made before finode kept this history are not listed."""
+    with services() as s:
+        index = _index(s)
+        try:
+            aid = index.find(account, allow_root=True).account.aid
+        except ValueError:
+            try:
+                aid = UUID(account.strip())
+            except ValueError:
+                raise ToolError(
+                    f"no account matches '{account}': use list_accounts, or the id of a deleted one!"
+                ) from None
+        steps = s.accounts.changes(aid)
+        if not steps:
+            raise ToolError("no history for that account: changes before finode kept one are not listed")
+        return {
+            "account_id": str(aid),
+            "exists": aid in index.entries,
+            "history": [_account_step(c) for c in steps],
+        }
+
+
 @_tool_errors
 def recent_changes(
     since: Annotated[date | None, Field(description="From this day on (YYYY-MM-DD); no limit by default")] = None,
@@ -558,10 +601,18 @@ def recent_changes(
         ),
     ] = None,
     limit: Annotated[int, Field(ge=1, le=200)] = 50,
+    what: Annotated[
+        Literal["transactions", "accounts"], Field(description="Changes to transactions, or to accounts")
+    ] = "transactions",
 ) -> dict[str, Any]:
-    """The latest changes across all transactions, newest first: what was recorded, edited (with what changed)
-    or deleted, when, and by whom. Use it to see what you or the user changed lately."""
+    """The latest changes across all transactions (or, with what='accounts', all accounts and categories), newest
+    first: what was made, edited (with what changed) or deleted, when, and by whom. Use it to see what you or the
+    user changed lately."""
     with services() as s:
+        if what == "accounts":
+            since_at = local_start_utc(since) if since else None
+            changes = s.accounts.recent_changes(since_at, (by or "").strip() or None, limit)
+            return {"changes": [_account_step(c) for c in changes], "count": len(changes), "limit": limit}
         steps = s.transactions.recent_changes(
             local_start_utc(since) if since else None, (by or "").strip() or None, limit
         )
@@ -1478,6 +1529,7 @@ READ_TOOLS = [
     search_transactions,
     get_transaction,
     get_transaction_history,
+    get_account_history,
     recent_changes,
     list_tags,
     payee_defaults,

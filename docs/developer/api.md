@@ -33,6 +33,8 @@ Everything the web app and the assistants can do with your books can be done thr
 | `DELETE` | `/accounts/{aid}` | Delete an account for good; refused when it has entries, sub-accounts or a recurring rule (close it instead). |
 | `POST` | `/accounts/{aid}/close` | Close an account (and everything inside it): its history stays, nothing more can be posted to it. |
 | `POST` | `/accounts/{aid}/reopen` | Reopen a closed account with everything inside it, and the groups above it. |
+| `GET` | `/accounts/changes` | The latest steps across all accounts and categories (made, renamed, moved, closed, reopened, deleted), newest first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api` or `mcp:<name>`. |
+| `GET` | `/accounts/{aid}/changes` | What happened to an account or category, oldest first, each step with what it changed and who did it (works for a deleted one too). |
 | `GET` | `/accounts/{aid}/check-balance` | Set a statement's balance (`statement_balance`) against the books on the same day (`as_of`, today by default): the books' balance, the difference and the entries of the last `days` days, with those exactly as large as the difference. Nothing is changed. A card's or loan's balance is what is owed, as the app shows it. |
 | `GET` | `/accounts/{aid}/register` | The account's entries, oldest first, each with what it changed and the running balance. `own_only` leaves out |
 

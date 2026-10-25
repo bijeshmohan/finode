@@ -6,8 +6,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
+from ..clock import local_start_utc
 from ..dependencies import Accounts
 from ..schemas.account import (
+    AccountChangeRead,
     AccountCreate,
     AccountRead,
     AccountUpdate,
@@ -45,6 +47,18 @@ def closed_accounts(accounts: Accounts):
 def deleted_accounts(accounts: Accounts):
     """Accounts and categories deleted for good that can still be restored, newest first."""
     return accounts.restorable()
+
+
+@router.get("/changes", response_model=list[AccountChangeRead])
+def recent_changes(
+    accounts: Accounts,
+    since: date | None = None,
+    by: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    """The latest steps across all accounts and categories (made, renamed, moved, closed, reopened, deleted), newest
+    first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api` or `mcp:<name>`."""
+    return accounts.recent_changes(local_start_utc(since) if since else None, (by or "").strip() or None, limit)
 
 
 @router.post("/deleted/{did}/restore", response_model=AccountRead)
@@ -130,6 +144,16 @@ def close_account(aid: UUID, accounts: Accounts):
 def reopen_account(aid: UUID, accounts: Accounts):
     """Reopen a closed account with everything inside it, and the groups above it."""
     return _closing(accounts.reopen, aid)
+
+
+@router.get("/{aid}/changes", response_model=list[AccountChangeRead])
+def account_changes(aid: UUID, accounts: Accounts):
+    """What happened to an account or category, oldest first, each step with what it changed and who did it (works for a
+    deleted one too)."""
+    steps = accounts.changes(aid)
+    if not steps:
+        raise HTTPException(status_code=404, detail="account not found")
+    return steps
 
 
 @router.get("/{aid}/check-balance", response_model=BalanceCheck)
