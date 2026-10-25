@@ -12,6 +12,7 @@ from ..models.transaction import Posting, PostingSide, Transaction
 from ..models.transaction_history import TransactionHistory
 from ..models.utils import without_nul
 from ..schemas.transaction import TransactionCreate, TransactionUpdate
+from ..tags import clean_tag, tags_in
 from .cache import remembered
 
 
@@ -172,6 +173,7 @@ class TransactionRepository:
         payee: str | None = None,
         source: str | None = None,
         external_id: str | None = None,
+        tag: str | None = None,
     ):
         """The transactions that match, unordered (what `list` pages through and `count` counts)."""
         statement = select(Transaction).where(Transaction.user == self.uid)
@@ -226,6 +228,8 @@ class TransactionRepository:
             )
         if payee:  # exactly this payee, capitals aside
             statement = statement.where(func.lower(Transaction.payee) == without_nul(payee).strip().lower())
+        if tag:  # a first cut: the exact tag is checked on the rows (see `list`)
+            statement = statement.where(col(Transaction.comment).icontains(f"#{clean_tag(tag)}", autoescape=True))
         if source:
             statement = statement.where(Transaction.source == without_nul(source).strip().lower())
         if external_id:
@@ -239,7 +243,26 @@ class TransactionRepository:
     def count_matching(self, *args, **kwargs) -> int:
         """How many transactions match (the same filters as `list`, which has no paging here)."""
         statement = self._matching(*args, **kwargs)
+        if kwargs.get("tag"):
+            return len(self._with_tag(self.db.exec(statement).all(), kwargs["tag"]))
         return self.db.exec(select(func.count()).select_from(statement.subquery())).one()
+
+    @staticmethod
+    def _with_tag(rows: builtins.list[Transaction], tag: str) -> builtins.list[Transaction]:
+        wanted = clean_tag(tag)
+        return [t for t in rows if wanted in tags_in(t.comment)]
+
+    def tag_notes(self) -> builtins.list[tuple[str, date]]:
+        """The note and day of every entry whose note has a # in it (to find the tags in use)."""
+        return [
+            (note, day)
+            for note, day in self.db.exec(
+                select(Transaction.comment, Transaction.date).where(
+                    Transaction.user == self.uid, col(Transaction.comment).contains("#", autoescape=True)
+                )
+            ).all()
+            if note
+        ]
 
     def list(
         self,
@@ -255,16 +278,18 @@ class TransactionRepository:
         payee: str | None = None,
         source: str | None = None,
         external_id: str | None = None,
+        tag: str | None = None,
     ) -> builtins.list[Transaction]:
         """Transactions, newest first. `text` matches the payee, the note or the name of an account used; `kind`
         (expense, income or transfer) is told by `kind_accounts`, the ids under Expenses and under Income."""
         statement = self._matching(
-            account_ids, date_from, date_to, text, kind, kind_accounts, also_ids, payee, source, external_id
+            account_ids, date_from, date_to, text, kind, kind_accounts, also_ids, payee, source, external_id, tag
         )
-        statement = statement.order_by(
-            col(Transaction.date).desc(),
-            col(Transaction.created).desc(),
-        ).offset(offset)
+        statement = statement.order_by(col(Transaction.date).desc(), col(Transaction.created).desc())
+        if tag:  # the tag is told on the rows, so page after that
+            found = self._with_tag(self.db.exec(statement).all(), tag)
+            return found[offset : offset + limit] if limit is not None else found[offset:]
+        statement = statement.offset(offset)
         if limit is not None:
             statement = statement.limit(limit)
         transactions = self.db.exec(statement).all()

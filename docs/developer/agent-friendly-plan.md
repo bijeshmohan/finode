@@ -1,6 +1,6 @@
 # Making finode friendlier to AI assistants: evaluation and plan
 
-Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) 3b (payee defaults) and 3c (statement check) done; 3d (tags) next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
+Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) 3b (payee defaults), 3c (statement check) and 3d (tags) done: phase 3 is complete; phase 4 (the `manage` access level and account tools) next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
 checks each against what the code does today, decides, and orders the work. Nothing here is built yet.
 
 ## Verdicts at a glance
@@ -114,7 +114,7 @@ dry runs are allowed on read-only connections.
 
 ## Tags as #hashtags (decided; added to phase 3)
 
-**3d. Tags (#7).** A tag is a `#word` in a transaction's note (`#reimbursable`, `#goa-trip`). Nothing new is stored:
+**3d. Tags (#7) — done.** A tag is a `#word` in a transaction's note (`#reimbursable`, `#goa-trip`). Nothing new is stored:
 the note is the one place, so tags work the same on the web form, the API, imports, backups and for assistants.
 - A small parser (`app/tags.py`): `#` followed by letters, digits, `-` or `_`, case-insensitive, at the start of the
   note or after a space; at most 30 characters; `#1` alone or a colour like `#fff` inside text is the price of the

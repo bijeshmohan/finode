@@ -48,6 +48,9 @@ finode is the user's personal double-entry ledger.
   ids when you remember an account, and give either to any tool that takes an account.
 - Call get_status first when unsure what this connection may do, how much room is left today, or when the books
   last changed.
+- Tags are #hashtags written in a transaction's note ("Dinner #reimbursable"): to tag an entry, put the #tag in its
+  note (keep the user's own words, update_transaction replaces the note); list_tags shows the tags in use and
+  search_transactions(tag=) finds the entries. Reuse an existing tag instead of inventing a near-duplicate.
 - check_balance sets a statement's balance against the books and points at the entries that could explain a gap.
 - payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
 - get_transaction_history shows what happened to one transaction and who did it, with each edit's exact changes;
@@ -155,6 +158,7 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
         "date": t.date.isoformat(),
         "payee": t.payee,
         "note": t.comment,
+        **({"tags": t.tags} if t.tags else {}),
         "total": text(total),
         "postings": [
             {
@@ -306,6 +310,9 @@ def search_transactions(
     ] = None,
     min_amount: Annotated[Decimal | None, Field(ge=0, description="Smallest transaction total")] = None,
     max_amount: Annotated[Decimal | None, Field(ge=0, description="Largest transaction total")] = None,
+    tag: Annotated[
+        str | None, Field(description="Only entries whose note has this #hashtag (#reimbursable or reimbursable)")
+    ] = None,
     source: Annotated[str | None, Field(description="Only entries from this source (gmail, upi...)")] = None,
     external_id: Annotated[
         str | None, Field(description="Only the entry with this reference (use with source)")
@@ -329,6 +336,7 @@ def search_transactions(
             payee=payee,
             source=source,
             external_id=external_id,
+            tag=tag,
         ):
             total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
             if needle and needle not in f"{t.payee or ''} {t.comment or ''}".casefold():
@@ -474,6 +482,18 @@ def check_balance(
             "difference": text(check.difference),
             "recent": [row(e) for e in check.recent],
             "same_size_as_difference": [row(e) for e in check.same_size_as_difference],
+        }
+
+
+@_tool_errors
+def list_tags() -> dict[str, Any]:
+    """The #hashtags the user has written in transaction notes (#reimbursable, #goa-trip), most used first, with how
+    many entries carry each. To tag an entry, write the #tag in its note; find them with search_transactions(tag=)."""
+    with services() as s:
+        return {
+            "tags": [
+                {"tag": t.tag, "uses": t.uses, "last_used": t.last_used.isoformat()} for t in s.transactions.tags()
+            ]
         }
 
 
@@ -1454,6 +1474,7 @@ READ_TOOLS = [
     get_transaction,
     get_transaction_history,
     recent_changes,
+    list_tags,
     payee_defaults,
     check_balance,
     spending_breakdown,

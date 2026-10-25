@@ -14,6 +14,7 @@ from ..schemas.transaction import (
     HistoryRead,
     PayeeDefaultRead,
     PayeeRead,
+    TagRead,
     TransactionBatch,
     TransactionCreate,
     TransactionPreview,
@@ -78,6 +79,12 @@ def payees(transactions: Transactions):
     return [PayeeRead(payee=name, count=count) for name, count in transactions.payees()]
 
 
+@router.get("/tags", response_model=list[TagRead])
+def tags(transactions: Transactions):
+    """The #hashtags used in notes, most used first, with how many entries carry each and the latest day."""
+    return transactions.tags()
+
+
 @router.get("/payee-defaults", response_model=list[PayeeDefaultRead])
 def payee_defaults(transactions: Transactions, payee: str = "", limit: int = Query(default=5, ge=1, le=20)):
     """How payees are usually booked, most used first: the accounts of the newest entry with one account on each side
@@ -137,13 +144,15 @@ def get_transactions(
     payee: str | None = None,
     source: str | None = None,
     external_id: str | None = None,
+    tag: str | None = None,
 ):
     """Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts
     used (spending, income or a transfer); `category` is an Expenses or Income account the entry must also touch;
-    `payee` is exact, capitals aside; `source` and `external_id` find the entry a source's reference stands for."""
+    `payee` is exact, capitals aside; `source` and `external_id` find the entry a source's reference stands for; `tag` finds
+    entries whose note has that #hashtag."""
     try:
         return transactions.list(
-            account, date_from, date_to, limit, offset, text, kind, category, payee, source, external_id
+            account, date_from, date_to, limit, offset, text, kind, category, payee, source, external_id, tag
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from None

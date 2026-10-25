@@ -4,10 +4,11 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from ..clock import local_today
 from ..models.transaction import PostingSide
+from ..tags import tags_in
 from .day import Day
 
 
@@ -129,6 +130,12 @@ class TransactionRead(TransactionBase, ReferenceFields):
     created: datetime
     updated: datetime
 
+    @computed_field
+    @property
+    def tags(self) -> list[str]:
+        """The #hashtags in the note, lower-case."""
+        return tags_in(self.comment)
+
 
 class TransactionPreview(ReferenceFields):
     """What a dry run says would happen: the entry as it would be saved (nothing was saved)."""
@@ -249,6 +256,14 @@ class ChangeRead(BaseModel):
     # For an update: {field: {"from", "to"}} for date, payee, note and reference, and "postings" with the rows
     # "added", "removed" and "changed" (amount from/to). Empty for a creation or a deletion.
     changes: dict[str, Any] = Field(default_factory=dict)
+
+
+class TagRead(BaseModel):
+    """A #hashtag used in notes: how many entries carry it and the day of the latest."""
+
+    tag: str
+    uses: int
+    last_used: Date
 
 
 class RouteAccount(BaseModel):

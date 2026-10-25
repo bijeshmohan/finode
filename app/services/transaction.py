@@ -30,11 +30,13 @@ from ..schemas.transaction import (
     PostingCreate,
     PostingRead,
     RouteAccount,
+    TagRead,
     TransactionCreate,
     TransactionPreview,
     TransactionRead,
     TransactionUpdate,
 )
+from ..tags import clean_tag, tags_in
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 
 # How many recent entries the payee suggestions look at.
@@ -622,6 +624,7 @@ class TransactionService:
         payee: str | None = None,
         source: str | None = None,
         external_id: str | None = None,
+        tag: str | None = None,
     ) -> builtins.list[TransactionRead]:
         account_ids, kind_accounts, also_ids = self._args(account, kind, also)
         transactions = self.tr.list(
@@ -637,6 +640,7 @@ class TransactionService:
             (payee or "").strip() or None,
             (source or "").strip().lower() or None,
             (external_id or "").strip() or None,
+            clean_tag(tag or "") or None,
         )
         postings = self.tr.postings_for_transactions([t.tid for t in transactions])  # one query, not one per row
         return [self._to_read(transaction, postings.get(transaction.tid, [])) for transaction in transactions]
@@ -681,6 +685,18 @@ class TransactionService:
         postings = self.tr.postings_for_transactions([t.tid for t in found])  # one query, not one per row
         found = [self._to_read(t, postings.get(t.tid, [])) for t in found]
         return found, total
+
+    def tags(self) -> builtins.list[TagRead]:
+        """The #hashtags used in notes, the most used first, each with how many entries carry it and its last day."""
+        found: dict[str, TagRead] = {}
+        for note, day in self.tr.tag_notes():
+            for tag in tags_in(note):
+                if tag in found:
+                    found[tag].uses += 1
+                    found[tag].last_used = max(found[tag].last_used, day)
+                else:
+                    found[tag] = TagRead(tag=tag, uses=1, last_used=day)
+        return sorted(found.values(), key=lambda t: (-t.uses, t.tag))
 
     def payee_routes(self, query: str = "", limit: int = 6, history: int = PAYEE_HISTORY) -> builtins.list[PayeeRoute]:
         """Who the person pays (or is paid by) most, each with the accounts of the newest entry to repeat.
