@@ -1051,13 +1051,8 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
     }));
     pop.hidden = !shown.length;
   });
-  // Pressing a suggestion must not take the focus (and the keyboard) away from the note.
-  document.addEventListener("pointerdown", (event) => {
-    if (event.target instanceof Element && event.target.closest(".tag-pop")) event.preventDefault();
-  });
-  document.addEventListener("click", (event) => {
-    const button = event.target instanceof Element && event.target.closest(".tag-pop [data-tag]");
-    if (!button) return;
+  // Finish the word with the chosen tag.
+  const choose = (button) => {
     const pop = button.closest(".tag-pop");
     const input = pop.parentElement.querySelector("[data-tag-note]");
     const word = wordAt(input);
@@ -1068,6 +1063,20 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
     }
     close(pop);
     input.focus();
+  };
+  // A suggestion is chosen the moment the finger or the pointer goes down on it. Waiting for the click is too late on a
+  // phone: the tap has taken the focus from the note by then, the field's focusout has closed the list and the click
+  // finds nothing. Cancelling the press also keeps the focus (and the keyboard) on the note.
+  document.addEventListener("pointerdown", (event) => {
+    const button = event.target instanceof Element && event.target.closest(".tag-pop [data-tag]");
+    if (!button) return;
+    event.preventDefault();
+    choose(button);
+  });
+  // The same from the keyboard (Enter or Space on a focused suggestion arrives as a click).
+  document.addEventListener("click", (event) => {
+    const button = event.target instanceof Element && event.target.closest(".tag-pop [data-tag]");
+    if (button) choose(button);
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || !(event.target instanceof HTMLInputElement) || !event.target.matches("[data-tag-note]")) return;
