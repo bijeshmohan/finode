@@ -81,3 +81,17 @@ def test_typing_a_hash_in_the_note_offers_the_tags_in_use(page: Page, books, api
     expect(pop).to_be_hidden()
     note.fill("a#b")  # a # inside a word is not a tag
     expect(pop).to_be_hidden()
+
+
+def test_tapping_a_suggestion_with_a_finger_finishes_the_tag(touch_page: Page, books, api: Api):
+    """On a phone the tap takes the focus from the note before the click arrives; the suggestion must still land."""
+    add(api, books, "Taj", "Hotel #goa-trip", "840")
+    touch_page.goto("/transactions/new")
+    note = touch_page.get_by_label("Note")
+    note.tap()
+    note.press_sequentially("Dinner with Ravi #g")
+    suggestion = touch_page.locator(".tag-pop button", has_text="#goa-trip")
+    expect(suggestion).to_be_visible()
+    suggestion.tap()
+    expect(note).to_have_value("Dinner with Ravi #goa-trip ")
+    expect(touch_page.locator(".tag-pop")).to_be_hidden()

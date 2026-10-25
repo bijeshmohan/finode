@@ -149,3 +149,19 @@ def books(api: Api) -> dict:
         "rent": api.post("/accounts/", name="Rent", parent_id=roots["Expenses"]),
         "roots": roots,
     }
+
+
+@pytest.fixture
+def touch_page(browser: Browser, live_server: str) -> Generator[Page]:
+    """A phone: a finger instead of a mouse, so a tap blurs the field it leaves before the click arrives (as on iOS)."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        base_url=live_server,
+        reduced_motion="reduce",
+        has_touch=True,
+        is_mobile=True,
+    )
+    page = context.new_page()
+    page.set_default_timeout(8000)
+    yield page
+    context.close()
