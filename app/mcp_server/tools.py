@@ -12,7 +12,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field, ValidationError
 
-from ..clock import local_today
+from ..clock import local_start_utc, local_today
 from ..config import settings
 from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
@@ -21,6 +21,7 @@ from ..schemas import AccountCreate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import (
     MAX_BATCH,
+    ChangeRead,
     PostingCreate,
     TransactionCreate,
     TransactionPreview,
@@ -47,6 +48,9 @@ finode is the user's personal double-entry ledger.
   ids when you remember an account, and give either to any tool that takes an account.
 - Call get_status first when unsure what this connection may do, how much room is left today, or when the books
   last changed.
+- get_transaction_history shows what happened to one transaction and who did it, with each edit's exact changes;
+  recent_changes lists the latest changes of all of them (by='assistant' for what assistants did). Look there
+  before assuming who changed something.
 - Entries that come from outside finode (a bank SMS, a mail, a UPI app) should carry source (a short kind: gmail,
   upi...) and external_id (the reference that source gave it) when you record them. Recording the same pair again
   returns the entry already made (already_recorded) instead of a copy, so retrying is safe; search_transactions
@@ -386,6 +390,87 @@ def get_transaction(transaction_id: Annotated[str, Field(description="Id from se
             {"id": str(r.tid), "date": r.date.isoformat(), "payee": r.payee} for r in s.transactions.related(t.tid)
         ]
         return found
+
+
+def _plain(value: Any) -> Any:
+    """History data for an assistant: amounts as strings, account paths with ':'."""
+    if isinstance(value, Decimal):
+        return text(value)
+    if isinstance(value, dict):
+        return {k: _plain(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_plain(v) for v in value]
+    if isinstance(value, str):
+        return value.replace(" › ", ":")
+    return value
+
+
+def _step(c: ChangeRead, full: bool) -> dict[str, Any]:
+    e = c.entry
+    debits = sum((p.amount for p in e.postings if p.side == PostingSide.DEBIT), Decimal(0))
+    step: dict[str, Any] = {
+        "at": c.at.isoformat(),
+        "action": c.action,
+        "by": _via(c.via),
+        "transaction_id": str(c.transaction),
+    }
+    if full or c.action != "updated":
+        step["entry"] = _plain(
+            {
+                "date": e.date.isoformat(),
+                "payee": e.payee,
+                "note": e.comment,
+                "total": e.postings and debits,
+                "postings": [{"account": p.account, "side": p.side.value, "amount": p.amount} for p in e.postings],
+                "reference": {"source": e.source, "external_id": e.external_id, "url": e.source_url}
+                if e.source or e.external_id or e.source_url
+                else None,
+            }
+        )
+    else:
+        step["entry"] = {"date": e.date.isoformat(), "payee": e.payee, "total": text(debits)}
+    if c.changes:
+        step["changes"] = _plain(c.changes)
+    return step
+
+
+@_tool_errors
+def get_transaction_history(
+    transaction_id: Annotated[str, Field(description="Id from search_transactions or list_deleted_transactions")],
+) -> dict[str, Any]:
+    """Everything that happened to one transaction, oldest first: when it was made, each edit with exactly what
+    changed (date, payee, note, reference, rows added, removed or changed) and who did it (web, api, import,
+    recurring or an assistant), and its deletion. Works for a deleted transaction too."""
+    tid = _transaction_id(transaction_id)
+    with services() as s:
+        steps = s.transactions.changes(tid)
+        if not steps:
+            raise ToolError("no history for that transaction: check the id")
+        return {
+            "transaction_id": str(tid),
+            "exists": s.transactions.read(tid) is not None,
+            "history": [_step(c, full=True) for c in steps],
+        }
+
+
+@_tool_errors
+def recent_changes(
+    since: Annotated[date | None, Field(description="From this day on (YYYY-MM-DD); no limit by default")] = None,
+    by: Annotated[
+        str | None,
+        Field(
+            description="Only changes made by: assistant (any), web, api, import, recurring, or mcp:<connection name>"
+        ),
+    ] = None,
+    limit: Annotated[int, Field(ge=1, le=200)] = 50,
+) -> dict[str, Any]:
+    """The latest changes across all transactions, newest first: what was recorded, edited (with what changed)
+    or deleted, when, and by whom. Use it to see what you or the user changed lately."""
+    with services() as s:
+        steps = s.transactions.recent_changes(
+            local_start_utc(since) if since else None, (by or "").strip() or None, limit
+        )
+        return {"changes": [_step(c, full=False) for c in steps], "count": len(steps), "limit": limit}
 
 
 @_tool_errors
@@ -1293,6 +1378,8 @@ READ_TOOLS = [
     get_account,
     search_transactions,
     get_transaction,
+    get_transaction_history,
+    recent_changes,
     spending_breakdown,
     list_recurring,
     check_books,

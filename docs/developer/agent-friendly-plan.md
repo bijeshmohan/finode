@@ -1,6 +1,6 @@
 # Making finode friendlier to AI assistants: evaluation and plan
 
-Branch: `feature/agent-friendly`. **Status: phases 1 and 2 done; phase 3 next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
+Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) done; 3b to 3d next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
 checks each against what the code does today, decides, and orders the work. Nothing here is built yet.
 
 ## Verdicts at a glance
@@ -75,7 +75,7 @@ reason it failed. This also covers EMI schedules (#11): one item per instalment 
 
 ## Phase 3: knowledge and trust
 
-**3a. Change history (#14).** `get_transaction_history(transaction_id)` returns the snapshots from
+**3a. Change history (#14) — done.** `get_transaction_history(transaction_id)` returns the snapshots from
 `transaction_history` as a list of changes: who (`created_via` / `updated_via`, so web, API, `mcp:<name>`), when, and a
 field-level diff computed between consecutive snapshots (date, payee, note, postings by account, links). Also
 `recent_changes(since, via=None, limit)` across entries, so an assistant can ask "what did I change this week".

@@ -82,6 +82,7 @@ LISTS = {
     ("GET", "/api/recurring/"),
     ("GET", "/api/reports/trial-balance"),
     ("GET", "/api/transactions/"),
+    ("GET", "/api/transactions/changes"),
     ("GET", "/api/accounts/closed"),
     ("GET", "/api/accounts/deleted"),
     ("GET", "/api/profile/currencies"),

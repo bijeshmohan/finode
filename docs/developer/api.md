@@ -48,6 +48,8 @@ Everything the web app and the assistants can do with your books can be done thr
 | `GET` | `/transactions/` | Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts used; `payee` is exact; `source` and `external_id` find the entry a source's reference stands for. |
 | `PATCH` | `/transactions/{tid}` | Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or cleared with null). With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards. |
 | `DELETE` | `/transactions/{tid}` | Delete a transaction; it waits in /transactions/deleted and can be restored. With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go. |
+| `GET` | `/transactions/changes` | The latest steps across all entries (made, edited, deleted), newest first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api`, `import`, `recurring` or `mcp:<connection name>`. |
+| `GET` | `/transactions/{tid}/changes` | What happened to an entry, oldest first, each step with what it changed (works for a deleted one too). |
 | `GET` | `/transactions/{tid}/history` | What happened to an entry, oldest first (works for a deleted one too). |
 | `GET` | `/transactions/{tid}/related` | The entries that are related to this one (refunds, reversals), oldest first. |
 

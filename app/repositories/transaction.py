@@ -15,7 +15,7 @@ from ..schemas.transaction import TransactionCreate, TransactionUpdate
 from .cache import remembered
 
 
-def _comparable(snapshot: dict) -> dict:
+def comparable_snapshot(snapshot: dict) -> dict:
     """A stored snapshot without what entries made before finode kept one currency also recorded (the currency, each worth)."""
     return {
         "source": None,  # snapshots written before references existed have none
@@ -72,7 +72,7 @@ class TransactionRepository:
         }
         if action == "updated":
             previous = self.history(transaction.tid)
-            if previous and _comparable(previous[-1].snapshot) == snapshot:
+            if previous and comparable_snapshot(previous[-1].snapshot) == snapshot:
                 return  # saved without changing anything
         self.db.add(
             TransactionHistory(
@@ -88,6 +88,30 @@ class TransactionRepository:
             .order_by(TransactionHistory.at, TransactionHistory.hid)
         )
         return self.db.exec(statement).all()
+
+    def history_since(self, since: datetime | None, via: str | None, limit: int) -> builtins.list[TransactionHistory]:
+        """The newest history rows of every entry (deleted ones too), optionally from a moment on and by one origin.
+        `via` is an origin ("web", "api", "import", "recurring", "mcp:<name>") or "assistant" for any assistant."""
+        statement = select(TransactionHistory).where(TransactionHistory.user == self.uid)
+        if since is not None:
+            statement = statement.where(TransactionHistory.at >= since)
+        if via == "assistant":
+            statement = statement.where(col(TransactionHistory.via).startswith("mcp:"))
+        elif via:
+            statement = statement.where(TransactionHistory.via == via)
+        return self.db.exec(
+            statement.order_by(col(TransactionHistory.at).desc(), col(TransactionHistory.hid)).limit(limit)
+        ).all()
+
+    def histories_for(self, tids: builtins.list[UUID]) -> builtins.list[TransactionHistory]:
+        """Every history row of the given entries, oldest first."""
+        if not tids:
+            return []
+        return self.db.exec(
+            select(TransactionHistory)
+            .where(TransactionHistory.user == self.uid, col(TransactionHistory.transaction_id).in_(tids))
+            .order_by(TransactionHistory.at, TransactionHistory.hid)
+        ).all()
 
     def deleted(self) -> list[TransactionHistory]:
         """The deletion record of every transaction that no longer exists, newest first."""

@@ -15,10 +15,12 @@ from ..limits import ensure_room
 from ..models import Account
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
+from ..repositories.transaction import comparable_snapshot
 from ..schemas.transaction import (
     MAX_BATCH,
     BatchEntryResult,
     BatchResult,
+    ChangeRead,
     HistoryPosting,
     HistoryRead,
     PostingCreate,
@@ -50,6 +52,40 @@ class DuplicateReferenceError(InvalidPostingError):
 
 def _rows(postings) -> list[tuple[str, str, Decimal]]:
     return sorted((str(p.account), PostingSide(p.side).value, p.amount) for p in postings)
+
+
+def _diff(before: dict, after: dict, paths: dict[UUID, str]) -> dict:
+    """What an update changed between two snapshots: fields as {"from", "to"}, rows added, removed or changed."""
+    before, after = comparable_snapshot(before), comparable_snapshot(after)
+    changes: dict = {}
+    for key, label in (("date", "date"), ("payee", "payee"), ("comment", "note")):
+        if before.get(key) != after.get(key):
+            changes[label] = {"from": before.get(key), "to": after.get(key)}
+    keys = ("source", "external_id", "source_url")
+    if any(before.get(k) != after.get(k) for k in keys):
+        changes["reference"] = {
+            "from": {k: before.get(k) for k in keys},
+            "to": {k: after.get(k) for k in keys},
+        }
+
+    def rows(snapshot: dict) -> dict[tuple[str, str], Decimal]:
+        found: dict[tuple[str, str], Decimal] = {}
+        for p in snapshot.get("postings", []):
+            key = (paths.get(UUID(p["account"]), p["account"]), p["side"])
+            found[key] = found.get(key, Decimal(0)) + Decimal(p["amount"])
+        return found
+
+    old, new = rows(before), rows(after)
+    added = [{"account": a, "side": s, "amount": new[a, s]} for a, s in new if (a, s) not in old]
+    removed = [{"account": a, "side": s, "amount": old[a, s]} for a, s in old if (a, s) not in new]
+    changed = [
+        {"account": a, "side": s, "from": old[a, s], "to": new[a, s]}
+        for a, s in new
+        if (a, s) in old and old[a, s] != new[a, s]
+    ]
+    if added or removed or changed:
+        changes["postings"] = {"added": added, "removed": removed, "changed": changed}
+    return changes
 
 
 def _different_content(data: TransactionCreate, tid: UUID) -> str:
@@ -187,6 +223,9 @@ class TransactionService:
             date=date.fromisoformat(snap["date"]),
             payee=snap.get("payee"),
             comment=snap.get("comment"),
+            source=snap.get("source"),
+            external_id=snap.get("external_id"),
+            source_url=snap.get("source_url"),
             postings=[
                 HistoryPosting(
                     account=paths.get(UUID(p["account"]), p["account"]),
@@ -215,6 +254,41 @@ class TransactionService:
         """What happened to a transaction, oldest first; works for a deleted one too."""
         paths = self._account_paths()
         return [self._history_read(row, paths) for row in self.tr.history(tid)]
+
+    def changes(self, tid: UUID) -> builtins.list[ChangeRead]:
+        """An entry's history, oldest first, each step with what it changed (works for a deleted entry too)."""
+        paths = self._account_paths()
+        rows = self.tr.history(tid)
+        return [self._change(row, rows[i - 1] if i else None, paths) for i, row in enumerate(rows)]
+
+    def recent_changes(
+        self, since: datetime | None = None, via: str | None = None, limit: int = 50
+    ) -> builtins.list[ChangeRead]:
+        """The latest steps across every entry, newest first, each with what it changed."""
+        newest = self.tr.history_since(since, via, limit)
+        paths = self._account_paths()
+        by_entry: dict[UUID, builtins.list] = {}
+        for row in self.tr.histories_for(list({r.transaction_id for r in newest})):
+            by_entry.setdefault(row.transaction_id, []).append(row)
+        result = []
+        for row in newest:
+            steps = by_entry[row.transaction_id]
+            position = next(i for i, step in enumerate(steps) if step.hid == row.hid)
+            result.append(self._change(row, steps[position - 1] if position else None, paths))
+        return result
+
+    def _change(self, row, before, paths: dict[UUID, str]) -> ChangeRead:
+        return ChangeRead(
+            hid=row.hid,
+            transaction=row.transaction_id,
+            action=row.action,
+            at=row.at,
+            via=row.via,
+            entry=self._history_read(row, paths),
+            changes=_diff(before.snapshot, row.snapshot, paths)
+            if before is not None and row.action == "updated"
+            else {},
+        )
 
     def deleted(self) -> list[HistoryRead]:
         """Transactions that were deleted, as they were when deleted, newest first."""
