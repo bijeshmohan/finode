@@ -658,7 +658,12 @@ async def test_ids_and_account_facts_are_listed(session, books, secret):
 async def test_status_says_what_the_connection_may_do(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         empty = await call(c, "get_status")
-        assert empty["connection"] == {"name": "Claude", "access": "read & write", "can_change_things": True}
+        assert empty["connection"] == {
+            "name": "Claude",
+            "access": "read & write",
+            "can_change_things": True,
+            "can_change_accounts": False,
+        }
         before = empty["books"]["transactions"]  # the bank's opening balance is an entry too
         await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Groceries")
         status = await call(c, "get_status")

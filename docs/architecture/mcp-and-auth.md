@@ -56,7 +56,7 @@ Nineteen write tools: `record_transaction`, `record_split`, `record_transactions
 
 One prompt, `monthly_review`. Assistants can create accounts but never delete or edit them. Amounts go out as strings. A service error becomes a `ToolError` with the service's message. `INSTRUCTIONS` in `tools.py` must be kept in step with the ledger rules.
 
-A **read-only** connection gets a server in which the write tools are still listed but only refuse, telling the assistant to ask the user to allow read & write under Profile › AI assistants.
+There are **three access levels** (`TokenScope`: `read`, `write`, `manage`; `manage` is write plus changing accounts, migration `d3f5b7c9e1a2`, and nobody has it until they choose it). Each level gets its own server (`SERVERS`, `build_server(access)`) with instructions that say what it may do. A tool a connection may not use is still listed but only refuses, telling the assistant which level the user must allow under Profile › AI assistants: the write tools refuse on a **read-only** connection (except `dry_run=true`), the account-changing tools (`MANAGE_TOOLS`) refuse on anything below `manage`.
 
 ### Origin
 
@@ -64,7 +64,7 @@ Transactions record who made them (`created_via` / `updated_via`: `web`, `api`, 
 
 ## Phase 1: personal access tokens
 
-Users create and revoke tokens on `/profile/assistants`, choosing read-only or read & write. Only a sha256 of the `fin_…` secret is kept, plus a display prefix; the secret is shown once. A token works **only on `/mcp`**, never on the JSON API, and cannot manage tokens. There is a per-token, per-process rate limit (`FINODE_MCP_RATE_LIMIT` a minute).
+Users create and revoke tokens on `/profile/assistants`, choosing read-only, read & write or read, write & manage accounts. Only a sha256 of the `fin_…` secret is kept, plus a display prefix; the secret is shown once. A token works **only on `/mcp`**, never on the JSON API, and cannot manage tokens. There is a per-token, per-process rate limit (`FINODE_MCP_RATE_LIMIT` a minute).
 
 ## Phase 2: OAuth for claude.ai and other connectors
 
@@ -82,7 +82,7 @@ sequenceDiagram
     F-->>C: names Supabase as the authorization server
     C->>S: register (dynamic client registration) and start authorization
     S-->>U: redirect to finode /oauth/consent?authorization_id=…
-    U->>F: signed in? choose read-only or read & write
+    U->>F: signed in? choose read-only, read & write or manage accounts
     F->>S: approve (with the user's own session token)
     F->>F: store the choice in oauth_grants (user + client_id)
     S-->>C: access token (JWT with client_id)

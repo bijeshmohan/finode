@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from ..clock import local_start_utc, local_today
 from ..config import settings
+from ..models.api_token import TokenScope
 from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
@@ -1307,8 +1308,9 @@ def get_status() -> dict[str, Any]:
             "app_version": VERSION,
             "connection": {
                 "name": owner.name,
-                "access": "read & write" if owner.scope == "write" else "read only",
-                "can_change_things": owner.scope == "write",
+                "access": TokenScope.LABELS.get(owner.scope, owner.scope),
+                "can_change_things": TokenScope.can_write(owner.scope),
+                "can_change_accounts": TokenScope.can_manage(owner.scope),
             },
             "currency": s.accounts.currency().code,
             "today": _today().isoformat(),
@@ -1465,6 +1467,9 @@ def delete_goal(goal: Annotated[str, Field(description="The goal's name")]) -> d
         return {"deleted": found.name, "returned_to_ready_to_assign": text(found.available)}
 
 
+# Changing accounts: only on a connection allowed to manage them (the others list these tools but they refuse).
+MANAGE_TOOLS: list[tuple[Callable, ToolAnnotations]] = []
+
 READ_TOOLS = [
     get_status,
     get_overview,
@@ -1510,6 +1515,21 @@ READ_ONLY_MESSAGE = (
     "This connection is read-only, so nothing was changed. The user can allow changes in finode under "
     "Profile > AI assistants (Change access), and then you can try again."
 )
+NO_MANAGE_MESSAGE = (
+    "This connection may record and change transactions but not change accounts, so nothing was changed. The user "
+    "can allow it in finode under Profile > AI assistants (Change access, read, write & manage accounts), and then "
+    "you can try again."
+)
+NO_MANAGE_NOTE = (
+    "\nThis connection can change transactions but not accounts: the tools that rename, move, close, reopen or merge "
+    "accounts are listed but always refuse. If the user asks for that, say so and tell them to allow account changes "
+    "in finode under Profile > AI assistants.\n"
+)
+MANAGE_NOTE = (
+    "\nThis connection may also change accounts (rename, move, close, reopen and merge them), but never delete them. "
+    "These changes affect how the user's whole history is organised: say what you will do and get the user's go-ahead "
+    "first, and use dry_run where a tool has it.\n"
+)
 READ_ONLY_NOTE = (
     "\nThis connection is read-only: the tools that change things are listed but always refuse (except with "
     "dry_run=true, which only checks). If the user asks for a change, say so and tell them to allow read & write "
@@ -1517,31 +1537,46 @@ READ_ONLY_NOTE = (
 )
 
 
-def _refused(fn: Callable) -> Callable:
-    """The same tool for a read-only connection: it keeps its name and arguments but only explains."""
+def _refused(fn: Callable, message: str = READ_ONLY_MESSAGE, why: str = "this connection is read-only") -> Callable:
+    """The same tool for a connection that may not use it: it keeps its name and arguments but only explains."""
 
     @wraps(fn)
     def refuse(*args, **kwargs):
         if kwargs.get("dry_run") is True:
-            return fn(*args, **kwargs)  # only checks: nothing is changed, so a read-only connection may ask
-        raise ToolError(READ_ONLY_MESSAGE)
+            return fn(*args, **kwargs)  # only checks: nothing is changed, so a connection may always ask
+        raise ToolError(message)
 
     summary = (fn.__doc__ or fn.__name__).strip().splitlines()[0]
     can_check = "dry_run" in fn.__annotations__
-    refuse.__doc__ = f"Unavailable: this connection is read-only{' (dry_run=true still works)' if can_check else ''}. (Would otherwise: {summary})"
+    refuse.__doc__ = (
+        f"Unavailable: {why}{' (dry_run=true still works)' if can_check else ''}. (Would otherwise: {summary})"
+    )
     return refuse
 
 
-def build_server(write: bool) -> MCPServer:
+def build_server(access: str = TokenScope.WRITE) -> MCPServer:
+    """The server for one access level: read, write, or manage (write and changing accounts)."""
+    notes = {TokenScope.READ: READ_ONLY_NOTE, TokenScope.WRITE: NO_MANAGE_NOTE, TokenScope.MANAGE: MANAGE_NOTE}
     server = MCPServer(
         name="finode",
         title="finode",
-        instructions=INSTRUCTIONS if write else INSTRUCTIONS + READ_ONLY_NOTE,
+        instructions=INSTRUCTIONS + notes[access],
         website_url="https://finode.bijesh.me",
     )
     for fn in READ_TOOLS:
         server.add_tool(fn, annotations=READ)
     for fn, annotations in WRITE_TOOLS:
-        server.add_tool(fn if write else _refused(fn), annotations=annotations)
+        server.add_tool(fn if TokenScope.can_write(access) else _refused(fn), annotations=annotations)
+    for fn, annotations in MANAGE_TOOLS:
+        if TokenScope.can_manage(access):
+            server.add_tool(fn, annotations=annotations)
+        else:
+            refused = READ_ONLY_MESSAGE if access == TokenScope.READ else NO_MANAGE_MESSAGE
+            why = (
+                "this connection is read-only"
+                if access == TokenScope.READ
+                else "this connection may not change accounts"
+            )
+            server.add_tool(_refused(fn, refused, why), annotations=annotations)
     server.prompt()(monthly_review)
     return server

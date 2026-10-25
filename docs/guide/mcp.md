@@ -26,7 +26,7 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 
 There is also a ready-made prompt, `monthly_review`, which asks the assistant for a short review of a month.
 
-What it **cannot** do: delete or edit accounts, change settings, make tokens, or reach another person's data. On a read-only connection the write tools are listed but refuse, and the assistant tells you to allow changes.
+What it **cannot** do: delete accounts, change settings, make tokens, or reach another person's data. There are three access levels: **read only**, **read & write** (transactions, budget and goals; it can add accounts but not change them) and **read, write & manage accounts** (also rename, move, close, reopen and merge accounts; it still never deletes one). A tool a connection may not use is listed but refuses, and the assistant tells you which level to allow. Account changes reorganise your whole history, so the last level is for assistants you trust; each one is recorded with the assistant's name.
 
 Anything an assistant records is marked on the transaction ("Added by Claude" in blue), and the edit page says who added and last changed it.
 
@@ -39,7 +39,7 @@ Open **Profile › AI assistants**. There are two ways.
 ### A. Connect by signing in (Claude on the web or your phone)
 
 1. In the app that offers custom connectors (for example Claude), add a connector using the address shown under *Connect by signing in*. Use the Copy button.
-2. You are sent to finode (sign in if asked) and see a consent page: choose **read only** or **read & write**.
+2. You are sent to finode (sign in if asked) and see a consent page: choose **read only**, **read & write** or **read, write & manage accounts**.
 3. Done. The connection is listed under *Connected*.
 
 ### B. Connect with a token (Claude Code, Claude Desktop, Cursor, …)
@@ -56,7 +56,7 @@ Open **Profile › AI assistants**. There are two ways.
 
 ## Changing or removing access
 
-On the same page every connection has **Allow changes** / **Make read only**, and a way to **disconnect** or revoke it. A revoked token stops working immediately. Disconnecting an app also revokes its sign-in with Supabase.
+On the same page every connection has **Allow changes** / **Make read only** / **Allow account changes** / **Stop account changes**, and a way to **disconnect** or revoke it. A revoked token stops working immediately. Disconnecting an app also revokes its sign-in with Supabase.
 
 ## Tips
 

@@ -31,7 +31,7 @@ def test_the_token_form_wraps_its_cards_so_the_legend_is_not_a_grid_item(client:
     page = client.get("/profile/assistants").text
     form = page[page.index('<fieldset class="plain">') :]
     assert form.index("<legend>Access</legend>") < form.index('<div class="access-choice">')
-    assert page.count('type="radio" name="scope"') == 2
+    assert page.count('type="radio" name="scope"') == 3
 
 
 def test_a_new_token_can_be_copied_with_one_tap(client: TestClient):

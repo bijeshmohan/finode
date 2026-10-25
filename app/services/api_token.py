@@ -74,7 +74,7 @@ class ApiTokenService:
 
     def set_scope(self, tkid: UUID, scope: str) -> ApiTokenRead:
         if scope not in TokenScope.ALL:
-            raise ValueError("access must be 'read' or 'write'!")
+            raise ValueError("access must be 'read', 'write' or 'manage'!")
         token = self.repo.set_scope(tkid, scope)
         if token is None:
             raise LookupError("token not found")

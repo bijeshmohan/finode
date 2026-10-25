@@ -102,10 +102,12 @@ def test_the_spending_breakdown_adds_up_what_was_recorded(client, root_accounts,
         svc.reports.breakdown("Expenses", depth=0)
 
 
-def test_page_explains_both_access_levels_on_the_token_form(client):
+def test_page_explains_the_access_levels_on_the_token_form(client):
     page = client.get("/profile/assistants").text
     assert 'name="scope" value="read" checked' in page and 'name="scope" value="write"' in page
-    assert "Never edits or deletes accounts" in page and "Cannot change anything" in page
+    assert 'name="scope" value="manage"' in page and "Read, write &amp; manage accounts" in page
+    assert "Cannot rename, merge or delete accounts" in page and "Cannot change anything" in page
+    assert "Never deletes accounts" in page
     assert 'data-copy="#mcp-address"' in page
 
 

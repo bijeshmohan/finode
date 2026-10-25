@@ -1,4 +1,4 @@
-"""What a connected app (an OAuth client of Supabase) may do: its read-only or read & write grant for one user."""
+"""What a connected app (an OAuth client of Supabase) may do: its read-only, read & write, or read, write & manage grant for one user."""
 
 import builtins
 from datetime import UTC, datetime
@@ -22,7 +22,7 @@ class OAuthGrantService:
 
     def allow(self, client_id: str, client_name: str, scope: str) -> OAuthGrant:
         if scope not in TokenScope.ALL:
-            raise ValueError("access must be 'read' or 'write'!")
+            raise ValueError("access must be 'read', 'write' or 'manage'!")
         if not client_id:
             raise ValueError("the app did not identify itself!")
         grant = self.repo.save(client_id, client_name.strip()[:80] or "An app", scope)
@@ -39,7 +39,7 @@ class OAuthGrantService:
 
     def set_scope(self, gid: UUID, scope: str) -> OAuthGrant:
         if scope not in TokenScope.ALL:
-            raise ValueError("access must be 'read' or 'write'!")
+            raise ValueError("access must be 'read', 'write' or 'manage'!")
         grant = self.repo.set_scope(gid, scope)
         if grant is None:
             raise LookupError("app not found")
