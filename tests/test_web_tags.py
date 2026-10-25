@@ -183,3 +183,23 @@ def test_the_names_for_the_add_screen_come_most_used_first(client, books):
 def test_the_note_on_the_add_screen_offers_tags(client, books):
     page = client.get("/transactions/new").text
     assert "data-tag-note" in page and 'class="tag-pop"' in page
+
+
+def test_tags_are_case_insensitive_everywhere(client, books):
+    spend(client, books, "100", note="Loan #emi", payee="A")
+    spend(client, books, "200", note="Car loan #EMI", payee="B")
+    spend(client, books, "300", note="Card #Emi", payee="C")
+    # one tag in the lists, however it was typed, shown in lower case
+    assert client.get("/transactions/tag-names").json() == [{"tag": "emi", "uses": 3}]
+    options = client.get("/transactions/tag-options").text
+    assert options.count('data-value="') == 1 and "3 entries" in options and "600.00" in options
+    # every spelling finds all three
+    for spelling in ("emi", "EMI", "#Emi", " #eMI "):
+        found = titles(client.get("/transactions", params={"tag": spelling}).text)
+        assert sorted(found) == ["A", "B", "C"], spelling
+    # the rows and the sheet show it in one form, and the note keeps what was typed
+    page = client.get("/transactions").text
+    assert page.count('<span class="tx-tag">#emi</span>') == 3 and "#EMI" not in page and "#Emi" not in page
+    made = client.get("/api/transactions/").json()
+    typed = next(t for t in made if t["payee"] == "B")
+    assert typed["comment"] == "Car loan #EMI", "the note is never rewritten"

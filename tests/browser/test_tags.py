@@ -74,6 +74,9 @@ def test_typing_a_hash_in_the_note_offers_the_tags_in_use(page: Page, books, api
     )  # goa-trip and the one left, gifts is already there but still offered
     note.press("Escape")
     expect(pop).to_be_hidden()
+    note.fill("Capitals do not matter #GO")
+    expect(pop.locator("button")).to_have_count(1)
+    expect(pop.locator("button")).to_contain_text("#goa-trip")
     note.fill("no hash here")
     expect(pop).to_be_hidden()
     note.fill("a#b")  # a # inside a word is not a tag
