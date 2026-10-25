@@ -1,13 +1,14 @@
 from datetime import date as Date
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from ..clock import local_today
 from ..models.transaction import PostingSide
+from ..tags import tags_in
 from .day import Day
 
 
@@ -44,6 +45,45 @@ def _tidy_comment(value: str | None) -> str | None:
     return value.strip() or None if value is not None else None
 
 
+def _tidy_source(value: str | None) -> str | None:
+    return (value.strip().lower() or None) if value is not None else None
+
+
+def _tidy_reference(value: str | None) -> str | None:
+    return (value.strip() or None) if value is not None else None
+
+
+def _tidy_url(value: str | None) -> str | None:
+    value = _tidy_reference(value)
+    if value is not None and not value.lower().startswith(("http://", "https://")):
+        raise ValueError("source_url must be a web address starting with http:// or https://!")
+    return value
+
+
+class ReferenceFields(BaseModel):
+    """Where an entry came from outside finode: a short kind, the reference that source gave it and a link back.
+    A person's (source, external_id) is used once, so recording it again finds the entry."""
+
+    source: str | None = Field(default=None, max_length=40)
+    external_id: str | None = Field(default=None, max_length=120)
+    source_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("source")
+    @classmethod
+    def _clean_source(cls, value: str | None) -> str | None:
+        return _tidy_source(value)
+
+    @field_validator("external_id")
+    @classmethod
+    def _clean_external_id(cls, value: str | None) -> str | None:
+        return _tidy_reference(value)
+
+    @field_validator("source_url")
+    @classmethod
+    def _clean_source_url(cls, value: str | None) -> str | None:
+        return _tidy_url(value)
+
+
 class TransactionBase(BaseModel):
     date: Day = Field(default_factory=local_today)
     payee: str | None = Field(default=None, max_length=40)
@@ -60,10 +100,16 @@ class TransactionBase(BaseModel):
         return _tidy_comment(value)
 
 
-class TransactionCreate(TransactionBase):
+class TransactionCreate(TransactionBase, ReferenceFields):
     postings: list[PostingCreate]
     # An earlier entry of the person's own that this one is related to.
     related_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def reference_needs_a_source(self) -> TransactionCreate:
+        if self.external_id and not self.source:
+            raise ValueError("a reference (external_id) needs a source, for example 'gmail' or 'upi'!")
+        return self
 
     @model_validator(mode="after")
     def postings_must_balance(self) -> TransactionCreate:
@@ -71,7 +117,7 @@ class TransactionCreate(TransactionBase):
         return self
 
 
-class TransactionRead(TransactionBase):
+class TransactionRead(TransactionBase, ReferenceFields):
     tid: UUID
     # Where it was entered and last changed: "web", "api", "import" or "mcp:<token name>"; None if unknown.
     created_via: str | None = None
@@ -84,8 +130,53 @@ class TransactionRead(TransactionBase):
     created: datetime
     updated: datetime
 
+    @computed_field
+    @property
+    def tags(self) -> list[str]:
+        """The #hashtags in the note, lower-case."""
+        return tags_in(self.comment)
 
-class TransactionUpdate(BaseModel):
+
+class TransactionPreview(ReferenceFields):
+    """What a dry run says would happen: the entry as it would be saved (nothing was saved)."""
+
+    dry_run: Literal[True] = True
+    # The entry being changed or deleted; None for one that would be made.
+    tid: UUID | None = None
+    date: Day
+    payee: str | None = None
+    comment: str | None = None
+    related_id: UUID | None = None
+    postings: list[PostingCreate]
+    # Recording it would not make a new entry: this one already has the reference, with the same date and rows.
+    already_recorded: UUID | None = None
+
+
+# How many entries one batch may hold.
+MAX_BATCH = 50
+
+
+class TransactionBatch(BaseModel):
+    transactions: list[TransactionCreate] = Field(min_length=1, max_length=MAX_BATCH)
+
+
+class BatchEntryResult(BaseModel):
+    # Which entry of the batch this is (1 is the first).
+    item: int
+    status: Literal["recorded", "already_recorded", "would_record"]
+    transaction: TransactionRead | TransactionPreview
+
+
+class BatchResult(BaseModel):
+    dry_run: bool
+    # False for a dry run (nothing was saved).
+    saved: bool
+    created: int
+    already_recorded: int
+    entries: list[BatchEntryResult]
+
+
+class TransactionUpdate(ReferenceFields):
     date: Day | None = Field(default=None)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
@@ -145,7 +236,58 @@ class HistoryRead(BaseModel):
     date: Date
     payee: str | None = None
     comment: str | None = None
+    source: str | None = None
+    external_id: str | None = None
+    source_url: str | None = None
     postings: list[HistoryPosting]
+
+
+class ChangeRead(BaseModel):
+    """One step in an entry's life, with what it changed compared with the step before."""
+
+    hid: UUID
+    transaction: UUID
+    action: Literal["created", "updated", "deleted"]
+    at: datetime
+    # "web", "api", "import", "recurring" or "mcp:<token name>"; None if unknown.
+    via: str | None = None
+    # The entry as it stood after this step.
+    entry: HistoryRead
+    # For an update: {field: {"from", "to"}} for date, payee, note and reference, and "postings" with the rows
+    # "added", "removed" and "changed" (amount from/to). Empty for a creation or a deletion.
+    changes: dict[str, Any] = Field(default_factory=dict)
+
+
+class TagRead(BaseModel):
+    """A #hashtag used in notes: how many entries carry it and the day of the latest."""
+
+    tag: str
+    uses: int
+    last_used: Date
+
+
+class RouteAccount(BaseModel):
+    id: UUID
+    path: str
+
+
+class PayeeRouteRead(BaseModel):
+    from_account: RouteAccount
+    to_account: RouteAccount
+    uses: int
+
+
+class PayeeDefaultRead(BaseModel):
+    """How a payee is usually booked: the accounts of the newest simple entry, and the other routes seen."""
+
+    payee: str
+    uses: int
+    # The payee was typed in full (capitals aside), not just a part of it.
+    exact: bool
+    kind: Literal["expense", "income", "transfer"]
+    from_account: RouteAccount
+    to_account: RouteAccount
+    other_routes: list[PayeeRouteRead] = Field(default_factory=list)
 
 
 class PayeeRead(BaseModel):

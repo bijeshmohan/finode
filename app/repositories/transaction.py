@@ -4,7 +4,8 @@ import builtins
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import and_, not_, or_
+from sqlalchemy import and_, not_, or_, update
+from sqlalchemy.orm import aliased
 from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
@@ -12,12 +13,16 @@ from ..models.transaction import Posting, PostingSide, Transaction
 from ..models.transaction_history import TransactionHistory
 from ..models.utils import without_nul
 from ..schemas.transaction import TransactionCreate, TransactionUpdate
+from ..tags import clean_tag, tags_in
 from .cache import remembered
 
 
-def _comparable(snapshot: dict) -> dict:
+def comparable_snapshot(snapshot: dict) -> dict:
     """A stored snapshot without what entries made before finode kept one currency also recorded (the currency, each worth)."""
     return {
+        "source": None,  # snapshots written before references existed have none
+        "external_id": None,
+        "source_url": None,
         **{key: value for key, value in snapshot.items() if key != "currency_id"},
         "postings": [{key: value for key, value in p.items() if key != "value"} for p in snapshot.get("postings", [])],
     }
@@ -52,21 +57,28 @@ class TransactionRepository:
         self._record(transaction, "created", origin)
         return transaction
 
-    def _record(self, transaction: Transaction, action: str, origin: str | None) -> None:
-        """Append what the transaction looks like now to its history."""
-        snapshot = {
+    @staticmethod
+    def _snapshot(transaction: Transaction, postings: builtins.list[Posting]) -> dict:
+        return {
             "date": transaction.date.isoformat(),
             "payee": transaction.payee,
             "comment": transaction.comment,
             "recurring_id": str(transaction.recurring_id) if transaction.recurring_id else None,
+            "source": transaction.source,
+            "external_id": transaction.external_id,
+            "source_url": transaction.source_url,
             "postings": [
                 {"account": str(p.account), "side": p.side.value, "amount": str(p.amount)}
-                for p in sorted(self.postings(transaction.tid), key=lambda p: (p.created, str(p.pid)))
+                for p in sorted(postings, key=lambda p: (p.created, str(p.pid)))
             ],
         }
+
+    def _record(self, transaction: Transaction, action: str, origin: str | None) -> None:
+        """Append what the transaction looks like now to its history."""
+        snapshot = self._snapshot(transaction, self.postings(transaction.tid))
         if action == "updated":
             previous = self.history(transaction.tid)
-            if previous and _comparable(previous[-1].snapshot) == snapshot:
+            if previous and comparable_snapshot(previous[-1].snapshot) == snapshot:
                 return  # saved without changing anything
         self.db.add(
             TransactionHistory(
@@ -82,6 +94,30 @@ class TransactionRepository:
             .order_by(TransactionHistory.at, TransactionHistory.hid)
         )
         return self.db.exec(statement).all()
+
+    def history_since(self, since: datetime | None, via: str | None, limit: int) -> builtins.list[TransactionHistory]:
+        """The newest history rows of every entry (deleted ones too), optionally from a moment on and by one origin.
+        `via` is an origin ("web", "api", "import", "recurring", "mcp:<name>") or "assistant" for any assistant."""
+        statement = select(TransactionHistory).where(TransactionHistory.user == self.uid)
+        if since is not None:
+            statement = statement.where(TransactionHistory.at >= since)
+        if via == "assistant":
+            statement = statement.where(col(TransactionHistory.via).startswith("mcp:"))
+        elif via:
+            statement = statement.where(TransactionHistory.via == via)
+        return self.db.exec(
+            statement.order_by(col(TransactionHistory.at).desc(), col(TransactionHistory.hid)).limit(limit)
+        ).all()
+
+    def histories_for(self, tids: builtins.list[UUID]) -> builtins.list[TransactionHistory]:
+        """Every history row of the given entries, oldest first."""
+        if not tids:
+            return []
+        return self.db.exec(
+            select(TransactionHistory)
+            .where(TransactionHistory.user == self.uid, col(TransactionHistory.transaction_id).in_(tids))
+            .order_by(TransactionHistory.at, TransactionHistory.hid)
+        ).all()
 
     def deleted(self) -> list[TransactionHistory]:
         """The deletion record of every transaction that no longer exists, newest first."""
@@ -140,6 +176,9 @@ class TransactionRepository:
         kind_accounts: tuple[list[UUID], list[UUID]] | None = None,
         also_ids: list[UUID] | None = None,
         payee: str | None = None,
+        source: str | None = None,
+        external_id: str | None = None,
+        tag: str | None = None,
     ):
         """The transactions that match, unordered (what `list` pages through and `count` counts)."""
         statement = select(Transaction).where(Transaction.user == self.uid)
@@ -194,6 +233,12 @@ class TransactionRepository:
             )
         if payee:  # exactly this payee, capitals aside
             statement = statement.where(func.lower(Transaction.payee) == without_nul(payee).strip().lower())
+        if tag:  # a first cut: the exact tag is checked on the rows (see `list`)
+            statement = statement.where(col(Transaction.comment).icontains(f"#{clean_tag(tag)}", autoescape=True))
+        if source:
+            statement = statement.where(Transaction.source == without_nul(source).strip().lower())
+        if external_id:
+            statement = statement.where(Transaction.external_id == without_nul(external_id).strip())
         if date_from is not None:
             statement = statement.where(Transaction.date >= date_from)
         if date_to is not None:
@@ -203,7 +248,26 @@ class TransactionRepository:
     def count_matching(self, *args, **kwargs) -> int:
         """How many transactions match (the same filters as `list`, which has no paging here)."""
         statement = self._matching(*args, **kwargs)
+        if kwargs.get("tag"):
+            return len(self._with_tag(self.db.exec(statement).all(), kwargs["tag"]))
         return self.db.exec(select(func.count()).select_from(statement.subquery())).one()
+
+    @staticmethod
+    def _with_tag(rows: builtins.list[Transaction], tag: str) -> builtins.list[Transaction]:
+        wanted = clean_tag(tag)
+        return [t for t in rows if wanted in tags_in(t.comment)]
+
+    def tag_notes(self) -> builtins.list[tuple[str, date]]:
+        """The note and day of every entry whose note has a # in it (to find the tags in use)."""
+        return [
+            (note, day)
+            for note, day in self.db.exec(
+                select(Transaction.comment, Transaction.date).where(
+                    Transaction.user == self.uid, col(Transaction.comment).contains("#", autoescape=True)
+                )
+            ).all()
+            if note
+        ]
 
     def list(
         self,
@@ -217,14 +281,20 @@ class TransactionRepository:
         kind_accounts: tuple[builtins.list[UUID], builtins.list[UUID]] | None = None,
         also_ids: builtins.list[UUID] | None = None,
         payee: str | None = None,
+        source: str | None = None,
+        external_id: str | None = None,
+        tag: str | None = None,
     ) -> builtins.list[Transaction]:
         """Transactions, newest first. `text` matches the payee, the note or the name of an account used; `kind`
         (expense, income or transfer) is told by `kind_accounts`, the ids under Expenses and under Income."""
-        statement = self._matching(account_ids, date_from, date_to, text, kind, kind_accounts, also_ids, payee)
-        statement = statement.order_by(
-            col(Transaction.date).desc(),
-            col(Transaction.created).desc(),
-        ).offset(offset)
+        statement = self._matching(
+            account_ids, date_from, date_to, text, kind, kind_accounts, also_ids, payee, source, external_id, tag
+        )
+        statement = statement.order_by(col(Transaction.date).desc(), col(Transaction.created).desc())
+        if tag:  # the tag is told on the rows, so page after that
+            found = self._with_tag(self.db.exec(statement).all(), tag)
+            return found[offset : offset + limit] if limit is not None else found[offset:]
+        statement = statement.offset(offset)
         if limit is not None:
             statement = statement.limit(limit)
         transactions = self.db.exec(statement).all()
@@ -279,6 +349,70 @@ class TransactionRepository:
 
     def count(self) -> int:
         return self.db.exec(select(func.count()).select_from(Transaction).where(Transaction.user == self.uid)).one()
+
+    def find_by_reference(self, source: str, external_id: str) -> Transaction | None:
+        """The person's entry that a source gave this reference, if there is one."""
+        return self.db.exec(
+            select(Transaction).where(
+                Transaction.user == self.uid, Transaction.source == source, Transaction.external_id == external_id
+            )
+        ).first()
+
+    def transactions_touching(self, aid: UUID) -> builtins.list[UUID]:
+        """The entries that have a posting on the account."""
+        return list(
+            self.db.exec(
+                select(Posting.transaction).where(Posting.user == self.uid, Posting.account == aid).distinct()
+            ).all()
+        )
+
+    def opposite_sides(self, a: UUID, b: UUID) -> int:
+        """How many entries have one account on one side and the other on the opposite side."""
+        first, second = aliased(Posting), aliased(Posting)
+        return self.db.exec(
+            select(func.count(func.distinct(first.transaction)))
+            .select_from(first)
+            .join(second, second.transaction == first.transaction)
+            .where(
+                first.user == self.uid,
+                second.user == self.uid,
+                first.account == a,
+                second.account == b,
+                first.side != second.side,
+            )
+        ).one()
+
+    def repoint_account(self, source: UUID, target: UUID, origin: str | None) -> builtins.list[UUID]:
+        """Move every posting from one account to another (a merge). Each entry it touches gets an "updated" history
+        row saying who did it. Returns the entries that moved. Nothing is committed."""
+        tids = self.transactions_touching(source)
+        if not tids:
+            return []
+        self.db.exec(update(Posting).where(Posting.user == self.uid, Posting.account == source).values(account=target))
+        self.db.exec(
+            update(Transaction)
+            .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
+            .values(updated_via=origin)
+        )
+        self.db.expire_all()
+        moved = self.read_many(tids)
+        postings = self.postings_for_transactions(tids)
+        for tid in tids:
+            self.db.add(
+                TransactionHistory(
+                    user=self.uid,
+                    transaction_id=tid,
+                    action="updated",
+                    via=origin,
+                    snapshot=self._snapshot(moved[tid], postings.get(tid, [])),
+                )
+            )
+        self.db.flush()
+        return tids
+
+    def last_change(self) -> datetime | None:
+        """When any transaction was last made or changed."""
+        return self.db.exec(select(func.max(Transaction.updated)).where(Transaction.user == self.uid)).one()
 
     def count_since(self, since: datetime, leaving_out: tuple[str, ...] = ()) -> int:
         """Transactions created since a moment, not counting those made by the given origins (a recurring rule)."""

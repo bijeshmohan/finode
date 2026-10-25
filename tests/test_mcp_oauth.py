@@ -221,6 +221,7 @@ def test_consent_page_shows_the_app_and_asks_what_it_may_do(consent_client, fake
     assert page.status_code == 200
     assert "Connect Claude?" in page.text and "https://claude.ai/api/mcp/auth_callback" in page.text
     assert 'name="action" value="allow-read"' in page.text and 'name="action" value="allow-write"' in page.text
+    assert 'name="action" value="allow-manage"' in page.text
     assert 'value="deny"' in page.text and 'name="access"' not in page.text
     method, url, extra = fake.calls[0]
     assert (method, url) == ("GET", f"{SUPABASE}/auth/v1/oauth/authorizations/{AUTH_ID}")
@@ -336,7 +337,7 @@ def test_one_user_cannot_disconnect_anothers_app(consent_client, fake, session):
 
 
 def test_each_consent_button_records_its_own_level(consent_client, fake, session):
-    for action, scope in (("allow-read", "read"), ("allow-write", "write")):
+    for action, scope in (("allow-read", "read"), ("allow-write", "write"), ("allow-manage", "manage")):
         response = consent_client.post(
             "/oauth/consent", data={"authorization_id": AUTH_ID, "action": action}, follow_redirects=False
         )

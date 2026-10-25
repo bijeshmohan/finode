@@ -9,21 +9,88 @@ from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
 from ..models.account_deletion import AccountDeletion
+from ..models.account_history import AccountHistory
 from ..schemas.account import AccountCreate, AccountUpdate
 from .cache import remembered
 
 
 class AccountRepository:
-    def __init__(self, db: Session, uid: UUID):
+    def __init__(self, db: Session, uid: UUID, origin: str | None = None):
         self.db = db
         self.uid = uid
+        # Who is making the changes ("web", "api", "mcp:<token name>"), written into the account's history.
+        self.origin = origin
 
-    def create(self, data: AccountCreate, on_budget: bool = False) -> Account:
+    def create(self, data: AccountCreate, on_budget: bool = False, record: bool = True) -> Account:
+        """`record=False` is for what finode makes by itself (the Opening Balances account): no history row."""
         values = data.model_dump(exclude={"balance", "on_budget"})
         account = Account(**values, on_budget=on_budget, user=self.uid)
         self.db.add(account)
         self.db.flush()
+        if record:
+            self._record(account, "created")
         return account
+
+    def _snapshot(self, account: Account) -> dict:
+        by_id = {a.aid: a for a in self.list()}
+        names: builtins.list[str] = []
+        seen: set[UUID] = set()
+        current: Account | None = account
+        while current is not None and current.aid not in seen:
+            seen.add(current.aid)
+            names.append(current.name)
+            current = by_id.get(current.parent_id) if current.parent_id else None
+        return {
+            "name": account.name,
+            "path": ":".join(reversed(names)),
+            "parent_id": str(account.parent_id) if account.parent_id else None,
+            "details": account.details,
+            "on_budget": account.on_budget,
+            "payment_category_id": str(account.payment_category_id) if account.payment_category_id else None,
+            "closed_on": account.closed_on.isoformat() if account.closed_on else None,
+        }
+
+    def _record(self, account: Account, action: str, **extra) -> None:
+        """Append what the account looks like now to its history (an unchanged save adds nothing)."""
+        snapshot = {**self._snapshot(account), **extra}
+        if action == "updated" and not extra:
+            previous = self.history(account.aid)
+            if previous and {k: v for k, v in previous[-1].snapshot.items() if not k.startswith("merged_")} == snapshot:
+                return
+        self.db.add(
+            AccountHistory(user=self.uid, account_id=account.aid, action=action, via=self.origin, snapshot=snapshot)
+        )
+        self.db.flush()
+
+    def history(self, aid: UUID) -> builtins.list[AccountHistory]:
+        """What happened to one account, oldest first (works for a deleted one too)."""
+        return self.db.exec(
+            select(AccountHistory)
+            .where(AccountHistory.user == self.uid, AccountHistory.account_id == aid)
+            .order_by(AccountHistory.at, AccountHistory.hid)
+        ).all()
+
+    def history_since(self, since, via: str | None, limit: int) -> builtins.list[AccountHistory]:
+        """The newest history rows of every account, optionally from a moment on and by one origin ("assistant" is any)."""
+        statement = select(AccountHistory).where(AccountHistory.user == self.uid)
+        if since is not None:
+            statement = statement.where(AccountHistory.at >= since)
+        if via == "assistant":
+            statement = statement.where(col(AccountHistory.via).startswith("mcp:"))
+        elif via:
+            statement = statement.where(AccountHistory.via == via)
+        return self.db.exec(
+            statement.order_by(col(AccountHistory.at).desc(), col(AccountHistory.hid)).limit(limit)
+        ).all()
+
+    def histories_for(self, aids: builtins.list[UUID]) -> builtins.list[AccountHistory]:
+        if not aids:
+            return []
+        return self.db.exec(
+            select(AccountHistory)
+            .where(AccountHistory.user == self.uid, col(AccountHistory.account_id).in_(aids))
+            .order_by(AccountHistory.at, AccountHistory.hid)
+        ).all()
 
     def count(self) -> int:
         return self.db.exec(select(func.count()).select_from(Account).where(Account.user == self.uid)).one()
@@ -73,12 +140,14 @@ class AccountRepository:
             account.payment_category_id = payment_category
         self.db.add(account)
         self.db.flush()
+        self._record(account, "updated")
         return account
 
-    def delete(self, aid: UUID) -> Account | None:
+    def delete(self, aid: UUID, **extra) -> Account | None:
         account = self.read(aid)
         if not account:
             return None
+        self._record(account, "deleted", **extra)
         self.db.delete(account)
         self.db.flush()
         return account
@@ -103,12 +172,15 @@ class AccountRepository:
         account = Account(aid=aid, user=self.uid, **fields)
         self.db.add(account)
         self.db.flush()
+        self._record(account, "restored")
         return account
 
     def set_closed(self, aids: builtins.list[UUID], day: date | None) -> None:
         for account in self.db.exec(select(Account).where(Account.user == self.uid, col(Account.aid).in_(aids))).all():
             account.closed_on = day
             self.db.add(account)
+            self.db.flush()
+            self._record(account, "closed" if day else "reopened")
         self.db.flush()
 
     def clear_payment_category(self, category_id: UUID) -> None:
@@ -118,7 +190,22 @@ class AccountRepository:
         ).all():
             account.payment_category_id = None
             self.db.add(account)
+            self.db.flush()
+            self._record(account, "updated")
         self.db.flush()
+
+    def repoint_payment_category(self, source: UUID, target: UUID) -> int:
+        """Accounts whose payments were budgeted under `source` use `target` instead (a merge)."""
+        moved = 0
+        for account in self.db.exec(
+            select(Account).where(Account.user == self.uid, Account.payment_category_id == source)
+        ).all():
+            account.payment_category_id = target
+            self.db.add(account)
+            self.db.flush()
+            self._record(account, "updated")
+            moved += 1
+        return moved
 
     def has_children(self, aid: UUID) -> bool:
         statement = select(Account).where(

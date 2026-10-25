@@ -34,6 +34,12 @@ def local_midnight_utc() -> datetime:
     return local_now().replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
 
 
+def local_start_utc(day: date) -> datetime:
+    """The start of a day where the people using it live, as a UTC moment."""
+    zone = _zone(settings.timezone) if settings.timezone else local_now().tzinfo
+    return datetime(day.year, day.month, day.day, tzinfo=zone).astimezone(UTC)
+
+
 def month_progress(today: date | None = None) -> int:
     """How far through its month a day is, as a whole percentage (the 15th of a 30-day month is 50)."""
     from calendar import monthrange

@@ -132,7 +132,9 @@ async def test_the_removed_tools_and_arguments_are_gone(session, books, secret):
         recorded = (await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Groceries"))[
             "recorded"
         ]
-        assert "currency" not in recorded and all(set(p) == {"account", "side", "amount"} for p in recorded["postings"])
+        assert "currency" not in recorded and all(
+            set(p) == {"account", "account_id", "side", "amount"} for p in recorded["postings"]
+        )
 
 
 async def test_split_update_and_delete(session, client, books, secret):
@@ -245,7 +247,7 @@ async def test_spending_breakdown(session, books, secret):
 async def test_create_account(session, client, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         created = (await call(c, "create_account", name="Savings", parent="Assets", opening_balance="10"))["created"]
-        assert created == {"path": "Assets:Savings", "balance": "10.00"}
+        assert {k: v for k, v in created.items() if k != "id"} == {"path": "Assets:Savings", "balance": "10.00"}
         with pytest.raises(ToolFailed, match="already has an account named 'Savings'"):
             await call(c, "create_account", name="savings", parent="Assets")
         with pytest.raises(ToolFailed, match="only asset and liability"):
@@ -256,7 +258,9 @@ async def test_accounts_cannot_be_deleted_and_prompts_exist(session, secret):
     async with running_app(session), mcp_client(secret) as c:
         names = {t.name for t in (await c.list_tools()).tools}
         assert "delete_transaction" in names
-        assert not any("account" in n and n.startswith(("delete", "remove", "update")) for n in names)
+        assert not any("account" in n and n.startswith(("delete", "remove")) for n in names), (
+            "accounts are never deleted"
+        )
         tools = {t.name: t for t in (await c.list_tools()).tools}
         assert tools["delete_transaction"].annotations.destructive_hint is True
         assert tools["get_overview"].annotations.read_only_hint is True
@@ -634,3 +638,60 @@ async def test_a_read_only_connection_refuses_the_new_tools(session, books):
         ):
             with pytest.raises(ToolFailed, match="read-only"):
                 await call(c, tool, **args)
+
+
+# ---- ids, status and search totals (agent-friendly, phase 1) ---------------------------------------------------
+
+
+async def test_ids_and_account_facts_are_listed(session, books, secret):
+    async with running_app(session), mcp_client(secret) as c:
+        accounts = {a["path"]: a for a in (await call(c, "list_accounts"))["accounts"]}
+        hdfc = accounts["Assets:Bank:HDFC"]
+        assert hdfc["id"] == books["hdfc"]["aid"] and hdfc["type"] == "Assets" and hdfc["on_budget"] is True
+        assert "details" in hdfc and accounts["Expenses:Food"]["id"] == books["food"]["aid"]
+        by_id = await call(c, "get_account", account=hdfc["id"])
+        assert by_id["id"] == hdfc["id"] and by_id["path"] == "Assets:Bank:HDFC"
+        made = await call(c, "record_transaction", amount="10", from_account=hdfc["id"], to_account="Groceries")
+        assert made["recorded"]["postings"][0]["account_id"] in {hdfc["id"], books["groceries"]["aid"]}
+        created = await call(c, "create_account", name="Loan X", parent="Liabilities", on_budget=False)
+        assert created["created"]["id"]
+
+
+async def test_status_says_what_the_connection_may_do(session, books, secret):
+    async with running_app(session), mcp_client(secret) as c:
+        empty = await call(c, "get_status")
+        assert empty["connection"] == {
+            "name": "Claude",
+            "access": "read & write",
+            "can_change_things": True,
+            "can_change_accounts": False,
+        }
+        before = empty["books"]["transactions"]  # the bank's opening balance is an entry too
+        await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Groceries")
+        status = await call(c, "get_status")
+        assert status["currency"] == "INR" and status["books"]["transactions"] == before + 1
+        assert status["books"]["last_change"] and status["limits"]["new_transactions_left_today"] == 999 - before
+    read_only = make_token(session, TEST_USER_ID, name="Looker", scope="read")
+    async with running_app(session), mcp_client(read_only) as c:
+        got = await call(c, "get_status")
+        assert got["connection"]["access"] == "read only" and got["connection"]["can_change_things"] is False
+
+
+async def test_search_counts_totals_and_pages(session, books, secret):
+    async with running_app(session), mcp_client(secret) as c:
+        for amount, payee in (("100", "DMart"), ("40", "Tea stall"), ("7", "DMart")):
+            await call(c, "record_transaction", amount=amount, from_account="HDFC", to_account="Groceries", payee=payee)
+        await call(c, "record_transaction", amount="900", from_account="Salary", to_account="HDFC", payee="Acme")
+        everything = await call(c, "search_transactions", limit=2)
+        assert everything["count"] == 5 and everything["truncated"] is True
+        assert everything["spent"] == "147.00" and everything["earned"] == "900.00"
+        second = await call(c, "search_transactions", limit=2, offset=2)
+        last = await call(c, "search_transactions", limit=2, offset=4)
+        assert second["truncated"] is True and last["truncated"] is False and len(last["transactions"]) == 1
+        seen = {t["id"] for page in (everything, second, last) for t in page["transactions"]}
+        assert len(seen) == 5 and everything["transferred"] == "10000.00"
+        dmart = await call(c, "search_transactions", payee="dmart")
+        assert dmart["count"] == 2 and dmart["spent"] == "107.00"
+        assert (await call(c, "search_transactions", kind="income"))["count"] == 1
+        bank = await call(c, "search_transactions", account="HDFC")
+        assert bank["account_net_change"] == "10753.00"  # with the opening balance

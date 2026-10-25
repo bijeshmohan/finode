@@ -1,13 +1,22 @@
 {# What each access level means, in plain words. Used by the token form and the consent page. #}
 {% macro level(kind) %}
-{% if kind == "write" %}
+{% if kind == "manage" %}
+<strong>Read, write &amp; manage accounts</strong>
+<span class="access-example">Say: “Rename Banks to Bank Accounts and merge the two Swiggy categories.”</span>
+<ul class="access-list">
+  <li class="yes">Everything in read &amp; write</li>
+  <li class="yes">Rename, move, close and reopen accounts, and merge two into one</li>
+  <li class="no">Never deletes accounts</li>
+</ul>
+<span class="hint">Changes how your whole history is organised, so allow it only for assistants you trust. Every change is recorded with its name.</span>
+{% elif kind == "write" %}
 <strong>Read &amp; write</strong>
 <span class="access-example">Say: “I paid 450 for lunch from HDFC.”</span>
 <ul class="access-list">
   <li class="yes">Everything in read only</li>
   <li class="yes">Record, edit and delete transactions</li>
   <li class="yes">Add accounts</li>
-  <li class="no">Never edits or deletes accounts</li>
+  <li class="no">Cannot rename, merge or delete accounts</li>
 </ul>
 <span class="hint">Everything it records is marked with its name, so you can review it.</span>
 {% else %}

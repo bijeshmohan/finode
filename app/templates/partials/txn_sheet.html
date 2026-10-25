@@ -15,6 +15,7 @@
   <div><dt>{{ from_label }}</dt><dd>{% for name, p in from_postings %}<span>{{ name }}{% if from_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
   <div><dt>{{ to_label }}</dt><dd>{% for name, p in to_postings %}<span>{{ name }}{% if to_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
   {% if t.comment %}<div><dt>Note</dt><dd>{{ t.comment }}</dd></div>{% endif %}
+  {% if t.source %}<div><dt>Source</dt><dd>{% if t.source_url %}<a href="{{ t.source_url }}" target="_blank" rel="noopener noreferrer">{{ t.source }}</a>{% else %}{{ t.source }}{% endif %}{% if t.external_id %} <small class="muted">{{ t.external_id }}</small>{% endif %}</dd></div>{% endif %}
 </dl>
 
 {% if related_to or related %}

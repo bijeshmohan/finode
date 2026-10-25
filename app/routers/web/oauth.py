@@ -56,10 +56,10 @@ def decide(
     access: Annotated[str, Form()] = "read",
 ):
     token = request.state.access_token
-    # The buttons carry the choice ("allow-read", "allow-write"); a bare "allow" uses the access field.
-    if action in ("allow-read", "allow-write"):
+    # The buttons carry the choice ("allow-read", "allow-write", "allow-manage"); a bare "allow" uses the access field.
+    if action in ("allow-read", "allow-write", "allow-manage"):
         access = action.removeprefix("allow-")
-    approve = action in ("allow", "allow-read", "allow-write")
+    approve = action in ("allow", "allow-read", "allow-write", "allow-manage")
     try:
         if approve:
             # The app is whatever Supabase says it is for this request, not what the form claims.

@@ -553,64 +553,26 @@ HABIT_HISTORY = 300  # how many recent transactions the suggestions look at
 
 
 def payee_habits(transactions: Transactions, accounts: Accounts, query: str = "", limit: int = 6) -> list[PayeeHabit]:
-    """Suggestions for the payee field.
-
-    Only entries with one account on each side count (a split has no single route to repeat), and only accounts
-    that can still be used. Payees you pay often come first; typing narrows them to those starting with, then
-    containing, what was typed.
-    """
-    all_accounts = accounts.list()
-    index = AccountIndex.build(all_accounts)
-    usable = {a.aid for a in all_accounts if a.parent_id is not None and a.closed_on is None}
-    wanted = query.strip().lower()
-    seen: dict[str, dict] = {}
-    for position, t in enumerate(transactions.list(limit=HABIT_HISTORY)):
-        credits = [p for p in t.postings if p.side == PostingSide.CREDIT]
-        debits = [p for p in t.postings if p.side == PostingSide.DEBIT]
-        simple = (
-            len(credits) == 1
-            and len(debits) == 1
-            and credits[0].account in usable
-            and debits[0].account in usable
-            and "Equity"
-            not in (
-                index.roots.get(credits[0].account),
-                index.roots.get(debits[0].account),
-            )  # opening balances are not a payee
-        )
-        payee = (t.payee or "").strip()
-        if not payee or not simple:
-            continue
-        entry = seen.setdefault(
-            payee.lower(),
-            {"payee": payee, "count": 0, "route": (credits[0].account, debits[0].account), "order": position},
-        )
-        entry["count"] += 1  # the first one seen is the newest: its route is the one repeated
+    """Suggestions for the payee field: the people paid most, each with the accounts used the last time (see
+    `TransactionService.payee_routes`, which the assistants' `payee_defaults` shares)."""
+    index = AccountIndex.build(accounts.list())
     habits = []
-    for key, entry in seen.items():
-        if wanted and wanted not in key:
-            continue
-        from_id, to_id = entry["route"]
-        roots = index.roots
+    for route in transactions.payee_routes(query, limit, HABIT_HISTORY):
         habits.append(
-            (
-                0 if wanted and key == wanted else 1 if key.startswith(wanted) else 2,
-                -entry["count"],
-                entry["order"],
-                PayeeHabit(
-                    payee=entry["payee"],
-                    count=entry["count"],
-                    from_id=from_id,
-                    to_id=to_id,
-                    kind=infer_kind([_P(from_id, PostingSide.CREDIT), _P(to_id, PostingSide.DEBIT)], roots),
-                    from_name=index.names.get(from_id, "?"),
-                    to_name=index.names.get(to_id, "?"),
-                    exact=bool(wanted) and key == wanted,
+            PayeeHabit(
+                payee=route.payee,
+                count=route.count,
+                from_id=route.from_id,
+                to_id=route.to_id,
+                kind=infer_kind(
+                    [_P(route.from_id, PostingSide.CREDIT), _P(route.to_id, PostingSide.DEBIT)], index.roots
                 ),
+                from_name=index.names.get(route.from_id, "?"),
+                to_name=index.names.get(route.to_id, "?"),
+                exact=route.exact,
             )
         )
-    habits.sort(key=lambda h: h[:3])
-    return [h[3] for h in habits[:limit]]
+    return habits
 
 
 @dataclass

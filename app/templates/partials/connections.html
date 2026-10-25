@@ -1,3 +1,12 @@
+{% set scope_label = {"read": "read only", "write": "read & write", "manage": "read, write & manage accounts"} %}
+{% macro access_buttons(url, scope, who) %}
+{% if scope != "read" %}<button type="button" class="secondary small" hx-post="{{ url }}" hx-vals='{"scope": "read"}'>Make read only</button>{% endif %}
+{% if scope == "manage" %}<button type="button" class="secondary small" hx-post="{{ url }}" hx-vals='{"scope": "write"}'>Stop account changes</button>{% endif %}
+{% if scope == "read" %}<button type="button" class="secondary small" hx-post="{{ url }}" hx-vals='{"scope": "write"}'
+        hx-confirm="Let {{ who }} record, edit and delete transactions?">Allow changes</button>{% endif %}
+{% if scope != "manage" %}<button type="button" class="secondary small" hx-post="{{ url }}" hx-vals='{"scope": "manage"}'
+        hx-confirm="Let {{ who }} also rename, move, close and merge your accounts?">Allow account changes</button>{% endif %}
+{% endmacro %}
 <div id="token-list" {{ 'hx-swap-oob="true"'|safe if oob }}>
   {% if apps or tokens %}
   <ul class="token-list">
@@ -5,16 +14,11 @@
     <li>
       <span>
         <span class="token-name">{{ g.client_name }}</span>
-        <span class="badge {{ 'badge-write' if g.scope == 'write' }}">{{ "read & write" if g.scope == "write" else "read only" }}</span>
+        <span class="badge {{ 'badge-write' if g.scope != 'read' }}">{{ scope_label.get(g.scope, g.scope) }}</span>
         <span class="muted block">Signed in · connected {{ g.created.date()|friendly_date }} · {% if g.last_used %}last used {{ g.last_used.date()|friendly_date }}{% else %}never used{% endif %}</span>
       </span>
       <span class="row-actions">
-        {% if g.scope == "write" %}
-        <button type="button" class="secondary small" hx-post="/oauth/apps/{{ g.gid }}/access" hx-vals='{"scope": "read"}'>Make read only</button>
-        {% else %}
-        <button type="button" class="secondary small" hx-post="/oauth/apps/{{ g.gid }}/access" hx-vals='{"scope": "write"}'
-                hx-confirm="Let {{ g.client_name }} record, edit and delete transactions?">Allow changes</button>
-        {% endif %}
+        {{ access_buttons("/oauth/apps/" ~ g.gid ~ "/access", g.scope, g.client_name) }}
         <button type="button" class="secondary small" hx-post="/oauth/apps/{{ g.gid }}/disconnect"
                 hx-confirm="Disconnect {{ g.client_name }}? It stops working at once.">Disconnect</button>
       </span>
@@ -24,16 +28,11 @@
     <li>
       <span>
         <span class="token-name">{{ t.name }}</span>
-        <span class="badge {{ 'badge-write' if t.scope == 'write' }}">{{ "read & write" if t.scope == "write" else "read only" }}</span>
+        <span class="badge {{ 'badge-write' if t.scope != 'read' }}">{{ scope_label.get(t.scope, t.scope) }}</span>
         <span class="muted block">Token {{ t.prefix }}… · created {{ t.created.date()|friendly_date }} · {% if t.last_used %}last used {{ t.last_used.date()|friendly_date }}{% else %}never used{% endif %}</span>
       </span>
       <span class="row-actions">
-        {% if t.scope == "write" %}
-        <button type="button" class="secondary small" hx-post="/profile/assistants/{{ t.tkid }}/access" hx-vals='{"scope": "read"}'>Make read only</button>
-        {% else %}
-        <button type="button" class="secondary small" hx-post="/profile/assistants/{{ t.tkid }}/access" hx-vals='{"scope": "write"}'
-                hx-confirm="Let assistants using '{{ t.name }}' record, edit and delete transactions?">Allow changes</button>
-        {% endif %}
+        {{ access_buttons("/profile/assistants/" ~ t.tkid ~ "/access", t.scope, "assistants using '" ~ t.name ~ "'") }}
         <button type="button" class="secondary small" hx-post="/profile/assistants/{{ t.tkid }}/revoke"
                 hx-confirm="Revoke '{{ t.name }}'? Assistants using it stop working at once.">Revoke</button>
       </span>
