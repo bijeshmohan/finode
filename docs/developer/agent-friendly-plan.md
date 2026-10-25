@@ -1,6 +1,6 @@
 # Making finode friendlier to AI assistants: evaluation and plan
 
-Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) and 3b (payee defaults) done; 3c and 3d next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
+Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) 3b (payee defaults) and 3c (statement check) done; 3d (tags) next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
 checks each against what the code does today, decides, and orders the work. Nothing here is built yet.
 
 ## Verdicts at a glance
@@ -86,7 +86,7 @@ as `payee_habits` (move it out of `routers/web/transactions.py` into a service s
 one-account-each-side entry, plus a count and the other accounts seen. Nothing stored, so nothing to go stale.
 Stored rules are deferred until the owner wants a person to edit them in the app.
 
-**3c. Statement check (#12).** `check_balance(account, statement_balance, as_of)` returns the book balance at the
+**3c. Statement check (#12) — done.** `check_balance(account, statement_balance, as_of)` returns the book balance at the
 date, the difference, and the entries from the last N days so the gap can be found. Read-only. Revalue is not built:
 finode already posts a balance change against Opening Balances when an account's balance is edited, and a
 valuation in a one-currency ledger is rare enough to wait for a real need.

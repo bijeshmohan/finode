@@ -87,6 +87,24 @@ class RegisterEntry(BaseModel):
     balance: Decimal
 
 
+class BalanceCheck(BaseModel):
+    """A statement's balance set against the books on the same day (nothing is changed)."""
+
+    aid: UUID
+    path: str
+    as_of: Date
+    # What the books say on that day (what is owed, for a card or loan), and what the statement says.
+    book_balance: Decimal
+    statement_balance: Decimal
+    # Statement minus books: zero when they agree.
+    difference: Decimal
+    matches: bool
+    # The entries of the last `days` days up to the day, oldest first.
+    recent: list[RegisterEntry]
+    # Entries in that window that are exactly as large as the difference: the likely extra or missing one.
+    same_size_as_difference: list[RegisterEntry]
+
+
 class ClosedAccount(BaseModel):
     """An account (or deleted-with-history category) that was closed: the outermost of its closed branch."""
 

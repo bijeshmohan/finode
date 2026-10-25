@@ -48,6 +48,7 @@ finode is the user's personal double-entry ledger.
   ids when you remember an account, and give either to any tool that takes an account.
 - Call get_status first when unsure what this connection may do, how much room is left today, or when the books
   last changed.
+- check_balance sets a statement's balance against the books and points at the entries that could explain a gap.
 - payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
 - get_transaction_history shows what happened to one transaction and who did it, with each edit's exact changes;
   recent_changes lists the latest changes of all of them (by='assistant' for what assistants did). Look there
@@ -433,6 +434,47 @@ def _step(c: ChangeRead, full: bool) -> dict[str, Any]:
     if c.changes:
         step["changes"] = _plain(c.changes)
     return step
+
+
+@_tool_errors
+def check_balance(
+    account: AccountRef,
+    statement_balance: Annotated[
+        Decimal, Field(description="The balance the bank or card statement shows (for a card or loan: what is owed)")
+    ],
+    as_of: Annotated[date | None, Field(description="The statement's day (YYYY-MM-DD); today when left out")] = None,
+    days: Annotated[int, Field(ge=0, le=90, description="How many days back to list entries")] = 14,
+) -> dict[str, Any]:
+    """Set a bank or card statement's balance against finode's books on the same day. Says whether they agree, by
+    how much they differ, and lists the recent entries, marking those exactly as large as the difference (the
+    likely missing or extra one). Nothing is changed."""
+    with services() as s:
+        index = _index(s)
+        entry = index.find(account, allow_root=True)
+        check = s.accounts.check_balance(entry.account.aid, statement_balance, as_of, days)
+        if check is None:
+            raise ToolError("account not found")
+
+        def row(e) -> dict[str, Any]:
+            return {
+                "transaction_id": str(e.tid),
+                "date": e.date.isoformat(),
+                "payee": e.payee,
+                "with": e.counter_accounts,
+                "change": text(e.change),
+            }
+
+        return {
+            "account": check.path,
+            "account_id": str(check.aid),
+            "as_of": check.as_of.isoformat(),
+            "matches": check.matches,
+            "book_balance": text(check.book_balance),
+            "statement_balance": text(check.statement_balance),
+            "difference": text(check.difference),
+            "recent": [row(e) for e in check.recent],
+            "same_size_as_difference": [row(e) for e in check.same_size_as_difference],
+        }
 
 
 @_tool_errors
@@ -1413,6 +1455,7 @@ READ_TOOLS = [
     get_transaction_history,
     recent_changes,
     payee_defaults,
+    check_balance,
     spending_breakdown,
     list_recurring,
     check_books,

@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -6,7 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..dependencies import Accounts
-from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, ClosedAccount, DeletedAccount, RegisterEntry
+from ..schemas.account import (
+    AccountCreate,
+    AccountRead,
+    AccountUpdate,
+    BalanceCheck,
+    ClosedAccount,
+    DeletedAccount,
+    RegisterEntry,
+)
 from ..services.account import AccountInUseError, SystemAccountError
 
 router = APIRouter(
@@ -121,6 +130,23 @@ def close_account(aid: UUID, accounts: Accounts):
 def reopen_account(aid: UUID, accounts: Accounts):
     """Reopen a closed account with everything inside it, and the groups above it."""
     return _closing(accounts.reopen, aid)
+
+
+@router.get("/{aid}/check-balance", response_model=BalanceCheck)
+def check_balance(
+    aid: UUID,
+    accounts: Accounts,
+    statement_balance: Decimal,
+    as_of: date | None = None,
+    days: int = Query(default=14, ge=0, le=366),
+):
+    """Set a statement's balance against the books on the same day (today by default): the books' balance, the
+    difference and the entries of the last `days` days, with those exactly as large as the difference. Nothing is
+    changed. A card's or loan's balance is what is owed, as the app shows it."""
+    check = accounts.check_balance(aid, statement_balance, as_of, days)
+    if check is None:
+        raise HTTPException(status_code=404, detail="account not found")
+    return check
 
 
 @router.get("/{aid}/register", response_model=list[RegisterEntry])

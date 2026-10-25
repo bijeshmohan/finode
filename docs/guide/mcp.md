@@ -10,6 +10,7 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 |---|---|
 | `get_status` | what this connection may do, today's date, how much room is left today, when your books last changed |
 | `get_transaction_history`, `recent_changes` | what happened to an entry, what each edit changed and who did it (you, the app, an import or an assistant); what changed lately |
+| `check_balance` | compares a bank or card statement's balance with your books on the same day and points at the entry that could explain a gap |
 | `payee_defaults` | which accounts you usually use for a payee, so an assistant books it the way you do |
 | `get_overview` | net worth, your currency, the shape of your books |
 | `list_accounts`, `get_account` | your accounts (with their ids, type, whether they are in the budget and what they are for) and one account's balance and recent activity |

@@ -3,7 +3,7 @@
 import builtins
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from types import EllipsisType
 from uuid import UUID
@@ -21,6 +21,7 @@ from ..repositories import AccountRepository, ProfileRepository, TransactionRepo
 from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
+from ..schemas.account import BalanceCheck
 from ..schemas.transaction import PostingCreate, TransactionCreate
 
 # Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
@@ -641,6 +642,31 @@ class AccountService:
                 )
             )
         return entries
+
+    def check_balance(
+        self, aid: UUID, statement_balance: Decimal, as_of: date | None = None, days: int = 14
+    ) -> BalanceCheck | None:
+        """Set a statement's balance against the books on the same day and list the entries that could explain a
+        difference. Nothing is changed. Balances read as the app shows them (a card's is what is owed)."""
+        day = as_of or local_today()
+        account = self.read(aid, day)
+        if account is None:
+            return None
+        by_id = {a.aid: a for a in self._ensure_roots()}
+        window = day - timedelta(days=days)
+        entries = [e for e in (self.register(aid) or []) if window <= e.date <= day]
+        difference = statement_balance - account.balance
+        return BalanceCheck(
+            aid=aid,
+            path=self._path(by_id[aid], by_id),
+            as_of=day,
+            book_balance=account.balance,
+            statement_balance=statement_balance,
+            difference=difference,
+            matches=difference == 0,
+            recent=entries,
+            same_size_as_difference=[e for e in entries if difference != 0 and abs(e.change) == abs(difference)],
+        )
 
     def register_page(self, aid: UUID, today: date, offset: int = 0, limit: int = REGISTER_PAGE) -> RegisterPage | None:
         """An account's activity for its page without reading all of it: the newest `limit` entries up to today (then
