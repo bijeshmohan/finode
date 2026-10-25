@@ -1,6 +1,6 @@
 # Making finode friendlier to AI assistants: evaluation and plan
 
-Branch: `feature/agent-friendly`. **Status: phases 1 and 2a done; 2b (dry run) next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
+Branch: `feature/agent-friendly`. **Status: phases 1, 2a and 2b done; 2c (batch) next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
 checks each against what the code does today, decides, and orders the work. Nothing here is built yet.
 
 ## Verdicts at a glance
@@ -62,7 +62,7 @@ all nullable, with a partial unique index on `(user, source, external_id)` where
 - Restoring a deleted entry keeps its key; a deleted entry's key is free again only after the deletion is the
   latest event (it already is: the live row is gone).
 
-**2b. Dry run (#3).** `dry_run: bool = False` on `record_transaction`, `record_split`, `update_transaction`,
+**2b. Dry run (#3) — done.** `dry_run: bool = False` on `record_transaction`, `record_split`, `update_transaction`,
 `delete_transaction`. The service runs the same `validate` / resolve path with no flush, so every rule (limits,
 closed accounts, direction, decimals) applies, and returns the transaction it would produce, plus the duplicate
 check from 2a (`would_duplicate: <id>`). JSON API: `?dry_run=true`, as import does. Dry runs are allowed on **read-only** connections (decided: they change nothing, and an assistant can prepare a

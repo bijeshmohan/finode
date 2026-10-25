@@ -19,7 +19,13 @@ from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate
 from ..schemas.recurring import RecurringCreate
-from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead, TransactionUpdate
+from ..schemas.transaction import (
+    PostingCreate,
+    TransactionCreate,
+    TransactionPreview,
+    TransactionRead,
+    TransactionUpdate,
+)
 from ..services.simple import simple_postings
 from ..version import VERSION
 from .accounts import AccountIndex
@@ -44,6 +50,9 @@ finode is the user's personal double-entry ledger.
   upi...) and external_id (the reference that source gave it) when you record them. Recording the same pair again
   returns the entry already made (already_recorded) instead of a copy, so retrying is safe; search_transactions
   finds an entry by them. Search before recording something that may be there already.
+- To show the user what a change would do before making it, pass dry_run=true to record_transaction, record_split,
+  update_transaction or delete_transaction: every rule is checked and the answer says what would be saved, with
+  nothing saved. It also works when the connection may only read.
 - Money moves from one account to another. Spending is from an asset or liability (a bank, a
   card) to an expense; a salary is from Income to an asset. Use record_transaction for these, and
   record_split only when more than two accounts are involved.
@@ -95,6 +104,13 @@ ExternalId = Annotated[
     ),
 ]
 SourceUrl = Annotated[str | None, Field(max_length=500, description="A web link back to the source")]
+DryRun = Annotated[
+    bool,
+    Field(
+        description="Only check: run every rule and answer with what would be saved, without saving anything. "
+        "Works on a read-only connection too, so it is the safe way to show the user a change before they allow it"
+    ),
+]
 OptionalDate = Annotated[date | None, Field(description="YYYY-MM-DD; today when left out")]
 
 
@@ -451,6 +467,7 @@ def record_transaction(
     source: Source = None,
     external_id: ExternalId = None,
     source_url: SourceUrl = None,
+    dry_run: DryRun = False,
 ) -> dict[str, Any]:
     """Record money moving from one account to another: spending, income or a transfer. When the entry comes from
     something outside finode (a bank message, a mail), pass its source and external_id: sending the same pair
@@ -460,18 +477,19 @@ def record_transaction(
         payer = index.find(from_account, postable=True)
         target = index.find(to_account, postable=True)
         postings = simple_postings(amount, payer.account.aid, target.account.aid)
-        saved, made = s.transactions.create_once(
-            TransactionCreate(
-                date=date or _today(),
-                payee=(payee or "").strip() or None,
-                comment=(note or "").strip() or None,
-                postings=postings,
-                related_id=_related_id(related_to),
-                source=source,
-                external_id=external_id,
-                source_url=source_url,
-            )
+        data = TransactionCreate(
+            date=date or _today(),
+            payee=(payee or "").strip() or None,
+            comment=(note or "").strip() or None,
+            postings=postings,
+            related_id=_related_id(related_to),
+            source=source,
+            external_id=external_id,
+            source_url=source_url,
         )
+        if dry_run:
+            return _dry_run("would_record", s.transactions.preview_create(data), index)
+        saved, made = s.transactions.create_once(data)
         return _recorded(saved, made, index, s)
 
 
@@ -479,6 +497,35 @@ def _recorded(saved: TransactionRead, made: bool, index: AccountIndex, s: Servic
     result: dict[str, Any] = {"recorded": _transaction(saved, index, s)}
     if not made:
         result["already_recorded"] = True
+    return result
+
+
+def _dry_run(key: str, preview: TransactionPreview, index: AccountIndex) -> dict[str, Any]:
+    """What a dry run answers: the entry as it would be (or is) saved, marked as not saved."""
+    debits = sum((p.amount for p in preview.postings if p.side == PostingSide.DEBIT), Decimal(0))
+    entry: dict[str, Any] = {
+        "id": str(preview.tid) if preview.tid else None,
+        "date": preview.date.isoformat(),
+        "payee": preview.payee,
+        "note": preview.comment,
+        "total": text(debits),
+        "postings": [
+            {
+                "account": index.path(p.account),
+                "account_id": str(p.account),
+                "side": p.side.value,
+                "amount": text(p.amount),
+            }
+            for p in preview.postings
+        ],
+        "related_to": str(preview.related_id) if preview.related_id else None,
+        "reference": {"source": preview.source, "external_id": preview.external_id, "url": preview.source_url}
+        if preview.source or preview.external_id or preview.source_url
+        else None,
+    }
+    result: dict[str, Any] = {"dry_run": True, "saved": False, key: entry}
+    if preview.already_recorded:
+        result["already_recorded"] = str(preview.already_recorded)
     return result
 
 
@@ -516,23 +563,25 @@ def record_split(
     source: Source = None,
     external_id: ExternalId = None,
     source_url: SourceUrl = None,
+    dry_run: DryRun = False,
 ) -> dict[str, Any]:
     """Record a transaction with several rows, e.g. a bill split across categories or a salary
     with deductions. Debits must equal credits. source and external_id work as for record_transaction."""
     with services() as s:
         index = _index(s)
-        saved, made = s.transactions.create_once(
-            TransactionCreate(
-                date=date or _today(),
-                payee=(payee or "").strip() or None,
-                comment=(note or "").strip() or None,
-                postings=_postings(index, postings),
-                related_id=_related_id(related_to),
-                source=source,
-                external_id=external_id,
-                source_url=source_url,
-            )
+        data = TransactionCreate(
+            date=date or _today(),
+            payee=(payee or "").strip() or None,
+            comment=(note or "").strip() or None,
+            postings=_postings(index, postings),
+            related_id=_related_id(related_to),
+            source=source,
+            external_id=external_id,
+            source_url=source_url,
         )
+        if dry_run:
+            return _dry_run("would_record", s.transactions.preview_create(data), index)
+        saved, made = s.transactions.create_once(data)
         return _recorded(saved, made, index, s)
 
 
@@ -554,6 +603,7 @@ def update_transaction(
         ExternalId, Field(description="New reference (needs a source); an empty string clears it")
     ] = None,
     source_url: Annotated[SourceUrl, Field(description="New link; an empty string clears it")] = None,
+    dry_run: DryRun = False,
 ) -> dict[str, Any]:
     """Change a transaction. Only what you pass changes."""
     tid = _transaction_id(transaction_id)
@@ -579,6 +629,8 @@ def update_transaction(
             raise ToolError(
                 "nothing to change: pass a date, payee, note, postings, related_to, source, external_id or source_url!"
             )
+        if dry_run:
+            return _dry_run("would_become", s.transactions.preview_update(tid, TransactionUpdate(**changes)), index)
         saved = s.transactions.update(tid, TransactionUpdate(**changes))
         if saved is None:
             raise ToolError("transaction not found")
@@ -588,11 +640,14 @@ def update_transaction(
 @_tool_errors
 def delete_transaction(
     transaction_id: Annotated[str, Field(description="Id from search_transactions")],
+    dry_run: DryRun = False,
 ) -> dict[str, Any]:
-    """Delete a transaction for good. Ask the user to confirm first."""
+    """Delete a transaction (it waits in the user's recently deleted list and can be restored). Ask the user to confirm first."""
     tid = _transaction_id(transaction_id)
     with services() as s:
         index = _index(s)
+        if dry_run:
+            return _dry_run("would_delete", s.transactions.preview_delete(tid), index)
         existing = s.transactions.read(tid)
         if existing is None:
             raise ToolError("transaction not found")
@@ -1186,8 +1241,9 @@ READ_ONLY_MESSAGE = (
     "Profile > AI assistants (Change access), and then you can try again."
 )
 READ_ONLY_NOTE = (
-    "\nThis connection is read-only: the tools that change things are listed but always refuse. If the user asks "
-    "for a change, say so and tell them to allow read & write access in finode under Profile > AI assistants.\n"
+    "\nThis connection is read-only: the tools that change things are listed but always refuse (except with "
+    "dry_run=true, which only checks). If the user asks for a change, say so and tell them to allow read & write "
+    "access in finode under Profile > AI assistants.\n"
 )
 
 
@@ -1196,10 +1252,13 @@ def _refused(fn: Callable) -> Callable:
 
     @wraps(fn)
     def refuse(*args, **kwargs):
+        if kwargs.get("dry_run") is True:
+            return fn(*args, **kwargs)  # only checks: nothing is changed, so a read-only connection may ask
         raise ToolError(READ_ONLY_MESSAGE)
 
     summary = (fn.__doc__ or fn.__name__).strip().splitlines()[0]
-    refuse.__doc__ = f"Unavailable: this connection is read-only. (Would otherwise: {summary})"
+    can_check = "dry_run" in fn.__annotations__
+    refuse.__doc__ = f"Unavailable: this connection is read-only{' (dry_run=true still works)' if can_check else ''}. (Would otherwise: {summary})"
     return refuse
 
 

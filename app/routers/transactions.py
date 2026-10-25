@@ -11,6 +11,7 @@ from ..schemas.transaction import (
     HistoryRead,
     PayeeRead,
     TransactionCreate,
+    TransactionPreview,
     TransactionRead,
     TransactionUpdate,
 )
@@ -23,17 +24,22 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=TransactionRead, status_code=201)
+@router.post("/", response_model=TransactionRead | TransactionPreview, status_code=201)
 def create_transaction(
     transaction: TransactionCreate,
     transactions: Transactions,
     response: Response,
+    dry_run: bool = False,
 ):
     """Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`.
     `source`, `external_id` and `source_url` say where it came from (a bank, a mail); a source's reference is used once,
     so sending the same one again with the same date and rows answers 200 with the entry already recorded, and
-    nothing is created. The same reference with a different date or rows is a 400."""
+    nothing is created. The same reference with a different date or rows is a 400.
+    With `dry_run=true` every check runs but nothing is saved: the answer (200) is the entry as it would be saved."""
     try:
+        if dry_run:
+            response.status_code = 200
+            return transactions.preview_create(transaction)
         created, made = transactions.create_once(transaction)
         if not made:
             response.status_code = 200
@@ -102,14 +108,18 @@ def get_transactions(
         raise HTTPException(status_code=404, detail=str(e)) from None
 
 
-@router.patch("/{tid}", response_model=TransactionRead, status_code=200)
+@router.patch("/{tid}", response_model=TransactionRead | TransactionPreview, status_code=200)
 def update_transaction(
     tid: UUID,
     data: TransactionUpdate,
     transactions: Transactions,
+    dry_run: bool = False,
 ):
-    """Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or, with null, cleared)."""
+    """Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or, with null, cleared).
+    With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards."""
     try:
+        if dry_run:
+            return transactions.preview_update(tid, data)
         transaction = transactions.update(tid, data)
     except InvalidPostingError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
@@ -120,10 +130,14 @@ def update_transaction(
     return transaction
 
 
-@router.delete("/{tid}", status_code=204)
-def delete_transaction(tid: UUID, transactions: Transactions):
-    """Delete a transaction; it waits in /transactions/deleted and can be restored."""
+@router.delete("/{tid}", status_code=204, response_model=None)
+def delete_transaction(tid: UUID, transactions: Transactions, response: Response, dry_run: bool = False):
+    """Delete a transaction; it waits in /transactions/deleted and can be restored.
+    With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go."""
     try:
+        if dry_run:
+            response.status_code = 200
+            return transactions.preview_delete(tid)
         transaction = transactions.delete(tid)
     except InvalidPostingError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None

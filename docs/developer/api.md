@@ -39,14 +39,14 @@ Everything the web app and the assistants can do with your books can be done thr
 
 | Method | Path | What it does |
 |---|---|---|
-| `POST` | `/transactions/` | Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`. `source`, `external_id` and `source_url` say where it came from (a bank, a mail); a source's reference is used once, so sending the same one again with the same date and rows answers 200 with the entry already recorded and creates nothing; the same reference with a different date or rows is a 400. |
+| `POST` | `/transactions/` | Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`. `source`, `external_id` and `source_url` say where it came from (a bank, a mail); a source's reference is used once, so sending the same one again with the same date and rows answers 200 with the entry already recorded and creates nothing; the same reference with a different date or rows is a 400. With `dry_run=true` every check runs but nothing is saved: the answer (200) is the entry as it would be saved (`dry_run: true`, and `already_recorded` when the reference is already there). |
 | `GET` | `/transactions/payees` | Who you have paid or been paid by, most used first (the opening-balance entries are left out). |
 | `GET` | `/transactions/deleted` | Entries that were deleted and are not back, newest deletion first; `hid` is what to restore. |
 | `POST` | `/transactions/deleted/{hid}/restore` | Bring a deleted entry back as it was, with its old id (checked again like any new entry). |
 | `GET` | `/transactions/{tid}` | One transaction with its postings. |
 | `GET` | `/transactions/` | Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts used; `payee` is exact; `source` and `external_id` find the entry a source's reference stands for. |
-| `PATCH` | `/transactions/{tid}` | Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or cleared with null). |
-| `DELETE` | `/transactions/{tid}` | Delete a transaction; it waits in /transactions/deleted and can be restored. |
+| `PATCH` | `/transactions/{tid}` | Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or cleared with null). With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards. |
+| `DELETE` | `/transactions/{tid}` | Delete a transaction; it waits in /transactions/deleted and can be restored. With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go. |
 | `GET` | `/transactions/{tid}/history` | What happened to an entry, oldest first (works for a deleted one too). |
 | `GET` | `/transactions/{tid}/related` | The entries that are related to this one (refunds, reversals), oldest first. |
 

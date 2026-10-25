@@ -17,8 +17,10 @@ from ..repositories import AccountRepository, ProfileRepository, TransactionRepo
 from ..schemas.transaction import (
     HistoryPosting,
     HistoryRead,
+    PostingCreate,
     PostingRead,
     TransactionCreate,
+    TransactionPreview,
     TransactionRead,
     TransactionUpdate,
 )
@@ -40,6 +42,13 @@ class DuplicateReferenceError(InvalidPostingError):
 
 def _rows(postings) -> list[tuple[str, str, Decimal]]:
     return sorted((str(p.account), PostingSide(p.side).value, p.amount) for p in postings)
+
+
+def _different_content(data: TransactionCreate, tid: UUID) -> str:
+    return (
+        f"source '{data.source}' reference '{data.external_id}' is already recorded as the entry {tid} "
+        "with a different date or rows: change that entry, or use another reference!"
+    )
 
 
 def _same_content(existing: TransactionRead, data: TransactionCreate) -> bool:
@@ -298,6 +307,63 @@ class TransactionService:
                 f"source '{source}' reference '{external_id}' is already used by the entry {found.tid}!"
             )
 
+    def _check_new(self, data: TransactionCreate) -> None:
+        """Everything creating an entry checks before it saves."""
+        self._check_limits()
+        self._resolve(data)
+        self._check_related(data.related_id)
+        self._check_reference(data.source, data.external_id)
+
+    def preview_create(self, data: TransactionCreate) -> TransactionPreview:
+        """What `create_once` would do, with nothing saved: the same checks, the same refusals."""
+        found = None
+        if data.source and data.external_id:
+            found = self.tr.find_by_reference(data.source, data.external_id)
+            if found is not None:
+                existing = self._to_read(found)
+                if not _same_content(existing, data):
+                    raise DuplicateReferenceError(_different_content(data, found.tid))
+        if found is None:
+            self._check_new(data)
+        return TransactionPreview(
+            tid=found.tid if found else None,
+            already_recorded=found.tid if found else None,
+            **data.model_dump(exclude={"postings"}),
+            postings=data.postings,
+        )
+
+    def preview_update(self, tid: UUID, data: TransactionUpdate) -> TransactionPreview:
+        """What `update` would save, with nothing saved: the entry as it would read afterwards."""
+        existing = self._check_update(tid, data)
+        changes = data.model_dump(exclude_unset=True, exclude={"postings"})
+        merged = {
+            key: changes[key] if key in changes else getattr(existing, key)
+            for key in ("date", "payee", "comment", "related_id", "source", "external_id", "source_url")
+        }
+        postings = (
+            data.postings
+            if data.postings is not None
+            else [PostingCreate(account=p.account, side=p.side, amount=p.amount) for p in self.tr.postings(tid)]
+        )
+        return TransactionPreview(tid=tid, **merged, postings=postings)
+
+    def preview_delete(self, tid: UUID) -> TransactionPreview:
+        """The entry a delete would remove (nothing is deleted)."""
+        existing = self.read(tid)
+        if existing is None:
+            raise ValueError(f"transaction with tid '{tid}' not found!")
+        return TransactionPreview(
+            tid=tid,
+            date=existing.date,
+            payee=existing.payee,
+            comment=existing.comment,
+            related_id=existing.related_id,
+            source=existing.source,
+            external_id=existing.external_id,
+            source_url=existing.source_url,
+            postings=[PostingCreate(account=p.account, side=p.side, amount=p.amount) for p in existing.postings],
+        )
+
     def create_once(
         self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None
     ) -> tuple[TransactionRead, bool]:
@@ -310,17 +376,11 @@ class TransactionService:
                 existing = self._to_read(found)
                 if _same_content(existing, data):
                     return existing, False
-                raise DuplicateReferenceError(
-                    f"source '{data.source}' reference '{data.external_id}' is already recorded as the entry "
-                    f"{found.tid} with a different date or rows: change that entry, or use another reference!"
-                )
+                raise DuplicateReferenceError(_different_content(data, found.tid))
         return self.create(data, recurring), True
 
     def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
-        self._check_limits()
-        self._resolve(data)
-        self._check_related(data.related_id)
-        self._check_reference(data.source, data.external_id)
+        self._check_new(data)
         transaction = self.tr.create(data, self.origin, recurring)
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
@@ -444,11 +504,8 @@ class TransactionService:
         """Who you have paid or been paid by, most used first, for the transactions filter."""
         return self.tr.payees()
 
-    def update(
-        self,
-        tid: UUID,
-        data: TransactionUpdate,
-    ) -> TransactionRead | None:
+    def _check_update(self, tid: UUID, data: TransactionUpdate) -> Transaction:
+        """Everything changing an entry checks before it saves; returns the entry as it stands."""
         existing = self.tr.read(tid)
         if not existing:
             raise ValueError(f"transaction with tid '{tid}' not found!")
@@ -463,6 +520,14 @@ class TransactionService:
                 data.external_id if "external_id" in data.model_fields_set else existing.external_id,
                 tid,
             )
+        return existing
+
+    def update(
+        self,
+        tid: UUID,
+        data: TransactionUpdate,
+    ) -> TransactionRead | None:
+        self._check_update(tid, data)
         transaction = self.tr.update(tid, data, self.origin)
         if not transaction:
             raise RuntimeError(f"failed to update transaction with tid '{tid}'!")

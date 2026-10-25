@@ -130,6 +130,21 @@ class TransactionRead(TransactionBase, ReferenceFields):
     updated: datetime
 
 
+class TransactionPreview(ReferenceFields):
+    """What a dry run says would happen: the entry as it would be saved (nothing was saved)."""
+
+    dry_run: Literal[True] = True
+    # The entry being changed or deleted; None for one that would be made.
+    tid: UUID | None = None
+    date: Day
+    payee: str | None = None
+    comment: str | None = None
+    related_id: UUID | None = None
+    postings: list[PostingCreate]
+    # Recording it would not make a new entry: this one already has the reference, with the same date and rows.
+    already_recorded: UUID | None = None
+
+
 class TransactionUpdate(ReferenceFields):
     date: Day | None = Field(default=None)
     payee: str | None = Field(default=None, max_length=40)
