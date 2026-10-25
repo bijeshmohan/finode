@@ -22,7 +22,7 @@ class ApiTokenCreate(BaseModel):
     @classmethod
     def scope_must_be_known(cls, v: str) -> str:
         if v not in TokenScope.ALL:
-            raise ValueError("scope must be 'read' or 'write'!")
+            raise ValueError("scope must be 'read', 'write' or 'manage'!")
         return v
 
 

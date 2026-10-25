@@ -24,19 +24,20 @@
     <input type="hidden" name="month" value="{{ month_key }}">{% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}{% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
     <div data-filter-main>
       <h2 class="filter-title" tabindex="-1" autofocus>Filter</h2>
-      {% for key, label, any in (("account", "Account", "Any"), ("category", "Category", "Any"), ("merchant", "Merchant", "Any")) %}
+      {% for key, label, any in (("account", "Account", "Any"), ("category", "Category", "Any"), ("merchant", "Merchant", "Any"), ("tag", "Tag", "Any")) %}
       <input type="hidden" name="{{ key }}" value="{{ filters[key] }}" data-filter-value="{{ key }}">
       <button type="button" class="filter-row" data-pick="{{ key }}"><span>{{ label }}</span><span class="filter-current{{ ' set' if filters[key] }}" data-filter-label="{{ key }}" data-any="{{ any }}">{% for a in applied if a.key == key %}{{ a.name }}{% else %}{{ any }}{% endfor %}</span>{{ icon("caret") }}</button>
       {% endfor %}
       <div class="sheet-actions"><button type="submit">Show transactions</button></div>
       {% if active_filters %}<a class="filter-clear" href="/transactions?month={{ month_key }}">Clear all</a>{% endif %}
     </div>
-    {% for key, label, items in (("account", "Account", options.accounts), ("category", "Category", options.categories), ("merchant", "Merchant", options.merchants)) %}
+    {% for key, label, items in (("account", "Account", options.accounts), ("category", "Category", options.categories), ("merchant", "Merchant", options.merchants), ("tag", "Tag", [])) %}
     <div data-filter-list="{{ key }}" hidden>
       <div class="filter-head"><button type="button" class="link" data-filter-back>‹ Filter</button><h2 class="filter-title">{{ label }}</h2></div>
       <input type="search" class="filter-search" placeholder="Search {{ label|lower }}" aria-label="Search {{ label|lower }}" autocomplete="off" data-filter-search>
       <ul class="filter-options">
         <li><button type="button" data-value="" data-label="">Any {{ label|lower }}</button></li>
+        {% if key == "tag" %}<li class="filter-empty muted" hx-get="/transactions/tag-options" hx-trigger="tags-open once" hx-swap="outerHTML">Loading…</li>{% endif %}
         {% for it in items %}
         {% if key == "merchant" %}<li><button type="button" data-value="{{ it }}" data-label="{{ it }}">{{ it }}</button></li>
         {% else %}<li><button type="button" data-value="{{ it.aid }}" data-label="{{ it.name }}">{{ it.name }}{% if it.sub %}<small class="muted">{{ it.sub }}</small>{% endif %}</button></li>{% endif %}

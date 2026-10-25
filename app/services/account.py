@@ -3,7 +3,7 @@
 import builtins
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from types import EllipsisType
 from uuid import UUID
@@ -21,6 +21,7 @@ from ..repositories import AccountRepository, ProfileRepository, TransactionRepo
 from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
+from ..schemas.account import AccountChangeRead, BalanceCheck, MergeResult
 from ..schemas.transaction import PostingCreate, TransactionCreate
 
 # Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
@@ -348,6 +349,7 @@ class AccountService:
                 details="System account for opening balance adjustments",
                 parent_id=equity_root.aid,
             ),
+            record=False,  # finode's own account: not part of anyone's history
         )
 
     def _post_balance_adjustment(
@@ -641,6 +643,172 @@ class AccountService:
                 )
             )
         return entries
+
+    def merge(self, source_id: UUID, target_id: UUID, dry_run: bool = False) -> MergeResult:
+        """Make one account part of another: every entry, planned amount, recurring rule and payment link of
+        `source` becomes the target's, and `source` is deleted. All or nothing. The source must be a plain account
+        (no sub-accounts) under the same top-level account as the target, which must be open and able to take
+        postings. Refused when an entry or rule has both accounts on opposite sides (it would pay an account from
+        itself) or when only one of them is part of the budget (that would change Ready to assign)."""
+        all_accounts = self._ensure_roots()
+        by_id = {a.aid: a for a in all_accounts}
+        source, target = by_id.get(source_id), by_id.get(target_id)
+        if source is None or target is None:
+            raise ValueError("account not found!")
+        if source_id == target_id:
+            raise ValueError("an account cannot be merged into itself!")
+        for account in (source, target):
+            if self._is_root(account):
+                raise RootAccountError("cannot merge a top-level account!")
+            if self.is_opening_balances(account, all_accounts):
+                raise SystemAccountError(f"cannot merge system account '{account.name}'!")
+        self._refuse_fixed(source, "merged")
+        self._refuse_fixed(target, "merged")
+        if self._get_root_name(source, by_id) != self._get_root_name(target, by_id):
+            raise ValueError("cannot merge accounts of different kinds (an asset into an expense, say)!")
+        if self.ar.has_children(source_id):
+            raise ValueError(f"'{source.name}' has sub-accounts: merge or move them first!")
+        root = self._get_root_name(target, by_id)
+        if self.ar.has_children(target_id) and root not in GROUP_POSTING_ROOT_NAMES:
+            raise ValueError(f"'{target.name}' has sub-accounts, so nothing can be merged into it: pick one of them!")
+        if target.closed_on is not None:
+            raise ValueError(f"'{target.name}' is closed: reopen it first!")
+        if root in ("Assets", "Liabilities") and source.on_budget != target.on_budget:
+            raise ValueError(
+                f"only one of '{source.name}' and '{target.name}' is part of the budget: make them the same first, "
+                "or the money that is ready to assign would change!"
+            )
+        both = self.tr.opposite_sides(source_id, target_id)
+        if both:
+            raise ValueError(
+                f"{both} entries move money between '{source.name}' and '{target.name}': edit or delete them first, "
+                "or they would pay an account from itself!"
+            )
+        clashing = RecurringRepository.merge_conflicts(self.ar.db, self.ar.uid, source_id, target_id)
+        if clashing:
+            raise ValueError(f"the recurring transaction '{clashing[0]}' uses both accounts: change it first!")
+        budget = BudgetRepository(self.ar.db, self.ar.uid)
+        balance = self._to_read(source, all_accounts).balance
+        tids = self.tr.transactions_touching(source_id)
+        months = budget.months_for_account(source_id)
+        rules = RecurringRepository.rules_using(self.ar.db, self.ar.uid, source_id)
+        links = sum(1 for a in all_accounts if a.payment_category_id == source_id)
+        result = MergeResult(
+            dry_run=dry_run,
+            merged=not dry_run,
+            source=self._path(source, by_id),
+            into=self._path(target, by_id),
+            balance_moved=balance,
+            entries_moved=len(tids),
+            plan_months_moved=months,
+            recurring_rules_moved=rules,
+            payment_links_moved=links,
+        )
+        if dry_run:
+            return result
+        try:
+            self.tr.repoint_account(source_id, target_id, self.ar.origin)
+            budget.merge_account(source_id, target_id)
+            RecurringRepository.repoint_account(self.ar.db, self.ar.uid, source_id, target_id)
+            self.ar.repoint_payment_category(source_id, target_id)
+            self.ar._record(self._read(target_id), "updated", merged_from=result.source)
+            self.delete(source_id, merged_into=result.into)  # commits
+        except Exception:
+            self.ar.db.rollback()
+            raise
+        return result
+
+    def changes(self, aid: UUID) -> builtins.list[AccountChangeRead]:
+        """An account's history, oldest first, each step with what it changed (works for a deleted account too)."""
+        rows = self.ar.history(aid)
+        paths = self._paths_by_id()
+        return [self._change(row, rows[i - 1] if i else None, paths) for i, row in enumerate(rows)]
+
+    def recent_changes(
+        self, since: datetime | None = None, via: str | None = None, limit: int = 50
+    ) -> builtins.list[AccountChangeRead]:
+        """The latest steps across every account, newest first, each with what it changed."""
+        newest = self.ar.history_since(since, via, limit)
+        by_account: dict[UUID, builtins.list] = {}
+        for row in self.ar.histories_for(list({r.account_id for r in newest})):
+            by_account.setdefault(row.account_id, []).append(row)
+        paths = self._paths_by_id()
+        result = []
+        for row in newest:
+            steps = by_account[row.account_id]
+            position = next(i for i, step in enumerate(steps) if step.hid == row.hid)
+            result.append(self._change(row, steps[position - 1] if position else None, paths))
+        return result
+
+    def _paths_by_id(self) -> dict[UUID, str]:
+        by_id = {a.aid: a for a in self.ar.list()}
+        return {aid: self._path(a, by_id) for aid, a in by_id.items()}
+
+    @staticmethod
+    def _change(row, before, paths: dict[UUID, str]) -> AccountChangeRead:
+        changes: dict = {}
+        if before is not None and row.action == "updated":
+            old, new = before.snapshot, row.snapshot
+            for key, label in (
+                ("name", "name"),
+                ("path", "path"),
+                ("details", "note"),
+                ("on_budget", "on_budget"),
+                ("closed_on", "closed_on"),
+            ):
+                if old.get(key) != new.get(key):
+                    changes[label] = {"from": old.get(key), "to": new.get(key)}
+            if old.get("payment_category_id") != new.get("payment_category_id"):
+
+                def name(value):
+                    return paths.get(UUID(value), value) if value else None
+
+                changes["payment_category"] = {
+                    "from": name(old.get("payment_category_id")),
+                    "to": name(new.get("payment_category_id")),
+                }
+        entry = {k: v for k, v in row.snapshot.items() if k != "parent_id" and k != "payment_category_id"}
+        if row.snapshot.get("payment_category_id"):
+            entry["payment_category"] = paths.get(
+                UUID(row.snapshot["payment_category_id"]), row.snapshot["payment_category_id"]
+            )
+        return AccountChangeRead(
+            hid=row.hid,
+            account=row.account_id,
+            action=row.action,
+            at=row.at,
+            via=row.via,
+            entry=entry,
+            changes={
+                **changes,
+                **({"merged_in": row.snapshot["merged_from"]} if row.snapshot.get("merged_from") else {}),
+            },
+        )
+
+    def check_balance(
+        self, aid: UUID, statement_balance: Decimal, as_of: date | None = None, days: int = 14
+    ) -> BalanceCheck | None:
+        """Set a statement's balance against the books on the same day and list the entries that could explain a
+        difference. Nothing is changed. Balances read as the app shows them (a card's is what is owed)."""
+        day = as_of or local_today()
+        account = self.read(aid, day)
+        if account is None:
+            return None
+        by_id = {a.aid: a for a in self._ensure_roots()}
+        window = day - timedelta(days=days)
+        entries = [e for e in (self.register(aid) or []) if window <= e.date <= day]
+        difference = statement_balance - account.balance
+        return BalanceCheck(
+            aid=aid,
+            path=self._path(by_id[aid], by_id),
+            as_of=day,
+            book_balance=account.balance,
+            statement_balance=statement_balance,
+            difference=difference,
+            matches=difference == 0,
+            recent=entries,
+            same_size_as_difference=[e for e in entries if difference != 0 and abs(e.change) == abs(difference)],
+        )
 
     def register_page(self, aid: UUID, today: date, offset: int = 0, limit: int = REGISTER_PAGE) -> RegisterPage | None:
         """An account's activity for its page without reading all of it: the newest `limit` entries up to today (then
@@ -966,7 +1134,7 @@ class AccountService:
         self.ar.db.refresh(restored)
         return self._to_read(restored, self._ensure_roots())
 
-    def delete(self, aid: UUID) -> AccountRead | None:
+    def delete(self, aid: UUID, merged_into: str | None = None) -> AccountRead | None:
         all_accounts = self._ensure_roots()
         account = next((a for a in all_accounts if a.aid == aid), None)
         if not account:
@@ -992,7 +1160,7 @@ class AccountService:
         self.ar.record_deletion(aid, self._deletion_snapshot(account, all_accounts, budget))
         budget.delete_for_account(aid)  # only a plan: it goes with the category
         self.ar.clear_payment_category(aid)
-        deleted = self.ar.delete(aid)
+        deleted = self.ar.delete(aid, **({"merged_into": merged_into} if merged_into else {}))
         if not deleted:
             raise ValueError(f"account with aid '{aid}' not found!")
         self.ar.db.commit()

@@ -16,7 +16,7 @@ class OAuthGrant(TimestampMixin, table=True):
 
     __tablename__ = "oauth_grants"
     __table_args__ = (
-        CheckConstraint("scope IN ('read', 'write')", name="ck_oauth_grants_scope"),
+        CheckConstraint("scope IN ('read', 'write', 'manage')", name="ck_oauth_grants_scope"),
         Index("uq_oauth_grants_user_client", "user", "client_id", unique=True),
     )
 

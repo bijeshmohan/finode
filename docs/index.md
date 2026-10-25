@@ -35,6 +35,7 @@ Read in this order:
 ## Developer
 
 - [Code map](developer/code-map.md): where everything lives and where to start reading
+- [Plan: tags apart from notes](developer/tags-plan.md): a proposal, not built
 - [The JSON API](developer/api.md): every route, and what is left out on purpose
 - [Conventions and how-tos](developer/conventions.md): the rules, adding a page, a tool, a migration, a setting
 - [Why it is built this way](developer/decisions.md): the decisions that look odd until you know the reason

@@ -49,7 +49,8 @@ def services() -> Iterator[Services]:
         raise PermissionError("not authenticated")
     with session_factory() as db:
         uid = owner.user
-        ar, tr, pr = AccountRepository(db, uid), TransactionRepository(db, uid), ProfileRepository(db, uid)
+        ar = AccountRepository(db, uid, origin=f"mcp:{owner.name}")
+        tr, pr = TransactionRepository(db, uid), ProfileRepository(db, uid)
         accounts = AccountService(ar, tr, pr)
         yield Services(
             owner=owner,

@@ -1,12 +1,25 @@
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
+from ..clock import local_start_utc
 from ..dependencies import Accounts
-from ..schemas.account import AccountCreate, AccountRead, AccountUpdate, ClosedAccount, DeletedAccount, RegisterEntry
+from ..schemas.account import (
+    AccountChangeRead,
+    AccountCreate,
+    AccountRead,
+    AccountUpdate,
+    BalanceCheck,
+    ClosedAccount,
+    DeletedAccount,
+    MergeRequest,
+    MergeResult,
+    RegisterEntry,
+)
 from ..services.account import AccountInUseError, SystemAccountError
 
 router = APIRouter(
@@ -36,6 +49,18 @@ def closed_accounts(accounts: Accounts):
 def deleted_accounts(accounts: Accounts):
     """Accounts and categories deleted for good that can still be restored, newest first."""
     return accounts.restorable()
+
+
+@router.get("/changes", response_model=list[AccountChangeRead])
+def recent_changes(
+    accounts: Accounts,
+    since: date | None = None,
+    by: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    """The latest steps across all accounts and categories (made, renamed, moved, closed, reopened, deleted), newest
+    first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api` or `mcp:<name>`."""
+    return accounts.recent_changes(local_start_utc(since) if since else None, (by or "").strip() or None, limit)
 
 
 @router.post("/deleted/{did}/restore", response_model=AccountRead)
@@ -121,6 +146,46 @@ def close_account(aid: UUID, accounts: Accounts):
 def reopen_account(aid: UUID, accounts: Accounts):
     """Reopen a closed account with everything inside it, and the groups above it."""
     return _closing(accounts.reopen, aid)
+
+
+@router.post("/{aid}/merge", response_model=MergeResult, status_code=200)
+def merge_account(aid: UUID, data: MergeRequest, accounts: Accounts, dry_run: bool = False):
+    """Make this account part of another (`into`): its entries, planned amounts, recurring rules and payment links
+    become the other's and it is deleted, all or nothing. Both must be plain accounts of the same top-level account
+    (this one without sub-accounts, the other open and able to take entries). Refused when an entry or rule has both on
+    opposite sides, or only one is part of the budget. With `dry_run=true` nothing changes and the answer says what
+    would move."""
+    try:
+        return accounts.merge(aid, data.into, dry_run)
+    except ValueError as e:
+        raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e)) from None
+
+
+@router.get("/{aid}/changes", response_model=list[AccountChangeRead])
+def account_changes(aid: UUID, accounts: Accounts):
+    """What happened to an account or category, oldest first, each step with what it changed and who did it (works for a
+    deleted one too)."""
+    steps = accounts.changes(aid)
+    if not steps:
+        raise HTTPException(status_code=404, detail="account not found")
+    return steps
+
+
+@router.get("/{aid}/check-balance", response_model=BalanceCheck)
+def check_balance(
+    aid: UUID,
+    accounts: Accounts,
+    statement_balance: Decimal,
+    as_of: date | None = None,
+    days: int = Query(default=14, ge=0, le=366),
+):
+    """Set a statement's balance against the books on the same day (today by default): the books' balance, the
+    difference and the entries of the last `days` days, with those exactly as large as the difference. Nothing is
+    changed. A card's or loan's balance is what is owed, as the app shows it."""
+    check = accounts.check_balance(aid, statement_balance, as_of, days)
+    if check is None:
+        raise HTTPException(status_code=404, detail="account not found")
+    return check
 
 
 @router.get("/{aid}/register", response_model=list[RegisterEntry])

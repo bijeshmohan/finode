@@ -115,3 +115,9 @@ The decisions that look odd until you know the reason. Each entry says what was 
 ## Feature freeze and the MVP scope
 
 The owner froze new features on 2026-10-14 and defined the MVP on 2026-10-18: correct double entry, monthly budgets (future-proofed for weekly and yearly), a minimal web UI, an MCP server, removing unused code, speed, and documentation. Splitting expenses with friends is a good idea explicitly *not* in the MVP. A review of what to keep or cut is planned for about 2026-11-04.
+
+## A reference on the entry, not an idempotency-key table
+
+**Decision.** Retrying a write safely is done with `source` + `external_id` on the transaction (unique per person), not with a separate table of request keys. Recording the same pair with the same date and rows returns the entry already there; with different content it is an error.
+**Why.** The reference is also what an assistant needs later to reconcile or find an entry ("the bank message this came from"), so one field serves both. A key table would need expiry and would still not say where an entry came from. (Asked for by the owner as part of making finode friendly to AI assistants, 2026-10-25; plan in `agent-friendly-plan.md`.)
+**Cost.** A write without a reference is not protected from being repeated. The assistants' instructions tell them to pass one for anything that comes from outside.

@@ -21,7 +21,10 @@
   <label class="chip date-chip" data-date-chip data-today="{{ today }}">{{ icon("calendar") }}<span data-date-label>{{ day|date_chip }}</span>
     <input type="date" name="date" value="{{ day }}" required aria-label="Date">
   </label>
-  <input type="text" name="comment" maxlength="200" placeholder="Note (optional)" aria-label="Note" value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
+  <div class="tag-field">
+    <input type="text" name="comment" maxlength="200" placeholder="Note (optional)" aria-label="Note" autocomplete="off" data-tag-note value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
+    <div class="tag-pop" role="listbox" aria-label="Tags you use" hidden></div>
+  </div>
 
   <div class="related" data-related>
     <input type="hidden" name="related" value="{{ related.transaction.tid if related }}" data-related-value>

@@ -1,9 +1,12 @@
 """Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits), plus history, deleted entries and restoring."""
 
 import builtins
-from collections.abc import Collection
-from datetime import date
+from collections import Counter
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass, field
+from datetime import date, datetime
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from ..clock import local_midnight_utc
@@ -14,15 +17,46 @@ from ..limits import ensure_room
 from ..models import Account
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
+from ..repositories.transaction import comparable_snapshot
 from ..schemas.transaction import (
+    MAX_BATCH,
+    BatchEntryResult,
+    BatchResult,
+    ChangeRead,
     HistoryPosting,
     HistoryRead,
+    PayeeDefaultRead,
+    PayeeRouteRead,
+    PostingCreate,
     PostingRead,
+    RouteAccount,
+    TagRead,
     TransactionCreate,
+    TransactionPreview,
     TransactionRead,
     TransactionUpdate,
 )
+from ..tags import clean_tag, tags_in
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
+
+# How many recent entries the payee suggestions look at.
+PAYEE_HISTORY = 300
+
+
+@dataclass
+class PayeeRoute:
+    """How someone was paid (or paid you) the last time: the accounts of the newest entry with one account on each
+    side, how many such entries there are, and the other routes seen."""
+
+    payee: str
+    count: int
+    from_id: UUID
+    to_id: UUID
+    # The payee was typed in full (capitals aside), not just a part of it.
+    exact: bool = False
+    # Other (from, to, count) routes this payee was booked on, most used first.
+    others: builtins.list[tuple[UUID, UUID, int]] = field(default_factory=list)
+
 
 # How many deleted entries the recently-deleted page lists.
 RESTORABLE_LIMIT = 50
@@ -32,6 +66,64 @@ class InvalidPostingError(ValueError): ...
 
 
 class InvalidPostingAccountError(InvalidPostingError): ...
+
+
+class BatchError(InvalidPostingError):
+    """A batch was refused as a whole: nothing was saved."""
+
+
+class DuplicateReferenceError(InvalidPostingError):
+    """A source's reference is already used by another entry."""
+
+
+def _rows(postings) -> list[tuple[str, str, Decimal]]:
+    return sorted((str(p.account), PostingSide(p.side).value, p.amount) for p in postings)
+
+
+def _diff(before: dict, after: dict, paths: dict[UUID, str]) -> dict:
+    """What an update changed between two snapshots: fields as {"from", "to"}, rows added, removed or changed."""
+    before, after = comparable_snapshot(before), comparable_snapshot(after)
+    changes: dict = {}
+    for key, label in (("date", "date"), ("payee", "payee"), ("comment", "note")):
+        if before.get(key) != after.get(key):
+            changes[label] = {"from": before.get(key), "to": after.get(key)}
+    keys = ("source", "external_id", "source_url")
+    if any(before.get(k) != after.get(k) for k in keys):
+        changes["reference"] = {
+            "from": {k: before.get(k) for k in keys},
+            "to": {k: after.get(k) for k in keys},
+        }
+
+    def rows(snapshot: dict) -> dict[tuple[str, str], Decimal]:
+        found: dict[tuple[str, str], Decimal] = {}
+        for p in snapshot.get("postings", []):
+            key = (paths.get(UUID(p["account"]), p["account"]), p["side"])
+            found[key] = found.get(key, Decimal(0)) + Decimal(p["amount"])
+        return found
+
+    old, new = rows(before), rows(after)
+    added = [{"account": a, "side": s, "amount": new[a, s]} for a, s in new if (a, s) not in old]
+    removed = [{"account": a, "side": s, "amount": old[a, s]} for a, s in old if (a, s) not in new]
+    changed = [
+        {"account": a, "side": s, "from": old[a, s], "to": new[a, s]}
+        for a, s in new
+        if (a, s) in old and old[a, s] != new[a, s]
+    ]
+    if added or removed or changed:
+        changes["postings"] = {"added": added, "removed": removed, "changed": changed}
+    return changes
+
+
+def _different_content(data: TransactionCreate, tid: UUID) -> str:
+    return (
+        f"source '{data.source}' reference '{data.external_id}' is already recorded as the entry {tid} "
+        "with a different date or rows: change that entry, or use another reference!"
+    )
+
+
+def _same_content(existing: TransactionRead, data: TransactionCreate) -> bool:
+    """Whether recording `data` again would only repeat `existing`: the same day and the same rows."""
+    return existing.date == data.date and _rows(existing.postings) == _rows(data.postings)
 
 
 def decimal_places(value: Decimal) -> int:
@@ -135,6 +227,9 @@ class TransactionService:
             updated_via=transaction.updated_via,
             recurring_id=transaction.recurring_id,
             related_id=transaction.related_id,
+            source=transaction.source,
+            external_id=transaction.external_id,
+            source_url=transaction.source_url,
             postings=[
                 self._posting_to_read(posting)
                 for posting in (postings if postings is not None else self.tr.postings(transaction.tid))
@@ -154,6 +249,9 @@ class TransactionService:
             date=date.fromisoformat(snap["date"]),
             payee=snap.get("payee"),
             comment=snap.get("comment"),
+            source=snap.get("source"),
+            external_id=snap.get("external_id"),
+            source_url=snap.get("source_url"),
             postings=[
                 HistoryPosting(
                     account=paths.get(UUID(p["account"]), p["account"]),
@@ -182,6 +280,41 @@ class TransactionService:
         """What happened to a transaction, oldest first; works for a deleted one too."""
         paths = self._account_paths()
         return [self._history_read(row, paths) for row in self.tr.history(tid)]
+
+    def changes(self, tid: UUID) -> builtins.list[ChangeRead]:
+        """An entry's history, oldest first, each step with what it changed (works for a deleted entry too)."""
+        paths = self._account_paths()
+        rows = self.tr.history(tid)
+        return [self._change(row, rows[i - 1] if i else None, paths) for i, row in enumerate(rows)]
+
+    def recent_changes(
+        self, since: datetime | None = None, via: str | None = None, limit: int = 50
+    ) -> builtins.list[ChangeRead]:
+        """The latest steps across every entry, newest first, each with what it changed."""
+        newest = self.tr.history_since(since, via, limit)
+        paths = self._account_paths()
+        by_entry: dict[UUID, builtins.list] = {}
+        for row in self.tr.histories_for(list({r.transaction_id for r in newest})):
+            by_entry.setdefault(row.transaction_id, []).append(row)
+        result = []
+        for row in newest:
+            steps = by_entry[row.transaction_id]
+            position = next(i for i, step in enumerate(steps) if step.hid == row.hid)
+            result.append(self._change(row, steps[position - 1] if position else None, paths))
+        return result
+
+    def _change(self, row, before, paths: dict[UUID, str]) -> ChangeRead:
+        return ChangeRead(
+            hid=row.hid,
+            transaction=row.transaction_id,
+            action=row.action,
+            at=row.at,
+            via=row.via,
+            entry=self._history_read(row, paths),
+            changes=_diff(before.snapshot, row.snapshot, paths)
+            if before is not None and row.action == "updated"
+            else {},
+        )
 
     def deleted(self) -> list[HistoryRead]:
         """Transactions that were deleted, as they were when deleted, newest first."""
@@ -216,6 +349,9 @@ class TransactionService:
             date=date.fromisoformat(snapshot["date"]),
             payee=snapshot.get("payee"),
             comment=snapshot.get("comment"),
+            source=snapshot.get("source"),
+            external_id=snapshot.get("external_id"),
+            source_url=snapshot.get("source_url"),
             postings=[
                 {"account": UUID(p["account"]), "side": p["side"], "amount": Decimal(p["amount"])}
                 for p in snapshot["postings"]
@@ -223,6 +359,7 @@ class TransactionService:
         )
         self._check_limits()
         self._resolve(data)
+        self._check_reference(data.source, data.external_id)
         transaction = self.tr.create(data, self.origin, None, tid=row.transaction_id)
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
@@ -256,10 +393,178 @@ class TransactionService:
             made = self.tr.count_since(midnight, leaving_out=("recurring", "import"))
             ensure_room(made, settings.max_transactions_per_day, "new transactions a day")
 
-    def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
+    def recorded_today(self) -> int:
+        """New transactions today, counted as the daily limit counts them (not recurring rules or imports)."""
+        return self.tr.count_since(local_midnight_utc(), leaving_out=("recurring", "import"))
+
+    def count(self) -> int:
+        return self.tr.count()
+
+    def last_change(self) -> datetime | None:
+        return self.tr.last_change()
+
+    def _check_reference(self, source: str | None, external_id: str | None, tid: UUID | None = None) -> None:
+        """A source's reference is used once: another entry with it (not the one being changed) is refused."""
+        if not external_id:
+            return
+        if not source:
+            raise InvalidPostingError("a reference (external_id) needs a source, for example 'gmail' or 'upi'!")
+        found = self.tr.find_by_reference(source, external_id)
+        if found is not None and found.tid != tid:
+            raise DuplicateReferenceError(
+                f"source '{source}' reference '{external_id}' is already used by the entry {found.tid}!"
+            )
+
+    def _check_new(self, data: TransactionCreate) -> None:
+        """Everything creating an entry checks before it saves."""
         self._check_limits()
         self._resolve(data)
         self._check_related(data.related_id)
+        self._check_reference(data.source, data.external_id)
+
+    def preview_create(self, data: TransactionCreate) -> TransactionPreview:
+        """What `create_once` would do, with nothing saved: the same checks, the same refusals."""
+        found = None
+        if data.source and data.external_id:
+            found = self.tr.find_by_reference(data.source, data.external_id)
+            if found is not None:
+                existing = self._to_read(found)
+                if not _same_content(existing, data):
+                    raise DuplicateReferenceError(_different_content(data, found.tid))
+        if found is None:
+            self._check_new(data)
+        return TransactionPreview(
+            tid=found.tid if found else None,
+            already_recorded=found.tid if found else None,
+            **data.model_dump(exclude={"postings"}),
+            postings=data.postings,
+        )
+
+    def record_batch(self, items: Sequence[TransactionCreate], dry_run: bool = False) -> BatchResult:
+        """Record several entries as one: either all of them are saved or none is. An entry whose source and
+        reference are already recorded with the same date and rows is skipped (it is not an error, so retrying a
+        batch is safe). Every problem is collected and reported by its place in the batch."""
+        if not items:
+            raise BatchError("a batch needs at least one entry!")
+        if len(items) > MAX_BATCH:
+            raise BatchError(f"a batch can hold at most {MAX_BATCH} entries: send it in parts!")
+        problems: list[str] = []
+        previews: list[TransactionPreview | None] = []
+        seen: dict[tuple[str, str], int] = {}
+        for number, item in enumerate(items, start=1):
+            try:
+                if item.source and item.external_id:
+                    key = (item.source, item.external_id)
+                    if key in seen:
+                        raise InvalidPostingError(
+                            f"it repeats the reference '{item.external_id}' of source '{item.source}' that "
+                            f"entry {seen[key]} has!"
+                        )
+                    seen[key] = number
+                previews.append(self.preview_create(item))
+            except (ValueError, LookupError) as e:
+                problems.append(f"entry {number}: {e}")
+                previews.append(None)
+        new = sum(1 for p in previews if p is not None and p.already_recorded is None)
+        if not problems and new:
+            try:
+                ensure_room(self.tr.count(), settings.max_transactions, "transactions", adding=new)
+                if settings.max_transactions_per_day and self.origin not in ("recurring", "import"):
+                    ensure_room(
+                        self.recorded_today(), settings.max_transactions_per_day, "new transactions a day", adding=new
+                    )
+            except ValueError as e:
+                problems.append(str(e))
+        if problems:
+            raise BatchError("nothing was saved. " + " ".join(problems))
+        if dry_run:
+            entries = [
+                BatchEntryResult(
+                    item=number,
+                    status="already_recorded" if preview.already_recorded else "would_record",
+                    transaction=preview,
+                )
+                for number, preview in enumerate(cast(list[TransactionPreview], previews), start=1)
+            ]
+            return BatchResult(dry_run=True, saved=False, created=0, already_recorded=len(items) - new, entries=entries)
+        made: dict[int, Transaction] = {}
+        try:
+            for number, (item, preview) in enumerate(
+                zip(items, cast(list[TransactionPreview], previews), strict=True), start=1
+            ):
+                if preview.already_recorded is None:
+                    made[number] = self.tr.create(item, self.origin)
+            self.tr.db.commit()
+        except Exception:
+            self.tr.db.rollback()
+            raise
+        entries = []
+        for number, preview in enumerate(cast(list[TransactionPreview], previews), start=1):
+            if number in made:
+                self.tr.db.refresh(made[number])
+                entries.append(
+                    BatchEntryResult(item=number, status="recorded", transaction=self._to_read(made[number]))
+                )
+            else:
+                existing = self.read(cast(UUID, preview.already_recorded))
+                entries.append(
+                    BatchEntryResult(
+                        item=number, status="already_recorded", transaction=cast(TransactionRead, existing)
+                    )
+                )
+        return BatchResult(
+            dry_run=False, saved=True, created=len(made), already_recorded=len(items) - len(made), entries=entries
+        )
+
+    def preview_update(self, tid: UUID, data: TransactionUpdate) -> TransactionPreview:
+        """What `update` would save, with nothing saved: the entry as it would read afterwards."""
+        existing = self._check_update(tid, data)
+        changes = data.model_dump(exclude_unset=True, exclude={"postings"})
+        merged = {
+            key: changes[key] if key in changes else getattr(existing, key)
+            for key in ("date", "payee", "comment", "related_id", "source", "external_id", "source_url")
+        }
+        postings = (
+            data.postings
+            if data.postings is not None
+            else [PostingCreate(account=p.account, side=p.side, amount=p.amount) for p in self.tr.postings(tid)]
+        )
+        return TransactionPreview(tid=tid, **merged, postings=postings)
+
+    def preview_delete(self, tid: UUID) -> TransactionPreview:
+        """The entry a delete would remove (nothing is deleted)."""
+        existing = self.read(tid)
+        if existing is None:
+            raise ValueError(f"transaction with tid '{tid}' not found!")
+        return TransactionPreview(
+            tid=tid,
+            date=existing.date,
+            payee=existing.payee,
+            comment=existing.comment,
+            related_id=existing.related_id,
+            source=existing.source,
+            external_id=existing.external_id,
+            source_url=existing.source_url,
+            postings=[PostingCreate(account=p.account, side=p.side, amount=p.amount) for p in existing.postings],
+        )
+
+    def create_once(
+        self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None
+    ) -> tuple[TransactionRead, bool]:
+        """Record an entry, or, when its source and reference are already recorded with the same date and rows,
+        return that entry and change nothing. The flag is True when a new entry was made. The same reference with
+        different content is an error (the reference is for one entry)."""
+        if data.source and data.external_id:
+            found = self.tr.find_by_reference(data.source, data.external_id)
+            if found is not None:
+                existing = self._to_read(found)
+                if _same_content(existing, data):
+                    return existing, False
+                raise DuplicateReferenceError(_different_content(data, found.tid))
+        return self.create(data, recurring), True
+
+    def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
+        self._check_new(data)
         transaction = self.tr.create(data, self.origin, recurring)
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
@@ -317,6 +622,9 @@ class TransactionService:
         kind: str | None = None,
         also: UUID | None = None,
         payee: str | None = None,
+        source: str | None = None,
+        external_id: str | None = None,
+        tag: str | None = None,
     ) -> builtins.list[TransactionRead]:
         account_ids, kind_accounts, also_ids = self._args(account, kind, also)
         transactions = self.tr.list(
@@ -330,6 +638,9 @@ class TransactionService:
             kind_accounts,
             also_ids,
             (payee or "").strip() or None,
+            (source or "").strip().lower() or None,
+            (external_id or "").strip() or None,
+            clean_tag(tag or "") or None,
         )
         postings = self.tr.postings_for_transactions([t.tid for t in transactions])  # one query, not one per row
         return [self._to_read(transaction, postings.get(transaction.tid, [])) for transaction in transactions]
@@ -345,6 +656,7 @@ class TransactionService:
         kind: str | None = None,
         also: UUID | None = None,
         payee: str | None = None,
+        tag: str | None = None,
     ) -> tuple[builtins.list[TransactionRead], int]:
         """A chunk of the list for "Show more" and how many entries match in all. A day is never split between two
         chunks: the chunk runs on to the end of the day its last entry falls on."""
@@ -353,7 +665,7 @@ class TransactionService:
 
         def read(first, last, limit, start):
             return self.tr.list(
-                account_ids, first, last, limit, start, text, kind or None, kind_accounts, also_ids, payee
+                account_ids, first, last, limit, start, text, kind or None, kind_accounts, also_ids, payee, tag=tag
             )
 
         found = read(date_from, date_to, size + 1, offset)
@@ -367,7 +679,7 @@ class TransactionService:
             found = found[:size]
         if more_exist:
             total = self.tr.count_matching(
-                account_ids, date_from, date_to, text, kind or None, kind_accounts, also_ids, payee
+                account_ids, date_from, date_to, text, kind or None, kind_accounts, also_ids, payee, tag=tag
             )
         else:
             total = offset + len(found)  # nothing is left, so there is no need to count
@@ -375,15 +687,114 @@ class TransactionService:
         found = [self._to_read(t, postings.get(t.tid, [])) for t in found]
         return found, total
 
+    def tagged(self) -> builtins.list[TransactionRead]:
+        """Every entry that carries at least one tag, newest first, with its postings (two queries however many)."""
+        found = [t for t in self.tr.tagged() if tags_in(t.comment)]
+        postings = self.tr.postings_for_transactions([t.tid for t in found])
+        return [self._to_read(t, postings.get(t.tid, [])) for t in found]
+
+    def tags(self) -> builtins.list[TagRead]:
+        """The #hashtags used in notes, the most used first, each with how many entries carry it and its last day."""
+        found: dict[str, TagRead] = {}
+        for note, day in self.tr.tag_notes():
+            for tag in tags_in(note):
+                if tag in found:
+                    found[tag].uses += 1
+                    found[tag].last_used = max(found[tag].last_used, day)
+                else:
+                    found[tag] = TagRead(tag=tag, uses=1, last_used=day)
+        return sorted(found.values(), key=lambda t: (-t.uses, t.tag))
+
+    def payee_routes(self, query: str = "", limit: int = 6, history: int = PAYEE_HISTORY) -> builtins.list[PayeeRoute]:
+        """Who the person pays (or is paid by) most, each with the accounts of the newest entry to repeat.
+
+        Only entries with one account on each side count (a split has no single route), only accounts that can
+        still be used, and not opening balances. Payees used often come first; a query narrows them to those
+        starting with, then containing, what was typed (an exact match first)."""
+        accounts = {a.aid: a for a in self.ar.list()}
+        usable = {aid for aid, a in accounts.items() if a.parent_id is not None and a.closed_on is None}
+        wanted = query.strip().lower()
+        seen: dict[str, dict] = {}
+        for position, t in enumerate(self.list(limit=history)):
+            credits = [p for p in t.postings if p.side == PostingSide.CREDIT]
+            debits = [p for p in t.postings if p.side == PostingSide.DEBIT]
+            payee = (t.payee or "").strip()
+            if not payee or len(credits) != 1 or len(debits) != 1:
+                continue
+            source, target = credits[0].account, debits[0].account
+            if source not in usable or target not in usable:
+                continue
+            if "Equity" in (
+                AccountService.root_name(accounts[source], accounts),
+                AccountService.root_name(accounts[target], accounts),
+            ):
+                continue  # opening balances are not a payee
+            entry = seen.setdefault(
+                payee.lower(),
+                {"payee": payee, "count": 0, "route": (source, target), "order": position, "routes": Counter()},
+            )
+            entry["count"] += 1  # the first one seen is the newest: its route is the one repeated
+            entry["routes"][(source, target)] += 1
+        ranked = []
+        for key, entry in seen.items():
+            if wanted and wanted not in key:
+                continue
+            others = [(f, to, n) for (f, to), n in entry["routes"].most_common() if (f, to) != entry["route"]]
+            ranked.append(
+                (
+                    0 if wanted and key == wanted else 1 if key.startswith(wanted) else 2,
+                    -entry["count"],
+                    entry["order"],
+                    PayeeRoute(
+                        entry["payee"],
+                        entry["count"],
+                        *entry["route"],
+                        exact=bool(wanted) and key == wanted,
+                        others=others,
+                    ),
+                )
+            )
+        ranked.sort(key=lambda r: r[:3])
+        return [r[3] for r in ranked[:limit]]
+
+    def payee_defaults(self, query: str = "", limit: int = 5) -> builtins.list[PayeeDefaultRead]:
+        """`payee_routes` with account paths and the kind of entry, for the API and the assistants."""
+        paths = self._account_paths()
+        accounts = {a.aid: a for a in self.ar.list()}
+
+        def side(aid: UUID) -> RouteAccount:
+            return RouteAccount(id=aid, path=paths.get(aid, "?"))
+
+        found = []
+        for r in self.payee_routes(query, limit):
+            source, target = accounts[r.from_id], accounts[r.to_id]
+            if AccountService.root_name(target, accounts) == "Expenses":
+                kind = "expense"
+            elif AccountService.root_name(source, accounts) == "Income":
+                kind = "income"
+            else:
+                kind = "transfer"
+            found.append(
+                PayeeDefaultRead(
+                    payee=r.payee,
+                    uses=r.count,
+                    exact=r.exact,
+                    kind=kind,
+                    from_account=side(r.from_id),
+                    to_account=side(r.to_id),
+                    other_routes=[
+                        PayeeRouteRead(from_account=side(f), to_account=side(t), uses=n) for f, t, n in r.others[:3]
+                    ],
+                )
+            )
+        return found
+
     def payees(self) -> builtins.list[tuple[str, int]]:
         """Who you have paid or been paid by, most used first, for the transactions filter."""
         return self.tr.payees()
 
-    def update(
-        self,
-        tid: UUID,
-        data: TransactionUpdate,
-    ) -> TransactionRead | None:
+    def _check_update(self, tid: UUID, data: TransactionUpdate) -> Transaction:
+        """Everything changing an entry checks before it saves; returns the entry as it stands."""
         existing = self.tr.read(tid)
         if not existing:
             raise ValueError(f"transaction with tid '{tid}' not found!")
@@ -392,6 +803,20 @@ class TransactionService:
         self._resolve(data, kept)
         if "related_id" in data.model_fields_set:
             self._check_related(data.related_id, tid)
+        if data.model_fields_set & {"source", "external_id"}:
+            self._check_reference(
+                data.source if "source" in data.model_fields_set else existing.source,
+                data.external_id if "external_id" in data.model_fields_set else existing.external_id,
+                tid,
+            )
+        return existing
+
+    def update(
+        self,
+        tid: UUID,
+        data: TransactionUpdate,
+    ) -> TransactionRead | None:
+        self._check_update(tid, data)
         transaction = self.tr.update(tid, data, self.origin)
         if not transaction:
             raise RuntimeError(f"failed to update transaction with tid '{tid}'!")

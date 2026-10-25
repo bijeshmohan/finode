@@ -4,7 +4,7 @@ import builtins
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import or_
+from sqlalchemy import or_, update
 from sqlmodel import Session, col, select
 
 from ..models.recurring import RecurringPosting, RecurringTransaction
@@ -106,6 +106,76 @@ class RecurringRepository:
             ).all()
             if rule.from_account in aids or rule.to_account in aids or rule.rid in posting_rules
         ]
+
+    @staticmethod
+    def merge_conflicts(db: Session, uid: UUID, a: UUID, b: UUID) -> builtins.list[str]:
+        """Rules that would end up with an account on both sides if `a` and `b` became one (named by payee)."""
+        names = []
+        for rule in db.exec(select(RecurringTransaction).where(RecurringTransaction.user == uid)).all():
+            label = rule.payee or "a recurring transaction"
+            if {rule.from_account, rule.to_account} == {a, b}:
+                names.append(label)
+                continue
+            rows = db.exec(
+                select(RecurringPosting).where(RecurringPosting.user == uid, RecurringPosting.rid == rule.rid)
+            ).all()
+            sides_a = {p.side for p in rows if p.account == a}
+            sides_b = {p.side for p in rows if p.account == b}
+            if sides_a and sides_b and sides_a != sides_b:
+                names.append(label)
+        return names
+
+    @staticmethod
+    def rules_using(db: Session, uid: UUID, aid: UUID) -> int:
+        """How many rules (running or paused) use the account."""
+        simple = set(
+            db.exec(
+                select(RecurringTransaction.rid).where(
+                    RecurringTransaction.user == uid,
+                    or_(RecurringTransaction.from_account == aid, RecurringTransaction.to_account == aid),
+                )
+            ).all()
+        )
+        split = set(
+            db.exec(
+                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.account == aid)
+            ).all()
+        )
+        return len(simple | split)
+
+    @staticmethod
+    def repoint_account(db: Session, uid: UUID, source: UUID, target: UUID) -> int:
+        """Rules that use `source` use `target` instead (a merge). Returns how many rules changed. Nothing is committed."""
+        rules = set(
+            db.exec(
+                select(RecurringTransaction.rid).where(
+                    RecurringTransaction.user == uid,
+                    or_(RecurringTransaction.from_account == source, RecurringTransaction.to_account == source),
+                )
+            ).all()
+        ) | set(
+            db.exec(
+                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.account == source)
+            ).all()
+        )
+        db.exec(
+            update(RecurringTransaction)
+            .where(RecurringTransaction.user == uid, RecurringTransaction.from_account == source)
+            .values(from_account=target)
+        )
+        db.exec(
+            update(RecurringTransaction)
+            .where(RecurringTransaction.user == uid, RecurringTransaction.to_account == source)
+            .values(to_account=target)
+        )
+        db.exec(
+            update(RecurringPosting)
+            .where(RecurringPosting.user == uid, RecurringPosting.account == source)
+            .values(account=target)
+        )
+        db.expire_all()
+        db.flush()
+        return len(rules)
 
     @staticmethod
     def uses_account(db: Session, aid: UUID) -> bool:

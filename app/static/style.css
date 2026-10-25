@@ -1454,3 +1454,13 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 .sheet-links a:hover { color: var(--text); }
 .filter-row > span:first-child { color: var(--text); }
 .tx.tx-system .tx-title, .tx.tx-system .tx-amount { color: var(--muted); }
+
+/* ---------- Tags (2026-10-25) ---------- */
+.sheet-facts dd.sheet-tags { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; gap: .25rem .75rem; }
+.sheet-tags a { color: var(--text); text-decoration: none; }
+.sheet-tags a:hover { text-decoration: underline; }
+.filter-empty { list-style: none; padding: 1rem 0; font-size: .875rem; }
+.tag-field { position: relative; }
+.tag-pop { position: absolute; left: 0; right: 0; top: 100%; z-index: 6; margin-top: .25rem; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--shadow-lg); }
+.tag-pop button { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: var(--tap); margin: 0; padding: 0 .9rem; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font-size: .9375rem; font-weight: 400; text-align: left; }
+.tag-pop button:last-child { border-bottom: 0; }

@@ -2,6 +2,7 @@ import unicodedata
 from datetime import date as Date
 from datetime import datetime
 from decimal import Decimal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -85,6 +86,59 @@ class RegisterEntry(BaseModel):
     counter_accounts: list[str]
     change: Decimal
     balance: Decimal
+
+
+class AccountChangeRead(BaseModel):
+    """One step in an account's life, with what it changed compared with the step before."""
+
+    hid: UUID
+    account: UUID
+    action: Literal["created", "updated", "closed", "reopened", "restored", "deleted"]
+    at: datetime
+    # "web", "api" or "mcp:<token name>"; None if unknown.
+    via: str | None = None
+    # The account as it stood after this step: name, path, note, budget flag, payment category, closing day.
+    entry: dict[str, Any]
+    # For an update: {field: {"from", "to"}} for name, path, note, on_budget, payment_category and closed_on.
+    changes: dict[str, Any] = Field(default_factory=dict)
+
+
+class MergeRequest(BaseModel):
+    # The account that takes over everything (this one is merged into it).
+    into: UUID
+
+
+class MergeResult(BaseModel):
+    """What merging one account into another did (or, for a dry run, would do)."""
+
+    dry_run: bool
+    merged: bool
+    source: str
+    into: str
+    # What the merged account held, now held by the other.
+    balance_moved: Decimal
+    entries_moved: int
+    plan_months_moved: int
+    recurring_rules_moved: int
+    payment_links_moved: int
+
+
+class BalanceCheck(BaseModel):
+    """A statement's balance set against the books on the same day (nothing is changed)."""
+
+    aid: UUID
+    path: str
+    as_of: Date
+    # What the books say on that day (what is owed, for a card or loan), and what the statement says.
+    book_balance: Decimal
+    statement_balance: Decimal
+    # Statement minus books: zero when they agree.
+    difference: Decimal
+    matches: bool
+    # The entries of the last `days` days up to the day, oldest first.
+    recent: list[RegisterEntry]
+    # Entries in that window that are exactly as large as the difference: the likely extra or missing one.
+    same_size_as_difference: list[RegisterEntry]
 
 
 class ClosedAccount(BaseModel):

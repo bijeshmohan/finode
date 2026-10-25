@@ -21,8 +21,8 @@ from ..services.oauth_grant import OAuthGrantService
 from . import context
 from .tools import build_server
 
-# One server per scope, so a read-only token never even sees the tools that write.
-SERVERS = {TokenScope.READ: build_server(write=False), TokenScope.WRITE: build_server(write=True)}
+# One server per scope, so each access level gets instructions that say what it may do.
+SERVERS = {scope: build_server(scope) for scope in TokenScope.ALL}
 
 # Requests carry a bearer token, which a browser never adds by itself, so DNS rebinding
 # protection (aimed at servers on localhost) is not needed and would reject the public host.

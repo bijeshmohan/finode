@@ -17,7 +17,7 @@ Everything the web app and the assistants can do with your books can be done thr
 | Signing in, signing up, passwords, the OAuth consent page | Identity belongs to Supabase; these are web pages. |
 | Creating or revoking assistant tokens and connected apps | A token must never be able to manage tokens, and an app's token never acts as a full sign-in. |
 | **Erase my books** and **Delete my account** | They need the person to type their email on the settings pages; a leaked bearer token must not be able to wipe a ledger. |
-| Payee suggestions that carry accounts ("payee chips") | A convenience of the Add screen; `GET /transactions/payees` and `GET /transactions/?payee=` give the same facts. |
+| Payee suggestions that carry accounts ("payee chips") | A convenience of the Add screen; `GET /transactions/payee-defaults`, `GET /transactions/payees` and `GET /transactions/?payee=` give the same facts. |
 
 ## Accounts and categories
 
@@ -33,20 +33,29 @@ Everything the web app and the assistants can do with your books can be done thr
 | `DELETE` | `/accounts/{aid}` | Delete an account for good; refused when it has entries, sub-accounts or a recurring rule (close it instead). |
 | `POST` | `/accounts/{aid}/close` | Close an account (and everything inside it): its history stays, nothing more can be posted to it. |
 | `POST` | `/accounts/{aid}/reopen` | Reopen a closed account with everything inside it, and the groups above it. |
+| `GET` | `/accounts/changes` | The latest steps across all accounts and categories (made, renamed, moved, closed, reopened, deleted), newest first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api` or `mcp:<name>`. |
+| `POST` | `/accounts/{aid}/merge` | Make this account part of another (`into`): its entries, planned amounts, recurring rules and payment links become the other's and it is deleted, all or nothing. Both must be plain accounts of the same top-level account (this one without sub-accounts, the other open and able to take entries). Refused when an entry or rule has both on opposite sides, or only one is part of the budget. With `dry_run=true` nothing changes and the answer says what would move. |
+| `GET` | `/accounts/{aid}/changes` | What happened to an account or category, oldest first, each step with what it changed and who did it (works for a deleted one too). |
+| `GET` | `/accounts/{aid}/check-balance` | Set a statement's balance (`statement_balance`) against the books on the same day (`as_of`, today by default): the books' balance, the difference and the entries of the last `days` days, with those exactly as large as the difference. Nothing is changed. A card's or loan's balance is what is owed, as the app shows it. |
 | `GET` | `/accounts/{aid}/register` | The account's entries, oldest first, each with what it changed and the running balance. `own_only` leaves out |
 
 ## Transactions
 
 | Method | Path | What it does |
 |---|---|---|
-| `POST` | `/transactions/` | Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`. |
+| `POST` | `/transactions/` | Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`. `source`, `external_id` and `source_url` say where it came from (a bank, a mail); a source's reference is used once, so sending the same one again with the same date and rows answers 200 with the entry already recorded and creates nothing; the same reference with a different date or rows is a 400. With `dry_run=true` every check runs but nothing is saved: the answer (200) is the entry as it would be saved (`dry_run: true`, and `already_recorded` when the reference is already there). |
+| `POST` | `/transactions/batch` | Record up to 50 transactions as one: all are saved or none. An entry whose `source` and `external_id` are already recorded with the same date and rows is skipped (status `already_recorded`), so a batch can be sent again safely. Any problem refuses the whole batch (400) naming the entries at fault. With `dry_run=true` nothing is saved and the answer (200) shows what would be. |
 | `GET` | `/transactions/payees` | Who you have paid or been paid by, most used first (the opening-balance entries are left out). |
+| `GET` | `/transactions/tags` | The #hashtags used in notes, most used first, with how many entries carry each and the latest day. |
+| `GET` | `/transactions/payee-defaults` | How payees are usually booked, most used first: the accounts of the newest entry with one account on each side (so a repeat can be filled in), and the other routes seen. `payee` narrows to those that match what is typed. |
 | `GET` | `/transactions/deleted` | Entries that were deleted and are not back, newest deletion first; `hid` is what to restore. |
 | `POST` | `/transactions/deleted/{hid}/restore` | Bring a deleted entry back as it was, with its old id (checked again like any new entry). |
 | `GET` | `/transactions/{tid}` | One transaction with its postings. |
-| `GET` | `/transactions/` | Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts |
-| `PATCH` | `/transactions/{tid}` | Change a transaction; only the fields sent change (`related_id: null` removes the link). |
-| `DELETE` | `/transactions/{tid}` | Delete a transaction; it waits in /transactions/deleted and can be restored. |
+| `GET` | `/transactions/` | Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts used; `payee` is exact; `source` and `external_id` find the entry a source's reference stands for; `tag` finds entries whose note has that #hashtag (every entry also reads back its `tags`). |
+| `PATCH` | `/transactions/{tid}` | Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or cleared with null). With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards. |
+| `DELETE` | `/transactions/{tid}` | Delete a transaction; it waits in /transactions/deleted and can be restored. With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go. |
+| `GET` | `/transactions/changes` | The latest steps across all entries (made, edited, deleted), newest first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api`, `import`, `recurring` or `mcp:<connection name>`. |
+| `GET` | `/transactions/{tid}/changes` | What happened to an entry, oldest first, each step with what it changed (works for a deleted one too). |
 | `GET` | `/transactions/{tid}/history` | What happened to an entry, oldest first (works for a deleted one too). |
 | `GET` | `/transactions/{tid}/related` | The entries that are related to this one (refunds, reversals), oldest first. |
 

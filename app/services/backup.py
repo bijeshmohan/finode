@@ -104,6 +104,9 @@ class BackupService:
                     recurring_id=t.recurring_id,
                     recurring_date=t.recurring_date,
                     related_id=t.related_id,
+                    source=t.source,
+                    external_id=t.external_id,
+                    source_url=t.source_url,
                     postings=[
                         BackupPosting(account=p.account, side=p.side, amount=p.amount) for p in postings.get(t.tid, [])
                     ],
@@ -264,8 +267,16 @@ class BackupService:
                     errors.append(f"account '{a.name}' points to a missing payment category.")
         postable = {a.id for a in file.accounts if a.parent_id is not None}
         rules = {r.id for r in file.recurring}
+        references: set[tuple[str, str]] = set()
         for t in file.transactions:
             label = f"the transaction of {t.date} ({t.payee or 'no payee'})"
+            if t.external_id and t.external_id.strip():
+                key = ((t.source or "").strip().lower(), t.external_id.strip())
+                if not key[0]:
+                    errors.append(f"{label} has a reference but no source.")
+                elif key in references:
+                    errors.append(f"{label} uses the reference '{key[1]}' of source '{key[0]}' that another entry has.")
+                references.add(key)
             if other(t.currency):
                 errors.append(f"{label} is in {t.currency}, but finode keeps one currency ({currency.code}).")
             if len(t.postings) < 2:
@@ -440,7 +451,15 @@ class BackupService:
             for t in file.transactions:
                 postings = [PostingCreate(account=ids[p.account], side=p.side, amount=p.amount) for p in t.postings]
                 entry = self.tr.create(
-                    TransactionCreate(date=t.date, payee=t.payee, comment=t.comment, postings=postings),
+                    TransactionCreate(
+                        date=t.date,
+                        payee=t.payee,
+                        comment=t.comment,
+                        postings=postings,
+                        source=t.source,
+                        external_id=t.external_id,
+                        source_url=t.source_url,
+                    ),
                     origin=t.created_via,
                     recurring=(rules[t.recurring_id], t.recurring_date)
                     if t.recurring_id and t.recurring_date

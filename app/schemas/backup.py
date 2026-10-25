@@ -57,6 +57,9 @@ class BackupTransaction(BaseModel):
     recurring_id: UUID | None = None
     recurring_date: Day | None = None
     related_id: UUID | None = None
+    source: str | None = None
+    external_id: str | None = None
+    source_url: str | None = None
     postings: list[BackupPosting]
 
 
