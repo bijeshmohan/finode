@@ -48,6 +48,7 @@ finode is the user's personal double-entry ledger.
   ids when you remember an account, and give either to any tool that takes an account.
 - Call get_status first when unsure what this connection may do, how much room is left today, or when the books
   last changed.
+- payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
 - get_transaction_history shows what happened to one transaction and who did it, with each edit's exact changes;
   recent_changes lists the latest changes of all of them (by='assistant' for what assistants did). Look there
   before assuming who changed something.
@@ -432,6 +433,37 @@ def _step(c: ChangeRead, full: bool) -> dict[str, Any]:
     if c.changes:
         step["changes"] = _plain(c.changes)
     return step
+
+
+@_tool_errors
+def payee_defaults(
+    payee: Annotated[str, Field(description="A payee or part of one; empty for the most used")] = "",
+    limit: Annotated[int, Field(ge=1, le=20)] = 5,
+) -> dict[str, Any]:
+    """How the user usually books a payee: the accounts of their newest entry with that payee (from -> to), the kind
+    (expense, income or transfer), how many times, and other routes seen. Use it to pick accounts the way the user
+    does instead of guessing."""
+    with services() as s:
+        return {
+            "payees": [
+                {
+                    "payee": d.payee,
+                    "exact": d.exact,
+                    "uses": d.uses,
+                    "kind": d.kind,
+                    "usually": {
+                        "from": d.from_account.path,
+                        "from_id": str(d.from_account.id),
+                        "to": d.to_account.path,
+                        "to_id": str(d.to_account.id),
+                    },
+                    "other_routes": [
+                        {"from": o.from_account.path, "to": o.to_account.path, "uses": o.uses} for o in d.other_routes
+                    ],
+                }
+                for d in s.transactions.payee_defaults(payee, limit)
+            ]
+        }
 
 
 @_tool_errors
@@ -1380,6 +1412,7 @@ READ_TOOLS = [
     get_transaction,
     get_transaction_history,
     recent_changes,
+    payee_defaults,
     spending_breakdown,
     list_recurring,
     check_books,

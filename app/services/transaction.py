@@ -1,7 +1,9 @@
 """Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits), plus history, deleted entries and restoring."""
 
 import builtins
+from collections import Counter
 from collections.abc import Collection, Sequence
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from typing import cast
@@ -23,14 +25,36 @@ from ..schemas.transaction import (
     ChangeRead,
     HistoryPosting,
     HistoryRead,
+    PayeeDefaultRead,
+    PayeeRouteRead,
     PostingCreate,
     PostingRead,
+    RouteAccount,
     TransactionCreate,
     TransactionPreview,
     TransactionRead,
     TransactionUpdate,
 )
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
+
+# How many recent entries the payee suggestions look at.
+PAYEE_HISTORY = 300
+
+
+@dataclass
+class PayeeRoute:
+    """How someone was paid (or paid you) the last time: the accounts of the newest entry with one account on each
+    side, how many such entries there are, and the other routes seen."""
+
+    payee: str
+    count: int
+    from_id: UUID
+    to_id: UUID
+    # The payee was typed in full (capitals aside), not just a part of it.
+    exact: bool = False
+    # Other (from, to, count) routes this payee was booked on, most used first.
+    others: builtins.list[tuple[UUID, UUID, int]] = field(default_factory=list)
+
 
 # How many deleted entries the recently-deleted page lists.
 RESTORABLE_LIMIT = 50
@@ -657,6 +681,90 @@ class TransactionService:
         postings = self.tr.postings_for_transactions([t.tid for t in found])  # one query, not one per row
         found = [self._to_read(t, postings.get(t.tid, [])) for t in found]
         return found, total
+
+    def payee_routes(self, query: str = "", limit: int = 6, history: int = PAYEE_HISTORY) -> builtins.list[PayeeRoute]:
+        """Who the person pays (or is paid by) most, each with the accounts of the newest entry to repeat.
+
+        Only entries with one account on each side count (a split has no single route), only accounts that can
+        still be used, and not opening balances. Payees used often come first; a query narrows them to those
+        starting with, then containing, what was typed (an exact match first)."""
+        accounts = {a.aid: a for a in self.ar.list()}
+        usable = {aid for aid, a in accounts.items() if a.parent_id is not None and a.closed_on is None}
+        wanted = query.strip().lower()
+        seen: dict[str, dict] = {}
+        for position, t in enumerate(self.list(limit=history)):
+            credits = [p for p in t.postings if p.side == PostingSide.CREDIT]
+            debits = [p for p in t.postings if p.side == PostingSide.DEBIT]
+            payee = (t.payee or "").strip()
+            if not payee or len(credits) != 1 or len(debits) != 1:
+                continue
+            source, target = credits[0].account, debits[0].account
+            if source not in usable or target not in usable:
+                continue
+            if "Equity" in (
+                AccountService.root_name(accounts[source], accounts),
+                AccountService.root_name(accounts[target], accounts),
+            ):
+                continue  # opening balances are not a payee
+            entry = seen.setdefault(
+                payee.lower(),
+                {"payee": payee, "count": 0, "route": (source, target), "order": position, "routes": Counter()},
+            )
+            entry["count"] += 1  # the first one seen is the newest: its route is the one repeated
+            entry["routes"][(source, target)] += 1
+        ranked = []
+        for key, entry in seen.items():
+            if wanted and wanted not in key:
+                continue
+            others = [(f, to, n) for (f, to), n in entry["routes"].most_common() if (f, to) != entry["route"]]
+            ranked.append(
+                (
+                    0 if wanted and key == wanted else 1 if key.startswith(wanted) else 2,
+                    -entry["count"],
+                    entry["order"],
+                    PayeeRoute(
+                        entry["payee"],
+                        entry["count"],
+                        *entry["route"],
+                        exact=bool(wanted) and key == wanted,
+                        others=others,
+                    ),
+                )
+            )
+        ranked.sort(key=lambda r: r[:3])
+        return [r[3] for r in ranked[:limit]]
+
+    def payee_defaults(self, query: str = "", limit: int = 5) -> builtins.list[PayeeDefaultRead]:
+        """`payee_routes` with account paths and the kind of entry, for the API and the assistants."""
+        paths = self._account_paths()
+        accounts = {a.aid: a for a in self.ar.list()}
+
+        def side(aid: UUID) -> RouteAccount:
+            return RouteAccount(id=aid, path=paths.get(aid, "?"))
+
+        found = []
+        for r in self.payee_routes(query, limit):
+            source, target = accounts[r.from_id], accounts[r.to_id]
+            if AccountService.root_name(target, accounts) == "Expenses":
+                kind = "expense"
+            elif AccountService.root_name(source, accounts) == "Income":
+                kind = "income"
+            else:
+                kind = "transfer"
+            found.append(
+                PayeeDefaultRead(
+                    payee=r.payee,
+                    uses=r.count,
+                    exact=r.exact,
+                    kind=kind,
+                    from_account=side(r.from_id),
+                    to_account=side(r.to_id),
+                    other_routes=[
+                        PayeeRouteRead(from_account=side(f), to_account=side(t), uses=n) for f, t, n in r.others[:3]
+                    ],
+                )
+            )
+        return found
 
     def payees(self) -> builtins.list[tuple[str, int]]:
         """Who you have paid or been paid by, most used first, for the transactions filter."""

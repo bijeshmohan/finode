@@ -251,6 +251,30 @@ class ChangeRead(BaseModel):
     changes: dict[str, Any] = Field(default_factory=dict)
 
 
+class RouteAccount(BaseModel):
+    id: UUID
+    path: str
+
+
+class PayeeRouteRead(BaseModel):
+    from_account: RouteAccount
+    to_account: RouteAccount
+    uses: int
+
+
+class PayeeDefaultRead(BaseModel):
+    """How a payee is usually booked: the accounts of the newest simple entry, and the other routes seen."""
+
+    payee: str
+    uses: int
+    # The payee was typed in full (capitals aside), not just a part of it.
+    exact: bool
+    kind: Literal["expense", "income", "transfer"]
+    from_account: RouteAccount
+    to_account: RouteAccount
+    other_routes: list[PayeeRouteRead] = Field(default_factory=list)
+
+
 class PayeeRead(BaseModel):
     payee: str
     count: int

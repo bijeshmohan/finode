@@ -1,6 +1,6 @@
 # Making finode friendlier to AI assistants: evaluation and plan
 
-Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) done; 3b to 3d next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
+Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) and 3b (payee defaults) done; 3c and 3d next.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
 checks each against what the code does today, decides, and orders the work. Nothing here is built yet.
 
 ## Verdicts at a glance
@@ -81,7 +81,7 @@ field-level diff computed between consecutive snapshots (date, payee, note, post
 `recent_changes(since, via=None, limit)` across entries, so an assistant can ask "what did I change this week".
 Read-only, no schema change. Accounts have no history table; see phase 4.
 
-**3b. Payee defaults (#6, derived).** `payee_defaults(payee)` returns how that payee was booked, from the same logic
+**3b. Payee defaults (#6, derived) — done.** `payee_defaults(payee)` returns how that payee was booked, from the same logic
 as `payee_habits` (move it out of `routers/web/transactions.py` into a service so both use it): the newest
 one-account-each-side entry, plus a count and the other accounts seen. Nothing stored, so nothing to go stale.
 Stored rules are deferred until the owner wants a person to edit them in the app.

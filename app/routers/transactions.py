@@ -12,6 +12,7 @@ from ..schemas.transaction import (
     BatchResult,
     ChangeRead,
     HistoryRead,
+    PayeeDefaultRead,
     PayeeRead,
     TransactionBatch,
     TransactionCreate,
@@ -75,6 +76,13 @@ def create_transactions(batch: TransactionBatch, transactions: Transactions, res
 def payees(transactions: Transactions):
     """Who you have paid or been paid by, most used first (the opening-balance entries are left out)."""
     return [PayeeRead(payee=name, count=count) for name, count in transactions.payees()]
+
+
+@router.get("/payee-defaults", response_model=list[PayeeDefaultRead])
+def payee_defaults(transactions: Transactions, payee: str = "", limit: int = Query(default=5, ge=1, le=20)):
+    """How payees are usually booked, most used first: the accounts of the newest entry with one account on each side
+    (so a repeat can be filled in), and the other routes seen. `payee` narrows to those that match what is typed."""
+    return transactions.payee_defaults(payee, limit)
 
 
 @router.get("/deleted", response_model=list[HistoryRead])

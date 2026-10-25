@@ -83,6 +83,7 @@ LISTS = {
     ("GET", "/api/reports/trial-balance"),
     ("GET", "/api/transactions/"),
     ("GET", "/api/transactions/changes"),
+    ("GET", "/api/transactions/payee-defaults"),
     ("GET", "/api/accounts/closed"),
     ("GET", "/api/accounts/deleted"),
     ("GET", "/api/profile/currencies"),

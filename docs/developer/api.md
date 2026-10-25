@@ -17,7 +17,7 @@ Everything the web app and the assistants can do with your books can be done thr
 | Signing in, signing up, passwords, the OAuth consent page | Identity belongs to Supabase; these are web pages. |
 | Creating or revoking assistant tokens and connected apps | A token must never be able to manage tokens, and an app's token never acts as a full sign-in. |
 | **Erase my books** and **Delete my account** | They need the person to type their email on the settings pages; a leaked bearer token must not be able to wipe a ledger. |
-| Payee suggestions that carry accounts ("payee chips") | A convenience of the Add screen; `GET /transactions/payees` and `GET /transactions/?payee=` give the same facts. |
+| Payee suggestions that carry accounts ("payee chips") | A convenience of the Add screen; `GET /transactions/payee-defaults`, `GET /transactions/payees` and `GET /transactions/?payee=` give the same facts. |
 
 ## Accounts and categories
 
@@ -42,6 +42,7 @@ Everything the web app and the assistants can do with your books can be done thr
 | `POST` | `/transactions/` | Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`. `source`, `external_id` and `source_url` say where it came from (a bank, a mail); a source's reference is used once, so sending the same one again with the same date and rows answers 200 with the entry already recorded and creates nothing; the same reference with a different date or rows is a 400. With `dry_run=true` every check runs but nothing is saved: the answer (200) is the entry as it would be saved (`dry_run: true`, and `already_recorded` when the reference is already there). |
 | `POST` | `/transactions/batch` | Record up to 50 transactions as one: all are saved or none. An entry whose `source` and `external_id` are already recorded with the same date and rows is skipped (status `already_recorded`), so a batch can be sent again safely. Any problem refuses the whole batch (400) naming the entries at fault. With `dry_run=true` nothing is saved and the answer (200) shows what would be. |
 | `GET` | `/transactions/payees` | Who you have paid or been paid by, most used first (the opening-balance entries are left out). |
+| `GET` | `/transactions/payee-defaults` | How payees are usually booked, most used first: the accounts of the newest entry with one account on each side (so a repeat can be filled in), and the other routes seen. `payee` narrows to those that match what is typed. |
 | `GET` | `/transactions/deleted` | Entries that were deleted and are not back, newest deletion first; `hid` is what to restore. |
 | `POST` | `/transactions/deleted/{hid}/restore` | Bring a deleted entry back as it was, with its old id (checked again like any new entry). |
 | `GET` | `/transactions/{tid}` | One transaction with its postings. |
