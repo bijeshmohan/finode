@@ -656,6 +656,7 @@ class TransactionService:
         kind: str | None = None,
         also: UUID | None = None,
         payee: str | None = None,
+        tag: str | None = None,
     ) -> tuple[builtins.list[TransactionRead], int]:
         """A chunk of the list for "Show more" and how many entries match in all. A day is never split between two
         chunks: the chunk runs on to the end of the day its last entry falls on."""
@@ -664,7 +665,7 @@ class TransactionService:
 
         def read(first, last, limit, start):
             return self.tr.list(
-                account_ids, first, last, limit, start, text, kind or None, kind_accounts, also_ids, payee
+                account_ids, first, last, limit, start, text, kind or None, kind_accounts, also_ids, payee, tag=tag
             )
 
         found = read(date_from, date_to, size + 1, offset)
@@ -678,13 +679,19 @@ class TransactionService:
             found = found[:size]
         if more_exist:
             total = self.tr.count_matching(
-                account_ids, date_from, date_to, text, kind or None, kind_accounts, also_ids, payee
+                account_ids, date_from, date_to, text, kind or None, kind_accounts, also_ids, payee, tag=tag
             )
         else:
             total = offset + len(found)  # nothing is left, so there is no need to count
         postings = self.tr.postings_for_transactions([t.tid for t in found])  # one query, not one per row
         found = [self._to_read(t, postings.get(t.tid, [])) for t in found]
         return found, total
+
+    def tagged(self) -> builtins.list[TransactionRead]:
+        """Every entry that carries at least one tag, newest first, with its postings (two queries however many)."""
+        found = [t for t in self.tr.tagged() if tags_in(t.comment)]
+        postings = self.tr.postings_for_transactions([t.tid for t in found])
+        return [self._to_read(t, postings.get(t.tid, [])) for t in found]
 
     def tags(self) -> builtins.list[TagRead]:
         """The #hashtags used in notes, the most used first, each with how many entries carry it and its last day."""

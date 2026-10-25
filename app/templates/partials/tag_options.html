@@ -1,0 +1,6 @@
+{#- The tags in the Filter sheet's Tag list: one row each, the uses and last day under the name and what they come to at the right. -#}
+{% for it in items %}
+<li><button type="button" data-value="{{ it.tag }}" data-label="#{{ it.tag }}"><span>#{{ it.tag }}<small class="muted">{{ it.uses }} entr{{ "y" if it.uses == 1 else "ies" }} · last {{ it.last.strftime("%d %b") }}</small></span>{% if it.total is not none %}<span class="muted">{{ it.total|money }}</span>{% endif %}</button></li>
+{% else %}
+<li class="filter-empty muted">No tags yet. Write a #word in a note to make one.</li>
+{% endfor %}
