@@ -280,6 +280,10 @@ class TransactionRepository:
     def count(self) -> int:
         return self.db.exec(select(func.count()).select_from(Transaction).where(Transaction.user == self.uid)).one()
 
+    def last_change(self) -> datetime | None:
+        """When any transaction was last made or changed."""
+        return self.db.exec(select(func.max(Transaction.updated)).where(Transaction.user == self.uid)).one()
+
     def count_since(self, since: datetime, leaving_out: tuple[str, ...] = ()) -> int:
         """Transactions created since a moment, not counting those made by the given origins (a recurring rule)."""
         statement = (

@@ -2,7 +2,7 @@
 
 import builtins
 from collections.abc import Collection
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -255,6 +255,16 @@ class TransactionService:
             midnight = local_midnight_utc()
             made = self.tr.count_since(midnight, leaving_out=("recurring", "import"))
             ensure_room(made, settings.max_transactions_per_day, "new transactions a day")
+
+    def recorded_today(self) -> int:
+        """New transactions today, counted as the daily limit counts them (not recurring rules or imports)."""
+        return self.tr.count_since(local_midnight_utc(), leaving_out=("recurring", "import"))
+
+    def count(self) -> int:
+        return self.tr.count()
+
+    def last_change(self) -> datetime | None:
+        return self.tr.last_change()
 
     def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
         self._check_limits()

@@ -8,9 +8,10 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 
 | Tool | Answers |
 |---|---|
+| `get_status` | what this connection may do, today's date, how much room is left today, when your books last changed |
 | `get_overview` | net worth, your currency, the shape of your books |
-| `list_accounts`, `get_account` | your accounts and one account's balance and recent activity |
-| `search_transactions`, `get_transaction` | find and open entries |
+| `list_accounts`, `get_account` | your accounts (with their ids, type, whether they are in the budget and what they are for) and one account's balance and recent activity |
+| `search_transactions`, `get_transaction` | find and open entries; a search also counts and totals everything it matched |
 | `spending_breakdown` | where the money went, by account |
 | `get_budget` | the month's budget: Ready to assign, each category's assigned, spent and left, and your goals |
 | `list_recurring` | your recurring rules |

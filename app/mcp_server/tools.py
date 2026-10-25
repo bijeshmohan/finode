@@ -13,6 +13,7 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field, ValidationError
 
 from ..clock import local_today
+from ..config import settings
 from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
@@ -20,6 +21,7 @@ from ..schemas import AccountCreate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead, TransactionUpdate
 from ..services.simple import simple_postings
+from ..version import VERSION
 from .accounts import AccountIndex
 from .context import Services, services
 
@@ -34,6 +36,10 @@ finode is the user's personal double-entry ledger.
   (Credit Cards, Loans); they cannot be changed or removed. Put a bank under Bank Accounts and a card under
   Credit Cards (they start as part of the budget), a fund under Investments and a loan under Loans (they
   start outside the budget).
+- Every account has an id (list_accounts, get_account). An id survives renames and moves, a path does not: keep
+  ids when you remember an account, and give either to any tool that takes an account.
+- Call get_status first when unsure what this connection may do, how much room is left today, or when the books
+  last changed.
 - Money moves from one account to another. Spending is from an asset or liability (a bank, a
   card) to an expense; a salary is from Income to an asset. Use record_transaction for these, and
   record_split only when more than two accounts are involved.
@@ -109,6 +115,7 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
         "postings": [
             {
                 "account": index.path(p.account),
+                "account_id": str(p.account),
                 "side": p.side.value,
                 "amount": text(p.amount),
             }
@@ -172,23 +179,37 @@ def list_accounts(
         bool, Field(description="Also list accounts the user has closed (they cannot be posted to)")
     ] = False,
 ) -> dict[str, Any]:
-    """Every account with its path and balance. Top-level accounts show the total of everything inside."""
+    """Every account with its id, path, type, balance and what it is for (details). Top-level accounts show the total of everything inside.
+    Assets and liabilities say whether they are part of the budget (on_budget) and, when not, which expense category
+    their payments are budgeted under."""
     with services() as s:
         index = _index(s)
         return {
             "currency": s.accounts.currency().code,
             "accounts": [
                 {
+                    "id": str(e.account.aid),
                     "path": e.path,
+                    "type": e.root,
                     "balance": text(e.account.balance),
                     "can_post": e.postable and e.account.closed_on is None,
+                    "details": None if e.is_root else e.account.details,
                     **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
-                    **({"details": e.account.details} if e.account.details and not e.is_root else {}),
+                    **(_budget_facts(e, index) if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
+                    **({"group": e.account.system_key} if e.account.system_key else {}),
                 }
                 for e in index.sorted()
                 if (type is None or e.root == type) and (include_closed or e.account.closed_on is None)
             ],
         }
+
+
+def _budget_facts(e, index: AccountIndex) -> dict[str, Any]:
+    """Whether an asset or liability is part of the budget, and where its payments are budgeted when it is not."""
+    facts: dict[str, Any] = {"on_budget": e.account.on_budget}
+    if e.account.payment_category_id:
+        facts["payment_category"] = index.path(e.account.payment_category_id)
+    return facts
 
 
 @_tool_errors
@@ -203,6 +224,7 @@ def get_account(
         aid = entry.account.aid
         register = s.accounts.register(aid) or []
         result: dict[str, Any] = {
+            "id": str(aid),
             "path": entry.path,
             "balance": text(entry.account.balance),
             "can_post": entry.postable,
@@ -230,19 +252,27 @@ def search_transactions(
     account: Annotated[
         str | None, Field(description="Only transactions touching this account or its sub-accounts")
     ] = None,
+    payee: Annotated[str | None, Field(description="Exactly this payee, capitals aside")] = None,
     text_contains: Annotated[str | None, Field(description="Case-insensitive text in the payee or note")] = None,
+    kind: Annotated[
+        Literal["expense", "income", "transfer"] | None, Field(description="Only spending, income or transfers")
+    ] = None,
     min_amount: Annotated[Decimal | None, Field(ge=0, description="Smallest transaction total")] = None,
     max_amount: Annotated[Decimal | None, Field(ge=0, description="Largest transaction total")] = None,
     limit: Annotated[int, Field(ge=1, le=200)] = 25,
+    offset: Annotated[int, Field(ge=0, description="How many matches to skip, to read the next page")] = 0,
 ) -> dict[str, Any]:
-    """Transactions, newest first."""
+    """Transactions, newest first. Besides the page asked for, the answer counts every match (`count`) and adds
+    them up (`spent`, `earned`, `transferred`, and `account_net_change` when an account is given), so there is no
+    need to page through everything to total it."""
     with services() as s:
         index = _index(s)
-        aid = index.find(account, allow_root=True).account.aid if account else None
+        entry = index.find(account, allow_root=True) if account else None
         needle = (text_contains or "").casefold().strip()
-        found: list[dict[str, Any]] = []
-        truncated = False
-        for t in s.transactions.list(account=aid, date_from=date_from, date_to=date_to):
+        matches: list[tuple[TransactionRead, Decimal]] = []
+        for t in s.transactions.list(
+            account=entry.account.aid if entry else None, date_from=date_from, date_to=date_to, kind=kind, payee=payee
+        ):
             total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
             if needle and needle not in f"{t.payee or ''} {t.comment or ''}".casefold():
                 continue
@@ -250,11 +280,46 @@ def search_transactions(
                 continue
             if max_amount is not None and total > max_amount:
                 continue
-            if len(found) == limit:
-                truncated = True
-                break
-            found.append(_transaction(t, index, s))
-        return {"transactions": found, "truncated": truncated}
+            matches.append((t, total))
+        sums = {"expense": Decimal(0), "income": Decimal(0), "transfer": Decimal(0)}
+        for t, total in matches:
+            sums[_kind(t, index)] += total
+        page = matches[offset : offset + limit]
+        result: dict[str, Any] = {
+            "transactions": [_transaction(t, index, s) for t, _ in page],
+            "count": len(matches),
+            "offset": offset,
+            "truncated": offset + limit < len(matches),
+            "spent": text(sums["expense"]),
+            "earned": text(sums["income"]),
+            "transferred": text(sums["transfer"]),
+        }
+        if entry:
+            result["account_net_change"] = text(_net_change(matches, entry, index))
+        return result
+
+
+def _kind(t: TransactionRead, index: AccountIndex) -> str:
+    """Told apart as the Transactions page does: a debit to Expenses is spending, else a credit to Income is income."""
+    roots = [(p.side, index.entries[p.account].root if p.account in index.entries else "") for p in t.postings]
+    if any(side == PostingSide.DEBIT and root == "Expenses" for side, root in roots):
+        return "expense"
+    if any(side == PostingSide.CREDIT and root == "Income" for side, root in roots):
+        return "income"
+    return "transfer"
+
+
+def _net_change(matches: list[tuple[TransactionRead, Decimal]], entry, index: AccountIndex) -> Decimal:
+    """What the matches did to the account and everything inside it: up for its own kind of side, down for the other."""
+    inside = {e.account.aid for e in index.entries.values() if e.segments[: len(entry.segments)] == entry.segments}
+    debit_normal = entry.root in ("Assets", "Expenses")
+    change = Decimal(0)
+    for t, _ in matches:
+        for p in t.postings:
+            if p.account in inside:
+                up = (p.side == PostingSide.DEBIT) == debit_normal
+                change += p.amount if up else -p.amount
+    return change
 
 
 @_tool_errors
@@ -480,7 +545,13 @@ def create_account(
     opening_balance: Annotated[
         Decimal | None, Field(ge=0, description="Assets and liabilities only: what it holds (or owes) today")
     ] = None,
-    details: Annotated[str | None, Field(max_length=200)] = None,
+    details: Annotated[str | None, Field(max_length=200, description="What the account is for, in a few words")] = None,
+    on_budget: Annotated[
+        bool | None, Field(description="Assets and liabilities: whether the money is part of the budget")
+    ] = None,
+    payment_category: Annotated[
+        str | None, Field(description="An account outside the budget: the expense category its payments count under")
+    ] = None,
 ) -> dict[str, Any]:
     """Add an account. Check list_accounts first so you don't create a duplicate."""
     with services() as s:
@@ -501,10 +572,13 @@ def create_account(
                 details=(details or "").strip() or None,
                 parent_id=parent_entry.account.aid,
                 balance=opening_balance or Decimal("0.00"),
+                on_budget=on_budget,
+                payment_category_id=_category(index, payment_category).account.aid if payment_category else None,
             )
         )
         return {
             "created": {
+                "id": str(created.aid),
                 "path": f"{parent_entry.path}:{created.name}",
                 "balance": text(created.balance),
             }
@@ -685,6 +759,7 @@ def _budget(data) -> dict[str, Any]:
                 "reserved_for_card_bills": text(data.reserved_for_cards),
                 "credit_cards": [
                     {
+                        "card_id": str(c.aid),
                         "card": c.path,
                         "to_pay": text(c.owed),
                         "charged_this_month": text(c.charged),
@@ -703,6 +778,7 @@ def _budget(data) -> dict[str, Any]:
                 "saved_for_goals": text(data.goal_available),
                 "goals": [
                     {
+                        "goal_id": str(g.gid),
                         "goal": g.name,
                         "saved": text(g.available),
                         "target": text(g.amount),
@@ -718,6 +794,7 @@ def _budget(data) -> dict[str, Any]:
         ),
         "categories": [
             {
+                "category_id": str(line.aid),
                 "category": line.path,
                 "is_group": line.group,
                 "assigned": text(line.assigned),
@@ -834,6 +911,39 @@ def move_budget_money(
         index = _index(s)
         source, target = _category(index, from_category), _category(index, to_category)
         return _budget(s.budget.move(_month(month), source.account.aid, target.account.aid, amount))
+
+
+@_tool_errors
+def get_status() -> dict[str, Any]:
+    """What this connection is and may do: its access level, the user's currency and today's date, how much
+    is in the books, when they last changed and how much room is left. Call it first when unsure."""
+    with services() as s:
+        owner = s.owner
+        used = s.transactions.recorded_today()
+        per_day = settings.max_transactions_per_day
+        last = s.transactions.last_change()
+        return {
+            "app_version": VERSION,
+            "connection": {
+                "name": owner.name,
+                "access": "read & write" if owner.scope == "write" else "read only",
+                "can_change_things": owner.scope == "write",
+            },
+            "currency": s.accounts.currency().code,
+            "today": _today().isoformat(),
+            "books": {
+                "accounts": len(s.accounts.list()),
+                "transactions": s.transactions.count(),
+                "last_change": last.isoformat() if last else None,
+            },
+            "limits": {
+                "accounts": settings.max_accounts or None,
+                "transactions": settings.max_transactions or None,
+                "new_transactions_per_day": per_day or None,
+                "new_transactions_left_today": max(per_day - used, 0) if per_day else None,
+                "postings_per_transaction": settings.max_postings_per_transaction or None,
+            },
+        }
 
 
 @_tool_errors
@@ -975,6 +1085,7 @@ def delete_goal(goal: Annotated[str, Field(description="The goal's name")]) -> d
 
 
 READ_TOOLS = [
+    get_status,
     get_overview,
     list_accounts,
     get_account,
