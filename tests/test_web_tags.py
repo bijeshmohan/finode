@@ -304,3 +304,9 @@ def test_tags_are_case_insensitive_everywhere(client, books):
         assert sorted(titles(client.get("/transactions", params={"tag": spelling}).text)) == ["A", "B", "C"], spelling
     page = client.get("/transactions").text
     assert "#EMI" not in page and "#Emi" not in page
+
+
+def test_an_entry_you_made_yourself_has_no_added_by_line_on_the_edit_page(client, books):
+    made = spend(client, books, "10", payee="Own")
+    page = client.get(f"/transactions/{made['tid']}/edit").text
+    assert "origin-foot" not in page and "Added by" not in page

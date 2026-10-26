@@ -30,7 +30,7 @@ There is also a ready-made prompt, `monthly_review`, which asks the assistant fo
 
 What it **cannot** do: delete accounts (other than folding one into another with a merge), change settings, make tokens, or reach another person's data. There are three access levels: **read only**, **read & write** (transactions, budget and goals; it can add accounts but not change them) and **read, write & manage accounts** (also rename, move, close, reopen and merge accounts; it never deletes one outright). A tool a connection may not use is listed but refuses, and the assistant tells you which level to allow. Account changes reorganise your whole history, so the last level is for assistants you trust; each one is recorded with the assistant's name.
 
-Anything an assistant records is marked on the transaction ("Added by Claude" in blue), and the edit page says who added and last changed it.
+Anything an assistant records is marked on the transaction ("Added by Claude" in blue), and the edit page says who added and last changed it, in a quiet blue line at the very end of the page (only for an assistant's work).
 
 You can refer to accounts by their path (`Assets:Bank:HDFC`) or by a unique end (`HDFC`). Amounts are in your currency, as plain numbers.
 
