@@ -17,28 +17,31 @@
   {% set with_payee = true %}
   {% include "partials/txn_rows.html" %}
 
-  {% set day = transaction.date if editing else today %}
-  <label class="chip date-chip" data-date-chip data-today="{{ today }}">{{ icon("calendar") }}<span data-date-label>{{ day|date_chip }}</span>
-    <input type="date" name="date" value="{{ day }}" required aria-label="Date">
-  </label>
-  <input type="text" name="comment" maxlength="200" placeholder="Note (optional)" aria-label="Note" value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
-
-  {#- The tags are their own thing, not words in the note: chips, and a dashed row that opens the Tags sheet. -#}
   {% set chosen_tags = transaction.tags if editing else (copy_of.tags if copy_of else []) %}
+  {#- The tags are their own thing, not words in the note: a # button in the note field opens the Tags sheet and the chosen ones read as one quiet line under it. -#}
   <div class="tags-box" data-tags>
+    <div class="note-field">
+      <input type="text" name="comment" maxlength="200" placeholder="Note (optional)" aria-label="Note" value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
+      <button type="button" class="hash-btn" data-tags-open aria-label="Tags" title="Tags">#</button>
+    </div>
     <div data-tags-values hidden>{% for tag in chosen_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}</div>
-    <div class="tags-chips" data-tags-chips>{% for tag in chosen_tags %}<span class="tag-chip" data-tag="{{ tag }}">{{ tag }}<button type="button" data-tag-remove aria-label="Remove the tag {{ tag }}">✕</button></span>{% endfor %}</div>
-    <button type="button" class="add-row tags-add" data-tags-open>{{ icon("tag") }} Tags</button>
+    <button type="button" class="tags-line" data-tags-open data-tags-chips aria-label="Change the tags">{% for tag in chosen_tags %}<span data-tag="{{ tag }}">#{{ tag }}</span> {% endfor %}</button>
   </div>
 
-  <div class="related" data-related>
-    <input type="hidden" name="related" value="{{ related.transaction.tid if related }}" data-related-value>
-    <div class="related-chip" data-related-chip{% if not related %} hidden{% endif %}>
-      <span><small>Related to</small><b data-related-label>{% if related %}{% include "partials/related_label.html" %}{% endif %}</b></span>
-      <button type="button" class="link" data-related-clear aria-label="Remove the link">✕</button>
+  {% set day = transaction.date if editing else today %}
+  <div class="meta-row">
+    <label class="chip date-chip" data-date-chip data-today="{{ today }}">{{ icon("calendar") }}<span data-date-label>{{ day|date_chip }}</span>
+      <input type="date" name="date" value="{{ day }}" required aria-label="Date">
+    </label>
+    <div class="related" data-related>
+      <input type="hidden" name="related" value="{{ related.transaction.tid if related }}" data-related-value>
+      <div class="related-chip" data-related-chip{% if not related %} hidden{% endif %}>
+        <span><small>Related to</small><b data-related-label>{% if related %}{% include "partials/related_label.html" %}{% endif %}</b></span>
+        <button type="button" class="link" data-related-clear aria-label="Remove the link">✕</button>
+      </div>
+      <button type="button" class="date-chip related-add" data-related-add{% if related %} hidden{% endif %}
+              hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.tid if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">{{ icon("link") }}Related</button>
     </div>
-    <button type="button" class="add-row related-add" data-related-add{% if related %} hidden{% endif %}
-            hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.tid if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">{{ icon("link") }} Related transaction</button>
   </div>
 
   <p id="form-error" class="error" role="alert"></p>
@@ -52,7 +55,7 @@
   <div class="sheet-body">
     <div class="sheet-grab" aria-hidden="true"></div>
     <h2 class="filter-title">Tags</h2>
-    <input type="search" class="filter-search" placeholder="Search or create a tag" aria-label="Search or create a tag" autocomplete="off" autocapitalize="none" data-tags-search>
+    <input type="search" class="filter-search" placeholder="Search or create a #tag" aria-label="Search or create a tag" autocomplete="off" autocapitalize="none" data-tags-search>
     <ul class="filter-options" data-tags-list>
       <li class="filter-empty muted" hx-get="/transactions/tag-picker" hx-trigger="tags-open once" hx-swap="outerHTML">Loading…</li>
     </ul>

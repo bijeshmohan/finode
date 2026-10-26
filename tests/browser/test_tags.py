@@ -70,8 +70,8 @@ def test_choosing_tags_on_the_add_screen(page: Page, books, api: Api):
     add(api, books, "Taj", "Hotel", "840", tags=["goa-trip"])
     add(api, books, "Cab", "Airport", "160", tags=["goa-trip", "gifts"])
     page.goto("/transactions/new")
-    expect(page.locator(".tag-chip")).to_have_count(0)
-    page.locator("[data-tags-open]").click()
+    expect(page.locator("[data-tags-chips] [data-tag]")).to_have_count(0)
+    page.locator(".hash-btn").click()
     sheet = page.locator("#tags-picker")
     expect(sheet).to_be_visible()
     options = sheet.locator("[data-tag-option]")
@@ -80,22 +80,22 @@ def test_choosing_tags_on_the_add_screen(page: Page, books, api: Api):
     expect(options.filter(has_text="gifts")).to_have_attribute("aria-pressed", "true")
     sheet.locator("[data-tags-search]").fill("Brand-New")  # a word that is no tag yet: capitals do not matter
     expect(options.filter(has_text="goa-trip")).to_be_hidden()
-    sheet.get_by_role("button", name="＋ Create “brand-new”").click()
+    sheet.get_by_role("button", name="＋ Create “#brand-new”").click()
     expect(options.filter(has_text="brand-new")).to_have_attribute("aria-pressed", "true")
     sheet.locator("[data-tags-search]").fill("")
     options.filter(has_text="gifts").click()  # tapping a ticked tag takes it off again
     expect(options.filter(has_text="gifts")).to_have_attribute("aria-pressed", "false")
     sheet.locator("[data-tags-done]").click()
     expect(sheet).to_be_hidden()
-    chips = page.locator(".tag-chip")
+    chips = page.locator("[data-tags-chips] [data-tag]")
     expect(chips).to_have_count(1)
-    expect(chips.first).to_contain_text("brand-new")
-    page.locator("[data-tags-open]").click()
+    expect(chips.first).to_have_text("#brand-new")
+    page.locator("[data-tags-chips]").click()  # the line of tags opens the sheet too
     options.filter(has_text="goa-trip").click()
+    options.filter(has_text="brand-new").click()
     sheet.locator("[data-tags-done]").click()
-    expect(chips).to_have_count(2)
-    chips.filter(has_text="brand-new").locator("[data-tag-remove]").click()
     expect(chips).to_have_count(1)
+    expect(chips.first).to_have_text("#goa-trip")
     fill_and_save(page, "Resort")
     [entry] = [t for t in api.get("/transactions/") if t["payee"] == "Resort"]
     assert entry["tags"] == ["goa-trip"] and entry["comment"] is None
@@ -113,9 +113,12 @@ def test_a_note_with_a_hash_stays_a_note(page: Page, books, api: Api):
 def test_editing_an_entry_shows_its_tags_and_saves_the_changes(page: Page, books, api: Api):
     made = add(api, books, "Taj", "Hotel", "840", tags=["goa-trip", "work"])
     page.goto(f"/transactions/{made['tid']}/edit")
-    chips = page.locator(".tag-chip")
+    chips = page.locator("[data-tags-chips] [data-tag]")
     expect(chips).to_have_count(2)
-    chips.filter(has_text="work").locator("[data-tag-remove]").click()
+    page.locator(".hash-btn").click()
+    page.locator("#tags-picker [data-tag-option]", has_text="work").click()
+    page.locator("#tags-picker [data-tags-done]").click()
+    expect(chips).to_have_count(1)
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url("**/transactions")
     assert api.get(f"/transactions/{made['tid']}")["tags"] == ["goa-trip"]
@@ -124,14 +127,13 @@ def test_editing_an_entry_shows_its_tags_and_saves_the_changes(page: Page, books
 def test_tapping_a_tag_with_a_finger(touch_page: Page, books, api: Api):
     add(api, books, "Taj", "Hotel", "840", tags=["goa-trip"])
     touch_page.goto("/transactions/new")
-    touch_page.locator("[data-tags-open]").tap()
+    touch_page.locator(".hash-btn").tap()
     option = touch_page.locator("#tags-picker [data-tag-option]", has_text="goa-trip")
     expect(option).to_be_visible()
     option.tap()
     touch_page.locator("#tags-picker [data-tags-done]").tap()
-    expect(touch_page.locator(".tag-chip")).to_have_count(1)
+    expect(touch_page.locator("[data-tags-chips] [data-tag]")).to_have_count(1)
     expect(touch_page.locator("#related-picker")).not_to_be_visible()
-    expect(touch_page.locator(".tag-chip button")).to_be_visible()
 
 
 def test_the_tags_page_renames_merges_and_deletes(page: Page, books, api: Api):

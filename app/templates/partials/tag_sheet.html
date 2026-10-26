@@ -3,7 +3,7 @@
 <div class="sheet-grab" aria-hidden="true"></div>
 <div class="sheet-title">
   <div>
-    <h2>{{ tag.tag }}</h2>
+    <h2>#{{ tag.tag }}</h2>
     <p class="muted">{{ tag.uses }} entr{{ "y" if tag.uses == 1 else "ies" }} · last {{ tag.last_used|friendly_date }}</p>
   </div>
   <a class="quiet-link" href="/transactions?month={{ tag.last_used.strftime('%Y-%m') }}&amp;tag={{ tag.tag }}">See them ›</a>
