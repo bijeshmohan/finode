@@ -1,0 +1,10 @@
+{#- The note with its # button and the line of chosen tags. Expects note_value and chosen_tags. -#}
+  {#- The tags are their own thing, not words in the note: a # button in the note field opens the Tags sheet and the chosen ones read as one quiet line under it. -#}
+  <div class="tags-box" data-tags>
+    <div class="note-field">
+      <input type="text" name="comment" maxlength="200" placeholder="Note (optional)" aria-label="Note" value="{{ note_value }}">
+      <button type="button" class="hash-btn" data-tags-open aria-label="Tags" title="Tags">#</button>
+    </div>
+    <div data-tags-values hidden>{% for tag in chosen_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}</div>
+    <button type="button" class="tags-line" data-tags-open data-tags-chips aria-label="Change the tags">{% for tag in chosen_tags %}<span data-tag="{{ tag }}">#{{ tag }}</span>{% endfor %}</button>
+  </div>

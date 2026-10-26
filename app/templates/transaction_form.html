@@ -31,15 +31,8 @@
   </div>
 
   {% set chosen_tags = transaction.tags if editing else (copy_of.tags if copy_of else []) %}
-  {#- The tags are their own thing, not words in the note: a # button in the note field opens the Tags sheet and the chosen ones read as one quiet line under it. -#}
-  <div class="tags-box" data-tags>
-    <div class="note-field">
-      <input type="text" name="comment" maxlength="200" placeholder="Note (optional)" aria-label="Note" value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
-      <button type="button" class="hash-btn" data-tags-open aria-label="Tags" title="Tags">#</button>
-    </div>
-    <div data-tags-values hidden>{% for tag in chosen_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}</div>
-    <button type="button" class="tags-line" data-tags-open data-tags-chips aria-label="Change the tags">{% for tag in chosen_tags %}<span data-tag="{{ tag }}">#{{ tag }}</span>{% endfor %}</button>
-  </div>
+  {% set note_value = (transaction.comment or '') if editing else (new_note or '') %}
+  {% include "partials/tags_box.html" %}
 
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions form-actions">
@@ -47,18 +40,7 @@
     {% if not editing %}<button type="submit" class="quiet" name="another" value="1">Save &amp; add another</button>{% endif %}
   </div>
 </form>
-<dialog id="tags-picker" class="sheet sheet-bottom" aria-label="Tags">
-  <div class="sheet-body">
-    <div class="sheet-grab" aria-hidden="true"></div>
-    <h2 class="filter-title" tabindex="-1" autofocus>Tags</h2>
-    <input type="search" class="filter-search" placeholder="Search or create a #tag" aria-label="Search or create a tag" autocomplete="off" autocapitalize="none" data-tags-search>
-    <ul class="filter-options" data-tags-list>
-      <li class="filter-empty muted" hx-get="/transactions/tag-picker" hx-trigger="tags-open once" hx-swap="outerHTML">Loading…</li>
-    </ul>
-    <p class="muted tags-limit" data-tags-limit hidden>An entry can have at most 10 tags.</p>
-    <div class="sheet-actions"><button type="button" data-tags-done>Done</button></div>
-  </div>
-</dialog>
+{% include "partials/tags_dialog.html" %}
 
 <dialog id="related-picker" class="sheet sheet-bottom" aria-label="Related to">
   <div id="related-picker-body" class="sheet-body"></div>

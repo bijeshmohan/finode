@@ -71,7 +71,7 @@ Everything the web app and the assistants can do with your books can be done thr
 | Method | Path | What it does |
 |---|---|---|
 | `GET` | `/recurring/` | Every recurring rule (due occurrences are recorded first). |
-| `POST` | `/recurring/` | Create a rule: a simple one (from/to/amount) or a split (`postings`), on a schedule. |
+| `POST` | `/recurring/` | Create a rule: a simple one (from/to/amount) or a split (`postings`), on a schedule; `tags` (up to 10) go on every entry it records. |
 | `GET` | `/recurring/{rid}` | One recurring rule. |
 | `PUT` | `/recurring/{rid}` | Replace a rule's details; it continues after the last recorded or skipped day. |
 | `POST` | `/recurring/{rid}/pause` | Stop recording a rule until it is resumed. What it already recorded is kept. |

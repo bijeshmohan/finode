@@ -7,9 +7,11 @@ A recurring transaction is a rule that records itself on a schedule: rent, a sal
 A rule has:
 
 - the accounts and amount (one account on each side, or several for a split, built the same way as in the transaction form),
-- a payee and a note,
+- a payee, a note and **tags** (the **#** button in the note field, as on New transaction: every entry the rule records gets them),
 - how often: **daily, weekly, monthly or yearly**, every N of them,
 - a **start date** and an optional **end date**.
+
+The New recurring transaction page is the same page as New transaction (kind, amount, payee, From and To, the note with its **#** button), with one row for how often (*Every 1 month*) and two chips for the dates (*Starts* and *Ends*, which reads *never* until you pick a day; ✕ clears it).
 
 What to know:
 
@@ -17,6 +19,7 @@ What to know:
 - A monthly rule starting on the 31st falls on the last day of short months.
 - **Skip next**: leave one occurrence out (nothing is recorded for it) and carry on. Skipping the last occurrence before the end date ends the rule.
 - **Pause** and **Resume**: what falls due while paused is skipped, not made up later.
+- Renaming, merging or deleting a tag on the **Tags** page changes the rules that use it too, so a rule never brings an old tag back.
 - **Delete** a rule and the transactions it already recorded stay.
 - If a rule cannot be recorded (an account was closed, for example), it keeps the reason and retries.
 - Entries a rule records are marked *Recurring* in blue, and are not linked back after a restore from *Recently deleted*.
