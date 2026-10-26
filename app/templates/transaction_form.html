@@ -6,9 +6,6 @@
 {% block content %}
 <a class="back" href="{{ back_url }}">{{ icon("back") }}Back</a>
 <h1 class="sr-only">{{ "Edit transaction" if editing else "New transaction" }}</h1>
-{% if editing and (transaction.created_via or transaction.updated_via) %}
-<p class="muted origin">{% if transaction.created_via %}Added by {{ transaction.created_via|origin_label }}{% endif %}{% if transaction.updated_via and transaction.updated_via != transaction.created_via %}{{ " · " if transaction.created_via }}last changed by {{ transaction.updated_via|origin_label }}{% endif %}</p>
-{% endif %}
 
 {% set post_url = "/transactions/" ~ transaction.tid ~ "/edit" if editing else "/transactions/split" %}
 <form class="stack txn-form" data-txn-form {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
@@ -50,6 +47,10 @@
     {% if not editing %}<button type="submit" class="quiet" name="another" value="1">Save &amp; add another</button>{% endif %}
   </div>
 </form>
+{#- Who added and last changed it, only when an assistant did: a quiet blue line at the very end (not next to Back). -#}
+{% if editing and ((transaction.created_via or "").startswith("mcp:") or (transaction.updated_via or "").startswith("mcp:")) %}
+<p class="origin-foot">{{ icon("robot") }}<span>{% if transaction.created_via %}Added by {{ transaction.created_via|origin_label|replace(" (AI assistant)", "") }}{% endif %}{% if transaction.updated_via and transaction.updated_via != transaction.created_via %}{{ " · " if transaction.created_via }}last changed by {{ transaction.updated_via|origin_label|replace(" (AI assistant)", "") }}{% endif %}</span></p>
+{% endif %}
 
 <dialog id="tags-picker" class="sheet sheet-bottom" aria-label="Tags">
   <div class="sheet-body">
