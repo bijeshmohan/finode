@@ -22,7 +22,7 @@
       <button type="button" class="hash-btn" data-tags-open aria-label="Tags" title="Tags">#</button>
     </div>
     <div data-tags-values hidden>{% for tag in chosen_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}</div>
-    <button type="button" class="tags-line" data-tags-open data-tags-chips aria-label="Change the tags">{% for tag in chosen_tags %}<span data-tag="{{ tag }}">#{{ tag }}</span> {% endfor %}</button>
+    <button type="button" class="tags-line" data-tags-open data-tags-chips aria-label="Change the tags">{% for tag in chosen_tags %}<span data-tag="{{ tag }}">#{{ tag }}</span>{% endfor %}</button>
   </div>
 
   {% set day = transaction.date if editing else today %}
@@ -74,7 +74,7 @@
 </dialog>
 
 {% if editing %}
-<section class="danger-zone">
+<section class="danger-zone quiet">
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
           hx-post="/transactions/{{ transaction.tid }}/delete{{ '?back=' ~ back|urlencode if back }}">{{ icon("trash") }}Delete transaction</button>

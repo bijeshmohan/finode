@@ -1033,11 +1033,11 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
       input.value = name;
       return input;
     }));
-    chips.replaceChildren(...names.flatMap((name) => {
+    chips.replaceChildren(...names.map((name) => {
       const tag = document.createElement("span");
       tag.dataset.tag = name;
       tag.textContent = `#${name}`;
-      return [tag, " "];
+      return tag;
     }));
   };
   const optionFor = (name) => [...list.querySelectorAll("[data-tag-option]")].find((button) => button.dataset.tagOption === name);
