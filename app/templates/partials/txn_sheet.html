@@ -31,8 +31,8 @@
 </div>
 {% endif %}
 
-{% if t.created_via and t.created_via.startswith("mcp:") %}
-<p class="sheet-by">{{ icon("robot") }}<span>Added by {{ t.created_via[4:] }}</span></p>
+{% if (t.created_via or "").startswith("mcp:") or (t.updated_via or "").startswith("mcp:") %}
+<p class="sheet-by">{{ icon("robot") }}<span>{% if t.created_via %}Added by {{ t.created_via|origin_label|replace(" (AI assistant)", "") }}{% endif %}{% if t.updated_via and t.updated_via != t.created_via %}{{ " · " if t.created_via }}last changed by {{ t.updated_via|origin_label|replace(" (AI assistant)", "") }}{% endif %}</span></p>
 {% elif t.recurring_id or t.created_via == "recurring" %}
 <p class="sheet-by">{{ icon("repeat") }}<a href="/recurring">Recurring</a></p>
 {% endif %}

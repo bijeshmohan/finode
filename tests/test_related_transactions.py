@@ -119,7 +119,7 @@ def test_related_opens_a_blank_form_with_the_link(client, account, expense_accou
 
 def test_a_plain_new_form_offers_the_dashed_row(client, account, expense_account):
     page = client.get("/transactions/new").text
-    assert "Related</button>" in page and "Related to an earlier entry" not in page
+    assert "Transaction</button>" in page and "Related to an earlier entry" not in page
     assert "data-related-chip hidden" in page
     assert 'name="related" value=""' in page
 
