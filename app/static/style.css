@@ -650,7 +650,9 @@ details.setting > form, details.setting > .stack { padding: 1rem; }
 .segmented button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
 /* ---------- AI assistants ---------- */
-.tx-via { display: inline-flex; align-items: center; gap: .25rem; font-size: .75rem; color: var(--auto); }
+.tx-via { display: flex; align-items: center; gap: .1rem .6rem; font-size: .75rem; color: var(--auto); white-space: nowrap; overflow: hidden; }
+.tx-by { display: inline-flex; align-items: center; gap: .25rem; flex: none; }
+.tx-tag { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tx-via .icon { width: 1em; height: 1em; }
 .origin { margin-top: -.5rem; font-size: .875rem; }
 .token-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .75rem; }

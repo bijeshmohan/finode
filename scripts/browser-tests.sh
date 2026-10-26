@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # Keep this in step with the playwright version pinned in pyproject.toml.
-VERSION="1.55.0"
+VERSION="1.64.0"
 IMAGE="mcr.microsoft.com/playwright/python:v${VERSION}-noble"
 PORT="${BROWSER_PORT:-3333}"
 NAME="finode-browser-$$"
