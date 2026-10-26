@@ -6,7 +6,7 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from ..clock import local_midnight_utc
@@ -36,7 +36,7 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
-from ..tags import clean_tag, tags_in
+from ..tags import clean_name, clean_names, clean_tag
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 
 # How many recent entries the payee suggestions look at.
@@ -217,8 +217,14 @@ class TransactionService:
             updated=posting.updated,
         )
 
-    def _to_read(self, transaction: Transaction, postings: list[Posting] | None = None) -> TransactionRead:
+    def _to_read(
+        self,
+        transaction: Transaction,
+        postings: list[Posting] | None = None,
+        tags: builtins.list[str] | None = None,
+    ) -> TransactionRead:
         return TransactionRead(
+            tags=tags if tags is not None else self.tr.tag_names(transaction.tid),
             tid=transaction.tid,
             date=transaction.date,
             payee=transaction.payee,
@@ -333,7 +339,8 @@ class TransactionService:
 
     def restore(self, hid: UUID) -> TransactionRead:
         """Bring a deleted entry back as it was, with its old id (so its history carries on). It becomes an
-        ordinary entry: the link to a recurring rule is not restored, so the rule cannot record the day twice."""
+        ordinary entry: the link to a recurring rule is not restored, so the rule cannot record the day twice. Its
+        related links come back (to an earlier entry that is still there, and from the entries that were linked to it)."""
         row = self.tr.deleted_row(hid)
         if row is None:
             raise LookupError("deleted transaction not found!")
@@ -356,14 +363,38 @@ class TransactionService:
                 {"account": UUID(p["account"]), "side": p["side"], "amount": Decimal(p["amount"])}
                 for p in snapshot["postings"]
             ],
+            related_id=self._restorable_link(snapshot.get("related_id")),
+            tags=clean_names(snapshot.get("tags", [])),
         )
         self._check_limits()
         self._resolve(data)
         self._check_reference(data.source, data.external_id)
         transaction = self.tr.create(data, self.origin, None, tid=row.transaction_id)
+        self._relink(transaction.tid, snapshot.get("related_from", []))
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
         return self._to_read(transaction)
+
+    def _restorable_link(self, value: str | None) -> UUID | None:
+        """The entry a restored one was related to, if it is still there (otherwise the link is simply not restored)."""
+        if not value:
+            return None
+        target = UUID(value)
+        return target if self.tr.read(target) is not None else None
+
+    def _relink(self, restored: UUID, former: list[str]) -> None:
+        """Point the entries that were related to a restored one at it again, unless they have a link of their own by
+        now or it would make a circle."""
+        for value in former:
+            other = self.tr.read(UUID(value))
+            if other is None or other.related_id is not None:
+                continue
+            try:
+                self._check_related(restored, other.tid)
+            except InvalidPostingError:
+                continue
+            other.related_id = restored
+            self.tr.db.add(other)
 
     def validate(self, data: TransactionCreate) -> None:
         """Raise what create would raise, without saving anything."""
@@ -421,6 +452,7 @@ class TransactionService:
         self._resolve(data)
         self._check_related(data.related_id)
         self._check_reference(data.source, data.external_id)
+        self._check_tags(data.tags)
 
     def preview_create(self, data: TransactionCreate) -> TransactionPreview:
         """What `create_once` would do, with nothing saved: the same checks, the same refusals."""
@@ -519,11 +551,12 @@ class TransactionService:
     def preview_update(self, tid: UUID, data: TransactionUpdate) -> TransactionPreview:
         """What `update` would save, with nothing saved: the entry as it would read afterwards."""
         existing = self._check_update(tid, data)
-        changes = data.model_dump(exclude_unset=True, exclude={"postings"})
-        merged = {
+        changes = data.model_dump(exclude_unset=True, exclude={"postings", "tags"})
+        merged: dict[str, Any] = {
             key: changes[key] if key in changes else getattr(existing, key)
             for key in ("date", "payee", "comment", "related_id", "source", "external_id", "source_url")
         }
+        merged["tags"] = data.tags if data.tags is not None else self.tr.tag_names(tid)
         postings = (
             data.postings
             if data.postings is not None
@@ -579,8 +612,9 @@ class TransactionService:
     def related(self, tid: UUID) -> list[TransactionRead]:
         """The entries that are related to this one, oldest first."""
         rows = self.tr.related_to(tid)
-        postings = self.tr.postings_for_transactions([t.tid for t in rows])
-        return [self._to_read(t, postings.get(t.tid, [])) for t in rows]
+        tids = [t.tid for t in rows]
+        postings, tags = self.tr.postings_for_transactions(tids), self.tr.tag_map(tids)
+        return [self._to_read(t, postings.get(t.tid, []), tags.get(t.tid, [])) for t in rows]
 
     def _account_subtree(self, aid: UUID) -> list[UUID]:
         accounts = self.ar.list()
@@ -642,8 +676,15 @@ class TransactionService:
             (external_id or "").strip() or None,
             clean_tag(tag or "") or None,
         )
-        postings = self.tr.postings_for_transactions([t.tid for t in transactions])  # one query, not one per row
-        return [self._to_read(transaction, postings.get(transaction.tid, [])) for transaction in transactions]
+        tids = [t.tid for t in transactions]
+        postings, tags = (
+            self.tr.postings_for_transactions(tids),
+            self.tr.tag_map(tids),
+        )  # one query each, not one per row
+        return [
+            self._to_read(transaction, postings.get(transaction.tid, []), tags.get(transaction.tid, []))
+            for transaction in transactions
+        ]
 
     def page(
         self,
@@ -683,27 +724,54 @@ class TransactionService:
             )
         else:
             total = offset + len(found)  # nothing is left, so there is no need to count
-        postings = self.tr.postings_for_transactions([t.tid for t in found])  # one query, not one per row
-        found = [self._to_read(t, postings.get(t.tid, [])) for t in found]
+        tids = [t.tid for t in found]
+        postings, tags = (
+            self.tr.postings_for_transactions(tids),
+            self.tr.tag_map(tids),
+        )  # one query each, not one per row
+        found = [self._to_read(t, postings.get(t.tid, []), tags.get(t.tid, [])) for t in found]
         return found, total
 
     def tagged(self) -> builtins.list[TransactionRead]:
-        """Every entry that carries at least one tag, newest first, with its postings (two queries however many)."""
-        found = [t for t in self.tr.tagged() if tags_in(t.comment)]
-        postings = self.tr.postings_for_transactions([t.tid for t in found])
-        return [self._to_read(t, postings.get(t.tid, [])) for t in found]
+        """Every entry that carries at least one tag, newest first, with its postings (three queries however many)."""
+        found = self.tr.tagged()
+        tids = [t.tid for t in found]
+        postings, tags = self.tr.postings_for_transactions(tids), self.tr.tag_map(tids)
+        return [self._to_read(t, postings.get(t.tid, []), tags.get(t.tid, [])) for t in found]
 
     def tags(self) -> builtins.list[TagRead]:
-        """The #hashtags used in notes, the most used first, each with how many entries carry it and its last day."""
-        found: dict[str, TagRead] = {}
-        for note, day in self.tr.tag_notes():
-            for tag in tags_in(note):
-                if tag in found:
-                    found[tag].uses += 1
-                    found[tag].last_used = max(found[tag].last_used, day)
-                else:
-                    found[tag] = TagRead(tag=tag, uses=1, last_used=day)
-        return sorted(found.values(), key=lambda t: (-t.uses, t.tag))
+        """The person's tags, the most used first, each with how many entries carry it and its last day."""
+        return [TagRead(tag=name, uses=uses, last_used=last) for name, uses, last in self.tr.tag_stats()]
+
+    def _check_tags(self, names: builtins.list[str]) -> None:
+        """A person may have only so many different tags; the ones an entry names that do not exist yet count."""
+        new = [name for name in names if not self.tr.tag_exists(name)]
+        if new:
+            ensure_room(self.tr.count_tags(), settings.max_tags, "tags", adding=len(new))
+
+    def rename_tag(self, old: str, new: str) -> int:
+        """Give a tag a new name; when the new name is another tag of the person's the two become one. Returns how many
+        entries now carry it."""
+        old, new = clean_name(old), clean_name(new)
+        if old == new:
+            raise ValueError("that is already the tag's name!")
+        self.tr.rename_tag(old, new)
+        self.tr.db.commit()
+        return next((uses for name, uses, _ in self.tr.tag_stats() if name == new), 0)
+
+    def merge_tags(self, source: str, target: str) -> int:
+        """Put the entries of one tag under another existing tag and remove the first. Returns how many entries carry the
+        target now."""
+        source, target = clean_name(source), clean_name(target)
+        if not self.tr.tag_exists(target):
+            raise LookupError(f"no tag is called '{target}'! Rename the tag instead.")
+        return self.rename_tag(source, target)
+
+    def delete_tag(self, name: str) -> int:
+        """Take a tag off every entry and remove it (the entries stay as they are); returns how many entries had it."""
+        removed = self.tr.delete_tag(clean_name(name))
+        self.tr.db.commit()
+        return removed
 
     def payee_routes(self, query: str = "", limit: int = 6, history: int = PAYEE_HISTORY) -> builtins.list[PayeeRoute]:
         """Who the person pays (or is paid by) most, each with the accounts of the newest entry to repeat.
@@ -803,6 +871,8 @@ class TransactionService:
         self._resolve(data, kept)
         if "related_id" in data.model_fields_set:
             self._check_related(data.related_id, tid)
+        if data.tags:
+            self._check_tags(data.tags)
         if data.model_fields_set & {"source", "external_id"}:
             self._check_reference(
                 data.source if "source" in data.model_fields_set else existing.source,

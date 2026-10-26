@@ -14,7 +14,6 @@ from .clock import local_day, local_today
 from .currencies import find
 from .flash import flash_message, flash_undo
 from .models.utils import normalize_amount
-from .tags import without_tags
 
 BASE_DIR = Path(__file__).parent
 
@@ -129,7 +128,6 @@ def origin_label(origin: str | None) -> str | None:
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 _globals = cast(dict[str, Any], templates.env.globals)  # Jinja types its globals too narrowly for plain functions
 templates.env.filters["money"] = money
-templates.env.filters["without_tags"] = without_tags
 _globals["grouping"] = lambda: _grouping.get()
 _globals["decimals"] = lambda: _places.get()
 templates.env.filters["symbol"] = symbol

@@ -20,6 +20,7 @@ from ..repositories import AccountRepository, ProfileRepository, TransactionRepo
 from ..schemas.account import AccountCreate
 from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
+from ..tags import clean_names
 from .account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
 
 MAX_REPORTED_ERRORS = 20
@@ -46,12 +47,32 @@ class ImportRejected(ValueError):
         self.summary = summary
 
 
+_TAGS_LINE = re.compile(r"^tags:\s*(.*)$", re.IGNORECASE)
+
+
+def _take_tags(notes: list[str], line: int, errors: list[str]) -> tuple[list[str], list[str]]:
+    """The notes without the `tags: a, b` line an export writes, and the tags that line named."""
+    kept: list[str] = []
+    tags: list[str] = []
+    for note in notes:
+        found = _TAGS_LINE.match(note.strip())
+        if not found:
+            kept.append(note)
+            continue
+        try:
+            tags = clean_names([word for word in re.split(r"[,\s]+", found.group(1)) if word])
+        except ValueError as e:
+            errors.append(f"line {line}: {e}")
+    return kept, tags
+
+
 @dataclass
 class _Planned:
     date: Date
     payee: str | None
     comment: str | None
     postings: list[tuple[Key, PostingSide, Decimal]]  # account, side, amount
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -124,10 +145,10 @@ class DataService:
         for posting in sorted(self.tr.all_postings(), key=lambda p: (p.side != PostingSide.DEBIT, p.created)):
             postings.setdefault(posting.transaction, []).append(posting)
         transactions = sorted(self.tr.list(), key=lambda t: (t.date, t.created))
-        return accounts, paths, postings, transactions
+        return accounts, paths, postings, transactions, self.tr.all_tag_map()
 
     def export_ledger(self) -> str:
-        accounts, paths, postings, transactions = self._snapshot()
+        accounts, paths, postings, transactions, tags = self._snapshot()
         decls = [
             AccountDecl(paths[a.aid], a.details)
             for a in sorted(accounts, key=lambda a: paths[a.aid])
@@ -140,14 +161,17 @@ class DataService:
                 for p in postings.get(t.tid, [])
             ]
             if len(lines) >= 2:
-                entries.append(LedgerTransaction(t.date, t.payee or "", [t.comment] if t.comment else [], lines))
+                notes = [t.comment] if t.comment else []
+                if tags.get(t.tid):
+                    notes.append(f"tags: {', '.join(tags[t.tid])}")  # read back by an import
+                entries.append(LedgerTransaction(t.date, t.payee or "", notes, lines))
         return write(decls, entries, local_today())
 
     def export_csv(self) -> str:
-        _accounts, paths, postings, transactions = self._snapshot()
+        _accounts, paths, postings, transactions, tags = self._snapshot()
         out = io.StringIO()
         writer = csv.writer(out)
-        writer.writerow(["date", "payee", "note", "account", "debit", "credit"])
+        writer.writerow(["date", "payee", "note", "tags", "account", "debit", "credit"])
         for t in transactions:
             for p in postings.get(t.tid, []):
                 shown = f"{p.amount:.2f}"
@@ -158,6 +182,7 @@ class DataService:
                         t.date.isoformat(),
                         _formula_safe(t.payee),
                         _formula_safe(t.comment),
+                        ", ".join(tags.get(t.tid, [])),
                         paths[p.account],
                         debit,
                         credit,
@@ -285,8 +310,9 @@ class DataService:
             if payee and len(payee) > 40:
                 notes.insert(0, payee)
                 payee = payee[:40].rstrip()
+            notes, tags = _take_tags(notes, transaction.line, errors)
             comment = " · ".join(notes) or None
-            planned = self._plan_transaction(transaction, lines, payee, comment, currency.decimals, errors)
+            planned = self._plan_transaction(transaction, lines, payee, comment, currency.decimals, errors, tags)
             if planned is None:
                 continue
             for key, side, amount in planned.postings:
@@ -309,6 +335,12 @@ class DataService:
         for room in (
             lambda: ensure_room(len(by_aid), settings.max_accounts, "accounts", len(plan.new_accounts)),
             lambda: ensure_room(self.tr.count(), settings.max_transactions, "transactions", len(plan.transactions)),
+            lambda: ensure_room(
+                self.tr.count_tags(),
+                settings.max_tags,
+                "tags",
+                len({n for t in plan.transactions for n in t.tags}),
+            ),
         ):
             try:
                 room()
@@ -328,6 +360,7 @@ class DataService:
         comment: str | None,
         decimals: int,
         errors: list[str],
+        tags: list[str] | None = None,
     ) -> _Planned | None:
         """One transaction: its postings, checked the way entering it by hand would be."""
         try:
@@ -358,11 +391,12 @@ class DataService:
                 payee=payee,
                 comment=comment,
                 postings=[PostingCreate(account=PLACEHOLDER, side=s, amount=a) for _, s, a in postings],
+                tags=tags or [],
             )
         except ValidationError as e:
             errors.append(f"line {transaction.line}: {_message(e)}")
             return None
-        return _Planned(transaction.date, payee, comment, postings)
+        return _Planned(transaction.date, payee, comment, postings, tags or [])
 
     def preview_import(self, text: str) -> ImportSummary:
         return self._plan(text).summary
@@ -385,6 +419,7 @@ class DataService:
                         payee=planned.payee,
                         comment=planned.comment,
                         postings=[PostingCreate(account=ids[k], side=s, amount=a) for k, s, a in planned.postings],
+                        tags=planned.tags,
                     ),
                     origin="import",
                 )

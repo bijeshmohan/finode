@@ -34,3 +34,73 @@ def without_tags(note: str | None) -> str:
         if any(c.isalpha() for c in match.group(1)):
             kept = kept[: match.start()] + kept[match.end() :]
     return " ".join(kept.split())
+
+
+# What a tag is once it is its own thing (not read out of a note): the same letters as before, kept exactly.
+MAX_TAGS_PER_ENTRY = 10
+_NAME = re.compile(rf"[A-Za-z0-9](?:[A-Za-z0-9_-]{{0,{MAX_TAG - 2}}}[A-Za-z0-9])?")
+
+
+def clean_name(value: str) -> str:
+    """A tag as a person or an assistant gives it, made into its one form: no #, no spaces, lower case. Raises ValueError
+    for something that cannot be a tag (too long, odd characters, no letter)."""
+    name = clean_tag(value)
+    if not _NAME.fullmatch(name) or not any(c.isalpha() for c in name):
+        raise ValueError(
+            f"'{value.strip()}' cannot be a tag: use 1 to {MAX_TAG} letters, digits, - or _ (at least one letter)!"
+        )
+    return name
+
+
+def clean_names(values: list[str] | None) -> list[str]:
+    """A list of tags made into their one form, each once, in the order given; at most MAX_TAGS_PER_ENTRY."""
+    names: list[str] = []
+    for value in values or []:
+        name = clean_name(value)
+        if name not in names:
+            names.append(name)
+    if len(names) > MAX_TAGS_PER_ENTRY:
+        raise ValueError(f"an entry can have at most {MAX_TAGS_PER_ENTRY} tags!")
+    return names
+
+
+# A tag right after one of these words is part of the sentence ("paid through #UPI").
+_CONNECTORS = frozenset(
+    [
+        "a",
+        "an",
+        "and",
+        "as",
+        "at",
+        "by",
+        "for",
+        "from",
+        "in",
+        "into",
+        "of",
+        "on",
+        "or",
+        "per",
+        "the",
+        "through",
+        "to",
+        "using",
+        "via",
+        "with",
+    ]
+)
+
+
+def split_note(note: str | None) -> tuple[str | None, list[str]]:
+    """An old note split into (its words, its #tags), for files written when tags lived in the note (backups before
+    version 3). A tag that is part of the sentence ("paid through #UPI") keeps its word in the words, without the #.
+    A note with more tags than an entry may have is left exactly as it is."""
+    names = tags_in(note)
+    if not names or len(names) > MAX_TAGS_PER_ENTRY:
+        return note, []
+    kept = note or ""
+    for match in reversed([m for m in _TAG.finditer(kept) if any(c.isalpha() for c in m.group(1))]):
+        before = kept[: match.start()].split()
+        word = match.group(1) if before and before[-1].lower() in _CONNECTORS else ""
+        kept = kept[: match.start()] + word + kept[match.end() :]
+    return " ".join(kept.split()) or None, names

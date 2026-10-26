@@ -21,9 +21,14 @@
   <label class="chip date-chip" data-date-chip data-today="{{ today }}">{{ icon("calendar") }}<span data-date-label>{{ day|date_chip }}</span>
     <input type="date" name="date" value="{{ day }}" required aria-label="Date">
   </label>
-  <div class="tag-field">
-    <input type="text" name="comment" maxlength="200" placeholder="Note (optional)" aria-label="Note" autocomplete="off" data-tag-note value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
-    <div class="tag-pop" role="listbox" aria-label="Tags you use" hidden></div>
+  <input type="text" name="comment" maxlength="200" placeholder="Note (optional)" aria-label="Note" value="{{ (transaction.comment or '') if editing else (new_note or '') }}">
+
+  {#- The tags are their own thing, not words in the note: chips, and a dashed row that opens the Tags sheet. -#}
+  {% set chosen_tags = transaction.tags if editing else (copy_of.tags if copy_of else []) %}
+  <div class="tags-box" data-tags>
+    <div data-tags-values hidden>{% for tag in chosen_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}</div>
+    <div class="tags-chips" data-tags-chips>{% for tag in chosen_tags %}<span class="tag-chip" data-tag="{{ tag }}">{{ tag }}<button type="button" data-tag-remove aria-label="Remove the tag {{ tag }}">✕</button></span>{% endfor %}</div>
+    <button type="button" class="add-row tags-add" data-tags-open>{{ icon("tag") }} Tags</button>
   </div>
 
   <div class="related" data-related>
@@ -42,6 +47,19 @@
     {% if not editing %}<button type="submit" class="quiet" name="another" value="1">Save &amp; add another</button>{% endif %}
   </div>
 </form>
+
+<dialog id="tags-picker" class="sheet sheet-bottom" aria-label="Tags">
+  <div class="sheet-body">
+    <div class="sheet-grab" aria-hidden="true"></div>
+    <h2 class="filter-title">Tags</h2>
+    <input type="search" class="filter-search" placeholder="Search or create a tag" aria-label="Search or create a tag" autocomplete="off" autocapitalize="none" data-tags-search>
+    <ul class="filter-options" data-tags-list>
+      <li class="filter-empty muted" hx-get="/transactions/tag-picker" hx-trigger="tags-open once" hx-swap="outerHTML">Loading…</li>
+    </ul>
+    <p class="muted tags-limit" data-tags-limit hidden>An entry can have at most 10 tags.</p>
+    <div class="sheet-actions"><button type="button" data-tags-done>Done</button></div>
+  </div>
+</dialog>
 
 <dialog id="related-picker" class="sheet sheet-bottom" aria-label="Related to">
   <div id="related-picker-body" class="sheet-body"></div>

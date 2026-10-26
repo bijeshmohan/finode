@@ -26,9 +26,9 @@ When you need more than one account on a side (a bill paid half by cash and half
 
 ### Repeat
 
-**Tags.** Write a `#word` in a note (`Dinner with Ravi #reimbursable`, `#goa-trip`) to tag an entry. Nothing to set up: finode reads the tags out of your notes, and an assistant can list them and find the entries that carry one (see *AI assistants*). A tag is a `#` that starts a word, then letters, digits, `-` or `_`; `#1` is not a tag.
+**Tags.** A tag is a label on an entry (`goa-trip`, `reimbursable`, `emi`), apart from its note. Under the note, the **Tags** row opens a sheet: search your tags, tap to tick or untick them, or type a new word and tap **Create**. The ones you chose show as chips; ✕ takes one off. A tag is one word of letters, digits, `-` or `_` (up to 30), and `#EMI` and `emi` are the same tag. An entry can have up to 10. A `#` you type in the note is just text.
 
-In the app: a row shows the words of the note and, after them, its tags (`HDFC Card · Airport drop · #goa-trip`). The details sheet has a **Tags** row; tap a tag to see that month's entries that carry it. The **Filter** sheet has a **Tag** row that opens a searchable list of your tags (how many entries, the last day, and what they come to when they all go one way); with a tag chosen, the line under the title adds up what the entries came to ("12 transactions · 43,200.00 spent"), and the ✕ removes the filter. When you type a `#` in the note on the Add screen, the tags you already use are offered; tap one to finish the word.
+In the app: a row shows the note and, after it, its tags (`HDFC Card · Airport drop · #goa-trip`). The details sheet has a **Tags** row; tap a tag to see that month's entries that carry it. The **Filter** sheet has a **Tag** row that opens a searchable list of your tags (how many entries, the last day, and what they come to when they all go one way); with a tag chosen, the line under the title adds up what the entries came to ("12 transactions · 43,200.00 spent"), and the ✕ removes the filter. **Settings › Your data › Tags** lists all your tags: tap one to **rename** it (a misspelling is fixed once, for every entry), **merge** it into another tag, or **delete** it (the entries stay, only the label goes). A tag that no entry carries any more disappears by itself.
 
 **Where an entry came from.** An entry that an assistant recorded from a bank message or a mail can carry its source and reference; the details sheet then shows a quiet *Source* line (a link when there is one). A source's reference is used once, so the same message is never recorded twice.
 
@@ -62,7 +62,7 @@ Open a row and tap **Edit**.  **Delete** removes it at once and the toast offers
 
 ### Recently deleted
 
-Deleted by accident? Open **Settings › Your data › Recently deleted** (it also lists accounts and categories): it lists what was deleted, newest first, each with **Restore**. A restored entry comes back with its old details (it is checked again, so a closed account will stop it, and tell you why). Only the latest deletion of an entry can be restored, and a restored entry is no longer linked to the recurring rule that made it.
+Deleted by accident? Open **Settings › Your data › Recently deleted** (it also lists accounts and categories): it lists what was deleted, newest first, each with **Restore**. A restored entry comes back with its old details (it is checked again, so a closed account will stop it, and tell you why). Only the latest deletion of an entry can be restored, and a restored entry is no longer linked to the recurring rule that made it. Its **related** links come back: to the earlier entry it was related to, and from the entries that were related to it (unless that entry is gone, got another link meanwhile, or the link would make a circle).
 
 ## How amounts look
 

@@ -1,5 +1,5 @@
-"""Tags in the web app: a #word in a note is shown apart on rows and in the sheet, found through the Filter sheet,
-offered as it is typed, and listed with its uses. Nothing is stored for them; the note is the one place."""
+"""Tags in the web app: chosen on the Add and Edit screens, shown apart from the note on rows and in the sheet, found
+through the Filter sheet, and looked after on the Tags page (Settings > Your data)."""
 
 import re
 from datetime import date
@@ -25,11 +25,12 @@ def books(client, root_accounts):
     }
 
 
-def spend(client, books, amount, note=None, payee=None, to="travel", on=None):
+def spend(client, books, amount, note=None, payee=None, to="travel", on=None, tags=None):
     body = {
         "date": str(on or TODAY),
         "payee": payee,
         "comment": note,
+        "tags": tags or [],
         "postings": [
             {"account": books[to]["aid"], "side": "debit", "amount": amount},
             {"account": books["bank"]["aid"], "side": "credit", "amount": amount},
@@ -40,12 +41,12 @@ def spend(client, books, amount, note=None, payee=None, to="travel", on=None):
     return made.json()
 
 
-def earn(client, books, amount, note):
+def earn(client, books, amount, tags):
     made = client.post(
         "/api/transactions/",
         json={
             "date": str(TODAY),
-            "comment": note,
+            "tags": tags,
             "postings": [
                 {"account": books["bank"]["aid"], "side": "debit", "amount": amount},
                 {"account": books["salary"]["aid"], "side": "credit", "amount": amount},
@@ -60,38 +61,34 @@ def titles(page: str) -> list[str]:
     return re.findall(r'<span class="tx-title">([^<]*)</span>', page)
 
 
+def form_fields(**extra):
+    return {"date": str(TODAY), "payee": "", "comment": "", **extra}
+
+
 # ---- rows and the sheet ---------------------------------------------------------------------------------------------
 
 
-def test_a_row_shows_the_words_of_the_note_and_the_tags_apart(client, books):
-    spend(client, books, "840", note="Dinner with Ravi #goa-trip #reimbursable", payee="Taj")
+def test_a_row_shows_the_whole_note_and_the_tags_after_it(client, books):
+    spend(client, books, "840", note="Dinner with Ravi", payee="Taj", tags=["goa-trip", "reimbursable"])
     page = client.get("/transactions").text
-    sub = re.search(r'<span class="tx-sub">(.*?)</span>\s*</span>', page, re.S) or re.search(
-        r'class="tx-sub">(.*)', page
-    )
-    html = sub.group(0)
-    assert "Dinner with Ravi" in html and "Dinner with Ravi #goa-trip" not in html, "the words, then the tags"
+    assert "Dinner with Ravi" in page
     assert '<span class="tx-tag">#goa-trip</span> <span class="tx-tag">#reimbursable</span>' in page
 
 
-def test_a_note_with_only_tags_leaves_just_the_tags_and_a_plain_note_is_unchanged(client, books):
-    spend(client, books, "10", note="#goa-trip", payee="OnlyTag")
-    spend(client, books, "20", note="Plain words, no tag", payee="Plain")
-    spend(client, books, "30", note="Issue #1 is not a tag", payee="Number")
+def test_a_hash_in_a_note_is_only_text_on_a_row(client, books):
+    spend(client, books, "10", note="Issue #1 and #goa-trip are words", payee="Words")
     page = client.get("/transactions").text
-    assert '<span class="tx-tag">#goa-trip</span>' in page
-    assert "Plain words, no tag" in page and page.count('class="tx-tag"') == 1, "#1 is not a tag"
-    assert "Issue #1 is not a tag" in page, "a note keeps its words when what looks like a tag is not one"
+    assert "Issue #1 and #goa-trip are words" in page and 'class="tx-tag"' not in page
 
 
-def test_the_sheet_has_a_tags_row_that_filters_and_the_note_without_them(client, books):
-    made = spend(client, books, "840", note="Airport drop #goa-trip #reimbursable", payee="Cab")
+def test_the_sheet_has_a_tags_row_that_filters_and_the_note_whole(client, books):
+    made = spend(client, books, "840", note="Airport drop", payee="Cab", tags=["goa-trip", "reimbursable"])
     sheet = client.get(f"/transactions/{made['tid']}/sheet").text
     assert f'href="/transactions?month={MONTH}&amp;tag=goa-trip">#goa-trip</a>' in sheet
     assert "#reimbursable</a>" in sheet
     note = re.search(r"<dt>Note</dt><dd>([^<]*)</dd>", sheet)
     assert note and note.group(1) == "Airport drop"
-    only = spend(client, books, "5", note="#goa-trip", payee="Tag only")
+    only = spend(client, books, "5", payee="Tag only", tags=["goa-trip"])
     assert "<dt>Note</dt>" not in client.get(f"/transactions/{only['tid']}/sheet").text, "no empty note row"
     none = spend(client, books, "5", note="just words", payee="No tags")
     assert "<dt>Tags</dt>" not in client.get(f"/transactions/{none['tid']}/sheet").text
@@ -101,19 +98,17 @@ def test_the_sheet_has_a_tags_row_that_filters_and_the_note_without_them(client,
 
 
 def test_the_tag_filter_lists_only_those_entries_and_says_what_they_come_to(client, books):
-    spend(client, books, "840", note="Hotel #goa-trip", payee="Taj")
-    spend(client, books, "160", note="#Goa-Trip cab", payee="Cab")
-    spend(client, books, "999", note="Not this one #goa-tripping", payee="Other")
-    spend(client, books, "50", note="no tag", payee="Plain")
+    spend(client, books, "840", payee="Taj", tags=["goa-trip"])
+    spend(client, books, "160", payee="Cab", tags=["Goa-Trip"])
+    spend(client, books, "999", payee="Other", tags=["goa-tripping"])
+    spend(client, books, "50", payee="Plain")
     page = client.get("/transactions", params={"tag": "goa-trip"}).text
     assert sorted(titles(page)) == ["Cab", "Taj"], "capitals do not matter and a longer tag is another tag"
     body = text_of(page)
     assert "2 transactions" in body and "1,000.00 spent" in body
-    assert '<a href="/transactions?month=' in page and "#goa-trip" in page and "Remove the tag filter" in page
+    assert "#goa-trip" in page and "Remove the tag filter" in page
     assert 'name="tag"' in page and 'data-filter-value="tag"' in page
-    assert titles(client.get("/transactions", params={"tag": "#GOA-trip"}).text) == titles(page), (
-        "a # and capitals are fine"
-    )
+    assert titles(client.get("/transactions", params={"tag": "#GOA-trip"}).text) == titles(page)
     assert titles(client.get("/transactions", params={"tag": "nothing-here"}).text) == []
 
 
@@ -123,10 +118,10 @@ def test_the_tag_filter_combines_with_the_others_and_travels_with_show_more(clie
             client,
             books,
             "1",
-            note="#bulk",
             payee=f"P{i:02d}",
             to="food" if i % 2 else "travel",
             on=date(2026, 1, 1 + i),
+            tags=["bulk"],
         )
     window = {"tag": "bulk", "date_from": "2026-01-01", "date_to": "2026-02-28"}
     first = client.get("/transactions", params=window).text
@@ -138,68 +133,172 @@ def test_the_tag_filter_combines_with_the_others_and_travels_with_show_more(clie
     assert len(titles(both)) == 15
 
 
-# ---- the lists the sheet and the form use -----------------------------------------------------------------------------
+# ---- the lists the sheets use -----------------------------------------------------------------------------------------
 
 
-def test_the_tag_list_has_uses_last_day_and_the_total_when_they_all_go_one_way(client, books):
-    spend(client, books, "840", note="#goa-trip", payee="A")
-    spend(client, books, "160", note="#goa-trip #reimbursable", payee="B")
-    earn(client, books, "500", note="Refund #reimbursable")
+def test_the_filter_list_has_uses_last_day_and_the_total_when_they_all_go_one_way(client, books):
+    spend(client, books, "840", payee="A", tags=["goa-trip"])
+    spend(client, books, "160", payee="B", tags=["goa-trip", "reimbursable"])
+    earn(client, books, "500", ["reimbursable"])
     html = client.get("/transactions/tag-options").text
     trip = re.search(r'data-value="goa-trip".*?</button>', html, re.S).group(0)
     assert "2 entries" in trip and "1,000.00" in trip and TODAY.strftime("%d %b") in trip
     mixed = re.search(r'data-value="reimbursable".*?</button>', html, re.S).group(0)
-    assert "2 entries" in mixed and "00" not in re.sub(r"<small.*?</small>", "", mixed), (
-        "spending and income mixed: no total"
-    )
+    assert "2 entries" in mixed and "00" not in re.sub(r"<small.*?</small>", "", mixed), "spending and income: no total"
 
 
-def test_the_tag_list_says_so_when_there_are_no_tags(client, books):
+def test_the_filter_list_says_so_when_there_are_no_tags(client, books):
     spend(client, books, "5", note="words only", payee="X")
     assert "No tags yet" in client.get("/transactions/tag-options").text
 
 
 def test_the_filter_sheet_has_a_tag_row_that_loads_its_list_when_opened(client, books):
+    spend(client, books, "5", payee="X", tags=["goa-trip"])
     page = client.get("/transactions").text
     assert (
         'data-pick="tag"' in page
         and 'hx-get="/transactions/tag-options"' in page
         and 'hx-trigger="tags-open once"' in page
     )
-    assert "goa-trip" not in page, "the tags are not read until the list is opened"
+    assert 'data-value="goa-trip"' not in page, "the tags are not read until the list is opened"
 
 
-def test_the_names_for_the_add_screen_come_most_used_first(client, books):
-    spend(client, books, "1", note="#b", payee="1")
-    spend(client, books, "1", note="#a #b", payee="2")
-    spend(client, books, "1", note="#a #b #c", payee="3")
-    assert client.get("/transactions/tag-names").json() == [
-        {"tag": "b", "uses": 3},
-        {"tag": "a", "uses": 2},
-        {"tag": "c", "uses": 1},
-    ]
+def test_the_tag_picker_lists_the_tags_most_used_first(client, books):
+    spend(client, books, "1", payee="1", tags=["b"])
+    spend(client, books, "1", payee="2", tags=["a", "b"])
+    spend(client, books, "1", payee="3", tags=["a", "b", "c"])
+    html = client.get("/transactions/tag-picker").text
+    assert re.findall(r'data-tag-option="([^"]+)"', html) == ["b", "a", "c"]
+    assert "3 entries" in html and "1 entry" in html
 
 
-def test_the_note_on_the_add_screen_offers_tags(client, books):
+# ---- the Add and Edit screens ---------------------------------------------------------------------------------------
+
+
+def test_the_add_screen_has_the_tags_row_and_the_sheet(client, books):
     page = client.get("/transactions/new").text
-    assert "data-tag-note" in page and 'class="tag-pop"' in page
+    assert "data-tags-open" in page and 'id="tags-picker"' in page and 'hx-get="/transactions/tag-picker"' in page
+    assert "data-tag-note" not in page and "tag-pop" not in page, "no # suggestions any more: tags are not in the note"
+    assert 'name="tags"' not in page
+
+
+def test_saving_an_entry_sends_its_tags_and_the_edit_screen_shows_them(client, books):
+    made = client.post(
+        "/transactions/split",
+        data=form_fields(
+            account=[books["travel"]["aid"], books["bank"]["aid"]],
+            side=["debit", "credit"],
+            amount=["50", "50"],
+            comment="Taxi from the airport",
+            tags=["Goa-Trip", "reimbursable"],
+        ),
+    )
+    assert made.status_code == 200, made.text
+    entry = client.get("/api/transactions/").json()[0]
+    assert entry["tags"] == ["goa-trip", "reimbursable"] and entry["comment"] == "Taxi from the airport"
+    edit = client.get(f"/transactions/{entry['tid']}/edit").text
+    assert edit.count('<input type="hidden" name="tags"') == 2
+    assert 'data-tag="goa-trip"' in edit and 'data-tag="reimbursable"' in edit
+    changed = client.post(
+        f"/transactions/{entry['tid']}/edit",
+        data=form_fields(
+            account=[books["travel"]["aid"], books["bank"]["aid"]],
+            side=["debit", "credit"],
+            amount=["50", "50"],
+            tags=["reimbursable"],
+        ),
+    )
+    assert changed.status_code == 200
+    assert client.get(f"/api/transactions/{entry['tid']}").json()["tags"] == ["reimbursable"]
+    cleared = client.post(
+        f"/transactions/{entry['tid']}/edit",
+        data=form_fields(
+            account=[books["travel"]["aid"], books["bank"]["aid"]], side=["debit", "credit"], amount=["50", "50"]
+        ),
+    )
+    assert cleared.status_code == 200 and client.get(f"/api/transactions/{entry['tid']}").json()["tags"] == []
+
+
+def test_a_bad_tag_on_the_form_says_why(client, books):
+    refused = client.post(
+        "/transactions/split",
+        data=form_fields(
+            account=[books["travel"]["aid"], books["bank"]["aid"]],
+            side=["debit", "credit"],
+            amount=["5", "5"],
+            tags=["not valid"],
+        ),
+    )
+    assert (
+        refused.status_code == 400
+        and refused.headers["HX-Retarget"] == "#form-error"
+        and "cannot be a tag" in refused.text
+    )
+
+
+def test_repeating_an_entry_copies_its_tags(client, books):
+    made = spend(client, books, "30", payee="Cab", tags=["work"])
+    page = client.get("/transactions/new", params={"repeat": made["tid"]}).text
+    assert 'data-tag="work"' in page and 'name="tags" value="work"' in page
+
+
+# ---- the Tags page -------------------------------------------------------------------------------------------------
+
+
+def test_the_settings_page_links_to_tags(client):
+    assert 'href="/tags"' in client.get("/settings").text
+
+
+def test_the_tags_page_lists_the_tags(client, books):
+    assert "No tags yet" in client.get("/tags").text
+    spend(client, books, "5", payee="A", tags=["goa-trip"])
+    spend(client, books, "5", payee="B", tags=["goa-trip", "work"])
+    page = client.get("/tags").text
+    assert page.index("goa-trip") < page.index("work")
+    assert "2 entries" in page and "1 entry" in page and 'hx-get="/tags/goa-trip/sheet"' in page
+
+
+def test_a_tags_sheet_has_rename_merge_and_delete(client, books):
+    spend(client, books, "5", payee="A", tags=["goa-trip"])
+    spend(client, books, "5", payee="B", tags=["work"])
+    sheet = client.get("/tags/goa-trip/sheet").text
+    assert 'hx-post="/tags/goa-trip/rename"' in sheet and 'hx-post="/tags/goa-trip/merge"' in sheet
+    assert '<option value="work">' in sheet and 'hx-post="/tags/goa-trip/delete"' in sheet
+    assert "tag=goa-trip" in sheet
+    alone = client.get("/tags/work/sheet").text
+    assert 'hx-post="/tags/work/merge"' in alone and '<option value="goa-trip">' in alone
+    assert client.get("/tags/nothing/sheet").status_code == 404
+
+
+def test_renaming_merging_and_deleting_from_the_tags_page(client, books):
+    spend(client, books, "5", payee="A", tags=["trip"])
+    spend(client, books, "5", payee="B", tags=["goa-trip"])
+    renamed = client.post("/tags/trip/rename", data={"to": "Holiday"})
+    assert (
+        renamed.status_code == 200
+        and renamed.headers["HX-Redirect"] == "/tags"
+        and "tag-renamed" in renamed.headers["set-cookie"]
+    )
+    assert sorted(t["tag"] for t in client.get("/api/tags/").json()) == ["goa-trip", "holiday"]
+    bad = client.post("/tags/holiday/rename", data={"to": "not valid"})
+    assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#tag-sheet-error"
+    merged = client.post("/tags/holiday/merge", data={"into": "goa-trip"})
+    assert merged.status_code == 200 and "tag-merged" in merged.headers["set-cookie"]
+    assert [t["tag"] for t in client.get("/api/tags/").json()] == ["goa-trip"]
+    gone = client.post("/tags/goa-trip/delete")
+    assert gone.status_code == 200 and "tag-deleted" in gone.headers["set-cookie"]
+    assert client.get("/api/tags/").json() == []
+    assert client.post("/tags/goa-trip/delete").status_code == 404
 
 
 def test_tags_are_case_insensitive_everywhere(client, books):
-    spend(client, books, "100", note="Loan #emi", payee="A")
-    spend(client, books, "200", note="Car loan #EMI", payee="B")
-    spend(client, books, "300", note="Card #Emi", payee="C")
-    # one tag in the lists, however it was typed, shown in lower case
-    assert client.get("/transactions/tag-names").json() == [{"tag": "emi", "uses": 3}]
+    spend(client, books, "100", payee="A", tags=["emi"])
+    spend(client, books, "200", payee="B", tags=["EMI"])
+    spend(client, books, "300", payee="C", tags=["Emi"])
+    assert client.get("/api/tags/").json()[0]["uses"] == 3 and len(client.get("/api/tags/").json()) == 1
     options = client.get("/transactions/tag-options").text
     assert options.count('data-value="') == 1 and "3 entries" in options and "600.00" in options
-    # every spelling finds all three
     for spelling in ("emi", "EMI", "#Emi", " #eMI "):
-        found = titles(client.get("/transactions", params={"tag": spelling}).text)
-        assert sorted(found) == ["A", "B", "C"], spelling
-    # the rows and the sheet show it in one form, and the note keeps what was typed
+        assert sorted(titles(client.get("/transactions", params={"tag": spelling}).text)) == ["A", "B", "C"], spelling
     page = client.get("/transactions").text
-    assert page.count('<span class="tx-tag">#emi</span>') == 3 and "#EMI" not in page and "#Emi" not in page
-    made = client.get("/api/transactions/").json()
-    typed = next(t for t in made if t["payee"] == "B")
-    assert typed["comment"] == "Car loan #EMI", "the note is never rewritten"
+    assert page.count('<span class="tx-tag">#emi</span>') == 3 and "#EMI" not in page

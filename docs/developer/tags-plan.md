@@ -1,6 +1,6 @@
 # Plan: tags apart from notes
 
-**Status: a plan, nothing built.** The mock-ups are in the owner's artifacts ("Tags Apart From Notes"). Today a tag is a `#word` written inside an entry's note (`app/tags.py`); nothing is stored for it. This plan makes a tag its own thing on an entry, chosen from a list, and gives the note back to being plain words.
+**Status: built (2026-10-26), see "Tags are their own thing" in `CLAUDE.md` and the ledger page for what exists.** Decisions taken: assistants with read & write may tag entries; rename, merge and delete need the "manage" level; the ledger export writes a `; tags: a, b` comment line; renames, merges and deletes are not undoable; limits 200 tags per person and 10 per entry. One addition to the plan: a tag that is part of a sentence ("paid through #UPI") keeps its word in the note when it is moved out. The mock-ups are in the owner's artifacts ("Tags Apart From Notes"). Today a tag is a `#word` written inside an entry's note (`app/tags.py`); nothing is stored for it. This plan makes a tag its own thing on an entry, chosen from a list, and gives the note back to being plain words.
 
 ## 1. Why
 

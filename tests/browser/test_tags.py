@@ -1,15 +1,17 @@
-"""Tags in a browser: the sheet's tag links, the Tag list in the Filter sheet, and the suggestions after a # on the Add screen."""
+"""Tags in a browser: chosen on the Add and Edit screens (chips and a sheet), the sheet's tag links, the Tag list in the
+Filter sheet, and the Tags page."""
 
 from playwright.sync_api import Page, expect
 
 from .conftest import Api
 
 
-def add(api: Api, books, payee, note, amount="100", target="food"):
+def add(api: Api, books, payee, note, amount="100", target="food", tags=None):
     return api.post(
         "/transactions/",
         payee=payee,
         comment=note,
+        tags=tags or [],
         postings=[
             {"account": books[target]["aid"], "side": "debit", "amount": amount},
             {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
@@ -17,9 +19,18 @@ def add(api: Api, books, payee, note, amount="100", target="food"):
     )
 
 
+def fill_and_save(page: Page, payee: str):
+    page.fill("#total", "40")
+    page.select_option('[data-rows="credit"] select', label="Checking")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    page.fill('input[name="payee"]', payee)
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url("**/transactions")
+
+
 def test_tapping_a_tag_in_the_sheet_filters_the_list(page: Page, books, api: Api):
-    add(api, books, "Taj", "Hotel #goa-trip", "840")
-    add(api, books, "Cab", "Airport #goa-trip #reimbursable", "160")
+    add(api, books, "Taj", "Hotel", "840", tags=["goa-trip"])
+    add(api, books, "Cab", "Airport", "160", tags=["goa-trip", "reimbursable"])
     add(api, books, "DMart", "weekly shop", "300")
     page.goto("/transactions")
     page.locator("a.tx", has_text="Taj").click()
@@ -35,8 +46,8 @@ def test_tapping_a_tag_in_the_sheet_filters_the_list(page: Page, books, api: Api
 
 
 def test_the_filter_sheet_loads_the_tags_when_its_list_is_opened(page: Page, books, api: Api):
-    add(api, books, "Taj", "Hotel #goa-trip", "840")
-    add(api, books, "Cab", "Airport #goa-trip #reimbursable", "160")
+    add(api, books, "Taj", "Hotel", "840", tags=["goa-trip"])
+    add(api, books, "Cab", "Airport", "160", tags=["goa-trip", "reimbursable"])
     page.goto("/transactions")
     page.locator("[data-open-filter]").click()
     expect(page.locator("#tx-filter")).to_be_visible()
@@ -55,75 +66,97 @@ def test_the_filter_sheet_loads_the_tags_when_its_list_is_opened(page: Page, boo
     assert "tag=reimbursable" in page.url
 
 
-def test_typing_a_hash_in_the_note_offers_the_tags_in_use(page: Page, books, api: Api):
-    add(api, books, "Taj", "Hotel #goa-trip", "840")
-    add(api, books, "Cab", "Airport #goa-trip #gifts", "160")
+def test_choosing_tags_on_the_add_screen(page: Page, books, api: Api):
+    add(api, books, "Taj", "Hotel", "840", tags=["goa-trip"])
+    add(api, books, "Cab", "Airport", "160", tags=["goa-trip", "gifts"])
     page.goto("/transactions/new")
-    note = page.get_by_label("Note")
-    pop = page.locator(".tag-pop")
-    expect(pop).to_be_hidden()
-    note.fill("Dinner with Ravi #g")
-    expect(pop.locator("button")).to_have_count(2)
-    expect(pop.locator("button").first).to_contain_text("#goa-trip")  # the more used one first
-    pop.locator("button", has_text="#gifts").click()
-    expect(note).to_have_value("Dinner with Ravi #gifts ")
-    expect(pop).to_be_hidden()
-    note.press_sequentially("and #")
-    expect(pop.locator("button")).to_have_count(
-        2
-    )  # goa-trip and the one left, gifts is already there but still offered
-    note.press("Escape")
-    expect(pop).to_be_hidden()
-    note.fill("Capitals do not matter #GO")
-    expect(pop.locator("button")).to_have_count(1)
-    expect(pop.locator("button")).to_contain_text("#goa-trip")
-    note.fill("no hash here")
-    expect(pop).to_be_hidden()
-    note.fill("a#b")  # a # inside a word is not a tag
-    expect(pop).to_be_hidden()
+    expect(page.locator(".tag-chip")).to_have_count(0)
+    page.locator("[data-tags-open]").click()
+    sheet = page.locator("#tags-picker")
+    expect(sheet).to_be_visible()
+    options = sheet.locator("[data-tag-option]")
+    expect(options.first).to_contain_text("goa-trip")  # the more used one first
+    options.filter(has_text="gifts").click()
+    expect(options.filter(has_text="gifts")).to_have_attribute("aria-pressed", "true")
+    sheet.locator("[data-tags-search]").fill("Brand-New")  # a word that is no tag yet: capitals do not matter
+    expect(options.filter(has_text="goa-trip")).to_be_hidden()
+    sheet.get_by_role("button", name="＋ Create “brand-new”").click()
+    expect(options.filter(has_text="brand-new")).to_have_attribute("aria-pressed", "true")
+    sheet.locator("[data-tags-search]").fill("")
+    options.filter(has_text="gifts").click()  # tapping a ticked tag takes it off again
+    expect(options.filter(has_text="gifts")).to_have_attribute("aria-pressed", "false")
+    sheet.locator("[data-tags-done]").click()
+    expect(sheet).to_be_hidden()
+    chips = page.locator(".tag-chip")
+    expect(chips).to_have_count(1)
+    expect(chips.first).to_contain_text("brand-new")
+    page.locator("[data-tags-open]").click()
+    options.filter(has_text="goa-trip").click()
+    sheet.locator("[data-tags-done]").click()
+    expect(chips).to_have_count(2)
+    chips.filter(has_text="brand-new").locator("[data-tag-remove]").click()
+    expect(chips).to_have_count(1)
+    fill_and_save(page, "Resort")
+    [entry] = [t for t in api.get("/transactions/") if t["payee"] == "Resort"]
+    assert entry["tags"] == ["goa-trip"] and entry["comment"] is None
 
 
-def test_tapping_a_suggestion_with_a_finger_finishes_the_tag(touch_page: Page, books, api: Api):
-    """On a phone the tap takes the focus from the note before the click arrives; the suggestion must still land."""
-    add(api, books, "Taj", "Hotel #goa-trip", "840")
+def test_a_note_with_a_hash_stays_a_note(page: Page, books, api: Api):
+    page.goto("/transactions/new")
+    page.get_by_label("Note").fill("Issue #3 and #goa-trip")
+    expect(page.locator(".tag-pop")).to_have_count(0)
+    fill_and_save(page, "Words")
+    [entry] = [t for t in api.get("/transactions/") if t["payee"] == "Words"]
+    assert entry["tags"] == [] and entry["comment"] == "Issue #3 and #goa-trip"
+
+
+def test_editing_an_entry_shows_its_tags_and_saves_the_changes(page: Page, books, api: Api):
+    made = add(api, books, "Taj", "Hotel", "840", tags=["goa-trip", "work"])
+    page.goto(f"/transactions/{made['tid']}/edit")
+    chips = page.locator(".tag-chip")
+    expect(chips).to_have_count(2)
+    chips.filter(has_text="work").locator("[data-tag-remove]").click()
+    page.get_by_role("button", name="Save changes").click()
+    page.wait_for_url("**/transactions")
+    assert api.get(f"/transactions/{made['tid']}")["tags"] == ["goa-trip"]
+
+
+def test_tapping_a_tag_with_a_finger(touch_page: Page, books, api: Api):
+    add(api, books, "Taj", "Hotel", "840", tags=["goa-trip"])
     touch_page.goto("/transactions/new")
-    note = touch_page.get_by_label("Note")
-    note.tap()
-    note.press_sequentially("Dinner with Ravi #g")
-    suggestion = touch_page.locator(".tag-pop button", has_text="#goa-trip")
-    expect(suggestion).to_be_visible()
-    suggestion.tap()
-    expect(note).to_have_value("Dinner with Ravi #goa-trip ")
-    expect(touch_page.locator(".tag-pop")).to_be_hidden()
-
-
-def test_choosing_a_suggestion_does_not_press_what_is_under_it(touch_page: Page, books, api: Api):
-    """The list covers the "Related transaction" row; the click that ends the tap must not reach that row."""
-    add(api, books, "Taj", "Hotel #goa-trip", "840")
-    touch_page.goto("/transactions/new")
-    note = touch_page.get_by_label("Note")
-    note.tap()
-    note.press_sequentially("Dinner #g")
-    suggestion = touch_page.locator(".tag-pop button", has_text="#goa-trip")
-    related = touch_page.locator("[data-related-add]")
-    expect(suggestion).to_be_visible()
-    pop_box, related_box = suggestion.bounding_box(), related.bounding_box()
-    assert pop_box["y"] + pop_box["height"] > related_box["y"], "the suggestion sits over the Related row"
-    suggestion.tap()
-    expect(note).to_have_value("Dinner #goa-trip ")
-    touch_page.wait_for_timeout(700)  # long enough for a stray click to open the picker
+    touch_page.locator("[data-tags-open]").tap()
+    option = touch_page.locator("#tags-picker [data-tag-option]", has_text="goa-trip")
+    expect(option).to_be_visible()
+    option.tap()
+    touch_page.locator("#tags-picker [data-tags-done]").tap()
+    expect(touch_page.locator(".tag-chip")).to_have_count(1)
     expect(touch_page.locator("#related-picker")).not_to_be_visible()
-    expect(touch_page.locator("[data-related-chip]")).to_be_hidden()
-    related.tap()  # a real tap on the Related row afterwards still works
-    expect(touch_page.locator("#related-picker")).to_be_visible()
+    expect(touch_page.locator(".tag-chip button")).to_be_visible()
 
 
-def test_a_mouse_click_on_a_suggestion_does_not_press_what_is_under_it(page: Page, books, api: Api):
-    add(api, books, "Taj", "Hotel #goa-trip", "840")
-    page.goto("/transactions/new")
-    note = page.get_by_label("Note")
-    note.fill("Dinner #g")
-    page.locator(".tag-pop button", has_text="#goa-trip").click()
-    expect(note).to_have_value("Dinner #goa-trip ")
-    page.wait_for_timeout(500)
-    expect(page.locator("#related-picker")).not_to_be_visible()
+def test_the_tags_page_renames_merges_and_deletes(page: Page, books, api: Api):
+    add(api, books, "A", "n", tags=["alpha"])
+    add(api, books, "B", "n", tags=["beta"])
+    page.goto("/settings")
+    page.get_by_role("link", name="Tags").click()
+    page.wait_for_url("**/tags")
+    expect(page.locator(".tag-row")).to_have_count(2)
+    page.locator(".tag-row", has_text="alpha").click()
+    sheet = page.locator("#tag-sheet")
+    expect(sheet).to_be_visible()
+    sheet.get_by_label("Rename").fill("not valid")
+    sheet.get_by_role("button", name="Rename").click()
+    expect(sheet.locator("#tag-sheet-error")).to_contain_text("cannot be a tag")
+    sheet.get_by_label("Rename").fill("Holiday")
+    sheet.get_by_role("button", name="Rename").click()
+    page.wait_for_url("**/tags")
+    expect(page.locator(".tag-row", has_text="holiday")).to_be_visible()
+    page.locator(".tag-row", has_text="holiday").click()
+    sheet.locator("select[name=into]").select_option("beta")
+    sheet.get_by_role("button", name="Merge").click()
+    expect(page.locator(".tag-row")).to_have_count(1)
+    page.once("dialog", lambda dialog: dialog.accept())  # the confirmation
+    page.locator(".tag-row").click()
+    sheet.get_by_role("button", name="Delete tag").click()
+    expect(page.get_by_text("No tags yet")).to_be_visible()
+    assert api.get("/tags/") == []

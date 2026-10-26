@@ -45,7 +45,13 @@ def rich(client, root_accounts):
     client.patch(f"/api/accounts/{loan['aid']}", json={"payment_category_id": emi["aid"]})
     assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
 
-    dmart = tx(client, [line(groceries, "debit", "250"), line(card, "credit", "250")], date="2026-09-03", payee="DMart")
+    dmart = tx(
+        client,
+        [line(groceries, "debit", "250"), line(card, "credit", "250")],
+        date="2026-09-03",
+        payee="DMart",
+        tags=["weekly-shop", "food"],
+    )
     tx(
         client,
         [line(card, "debit", "40"), line(groceries, "credit", "40")],
@@ -142,6 +148,7 @@ def canonical(doc: dict) -> dict:
                 t["recurring_date"],
                 entries.get(t["related_id"]),
                 (t["source"], t["external_id"], t["source_url"]),
+                tuple(t["tags"]),
                 sorted((paths[p["account"]], p["side"], p["amount"]) for p in t["postings"]),
             )
             for t in doc["transactions"]
@@ -177,7 +184,7 @@ def test_the_backup_has_everything(client, rich):
         and 'attachment; filename="finode-backup-' in response.headers["content-disposition"]
     )
     doc = response.json()
-    assert doc["format"] == "finode-backup" and doc["version"] == 2
+    assert doc["format"] == "finode-backup" and doc["version"] == 3
     assert doc["profile"]["first_name"] == "Ada" and doc["profile"]["default_currency"] == "INR"
     names = {a["name"] for a in doc["accounts"]}
     assert {
@@ -411,3 +418,52 @@ def test_an_old_backup_in_another_currency_is_refused_and_explained(client, rich
     converting = as_version_1(client.get("/api/backup").json())
     converting["transactions"][0]["postings"][0]["value"] = "1"
     assert restore_as_other(client, converting).status_code == 400
+
+
+def test_a_backup_carries_tags_and_a_restore_makes_them(client, rich):
+    doc = client.get("/api/backup").json()
+    tagged = [t for t in doc["transactions"] if t["tags"]]
+    assert tagged and sorted(tagged[0]["tags"]) == ["food", "weekly-shop"]
+    try:
+        as_user(OTHER)
+        preview = client.post(
+            "/api/restore", params={"dry_run": "true"}, files={"file": ("b.json", json.dumps(doc), "application/json")}
+        )
+        assert preview.json()["tags"] == 2
+        assert (
+            client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")}).status_code
+            == 200
+        )
+        assert sorted(t["tag"] for t in client.get("/api/tags/").json()) == ["food", "weekly-shop"]
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_an_older_backup_with_tags_in_its_notes_restores_them_as_tags(client, rich):
+    doc = client.get("/api/backup").json()
+    doc["version"] = 2
+    for t in doc["transactions"]:
+        t.pop("tags")
+        if t["payee"] == "DMart" and t["date"] == "2026-09-03":
+            t["comment"] = "Weekly shop #Weekly-Shop #food and #1 is no tag"
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert done.status_code == 200, done.text
+        entry = next(
+            t for t in client.get("/api/transactions/").json() if t["payee"] == "DMart" and t["date"] == "2026-09-03"
+        )
+        assert entry["tags"] == ["food", "weekly-shop"] and entry["comment"] == "Weekly shop and #1 is no tag"
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_a_backup_with_a_bad_tag_is_refused(client, rich):
+    doc = client.get("/api/backup").json()
+    doc["transactions"][0]["tags"] = ["not valid"]
+    try:
+        as_user(OTHER)
+        refused = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert refused.status_code == 400 and "cannot be a tag" in refused.text
+    finally:
+        as_user(TEST_USER_ID)

@@ -12,6 +12,7 @@ from app.models.account_deletion import AccountDeletion
 from app.models.api_token import ApiToken
 from app.models.oauth_grant import OAuthGrant
 from app.models.profile import Profile
+from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Posting, Transaction
 from app.repositories.api_token import ApiTokenRepository
 from app.repositories.oauth_grant import OAuthGrantRepository
@@ -73,8 +74,10 @@ def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, bo
         "recurring_transactions",
         "budget_allocations",
         "transaction_history",
+        "tags",
+        "transaction_tags",
     } <= set(removed)
-    for model in (Account, Transaction, Posting):
+    for model in (Account, Transaction, Posting, Tag, TransactionTag):
         assert rows(session, model) == [], model
     # What belongs to the person, not the books, stays.
     [profile] = rows(session, Profile)
@@ -86,7 +89,7 @@ def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, bo
 def test_deleting_everything_leaves_nothing_of_the_person(client, session, both):
     before_b = books_of(client, B_USER)
     EraseService(session, TEST_USER_ID).erase_everything()
-    for model in (Account, Transaction, Posting, Profile, ApiToken, OAuthGrant):
+    for model in (Account, Transaction, Posting, Tag, TransactionTag, Profile, ApiToken, OAuthGrant):
         assert rows(session, model) == [], model
     assert books_of(client, B_USER) == before_b
     assert len(rows(session, Profile, B_USER)) == 1 and len(rows(session, ApiToken, B_USER)) == 1

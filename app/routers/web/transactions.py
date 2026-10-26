@@ -624,10 +624,10 @@ def tag_options(request: Request, accounts: Accounts, transactions: Transactions
     return templates.TemplateResponse(request, "partials/tag_options.html", {"items": items})
 
 
-@router.get("/tag-names")
-def tag_names(transactions: Transactions):
-    """The tags in use, most used first, for the Add screen's suggestions after a # (loaded once, filtered in the page)."""
-    return [{"tag": t.tag, "uses": t.uses} for t in transactions.tags()]
+@router.get("/tag-picker")
+def tag_picker(request: Request, transactions: Transactions):
+    """The tags in the Add screen's Tags sheet (fetched the first time it is opened); the page marks the chosen ones."""
+    return templates.TemplateResponse(request, "partials/tag_picker.html", {"items": transactions.tags()})
 
 
 def related_info(transactions: Transactions, index: AccountIndex, tid: UUID | None) -> TransactionRow | None:
@@ -750,6 +750,7 @@ def create_split_transaction(
     back: Annotated[str, Form()] = "",
     another: Annotated[str, Form()] = "",
     related: Annotated[str, Form()] = "",
+    tags: Annotated[list[str] | None, Form()] = None,
 ):
     account, side, amount = account or [], side or [], amount or []
     try:
@@ -760,6 +761,7 @@ def create_split_transaction(
                 comment=comment.strip() or None,
                 postings=split_postings(account, side, amount),
                 related_id=parse_related(related),
+                tags=tags or [],
             )
         )
     except ValidationError as e:
@@ -812,6 +814,7 @@ def _update(
     postings_fn,
     back: str,
     related: str = "",
+    tags: list[str] | None = None,
 ):
     try:
         transactions.update(
@@ -822,6 +825,7 @@ def _update(
                 comment=comment.strip() or None,
                 postings=postings_fn(),
                 related_id=parse_related(related),
+                tags=tags or [],
             ),
         )
     except ValidationError as e:
@@ -845,6 +849,7 @@ def update_transaction(
     comment: Annotated[str, Form()] = "",
     back: Annotated[str, Form()] = "",
     related: Annotated[str, Form()] = "",
+    tags: Annotated[list[str] | None, Form()] = None,
 ):
     account, side, amount = account or [], side or [], amount or []
     return _update(
@@ -856,4 +861,5 @@ def update_transaction(
         lambda: split_postings(account, side, amount),
         back,
         related,
+        tags,
     )
