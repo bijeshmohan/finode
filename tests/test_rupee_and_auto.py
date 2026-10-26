@@ -38,6 +38,7 @@ def test_what_was_added_automatically_is_blue(client):
 
     css = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
     assert ".tx-via {" in css and "color: var(--auto)" in css.split(".tx-via {")[1].split("}")[0]
+    assert "color: var(--auto)" in css.split(".sheet-tags a {")[1].split("}")[0], "the sheet's tags are blue links"
     tokens = [block for block in css.split("{") if "--auto:" in block]
     assert len(tokens) == 3, "light and both dark blocks define it"
 
