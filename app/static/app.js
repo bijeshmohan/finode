@@ -1086,7 +1086,9 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
     search.value = "";
     narrow();
     mark();
+    // The keyboard comes up only when the search field is tapped (a computer has no keyboard to cover the list).
     if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) search.focus();
+    else if (document.activeElement === search) search.blur();
   };
   box.addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;

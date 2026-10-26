@@ -205,3 +205,13 @@ def test_a_finger_that_lifts_chooses_even_when_the_click_never_arrives(touch_pag
     expect(option).to_have_attribute("aria-pressed", "true")
     option.evaluate("el => el.click()")  # a click that does follow is the same tap, not a second one
     expect(option).to_have_attribute("aria-pressed", "true")
+
+
+def test_opening_the_tags_sheet_on_a_phone_does_not_open_the_keyboard(touch_page: Page, books, api: Api):
+    add(api, books, "Taj", "Hotel", "840", tags=["goa-trip"])
+    touch_page.goto("/transactions/new")
+    touch_page.locator(".hash-btn").tap()
+    expect(touch_page.locator("#tags-picker")).to_be_visible()
+    expect(touch_page.locator("[data-tags-search]")).not_to_be_focused()
+    touch_page.locator("[data-tags-search]").tap()
+    expect(touch_page.locator("[data-tags-search]")).to_be_focused()  # tapping the field is what opens it
