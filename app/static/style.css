@@ -1465,7 +1465,9 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 .sheet-tags a { color: var(--text); text-decoration: none; }
 .sheet-tags a:hover { text-decoration: underline; }
 .filter-empty { list-style: none; padding: 1rem 0; font-size: .875rem; }
-.tags-box { margin: 0; display: flex; flex-direction: column; gap: .2rem; }
+.tags-box { margin: 0; display: flex; flex-direction: column; gap: .6rem; }
+/* The chips sit as far from the note above as from the date row below (the form's own gap is 1rem). */
+.tags-box:has(.tags-line:not(:empty)) { margin-bottom: -.4rem; }
 .note-field { position: relative; }
 .note-field input { padding-right: 3.1rem; }
 .hash-btn { position: absolute; top: 50%; right: .5rem; transform: translateY(-50%); display: grid; place-items: center; width: 1.9rem; height: 1.9rem; min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 9px; background: var(--surface-2); box-shadow: none; color: var(--muted); font-size: 1rem; font-weight: 600; line-height: 1; }
