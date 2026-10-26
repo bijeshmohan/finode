@@ -1009,7 +1009,7 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
   });
 })();
 
-// ---- Tags on the Add screen: chips under the note and a sheet to choose them, search them or make a new one ----
+// ---- Tags on the Add screen: a # button in the note field, one line of chosen tags under it and a sheet to choose them, search them or make a new one ----
 (() => {
   const box = document.querySelector("[data-tags]");
   const dialog = document.getElementById("tags-picker");
@@ -1032,18 +1032,11 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
       input.value = name;
       return input;
     }));
-    chips.replaceChildren(...names.map((name) => {
-      const chip = document.createElement("span");
-      chip.className = "tag-chip";
-      chip.dataset.tag = name;
-      chip.append(name);
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.dataset.tagRemove = "";
-      remove.setAttribute("aria-label", `Remove the tag ${name}`);
-      remove.textContent = "✕";
-      chip.append(remove);
-      return chip;
+    chips.replaceChildren(...names.flatMap((name) => {
+      const tag = document.createElement("span");
+      tag.dataset.tag = name;
+      tag.textContent = `#${name}`;
+      return [tag, " "];
     }));
   };
   const optionFor = (name) => [...list.querySelectorAll("[data-tag-option]")].find((button) => button.dataset.tagOption === name);
@@ -1067,7 +1060,7 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.tagMake = text;
-      button.textContent = `＋ Create “${text}”`;
+      button.textContent = `＋ Create “#${text}”`;
       li.append(button);
       list.prepend(li);
     }
@@ -1090,9 +1083,7 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
   };
   box.addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
-    if (event.target.closest("[data-tags-open]")) { open(); return; }
-    const gone = event.target.closest("[data-tag-remove]");
-    if (gone) remove(gone.closest("[data-tag]").dataset.tag);
+    if (event.target.closest("[data-tags-open]")) open();
   });
   dialog.addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
@@ -1105,7 +1096,7 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
         li.innerHTML = '<button type="button" data-tag-option aria-pressed="false"><span></span><span class="tag-tick" aria-hidden="true"></span></button>';
         const button = li.querySelector("button");
         button.dataset.tagOption = name;
-        button.firstElementChild.textContent = name;
+        button.firstElementChild.textContent = `#${name}`;
         list.querySelector("[data-tags-none]")?.remove();
         list.append(li);
       }

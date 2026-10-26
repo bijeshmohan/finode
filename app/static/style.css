@@ -1375,7 +1375,7 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 .related-chip small { display: block; color: var(--muted); font-size: .75rem; }
 .related-chip b { font-weight: 500; overflow-wrap: anywhere; }
 .related-chip .link { flex: none; min-width: 2rem; min-height: 2rem; color: var(--muted); }
-.related-add { width: 100%; background: none; font: inherit; cursor: pointer; }
+.related-add { cursor: pointer; }
 .filter-options button small { display: block; }
 .filter-options button > span:first-child { display: flex; flex-direction: column; min-width: 0; text-align: left; }
 .related-none { padding: .9rem 0; list-style: none; }
@@ -1460,12 +1460,16 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 .sheet-tags a { color: var(--text); text-decoration: none; }
 .sheet-tags a:hover { text-decoration: underline; }
 .filter-empty { list-style: none; padding: 1rem 0; font-size: .875rem; }
-.tags-box { margin: 0; }
-.tags-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .6rem; }
-.tags-chips:empty { display: none; }
-.tag-chip { display: inline-flex; align-items: center; gap: .15rem; padding: .15rem .25rem .15rem .75rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: .8125rem; }
-.tag-chip button { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; margin: 0; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--muted); font-size: .75rem; font-weight: 400; }
-.tags-add { width: 100%; background: none; }
+.tags-box { margin: 0; display: flex; flex-direction: column; gap: .35rem; }
+.note-field { position: relative; }
+.note-field input { padding-right: 3rem; }
+.hash-btn { position: absolute; top: 50%; right: .5rem; transform: translateY(-50%); display: grid; place-items: center; width: 2rem; height: 2rem; margin: 0; padding: 0; border: 0; border-radius: 9px; background: var(--surface-2); box-shadow: none; color: var(--muted); font-size: 1rem; font-weight: 600; }
+.tags-line { display: block; width: 100%; margin: 0; padding: 0 .25rem; border: 0; background: none; box-shadow: none; color: var(--muted); font-size: .875rem; font-weight: 400; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tags-line:empty { display: none; }
+.meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.meta-row .related { display: contents; }
+.meta-row .related-chip { flex: 1 0 100%; }
+.txn-form .related-add { position: relative; display: inline-flex; align-items: center; gap: .4rem; width: auto; margin: 0; padding: 0 .9rem; min-height: 2.25rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: .875rem; font-weight: 500; box-shadow: none; }
 .tag-tick { flex: none; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border: 1px solid var(--field-border); border-radius: 50%; color: var(--on-accent); font-size: .7rem; }
 [aria-pressed="true"] > .tag-tick { background: var(--accent); border-color: var(--accent); }
 [aria-pressed="true"] > .tag-tick::after { content: "✓"; }
