@@ -290,8 +290,8 @@ def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(page: Pag
     more = sheet.locator(".sheet-extra > summary")
     expect(more).to_have_text("More")
     assert (
-        more.locator("span").bounding_box()["x"] > sheet.bounding_box()["x"] + sheet.bounding_box()["width"] / 2
-    )  # right aligned
+        more.locator("span").bounding_box()["x"] < sheet.bounding_box()["x"] + 40
+    )  # left aligned, like the rows above
     expect(sheet.locator(".sheet-related-row")).to_be_hidden()  # folded
     edit = sheet.get_by_role("link", name="Edit")
     gap = edit.bounding_box()["y"] - (more.bounding_box()["y"] + more.bounding_box()["height"])
