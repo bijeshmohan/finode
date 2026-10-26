@@ -84,7 +84,6 @@ LISTS = {
     ("GET", "/api/transactions/"),
     ("GET", "/api/transactions/changes"),
     ("GET", "/api/accounts/changes"),
-    ("GET", "/api/transactions/tags"),
     ("GET", "/api/transactions/payee-defaults"),
     ("GET", "/api/accounts/closed"),
     ("GET", "/api/accounts/deleted"),
@@ -112,7 +111,9 @@ LISTS = {
     ("GET", "/categories/deleted"),
     ("GET", "/transactions/suggest"),
     ("GET", "/transactions/tag-options"),
-    ("GET", "/transactions/tag-names"),
+    ("GET", "/transactions/tag-picker"),
+    ("GET", "/tags"),
+    ("GET", "/api/tags/"),
     ("GET", "/transactions/more"),
     ("GET", "/transactions/related-picker"),
     ("GET", "/transactions/new"),
@@ -237,6 +238,7 @@ def world(client: TestClient, session, rich) -> World:
     w.backup = doc
     w.accounts = {a["name"]: a["id"] for a in doc["accounts"]}
     w.roots = [a["id"] for a in doc["accounts"] if a["parent_id"] is None]
+    w.tags = sorted({name for t in doc["transactions"] for name in t.get("tags", [])})
     w.tids = [t["id"] for t in doc["transactions"]] + [spare["tid"]]
     w.rids = [r["id"] for r in doc["recurring"]]
     w.hids = [str(d.hid) for d in services(session).transactions.deleted()]
@@ -301,6 +303,7 @@ def candidates(world: World, name: str) -> list[str]:
         "tkid": [world.tkid],
         "gid": [world.gid],
         "goal_id": world.goal_ids,
+        "name": world.tags,
     }[name]
 
 
@@ -548,6 +551,31 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
     assert books_of(client, B_USER) == before_b, "a refused request still changed B's books"
 
 
+def test_tags_are_per_person(client: TestClient, world: World):
+    """B sees none of A's tags, cannot rename or delete them, and may use the same names for their own."""
+    mine = sorted(t["tag"] for t in client.get("/api/tags/").json())
+    assert "food" in mine and "weekly-shop" in mine
+    before = books_of(client, TEST_USER_ID)
+    with signed_in_as(B_USER):
+        assert client.get("/api/tags/").json() == []
+        assert client.patch("/api/tags/food", json={"name": "taken"}).status_code == 404
+        assert client.delete("/api/tags/food").status_code == 404
+        assert client.get("/tags/food/sheet").status_code == 404
+        assert client.post("/tags/food/delete").status_code == 404
+        assert (
+            "food" not in client.get("/tags").text and "weekly-shop" not in client.get("/transactions/tag-picker").text
+        )
+        assert client.get("/api/transactions/", params={"tag": "food"}).json() == []
+        made = client.post(
+            "/api/transactions/",
+            json={"tags": ["food"], "postings": [line(world.b_bills, "debit", "5"), line(world.b_mine, "credit", "5")]},
+        )
+        assert made.status_code == 201, made.text
+        assert [t["tag"] for t in client.get("/api/tags/").json()] == ["food"], "the same name, their own tag"
+    assert books_of(client, TEST_USER_ID) == before
+    assert sorted(t["tag"] for t in client.get("/api/tags/").json()) == mine, "A's tags are untouched"
+
+
 def test_a_goal_is_made_in_the_callers_own_books(client: TestClient, world: World):
     """B may call a goal what A calls theirs (names are per person); it lands in B's books and A's stay as they were."""
     before = books_of(client, TEST_USER_ID)
@@ -658,7 +686,7 @@ def test_nothing_answers_without_a_sign_in(session, world: World):
                 if (method, template) in PUBLIC or method == "HEAD":
                     continue
                 url = template
-                for name in ("aid", "tid", "rid", "hid", "did", "tkid", "gid", "goal_id"):
+                for name in ("aid", "tid", "rid", "hid", "did", "tkid", "gid", "goal_id", "name"):
                     url = url.replace("{" + name + "}", str(world.tids[0]))
                 response = anonymous.request(
                     method,

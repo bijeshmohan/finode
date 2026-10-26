@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Tags · finode{% endblock %}
+{% block content %}
+<a class="back" href="/settings">{{ icon("back") }}Settings</a>
+<div class="page-head tall"><h1>Tags</h1></div>
+<p class="muted">Labels you put on entries. Rename one to fix a spelling, merge two that mean the same, or delete one: its entries stay, only the label goes.</p>
+
+{% if tags %}
+<div class="tile">
+  {% for t in tags %}
+  <button type="button" class="setting setting-link tag-row" hx-get="/tags/{{ t.tag }}/sheet" hx-target="#tag-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+    <span class="setting-title">#{{ t.tag }}<small class="muted setting-sub">{{ t.uses }} entr{{ "y" if t.uses == 1 else "ies" }} · last {{ t.last_used|friendly_date }}</small></span>{{ icon("chevron-right") }}
+  </button>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state">
+  <p>No tags yet. Add one with the # button when you record or edit an entry.</p>
+  <a class="button" href="/transactions/new">Record a transaction</a>
+</div>
+{% endif %}
+
+<dialog id="tag-sheet" class="sheet sheet-bottom" aria-label="Tag">
+  <div id="tag-sheet-body" class="sheet-body"></div>
+</dialog>
+{% endblock %}

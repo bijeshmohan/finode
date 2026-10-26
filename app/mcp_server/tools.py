@@ -31,6 +31,7 @@ from ..schemas.transaction import (
     TransactionUpdate,
 )
 from ..services.simple import simple_postings
+from ..tags import clean_name, clean_names, tags_in
 from ..version import VERSION
 from .accounts import AccountIndex
 from .context import Services, services
@@ -50,9 +51,11 @@ finode is the user's personal double-entry ledger.
   ids when you remember an account, and give either to any tool that takes an account.
 - Call get_status first when unsure what this connection may do, how much room is left today, or when the books
   last changed.
-- Tags are #hashtags written in a transaction's note ("Dinner #reimbursable"): to tag an entry, put the #tag in its
-  note (keep the user's own words, update_transaction replaces the note); list_tags shows the tags in use and
-  search_transactions(tag=) finds the entries. Reuse an existing tag instead of inventing a near-duplicate.
+- Tags are labels on an entry, apart from its note: pass tags=["reimbursable", "goa-trip"] to record_transaction,
+  record_split, record_transactions or update_transaction (update_transaction also takes add_tags and remove_tags).
+  A # in a note is just text and is not read as a tag. list_tags shows the tags in use and search_transactions(tag=)
+  finds the entries. Reuse an existing tag instead of inventing a near-duplicate. Renaming, merging and deleting tags
+  need access to manage accounts.
 - check_balance sets a statement's balance against the books and points at the entries that could explain a gap.
 - payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
 - get_account_history shows what happened to one account and who did it (renames, moves, closings); recent_changes(what='accounts') lists the latest across all of them.
@@ -105,6 +108,12 @@ DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idemp
 
 AccountType = Literal["Assets", "Liabilities", "Equity", "Income", "Expenses"]
 Amount = Annotated[Decimal, Field(gt=0, description="A positive amount, e.g. 450 or 0.0125")]
+TagsParam = Annotated[
+    list[str] | None,
+    Field(
+        description="Labels on the entry, e.g. ['goa-trip', 'reimbursable']: at most 10, a # and capitals are ignored"
+    ),
+]
 AccountRef = Annotated[str, Field(description="Account path such as Assets:Bank:HDFC, or a unique end of one (HDFC)")]
 Source = Annotated[
     str | None,
@@ -318,9 +327,7 @@ def search_transactions(
     ] = None,
     min_amount: Annotated[Decimal | None, Field(ge=0, description="Smallest transaction total")] = None,
     max_amount: Annotated[Decimal | None, Field(ge=0, description="Largest transaction total")] = None,
-    tag: Annotated[
-        str | None, Field(description="Only entries whose note has this #hashtag (#reimbursable or reimbursable)")
-    ] = None,
+    tag: Annotated[str | None, Field(description="Only entries with this tag (a # and capitals are ignored)")] = None,
     source: Annotated[str | None, Field(description="Only entries from this source (gmail, upi...)")] = None,
     external_id: Annotated[
         str | None, Field(description="Only the entry with this reference (use with source)")
@@ -495,8 +502,9 @@ def check_balance(
 
 @_tool_errors
 def list_tags() -> dict[str, Any]:
-    """The #hashtags the user has written in transaction notes (#reimbursable, #goa-trip), most used first, with how
-    many entries carry each. To tag an entry, write the #tag in its note; find them with search_transactions(tag=)."""
+    """The tags the user has put on entries (reimbursable, goa-trip), most used first, with how many entries carry each.
+    To tag an entry pass `tags` (or add_tags) when recording or updating it; find the entries with
+    search_transactions(tag=)."""
     with services() as s:
         return {
             "tags": [
@@ -704,6 +712,7 @@ def record_transaction(
             description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions"
         ),
     ] = None,
+    tags: TagsParam = None,
     source: Source = None,
     external_id: ExternalId = None,
     source_url: SourceUrl = None,
@@ -723,14 +732,25 @@ def record_transaction(
             comment=(note or "").strip() or None,
             postings=postings,
             related_id=_related_id(related_to),
+            tags=tags or [],
             source=source,
             external_id=external_id,
             source_url=source_url,
         )
         if dry_run:
-            return _dry_run("would_record", s.transactions.preview_create(data), index)
+            return _noticed(_dry_run("would_record", s.transactions.preview_create(data), index), note)
         saved, made = s.transactions.create_once(data)
-        return _recorded(saved, made, index, s)
+        return _noticed(_recorded(saved, made, index, s), note)
+
+
+def _noticed(result: dict[str, Any], note: str | None) -> dict[str, Any]:
+    """Tags used to be #words in a note: say so when an assistant still writes them there, instead of guessing."""
+    if tags_in(note):
+        result["notice"] = (
+            "Tags are not read from the note: the #words stay text. Pass them in `tags` "
+            "(add_tags / remove_tags on update_transaction)."
+        )
+    return result
 
 
 def _recorded(saved: TransactionRead, made: bool, index: AccountIndex, s: Services) -> dict[str, Any]:
@@ -800,6 +820,7 @@ def record_split(
             description="Id of an earlier transaction this one is related to (a refund, a reversal); see search_transactions"
         ),
     ] = None,
+    tags: TagsParam = None,
     source: Source = None,
     external_id: ExternalId = None,
     source_url: SourceUrl = None,
@@ -815,14 +836,15 @@ def record_split(
             comment=(note or "").strip() or None,
             postings=_postings(index, postings),
             related_id=_related_id(related_to),
+            tags=tags or [],
             source=source,
             external_id=external_id,
             source_url=source_url,
         )
         if dry_run:
-            return _dry_run("would_record", s.transactions.preview_create(data), index)
+            return _noticed(_dry_run("would_record", s.transactions.preview_create(data), index), note)
         saved, made = s.transactions.create_once(data)
-        return _recorded(saved, made, index, s)
+        return _noticed(_recorded(saved, made, index, s), note)
 
 
 class BatchItem(BaseModel):
@@ -836,6 +858,7 @@ class BatchItem(BaseModel):
     payee: Annotated[str | None, Field(max_length=40)] = None
     note: Annotated[str | None, Field(max_length=200)] = None
     related_to: str | None = Field(default=None, description="Id of an earlier transaction this one is related to")
+    tags: TagsParam = None
     source: Source = None
     external_id: ExternalId = None
     source_url: SourceUrl = None
@@ -900,6 +923,7 @@ def _batch_entry(e: BatchItem, index: AccountIndex) -> TransactionCreate:
         comment=(e.note or "").strip() or None,
         postings=postings,
         related_id=_related_id(e.related_to),
+        tags=e.tags or [],
         source=e.source,
         external_id=e.external_id,
         source_url=e.source_url,
@@ -919,6 +943,14 @@ def update_transaction(
         str | None,
         Field(description="Id of an earlier transaction this one is related to; an empty string removes the link"),
     ] = None,
+    tags: Annotated[
+        list[str] | None,
+        Field(
+            description="All the entry's tags again, replacing the old ones; [] takes them all off; leave out to keep"
+        ),
+    ] = None,
+    add_tags: Annotated[list[str] | None, Field(description="Tags to put on, keeping the ones it has")] = None,
+    remove_tags: Annotated[list[str] | None, Field(description="Tags to take off, keeping the others")] = None,
     source: Annotated[Source, Field(description="New source; an empty string clears it")] = None,
     external_id: Annotated[
         ExternalId, Field(description="New reference (needs a source); an empty string clears it")
@@ -930,7 +962,8 @@ def update_transaction(
     tid = _transaction_id(transaction_id)
     with services() as s:
         index = _index(s)
-        if s.transactions.read(tid) is None:
+        existing = s.transactions.read(tid)
+        if existing is None:
             raise ToolError("transaction not found")
         changes: dict[str, Any] = {}
         if date is not None:
@@ -943,19 +976,29 @@ def update_transaction(
             changes["postings"] = _postings(index, postings)
         if related_to is not None:
             changes["related_id"] = _related_id(related_to)
+        if tags is not None or add_tags or remove_tags:
+            if tags is not None and (add_tags or remove_tags):
+                raise ToolError("give either tags (all of them) or add_tags / remove_tags, not both!")
+            if tags is not None:
+                changes["tags"] = tags
+            else:
+                gone = set(clean_names(remove_tags))
+                changes["tags"] = [t for t in [*existing.tags, *clean_names(add_tags)] if t not in gone]
         for key, value in (("source", source), ("external_id", external_id), ("source_url", source_url)):
             if value is not None:
                 changes[key] = value
         if not changes:
             raise ToolError(
-                "nothing to change: pass a date, payee, note, postings, related_to, source, external_id or source_url!"
+                "nothing to change: pass a date, payee, note, postings, related_to, tags, source, external_id or source_url!"
             )
         if dry_run:
-            return _dry_run("would_become", s.transactions.preview_update(tid, TransactionUpdate(**changes)), index)
+            return _noticed(
+                _dry_run("would_become", s.transactions.preview_update(tid, TransactionUpdate(**changes)), index), note
+            )
         saved = s.transactions.update(tid, TransactionUpdate(**changes))
         if saved is None:
             raise ToolError("transaction not found")
-        return {"updated": _transaction(saved, index, s)}
+        return _noticed({"updated": _transaction(saved, index, s)}, note)
 
 
 @_tool_errors
@@ -1532,8 +1575,8 @@ def list_deleted_transactions() -> dict[str, Any]:
 def restore_transaction(
     deleted_id: Annotated[str, Field(description="The deleted_id from list_deleted_transactions")],
 ) -> dict[str, Any]:
-    """Bring a deleted transaction back as it was. It returns as an ordinary entry (a link to a recurring rule or to a
-    related entry is not restored)."""
+    """Bring a deleted transaction back as it was. It returns as an ordinary entry (a link to a recurring rule is not
+    restored; its related links are, where the other entry is still there)."""
     try:
         hid = UUID(deleted_id.strip())
     except ValueError:
@@ -1620,7 +1663,40 @@ def delete_goal(goal: Annotated[str, Field(description="The goal's name")]) -> d
 
 
 # Changing accounts: only on a connection allowed to manage them (the others list these tools but they refuse).
+@_tool_errors
+def rename_tag(
+    tag: Annotated[str, Field(description="The tag's current name")],
+    new_name: Annotated[str, Field(description="Its new name; when that is another tag the two become one")],
+) -> dict[str, Any]:
+    """Rename a tag on every entry that has it (fix a spelling). When the new name is already a tag, the two are merged.
+    Ask the user first: it changes many entries at once."""
+    with services() as s:
+        uses = s.transactions.rename_tag(tag, new_name)
+        return {"renamed": clean_name(tag), "to": clean_name(new_name), "entries_with_it_now": uses}
+
+
+@_tool_errors
+def merge_tags(
+    source: Annotated[str, Field(description="The tag to fold away")],
+    target: Annotated[str, Field(description="The existing tag that keeps the entries")],
+) -> dict[str, Any]:
+    """Put every entry of one tag under another existing tag and remove the first. Ask the user first."""
+    with services() as s:
+        uses = s.transactions.merge_tags(source, target)
+        return {"merged": clean_name(source), "into": clean_name(target), "entries_with_it_now": uses}
+
+
+@_tool_errors
+def delete_tag(tag: Annotated[str, Field(description="The tag to remove")]) -> dict[str, Any]:
+    """Take a tag off every entry and remove it. The entries themselves stay. Ask the user to confirm first."""
+    with services() as s:
+        return {"deleted": clean_name(tag), "entries_it_was_on": s.transactions.delete_tag(tag)}
+
+
 MANAGE_TOOLS: list[tuple[Callable, ToolAnnotations]] = [
+    (rename_tag, IDEMPOTENT_WRITE),
+    (merge_tags, DESTRUCTIVE),
+    (delete_tag, DESTRUCTIVE),
     (update_account, IDEMPOTENT_WRITE),
     (close_account, IDEMPOTENT_WRITE),
     (reopen_account, IDEMPOTENT_WRITE),
@@ -1674,7 +1750,7 @@ READ_ONLY_MESSAGE = (
     "Profile > AI assistants (Change access), and then you can try again."
 )
 NO_MANAGE_MESSAGE = (
-    "This connection may record and change transactions but not change accounts, so nothing was changed. The user "
+    "This connection may record and change transactions but not manage accounts or tags, so nothing was changed. The user "
     "can allow it in finode under Profile > AI assistants (Change access, read, write & manage accounts), and then "
     "you can try again."
 )

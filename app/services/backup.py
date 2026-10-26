@@ -40,6 +40,7 @@ from ..schemas.backup import (
     RestoreSummary,
 )
 from ..schemas.transaction import PostingCreate, TransactionCreate
+from ..tags import clean_names, split_note
 from .account import MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
 
 ROOTS = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
@@ -71,6 +72,7 @@ class BackupService:
         for p in sorted(self.tr.all_postings(), key=lambda p: (p.side != PostingSide.DEBIT, p.created)):
             postings.setdefault(p.transaction, []).append(p)
         recurring_rows = self.rr.postings()
+        tags = self.tr.all_tag_map()
         file = BackupFile(
             format=FORMAT,
             version=VERSION,
@@ -104,6 +106,7 @@ class BackupService:
                     recurring_id=t.recurring_id,
                     recurring_date=t.recurring_date,
                     related_id=t.related_id,
+                    tags=tags.get(t.tid, []),
                     source=t.source,
                     external_id=t.external_id,
                     source_url=t.source_url,
@@ -196,10 +199,15 @@ class BackupService:
                 "recurring transactions or a budget."
             ]
             return summary
+        if file.version < 3:  # tags used to be #words in the note: they become tags, as in the migration
+            for t in file.transactions:
+                if not t.tags:
+                    t.comment, t.tags = split_note(t.comment)
         self._check(file, summary)
         for room in (
             lambda: ensure_room(len(file.accounts), settings.max_accounts, "accounts"),
             lambda: ensure_room(len(file.transactions), settings.max_transactions, "transactions"),
+            lambda: ensure_room(len({n for t in file.transactions for n in t.tags}), settings.max_tags, "tags"),
         ):
             try:
                 room()
@@ -210,6 +218,7 @@ class BackupService:
         summary.recurring = len(file.recurring)
         summary.allocations = len(self._expense_plan(file))
         summary.goals = len(file.goals)
+        summary.tags = len({n for t in file.transactions for n in t.tags})
         if file.transactions:
             summary.date_from = min(t.date for t in file.transactions)
             summary.date_to = max(t.date for t in file.transactions)
@@ -228,6 +237,12 @@ class BackupService:
             errors.append(
                 "this backup has assets or prices of its own, which finode no longer keeps: it keeps everything in one currency."
             )
+        for number, t in enumerate(file.transactions, start=1):
+            try:
+                t.tags = clean_names(t.tags)
+            except ValueError as e:
+                errors.append(f"transaction {number}: {e}")
+                break
         other = lambda code: code is not None and code.upper() != currency.code  # noqa: E731
 
         accounts = {a.id: a for a in file.accounts}
@@ -456,6 +471,7 @@ class BackupService:
                         payee=t.payee,
                         comment=t.comment,
                         postings=postings,
+                        tags=t.tags,
                         source=t.source,
                         external_id=t.external_id,
                         source_url=t.source_url,

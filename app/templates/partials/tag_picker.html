@@ -1,0 +1,6 @@
+{#- The person's tags in the Tags sheet of the Add screen: one button each; the page ticks the ones the entry has. -#}
+{% for it in items %}
+<li><button type="button" data-tag-option="{{ it.tag }}" aria-pressed="false"><span>#{{ it.tag }}<small class="muted">{{ it.uses }} entr{{ "y" if it.uses == 1 else "ies" }}</small></span><span class="tag-tick" aria-hidden="true"></span></button></li>
+{% else %}
+<li class="filter-empty muted" data-tags-none>No tags yet. Type a word above to make the first.</li>
+{% endfor %}

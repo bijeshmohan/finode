@@ -46,18 +46,25 @@ Everything the web app and the assistants can do with your books can be done thr
 | `POST` | `/transactions/` | Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`. `source`, `external_id` and `source_url` say where it came from (a bank, a mail); a source's reference is used once, so sending the same one again with the same date and rows answers 200 with the entry already recorded and creates nothing; the same reference with a different date or rows is a 400. With `dry_run=true` every check runs but nothing is saved: the answer (200) is the entry as it would be saved (`dry_run: true`, and `already_recorded` when the reference is already there). |
 | `POST` | `/transactions/batch` | Record up to 50 transactions as one: all are saved or none. An entry whose `source` and `external_id` are already recorded with the same date and rows is skipped (status `already_recorded`), so a batch can be sent again safely. Any problem refuses the whole batch (400) naming the entries at fault. With `dry_run=true` nothing is saved and the answer (200) shows what would be. |
 | `GET` | `/transactions/payees` | Who you have paid or been paid by, most used first (the opening-balance entries are left out). |
-| `GET` | `/transactions/tags` | The #hashtags used in notes, most used first, with how many entries carry each and the latest day. |
 | `GET` | `/transactions/payee-defaults` | How payees are usually booked, most used first: the accounts of the newest entry with one account on each side (so a repeat can be filled in), and the other routes seen. `payee` narrows to those that match what is typed. |
 | `GET` | `/transactions/deleted` | Entries that were deleted and are not back, newest deletion first; `hid` is what to restore. |
 | `POST` | `/transactions/deleted/{hid}/restore` | Bring a deleted entry back as it was, with its old id (checked again like any new entry). |
 | `GET` | `/transactions/{tid}` | One transaction with its postings. |
-| `GET` | `/transactions/` | Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts used; `payee` is exact; `source` and `external_id` find the entry a source's reference stands for; `tag` finds entries whose note has that #hashtag (every entry also reads back its `tags`). |
+| `GET` | `/transactions/` | Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts used; `payee` is exact; `source` and `external_id` find the entry a source's reference stands for; `tag` finds the entries that carry that tag (every entry reads back its `tags`; create and update take `tags`). |
 | `PATCH` | `/transactions/{tid}` | Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or cleared with null). With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards. |
 | `DELETE` | `/transactions/{tid}` | Delete a transaction; it waits in /transactions/deleted and can be restored. With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go. |
 | `GET` | `/transactions/changes` | The latest steps across all entries (made, edited, deleted), newest first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api`, `import`, `recurring` or `mcp:<connection name>`. |
 | `GET` | `/transactions/{tid}/changes` | What happened to an entry, oldest first, each step with what it changed (works for a deleted one too). |
 | `GET` | `/transactions/{tid}/history` | What happened to an entry, oldest first (works for a deleted one too). |
 | `GET` | `/transactions/{tid}/related` | The entries that are related to this one (refunds, reversals), oldest first. |
+
+## Tags
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/tags/` | Your tags, the most used first, each with how many entries carry it and the day of the latest. |
+| `PATCH` | `/tags/{name}` | Rename a tag (`{"name": "new"}`); when the new name is another of your tags the two become one. |
+| `DELETE` | `/tags/{name}` | Take a tag off every entry and remove it. The entries stay as they are. |
 
 ## Recurring transactions
 

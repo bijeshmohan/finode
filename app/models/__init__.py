@@ -7,6 +7,7 @@ from .budget import BudgetAllocation, Goal, GoalAllocation
 from .oauth_grant import OAuthGrant
 from .profile import Profile
 from .recurring import RecurringPosting, RecurringTransaction
+from .tag import Tag, TransactionTag
 from .transaction import Posting, Transaction
 from .transaction_history import TransactionHistory
 
@@ -24,6 +25,8 @@ __all__ = [
     "Profile",
     "RecurringPosting",
     "RecurringTransaction",
+    "Tag",
     "Transaction",
     "TransactionHistory",
+    "TransactionTag",
 ]

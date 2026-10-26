@@ -4,11 +4,11 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..clock import local_today
 from ..models.transaction import PostingSide
-from ..tags import tags_in
+from ..tags import clean_names
 from .day import Day
 
 
@@ -104,6 +104,13 @@ class TransactionCreate(TransactionBase, ReferenceFields):
     postings: list[PostingCreate]
     # An earlier entry of the person's own that this one is related to.
     related_id: UUID | None = None
+    # Labels on the entry ("goa-trip"): each in its one form (no #, lower case), once, at most 10.
+    tags: list[str] = Field(default_factory=list)
+
+    @field_validator("tags")
+    @classmethod
+    def _clean_tags(cls, value: list[str]) -> list[str]:
+        return clean_names(value)
 
     @model_validator(mode="after")
     def reference_needs_a_source(self) -> TransactionCreate:
@@ -126,15 +133,11 @@ class TransactionRead(TransactionBase, ReferenceFields):
     recurring_id: UUID | None = None
     # The entry this one is related to, if it still exists.
     related_id: UUID | None = None
+    # The tags on the entry, A to Z.
+    tags: list[str] = Field(default_factory=list)
     postings: list[PostingRead]
     created: datetime
     updated: datetime
-
-    @computed_field
-    @property
-    def tags(self) -> list[str]:
-        """The #hashtags in the note, lower-case."""
-        return tags_in(self.comment)
 
 
 class TransactionPreview(ReferenceFields):
@@ -147,6 +150,7 @@ class TransactionPreview(ReferenceFields):
     payee: str | None = None
     comment: str | None = None
     related_id: UUID | None = None
+    tags: list[str] = Field(default_factory=list)
     postings: list[PostingCreate]
     # Recording it would not make a new entry: this one already has the reference, with the same date and rows.
     already_recorded: UUID | None = None
@@ -183,6 +187,8 @@ class TransactionUpdate(ReferenceFields):
     postings: list[PostingCreate] | None = Field(default=None)
     # Send null to remove the link; leave it out to keep it.
     related_id: UUID | None = None
+    # The entry's tags, all of them (replacing the old ones; [] takes them all off); leave it out to keep them.
+    tags: list[str] | None = None
 
     @field_validator("payee")
     @classmethod
@@ -193,6 +199,11 @@ class TransactionUpdate(ReferenceFields):
     @classmethod
     def _clean_comment(cls, value: str | None) -> str | None:
         return _tidy_comment(value)
+
+    @field_validator("tags")
+    @classmethod
+    def _clean_tags(cls, value: list[str] | None) -> list[str] | None:
+        return None if value is None else clean_names(value)
 
     @model_validator(mode="after")
     def non_nullable_fields_must_not_be_null(self) -> TransactionUpdate:
@@ -259,7 +270,7 @@ class ChangeRead(BaseModel):
 
 
 class TagRead(BaseModel):
-    """A #hashtag used in notes: how many entries carry it and the day of the latest."""
+    """A tag: how many entries carry it and the day of the latest."""
 
     tag: str
     uses: int
