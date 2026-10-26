@@ -14,7 +14,6 @@ from ..schemas.transaction import (
     HistoryRead,
     PayeeDefaultRead,
     PayeeRead,
-    TagRead,
     TransactionBatch,
     TransactionCreate,
     TransactionPreview,
@@ -77,12 +76,6 @@ def create_transactions(batch: TransactionBatch, transactions: Transactions, res
 def payees(transactions: Transactions):
     """Who you have paid or been paid by, most used first (the opening-balance entries are left out)."""
     return [PayeeRead(payee=name, count=count) for name, count in transactions.payees()]
-
-
-@router.get("/tags", response_model=list[TagRead])
-def tags(transactions: Transactions):
-    """The #hashtags used in notes, most used first, with how many entries carry each and the latest day."""
-    return transactions.tags()
 
 
 @router.get("/payee-defaults", response_model=list[PayeeDefaultRead])

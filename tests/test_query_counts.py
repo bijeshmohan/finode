@@ -14,8 +14,8 @@ PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/ca
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
 CEILING = {
     "/transactions/new": 3,
-    "/transactions": 10,
-    "/": 12,
+    "/transactions": 11,  # + the tags of the rows shown (one query, whatever the number of rows)
+    "/": 13,
     "/accounts": 3,
     "/budget": 5,
     "/categories": 4,

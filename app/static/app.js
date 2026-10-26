@@ -399,7 +399,7 @@ function applyKind(form, kind) {
 
 // A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
 // if it never does (an error, no connection) the sheet closes again.
-const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body"];
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body"];
 const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
 document.body.addEventListener("htmx:beforeRequest", (event) => {
   const body = event.detail && event.detail.target;
@@ -1009,99 +1009,127 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
   });
 })();
 
-// ---- Tags on the Add screen: after a # in the note, the tags already in use are offered (what is typed narrows them) ----
+// ---- Tags on the Add screen: chips under the note and a sheet to choose them, search them or make a new one ----
 (() => {
-  let names = null;
-  let loading = null;
-  const load = () => {
-    if (names) return Promise.resolve(names);
-    loading ||= fetch("/transactions/tag-names", { headers: { Accept: "application/json" } })
-      .then((response) => (response.ok ? response.json() : []))
-      .catch(() => [])
-      .then((list) => (names = list));
-    return loading;
+  const box = document.querySelector("[data-tags]");
+  const dialog = document.getElementById("tags-picker");
+  if (!box || !dialog) return;
+  const values = box.querySelector("[data-tags-values]");
+  const chips = box.querySelector("[data-tags-chips]");
+  const list = dialog.querySelector("[data-tags-list]");
+  const search = dialog.querySelector("[data-tags-search]");
+  const limit = dialog.querySelector("[data-tags-limit]");
+  const MAX = 10;
+  const NAME = /^[a-z0-9](?:[a-z0-9_-]{0,28}[a-z0-9])?$/;
+  const chosen = () => [...values.querySelectorAll("input")].map((input) => input.value);
+  const clean = (text) => text.trim().replace(/^#+/, "").trim().toLowerCase();
+  // The chips and the hidden fields the form sends are drawn from one list.
+  const draw = (names) => {
+    values.replaceChildren(...names.map((name) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "tags";
+      input.value = name;
+      return input;
+    }));
+    chips.replaceChildren(...names.map((name) => {
+      const chip = document.createElement("span");
+      chip.className = "tag-chip";
+      chip.dataset.tag = name;
+      chip.append(name);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.dataset.tagRemove = "";
+      remove.setAttribute("aria-label", `Remove the tag ${name}`);
+      remove.textContent = "✕";
+      chip.append(remove);
+      return chip;
+    }));
   };
-  // The #word being typed at the caret: where it starts and the letters after the #.
-  const wordAt = (input) => {
-    const upto = input.value.slice(0, input.selectionStart ?? input.value.length);
-    const found = /(^|\s)#([A-Za-z0-9_-]*)$/.exec(upto);
-    return found ? { start: upto.length - found[2].length - 1, end: upto.length, text: found[2].toLowerCase() } : null;
+  const optionFor = (name) => [...list.querySelectorAll("[data-tag-option]")].find((button) => button.dataset.tagOption === name);
+  const mark = () => {
+    const names = chosen();
+    list.querySelectorAll("[data-tag-option]").forEach((button) => button.setAttribute("aria-pressed", String(names.includes(button.dataset.tagOption))));
+    limit.hidden = names.length < MAX;
   };
-  const close = (pop) => { pop.hidden = true; pop.replaceChildren(); };
-  document.addEventListener("input", async (event) => {
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement) || !input.matches("[data-tag-note]")) return;
-    const pop = input.parentElement.querySelector(".tag-pop");
-    if (!wordAt(input)) { close(pop); return; }
-    const list = await load();
-    const word = wordAt(input);
-    if (!word) { close(pop); return; }
-    const shown = list.filter((tag) => tag.tag.startsWith(word.text) && tag.tag !== word.text).slice(0, 5);
-    pop.replaceChildren(...shown.map((tag) => {
+  // What is typed narrows the list; a word that is not a tag yet is offered as "Create".
+  const narrow = () => {
+    const text = clean(search.value);
+    list.querySelectorAll("[data-tag-create]").forEach((row) => row.remove());
+    list.querySelectorAll("li").forEach((li) => {
+      const button = li.querySelector("[data-tag-option]");
+      if (button) li.hidden = !!text && !button.dataset.tagOption.includes(text);
+    });
+    list.querySelector("[data-tags-none]")?.toggleAttribute("hidden", !!text);
+    if (text && NAME.test(text) && /[a-z]/.test(text) && !optionFor(text)) {
+      const li = document.createElement("li");
+      li.dataset.tagCreate = "";
       const button = document.createElement("button");
       button.type = "button";
-      button.setAttribute("role", "option");
-      button.dataset.tag = tag.tag;
-      button.append(`#${tag.tag}`);
-      const uses = document.createElement("small");
-      uses.className = "muted";
-      uses.textContent = String(tag.uses);
-      button.append(uses);
-      return button;
-    }));
-    pop.hidden = !shown.length;
-  });
-  // Finish the word with the chosen tag.
-  const choose = (button) => {
-    const pop = button.closest(".tag-pop");
-    const input = pop.parentElement.querySelector("[data-tag-note]");
-    const word = wordAt(input);
-    if (word) {
-      input.value = `${input.value.slice(0, word.start)}#${button.dataset.tag} ${input.value.slice(word.end)}`;
-      const caret = word.start + button.dataset.tag.length + 2;
-      input.setSelectionRange(caret, caret);
+      button.dataset.tagMake = text;
+      button.textContent = `＋ Create “${text}”`;
+      li.append(button);
+      list.prepend(li);
     }
-    close(pop);
-    input.focus();
   };
-  // A suggestion is chosen the moment the finger or the pointer goes down on it. Waiting for the click is too late on a
-  // phone: the tap has taken the focus from the note by then, the field's focusout has closed the list and the click
-  // finds nothing. Cancelling the press also keeps the focus (and the keyboard) on the note.
-  let pressed = false;
-  document.addEventListener("pointerdown", (event) => {
-    const button = event.target instanceof Element && event.target.closest(".tag-pop [data-tag]");
-    if (!button) return;
-    event.preventDefault();
-    choose(button);
-    pressed = true;
+  const add = (name) => {
+    const names = chosen();
+    if (names.includes(name) || names.length >= MAX) { mark(); return; }
+    draw([...names, name]);
+    mark();
+  };
+  const remove = (name) => { draw(chosen().filter((existing) => existing !== name)); mark(); };
+  const open = () => {
+    dialog.showModal();
+    const loader = list.querySelector("[hx-trigger]");
+    if (loader && window.htmx) window.htmx.trigger(loader, "tags-open");
+    search.value = "";
+    narrow();
+    mark();
+    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) search.focus();
+  };
+  box.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest("[data-tags-open]")) { open(); return; }
+    const gone = event.target.closest("[data-tag-remove]");
+    if (gone) remove(gone.closest("[data-tag]").dataset.tag);
   });
-  // The list has closed by the time the press ends, so the click that finishes it would land on whatever lies under the
-  // finger (the "Related transaction" row, say) and press that. That one click is swallowed.
-  const release = () => { if (pressed) setTimeout(() => { pressed = false; }, 400); };
-  document.addEventListener("pointerup", release);
-  document.addEventListener("pointercancel", release);
-  document.addEventListener("click", (event) => {
-    if (pressed) {
-      pressed = false;
-      event.preventDefault();
-      event.stopPropagation();
+  dialog.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest("[data-tags-done]")) { dialog.close(); return; }
+    const make = event.target.closest("[data-tag-make]");
+    if (make) {
+      const name = make.dataset.tagMake;
+      if (!optionFor(name)) {  // it joins the list at once, so it can be ticked off again
+        const li = document.createElement("li");
+        li.innerHTML = '<button type="button" data-tag-option aria-pressed="false"><span></span><span class="tag-tick" aria-hidden="true"></span></button>';
+        const button = li.querySelector("button");
+        button.dataset.tagOption = name;
+        button.firstElementChild.textContent = name;
+        list.querySelector("[data-tags-none]")?.remove();
+        list.append(li);
+      }
+      add(name);
+      search.value = "";
+      narrow();
+      mark();
       return;
     }
-    // The same from the keyboard (Enter or Space on a focused suggestion arrives as a click).
-    const button = event.target instanceof Element && event.target.closest(".tag-pop [data-tag]");
-    if (button) choose(button);
-  }, true);
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !(event.target instanceof HTMLInputElement) || !event.target.matches("[data-tag-note]")) return;
-    const pop = event.target.parentElement.querySelector(".tag-pop");
-    if (pop && !pop.hidden) { close(pop); event.stopPropagation(); }
+    const option = event.target.closest("[data-tag-option]");
+    if (!option) return;
+    const name = option.dataset.tagOption;
+    if (chosen().includes(name)) remove(name);
+    else add(name);
   });
-  document.addEventListener("focusout", (event) => {
-    if (event.target instanceof HTMLInputElement && event.target.matches("[data-tag-note]")) {
-      const pop = event.target.parentElement.querySelector(".tag-pop");
-      if (pop) close(pop);
-    }
+  search.addEventListener("input", narrow);
+  search.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();  // Enter makes the tag being typed, or ticks the only match
+    const make = list.querySelector("[data-tag-make]");
+    if (make) make.click();
   });
+  // The list arrives the first time the sheet opens: tick what the entry already has.
+  document.body.addEventListener("htmx:afterSwap", (event) => { if (list.contains(event.target) || event.target === list) { mark(); narrow(); } });
 })();
 
 // ---- Relating an entry to an earlier one: the chip, the dashed row and the picker sheet ----

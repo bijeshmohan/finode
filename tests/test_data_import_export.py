@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.repositories import AccountRepository, ProfileRepository, TransactionRepository
-from app.services import AccountService, DataService
+from app.services import AccountService, DataService, TransactionService
 from app.services.data import ImportRejected
 
 JOURNAL = """\
@@ -134,8 +134,8 @@ def test_export_formats_and_headers(client: TestClient):
     csv_response = client.get("/api/export", params={"format": "csv"})
     assert csv_response.headers["content-disposition"].endswith('.csv"')
     lines = csv_response.content.decode("utf-8-sig").splitlines()
-    assert lines[0] == "date,payee,note,account,debit,credit"
-    assert "2026-09-03,DMart,weekly groceries,Expenses:Food,1250.50," in lines
+    assert lines[0] == "date,payee,note,tags,account,debit,credit"
+    assert "2026-09-03,DMart,weekly groceries,,Expenses:Food,1250.50," in lines
     assert client.get("/api/export", params={"format": "xml"}).status_code == 422
 
 
@@ -179,3 +179,53 @@ def test_export_then_import_round_trips_for_another_user(client: TestClient, ses
     assert data.export_ledger().split("\n", 1)[1] == exported.split("\n", 1)[1]
     with pytest.raises(ImportRejected):
         data.run_import(exported)  # no longer empty
+
+
+def test_tags_survive_an_export_and_an_import(client: TestClient, session: Session, root_accounts):
+    bank = client.post(
+        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}
+    ).json()
+    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    client.post(
+        "/api/transactions/",
+        json={
+            "date": "2026-09-03",
+            "payee": "DMart",
+            "comment": "weekly groceries",
+            "tags": ["weekly-shop", "Food"],
+            "postings": [
+                {"account": food["aid"], "side": "debit", "amount": "20"},
+                {"account": bank["aid"], "side": "credit", "amount": "20"},
+            ],
+        },
+    )
+    exported = client.get("/api/export").text
+    assert "; weekly groceries" in exported and "; tags: food, weekly-shop" in exported
+    csv_lines = client.get("/api/export", params={"format": "csv"}).content.decode("utf-8-sig").splitlines()
+    assert '2026-09-03,DMart,weekly groceries,"food, weekly-shop",Expenses:Food,20.00,' in csv_lines
+    other = UUID("00000000-0000-4000-8000-000000000002")
+    ar, tr, pr = (
+        AccountRepository(session, other),
+        TransactionRepository(session, other),
+        ProfileRepository(session, other),
+    )
+    data = DataService(AccountService(ar, tr, pr), ar, tr, pr)
+    summary = data.run_import(exported)
+    assert summary.errors == []
+    entry = next(t for t in TransactionService(tr, ar, pr).list() if t.payee == "DMart")
+    assert entry.tags == ["food", "weekly-shop"] and entry.comment == "weekly groceries"
+
+
+def test_a_bad_tags_line_in_an_import_names_the_line(client: TestClient):
+    summary = client.post(
+        "/api/import",
+        files={
+            "file": (
+                "a.ledger",
+                "2026-01-01 X\n    ; tags: not valid!\n    Expenses:A  5\n    Assets:B\n",
+                "text/plain",
+            )
+        },
+        params={"dry_run": "true"},
+    ).json()
+    assert any("cannot be a tag" in e and "line 1" in e for e in summary["errors"])

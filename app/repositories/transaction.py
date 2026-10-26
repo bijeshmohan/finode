@@ -10,11 +10,12 @@ from sqlalchemy.orm import aliased
 from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
+from ..models.tag import Tag, TransactionTag
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..models.transaction_history import TransactionHistory
 from ..models.utils import without_nul
 from ..schemas.transaction import TransactionCreate, TransactionUpdate
-from ..tags import clean_tag, tags_in
+from ..tags import clean_tag
 from .cache import remembered
 
 
@@ -25,6 +26,7 @@ def comparable_snapshot(snapshot: dict) -> dict:
         "external_id": None,
         "source_url": None,
         "related_id": None,  # snapshots written before the link was kept have no such key
+        "tags": [],  # and before tags were their own thing (then they were #words in the note)
         **{key: value for key, value in snapshot.items() if key != "currency_id"},
         "postings": [{key: value for key, value in p.items() if key != "value"} for p in snapshot.get("postings", [])],
     }
@@ -46,7 +48,7 @@ class TransactionRepository:
         recurring: tuple[UUID, date] | None = None,
         tid: UUID | None = None,
     ) -> Transaction:
-        fields = data.model_dump(exclude={"postings"})
+        fields = data.model_dump(exclude={"postings", "tags"})
         transaction = Transaction(**fields, user=self.uid, created_via=origin, updated_via=origin)
         if tid is not None:  # bringing a deleted entry back keeps its id
             transaction.tid = tid
@@ -56,11 +58,14 @@ class TransactionRepository:
         self.db.flush()
         self._add_postings(transaction, data.postings)
         self.db.flush()
+        self.set_tags(transaction.tid, data.tags)
         self._record(transaction, "created", origin)
         return transaction
 
     @staticmethod
-    def _snapshot(transaction: Transaction, postings: builtins.list[Posting]) -> dict[str, Any]:
+    def _snapshot(
+        transaction: Transaction, postings: builtins.list[Posting], tags: builtins.list[str]
+    ) -> dict[str, Any]:
         return {
             "date": transaction.date.isoformat(),
             "payee": transaction.payee,
@@ -70,6 +75,7 @@ class TransactionRepository:
             "external_id": transaction.external_id,
             "source_url": transaction.source_url,
             "related_id": str(transaction.related_id) if transaction.related_id else None,
+            "tags": sorted(tags),
             "postings": [
                 {"account": str(p.account), "side": p.side.value, "amount": str(p.amount)}
                 for p in sorted(postings, key=lambda p: (p.created, str(p.pid)))
@@ -78,7 +84,7 @@ class TransactionRepository:
 
     def _record(self, transaction: Transaction, action: str, origin: str | None) -> None:
         """Append what the transaction looks like now to its history."""
-        snapshot = self._snapshot(transaction, self.postings(transaction.tid))
+        snapshot = self._snapshot(transaction, self.postings(transaction.tid), self.tag_names(transaction.tid))
         if action == "deleted":
             # What pointed at it is unlinked below; remember which entries, so restoring it can link them again.
             snapshot["related_from"] = [str(other.tid) for other in self.related_to(transaction.tid)]
@@ -239,8 +245,14 @@ class TransactionRepository:
             )
         if payee:  # exactly this payee, capitals aside
             statement = statement.where(func.lower(Transaction.payee) == without_nul(payee).strip().lower())
-        if tag:  # a first cut: the exact tag is checked on the rows (see `list`)
-            statement = statement.where(col(Transaction.comment).icontains(f"#{clean_tag(tag)}", autoescape=True))
+        if tag:
+            statement = statement.where(
+                col(Transaction.tid).in_(
+                    select(TransactionTag.transaction_id)
+                    .join(Tag, Tag.tgid == TransactionTag.tag_id)
+                    .where(Tag.user == self.uid, Tag.name == clean_tag(tag))
+                )
+            )
         if source:
             statement = statement.where(Transaction.source == without_nul(source).strip().lower())
         if external_id:
@@ -254,35 +266,7 @@ class TransactionRepository:
     def count_matching(self, *args, **kwargs) -> int:
         """How many transactions match (the same filters as `list`, which has no paging here)."""
         statement = self._matching(*args, **kwargs)
-        if kwargs.get("tag"):
-            return len(self._with_tag(self.db.exec(statement).all(), kwargs["tag"]))
         return self.db.exec(select(func.count()).select_from(statement.subquery())).one()
-
-    @staticmethod
-    def _with_tag(rows: builtins.list[Transaction], tag: str) -> builtins.list[Transaction]:
-        wanted = clean_tag(tag)
-        return [t for t in rows if wanted in tags_in(t.comment)]
-
-    def tagged(self) -> builtins.list[Transaction]:
-        """The entries whose note has a # in it (the candidates for carrying a tag), newest first."""
-        statement = (
-            select(Transaction)
-            .where(Transaction.user == self.uid, col(Transaction.comment).contains("#", autoescape=True))
-            .order_by(col(Transaction.date).desc(), col(Transaction.created).desc())
-        )
-        return self.db.exec(statement).all()
-
-    def tag_notes(self) -> builtins.list[tuple[str, date]]:
-        """The note and day of every entry whose note has a # in it (to find the tags in use)."""
-        return [
-            (note, day)
-            for note, day in self.db.exec(
-                select(Transaction.comment, Transaction.date).where(
-                    Transaction.user == self.uid, col(Transaction.comment).contains("#", autoescape=True)
-                )
-            ).all()
-            if note
-        ]
 
     def list(
         self,
@@ -306,14 +290,143 @@ class TransactionRepository:
             account_ids, date_from, date_to, text, kind, kind_accounts, also_ids, payee, source, external_id, tag
         )
         statement = statement.order_by(col(Transaction.date).desc(), col(Transaction.created).desc())
-        if tag:  # the tag is told on the rows, so page after that
-            found = self._with_tag(self.db.exec(statement).all(), tag)
-            return found[offset : offset + limit] if limit is not None else found[offset:]
         statement = statement.offset(offset)
         if limit is not None:
             statement = statement.limit(limit)
         transactions = self.db.exec(statement).all()
         return transactions
+
+    # ---- tags ------------------------------------------------------------------------------------------------------
+
+    def tag_names(self, tid: UUID) -> builtins.list[str]:
+        """The names of the tags on one entry, A to Z."""
+        return self.tag_map([tid]).get(tid, [])
+
+    def tag_map(self, tids: builtins.list[UUID]) -> dict[UUID, builtins.list[str]]:
+        """The tag names of several entries in one query (a list must not ask once per row)."""
+        found: dict[UUID, builtins.list[str]] = {}
+        if not tids:
+            return found
+        rows = self.db.exec(
+            select(TransactionTag.transaction_id, Tag.name)
+            .join(Tag, Tag.tgid == TransactionTag.tag_id)
+            .where(col(TransactionTag.transaction_id).in_(tids), TransactionTag.user == self.uid)
+            .order_by(Tag.name)
+        ).all()
+        for tid, name in rows:
+            found.setdefault(tid, []).append(name)
+        return found
+
+    def all_tag_map(self) -> dict[UUID, builtins.list[str]]:
+        """The tag names of every entry (for a backup: no list of ids, so any number of entries is fine)."""
+        found: dict[UUID, builtins.list[str]] = {}
+        for tid, name in self.db.exec(
+            select(TransactionTag.transaction_id, Tag.name)
+            .join(Tag, Tag.tgid == TransactionTag.tag_id)
+            .where(TransactionTag.user == self.uid)
+            .order_by(Tag.name)
+        ).all():
+            found.setdefault(tid, []).append(name)
+        return found
+
+    def count_tags(self) -> int:
+        return self.db.exec(select(func.count()).select_from(Tag).where(Tag.user == self.uid)).one()
+
+    def tag_exists(self, name: str) -> bool:
+        return self.db.exec(select(Tag.tgid).where(Tag.user == self.uid, Tag.name == name)).first() is not None
+
+    def set_tags(self, tid: UUID, names: builtins.list[str]) -> None:
+        """Make the entry's tags exactly these (already cleaned) names: tags that do not exist yet are made, tags no entry
+        carries any more are removed."""
+        existing = {
+            row.name: row
+            for row in self.db.exec(select(Tag).where(Tag.user == self.uid, col(Tag.name).in_(names or [""]))).all()
+        }
+        for name in names:
+            if name not in existing:
+                existing[name] = Tag(user=self.uid, name=name)
+                self.db.add(existing[name])
+        self.db.flush()
+        wanted = {existing[name].tgid for name in names}
+        links = self.db.exec(
+            select(TransactionTag).where(TransactionTag.transaction_id == tid, TransactionTag.user == self.uid)
+        ).all()
+        have = {link.tag_id for link in links}
+        for link in links:
+            if link.tag_id not in wanted:
+                self.db.delete(link)
+        for tag_id in wanted - have:
+            self.db.add(TransactionTag(transaction_id=tid, tag_id=tag_id, user=self.uid))
+        self.db.flush()
+        self.drop_unused_tags()
+
+    def drop_unused_tags(self) -> None:
+        """A tag exists only while an entry carries it."""
+        used = select(TransactionTag.tag_id).where(TransactionTag.user == self.uid)
+        for tag in self.db.exec(select(Tag).where(Tag.user == self.uid, col(Tag.tgid).not_in(used))).all():
+            self.db.delete(tag)
+        self.db.flush()
+
+    def tag_stats(self) -> builtins.list[tuple[str, int, date]]:
+        """Every tag with how many entries carry it and the day of the latest, the most used first."""
+        rows = self.db.exec(
+            select(Tag.name, func.count(), func.max(Transaction.date))
+            .join(TransactionTag, TransactionTag.tag_id == Tag.tgid)
+            .join(Transaction, Transaction.tid == TransactionTag.transaction_id)
+            .where(Tag.user == self.uid)
+            .group_by(Tag.name)
+            .order_by(func.count().desc(), Tag.name)
+        ).all()
+        return [(name, count, last) for name, count, last in rows]
+
+    def tagged(self) -> builtins.list[Transaction]:
+        """The entries that carry at least one tag, newest first."""
+        statement = (
+            select(Transaction)
+            .where(
+                Transaction.user == self.uid,
+                col(Transaction.tid).in_(select(TransactionTag.transaction_id).where(TransactionTag.user == self.uid)),
+            )
+            .order_by(col(Transaction.date).desc(), col(Transaction.created).desc())
+        )
+        return self.db.exec(statement).all()
+
+    def rename_tag(self, old: str, new: str) -> None:
+        """Give a tag a new name. When the new name is another tag of the person's, the two become one."""
+        tag = self.db.exec(select(Tag).where(Tag.user == self.uid, Tag.name == old)).first()
+        if tag is None:
+            raise LookupError(f"no tag is called '{old}'!")
+        target = self.db.exec(select(Tag).where(Tag.user == self.uid, Tag.name == new)).first()
+        if target is None:
+            tag.name = new
+            self.db.add(tag)
+            self.db.flush()
+            return
+        already = set(
+            self.db.exec(select(TransactionTag.transaction_id).where(TransactionTag.tag_id == target.tgid)).all()
+        )
+        for link in self.db.exec(
+            select(TransactionTag).where(TransactionTag.tag_id == tag.tgid, TransactionTag.user == self.uid)
+        ).all():
+            if link.transaction_id not in already:
+                self.db.add(TransactionTag(transaction_id=link.transaction_id, tag_id=target.tgid, user=self.uid))
+            self.db.delete(link)
+        self.db.flush()
+        self.db.delete(tag)
+        self.db.flush()
+
+    def delete_tag(self, name: str) -> int:
+        """Take a tag off every entry and remove it; returns how many entries had it."""
+        tag = self.db.exec(select(Tag).where(Tag.user == self.uid, Tag.name == name)).first()
+        if tag is None:
+            raise LookupError(f"no tag is called '{name}'!")
+        links = self.db.exec(select(TransactionTag).where(TransactionTag.tag_id == tag.tgid)).all()
+        for link in links:
+            self.db.delete(link)
+        self.db.flush()
+        self.db.delete(tag)
+        self.db.flush()
+        return len(links)
 
     def payees(self, limit: int = 300) -> builtins.list[tuple[str, int]]:
         """The payees used, the most used first (one spelling each: the newest entry's)."""
@@ -412,6 +525,7 @@ class TransactionRepository:
         self.db.expire_all()
         moved = self.read_many(tids)
         postings = self.postings_for_transactions(tids)
+        tag_names = self.tag_map(tids)
         for tid in tids:
             self.db.add(
                 TransactionHistory(
@@ -419,7 +533,7 @@ class TransactionRepository:
                     transaction_id=tid,
                     action="updated",
                     via=origin,
-                    snapshot=self._snapshot(moved[tid], postings.get(tid, [])),
+                    snapshot=self._snapshot(moved[tid], postings.get(tid, []), tag_names.get(tid, [])),
                 )
             )
         self.db.flush()
@@ -499,7 +613,7 @@ class TransactionRepository:
         if not transaction:
             return None
 
-        fields = data.model_dump(exclude_unset=True, exclude={"postings"})
+        fields = data.model_dump(exclude_unset=True, exclude={"postings", "tags"})
         for key, value in fields.items():
             setattr(transaction, key, value)
         if origin is not None:
@@ -507,6 +621,8 @@ class TransactionRepository:
 
         if data.postings is not None:
             self._replace_postings(transaction, data.postings)
+        if data.tags is not None:
+            self.set_tags(tid, data.tags)
 
         self.db.add(transaction)
         self.db.flush()
@@ -550,6 +666,7 @@ class TransactionRepository:
             self.db.add(other)
         for posting in self.postings(tid):
             self.db.delete(posting)
+        self.set_tags(tid, [])
         self.db.delete(transaction)
         self.db.flush()
         return transaction

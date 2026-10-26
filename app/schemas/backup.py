@@ -11,9 +11,9 @@ from ..models.transaction import PostingSide
 from .day import Day
 
 FORMAT = "finode-backup"
-VERSION = 2
+VERSION = 3
 # Files of version 1 (before finode kept one currency) are still read; what they carry beyond that is below.
-READS = (1, 2)
+READS = (1, 2, 3)
 
 
 class BackupProfile(BaseModel):
@@ -57,6 +57,8 @@ class BackupTransaction(BaseModel):
     recurring_id: UUID | None = None
     recurring_date: Day | None = None
     related_id: UUID | None = None
+    # The entry's tags. A file before version 3 has none: its notes carry #words, which a restore turns into tags.
+    tags: list[str] = Field(default_factory=list)
     source: str | None = None
     external_id: str | None = None
     source_url: str | None = None
@@ -135,5 +137,6 @@ class RestoreSummary(BaseModel):
     recurring: int = 0
     allocations: int = 0
     goals: int = 0
+    tags: int = 0
     date_from: Date | None = None
     date_to: Date | None = None
