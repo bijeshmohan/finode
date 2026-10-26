@@ -1092,10 +1092,9 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
     if (!(event.target instanceof Element)) return;
     if (event.target.closest("[data-tags-open]")) open();
   });
-  dialog.addEventListener("click", (event) => {
-    if (!(event.target instanceof Element)) return;
-    if (event.target.closest("[data-tags-done]")) { dialog.close(); return; }
-    const make = event.target.closest("[data-tag-make]");
+  // Choosing a tag or "Create": true when the element was one of those.
+  const choose = (target) => {
+    const make = target.closest("[data-tag-make]");
     if (make) {
       const name = make.dataset.tagMake;
       if (!optionFor(name)) {  // it joins the list at once, so it can be ticked off again
@@ -1111,13 +1110,36 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
       search.value = "";
       narrow();
       mark();
-      return;
+      return true;
     }
-    const option = event.target.closest("[data-tag-option]");
-    if (!option) return;
+    const option = target.closest("[data-tag-option]");
+    if (!option) return false;
     const name = option.dataset.tagOption;
     if (chosen().includes(name)) remove(name);
     else add(name);
+    return true;
+  };
+  // With the keyboard open the sheet moves between the press and the click (the keyboard goes, the sheet drops), so the
+  // click never reached the tag. A finger that lifts without moving chooses at once, and the click that follows is dropped.
+  let press = null;
+  let chosenByTouch = false;
+  dialog.addEventListener("pointerdown", (event) => {
+    press = event.pointerType !== "mouse" && event.target instanceof Element ? { x: event.clientX, y: event.clientY, target: event.target } : null;
+  });
+  dialog.addEventListener("pointerup", (event) => {
+    const began = press;
+    press = null;
+    if (!began || Math.hypot(event.clientX - began.x, event.clientY - began.y) > 10) return;
+    if (!choose(began.target)) return;
+    chosenByTouch = true;
+    setTimeout(() => { chosenByTouch = false; }, 700);
+  });
+  dialog.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest("[data-tags-done]")) { dialog.close(); return; }
+    if (!event.target.closest("[data-tag-make], [data-tag-option]")) return;
+    if (chosenByTouch) { chosenByTouch = false; return; }  // the finger already chose it
+    choose(event.target);
   });
   search.addEventListener("input", narrow);
   search.addEventListener("keydown", (event) => {
