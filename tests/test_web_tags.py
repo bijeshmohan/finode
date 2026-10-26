@@ -68,17 +68,19 @@ def form_fields(**extra):
 # ---- rows and the sheet ---------------------------------------------------------------------------------------------
 
 
-def test_a_row_shows_the_whole_note_and_the_tags_after_it(client, books):
+def test_a_row_shows_the_whole_note_and_no_tags(client, books):
     spend(client, books, "840", note="Dinner with Ravi", payee="Taj", tags=["goa-trip", "reimbursable"])
     page = client.get("/transactions").text
     assert "Dinner with Ravi" in page
-    assert '<span class="tx-tag">#goa-trip</span> <span class="tx-tag">#reimbursable</span>' in page
+    assert (
+        "#goa-trip" not in page and "#reimbursable" not in page
+    )  # tags are in the details sheet and the form, not in rows
 
 
 def test_a_hash_in_a_note_is_only_text_on_a_row(client, books):
     spend(client, books, "10", note="Issue #1 and #goa-trip are words", payee="Words")
     page = client.get("/transactions").text
-    assert "Issue #1 and #goa-trip are words" in page and 'class="tx-tag"' not in page
+    assert "Issue #1 and #goa-trip are words" in page
 
 
 def test_the_sheet_has_a_tags_row_that_filters_and_the_note_whole(client, books):
@@ -301,4 +303,4 @@ def test_tags_are_case_insensitive_everywhere(client, books):
     for spelling in ("emi", "EMI", "#Emi", " #eMI "):
         assert sorted(titles(client.get("/transactions", params={"tag": spelling}).text)) == ["A", "B", "C"], spelling
     page = client.get("/transactions").text
-    assert page.count('<span class="tx-tag">#emi</span>') == 3 and "#EMI" not in page
+    assert "#EMI" not in page and "#Emi" not in page
