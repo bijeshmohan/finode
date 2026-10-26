@@ -1022,7 +1022,8 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
   const MAX = 10;
   const NAME = /^[a-z0-9](?:[a-z0-9_-]{0,28}[a-z0-9])?$/;
   const chosen = () => [...values.querySelectorAll("input")].map((input) => input.value);
-  const clean = (text) => text.trim().replace(/^#+/, "").trim().toLowerCase();
+  // "Goa trip" becomes the tag goa-trip: a space is the commonest thing to type and used to leave nothing to tap.
+  const clean = (text) => text.trim().replace(/^#+/, "").trim().toLowerCase().replace(/\s+/g, "-");
   // The chips and the hidden fields the form sends are drawn from one list.
   const draw = (names) => {
     values.replaceChildren(...names.map((name) => {
@@ -1062,6 +1063,12 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
       button.dataset.tagMake = text;
       button.textContent = `＋ Create “#${text}”`;
       li.append(button);
+      list.prepend(li);
+    } else if (text && !NAME.test(text) && !optionFor(text)) {  // say why nothing can be created instead of staying silent
+      const li = document.createElement("li");
+      li.dataset.tagCreate = "";
+      li.className = "filter-empty muted";
+      li.textContent = "A tag is letters, digits, - or _ (up to 30) and needs a letter.";
       list.prepend(li);
     }
   };
