@@ -318,9 +318,11 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books,
     page.locator(
         "a.tx", has_text="Swiggy"
     ).last.click()  # the original now lists it, and the sheet of one opens the other
+    page.locator("#txn-sheet .sheet-extra > summary").click()  # related entries sit behind "More"
     expect(page.locator("#txn-sheet .sheet-related-head")).to_have_text("Related · 1")
     page.locator("#txn-sheet .sheet-related-row").click()
     expect(page.locator("#txn-sheet-body h2")).to_have_text("Swiggy cash-back")
+    page.locator("#txn-sheet .sheet-extra > summary").click()
     expect(page.locator("#txn-sheet .sheet-related-head")).to_have_text("Related to")
 
 

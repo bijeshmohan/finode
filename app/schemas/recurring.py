@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..clock import local_today
 from ..models.transaction import PostingSide
+from ..tags import clean_names
 from .day import Day
 
 FrequencyName = Literal["daily", "weekly", "monthly", "yearly"]
@@ -30,6 +31,8 @@ class RecurringBase(BaseModel):
     postings: list[RecurringPostingData] = []
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
+    # Labels every entry the rule records gets ("rent"): each in its one form (no #, lower case), once, at most 10.
+    tags: list[str] = Field(default_factory=list)
     frequency: FrequencyName = "monthly"
     every: int = Field(default=1, ge=1, le=366)
     start_date: Day = Field(default_factory=local_today)
@@ -41,6 +44,11 @@ class RecurringBase(BaseModel):
         if v is not None and v <= 0:
             raise ValueError("amount must be positive!")
         return v
+
+    @field_validator("tags")
+    @classmethod
+    def _clean_tags(cls, value: list[str]) -> list[str]:
+        return clean_names(value)
 
     @field_validator("payee", "comment")
     @classmethod

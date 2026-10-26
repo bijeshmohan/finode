@@ -148,6 +148,7 @@ def _parse(
     every: str,
     start: str,
     end: str,
+    tags: list[str],
 ) -> dict:
     try:
         count = int(every.strip() or "1")
@@ -162,6 +163,7 @@ def _parse(
     common = {
         "payee": payee,
         "comment": comment,
+        "tags": tags,
         "frequency": frequency,
         "every": count,
         "start_date": started,
@@ -196,10 +198,11 @@ def create_recurring(
     every: Annotated[str, Form()] = "1",
     start: Annotated[str, Form()] = "",
     end: Annotated[str, Form()] = "",
+    tags: Annotated[list[str] | None, Form()] = None,
 ):
-    account, side, amount = account or [], side or [], amount or []
+    account, side, amount, tags = account or [], side or [], amount or [], tags or []
     try:
-        data = RecurringCreate(**_parse(account, side, amount, payee, comment, frequency, every, start, end))
+        data = RecurringCreate(**_parse(account, side, amount, payee, comment, frequency, every, start, end, tags))
         recurring.create(data)
         recurring.process_due()  # a start date in the past is recorded straight away
     except ValidationError as e:
@@ -235,10 +238,11 @@ def update_recurring(
     every: Annotated[str, Form()] = "1",
     start: Annotated[str, Form()] = "",
     end: Annotated[str, Form()] = "",
+    tags: Annotated[list[str] | None, Form()] = None,
 ):
-    account, side, amount = account or [], side or [], amount or []
+    account, side, amount, tags = account or [], side or [], amount or [], tags or []
     try:
-        data = RecurringUpdate(**_parse(account, side, amount, payee, comment, frequency, every, start, end))
+        data = RecurringUpdate(**_parse(account, side, amount, payee, comment, frequency, every, start, end, tags))
         rule = recurring.update(rid, data)
         if rule is not None:
             recurring.process_due()

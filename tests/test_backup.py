@@ -80,6 +80,7 @@ def rich(client, root_accounts):
             "frequency": "monthly",
             "start_date": "2026-07-01",
             "payee": "Milk",
+            "tags": ["milk-run", "weekly-shop"],
         },
     )
     client.post(
@@ -160,6 +161,7 @@ def canonical(doc: dict) -> dict:
                 paths.get(r["to_account"]),
                 r["amount"],
                 sorted((paths[p["account"]], p["side"], p["amount"]) for p in r["postings"]),
+                tuple(r["tags"]),
                 r["frequency"],
                 r["start_date"],
                 r["next_date"],
@@ -422,19 +424,23 @@ def test_an_old_backup_in_another_currency_is_refused_and_explained(client, rich
 
 def test_a_backup_carries_tags_and_a_restore_makes_them(client, rich):
     doc = client.get("/api/backup").json()
-    tagged = [t for t in doc["transactions"] if t["tags"]]
+    tagged = [t for t in doc["transactions"] if t["tags"] and not t["recurring_id"]]
     assert tagged and sorted(tagged[0]["tags"]) == ["food", "weekly-shop"]
+    assert [r["tags"] for r in doc["recurring"] if r["payee"] == "Milk"] == [["milk-run", "weekly-shop"]]
     try:
         as_user(OTHER)
         preview = client.post(
             "/api/restore", params={"dry_run": "true"}, files={"file": ("b.json", json.dumps(doc), "application/json")}
         )
-        assert preview.json()["tags"] == 2
+        assert preview.json()["tags"] == 3  # the entries' tags and the rule's ("milk-run" comes from its entries)
         assert (
             client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")}).status_code
             == 200
         )
-        assert sorted(t["tag"] for t in client.get("/api/tags/").json()) == ["food", "weekly-shop"]
+        assert sorted(t["tag"] for t in client.get("/api/tags/").json()) == ["food", "milk-run", "weekly-shop"]
+        assert [r["tags"] for r in client.get("/api/recurring/").json() if r["payee"] == "Milk"] == [
+            ["milk-run", "weekly-shop"]
+        ]
     finally:
         as_user(TEST_USER_ID)
 

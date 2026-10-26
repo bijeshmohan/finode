@@ -681,6 +681,7 @@ def list_recurring() -> dict[str, Any]:
                     ),
                     "payee": r.payee,
                     "note": r.comment,
+                    **({"tags": r.tags} if r.tags else {}),
                     "every": f"{r.every} {r.frequency}" if r.every != 1 else r.frequency,
                     "start_date": r.start_date.isoformat(),
                     "end_date": r.end_date.isoformat() if r.end_date else None,
@@ -1181,6 +1182,7 @@ def create_recurring(
     end_date: Annotated[date | None, Field(description="Last possible occurrence; none when left out")] = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
+    tags: TagsParam = None,
     postings: Annotated[
         list[PostingIn] | None,
         Field(
@@ -1214,6 +1216,7 @@ def create_recurring(
                 **shape,
                 payee=payee,
                 comment=note,
+                tags=tags or [],
                 frequency=frequency,
                 every=every,
                 start_date=start_date or _today(),
@@ -1238,6 +1241,7 @@ def create_recurring(
             "created": {
                 "id": str(rule.rid),
                 **what,
+                **({"tags": rule.tags} if rule.tags else {}),
                 "every": f"{rule.every} {rule.frequency}" if rule.every != 1 else rule.frequency,
                 "next_due": rule.next_date.isoformat() if rule.active else None,
             }

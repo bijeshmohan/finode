@@ -2,7 +2,7 @@
 <div class="payee-field">
   <label class="payee-label">Payee
     <input type="text" id="payee" name="payee" maxlength="40" placeholder="Payee or Merchant?" autocomplete="off" autocapitalize="words"
-           value="{{ (transaction.payee or '') if editing else (new_payee or '') }}">
+           value="{{ payee_value if payee_value is defined else ((transaction.payee or '') if editing else (new_payee or '')) }}">
   </label>
   {% if not editing %}
   <div class="chips" id="payee-chips" role="group" aria-label="People you pay" hx-get="/transactions/suggest"

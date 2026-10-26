@@ -55,10 +55,13 @@ class RecurringService:
                 date=day,
                 payee=rule_like.payee,
                 comment=rule_like.comment,
+                tags=list(rule_like.tags),
                 postings=[PostingCreate(account=p.account, side=p.side, amount=p.amount) for p in rule_like.postings],
             )
         postings = simple_postings(rule_like.amount, rule_like.from_account, rule_like.to_account)
-        return TransactionCreate(date=day, payee=rule_like.payee, comment=rule_like.comment, postings=postings)
+        return TransactionCreate(
+            date=day, payee=rule_like.payee, comment=rule_like.comment, tags=list(rule_like.tags), postings=postings
+        )
 
     @staticmethod
     def _rows(data) -> builtins.list[dict]:
