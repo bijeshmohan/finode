@@ -1482,3 +1482,17 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 [aria-pressed="true"] > .tag-tick { background: var(--accent); border-color: var(--accent); }
 [aria-pressed="true"] > .tag-tick::after { content: "✓"; }
 .tags-limit { margin: .5rem 0 0; font-size: .8125rem; }
+
+/* ---------- The sheet's "More" fold (2026-10-26): related, source and who changed it ---------- */
+.sheet-extra { margin: 0; border-bottom: 1px solid var(--border); }
+.sheet-extra > summary { display: flex; align-items: center; gap: .6rem; min-height: 3rem; list-style: none; cursor: pointer; font-weight: 500; }
+.sheet-extra > summary::-webkit-details-marker { display: none; }
+.sheet-extra > summary .muted { flex: 1; min-width: 0; font-size: .875rem; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-extra > summary .icon { flex: none; width: 1.1rem; height: 1.1rem; color: var(--faint); transition: transform .2s ease; }
+.sheet-extra[open] > summary .icon { transform: rotate(90deg); }
+.sheet-extra > .sheet-related { margin-top: .25rem; }
+.sheet-extra > .sheet-facts { margin-top: .5rem; border-top: 0; }
+.sheet-extra > .sheet-by { margin: .75rem 0 .5rem; }
+/* A clear gap between the fold and Edit, so a tap meant for "More" can never land on Edit, and Edit sits below whatever opens. */
+.sheet-extra + #sheet-error + .sheet-actions, .sheet-extra ~ .sheet-actions { margin-top: 1.5rem; }
+@media (prefers-reduced-motion: reduce) { .sheet-extra > summary .icon { transition: none; } }
