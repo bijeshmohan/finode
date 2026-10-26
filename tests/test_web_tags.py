@@ -73,6 +73,10 @@ def test_a_row_shows_the_whole_note_and_the_tags_after_it(client, books):
     page = client.get("/transactions").text
     assert "Dinner with Ravi" in page
     assert '<span class="tx-tag">#goa-trip</span> <span class="tx-tag">#reimbursable</span>' in page
+    # the tags are on the quiet blue line (the one that says "Added by …"), not in the line with the accounts and the note
+    line = page.split('<span class="tx-via">')[1].split("</span>\n", 1)[0]
+    assert "#goa-trip" in line and "#reimbursable" in line
+    assert "#goa-trip" not in page.split('<span class="tx-sub">')[1].split("</span>")[0]
 
 
 def test_a_hash_in_a_note_is_only_text_on_a_row(client, books):
