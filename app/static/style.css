@@ -1462,9 +1462,11 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 .filter-empty { list-style: none; padding: 1rem 0; font-size: .875rem; }
 .tags-box { margin: 0; display: flex; flex-direction: column; gap: .35rem; }
 .note-field { position: relative; }
-.note-field input { padding-right: 3rem; }
-.hash-btn { position: absolute; top: 50%; right: .5rem; transform: translateY(-50%); display: grid; place-items: center; width: 2rem; height: 2rem; margin: 0; padding: 0; border: 0; border-radius: 9px; background: var(--surface-2); box-shadow: none; color: var(--muted); font-size: 1rem; font-weight: 600; }
-.tags-line { display: block; width: 100%; margin: 0; padding: 0 .25rem; border: 0; background: none; box-shadow: none; color: var(--muted); font-size: .875rem; font-weight: 400; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note-field input { padding-right: 3.1rem; }
+.hash-btn { position: absolute; top: 50%; right: .45rem; transform: translateY(-50%); display: grid; place-items: center; width: 2rem; height: 2rem; min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--surface-2); box-shadow: none; color: var(--muted); font-size: 1rem; font-weight: 600; line-height: 1; }
+@media (hover: hover) { .hash-btn:hover { background: var(--border); } }
+.tags-line { display: block; width: 100%; min-height: 0; margin: 0; padding: .1rem .25rem; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--muted); font-size: .875rem; font-weight: 400; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (hover: hover) { .tags-line:hover { background: none; } }
 .tags-line:empty { display: none; }
 .meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .meta-row .related { display: contents; }
