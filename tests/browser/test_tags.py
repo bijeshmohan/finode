@@ -184,3 +184,24 @@ def test_a_new_tag_is_made_on_the_fly_and_saved_with_the_entry(touch_page: Page,
     [entry] = [t for t in api.get("/transactions/") if t["payee"] == "Resort"]
     assert entry["tags"] == ["fresh-idea"]
     assert [t["tag"] for t in api.get("/tags/")].count("fresh-idea") == 1
+
+
+def test_a_finger_that_lifts_chooses_even_when_the_click_never_arrives(touch_page: Page, books, api: Api):
+    """With the keyboard open the sheet moves under the finger and the browser drops the click: the lift must choose."""
+    page = touch_page
+    add(api, books, "Taj", "Hotel", "840", tags=["goa-trip"])
+    page.goto("/transactions/new")
+    page.locator(".hash-btn").tap()
+    sheet = page.locator("#tags-picker")
+    option = sheet.locator("[data-tag-option]", has_text="goa-trip")
+    expect(option).to_be_visible()
+    option.evaluate(
+        """el => {
+            const at = {pointerType: "touch", bubbles: true, clientX: 50, clientY: 50};
+            el.dispatchEvent(new PointerEvent("pointerdown", at));
+            el.dispatchEvent(new PointerEvent("pointerup", at));
+        }"""
+    )  # no click follows
+    expect(option).to_have_attribute("aria-pressed", "true")
+    option.evaluate("el => el.click()")  # a click that does follow is the same tap, not a second one
+    expect(option).to_have_attribute("aria-pressed", "true")
