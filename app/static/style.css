@@ -1485,9 +1485,9 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 
 /* ---------- The sheet's "More" fold (2026-10-26): related, source and who changed it ---------- */
 .sheet-extra { margin: 0; border-bottom: 1px solid var(--border); }
-.sheet-extra > summary { display: flex; align-items: center; justify-content: flex-end; gap: .35rem; min-height: 3rem; list-style: none; cursor: pointer; font-weight: 500; }
+.sheet-extra > summary { display: flex; align-items: center; justify-content: space-between; gap: .6rem; min-height: 3rem; list-style: none; cursor: pointer; font-weight: 500; }
 .sheet-extra > summary::-webkit-details-marker { display: none; }
-.sheet-extra > summary { color: var(--muted); font-size: .9375rem; }
+.sheet-extra > summary { font-weight: 500; font-size: 1rem; }
 .sheet-extra > summary .icon { flex: none; width: 1.1rem; height: 1.1rem; color: var(--faint); transition: transform .2s ease; }
 .sheet-extra[open] > summary .icon { transform: rotate(90deg); }
 .sheet-extra > .sheet-related { margin-top: .25rem; }
