@@ -1460,7 +1460,7 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 
 /* ---------- Tags (2026-10-25) ---------- */
 .sheet-facts dd.sheet-tags { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; gap: .25rem .75rem; }
-.sheet-tags a { color: var(--text); text-decoration: none; }
+.sheet-tags a { display: inline-flex; align-items: center; min-height: 2rem; color: var(--auto); text-decoration: none; }
 .sheet-tags a:hover { text-decoration: underline; }
 .filter-empty { list-style: none; padding: 1rem 0; font-size: .875rem; }
 .tags-box { margin: 0; display: flex; flex-direction: column; gap: .6rem; }
