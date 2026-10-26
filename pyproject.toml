@@ -20,7 +20,7 @@ entrypoint = "app.main:app"
 
 [dependency-groups]
 dev = [
-    "playwright==1.55.0",
+    "playwright==1.64.0",
     "pre-commit>=4.7.0",
     "pyrefly>=1.4.0",
     "pytest>=9.0.3",
