@@ -32,7 +32,7 @@
 {% endif %}
 
 {% if t.created_via and t.created_via.startswith("mcp:") %}
-<p class="sheet-by">{{ icon("spark") }}<span>Added by {{ t.created_via[4:] }}</span></p>
+<p class="sheet-by">{{ icon("robot") }}<span>Added by {{ t.created_via[4:] }}</span></p>
 {% elif t.recurring_id or t.created_via == "recurring" %}
 <p class="sheet-by">{{ icon("repeat") }}<a href="/recurring">Recurring</a></p>
 {% endif %}
