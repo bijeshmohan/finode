@@ -162,3 +162,25 @@ def test_the_tags_page_renames_merges_and_deletes(page: Page, books, api: Api):
     sheet.get_by_role("button", name="Delete tag").click()
     expect(page.get_by_text("No tags yet")).to_be_visible()
     assert api.get("/tags/") == []
+
+
+def test_a_new_tag_is_made_on_the_fly_and_saved_with_the_entry(touch_page: Page, books, api: Api):
+    page = touch_page
+    add(api, books, "Taj", "Hotel", "840", tags=["goa-trip"])
+    page.goto("/transactions/new")
+    page.locator(".hash-btn").tap()
+    sheet = page.locator("#tags-picker")
+    expect(sheet.locator("[data-tag-option]")).to_have_count(1)  # the list has arrived
+    search = sheet.locator("[data-tags-search]")
+    search.fill("Fresh Idea")  # a space is turned into a hyphen, capitals into lower case
+    sheet.get_by_role("button", name="＋ Create “#fresh-idea”").tap()
+    expect(sheet.locator("[data-tag-option]", has_text="fresh-idea")).to_have_attribute("aria-pressed", "true")
+    search.fill("a*b")  # what cannot be a tag says so instead of offering nothing
+    expect(sheet.locator("[data-tag-create]")).to_contain_text("letters, digits")
+    search.fill("")
+    sheet.locator("[data-tags-done]").tap()
+    expect(page.locator("[data-tags-chips] [data-tag]")).to_have_text(["#fresh-idea"])
+    fill_and_save(page, "Resort")
+    [entry] = [t for t in api.get("/transactions/") if t["payee"] == "Resort"]
+    assert entry["tags"] == ["fresh-idea"]
+    assert [t["tag"] for t in api.get("/tags/")].count("fresh-idea") == 1
