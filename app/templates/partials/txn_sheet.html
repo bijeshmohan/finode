@@ -28,7 +28,7 @@
 {% if by_agent %}{% set _ = extras.append("who changed it") %}{% elif by_rule %}{% set _ = extras.append("recurring") %}{% endif %}
 {% if extras %}
 <details class="sheet-extra">
-  <summary><span>More</span><span class="muted">{{ extras|join(", ") }}</span>{{ icon("chevron-right") }}</summary>
+  <summary><span>More</span>{{ icon("chevron-right") }}</summary>
 {% if related_to or related %}
 <div class="sheet-related">
   <p class="sheet-related-head">{{ "Related to" if related_to else "Related · " ~ related|length }}</p>

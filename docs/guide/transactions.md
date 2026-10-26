@@ -71,4 +71,4 @@ Deleted by accident? Open **Settings › Your data › Recently deleted** (it al
 - In **INR** amounts are grouped the Indian way (`12,34,567.00`), with `₹` in front of large figures. Other currencies are grouped in thousands.
 - Text coloured **blue** under a row (*Recurring*, *Added by Claude*) was added automatically.
 
-> The details sheet keeps to what you came for (accounts, note, tags). **More** (with a hint of what is inside, such as “related, source”) opens the related entries, where an entry came from and, for an assistant's or a recurring rule's work, who added or changed it.
+> The details sheet keeps to what you came for (accounts, note, tags). **More**, at the right, opens the related entries, where an entry came from and, for an assistant's or a recurring rule's work, who added or changed it.
