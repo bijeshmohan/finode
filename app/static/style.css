@@ -486,6 +486,9 @@ details.filters .count {
 .empty-state p { margin: 0 0 1rem; color: var(--muted); }
 
 .danger-zone { margin-top: 1.5rem; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
+.danger-zone.quiet { margin-top: 1rem; align-items: center; gap: .25rem; }
+.danger-zone.quiet button.danger { min-height: 2.5rem; padding: 0 .75rem; border: 0; background: none; box-shadow: none; color: var(--danger); font-size: .9375rem; font-weight: 500; }
+.danger-zone.quiet button.danger .icon { width: 1.05rem; height: 1.05rem; }
 
 /* ---------- Accounts ---------- */
 .back {
@@ -650,9 +653,7 @@ details.setting > form, details.setting > .stack { padding: 1rem; }
 .segmented button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
 /* ---------- AI assistants ---------- */
-.tx-via { display: flex; align-items: center; gap: .1rem .6rem; font-size: .75rem; color: var(--auto); white-space: nowrap; overflow: hidden; }
-.tx-by { display: inline-flex; align-items: center; gap: .25rem; flex: none; }
-.tx-tag { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tx-via { display: inline-flex; align-items: center; gap: .25rem; font-size: .75rem; color: var(--auto); }
 .tx-via .icon { width: 1em; height: 1em; }
 .origin { margin-top: -.5rem; font-size: .875rem; }
 .token-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .75rem; }
@@ -1459,17 +1460,19 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 
 /* ---------- Tags (2026-10-25) ---------- */
 .sheet-facts dd.sheet-tags { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; gap: .25rem .75rem; }
-.sheet-tags a { color: var(--text); text-decoration: none; }
+.sheet-tags a { display: inline-flex; align-items: center; min-height: 2rem; color: var(--auto); text-decoration: none; }
 .sheet-tags a:hover { text-decoration: underline; }
 .filter-empty { list-style: none; padding: 1rem 0; font-size: .875rem; }
-.tags-box { margin: 0; display: flex; flex-direction: column; gap: .2rem; }
+.tags-box { margin: 0; display: flex; flex-direction: column; gap: .6rem; }
+/* The chips sit as far from the note above as from the date row below (the form's own gap is 1rem). */
 .tags-box:has(.tags-line:not(:empty)) { margin-bottom: -.4rem; }
 .note-field { position: relative; }
 .note-field input { padding-right: 3.1rem; }
 .hash-btn { position: absolute; top: 50%; right: .5rem; transform: translateY(-50%); display: grid; place-items: center; width: 1.9rem; height: 1.9rem; min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 9px; background: var(--surface-2); box-shadow: none; color: var(--muted); font-size: 1rem; font-weight: 600; line-height: 1; }
 @media (hover: hover) { .hash-btn:hover { background: var(--border); } }
-.tags-line { display: block; width: 100%; min-height: 0; margin: 0; padding: 0 .25rem; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--muted); font-size: .875rem; line-height: 1.3; font-weight: 400; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (hover: hover) { .tags-line:hover { background: none; } }
+.tags-line { display: flex; justify-content: flex-start; align-items: center; gap: .5rem; width: 100%; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--text); font-weight: 500; text-align: left; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent); mask-image: linear-gradient(90deg, #000 90%, transparent); }
+.tags-line > span { flex: none; padding: 0 .75rem; height: 2rem; line-height: 2rem; border-radius: 999px; background: var(--surface-2); font-size: .9375rem; }
+@media (hover: hover) { .tags-line:hover { background: none; } .tags-line:hover > span { background: var(--border); } }
 .tags-line:empty { display: none; }
 .meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .meta-row .related { display: contents; }
@@ -1479,3 +1482,17 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 [aria-pressed="true"] > .tag-tick { background: var(--accent); border-color: var(--accent); }
 [aria-pressed="true"] > .tag-tick::after { content: "✓"; }
 .tags-limit { margin: .5rem 0 0; font-size: .8125rem; }
+
+/* ---------- The sheet's "More" fold (2026-10-26): related, source and who changed it ---------- */
+.sheet-extra { margin: 0; border-bottom: 1px solid var(--border); }
+.sheet-extra > summary { display: flex; align-items: center; justify-content: space-between; gap: .6rem; min-height: 3rem; list-style: none; cursor: pointer; font-weight: 500; }
+.sheet-extra > summary::-webkit-details-marker { display: none; }
+.sheet-extra > summary { font-weight: 500; font-size: 1rem; }
+.sheet-extra > summary .icon { flex: none; width: 1.1rem; height: 1.1rem; color: var(--faint); transition: transform .2s ease; }
+.sheet-extra[open] > summary .icon { transform: rotate(90deg); }
+.sheet-extra > .sheet-related { margin-top: .25rem; }
+.sheet-extra > .sheet-facts { margin-top: .5rem; border-top: 0; }
+.sheet-extra > .sheet-by { margin: .75rem 0 .5rem; }
+/* A clear gap between the fold and Edit, so a tap meant for "More" can never land on Edit, and Edit sits below whatever opens. */
+.sheet-extra + #sheet-error + .sheet-actions, .sheet-extra ~ .sheet-actions { margin-top: 1.5rem; }
+@media (prefers-reduced-motion: reduce) { .sheet-extra > summary .icon { transition: none; } }

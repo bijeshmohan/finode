@@ -262,3 +262,45 @@ def test_the_sheet_opens_on_an_account_page_and_a_category_page_and_edit_comes_b
         page.get_by_role("button", name="Save changes").click()
         page.wait_for_url(re.compile(re.escape(url) + r"$"))
         expect(page.locator("a.tx", has_text="Swiggy")).to_be_visible()  # the account page is fully back
+
+
+def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(page: Page, books, api: Api):
+    first = api.post(
+        "/transactions/",
+        payee="Swiggy",
+        postings=[
+            {"account": books["food"]["aid"], "side": "debit", "amount": "450"},
+            {"account": books["checking"]["aid"], "side": "credit", "amount": "450"},
+        ],
+    )
+    api.post(
+        "/transactions/",
+        payee="Swiggy refund",
+        related_id=first["tid"],
+        source="gmail",
+        external_id="msg-1042",
+        postings=[
+            {"account": books["checking"]["aid"], "side": "debit", "amount": "120"},
+            {"account": books["food"]["aid"], "side": "credit", "amount": "120"},
+        ],
+    )
+    page.goto("/transactions")
+    page.locator("a.tx", has_text="Swiggy refund").click()
+    sheet = page.locator("#txn-sheet")
+    more = sheet.locator(".sheet-extra > summary")
+    expect(more).to_have_text("More")
+    assert (
+        more.locator("span").bounding_box()["x"] < sheet.bounding_box()["x"] + 40
+    )  # left aligned, like the rows above
+    expect(sheet.locator(".sheet-related-row")).to_be_hidden()  # folded
+    edit = sheet.get_by_role("link", name="Edit")
+    gap = edit.bounding_box()["y"] - (more.bounding_box()["y"] + more.bounding_box()["height"])
+    assert gap >= 20, gap  # a tap meant for More cannot reach Edit
+    before = edit.bounding_box()["y"]
+    more.click()
+    expect(sheet.locator(".sheet-related-row")).to_be_visible()
+    expect(sheet.get_by_text("msg-1042")).to_be_visible()
+    assert abs(edit.bounding_box()["y"] - before) < 1  # the sheet grows upwards: Edit stays where it was
+    assert "/edit" not in page.url
+    more.click()
+    expect(sheet.locator(".sheet-related-row")).to_be_hidden()

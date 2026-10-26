@@ -16,9 +16,19 @@
   <div><dt>{{ to_label }}</dt><dd>{% for name, p in to_postings %}<span>{{ name }}{% if to_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
   {% if t.comment %}<div><dt>Note</dt><dd>{{ t.comment }}</dd></div>{% endif %}
   {% if t.tags %}<div><dt>Tags</dt><dd class="sheet-tags">{% for tag in t.tags %}<a href="/transactions?month={{ t.date.strftime('%Y-%m') }}&amp;tag={{ tag }}">#{{ tag }}</a>{% endfor %}</dd></div>{% endif %}
-  {% if t.source %}<div><dt>Source</dt><dd>{% if t.source_url %}<a href="{{ t.source_url }}" target="_blank" rel="noopener noreferrer">{{ t.source }}</a>{% else %}{{ t.source }}{% endif %}{% if t.external_id %} <small class="muted">{{ t.external_id }}</small>{% endif %}</dd></div>{% endif %}
 </dl>
 
+{#- Everything beyond the basics sits behind one row, so the sheet stays short and Edit does not move under a thumb that is
+    opening it: the row opens downwards and Edit is a clear gap below it. -#}
+{% set by_agent = (t.created_via or "").startswith("mcp:") or (t.updated_via or "").startswith("mcp:") %}
+{% set by_rule = t.recurring_id or t.created_via == "recurring" %}
+{% set extras = [] %}
+{% if related_to or related %}{% set _ = extras.append("related") %}{% endif %}
+{% if t.source %}{% set _ = extras.append("source") %}{% endif %}
+{% if by_agent %}{% set _ = extras.append("who changed it") %}{% elif by_rule %}{% set _ = extras.append("recurring") %}{% endif %}
+{% if extras %}
+<details class="sheet-extra">
+  <summary><span>More</span>{{ icon("chevron-right") }}</summary>
 {% if related_to or related %}
 <div class="sheet-related">
   <p class="sheet-related-head">{{ "Related to" if related_to else "Related · " ~ related|length }}</p>
@@ -31,10 +41,17 @@
 </div>
 {% endif %}
 
-{% if t.created_via and t.created_via.startswith("mcp:") %}
-<p class="sheet-by">{{ icon("robot") }}<span>Added by {{ t.created_via[4:] }}</span></p>
-{% elif t.recurring_id or t.created_via == "recurring" %}
+{% if by_agent %}
+<p class="sheet-by">{{ icon("robot") }}<span>{% if t.created_via %}Added by {{ t.created_via|origin_label|replace(" (AI assistant)", "") }}{% endif %}{% if t.updated_via and t.updated_via != t.created_via %}{{ " · " if t.created_via }}last changed by {{ t.updated_via|origin_label|replace(" (AI assistant)", "") }}{% endif %}</span></p>
+{% elif by_rule %}
 <p class="sheet-by">{{ icon("repeat") }}<a href="/recurring">Recurring</a></p>
+{% endif %}
+
+
+  {% if t.source %}<dl class="sheet-facts">
+  <div><dt>Source</dt><dd>{% if t.source_url %}<a href="{{ t.source_url }}" target="_blank" rel="noopener noreferrer">{{ t.source }}</a>{% else %}{{ t.source }}{% endif %}{% if t.external_id %} <small class="muted">{{ t.external_id }}</small>{% endif %}</dd></div>
+  </dl>{% endif %}
+</details>
 {% endif %}
 
 <p id="sheet-error" class="error" role="alert"></p>

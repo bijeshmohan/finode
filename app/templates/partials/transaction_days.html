@@ -17,14 +17,8 @@
             {#- An opening balance or an adjustment names just the account: the system's "Opening Balances" and the stock note say nothing. -#}
             {% set note = "" if system and t.comment == "Initial account balance" else t.comment %}
             <span class="tx-sub">{% if system %}{{ (row.credits + row.debits)|reject("equalto", "Opening Balances")|join(", ") }}{% elif t.payee %}{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% else %}{{ row.credits|join(", ") }}{% endif %}{% if note %} · {{ note }}{% endif %}</span>
-            {#- One quiet blue line for what was added automatically (a recurring rule, an assistant) and for the entry's tags. -#}
-            {% set by_rule = t.recurring_id or t.created_via == "recurring" %}
-            {% set by_agent = (t.created_via or "").startswith("mcp:") or (t.updated_via or "").startswith("mcp:") %}
-            {% if by_rule or by_agent or t.tags %}<span class="tx-via">
-              {%- if by_rule %}<span class="tx-by">{{ icon("repeat") }}Recurring</span>{% endif -%}
-              {%- if by_agent %}<span class="tx-by">{{ icon("robot") }}{{ "Added" if (t.created_via or "").startswith("mcp:") else "Changed" }} by {{ ((t.created_via if (t.created_via or "").startswith("mcp:") else t.updated_via))[4:] }}</span>{% endif -%}
-              {%- for tag in t.tags %}<span class="tx-tag">#{{ tag }}</span>{% if not loop.last %} {% endif %}{% endfor -%}
-            </span>{% endif %}
+            {% if t.recurring_id or t.created_via == "recurring" %}<span class="tx-via">{{ icon("repeat") }}Recurring</span>{% endif %}
+            {% if (t.created_via or "").startswith("mcp:") or (t.updated_via or "").startswith("mcp:") %}<span class="tx-via">{{ icon("robot") }}{{ "Added" if (t.created_via or "").startswith("mcp:") else "Changed" }} by {{ ((t.created_via if (t.created_via or "").startswith("mcp:") else t.updated_via))[4:] }}</span>{% endif %}
           </span>
           <span class="tx-amount {{ row.kind }}">{{ "+" if row.kind == "income" }}{{ row.amount|money }}</span>
         </a>

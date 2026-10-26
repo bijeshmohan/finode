@@ -26,9 +26,9 @@ When you need more than one account on a side (a bill paid half by cash and half
 
 ### Repeat
 
-**Tags.** A tag is a label on an entry (`goa-trip`, `reimbursable`, `emi`), apart from its note. The **#** button at the right of the note field opens a sheet: search your tags, tap to tick or untick them, or type a new word and tap **Create**. The ones you chose show as one quiet line of `#tags` under the note (tap it to change them); with no tags there is nothing extra on the form. The date and **Related** sit on one row below. A tag is one word of letters, digits, `-` or `_` (up to 30), and `#EMI` and `emi` are the same tag. An entry can have up to 10. A `#` you type in the note is just text.
+**Tags.** A tag is a label on an entry (`goa-trip`, `reimbursable`, `emi`), apart from its note. The **#** button at the right of the note field opens a sheet: search your tags, tap to tick or untick them, or type a new word and tap **Create**. The ones you chose show as one row of soft `#tag` chips under the note (tap the row to change them; a long list is cut off at the edge); with no tags there is nothing extra on the form. The date and the **Transaction** chip sit on one row above the note. A tag is one word of letters, digits, `-` or `_` (up to 30), and `#EMI` and `emi` are the same tag. An entry can have up to 10. A `#` you type in the note is just text.
 
-In the app: a row shows the note and, after it, its tags (`HDFC Card · Airport drop · #goa-trip`). The details sheet has a **Tags** row; tap a tag to see that month's entries that carry it. The **Filter** sheet has a **Tag** row that opens a searchable list of your tags (how many entries, the last day, and what they come to when they all go one way); with a tag chosen, the line under the title adds up what the entries came to ("12 transactions · 43,200.00 spent"), and the ✕ removes the filter. **Settings › Your data › Tags** lists all your tags: tap one to **rename** it (a misspelling is fixed once, for every entry), **merge** it into another tag, or **delete** it (the entries stay, only the label goes). A tag that no entry carries any more disappears by itself.
+In the app: a row shows the note but not the tags. The details sheet and the edit form show them: the sheet has a **Tags** row; tap a tag to see that month's entries that carry it. The **Filter** sheet has a **Tag** row that opens a searchable list of your tags (how many entries, the last day, and what they come to when they all go one way); with a tag chosen, the line under the title adds up what the entries came to ("12 transactions · 43,200.00 spent"), and the ✕ removes the filter. **Settings › Your data › Tags** lists all your tags: tap one to **rename** it (a misspelling is fixed once, for every entry), **merge** it into another tag, or **delete** it (the entries stay, only the label goes). A tag that no entry carries any more disappears by itself.
 
 **Where an entry came from.** An entry that an assistant recorded from a bank message or a mail can carry its source and reference; the details sheet then shows a quiet *Source* line (a link when there is one). A source's reference is used once, so the same message is never recorded twice.
 
@@ -36,7 +36,7 @@ Open a transaction and tap **Repeat** (under Edit) to start a new one pre-filled
 
 ### Related entries
 
-A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap **Related** (under Edit): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **Related transaction** and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
+A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap **Related** (under Edit): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **Transaction** (next to the date) and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
 
 Both entries show the link in their details sheet: the new one says "Related to" the original, the original lists what is related to it, and tapping either opens the other. A link is only a link: it changes no amounts, balances or budget, and deleting the original simply drops it.
 
@@ -70,3 +70,5 @@ Deleted by accident? Open **Settings › Your data › Recently deleted** (it al
 - A real negative (an overdrawn account, an overspent category, a debt) keeps its `−` and red.
 - In **INR** amounts are grouped the Indian way (`12,34,567.00`), with `₹` in front of large figures. Other currencies are grouped in thousands.
 - Text coloured **blue** under a row (*Recurring*, *Added by Claude*) was added automatically.
+
+> The details sheet keeps to what you came for (accounts, note, tags). **More** opens the related entries, where an entry came from and, for an assistant's or a recurring rule's work, who added or changed it.

@@ -198,7 +198,9 @@ async def test_editing_a_web_entry_marks_who_changed_it(session, client, books, 
         updated = (await call(c, "update_transaction", transaction_id=tid, note="eggs"))["updated"]
     assert updated["created_via"] == "web" and updated["updated_via"] == "assistant (Claude)"
     page = client.get(f"/transactions/{tid}/edit").text
-    assert "Added by the app" in page and "last changed by Claude (AI assistant)" in page
+    assert "Added by" not in page and "last changed by" not in page  # not on the edit page: it is in the details sheet
+    sheet = client.get(f"/transactions/{tid}/sheet").text
+    assert "Added by the app · last changed by Claude</span>" in " ".join(sheet.split())
     listing = client.get("/transactions").text
     assert "Changed by Claude" in listing
 
