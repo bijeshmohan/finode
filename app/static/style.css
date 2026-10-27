@@ -1510,3 +1510,13 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 .end-clear { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--surface-2); box-shadow: none; color: var(--muted); font-size: .75rem; font-weight: 400; }
 .rep-hint { margin: -.3rem 0 0; font-size: .8125rem; }
 .txn-form + .card.form-narrow { margin-top: 1.25rem; }
+
+/* Tags page and a tag's sheet (2026-10-27): a blue name and a count; View entries, Rename and Merge are rows. */
+.tag-row .tag-name { color: var(--auto); font-weight: 600; }
+.tag-row .tag-count { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 500; }
+a.sheet-extra.tag-see { display: flex; align-items: center; justify-content: space-between; min-height: 3rem; margin-top: .75rem; color: var(--auto); font-weight: 500; text-decoration: none; }
+a.sheet-extra.tag-see .icon { width: 1.1rem; height: 1.1rem; color: var(--faint); }
+.sheet-extra > form.stack { padding-bottom: .75rem; }
+.tag-row { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 52px; padding: .6rem 0; border: 0; border-radius: 0; background: transparent; color: var(--text); font: inherit; text-align: left; box-shadow: none; cursor: pointer; }
+.tile > .tag-row + .tag-row { border-top: 1px solid var(--surface-2); }
+.tile:has(> .tag-row) { padding: 0 1rem; }

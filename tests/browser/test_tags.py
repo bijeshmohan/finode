@@ -146,14 +146,17 @@ def test_the_tags_page_renames_merges_and_deletes(page: Page, books, api: Api):
     page.locator(".tag-row", has_text="alpha").click()
     sheet = page.locator("#tag-sheet")
     expect(sheet).to_be_visible()
-    sheet.get_by_label("Rename").fill("not valid")
+    expect(sheet.get_by_role("link", name="View entries")).to_be_visible()
+    sheet.locator("summary", has_text="Rename").click()
+    sheet.get_by_label("New name").fill("not valid")
     sheet.get_by_role("button", name="Rename").click()
     expect(sheet.locator("#tag-sheet-error")).to_contain_text("cannot be a tag")
-    sheet.get_by_label("Rename").fill("Holiday")
+    sheet.get_by_label("New name").fill("Holiday")
     sheet.get_by_role("button", name="Rename").click()
     page.wait_for_url("**/tags")
     expect(page.locator(".tag-row", has_text="holiday")).to_be_visible()
     page.locator(".tag-row", has_text="holiday").click()
+    sheet.locator("summary", has_text="Merge into").click()
     sheet.locator("select[name=into]").select_option("beta")
     sheet.get_by_role("button", name="Merge").click()
     expect(page.locator(".tag-row")).to_have_count(1)
@@ -215,3 +218,17 @@ def test_opening_the_tags_sheet_on_a_phone_does_not_open_the_keyboard(touch_page
     expect(touch_page.locator("[data-tags-search]")).not_to_be_focused()
     touch_page.locator("[data-tags-search]").tap()
     expect(touch_page.locator("[data-tags-search]")).to_be_focused()  # tapping the field is what opens it
+
+
+def test_the_tags_page_rows_are_plain_rows_inside_one_tile(touch_page: Page, books, api: Api):
+    """On a phone the rows must not take the global button look (dark pills side by side): one line each, full width."""
+    add(api, books, "A", "n", tags=["alpha"])
+    add(api, books, "B", "n", tags=["beta"])
+    touch_page.goto("/tags")
+    rows = touch_page.locator(".tag-row")
+    expect(rows).to_have_count(2)
+    first, second = rows.nth(0).bounding_box(), rows.nth(1).bounding_box()
+    assert first and second and first["width"] > 300 and second["y"] > first["y"] + 40, "stacked, full width"
+    assert rows.nth(0).evaluate("e => getComputedStyle(e).backgroundColor") == "rgba(0, 0, 0, 0)"
+    count = rows.nth(0).locator(".tag-count").bounding_box()
+    assert count and count["x"] + count["width"] > first["x"] + first["width"] - 20, "the count sits at the right"

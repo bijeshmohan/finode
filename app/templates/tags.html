@@ -4,13 +4,11 @@
 {% block content %}
 <a class="back" href="/settings">{{ icon("back") }}Settings</a>
 <div class="page-head tall"><h1>Tags</h1></div>
-<p class="muted">Labels you put on entries. Rename one to fix a spelling, merge two that mean the same, or delete one: its entries stay, only the label goes.</p>
-
 {% if tags %}
 <div class="tile">
   {% for t in tags %}
   <button type="button" class="setting setting-link tag-row" hx-get="/tags/{{ t.tag }}/sheet" hx-target="#tag-sheet-body" hx-swap="innerHTML" hx-push-url="false">
-    <span class="setting-title">#{{ t.tag }}<small class="muted setting-sub">{{ t.uses }} entr{{ "y" if t.uses == 1 else "ies" }} · last {{ t.last_used|friendly_date }}</small></span>{{ icon("chevron-right") }}
+    <span class="setting-title tag-name">#{{ t.tag }}</span><span class="tag-count">{{ t.uses }}</span>
   </button>
   {% endfor %}
 </div>

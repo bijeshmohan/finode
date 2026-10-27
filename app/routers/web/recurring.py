@@ -75,7 +75,7 @@ def recurring_page(request: Request, accounts: Accounts, recurring: Recurring):
         request,
         "recurring.html",
         {
-            "active": "transactions",
+            "active": "settings",
             "hide_fab": True,
             "rows": rows,
             "live": [r for r in rows if r.status in ("active", "error")],
