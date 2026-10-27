@@ -283,10 +283,10 @@ def test_a_failing_user_does_not_stop_the_run(client, accounts, session, monkeyp
 
 
 def test_the_list_page_shows_rules_and_an_empty_state(client, accounts):
-    assert "No recurring transactions yet." in client.get("/recurring").text
+    assert "Nothing on repeat yet." in client.get("/recurring").text
     rule(client, accounts, start_date="2999-01-01")
     page = client.get("/recurring").text
-    assert "Landlord" in page and "Every month" in page and "Assets › Bank → Expenses › Rent" in page
+    assert "Landlord" in page and "Every month · next " in page and "Rent" not in page
     assert 'href="/recurring/new"' in page
 
 
@@ -345,7 +345,7 @@ def test_editing_pausing_and_deleting_through_the_pages(client, accounts):
     assert "Every 2 weeks" in client.get("/recurring").text
     client.post(f"/recurring/{rid}/pause")
     page = client.get("/recurring").text
-    assert "paused" in page and "Paused or ended" in page
+    assert "paused" in page and "Paused</h2>" in page
     assert "Resume" in client.get(f"/recurring/{rid}/edit").text
     client.post(f"/recurring/{rid}/resume")
     assert client.post(f"/recurring/{rid}/delete").headers["HX-Redirect"] == "/recurring"
@@ -478,7 +478,7 @@ def test_the_form_saves_a_split_and_shows_it_again(client, split_accounts):
     [stored] = client.get("/api/recurring/").json()
     assert stored["from_account"] is None and len(stored["postings"]) == 3
     listing = client.get("/recurring").text
-    assert "Landlord" in listing and "Bank" in listing and "Rent, Water" in listing and "1,200.00" in listing
+    assert "Landlord" in listing and "1,200.00" in listing
     page = client.get(f"/recurring/{stored['rid']}/edit").text
     debit = page[page.index('data-rows="debit"') :]
     assert page.count('class="txn-row"') >= 3 and 'value="1200.00"' in page and "data-touched" in debit
