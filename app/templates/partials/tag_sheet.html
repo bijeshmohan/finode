@@ -4,26 +4,29 @@
 <div class="sheet-title">
   <div>
     <h2>#{{ tag.tag }}</h2>
-    <p class="muted">{{ tag.uses }} entr{{ "y" if tag.uses == 1 else "ies" }} · last {{ tag.last_used|friendly_date }}</p>
+    <p class="muted">{{ tag.uses }} entr{{ "y" if tag.uses == 1 else "ies" }} · last used {{ tag.last_used|friendly_date }}</p>
   </div>
-  <a class="quiet-link" href="/transactions?month={{ tag.last_used.strftime('%Y-%m') }}&amp;tag={{ tag.tag }}">See them ›</a>
 </div>
 
-<form class="stack" hx-post="/tags/{{ tag.tag }}/rename" hx-target="#tag-sheet-error">
-  <label>Rename
-    <input type="text" name="to" value="{{ tag.tag }}" maxlength="30" autocomplete="off" autocapitalize="none" required>
-  </label>
-  <p class="muted hint">If the new name is another of your tags, the two become one.</p>
-  <button type="submit" class="secondary">Rename</button>
-</form>
+<a class="sheet-extra tag-see" href="/transactions?month={{ tag.last_used.strftime('%Y-%m') }}&amp;tag={{ tag.tag }}"><span>View entries</span>{{ icon("chevron-right") }}</a>
+
+<details class="sheet-extra">
+  <summary><span>Rename</span>{{ icon("chevron-right") }}</summary>
+  <form class="stack" hx-post="/tags/{{ tag.tag }}/rename" hx-target="#tag-sheet-error">
+    <input type="text" name="to" value="{{ tag.tag }}" maxlength="30" autocomplete="off" autocapitalize="none" required aria-label="New name">
+    <p class="muted hint">If the new name is another of your tags, the two become one.</p>
+    <button type="submit" class="secondary">Rename</button>
+  </form>
+</details>
 
 {% if others %}
-<form class="stack" hx-post="/tags/{{ tag.tag }}/merge">
-  <label>Merge into
-    <select name="into">{% for name in others %}<option value="{{ name }}">{{ name }}</option>{% endfor %}</select>
-  </label>
-  <button type="submit" class="secondary">Merge</button>
-</form>
+<details class="sheet-extra">
+  <summary><span>Merge into…</span>{{ icon("chevron-right") }}</summary>
+  <form class="stack" hx-post="/tags/{{ tag.tag }}/merge">
+    <select name="into" aria-label="Merge into">{% for name in others %}<option value="{{ name }}">{{ name }}</option>{% endfor %}</select>
+    <button type="submit" class="secondary">Merge</button>
+  </form>
+</details>
 {% endif %}
 
 <p id="tag-sheet-error" class="error" role="alert"></p>
