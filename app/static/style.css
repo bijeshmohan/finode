@@ -1496,3 +1496,17 @@ section.card.stack > h2:first-child, details.card.stack > summary h2 { margin-bo
 /* A clear gap between the fold and Edit, so a tap meant for "More" can never land on Edit, and Edit sits below whatever opens. */
 .sheet-extra + #sheet-error + .sheet-actions, .sheet-extra ~ .sheet-actions { margin-top: 1.5rem; }
 @media (prefers-reduced-motion: reduce) { .sheet-extra > summary .icon { transition: none; } }
+
+/* ---------- The recurring form, like New transaction (2026-10-26) ---------- */
+.rep-row { display: flex; align-items: center; gap: .6rem; min-height: var(--tap); padding: 0 .7rem; background: var(--surface); border: 1px solid var(--field-border); border-radius: var(--radius-sm); }
+.rep-row > .icon { flex: none; width: 1.15rem; height: 1.15rem; color: var(--muted); }
+.rep-row .rep-label { flex: 1; font-weight: 500; }
+.rep-row input[type="number"] { flex: none; width: 4.2rem; min-height: 2.25rem; margin: 0; padding: .2rem .5rem; text-align: center; border: 0; border-radius: 9px; background: var(--surface-2); font-weight: 600; -moz-appearance: textfield; }
+.rep-row input[type="number"]::-webkit-outer-spin-button, .rep-row input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.rep-row select { flex: none; width: auto; min-height: 2.25rem; margin: 0; padding: .2rem .7rem; border: 0; border-radius: 9px; background: var(--surface-2); font-weight: 500; }
+.chip-prefix { color: var(--muted); font-weight: 400; }
+.txn-form label.date-chip.dim [data-date-label] { color: var(--muted); }
+.end-chip { display: inline-flex; align-items: center; gap: .25rem; }
+.end-clear { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--surface-2); box-shadow: none; color: var(--muted); font-size: .75rem; font-weight: 400; }
+.rep-hint { margin: -.3rem 0 0; font-size: .8125rem; }
+.txn-form + .card.form-narrow { margin-top: 1.25rem; }

@@ -10,6 +10,7 @@ from sqlalchemy.orm import aliased
 from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
+from ..models.recurring import RecurringTransaction
 from ..models.tag import Tag, TransactionTag
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..models.transaction_history import TransactionHistory
@@ -391,11 +392,22 @@ class TransactionRepository:
         )
         return self.db.exec(statement).all()
 
+    def _retag_rules(self, old: str, new: str | None) -> None:
+        """Recurring rules keep their own list of tag names: follow a rename or a merge (`new`), or drop the tag (None)."""
+        for rule in self.db.exec(select(RecurringTransaction).where(RecurringTransaction.user == self.uid)).all():
+            if old not in (rule.tags or []):
+                continue
+            names = [new if name == old else name for name in rule.tags]
+            rule.tags = [name for name in dict.fromkeys(names) if name is not None]
+            self.db.add(rule)
+        self.db.flush()
+
     def rename_tag(self, old: str, new: str) -> None:
         """Give a tag a new name. When the new name is another tag of the person's, the two become one."""
         tag = self.db.exec(select(Tag).where(Tag.user == self.uid, Tag.name == old)).first()
         if tag is None:
             raise LookupError(f"no tag is called '{old}'!")
+        self._retag_rules(old, new)
         target = self.db.exec(select(Tag).where(Tag.user == self.uid, Tag.name == new)).first()
         if target is None:
             tag.name = new
@@ -420,6 +432,7 @@ class TransactionRepository:
         tag = self.db.exec(select(Tag).where(Tag.user == self.uid, Tag.name == name)).first()
         if tag is None:
             raise LookupError(f"no tag is called '{name}'!")
+        self._retag_rules(name, None)
         links = self.db.exec(select(TransactionTag).where(TransactionTag.tag_id == tag.tgid)).all()
         for link in links:
             self.db.delete(link)

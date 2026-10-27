@@ -2,7 +2,7 @@ from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint
+from sqlalchemy import JSON, CheckConstraint, Column, text
 from sqlmodel import Field
 
 from .utils import Amount, TimestampMixin
@@ -40,6 +40,8 @@ class RecurringTransaction(TimestampMixin, table=True):
     amount: Decimal | None = Field(default=None, sa_type=Amount())
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
+    # The tags every entry this rule records gets (names in their one form, lower case).
+    tags: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, server_default=text("'[]'")))
     frequency: str = Field(max_length=10)
     # "Every 2 weeks": the number of days, weeks, months or years between occurrences.
     every: int = Field(default=1)

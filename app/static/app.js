@@ -1194,7 +1194,14 @@ window.addEventListener("resize", fitPayeeChips);
 document.addEventListener("change", (event) => {
   const input = event.target;
   const chip = input instanceof HTMLInputElement && input.closest("[data-date-chip]");
-  if (!chip || !input.value) return;
+  if (!chip) return;
+  const clear = chip.parentElement && chip.parentElement.querySelector("[data-date-clear]");
+  if (clear) clear.hidden = !input.value;
+  chip.classList.toggle("dim", !input.value && "empty" in chip.dataset);
+  if (!input.value) {  // an optional date that was cleared reads as its empty word ("never")
+    if (chip.dataset.empty) chip.querySelector("[data-date-label]").textContent = chip.dataset.empty;
+    return;
+  }
   const [y, m, d] = input.value.split("-").map(Number);
   const day = new Date(Date.UTC(y, m - 1, d));
   const today = chip.dataset.today;
@@ -1203,6 +1210,22 @@ document.addEventListener("change", (event) => {
     input.value === today ? `Today, ${d} ${part({ month: "short" })}`
     : input.value.slice(0, 4) === today.slice(0, 4) ? `${part({ weekday: "short" })}, ${d} ${part({ month: "short" })}`
     : `${d} ${part({ month: "short", year: "numeric" })}`;
+});
+document.addEventListener("click", (event) => {
+  const clear = event.target instanceof Element && event.target.closest("[data-date-clear]");
+  if (clear) {  // "no end date": empty the chip's date and let the chip rename itself
+    const input = clear.parentElement.querySelector("input[type=date]");
+    input.value = "";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+});
+// "Every 1 month" / "Every 2 months": the unit's name follows the number.
+document.addEventListener("input", (event) => {
+  const every = event.target instanceof Element && event.target.closest("[data-every]");
+  const row = every && every.closest("[data-repeat]");
+  if (!row) return;
+  const plural = Number(every.value) !== 1;
+  row.querySelectorAll("[data-unit] option").forEach((option) => { option.textContent = plural ? option.dataset.many : option.dataset.one; });
 });
 document.addEventListener("click", (event) => {
   const input = event.target;

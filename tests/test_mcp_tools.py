@@ -289,12 +289,15 @@ async def test_assistants_can_list_create_and_stop_recurring_transactions(sessio
                     "to_account": "Rent",
                     "payee": "Landlord",
                     "start_date": "2999-01-01",
+                    "tags": ["#Rent", "home"],
                 },
             )
         )["created"]
         assert made["from"] == "Assets:Bank" and made["to"] == "Expenses:Rent" and made["next_due"] == "2999-01-01"
+        assert made["tags"] == ["rent", "home"]
         listed = payload(await c.call_tool("list_recurring", {}))["recurring"]
         assert listed[0]["id"] == made["id"] and listed[0]["every"] == "monthly" and listed[0]["status"] == "active"
+        assert listed[0]["tags"] == ["rent", "home"]
         with pytest.raises(ToolFailed, match="differ"):
             payload(
                 await c.call_tool("create_recurring", {"amount": "1", "from_account": "Bank", "to_account": "Bank"})

@@ -82,6 +82,8 @@ class BackupRecurring(BaseModel):
     postings: list[BackupRecurringPosting] = []
     payee: str | None = None
     comment: str | None = None
+    # The tags every entry the rule records gets (a file from before has none).
+    tags: list[str] = []
     frequency: str
     every: int = 1
     start_date: Day

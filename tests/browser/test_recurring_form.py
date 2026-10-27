@@ -52,3 +52,42 @@ def test_skipping_the_next_occurrence_from_the_edit_page(page: Page, books, api:
     page.wait_for_url("**/recurring")
     expect(page.get_by_text("Nothing was recorded for that one")).to_be_visible()
     assert api.get(f"/recurring/{rule['rid']}")["next_date"] == "2999-02-01"
+
+
+def test_a_rule_gets_tags_from_the_form_like_a_new_transaction(page: Page, books, api: Api):
+    page.goto("/recurring/new")
+    page.fill("#total", "500")
+    page.select_option('[data-rows="credit"] select', label="Checking")
+    page.select_option('[data-rows="debit"] select', label="Rent")
+    page.fill('input[name="start"]', "2999-01-01")
+    page.locator(".hash-btn").click()
+    sheet = page.locator("#tags-picker")
+    expect(sheet).to_be_visible()
+    sheet.locator("[data-tags-search]").fill("Home Rent")  # a space becomes a hyphen
+    sheet.get_by_role("button", name="＋ Create “#home-rent”").click()
+    sheet.locator("[data-tags-done]").click()
+    expect(page.locator("[data-tags-chips] [data-tag]")).to_have_text(["#home-rent"])
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url("**/recurring")
+    [rule] = api.get("/recurring/")
+    assert rule["tags"] == ["home-rent"]
+    page.goto(f"/recurring/{rule['rid']}/edit")
+    expect(page.locator("[data-tags-chips] [data-tag]")).to_have_text(["#home-rent"])
+
+
+def test_the_repeat_row_names_its_unit_and_the_end_date_chip_clears(page: Page, books, api: Api):
+    page.goto("/recurring/new")
+    unit = page.locator("[data-unit] option:checked")
+    expect(unit).to_have_text("month")
+    page.fill("[data-every]", "3")
+    expect(unit).to_have_text("months")
+    page.fill("[data-every]", "1")
+    expect(unit).to_have_text("month")
+    ends = page.locator("[data-date-chip]", has_text="Ends")
+    expect(ends.locator("[data-date-label]")).to_have_text("never")
+    expect(page.locator("[data-date-clear]")).to_be_hidden()
+    page.fill('input[name="end"]', "2999-02-01")
+    expect(ends.locator("[data-date-label]")).to_have_text("1 Feb 2999")
+    page.locator("[data-date-clear]").click()
+    expect(ends.locator("[data-date-label]")).to_have_text("never")
+    assert page.input_value('input[name="end"]') == ""

@@ -1,0 +1,13 @@
+{#- The Tags sheet of the Add and Edit screens (transactions and recurring rules); app.js fills it in. -#}
+<dialog id="tags-picker" class="sheet sheet-bottom" aria-label="Tags">
+  <div class="sheet-body">
+    <div class="sheet-grab" aria-hidden="true"></div>
+    <h2 class="filter-title" tabindex="-1" autofocus>Tags</h2>
+    <input type="search" class="filter-search" placeholder="Search or create a #tag" aria-label="Search or create a tag" autocomplete="off" autocapitalize="none" data-tags-search>
+    <ul class="filter-options" data-tags-list>
+      <li class="filter-empty muted" hx-get="/transactions/tag-picker" hx-trigger="tags-open once" hx-swap="outerHTML">Loading…</li>
+    </ul>
+    <p class="muted tags-limit" data-tags-limit hidden>An entry can have at most 10 tags.</p>
+    <div class="sheet-actions"><button type="button" data-tags-done>Done</button></div>
+  </div>
+</dialog>
