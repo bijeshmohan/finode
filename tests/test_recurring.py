@@ -345,7 +345,7 @@ def test_editing_pausing_and_deleting_through_the_pages(client, accounts):
     assert "Every 2 weeks" in client.get("/recurring").text
     client.post(f"/recurring/{rid}/pause")
     page = client.get("/recurring").text
-    assert "paused" in page and "Paused</h2>" in page
+    assert "paused" in page and "Paused</h3>" in page
     assert "Resume" in client.get(f"/recurring/{rid}/edit").text
     client.post(f"/recurring/{rid}/resume")
     assert client.post(f"/recurring/{rid}/delete").headers["HX-Redirect"] == "/recurring"

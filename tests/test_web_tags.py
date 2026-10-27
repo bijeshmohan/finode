@@ -257,7 +257,9 @@ def test_the_tags_page_lists_the_tags(client, books):
     spend(client, books, "5", payee="B", tags=["goa-trip", "work"])
     page = client.get("/tags").text
     assert page.index("goa-trip") < page.index("work")
-    assert "2 entries" in page and "1 entry" in page and 'hx-get="/tags/goa-trip/sheet"' in page
+    assert '<span class="tag-count">2</span>' in page and '<span class="tag-count">1</span>' in page
+    assert 'hx-get="/tags/goa-trip/sheet"' in page
+    assert "1 entry" in client.get("/tags/work/sheet").text
 
 
 def test_a_tags_sheet_has_rename_merge_and_delete(client, books):
