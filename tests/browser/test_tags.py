@@ -218,3 +218,17 @@ def test_opening_the_tags_sheet_on_a_phone_does_not_open_the_keyboard(touch_page
     expect(touch_page.locator("[data-tags-search]")).not_to_be_focused()
     touch_page.locator("[data-tags-search]").tap()
     expect(touch_page.locator("[data-tags-search]")).to_be_focused()  # tapping the field is what opens it
+
+
+def test_the_tags_page_rows_are_plain_rows_inside_one_tile(touch_page: Page, books, api: Api):
+    """On a phone the rows must not take the global button look (dark pills side by side): one line each, full width."""
+    add(api, books, "A", "n", tags=["alpha"])
+    add(api, books, "B", "n", tags=["beta"])
+    touch_page.goto("/tags")
+    rows = touch_page.locator(".tag-row")
+    expect(rows).to_have_count(2)
+    first, second = rows.nth(0).bounding_box(), rows.nth(1).bounding_box()
+    assert first and second and first["width"] > 300 and second["y"] > first["y"] + 40, "stacked, full width"
+    assert rows.nth(0).evaluate("e => getComputedStyle(e).backgroundColor") == "rgba(0, 0, 0, 0)"
+    count = rows.nth(0).locator(".tag-count").bounding_box()
+    assert count and count["x"] + count["width"] > first["x"] + first["width"] - 20, "the count sits at the right"

@@ -91,3 +91,22 @@ def test_the_repeat_row_names_its_unit_and_the_end_date_chip_clears(page: Page, 
     page.locator("[data-date-clear]").click()
     expect(ends.locator("[data-date-label]")).to_have_text("never")
     assert page.input_value('input[name="end"]') == ""
+
+
+def test_the_recurring_list_is_flat_rows_in_a_tile(touch_page: Page, books, api: Api):
+    """Rows are as tall as the Transactions rows (not padded twice) and the date has no weekday."""
+    api.post(
+        "/recurring/",
+        from_account=books["checking"]["aid"],
+        to_account=books["rent"]["aid"],
+        amount="900",
+        frequency="monthly",
+        start_date="2999-01-01",
+        payee="Landlord",
+    )
+    touch_page.goto("/recurring")
+    row = touch_page.locator("a.tx")
+    expect(row).to_have_count(1)
+    box = row.bounding_box()
+    assert box and box["height"] < 80, "one title line and one quiet line, no extra padding"
+    expect(row).to_contain_text("next 1 Jan 2999")

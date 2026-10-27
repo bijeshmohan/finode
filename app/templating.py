@@ -102,6 +102,13 @@ def friendly_date(value: date) -> str:
     return f"{value.day} {value:%b %Y}"
 
 
+def short_date(value: date) -> str:
+    """1 Nov / 1 Nov 2027: no weekday, for a line that is already full."""
+    if value.year == local_today().year:
+        return f"{value.day} {value:%b}"
+    return f"{value.day} {value:%b %Y}"
+
+
 def date_chip(value) -> str:
     """The day on the Add screen's date chip: Today, 24 Oct / Wed, 21 Oct / 21 Oct 2025."""
     if isinstance(value, str):
@@ -133,6 +140,7 @@ _globals["decimals"] = lambda: _places.get()
 templates.env.filters["symbol"] = symbol
 templates.env.filters["amount"] = amount
 templates.env.filters["friendly_date"] = friendly_date
+templates.env.filters["short_date"] = short_date
 templates.env.filters["date_chip"] = date_chip
 templates.env.filters["local_day"] = local_day
 templates.env.filters["origin_label"] = origin_label

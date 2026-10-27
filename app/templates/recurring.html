@@ -5,27 +5,29 @@
 <a class="back" href="/settings">{{ icon("back") }}Settings</a>
 <div class="page-head tall"><h1>Recurring</h1></div>
 
-{% macro rule_rows(group) %}
-<ul class="tx-list card">
+{% macro rule_rows(group, heading="") %}
+<section class="tx-day">
+{% if heading %}<h3 class="tx-day-head">{{ heading }}</h3>{% endif %}
+<ul class="card list">
   {% for row in group %}{% set r = row.rule %}
   <li>
     <a class="tx{{ ' tx-system' if row.status in ('paused', 'ended') }}" href="/recurring/{{ r.rid }}/edit">
       <span class="tx-main">
         <span class="tx-title">{{ r.payee or row.to_name }}</span>
         {% if r.last_error %}<span class="tx-sub error">Couldn't record: {{ r.last_error }}</span>
-        {% else %}<span class="tx-sub">{{ row.schedule }}{% if row.status == "paused" %} · paused{% elif row.status == "ended" %} · ended{% else %} · next {{ r.next_date|friendly_date }}{% endif %}</span>{% endif %}
+        {% else %}<span class="tx-sub">{{ row.schedule }}{% if row.status == "paused" %} · paused{% elif row.status == "ended" %} · ended{% else %} · next {{ r.next_date|short_date }}{% endif %}</span>{% endif %}
       </span>
       <span class="tx-amount">{{ row.amount|money }}</span>
     </a>
   </li>
   {% endfor %}
 </ul>
+</section>
 {% endmacro %}
 
 {% if live %}{{ rule_rows(live) }}{% endif %}
 {% if stopped %}
-<h2 class="list-title">Paused</h2>
-{{ rule_rows(stopped) }}
+{{ rule_rows(stopped, "Paused") }}
 {% endif %}
 {% if not rows %}
 <div class="empty-state">
