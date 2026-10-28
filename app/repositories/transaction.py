@@ -78,7 +78,12 @@ class TransactionRepository:
             "related_id": str(transaction.related_id) if transaction.related_id else None,
             "tags": sorted(tags),
             "postings": [
-                {"account": str(p.account), "side": p.side.value, "amount": str(p.amount)}
+                {
+                    "account": str(p.account),
+                    "side": p.side.value,
+                    "amount": str(p.amount),
+                    "category": str(p.category_id) if p.category_id else None,
+                }
                 for p in sorted(postings, key=lambda p: (p.created, str(p.pid)))
             ],
         }
@@ -91,8 +96,18 @@ class TransactionRepository:
             snapshot["related_from"] = [str(other.tid) for other in self.related_to(transaction.tid)]
         if action == "updated":
             previous = self.history(transaction.tid)
-            if previous and comparable_snapshot(previous[-1].snapshot) == snapshot:
-                return  # saved without changing anything
+            if previous:
+                before = comparable_snapshot(previous[-1].snapshot)
+                if any("category" not in p for p in previous[-1].snapshot.get("postings", [])):
+                    # Written before lines carried a category: compare without it, so a save that changed nothing adds nothing.
+                    after = {
+                        **snapshot,
+                        "postings": [{k: v for k, v in p.items() if k != "category"} for p in snapshot["postings"]],
+                    }
+                else:
+                    after = snapshot
+                if before == after:
+                    return  # saved without changing anything
         self.db.add(
             TransactionHistory(
                 user=self.uid, transaction_id=transaction.tid, action=action, via=origin, snapshot=snapshot
@@ -150,9 +165,44 @@ class TransactionRepository:
             )
         ).first()
 
+    def _line_categories(self, postings) -> builtins.list[UUID | None]:
+        """The category of each line: the one given, else the one its account stands for (an Income or Expenses account
+        has its own) or, for a payment into a loan or fund outside the budget that has a payment category, that
+        category (only in an entry that touches the budget, which is when the budget counts it as spending)."""
+        ids = {p.account for p in postings}
+        accounts: dict[UUID, Account] = {
+            a.aid: a for a in self.db.exec(select(Account).where(Account.user == self.uid, col(Account.aid).in_(ids)))
+        }
+        touches_budget = any(a.on_budget for a in accounts.values())
+        # The category an Expenses account stands for has the same id as the account.
+        paid_ids = {a.payment_category_id for a in accounts.values() if a.payment_category_id is not None}
+        paid: dict[UUID, UUID | None] = (
+            dict(self.db.exec(select(Account.aid, Account.category_id).where(col(Account.aid).in_(paid_ids))).all())
+            if touches_budget and paid_ids
+            else {}
+        )
+        found: builtins.list[UUID | None] = []
+        for p in postings:
+            account = accounts.get(p.account)
+            category = p.category
+            if category is None and account is not None:
+                if account.category_id is not None:
+                    category = account.category_id
+                elif (
+                    touches_budget
+                    and not account.on_budget
+                    and account.payment_category_id is not None
+                    and p.side == PostingSide.DEBIT
+                ):
+                    category = paid.get(account.payment_category_id)
+            found.append(category)
+        return found
+
     def _add_postings(self, transaction: Transaction, postings) -> None:
-        for posting_data in postings:
-            self.db.add(Posting(**posting_data.model_dump(), transaction=transaction.tid, user=self.uid))
+        postings = builtins.list(postings)
+        for posting_data, category in zip(postings, self._line_categories(postings), strict=True):
+            values = posting_data.model_dump(exclude={"category"})
+            self.db.add(Posting(**values, category_id=category, transaction=transaction.tid, user=self.uid))
 
     def read(self, tid: UUID) -> Transaction | None:
         statement = select(Transaction).where(
@@ -523,13 +573,36 @@ class TransactionRepository:
             )
         ).one()
 
-    def repoint_account(self, source: UUID, target: UUID, origin: str | None) -> builtins.list[UUID]:
-        """Move every posting from one account to another (a merge). Each entry it touches gets an "updated" history
-        row saying who did it. Returns the entries that moved. Nothing is committed."""
+    def labelled(self, category: UUID) -> builtins.list[UUID]:
+        """The entries that have a line labelled with a category."""
+        return builtins.list(
+            self.db.exec(
+                select(Posting.transaction).where(Posting.user == self.uid, Posting.category_id == category).distinct()
+            ).all()
+        )
+
+    def repoint_account(
+        self,
+        source: UUID,
+        target: UUID,
+        origin: str | None,
+        categories: tuple[UUID, UUID] | None = None,
+    ) -> builtins.list[UUID]:
+        """Move every posting from one account to another (a merge). With `categories` (source's, target's) every
+        line labelled with the first takes the second. Each entry it touches gets an "updated" history row saying
+        who did it. Returns the entries that moved. Nothing is committed."""
         tids = self.transactions_touching(source)
+        if categories is not None:
+            tids = builtins.list(dict.fromkeys([*tids, *self.labelled(categories[0])]))
         if not tids:
             return []
         self.db.exec(update(Posting).where(Posting.user == self.uid, Posting.account == source).values(account=target))
+        if categories is not None:
+            self.db.exec(
+                update(Posting)
+                .where(Posting.user == self.uid, Posting.category_id == categories[0])
+                .values(category_id=categories[1])
+            )
         self.db.exec(
             update(Transaction)
             .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
@@ -648,6 +721,8 @@ class TransactionRepository:
         A new posting takes over an existing one on the same account and side (then on the same
         account); what is left over is added or removed. So correcting an amount never replaces the posting.
         """
+        postings = builtins.list(postings)
+        categories = self._line_categories(postings)
         remaining = list(self.postings(transaction.tid))
         taken: builtins.list[Posting | None] = [None] * len(postings)
         for exact in (True, False):
@@ -661,11 +736,12 @@ class TransactionRepository:
                         break
         for posting in remaining:
             self.db.delete(posting)
-        for data, old in zip(postings, taken, strict=False):
+        for data, old, category in zip(postings, taken, categories, strict=True):
             if old is None:
-                self.db.add(Posting(**data.model_dump(), transaction=transaction.tid, user=self.uid))
+                values = data.model_dump(exclude={"category"})
+                self.db.add(Posting(**values, category_id=category, transaction=transaction.tid, user=self.uid))
             else:
-                old.account, old.side, old.amount = data.account, data.side, data.amount
+                old.account, old.side, old.amount, old.category_id = data.account, data.side, data.amount, category
                 self.db.add(old)
         self.db.flush()
 

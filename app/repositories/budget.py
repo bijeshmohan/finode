@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
+from ..models.account import Account
 from ..models.budget import BudgetAllocation, Goal, GoalAllocation
 from .cache import remembered
 
@@ -38,7 +39,11 @@ class BudgetRepository:
             if row is not None:
                 self.db.delete(row)
         elif row is None:
-            self.db.add(BudgetAllocation(user=self.uid, month=month, account_id=account_id, amount=amount))
+            account = self.db.get(Account, account_id)
+            category = account.category_id if account is not None else None
+            self.db.add(
+                BudgetAllocation(user=self.uid, month=month, account_id=account_id, category_id=category, amount=amount)
+            )
         else:
             row.amount = amount
             self.db.add(row)
@@ -66,6 +71,8 @@ class BudgetRepository:
         rows = self.db.exec(
             select(BudgetAllocation).where(BudgetAllocation.user == self.uid, BudgetAllocation.account_id == source)
         ).all()
+        target_account = self.db.get(Account, target)
+        target_category = target_account.category_id if target_account is not None else None
         for row in rows:
             existing = self.db.exec(
                 select(BudgetAllocation).where(
@@ -76,6 +83,7 @@ class BudgetRepository:
             ).first()
             if existing is None:
                 row.account_id = target
+                row.category_id = target_category
                 self.db.add(row)
             else:
                 existing.amount = existing.amount + row.amount

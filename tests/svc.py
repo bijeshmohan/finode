@@ -8,6 +8,7 @@ from app.repositories.budget import BudgetRepository
 from app.repositories.recurring import RecurringRepository
 from app.services.account import AccountService
 from app.services.budget import BudgetService
+from app.services.category import CategoryService
 from app.services.recurring import RecurringService
 from app.services.report import ReportService
 from app.services.transaction import TransactionService
@@ -26,6 +27,7 @@ def services(session, user=TEST_USER_ID, origin="api"):
         accounts=accounts,
         transactions=TransactionService(tr, ar, pr, origin=origin),
         reports=ReportService(accounts, tr),
+        categories=CategoryService(accounts),
         budget=BudgetService(accounts, tr, BudgetRepository(session, user)),
         recurring=RecurringService(
             RecurringRepository(session, user), accounts, TransactionService(tr, ar, pr, origin="recurring")

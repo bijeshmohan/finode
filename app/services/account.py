@@ -707,7 +707,12 @@ class AccountService:
         if dry_run:
             return result
         try:
-            self.tr.repoint_account(source_id, target_id, self.ar.origin)
+            pair = (
+                (source.category_id, target.category_id)
+                if source.category_id is not None and target.category_id is not None
+                else None
+            )
+            self.tr.repoint_account(source_id, target_id, self.ar.origin, pair)
             budget.merge_account(source_id, target_id)
             RecurringRepository.repoint_account(self.ar.db, self.ar.uid, source_id, target_id)
             self.ar.repoint_payment_category(source_id, target_id)
@@ -1152,6 +1157,8 @@ class AccountService:
             raise AccountInUseError("account has sub-accounts")
         if self.tr.postings_for_account(aid):
             raise AccountInUseError("account has postings")
+        if account.category_id is not None and self.tr.labelled(account.category_id):
+            raise AccountInUseError("account's category labels entries")
         if RecurringRepository.uses_account(self.ar.db, aid):
             raise AccountInUseError("account is used by a recurring transaction")
 

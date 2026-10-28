@@ -16,7 +16,7 @@ from ..currencies import find as find_currency
 from ..limits import ensure_room
 from ..models import Account
 from ..models.transaction import Posting, PostingSide, Transaction
-from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
+from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..repositories.transaction import comparable_snapshot
 from ..schemas.transaction import (
     MAX_BATCH,
@@ -101,7 +101,15 @@ def _diff(before: dict, after: dict, paths: dict[UUID, str]) -> dict:
             found[key] = found.get(key, Decimal(0)) + Decimal(p["amount"])
         return found
 
+    def labels(snapshot: dict) -> dict[tuple[str, str], tuple[str | None, ...]]:
+        found: dict[tuple[str, str], list[str | None]] = {}
+        for p in snapshot.get("postings", []):
+            key = (paths.get(UUID(p["account"]), p["account"]), p["side"])
+            found.setdefault(key, []).append(p.get("category"))
+        return {key: tuple(sorted(value, key=str)) for key, value in found.items()}
+
     old, new = rows(before), rows(after)
+    old_labels, new_labels = labels(before), labels(after)
     added = [{"account": a, "side": s, "amount": new[a, s]} for a, s in new if (a, s) not in old]
     removed = [{"account": a, "side": s, "amount": old[a, s]} for a, s in old if (a, s) not in new]
     changed = [
@@ -109,8 +117,20 @@ def _diff(before: dict, after: dict, paths: dict[UUID, str]) -> dict:
         for a, s in new
         if (a, s) in old and old[a, s] != new[a, s]
     ]
-    if added or removed or changed:
-        changes["postings"] = {"added": added, "removed": removed, "changed": changed}
+    # A line moved to another category (only when both snapshots recorded categories at all).
+    relabelled = [
+        {"account": a, "side": s, "category_from": old_labels[a, s], "category_to": new_labels[a, s]}
+        for a, s in new
+        if (a, s) in old
+        and old[a, s] == new[a, s]
+        and old_labels[a, s] != new_labels[a, s]
+        and all(c is not None for c in old_labels[a, s] + new_labels[a, s])
+    ]
+    if added or removed or changed or relabelled:
+        rows_changed: dict[str, Any] = {"added": added, "removed": removed, "changed": changed}
+        if relabelled:
+            rows_changed["relabelled"] = relabelled
+        changes["postings"] = rows_changed
     return changes
 
 
@@ -144,6 +164,7 @@ class TransactionService:
         self.tr = tr
         self.ar = ar
         self.pr = pr or ProfileRepository(tr.db, tr.uid)
+        self.cr = CategoryRepository(tr.db, tr.uid)
         self._currency: Currency | None = None
 
     def currency(self) -> Currency:
@@ -153,8 +174,39 @@ class TransactionService:
                 raise RuntimeError("the profile names a currency finode does not know")
         return self._currency
 
+    def _check_categories(
+        self, postings, accounts_by_id: dict[UUID, Account], keep_categories: Collection[UUID] = frozenset()
+    ) -> None:
+        """A category named on a line is the person's own, open (unless the entry already used it), fits the account
+        (an Income or Expenses account stands for one category, and a line to any other account can only be spending)."""
+        named = [p for p in postings if p.category is not None]
+        if not named:
+            return
+        categories = {c.bcid: c for c in self.cr.list()}
+        for posting in named:
+            category = categories.get(posting.category)
+            if category is None:
+                raise InvalidPostingError(f"category with bcid '{posting.category}' not found!")
+            if category.closed_on is not None and category.bcid not in keep_categories:
+                raise InvalidPostingError(f"category '{category.name}' is closed: reopen it to use it!")
+            account = accounts_by_id[posting.account]
+            if account.category_id is not None:
+                if account.category_id != category.bcid:
+                    own = categories.get(account.category_id)
+                    raise InvalidPostingError(
+                        f"'{account.name}' stands for the category '{own.name if own else account.category_id}', "
+                        f"not '{category.name}': leave the category out, or pick the account that fits!"
+                    )
+            elif category.kind != "spending":
+                raise InvalidPostingError(
+                    f"'{category.name}' is an earning category: it can only go on a line to an income account!"
+                )
+
     def _resolve(
-        self, data: TransactionCreate | TransactionUpdate, keep_closed: Collection[UUID] = frozenset()
+        self,
+        data: TransactionCreate | TransactionUpdate,
+        keep_closed: Collection[UUID] = frozenset(),
+        keep_categories: Collection[UUID] = frozenset(),
     ) -> None:
         """Check the postings: the accounts can be posted to, the amounts fit the currency and the entry balances."""
         postings = data.postings
@@ -191,6 +243,8 @@ class TransactionService:
                     f"decimal place{'' if currency.decimals == 1 else 's'}!"
                 )
 
+        self._check_categories(postings, accounts_by_id, keep_categories)
+
         both = {p.account for p in postings if p.side == PostingSide.DEBIT} & {
             p.account for p in postings if p.side == PostingSide.CREDIT
         }
@@ -213,6 +267,7 @@ class TransactionService:
             account=posting.account,
             side=posting.side,
             amount=posting.amount,
+            category=posting.category_id,
             created=posting.created,
             updated=posting.updated,
         )
@@ -246,6 +301,7 @@ class TransactionService:
 
     def _history_read(self, row, paths: dict[UUID, str]) -> HistoryRead:
         snap = row.snapshot
+        names = {c.bcid: c.name for c in self.cr.list()}
         return HistoryRead(
             hid=row.hid,
             transaction=row.transaction_id,
@@ -263,6 +319,7 @@ class TransactionService:
                     account=paths.get(UUID(p["account"]), p["account"]),
                     side=p["side"],
                     amount=Decimal(p["amount"]),
+                    category=names.get(UUID(p["category"])) if p.get("category") else None,
                 )
                 for p in snap["postings"]
             ],
@@ -360,7 +417,12 @@ class TransactionService:
             external_id=snapshot.get("external_id"),
             source_url=snapshot.get("source_url"),
             postings=[
-                {"account": UUID(p["account"]), "side": p["side"], "amount": Decimal(p["amount"])}
+                {
+                    "account": UUID(p["account"]),
+                    "side": p["side"],
+                    "amount": Decimal(p["amount"]),
+                    "category": self._known_category(p.get("category")),
+                }
                 for p in snapshot["postings"]
             ],
             related_id=self._restorable_link(snapshot.get("related_id")),
@@ -374,6 +436,13 @@ class TransactionService:
         self.tr.db.commit()
         self.tr.db.refresh(transaction)
         return self._to_read(transaction)
+
+    def _known_category(self, value: str | None) -> UUID | None:
+        """The category a restored line had, if it is still there and open (otherwise the account decides)."""
+        if not value:
+            return None
+        category = self.cr.read(UUID(value))
+        return category.bcid if category is not None and category.closed_on is None else None
 
     def _restorable_link(self, value: str | None) -> UUID | None:
         """The entry a restored one was related to, if it is still there (otherwise the link is simply not restored)."""
@@ -867,8 +936,10 @@ class TransactionService:
         if not existing:
             raise ValueError(f"transaction with tid '{tid}' not found!")
         # Postings an entry already has on an account that was closed since stay allowed, so it can still be edited.
-        kept = {p.account for p in self.tr.postings(tid)}
-        self._resolve(data, kept)
+        existing_lines = self.tr.postings(tid)
+        kept = {p.account for p in existing_lines}
+        kept_categories = {p.category_id for p in existing_lines if p.category_id is not None}
+        self._resolve(data, kept, kept_categories)
         if "related_id" in data.model_fields_set:
             self._check_related(data.related_id, tid)
         if data.tags:

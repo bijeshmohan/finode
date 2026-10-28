@@ -17,6 +17,9 @@ class PostingBase(BaseModel):
     side: PostingSide
     # How many decimals it may have is checked against the currency.
     amount: Decimal = Field(decimal_places=8, max_digits=24)
+    # What the line was for (a budget category). Leave it out and the account decides: an Income or Expenses account
+    # stands for its category, and a payment into a loan or fund that has a payment category is that category's.
+    category: UUID | None = None
 
     @field_validator("amount")
     @classmethod
@@ -233,6 +236,8 @@ class HistoryPosting(BaseModel):
     account: str
     side: PostingSide
     amount: Decimal
+    # The name of the category the line was for, when it had one.
+    category: str | None = None
 
 
 class HistoryRead(BaseModel):
