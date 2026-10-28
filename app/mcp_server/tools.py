@@ -230,6 +230,7 @@ def get_overview() -> dict[str, Any]:
                 "to": summary.period_end.isoformat(),
                 "income": text(summary.income),
                 "expenses": text(summary.expenses),
+                "spent": text(summary.spent),
                 "net": text(summary.net_income),
             },
         }
@@ -638,19 +639,25 @@ def spending_breakdown(
     date_from: Annotated[date | None, Field(description="First day; the 1st of this month when left out")] = None,
     date_to: Annotated[date | None, Field(description="Last day; today when left out")] = None,
     depth: Annotated[int, Field(ge=1, le=2, description="1 = Food, Rent...; 2 = Food:Groceries...")] = 1,
+    by: Annotated[
+        Literal["category", "account"],
+        Field(
+            description="category (default): what the money was for, as the budget counts it, so paying into a loan is "
+            "spending in its category; account: the books' view per Income or Expenses account"
+        ),
+    ] = "category",
 ) -> dict[str, Any]:
-    """Expenses (or income) for a period per account, largest first."""
+    """Expenses (or income) for a period per category (or per account), largest first."""
     with services() as s:
-        report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
+        report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth, by)
         return {
             "kind": kind,
             "currency": report.currency,
             "from": report.period_start.isoformat(),
             "to": report.period_end.isoformat(),
             "total": text(report.total),
-            "by_account": [
-                {"account": line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines
-            ],
+            "by": by,
+            f"by_{by}": [{by: line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines],
         }
 
 

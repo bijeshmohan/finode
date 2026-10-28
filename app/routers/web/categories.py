@@ -47,7 +47,7 @@ def _month_context(when, is_current: bool) -> dict:
 def _figures(accounts, reports, root_name: str, when, end):
     """The month's amounts for one type: (the type's tree with closed empty categories left out, what was posted to
     each account itself, what each account and everything inside it came to)."""
-    own = reports.account_totals(root_name, when, end)
+    own = reports.category_totals("spending" if root_name == "Expenses" else "earning", when, end)
     root = next(r for r in build_tree(accounts.list()) if r.account.name == root_name)
     totals: dict[UUID, Decimal] = {}
 

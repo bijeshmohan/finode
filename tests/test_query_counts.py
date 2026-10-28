@@ -15,7 +15,7 @@ PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/ca
 CEILING = {
     "/transactions/new": 3,
     "/transactions": 11,  # + the tags of the rows shown (one query, whatever the number of rows)
-    "/": 14,  # + the categories (the budget reads them from their own table)
+    "/": 15,  # + the categories (their own table) and what the month spent by category
     "/accounts": 3,
     "/budget": 6,  # + the categories
     "/categories": 4,

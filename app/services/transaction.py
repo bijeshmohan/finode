@@ -190,6 +190,11 @@ class TransactionService:
             if category.closed_on is not None and category.bcid not in keep_categories:
                 raise InvalidPostingError(f"category '{category.name}' is closed: reopen it to use it!")
             account = accounts_by_id[posting.account]
+            if account.on_budget:
+                raise InvalidPostingError(
+                    f"'{account.name}' is part of the budget: a category goes on the other side of the entry, "
+                    "the account the money was spent on!"
+                )
             if account.category_id is not None:
                 if account.category_id != category.bcid:
                     own = categories.get(account.category_id)

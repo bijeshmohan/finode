@@ -2,6 +2,7 @@
 
 import builtins
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from sqlalchemy.orm import aliased
 from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
+from ..models.category import BudgetCategory
 from ..models.recurring import RecurringTransaction
 from ..models.tag import Tag, TransactionTag
 from ..models.transaction import Posting, PostingSide, Transaction
@@ -579,6 +581,34 @@ class TransactionRepository:
                 first.side != second.side,
             )
         ).one()
+
+    def category_sums(
+        self, kind: str, date_from: date, date_to: date
+    ) -> builtins.list[tuple[UUID, PostingSide, Decimal]]:
+        """What the lines labelled with a category of one kind add up to in a period: (category, side, total). One query."""
+        statement = (
+            select(Posting.category_id, Posting.side, func.sum(Posting.amount))
+            .join(Transaction, Transaction.tid == Posting.transaction)
+            .join(BudgetCategory, BudgetCategory.bcid == Posting.category_id)
+            .where(
+                Posting.user == self.uid,
+                Transaction.date >= date_from,
+                Transaction.date <= date_to,
+                BudgetCategory.kind == kind,
+            )
+            .group_by(col(Posting.category_id), col(Posting.side))
+        )
+        return [(c, s, Decimal(total)) for c, s, total in self.db.exec(statement).all()]
+
+    def postings_for_categories(self, bcids: builtins.list[UUID] | set[UUID]) -> builtins.list[Posting]:
+        """The lines labelled with any of these categories."""
+        if not bcids:
+            return []
+        return builtins.list(
+            self.db.exec(
+                select(Posting).where(Posting.user == self.uid, col(Posting.category_id).in_(builtins.list(bcids)))
+            ).all()
+        )
 
     def refresh_payment_labels(self, account_id: UUID, previous: UUID | None) -> None:
         """A loan's payment category (or the budget an account is in) changed: payments into loans outside the budget

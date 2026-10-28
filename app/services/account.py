@@ -568,25 +568,6 @@ class AccountService:
         postings = self._postings_by_account(all_accounts, as_of)  # one query for every balance
         return [self._to_read(account, all_accounts, as_of, postings) for account in filtered]
 
-    def payments_into_loans(
-        self, all_accounts: Sequence[Account | AccountRead], date_from: date | None = None, date_to: date | None = None
-    ) -> builtins.list[tuple[UUID, Posting]]:
-        """What was paid into accounts outside the budget (a loan) that name a payment category: (category, posting),
-        debits only and only in transactions that touch a budget account, which is what the Budget counts as
-        spending in that category too."""
-        linked = {a.aid: a.payment_category_id for a in all_accounts if a.payment_category_id and not a.on_budget}
-        if not linked:
-            return []
-        into = [
-            p for p in self.tr.postings_for_accounts(list(linked), date_from, date_to) if p.side == PostingSide.DEBIT
-        ]
-        if not into:
-            return []
-        budget_accounts = {a.aid for a in all_accounts if a.on_budget}
-        postings_of = self.tr.postings_for_transactions(list({p.transaction for p in into}))
-        touching = {tid for tid, rows in postings_of.items() if any(r.account in budget_accounts for r in rows)}
-        return [(linked[p.account], p) for p in into if p.transaction in touching]
-
     def register(self, aid: UUID, own_only: bool = False) -> builtins.list[RegisterEntry] | None:
         """Return the account's activity oldest first with a running balance.
 
@@ -604,17 +585,16 @@ class AccountService:
         normal_side = self._normal_side(account, accounts_by_id)
 
         changes: dict[UUID, Decimal] = {}
-        rows = self.tr.postings_for_accounts(list(target_ids))
-        # What was paid into a loan that is budgeted under this category (or one inside it) counts here too.
-        paid = [p for category, p in self.payments_into_loans(all_accounts) if category in target_ids]
-        loaded = self.tr.read_many(
-            list({p.transaction for p in [*rows, *paid]})
-        )  # one query for every transaction it needs
+        # An Income or Expenses account is its category: its entries are the lines labelled with it (or one inside it),
+        # which includes a payment into a loan that was labelled for it. Any other account lists what was posted to it.
+        if account.category_id is not None:
+            rows = self.tr.postings_for_categories(target_ids)
+        else:
+            rows = self.tr.postings_for_accounts(list(target_ids))
+        loaded = self.tr.read_many(list({p.transaction for p in rows}))  # one query for every transaction it needs
         for posting in rows:
             signed = posting.amount if posting.side == normal_side else -posting.amount
             changes[posting.transaction] = changes.get(posting.transaction, Decimal("0.00")) + signed
-        for posting in paid:
-            changes[posting.transaction] = changes.get(posting.transaction, Decimal("0.00")) + posting.amount
 
         transactions = [loaded[tid] for tid in changes if tid in loaded]
         transactions.sort(key=lambda t: (t.date, t.created))

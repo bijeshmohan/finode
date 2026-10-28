@@ -233,17 +233,26 @@ async def test_spending_breakdown(session, books, secret):
         await call(c, "record_transaction", amount="5000", from_account="Salary", to_account="HDFC")
         top = await call(c, "spending_breakdown")
         assert top["total"] == "630.00"
-        assert top["by_account"] == [{"account": "Travel", "amount": "500.00"}, {"account": "Food", "amount": "130.00"}]
+        assert top["by"] == "category"
+        assert top["by_category"] == [
+            {"category": "Travel", "amount": "500.00"},
+            {"category": "Food", "amount": "130.00"},
+        ]
+        by_account = await call(c, "spending_breakdown", by="account")
+        assert by_account["by_account"] == [
+            {"account": "Travel", "amount": "500.00"},
+            {"account": "Food", "amount": "130.00"},
+        ]
         deep = await call(c, "spending_breakdown", depth=2)
-        assert {line["account"]: line["amount"] for line in deep["by_account"]} == {
+        assert {line["category"]: line["amount"] for line in deep["by_category"]} == {
             "Travel:Food": "500.00",
             "Food:Groceries": "100.00",
             "Food": "30.00",
         }
         income = await call(c, "spending_breakdown", kind="income")
-        assert income["by_account"] == [{"account": "Salary", "amount": "5000.00"}]
+        assert income["by_category"] == [{"category": "Salary", "amount": "5000.00"}]
         last_year = await call(c, "spending_breakdown", date_from="2020-01-01", date_to="2020-12-31")
-        assert last_year["total"] == "0.00" and last_year["by_account"] == []
+        assert last_year["total"] == "0.00" and last_year["by_category"] == []
 
 
 async def test_create_account(session, client, books, secret):
