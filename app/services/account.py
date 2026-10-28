@@ -690,7 +690,7 @@ class AccountService:
         budget = BudgetRepository(self.ar.db, self.ar.uid)
         balance = self._to_read(source, all_accounts).balance
         tids = self.tr.transactions_touching(source_id)
-        months = budget.months_for_account(source_id)
+        months = budget.months_for_category(source_id)
         rules = RecurringRepository.rules_using(self.ar.db, self.ar.uid, source_id)
         links = sum(1 for a in all_accounts if a.payment_category_id == source_id)
         result = MergeResult(
@@ -713,7 +713,7 @@ class AccountService:
                 else None
             )
             self.tr.repoint_account(source_id, target_id, self.ar.origin, pair)
-            budget.merge_account(source_id, target_id)
+            budget.merge_category(source_id, target_id)
             RecurringRepository.repoint_account(self.ar.db, self.ar.uid, source_id, target_id)
             self.ar.repoint_payment_category(source_id, target_id)
             self.ar._record(self._read(target_id), "updated", merged_from=result.source)
@@ -990,9 +990,12 @@ class AccountService:
         elif on_budget and account.payment_category_id is not None:
             payment_category = None  # now part of the budget itself
 
+        previous_payment = account.payment_category_id
         updated = self.ar.update(aid, data, on_budget, payment_category)
         if not updated:
             raise RuntimeError(f"failed to update account with aid '{aid}'!")
+        if payment_category is not ... or on_budget is not None:
+            self.tr.refresh_payment_labels(aid, previous_payment)
 
         all_accounts = [a if a.aid != aid else updated for a in all_accounts]
 
@@ -1047,7 +1050,7 @@ class AccountService:
             "plan": [
                 {"month": row.month.isoformat(), "amount": str(row.amount)}
                 for row in budget.list()
-                if row.account_id == account.aid
+                if row.category_id == account.aid
             ],
             "linked": [str(a.aid) for a in all_accounts if a.payment_category_id == account.aid],
         }
@@ -1165,7 +1168,7 @@ class AccountService:
         account_read = self._to_read(account, all_accounts)
         budget = BudgetRepository(self.ar.db, self.ar.uid)
         self.ar.record_deletion(aid, self._deletion_snapshot(account, all_accounts, budget))
-        budget.delete_for_account(aid)  # only a plan: it goes with the category
+        budget.delete_for_category(aid)  # only a plan: it goes with the category
         self.ar.clear_payment_category(aid)
         deleted = self.ar.delete(aid, **({"merged_into": merged_into} if merged_into else {}))
         if not deleted:

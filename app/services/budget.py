@@ -8,8 +8,9 @@ from uuid import UUID
 from ..clock import FIRST_DAY, LAST_DAY, local_today
 from ..models.account import Account
 from ..models.budget import Goal
+from ..models.category import BudgetCategory
 from ..models.transaction import PostingSide
-from ..repositories import BudgetRepository, TransactionRepository
+from ..repositories import BudgetRepository, CategoryRepository, TransactionRepository
 from ..schemas.account import AccountUpdate
 from ..schemas.budget import BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, GoalLine
 from .account import AccountService
@@ -82,14 +83,24 @@ class BudgetService:
         self.accounts = accounts
         self.tr = tr
         self.br = br
+        self.cr = CategoryRepository(br.db, br.uid)
 
     # ---- reading ---------------------------------------------------------------------------------
 
-    def _categories(self, accounts: list[Account]) -> dict[UUID, Account]:
-        by_id = {a.aid: a for a in accounts}
-        return {
-            a.aid: a for a in accounts if a.parent_id is not None and AccountService.root_name(a, by_id) == "Expenses"
-        }
+    def _categories(self) -> dict[UUID, BudgetCategory]:
+        """The spending categories (earning ones are not budgeted), closed ones too."""
+        return {c.bcid: c for c in self.cr.list() if c.kind == "spending"}
+
+    @staticmethod
+    def _category_path(category: BudgetCategory, by_id: dict[UUID, BudgetCategory]) -> list[str]:
+        names: list[str] = []
+        seen: set[UUID] = set()
+        current: BudgetCategory | None = category
+        while current is not None and current.bcid not in seen:
+            seen.add(current.bcid)
+            names.append(current.name)
+            current = by_id.get(current.parent_id) if current.parent_id else None
+        return list(reversed(names))
 
     def _path(self, account: Account, by_id: dict[UUID, Account]) -> list[str]:
         names: list[str] = []
@@ -111,8 +122,9 @@ class BudgetService:
         accounts = self.accounts.ar.list()
         by_id = {a.aid: a for a in accounts}
         parents = {a.parent_id for a in accounts if a.parent_id is not None}
-        categories = self._categories(accounts)
-        # Accounts outside the budget (loans) whose payments are budgeted under a category.
+        categories = self._categories()
+        # Books accounts that stand for a spending category, and loans outside the budget that name one for their payments.
+        spend_accounts = {a.aid for a in accounts if a.category_id in categories}
         payments = {
             a.aid: a.payment_category_id for a in accounts if a.payment_category_id in categories and not a.on_budget
         }
@@ -151,7 +163,7 @@ class BudgetService:
         for p in postings:
             if p.transaction in touching:
                 continue
-            if p.account in categories and first_of_month(p.date) == month:
+            if p.account in spend_accounts and first_of_month(p.date) == month:
                 value = p.amount if p.side == PostingSide.DEBIT else -p.amount
                 outside.setdefault(p.transaction, [ZERO, set()])[0] += value
         for p in postings:
@@ -163,18 +175,18 @@ class BudgetService:
         allocations = [row for row in every_row if row.month <= month]
         # Money assigned to later months is out of what can be assigned now.
         every_goal_row = [r for r in self.br.goal_allocations() if r.goal_id in goal_names]
-        later = sum((row.amount for row in every_row if row.month > month and row.account_id in categories), ZERO)
+        later = sum((row.amount for row in every_row if row.month > month and row.category_id in categories), ZERO)
         later += sum((row.amount for row in every_goal_row if row.month > month), ZERO)
         previous_month = first_of_month(month - timedelta(days=1))
-        assigned_here = {row.account_id for row in allocations if row.month == month}
+        assigned_here = {row.category_id for row in allocations if row.month == month}
         copyable = sum(
             (
                 row.amount
                 for row in allocations
                 if row.month == previous_month
-                and row.account_id in categories
-                and row.account_id not in assigned_here
-                and categories[row.account_id].closed_on is None
+                and row.category_id in categories
+                and row.category_id not in assigned_here
+                and categories[row.category_id].closed_on is None
             ),
             ZERO,
         )
@@ -209,12 +221,8 @@ class BudgetService:
                     book_[0] += p.amount if p.side == PostingSide.DEBIT else -p.amount
                     if first_of_month(p.date) == month:
                         book_[2 if p.side == PostingSide.DEBIT else 1] += p.amount
-            # Spending is what is posted to a category, and what is paid into an account that has one.
-            target = (
-                p.account
-                if p.account in categories
-                else (payments.get(p.account) if p.side == PostingSide.DEBIT else None)
-            )
+            # Spending is what a line says it was for, when its own account is not part of the budget.
+            target = p.category_id if p.category_id in categories and p.account not in in_budget else None
             if target is not None and p.transaction in touching:
                 if first_of_month(p.date) < start:
                     continue
@@ -222,8 +230,8 @@ class BudgetService:
                 figures = by_category.setdefault(target, {}).setdefault(first_of_month(p.date), [ZERO, ZERO])
                 figures[1] += value
         for row in allocations:
-            if row.account_id in categories:
-                by_category.setdefault(row.account_id, {}).setdefault(row.month, [ZERO, ZERO])[0] += row.amount
+            if row.category_id in categories:
+                by_category.setdefault(row.category_id, {}).setdefault(row.month, [ZERO, ZERO])[0] += row.amount
 
         previous = first_of_month(month - timedelta(days=1))
         own: dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]] = {}
@@ -269,7 +277,7 @@ class BudgetService:
         )
         reserved = sum((c.owed for c in cards), ZERO)
 
-        lines = self._lines(categories, by_id, parents, own)
+        lines = self._lines(categories, own)
         read = BudgetRead(
             month=month,
             currency=currency.code,
@@ -352,19 +360,18 @@ class BudgetService:
             root = by_id[root.parent_id]
         return [root.name, *names]
 
-    def _lines(self, categories, by_id, parents, own) -> list[BudgetLine]:
+    def _lines(self, categories: dict[UUID, BudgetCategory], own) -> list[BudgetLine]:
         """The categories as a tree in display order: a group row (sums) before its subcategories;
         a group that was itself posted to or assigned money also gets an '(other)' row of its own."""
-        children: dict[UUID | None, list[Account]] = {}
-        for a in categories.values():
-            children.setdefault(a.parent_id, []).append(a)
+        children: dict[UUID | None, list[BudgetCategory]] = {}
+        for c in categories.values():
+            children.setdefault(c.parent_id if c.parent_id in categories else None, []).append(c)
         for kids in children.values():
-            kids.sort(key=AccountService.order_key)
-        expenses_root = next((a for a in by_id.values() if a.parent_id is None and a.name == "Expenses"), None)
+            kids.sort(key=lambda c: c.name.lower())
         zero = (ZERO, ZERO, ZERO, ZERO)
 
-        def total(account: Account) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-            parts = [own.get(account.aid, zero)] + [total(c) for c in children.get(account.aid, [])]
+        def total(category: BudgetCategory) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+            parts = [own.get(category.bcid, zero)] + [total(c) for c in children.get(category.bcid, [])]
             return (
                 sum((p[0] for p in parts), ZERO),
                 sum((p[1] for p in parts), ZERO),
@@ -372,20 +379,20 @@ class BudgetService:
                 sum((p[3] for p in parts), ZERO),
             )
 
-        def visible(account: Account) -> bool:
+        def visible(category: BudgetCategory) -> bool:
             """A closed category disappears from the budget once nothing is left in it for the month."""
             return (
-                account.closed_on is None
-                or any(own.get(account.aid, zero))
-                or any(visible(c) for c in children.get(account.aid, []))
+                category.closed_on is None
+                or any(own.get(category.bcid, zero))
+                or any(visible(c) for c in children.get(category.bcid, []))
             )
 
-        def line(account: Account, name: str, depth: int, figures, group: bool = False) -> BudgetLine:
+        def line(category: BudgetCategory, name: str, depth: int, figures, group: bool = False) -> BudgetLine:
             a, s, v, o = figures
             return BudgetLine(
-                aid=account.aid,
+                aid=category.bcid,
                 name=name,
-                path=":".join(self._path(account, by_id)),
+                path=":".join(self._category_path(category, categories)),
                 depth=depth,
                 group=group,
                 assigned=a,
@@ -396,32 +403,32 @@ class BudgetService:
 
         lines: list[BudgetLine] = []
 
-        def walk(account: Account, depth: int) -> None:
-            kids = [k for k in children.get(account.aid, []) if visible(k)]
+        def walk(category: BudgetCategory, depth: int) -> None:
+            kids = [k for k in children.get(category.bcid, []) if visible(k)]
             if not kids:
-                lines.append(line(account, account.name, depth, own[account.aid]))
+                lines.append(line(category, category.name, depth, own[category.bcid]))
                 return
-            lines.append(line(account, account.name, depth, total(account), group=True))
-            if any(own[account.aid]):
-                lines.append(line(account, f"{account.name} (other)", depth + 1, own[account.aid]))
+            lines.append(line(category, category.name, depth, total(category), group=True))
+            if any(own[category.bcid]):
+                lines.append(line(category, f"{category.name} (other)", depth + 1, own[category.bcid]))
             for kid in kids:
                 walk(kid, depth + 1)
 
-        if expenses_root is not None:
-            for top in children.get(expenses_root.aid, []):
-                if visible(top):
-                    walk(top, 1)
+        for top in children.get(None, []):
+            if visible(top):
+                walk(top, 1)
         return lines
 
     # ---- changing the plan -----------------------------------------------------------------------
 
-    def _category(self, aid: UUID) -> Account:
-        account = self.accounts.ar.read(aid)
-        if account is None:
+    def _category(self, aid: UUID) -> BudgetCategory:
+        category = self._categories().get(aid)
+        if category is not None:
+            return category
+        found = self.cr.read(aid) or self.accounts.ar.read(aid)
+        if found is None:
             raise BudgetError("category not found!")
-        if aid not in self._categories(self.accounts.ar.list()):
-            raise BudgetError(f"'{account.name}' is not an expense account: only expense accounts can be budgeted!")
-        return account
+        raise BudgetError(f"'{found.name}' is not an expense account: only expense accounts can be budgeted!")
 
     def _check_amount(self, amount: Decimal) -> None:
         currency = self.accounts.currency()
@@ -552,7 +559,7 @@ class BudgetService:
             available = self._compute(month)[1][aid][2]
             taken = self.assigned(month, aid) - amount
             if taken > available:
-                name = self.accounts._read(aid).name
+                name = self._category(aid).name
                 raise BudgetError(
                     f"only {max(available, ZERO):f} is available in '{name}' to take out: assign at least "
                     f"{self.assigned(month, aid) - max(available, ZERO):f}!"
@@ -591,16 +598,16 @@ class BudgetService:
         """Assign this month what each category got last month, for the categories with nothing assigned yet."""
         month = month_start(month)
         previous = first_of_month(month - timedelta(days=1))
-        categories = self._categories(self.accounts.ar.list())
+        categories = self._categories()
         rows = self.br.list(up_to=month)
-        have = {row.account_id for row in rows if row.month == month}
+        have = {row.category_id for row in rows if row.month == month}
         wanted = [
             row
             for row in rows
             if row.month == previous
-            and row.account_id in categories
-            and row.account_id not in have
-            and categories[row.account_id].closed_on is None
+            and row.category_id in categories
+            and row.category_id not in have
+            and categories[row.category_id].closed_on is None
         ]
         goal_rows = [r for r in self.br.goal_allocations(up_to=month) if r.goal_id in {g.gid for g in self.br.goals()}]
         goal_have = {r.goal_id for r in goal_rows if r.month == month}
@@ -612,8 +619,8 @@ class BudgetService:
                 else "everything last month had is already assigned this month!"
             )
         for row in wanted:
-            if row.account_id is not None:
-                self.br.set(month, row.account_id, row.amount)
+            if row.category_id is not None:
+                self.br.set(month, row.category_id, row.amount)
         for goal_row in goal_wanted:
             self.br.set_goal(month, goal_row.goal_id, goal_row.amount)
         self.br.db.commit()

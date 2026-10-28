@@ -529,7 +529,14 @@ class TransactionRepository:
         """Every posting of transactions dated up to a day, as (transaction, account, side, amount, date) rows: what the
         budget is worked out from, without payees, notes or timestamps. One query, remembered for the request."""
         statement = (
-            select(Posting.transaction, Posting.account, Posting.side, Posting.amount, Transaction.date)
+            select(
+                Posting.transaction,
+                Posting.account,
+                Posting.side,
+                Posting.amount,
+                Transaction.date,
+                Posting.category_id,
+            )
             .join(Transaction, Transaction.tid == Posting.transaction)
             .where(Posting.user == self.uid, Transaction.user == self.uid, Transaction.date <= date_to)
         )
@@ -572,6 +579,57 @@ class TransactionRepository:
                 first.side != second.side,
             )
         ).one()
+
+    def refresh_payment_labels(self, account_id: UUID, previous: UUID | None) -> None:
+        """A loan's payment category (or the budget an account is in) changed: payments into loans outside the budget
+        that name a category carry it again. The loan's own lines that carried the old one (or none) take the new
+        one; lines the person labelled otherwise are left alone. Nothing is committed."""
+        touching = (
+            select(Posting.transaction)
+            .join(Account, Account.aid == Posting.account)
+            .where(Posting.user == self.uid, col(Account.on_budget).is_(True))
+        )
+        loan = self.db.get(Account, account_id)
+        if loan is not None and loan.user == self.uid:
+            new = loan.payment_category_id if not loan.on_budget else None
+            if new is not None:
+                new = self.db.exec(select(Account.category_id).where(Account.aid == new)).first()
+            stale = Posting.category_id.is_(None) if previous is None else col(Posting.category_id).in_([previous])
+            self.db.exec(
+                update(Posting)
+                .where(
+                    Posting.user == self.uid,
+                    Posting.account == account_id,
+                    Posting.side == PostingSide.DEBIT,
+                    or_(Posting.category_id.is_(None), stale),
+                    col(Posting.transaction).in_(touching),
+                )
+                .values(category_id=new)
+            )
+        # Any other loan with a payment category: its unlabelled payments in entries that touch the budget.
+        for other in self.db.exec(
+            select(Account).where(
+                Account.user == self.uid,
+                col(Account.payment_category_id).is_not(None),
+                col(Account.on_budget).is_(False),
+                Account.aid != account_id,
+            )
+        ).all():
+            category = self.db.exec(select(Account.category_id).where(Account.aid == other.payment_category_id)).first()
+            if category is None:
+                continue
+            self.db.exec(
+                update(Posting)
+                .where(
+                    Posting.user == self.uid,
+                    Posting.account == other.aid,
+                    Posting.side == PostingSide.DEBIT,
+                    Posting.category_id.is_(None),
+                    col(Posting.transaction).in_(touching),
+                )
+                .values(category_id=category)
+            )
+        self.db.expire_all()
 
     def labelled(self, category: UUID) -> builtins.list[UUID]:
         """The entries that have a line labelled with a category."""
