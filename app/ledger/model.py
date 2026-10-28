@@ -12,6 +12,9 @@ class LedgerPosting:
     line: int = 0
     # What the amount is of, as written in the file ("INR", "$"); None when written without one.
     commodity: str | None = None
+    # What the line was for, as the path of an expense category ("EMI", "Food:Groceries"), written as a comment on the
+    # posting (`; category: EMI`); None when it says nothing (the account's own category applies).
+    category: str | None = None
 
 
 @dataclass

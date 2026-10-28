@@ -16,7 +16,7 @@ from ..ledger import AccountDecl, LedgerPosting, LedgerTransaction, parse, write
 from ..ledger.parse import _plain
 from ..limits import LimitReached, ensure_room
 from ..models.transaction import PostingSide
-from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
+from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..schemas.account import AccountCreate
 from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
@@ -73,6 +73,8 @@ class _Planned:
     comment: str | None
     postings: list[tuple[Key, PostingSide, Decimal]]  # account, side, amount
     tags: list[str] = field(default_factory=list)
+    # The category each line names (the key of its Expenses account), or None; parallel to `postings`.
+    categories: list[Key | None] = field(default_factory=list)
 
 
 @dataclass
@@ -147,6 +149,21 @@ class DataService:
         transactions = sorted(self.tr.list(), key=lambda t: (t.date, t.created))
         return accounts, paths, postings, transactions, self.tr.all_tag_map()
 
+    def _category_paths(self) -> dict[UUID, str]:
+        """Each category as the path a ledger line names it by: its group and its name ("Food:Groceries")."""
+        by_id = {c.bcid: c for c in CategoryRepository(self.ar.db, self.ar.uid).list()}
+        found: dict[UUID, str] = {}
+        for bcid, category in by_id.items():
+            names, seen, current = [], set(), category
+            while current.bcid not in seen:
+                seen.add(current.bcid)
+                names.append(current.name)
+                if current.parent_id is None or current.parent_id not in by_id:
+                    break
+                current = by_id[current.parent_id]
+            found[bcid] = ":".join(reversed(names))
+        return found
+
     def export_ledger(self) -> str:
         accounts, paths, postings, transactions, tags = self._snapshot()
         decls = [
@@ -155,9 +172,16 @@ class DataService:
             if a.parent_id is not None
         ]
         entries = []
+        own = {a.aid: a.category_id for a in accounts}
+        names = self._category_paths()
         for t in transactions:
             lines = [
-                LedgerPosting(paths[p.account], p.amount if p.side == PostingSide.DEBIT else -p.amount)
+                LedgerPosting(
+                    paths[p.account],
+                    p.amount if p.side == PostingSide.DEBIT else -p.amount,
+                    # Only a label the account does not say itself (a payment into a loan: EMI) is written.
+                    category=names.get(p.category_id) if p.category_id != own.get(p.account) else None,
+                )
                 for p in postings.get(t.tid, [])
             ]
             if len(lines) >= 2:
@@ -171,7 +195,8 @@ class DataService:
         _accounts, paths, postings, transactions, tags = self._snapshot()
         out = io.StringIO()
         writer = csv.writer(out)
-        writer.writerow(["date", "payee", "note", "tags", "account", "debit", "credit"])
+        writer.writerow(["date", "payee", "note", "tags", "account", "category", "debit", "credit"])
+        names = self._category_paths()
         for t in transactions:
             for p in postings.get(t.tid, []):
                 shown = f"{p.amount:.2f}"
@@ -184,6 +209,7 @@ class DataService:
                         _formula_safe(t.comment),
                         ", ".join(tags.get(t.tid, [])),
                         paths[p.account],
+                        names.get(p.category_id, "") if p.category_id else "",
                         debit,
                         credit,
                     ]
@@ -312,7 +338,9 @@ class DataService:
                 payee = payee[:40].rstrip()
             notes, tags = _take_tags(notes, transaction.line, errors)
             comment = " · ".join(notes) or None
-            planned = self._plan_transaction(transaction, lines, payee, comment, currency.decimals, errors, tags)
+            planned = self._plan_transaction(
+                transaction, lines, payee, comment, currency.decimals, errors, tags, known | set(existing)
+            )
             if planned is None:
                 continue
             for key, side, amount in planned.postings:
@@ -361,6 +389,7 @@ class DataService:
         decimals: int,
         errors: list[str],
         tags: list[str] | None = None,
+        known: set[Key] | None = None,
     ) -> _Planned | None:
         """One transaction: its postings, checked the way entering it by hand would be."""
         try:
@@ -369,6 +398,7 @@ class DataService:
             return None  # already reported while collecting accounts
 
         postings = []
+        categories: list[Key | None] = []
         for posting, key in zip(lines, keys, strict=False):
             amount = abs(posting.amount)
             side = PostingSide.DEBIT if posting.amount > 0 else PostingSide.CREDIT
@@ -379,6 +409,10 @@ class DataService:
                 )
                 return None
             postings.append((key, side, amount))
+            before = len(errors)
+            categories.append(self._line_category(posting, key, known or set(), errors))
+            if len(errors) > before:
+                return None
 
         debits = sum((a for _, s, a in postings if s == PostingSide.DEBIT), Decimal(0))
         credits = sum((a for _, s, a in postings if s == PostingSide.CREDIT), Decimal(0))
@@ -396,7 +430,30 @@ class DataService:
         except ValidationError as e:
             errors.append(f"line {transaction.line}: {_message(e)}")
             return None
-        return _Planned(transaction.date, payee, comment, postings, tags or [])
+        return _Planned(transaction.date, payee, comment, postings, tags or [], categories)
+
+    @staticmethod
+    def _line_category(posting: LedgerPosting, key: Key, known: set[Key], errors: list[str]) -> Key | None:
+        """The expense category a line names (`; category: EMI`) as the key of its Expenses account, checked: it must be
+        an expense category of the file or the books, and a line to an Expenses or Income account can only name its own."""
+        if not posting.category:
+            return None
+        try:
+            named = _resolve(f"Expenses:{posting.category}")
+        except ValueError:
+            errors.append(f"line {posting.line}: '{posting.category}' is not a category name")
+            return None
+        if named not in known:
+            errors.append(f"line {posting.line}: the category '{posting.category}' is not an expense category here")
+        elif key[0] in ("Expenses", "Income"):
+            if key != named:
+                errors.append(f"line {posting.line}: '{':'.join(key)}' stands for its own category; leave it out")
+        elif key[0] == "Assets":
+            errors.append(
+                f"line {posting.line}: a category goes on the other side of the entry, "
+                f"not on '{':'.join(key)}' (money in the budget)"
+            )
+        return named
 
     def preview_import(self, text: str) -> ImportSummary:
         return self._plan(text).summary
@@ -418,7 +475,10 @@ class DataService:
                         date=planned.date,
                         payee=planned.payee,
                         comment=planned.comment,
-                        postings=[PostingCreate(account=ids[k], side=s, amount=a) for k, s, a in planned.postings],
+                        postings=[
+                            PostingCreate(account=ids[k], side=s, amount=a, category=ids[c] if c else None)
+                            for (k, s, a), c in zip(planned.postings, planned.categories, strict=True)
+                        ],
                         tags=planned.tags,
                     ),
                     origin="import",

@@ -20,6 +20,8 @@ class RecurringPostingData(BaseModel):
     account: UUID
     side: PostingSide
     amount: Decimal = Field(gt=Decimal(0), decimal_places=8, max_digits=24)
+    # What the row is for (a budget category), as on a transaction's posting; leave it out and the account decides.
+    category: UUID | None = None
 
 
 class RecurringBase(BaseModel):
@@ -27,6 +29,8 @@ class RecurringBase(BaseModel):
     from_account: UUID | None = None
     to_account: UUID | None = None
     amount: Decimal | None = Field(default=None, decimal_places=8, max_digits=24)
+    # What a simple rule is for (a payment into a loan or fund, say: EMI). Leave it out and the accounts decide.
+    category: UUID | None = None
     # ... or a split across several accounts instead.
     postings: list[RecurringPostingData] = []
     payee: str | None = Field(default=None, max_length=40)

@@ -11,9 +11,9 @@ from ..models.transaction import PostingSide
 from .day import Day
 
 FORMAT = "finode-backup"
-VERSION = 3
+VERSION = 4
 # Files of version 1 (before finode kept one currency) are still read; what they carry beyond that is below.
-READS = (1, 2, 3)
+READS = (1, 2, 3, 4)
 
 
 class BackupProfile(BaseModel):
@@ -35,12 +35,17 @@ class BackupAccount(BaseModel):
     # Older backups: accounts could be pinned. Read, never written.
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); a restore maps them onto the person's own.
     system_key: str | None = None
+    # Version 4: the built-in key of the category this Income or Expenses account stands for ("uncategorised.spending").
+    category_key: str | None = None
 
 
 class BackupPosting(BaseModel):
     account: UUID
     side: PostingSide
     amount: Decimal
+    # Version 4: what the line was for, as the id of the Income or Expenses account whose category it is (a file
+    # before has none: each line then takes the category of its account).
+    category: UUID | None = None
     # Version 1 only: the worth in the transaction's currency; must equal the amount.
     value: Decimal | None = Field(default=None, exclude=True)
 
@@ -69,6 +74,7 @@ class BackupRecurringPosting(BaseModel):
     account: UUID
     side: PostingSide
     amount: Decimal
+    category: UUID | None = None
     value: Decimal | None = Field(default=None, exclude=True)
 
 
@@ -77,6 +83,7 @@ class BackupRecurring(BaseModel):
     from_account: UUID | None = None
     to_account: UUID | None = None
     amount: Decimal | None = None
+    category: UUID | None = None
     received_amount: Decimal | None = Field(default=None, exclude=True)
     currency: str | None = Field(default=None, exclude=True)
     postings: list[BackupRecurringPosting] = []

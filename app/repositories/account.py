@@ -37,7 +37,7 @@ class AccountRepository:
         """An Income or Expenses account comes with its category (see repositories/category.py)."""
         CategoryRepository(self.db, self.uid).mirror_create(account, {a.aid: a for a in self.list()})
 
-    def _mirror_update(self, accounts: builtins.list[Account]) -> None:
+    def sync_categories(self, accounts: builtins.list[Account]) -> None:
         categories = CategoryRepository(self.db, self.uid)
         by_id = {a.aid: a for a in self.list()}
         for account in accounts:
@@ -152,7 +152,7 @@ class AccountRepository:
             account.payment_category_id = payment_category
         self.db.add(account)
         self.db.flush()
-        self._mirror_update([account])
+        self.sync_categories([account])
         self._record(account, "updated")
         return account
 
@@ -197,7 +197,7 @@ class AccountRepository:
             account.closed_on = day
             self.db.add(account)
             self.db.flush()
-            self._mirror_update([account])
+            self.sync_categories([account])
             self._record(account, "closed" if day else "reopened")
         self.db.flush()
 
