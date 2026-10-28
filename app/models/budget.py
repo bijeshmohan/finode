@@ -17,12 +17,17 @@ class BudgetAllocation(TimestampMixin, table=True):
     """
 
     __tablename__ = "budget_allocations"
-    __table_args__ = (Index("uq_budget_allocations", "user", "month", "account_id", unique=True),)
+    __table_args__ = (
+        Index("uq_budget_allocations", "user", "month", "account_id", unique=True),
+        Index("uq_budget_allocations_category", "user", "month", "category_id", unique=True),
+    )
 
     bid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")
     month: Date
-    account_id: UUID = Field(foreign_key="accounts.aid")
+    # Being replaced by `category_id`: a category made later has no account yet, so this may be empty.
+    account_id: UUID | None = Field(default=None, foreign_key="accounts.aid")
+    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.bcid", index=True)
     amount: Decimal = Field(sa_type=Amount())
 
 

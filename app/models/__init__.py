@@ -4,6 +4,7 @@ from .account_history import AccountHistory
 from .api_token import ApiToken
 from .auth import AuthUser
 from .budget import BudgetAllocation, Goal, GoalAllocation
+from .category import BudgetCategory, CategoryKind
 from .oauth_grant import OAuthGrant
 from .profile import Profile
 from .recurring import RecurringPosting, RecurringTransaction
@@ -18,6 +19,8 @@ __all__ = [
     "ApiToken",
     "AuthUser",
     "BudgetAllocation",
+    "BudgetCategory",
+    "CategoryKind",
     "Goal",
     "GoalAllocation",
     "OAuthGrant",

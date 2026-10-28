@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 from app.config import settings
-from app.models import account, api_token, auth, oauth_grant, profile, recurring, transaction  # noqa: F401  register tables
+from app.models import account, api_token, auth, category, oauth_grant, profile, recurring, transaction  # noqa: F401  register tables
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

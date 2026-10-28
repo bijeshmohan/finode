@@ -612,7 +612,8 @@ class BudgetService:
                 else "everything last month had is already assigned this month!"
             )
         for row in wanted:
-            self.br.set(month, row.account_id, row.amount)
+            if row.account_id is not None:
+                self.br.set(month, row.account_id, row.amount)
         for goal_row in goal_wanted:
             self.br.set_goal(month, goal_row.goal_id, goal_row.amount)
         self.br.db.commit()

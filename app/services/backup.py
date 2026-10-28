@@ -144,6 +144,7 @@ class BackupService:
             allocations=[
                 BackupAllocation(month=row.month, account_id=row.account_id, amount=row.amount)
                 for row in self.br.list()
+                if row.account_id is not None
             ],
             goals=[
                 BackupGoal(
