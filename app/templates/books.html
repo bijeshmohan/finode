@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Books accounts · finode{% endblock %}
+{% block content %}
+<a class="back" href="/settings">{{ icon("back") }}Settings</a>
+<div class="page-head tall"><h1>Books accounts</h1></div>
+<p class="muted books-intro">What the books record behind your categories. You can leave this alone.</p>
+
+{% for g in groups %}
+<h2 class="settings-label">{{ g.title }}</h2>
+{% if g.rows %}
+<div class="tile">
+  {% for r in g.rows %}
+  <button type="button" class="setting setting-link tag-row books-row{{ ' closed' if r.account.closed_on }}" hx-get="/books/{{ r.account.aid }}/sheet" hx-target="#books-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+    <span class="books-main"><span class="setting-title">{{ r.account.name }}</span>{% if r.feeds or r.account.closed_on %}<small class="muted">{% if r.feeds %}feeds {{ r.feeds }}{% endif %}{% if r.feeds and r.account.closed_on %} · {% endif %}{% if r.account.closed_on %}closed{% endif %}</small>{% endif %}</span>
+    <span class="books-path muted">{{ r.path }}</span>
+  </button>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">Nothing here yet.</p>
+{% endif %}
+{% endfor %}
+<button type="button" class="add-row" hx-get="/books/new" hx-target="#books-sheet-body" hx-swap="innerHTML" hx-push-url="false">{{ icon("plus") }}New books account</button>
+
+<dialog id="books-sheet" class="sheet sheet-bottom" aria-label="Books account">
+  <div id="books-sheet-body" class="sheet-body"></div>
+</dialog>
+{% endblock %}

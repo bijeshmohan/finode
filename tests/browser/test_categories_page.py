@@ -69,7 +69,7 @@ def test_the_month_total_and_the_income_tab(page: Page, books, api: Api):
     )
     page.goto("/categories")
     expect(page.locator(".cat-hero .figure")).to_have_text("₹900.00")
-    page.get_by_role("link", name="Income").click()
+    page.get_by_role("link", name="Earning").click()
     expect(page.locator(".cat-hero .figure")).to_have_text("₹5,000.00")
     expect(page.locator("a.crow", has_text="Salary")).to_be_visible()
 

@@ -12,7 +12,7 @@ from ..models.category import BudgetCategory
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, CategoryRepository, TransactionRepository
 from ..schemas.account import AccountUpdate
-from ..schemas.budget import BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, GoalLine
+from ..schemas.budget import BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetUncategorised, GoalLine
 from .account import AccountService
 from .transaction import decimal_places
 
@@ -112,6 +112,15 @@ class BudgetService:
             current = by_id.get(current.parent_id)
         return list(reversed(names))
 
+    def spending_categories(self, include_closed: bool = False) -> list[BudgetCategory]:
+        """The categories a payment can be given, A to Z by path."""
+        every = self._categories()
+        found = [c for c in every.values() if include_closed or c.closed_on is None]
+        return sorted(found, key=lambda c: [part.casefold() for part in self._category_path(c, every)])
+
+    def category_path(self, category: BudgetCategory) -> list[str]:
+        return self._category_path(category, self._categories())
+
     def view(self, month: date | None = None) -> BudgetRead:
         return self._compute(month)[0]
 
@@ -157,6 +166,34 @@ class BudgetService:
         for p in postings:
             if p.account in in_budget:
                 touching.add(p.transaction)
+
+        # Payments this month into accounts outside the budget (a loan, a fund) that no category took.
+        unlabelled = [
+            p
+            for p in postings
+            if p.transaction in touching
+            and p.side == PostingSide.DEBIT
+            and p.category_id is None
+            and p.account not in in_budget
+            and first_of_month(p.date) == month
+            and p.account in by_id
+            and by_id[p.account].category_id is None
+            and AccountService.root_name(by_id[p.account], by_id) in ("Assets", "Liabilities")
+        ]
+        uncategorised: list[BudgetUncategorised] = []
+        if unlabelled:
+            entries = self.tr.read_many(list({p.transaction for p in unlabelled}))
+            for p in sorted(unlabelled, key=lambda p: (p.date, str(p.transaction)), reverse=True):
+                entry = entries.get(p.transaction)
+                uncategorised.append(
+                    BudgetUncategorised(
+                        tid=p.transaction,
+                        date=p.date,
+                        payee=entry.payee if entry else None,
+                        account=":".join(self._path_with_root(by_id[p.account], by_id)),
+                        amount=p.amount,
+                    )
+                )
 
         # Spending this month in transactions that touch no budget account: [value, accounts that paid].
         outside: dict[UUID, list] = {}
@@ -296,6 +333,7 @@ class BudgetService:
             money_in_accounts=cash + reserved,
             reserved_for_cards=reserved,
             cards=cards,
+            uncategorised=uncategorised,
             left_out=left_out_total,
             left_out_accounts=left_out_accounts,
             budget_accounts=budget_accounts,

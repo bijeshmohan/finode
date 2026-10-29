@@ -126,7 +126,7 @@ def test_income_is_its_own_tab_with_a_plus_free_green_list(client, books):
         and "Salary" in page
         and "Rent" not in page
     )
-    assert 'aria-pressed="true">Income<' in page
+    assert 'aria-pressed="true">Earning<' in page
 
 
 def test_every_category_shows_even_with_nothing_in_the_month(client, books):
@@ -164,15 +164,16 @@ def test_adding_and_deleting_a_category_stay_on_the_categories_side(client, book
 
 def test_the_empty_page_invites_the_first_category(client, root_accounts):
     page = client.get("/categories").text
-    assert "No expense categories yet" in page and 'href="/categories/new?root=expense"' in page
+    assert "No spending categories yet" in page and 'href="/categories/new?root=expense"' in page
 
 
-def test_the_chips_are_expense_and_income_and_the_old_spelling_still_works(client, books):
+def test_the_chips_are_spending_and_earning_and_both_spellings_of_the_tab_work(client, books):
     entry(client, books["rent"], books["bank"], "700", THIS_MONTH)
     page = client.get("/categories").text
-    assert 'aria-pressed="true">Expense<' in page and ">Income<" in page and ">Spending<" not in page
-    old = client.get("/categories?tab=spending").text
-    assert 'aria-pressed="true">Expense<' in old and "700.00" in old
+    assert 'aria-pressed="true">Spending<' in page and ">Earning<" in page and ">Expense<" not in page
+    for tab in ("spending", "expense"):
+        assert 'aria-pressed="true">Spending<' in client.get(f"/categories?tab={tab}").text
+    assert 'aria-pressed="true">Earning<' in client.get("/categories?tab=earning").text
 
 
 # ---- deleting a category -----------------------------------------------------------------------------------------------

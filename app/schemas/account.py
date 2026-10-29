@@ -42,6 +42,9 @@ class AccountCreate(AccountBase):
     on_budget: bool | None = None
     # For an account outside the budget: the expense category that payments into it are budgeted under.
     payment_category_id: UUID | None = None
+    # For an Income or Expenses account: the category it feeds. Leave it out and the account gets a category of its own
+    # (the same name and id); name one and it is an extra books account of that category (Interest under EMI).
+    category_id: UUID | None = None
 
 
 class AccountRead(AccountBase):
@@ -73,6 +76,8 @@ class AccountUpdate(BaseModel):
     on_budget: bool | None = None
     # Send null to remove it; leave it out to keep it.
     payment_category_id: UUID | None = None
+    # An extra books account can feed another category (an account that stands for a category itself cannot move).
+    category_id: UUID | None = None
 
     @field_validator("name")
     @classmethod

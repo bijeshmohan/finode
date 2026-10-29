@@ -696,6 +696,11 @@ class TransactionRepository:
             .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
             .values(updated_via=origin)
         )
+        self._record_updated(tids, origin)
+        return tids
+
+    def _record_updated(self, tids: builtins.list[UUID], origin: str | None) -> None:
+        """An "updated" history row for each entry that was changed in bulk (a merge, a relabelling)."""
         self.db.expire_all()
         moved = self.read_many(tids)
         postings = self.postings_for_transactions(tids)
@@ -711,7 +716,30 @@ class TransactionRepository:
                 )
             )
         self.db.flush()
-        return tids
+
+    def relabel_account(self, account_id: UUID, old: UUID | None, new: UUID | None, origin: str | None) -> None:
+        """The lines on one account that carried a category take another (the account was moved to a new category).
+        Each entry gets an "updated" history row. Nothing is committed."""
+        tids = builtins.list(
+            self.db.exec(
+                select(Posting.transaction)
+                .where(Posting.user == self.uid, Posting.account == account_id, Posting.category_id == old)
+                .distinct()
+            ).all()
+        )
+        if not tids:
+            return
+        self.db.exec(
+            update(Posting)
+            .where(Posting.user == self.uid, Posting.account == account_id, Posting.category_id == old)
+            .values(category_id=new)
+        )
+        self.db.exec(
+            update(Transaction)
+            .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
+            .values(updated_via=origin)
+        )
+        self._record_updated(tids, origin)
 
     def last_change(self) -> datetime | None:
         """When any transaction was last made or changed."""

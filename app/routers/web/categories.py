@@ -88,6 +88,7 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
     when, end, is_current = _period(month)
     if when is None:
         return RedirectResponse(f"/categories?tab={tab}", status_code=303)
+    tab = {"spending": "expense", "earning": "income"}.get(tab, tab)  # the kinds' own names work too
     tab = tab if tab in TABS else "expense"
     root_name = TABS[tab]
     top, _own, totals = _figures(accounts, reports, root_name, when, end)

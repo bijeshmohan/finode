@@ -1532,3 +1532,12 @@ a.sheet-extra.tag-see .icon { width: 1.1rem; height: 1.1rem; color: var(--faint)
 .txn-row .cat-pick::after { content: "›"; position: absolute; right: .25rem; color: var(--faint); font-size: 1.25rem; }
 .txn-row .cat-pick:focus-visible { border-bottom-color: var(--text); outline: none; }
 .filter-options .filter-group { padding: .9rem 0 .25rem; font-size: .8125rem; text-transform: none; border: 0; }
+
+/* Books accounts: a row is the name (and what it feeds) and the account's path. */
+.books-intro { margin: -.25rem 0 .5rem; }
+.books-row { justify-content: space-between; }
+.books-row .books-main { display: flex; flex-direction: column; min-width: 0; text-align: left; }
+.books-row .books-main small { font-size: .8125rem; }
+.books-row .books-path { font-size: .8125rem; text-align: right; overflow-wrap: anywhere; }
+.books-row.closed .setting-title { color: var(--muted); }
+button.add-row { width: 100%; font: inherit; cursor: pointer; background: transparent; }

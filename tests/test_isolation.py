@@ -75,6 +75,8 @@ LISTS = {
     ("GET", "/accounts/options"),
     ("GET", "/accounts/quick"),
     ("GET", "/api/accounts/"),
+    ("GET", "/books"),
+    ("GET", "/books/new"),
     ("GET", "/api/categories/"),
     ("GET", "/api/backup"),
     ("GET", "/api/budget/"),
@@ -126,6 +128,7 @@ REFERENCES = {
     ("POST", "/accounts/quick"),
     ("POST", "/api/accounts/"),
     ("POST", "/api/categories/"),
+    ("POST", "/books"),
     ("POST", "/api/import"),
     ("PATCH", "/api/profile/"),
     ("POST", "/api/recurring/"),
@@ -468,6 +471,15 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             json={"name": "Mine", "kind": "spending", "parent_id": a["Groceries"]},
         )
         refused("a category merged into A's", "POST", f"/api/categories/{bills}/merge", json={"into": a["Groceries"]})
+        refused(
+            "a books account feeding A's category", "POST", "/books", data={"name": "Mine", "category": a["Groceries"]}
+        )
+        refused(
+            "an API account feeding A's category",
+            "POST",
+            "/api/accounts/",
+            json={"name": "Mine", "parent_id": world.b_bills["parent_id"], "category_id": a["Groceries"]},
+        )
         refused(
             "batch with A's account",
             "POST",

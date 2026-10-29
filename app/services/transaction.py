@@ -970,6 +970,35 @@ class TransactionService:
         self.tr.db.refresh(transaction)
         return self._to_read(transaction)
 
+    def label_payment(self, tid: UUID, category_id: UUID) -> TransactionRead:
+        """Give an entry's unlabelled payments into accounts outside the budget (a loan, a fund) a category."""
+        entry = self.read(tid)
+        if entry is None:
+            raise ValueError(f"transaction with tid '{tid}' not found!")
+        accounts = {a.aid: a for a in self.ar.list()}
+        rows, changed = [], False
+        for p in entry.postings:
+            account = accounts[p.account]
+            waiting = (
+                p.side == PostingSide.DEBIT
+                and p.category is None
+                and not account.on_budget
+                and account.category_id is None
+                and AccountService.root_name(account, accounts) in ("Assets", "Liabilities")
+            )
+            changed = changed or waiting
+            rows.append(
+                PostingCreate(
+                    account=p.account, side=p.side, amount=p.amount, category=category_id if waiting else p.category
+                )
+            )
+        if not changed:
+            raise ValueError("this entry has no payment waiting for a category!")
+        updated = self.update(tid, TransactionUpdate(postings=rows))
+        if updated is None:
+            raise ValueError(f"transaction with tid '{tid}' not found!")
+        return updated
+
     def delete(self, tid: UUID) -> TransactionRead | None:
         transaction = self.read(tid)
         deleted = self.tr.delete(tid, self.origin)

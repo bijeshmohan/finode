@@ -446,7 +446,7 @@ def test_the_new_account_form_asks_whether_it_is_part_of_the_budget(client: Test
     page = client.get(f"/accounts/new?parent={root_accounts['Assets']}").text
     assert "data-budget-fields" in page and 'name="on_budget"' in page and 'name="budget_choice"' in page
     assert 'name="on_budget" value="1" checked' in page, "an asset starts in the budget"
-    assert "Payments budgeted under" in page and f'<option value="{expense["aid"]}"' in page
+    assert "Usual category for payments" in page and f'<option value="{expense["aid"]}"' in page
     assert 'data-root="Assets"' in page and 'data-root="Liabilities"' in page and 'data-root="Equity"' in page
     liability = client.get(f"/accounts/new?parent={root_accounts['Liabilities']}").text
     assert 'name="on_budget" value="1" checked' not in liability, "a card or loan starts outside it"

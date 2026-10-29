@@ -109,7 +109,7 @@ def test_deleting_the_category_clears_the_link(client, books):
 
 def test_the_edit_page_offers_and_saves_it(client, books):
     page = client.get(f"/accounts/{books['loan']['aid']}/edit").text
-    assert "Payments budgeted under" in page and ">EMI</option>" in page
+    assert "Usual category for payments" in page and ">EMI</option>" in page
     saved = client.post(
         f"/accounts/{books['loan']['aid']}/edit",
         data={

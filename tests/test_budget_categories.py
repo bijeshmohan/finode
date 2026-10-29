@@ -69,3 +69,44 @@ def test_an_earning_category_is_never_a_budget_line(client, books, root_accounts
     assert "Salary" not in {ln["name"] for ln in budget(client)["lines"]}
     refused = client.put(f"/api/budget/categories/{root_accounts['Income']}", json={"amount": "5"})
     assert refused.status_code in (400, 404)
+
+
+# ---- payments with no category -----------------------------------------------------------------
+
+
+def test_a_payment_into_a_loan_with_no_category_is_listed_until_it_gets_one(client, books):
+    made = paid(client, books["bank"], books["loan"], "19277")
+    listed = budget(client)["uncategorised"]
+    assert [(u["tid"], u["amount"], u["account"]) for u in listed] == [
+        (made["tid"], "19277.00", "Liabilities:Home Loan")
+    ]
+    page = client.get("/budget").text
+    assert "1 payment has no category" in page and "1 thing needs you" in page
+    answer = client.post(
+        f"/budget/payments/{made['tid']}/category",
+        data={"category": books["emi"]["aid"], "month": "", "tab": "spend"},
+    )
+    assert answer.status_code == 200
+    data = budget(client)
+    assert data["uncategorised"] == [] and line(data, "EMI")["activity"] == "19277.00"
+    entry = client.get(f"/api/transactions/{made['tid']}").json()
+    assert {p["category"] for p in entry["postings"]} == {None, books["emi"]["aid"]}
+
+
+def test_payments_that_have_a_category_or_stay_inside_the_budget_are_not_listed(client, books, root_accounts):
+    paid(client, books["bank"], books["loan"], "100", books["emi"])
+    paid(client, books["bank"], books["sip"], "5")  # an expense account: its own category
+    cash = account(client, root_accounts, "Cash", "Assets")
+    paid(client, books["bank"], cash, "50")  # a move inside the budget
+    assert budget(client)["uncategorised"] == []
+    assert "no category" not in client.get("/budget").text
+
+
+def test_giving_a_payment_a_category_is_refused_for_what_does_not_wait_for_one(client, books):
+    made = paid(client, books["bank"], books["loan"], "100", books["emi"])
+    refused = client.post(f"/budget/payments/{made['tid']}/category", data={"category": books["sip"]["aid"]})
+    assert refused.status_code == 400 and "no payment waiting" in refused.text
+    missing = client.post(
+        "/budget/payments/00000000-0000-4000-8000-0000000000aa/category", data={"category": books["sip"]["aid"]}
+    )
+    assert missing.status_code == 404

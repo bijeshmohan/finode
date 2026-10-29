@@ -19,6 +19,18 @@ class BudgetLeftOut(BaseModel):
     spent: Decimal = Money
 
 
+class BudgetUncategorised(BaseModel):
+    """A payment into an account outside the budget (a loan, a fund) that no category took: the money left the budget
+    and no envelope paid for it, so Ready to assign dropped."""
+
+    tid: UUID
+    date: Date
+    payee: str | None = None
+    # The account it went into, as a path.
+    account: str
+    amount: Decimal = Money
+
+
 class BudgetCard(BaseModel):
     """A credit card (or other liability that is part of the budget): what is set aside to pay it."""
 
@@ -100,6 +112,8 @@ class BudgetRead(BaseModel):
     money_in_accounts: Decimal = Money
     reserved_for_cards: Decimal = Money
     cards: list[BudgetCard] = []
+    # Payments into loans and funds this month that carry no category (give each one, and the budget counts it).
+    uncategorised: list[BudgetUncategorised] = Field(default_factory=list)
     # Spending this month that is not counted in the categories because it was paid from accounts outside the
     # budget (a credit card that was never switched on, for example), and those accounts.
     left_out: Decimal = Money

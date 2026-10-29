@@ -5,6 +5,7 @@ from ...web_auth import web_login_required
 from . import (
     accounts,
     auth,
+    books,
     budget,
     categories,
     dashboard,
@@ -23,6 +24,7 @@ router.include_router(auth.router)
 protected = APIRouter(dependencies=[Depends(web_login_required), Depends(load_currency)])
 protected.include_router(dashboard.router)
 protected.include_router(accounts.router)
+protected.include_router(books.router)
 protected.include_router(budget.router)
 protected.include_router(categories.router)
 protected.include_router(recurring.router)

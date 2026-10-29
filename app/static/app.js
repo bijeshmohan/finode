@@ -410,7 +410,7 @@ function applyKind(form, kind) {
 
 // A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
 // if it never does (an error, no connection) the sheet closes again.
-const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body"];
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "books-sheet-body"];
 const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
 document.body.addEventListener("htmx:beforeRequest", (event) => {
   const body = event.detail && event.detail.target;
@@ -933,7 +933,7 @@ document.body.addEventListener("click", (event) => {
     if (now) {
       const choice = payment && payment.querySelector("select");
       now.textContent = !out ? "Part of the budget"
-        : choice && choice.value ? "Outside the budget · payments are spending"
+        : choice && choice.value ? "Outside the budget · payments have a usual category"
         : "Outside the budget";
     }
     if (payment) payment.hidden = !out;
