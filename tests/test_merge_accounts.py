@@ -182,7 +182,7 @@ async def test_assistants_merge_only_when_allowed(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name="Claude", scope="write")) as c:
         seen = payload(await c.call_tool("merge_accounts", args | {"dry_run": True}))
         assert seen["dry_run"] is True and seen["entries_moved"] == 1 and seen["balance_moved"] == "30.00"
-        with pytest.raises(ToolFailed, match="not manage accounts or tags"):
+        with pytest.raises(ToolFailed, match="not manage accounts, categories or tags"):
             payload(await c.call_tool("merge_accounts", args))
     assert client.get(f"/api/accounts/{books['swiggy']['aid']}").status_code == 200
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name="Boss", scope="manage")) as c:

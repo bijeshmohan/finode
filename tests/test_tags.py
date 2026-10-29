@@ -241,7 +241,7 @@ async def test_renaming_merging_and_deleting_tags_need_the_manage_level(session,
             ("merge_tags", {"source": "a", "target": "b"}),
             ("delete_tag", {"tag": "a"}),
         ):
-            with pytest.raises(ToolFailed, match="not manage accounts or tags"):
+            with pytest.raises(ToolFailed, match="not manage accounts, categories or tags"):
                 payload(await c.call_tool(tool, args))
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name="M", scope="manage")) as c:
         renamed = payload(await c.call_tool("rename_tag", {"tag": "a", "new_name": "Z"}))

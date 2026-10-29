@@ -75,6 +75,9 @@ LISTS = {
     ("GET", "/accounts/options"),
     ("GET", "/accounts/quick"),
     ("GET", "/api/accounts/"),
+    ("GET", "/books"),
+    ("GET", "/books/new"),
+    ("GET", "/api/categories/"),
     ("GET", "/api/backup"),
     ("GET", "/api/budget/"),
     ("GET", "/api/export"),
@@ -124,6 +127,8 @@ REFERENCES = {
     ("POST", "/accounts"),
     ("POST", "/accounts/quick"),
     ("POST", "/api/accounts/"),
+    ("POST", "/api/categories/"),
+    ("POST", "/books"),
     ("POST", "/api/import"),
     ("PATCH", "/api/profile/"),
     ("POST", "/api/recurring/"),
@@ -296,6 +301,7 @@ def id_routes() -> list[tuple[str, str]]:
 def candidates(world: World, name: str) -> list[str]:
     return {
         "aid": [*world.accounts.values(), *world.roots],
+        "bcid": list(world.accounts.values()),  # a category has the id of its books account
         "tid": world.tids,
         "hid": world.hids,
         "did": world.dids,
@@ -328,6 +334,8 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("POST", "/budget/goal/{goal_id}/use"): {"data": {"category": bills, "amount": "1"}},
         ("POST", "/budget/goal/{goal_id}/assign"): {"data": {"amount": "5"}},
         ("POST", "/api/accounts/{aid}/merge"): {"json": {"into": bills}},
+        ("POST", "/api/categories/{bcid}/merge"): {"json": {"into": bills}},
+        ("PATCH", "/api/categories/{bcid}"): {"json": {"name": "hacked"}},
         ("POST", "/oauth/apps/{gid}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{tkid}/access"): {"data": {"scope": "read"}},
     }
@@ -434,6 +442,44 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             },
         )
         refused("merge into A's account", "POST", f"/api/accounts/{mine}/merge", json={"into": a["Groceries"]})
+        refused(
+            "A's category on B's line",
+            "POST",
+            "/api/transactions/",
+            json={
+                "postings": [
+                    {"account": bills, "side": "debit", "amount": "5", "category": a["Groceries"]},
+                    {"account": mine, "side": "credit", "amount": "5"},
+                ]
+            },
+        )
+        refused(
+            "a line that names only A's category",
+            "POST",
+            "/api/transactions/",
+            json={
+                "postings": [
+                    {"category": a["Groceries"], "side": "debit", "amount": "5"},
+                    {"account": mine, "side": "credit", "amount": "5"},
+                ]
+            },
+        )
+        refused(
+            "a category inside A's group",
+            "POST",
+            "/api/categories/",
+            json={"name": "Mine", "kind": "spending", "parent_id": a["Groceries"]},
+        )
+        refused("a category merged into A's", "POST", f"/api/categories/{bills}/merge", json={"into": a["Groceries"]})
+        refused(
+            "a books account feeding A's category", "POST", "/books", data={"name": "Mine", "category": a["Groceries"]}
+        )
+        refused(
+            "an API account feeding A's category",
+            "POST",
+            "/api/accounts/",
+            json={"name": "Mine", "parent_id": world.b_bills["parent_id"], "category_id": a["Groceries"]},
+        )
         refused(
             "batch with A's account",
             "POST",

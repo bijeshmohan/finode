@@ -86,6 +86,6 @@ Any new code that writes transactions outside `TransactionService` must call the
 
 ## Loans, cards and the budget flag
 
-A **credit card** or **loan** is a Liability. An asset or liability can be flagged `on_budget`; the [budget](budget.md) works on those accounts. A liability outside the budget can name a *payment category*, so paying an EMI counts as spending in that category.
+A **credit card** or **loan** is a Liability. An asset or liability can be flagged `on_budget`; the [budget](budget.md) works on those accounts. A payment into a liability outside the budget can carry a *category* (EMI) on its line, so the budget counts it as spending in that category; the account can name a *usual category* that fills it in. Categories are their own table, apart from the Income and Expenses accounts the books keep (see [the budget](budget.md)).
 
 Next: [The budget](budget.md).

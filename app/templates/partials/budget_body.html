@@ -34,6 +34,27 @@
   {% endif %}
   {% if attention %}
   <div class="attn-panel" id="attn-panel" hidden>
+    {% if budget.uncategorised %}
+    <div class="attn-item uncategorised">
+      <p><strong>{{ budget.uncategorised|length }} payment{{ " has" if budget.uncategorised|length == 1 else "s have" }} no category.</strong>
+        The money left the budget and no category paid for it. Pick one for each:</p>
+      <ul class="plain-list flat">
+        {% for u in budget.uncategorised %}
+        <li>
+          <span>{{ u.payee or u.account }} <span class="muted">· {{ u.date|short_date }} · {{ u.amount|money }}</span></span>
+          <form hx-post="/budget/payments/{{ u.tid }}/category" hx-trigger="change" hx-target="#budget" hx-swap="outerHTML">
+            <input type="hidden" name="month" value="{{ month_key }}">
+            <input type="hidden" name="tab" value="{{ tab }}">
+            <select name="category" aria-label="Category for {{ u.payee or u.account }}">
+              <option value="">Choose…</option>
+              {% for bcid, path in category_choices %}<option value="{{ bcid }}">{{ path }}</option>{% endfor %}
+            </select>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
     {% if budget.left_out_accounts %}
     <div class="attn-item left-out">
       <p><strong>{{ budget.left_out|money|amount(budget.currency) }}</strong> spent this month is not in the categories below, because it was paid from

@@ -4,6 +4,8 @@ import re
 
 import pytest
 
+from .htmlutil import option_selected
+
 
 @pytest.fixture
 def books(client, root_accounts):
@@ -133,13 +135,13 @@ def test_the_form_starts_with_no_account_chosen_however_often_you_pay_from_one(c
         pay(client, "A", books["card"], books["delivery"])
     pay(client, "B", books["hdfc"], books["groceries"])
     page = client.get("/transactions/new").text
-    assert f'<option value="{books["card"]["aid"]}" selected' not in page
-    assert f'<option value="{books["hdfc"]["aid"]}" selected' not in page
-    assert f'<option value="{books["delivery"]["aid"]}" selected' not in page
+    assert not option_selected(page, books["card"]["aid"])
+    assert not option_selected(page, books["hdfc"]["aid"])
+    assert not option_selected(page, books["delivery"]["aid"])
 
 
 def test_opening_the_form_from_an_account_keeps_that_account(client, books):
     pay(client, "A", books["card"], books["delivery"])
     page = client.get("/transactions/new", params={"account": books["hdfc"]["aid"]}).text
-    assert f'<option value="{books["hdfc"]["aid"]}" selected' in page
-    assert f'<option value="{books["card"]["aid"]}" selected' not in page
+    assert option_selected(page, books["hdfc"]["aid"])
+    assert not option_selected(page, books["card"]["aid"])

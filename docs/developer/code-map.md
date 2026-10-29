@@ -32,11 +32,11 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 
 | Folder | One line |
 |---|---|
-| `models/` | SQLModel tables: `account`, `transaction` (+ `Posting`), `transaction_history`, `account_deletion`, `budget` (allocations, goals), `recurring`, `profile`, `api_token`, `oauth_grant`, `auth` (mirror of Supabase `users`), `utils` (timestamps, the `Amount` column type) |
+| `models/` | SQLModel tables: `account`, `transaction` (+ `Posting`), `transaction_history`, `account_deletion`, `category` (budget categories), `budget` (allocations, goals), `recurring`, `profile`, `api_token`, `oauth_grant`, `auth` (mirror of Supabase `users`), `utils` (timestamps, the `Amount` column type) |
 | `schemas/` | Pydantic shapes per entity: `*Base`, `*Create`, `*Read`, `*Update` |
 | `repositories/` | tenant-scoped queries; `transaction.py` also appends history |
-| `services/` | `account`, `transaction`, `budget`, `report`, `recurring` (+ `schedule`), `profile`, `data`, `backup`, `erase`, `api_token`, `oauth_grant`, `simple`, `validation` |
-| `routers/` | the JSON API (`/api`, all of it listed in [api.md](api.md)): `accounts`, `transactions`, `profile`, `recurring`, `budget`, `reports`, `data` |
+| `services/` | `account`, `category`, `transaction`, `budget`, `report`, `recurring` (+ `schedule`), `profile`, `data`, `backup`, `erase`, `api_token`, `oauth_grant`, `simple`, `validation` |
+| `routers/` | the JSON API (`/api`, all of it listed in [api.md](api.md)): `accounts`, `categories`, `transactions`, `profile`, `recurring`, `budget`, `reports`, `data` |
 | `routers/web/` | the HTML pages, one module per area |
 | `mcp_server/` | `transport` (auth, rate limit), `tools`, `accounts` (name lookup), `context` |
 | `ledger/` | journal format parser and writer (import and export) |
@@ -70,6 +70,7 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | I want to… | Start at |
 |---|---|
 | change a ledger rule | `services/transaction.py::_resolve`, then add a test and keep `trial_balance().balanced` |
+| add or change what a category is, or how a line gets one | `services/category.py`, `repositories/category.py`, `TransactionRepository._line_categories`, `TransactionService._check_categories` |
 | change the budget arithmetic | `services/budget.py::_compute` / `_roll`, `tests/test_budget.py` |
 | add a page | a module in `routers/web/`, a template in `templates/`, register it in `routers/web/__init__.py`, classify the route in `tests/test_isolation.py` |
 | add an MCP tool | `mcp_server/tools.py` (add to `READ_TOOLS` or `WRITE_TOOLS`), update `INSTRUCTIONS` if a rule changed |

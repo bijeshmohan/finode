@@ -47,7 +47,7 @@ def _month_context(when, is_current: bool) -> dict:
 def _figures(accounts, reports, root_name: str, when, end):
     """The month's amounts for one type: (the type's tree with closed empty categories left out, what was posted to
     each account itself, what each account and everything inside it came to)."""
-    own = reports.account_totals(root_name, when, end)
+    own = reports.category_totals("spending" if root_name == "Expenses" else "earning", when, end)
     root = next(r for r in build_tree(accounts.list()) if r.account.name == root_name)
     totals: dict[UUID, Decimal] = {}
 
@@ -88,6 +88,7 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
     when, end, is_current = _period(month)
     if when is None:
         return RedirectResponse(f"/categories?tab={tab}", status_code=303)
+    tab = {"spending": "expense", "earning": "income"}.get(tab, tab)  # the kinds' own names work too
     tab = tab if tab in TABS else "expense"
     root_name = TABS[tab]
     top, _own, totals = _figures(accounts, reports, root_name, when, end)

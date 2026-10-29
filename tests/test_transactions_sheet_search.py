@@ -5,6 +5,8 @@ from datetime import date
 
 import pytest
 
+from .htmlutil import option_selected
+
 
 @pytest.fixture
 def books(client, root_accounts):
@@ -229,8 +231,8 @@ def test_add_again_copies_the_entry_for_today(client, books, ledger):
     html = client.get("/transactions/new", params={"repeat": ledger["dmart"]["tid"]}).text
     assert 'value="1286.00"' in html and 'value="DMart"' in html and 'value="weekly shop"' in html
     assert f'name="date" value="{date.today().isoformat()}"' in html
-    assert f'<option value="{books["hdfc"]["aid"]}" selected' in html
-    assert f'<option value="{books["groceries"]["aid"]}" selected' in html
+    assert option_selected(html, books["hdfc"]["aid"])
+    assert option_selected(html, books["groceries"]["aid"])
     assert 'name="kind" value="expense"' in html
 
 

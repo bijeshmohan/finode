@@ -22,60 +22,56 @@ class BudgetRepository:
             statement = statement.where(BudgetAllocation.month <= up_to)
         return list(remembered(self.db, ("allocations", self.uid, up_to), lambda: self.db.exec(statement).all()))
 
-    def read(self, month: date, account_id: UUID) -> BudgetAllocation | None:
+    def read(self, month: date, category_id: UUID) -> BudgetAllocation | None:
         return self.db.exec(
             select(BudgetAllocation).where(
                 BudgetAllocation.user == self.uid,
                 BudgetAllocation.month == month,
-                BudgetAllocation.account_id == account_id,
+                BudgetAllocation.category_id == category_id,
             )
         ).first()
 
-    def set(self, month: date, account_id: UUID, amount: Decimal) -> None:
+    def set(self, month: date, category_id: UUID, amount: Decimal) -> None:
         """Make the month's assigned amount for a category exactly `amount` (zero removes it)."""
-        row = self.read(month, account_id)
+        row = self.read(month, category_id)
         if amount == 0:
             if row is not None:
                 self.db.delete(row)
         elif row is None:
-            self.db.add(BudgetAllocation(user=self.uid, month=month, account_id=account_id, amount=amount))
+            self.db.add(BudgetAllocation(user=self.uid, month=month, category_id=category_id, amount=amount))
         else:
             row.amount = amount
             self.db.add(row)
         self.db.flush()
 
-    def delete_for_account(self, account_id: UUID) -> None:
+    def delete_for_category(self, category_id: UUID) -> None:
         for row in self.db.exec(
-            select(BudgetAllocation).where(BudgetAllocation.user == self.uid, BudgetAllocation.account_id == account_id)
+            select(BudgetAllocation).where(
+                BudgetAllocation.user == self.uid, BudgetAllocation.category_id == category_id
+            )
         ).all():
             self.db.delete(row)
         self.db.flush()
 
-    def months_for_account(self, account_id: UUID) -> int:
+    def months_for_category(self, category_id: UUID) -> int:
         return len(
             self.db.exec(
                 select(BudgetAllocation.bid).where(
-                    BudgetAllocation.user == self.uid, BudgetAllocation.account_id == account_id
+                    BudgetAllocation.user == self.uid, BudgetAllocation.category_id == category_id
                 )
             ).all()
         )
 
-    def merge_account(self, source: UUID, target: UUID) -> int:
+    def merge_category(self, source: UUID, target: UUID) -> int:
         """The amounts planned for `source` become the target's (added to a month the target already has one for).
         Returns how many months moved. Nothing is committed."""
         rows = self.db.exec(
-            select(BudgetAllocation).where(BudgetAllocation.user == self.uid, BudgetAllocation.account_id == source)
+            select(BudgetAllocation).where(BudgetAllocation.user == self.uid, BudgetAllocation.category_id == source)
         ).all()
         for row in rows:
-            existing = self.db.exec(
-                select(BudgetAllocation).where(
-                    BudgetAllocation.user == self.uid,
-                    BudgetAllocation.account_id == target,
-                    BudgetAllocation.month == row.month,
-                )
-            ).first()
+            existing = self.read(row.month, target)
             if existing is None:
-                row.account_id = target
+                row.category_id = target
                 self.db.add(row)
             else:
                 existing.amount = existing.amount + row.amount
@@ -84,11 +80,11 @@ class BudgetRepository:
             self.db.flush()
         return len(rows)
 
-    def uses_account(self, account_id: UUID) -> bool:
+    def uses_category(self, category_id: UUID) -> bool:
         return (
             self.db.exec(
                 select(BudgetAllocation).where(
-                    BudgetAllocation.user == self.uid, BudgetAllocation.account_id == account_id
+                    BudgetAllocation.user == self.uid, BudgetAllocation.category_id == category_id
                 )
             ).first()
             is not None

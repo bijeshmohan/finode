@@ -19,7 +19,7 @@ from ..currencies import find as find_currency
 from ..limits import LimitReached, ensure_room
 from ..models.recurring import RecurringTransaction
 from ..models.transaction import PostingSide
-from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
+from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas.account import AccountCreate
@@ -62,6 +62,7 @@ class BackupService:
         self.pr = pr
         self.rr = rr
         self.br = br
+        self.cr = CategoryRepository(tr.db, tr.uid)
 
     # ---- backing up ------------------------------------------------------------------------------
 
@@ -72,6 +73,7 @@ class BackupService:
         for p in sorted(self.tr.all_postings(), key=lambda p: (p.side != PostingSide.DEBIT, p.created)):
             postings.setdefault(p.transaction, []).append(p)
         recurring_rows = self.rr.postings()
+        category_keys = {c.bcid: c.system_key for c in self.cr.list() if c.system_key}
         tags = self.tr.all_tag_map()
         file = BackupFile(
             format=FORMAT,
@@ -92,6 +94,7 @@ class BackupService:
                     closed_on=a.closed_on,
                     payment_category_id=a.payment_category_id,
                     system_key=a.system_key,
+                    category_key=category_keys.get(a.category_id) if a.category_id else None,
                 )
                 for a in accounts
             ],
@@ -111,7 +114,8 @@ class BackupService:
                     external_id=t.external_id,
                     source_url=t.source_url,
                     postings=[
-                        BackupPosting(account=p.account, side=p.side, amount=p.amount) for p in postings.get(t.tid, [])
+                        BackupPosting(account=p.account, side=p.side, amount=p.amount, category=p.category_id)
+                        for p in postings.get(t.tid, [])
                     ],
                 )
                 for t in sorted(self.tr.list(), key=lambda t: (t.date, t.created))
@@ -122,8 +126,11 @@ class BackupService:
                     from_account=r.from_account,
                     to_account=r.to_account,
                     amount=r.amount,
+                    category=r.category_id,
                     postings=[
-                        BackupRecurringPosting(account=p.account, side=PostingSide(p.side), amount=p.amount)
+                        BackupRecurringPosting(
+                            account=p.account, side=PostingSide(p.side), amount=p.amount, category=p.category_id
+                        )
                         for p in recurring_rows.get(r.rid, [])
                     ],
                     payee=r.payee,
@@ -142,7 +149,7 @@ class BackupService:
                 for r in self.rr.list()
             ],
             allocations=[
-                BackupAllocation(month=row.month, account_id=row.account_id, amount=row.amount)
+                BackupAllocation(month=row.month, account_id=row.category_id, amount=row.amount)
                 for row in self.br.list()
             ],
             goals=[
@@ -282,6 +289,7 @@ class BackupService:
                 if ref is not None and ref not in accounts:
                     errors.append(f"account '{a.name}' points to a missing payment category.")
         postable = {a.id for a in file.accounts if a.parent_id is not None}
+        self._check_categories(file, accounts, errors)
         rules = {r.id for r in file.recurring}
         references: set[tuple[str, str]] = set()
         for t in file.transactions:
@@ -342,6 +350,40 @@ class BackupService:
             if row.account_id not in postable:
                 errors.append("a budget entry refers to an account that is not in the file.")
                 break
+
+    @staticmethod
+    def _check_categories(file: BackupFile, accounts: dict[UUID, BackupAccount], errors: list[str]) -> None:
+        """A category on a line (or a rule) is the id of an Income or Expenses account of the file, and fits the line."""
+
+        def root(account: BackupAccount) -> str | None:
+            seen: set[UUID] = set()
+            while account.parent_id is not None and account.id not in seen:
+                seen.add(account.id)
+                account = accounts[account.parent_id]
+            return account.name if account.parent_id is None else None
+
+        kind: dict[UUID, str] = {}
+        for a in file.accounts:
+            if a.parent_id is not None and root(a) in ("Expenses", "Income"):
+                kind[a.id] = "spending" if root(a) == "Expenses" else "earning"
+        lines: list[tuple[str, UUID | None, UUID | None]] = [
+            (f"the transaction of {t.date}", p.account, p.category) for t in file.transactions for p in t.postings
+        ]
+        for r in file.recurring:
+            lines += [(f"a recurring transaction ({r.payee or r.id})", p.account, p.category) for p in r.postings]
+            if r.category is not None:
+                lines.append((f"a recurring transaction ({r.payee or r.id})", None, r.category))
+        for label, account, category in lines:
+            if category is None:
+                continue
+            if category not in kind:
+                errors.append(f"{label} uses a category that is not an Income or Expenses account of the file.")
+            elif account in kind and account != category:
+                errors.append(f"{label} puts a category on a line to an income or expense account other than its own.")
+            elif account not in kind and kind[category] != "spending":
+                errors.append(f"{label} puts an earning category on a line to a balance-sheet account.")
+            if len(errors) > 20:
+                return
 
     @staticmethod
     def _expense_plan(file: BackupFile) -> list:
@@ -435,6 +477,10 @@ class BackupService:
                 account.closed_on = a.closed_on
                 account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)
+                db.flush()
+                self.ar.sync_categories([account])  # its category is closed as well
+                if a.category_key:
+                    self.cr.set_system_key(ids[a.id], a.category_key)
             db.flush()
 
             rules: dict[UUID, UUID] = {}
@@ -444,6 +490,7 @@ class BackupService:
                     from_account=ids.get(r.from_account) if r.from_account else None,
                     to_account=ids.get(r.to_account) if r.to_account else None,
                     amount=r.amount,
+                    category_id=ids.get(r.category) if r.category else None,
                     payee=r.payee,
                     comment=r.comment,
                     tags=clean_names(r.tags),
@@ -460,13 +507,29 @@ class BackupService:
                 self.rr.add(rule)
                 self.rr.set_postings(
                     rule.rid,
-                    [{"account": ids[p.account], "side": p.side.value, "amount": p.amount} for p in r.postings],
+                    [
+                        {
+                            "account": ids[p.account],
+                            "side": p.side.value,
+                            "amount": p.amount,
+                            "category_id": ids.get(p.category) if p.category else None,
+                        }
+                        for p in r.postings
+                    ],
                 )
                 rules[r.id] = rule.rid
 
             made: dict[UUID, UUID] = {}
             for t in file.transactions:
-                postings = [PostingCreate(account=ids[p.account], side=p.side, amount=p.amount) for p in t.postings]
+                postings = [
+                    PostingCreate(
+                        account=ids[p.account],
+                        side=p.side,
+                        amount=p.amount,
+                        category=ids.get(p.category) if p.category else None,
+                    )
+                    for p in t.postings
+                ]
                 entry = self.tr.create(
                     TransactionCreate(
                         date=t.date,

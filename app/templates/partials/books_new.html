@@ -1,0 +1,16 @@
+{#- The sheet that makes an extra books account for a category. Expects categories, chosen and kinds. -#}
+<div class="sheet-grab" aria-hidden="true"></div>
+<div class="sheet-title"><div><h2 tabindex="-1" autofocus>New books account</h2><p class="muted">Another account the books keep for a category, such as Interest under EMI.</p></div></div>
+<form class="stack" hx-post="/books" hx-target="#books-sheet-error">
+  <label>Name <input type="text" name="name" maxlength="40" autocomplete="off" required></label>
+  <label>Feeds this category
+    <select name="category" required>
+      <option value="">Choose a category…</option>
+      {% for root, title, kind in kinds %}
+      <optgroup label="{{ title }}">{% for c in categories if c.kind == kind %}<option value="{{ c.bcid }}" {{ "selected" if c.bcid == chosen }}>{{ c.path.replace(":", " › ") }}</option>{% endfor %}</optgroup>
+      {% endfor %}
+    </select>
+  </label>
+  <p id="books-sheet-error" class="error" role="alert"></p>
+  <button type="submit">Add</button>
+</form>

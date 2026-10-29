@@ -20,7 +20,7 @@
   {% for side, title, hint, rows in (("credit", "From", "where the money comes from", from_rows), ("debit", "To", "where the money goes", to_rows)) %}
   <section class="txn-side" data-side-section="{{ side }}">
     <div class="txn-side-head">
-      <h2>{{ title }} <span class="hint" data-side-hint>{{ hint }}</span></h2>
+      <h2><span data-side-title>{{ title }}</span> <span class="hint" data-side-hint>{{ hint }}</span></h2>
     </div>
     <div class="txn-rows" data-rows="{{ side }}">
       {% for r in rows %}
@@ -37,3 +37,12 @@
     {% set posting = none %}{% set selected = none %}
     {% set side = "credit" %}{% include "partials/txn_row.html" %}
   </template>
+
+  <dialog id="category-picker" class="sheet sheet-bottom" aria-label="Category">
+    <div class="sheet-body">
+      <div class="sheet-grab" aria-hidden="true"></div>
+      <h2 class="filter-title" tabindex="-1" autofocus>Category</h2>
+      <input type="search" class="filter-search" placeholder="Search categories" aria-label="Search categories" autocomplete="off" data-cat-search>
+      <ul class="filter-options" data-cat-list></ul>
+    </div>
+  </dialog>

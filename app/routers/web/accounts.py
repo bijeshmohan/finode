@@ -51,7 +51,26 @@ class Node:
             yield from child.walk()
 
 
-def build_tree(accounts: list[AccountRead]) -> list[Node]:
+def is_extra(account: AccountRead) -> bool:
+    """An Income or Expenses account that feeds a category it is not itself (Interest under EMI): books only."""
+    return account.category_id is not None and account.category_id != account.aid
+
+
+def without_extras(accounts: list[AccountRead]) -> list[AccountRead]:
+    """The accounts a person sees as accounts and categories: the extra books accounts, and what hangs under them, are out."""
+    hidden = {a.aid for a in accounts if is_extra(a)}
+    grew = True
+    while grew:
+        more = {a.aid for a in accounts if a.parent_id in hidden and a.aid not in hidden}
+        grew = bool(more)
+        hidden |= more
+    return [a for a in accounts if a.aid not in hidden]
+
+
+def build_tree(accounts: list[AccountRead], books: bool = False) -> list[Node]:
+    """The accounts as a tree. The extra books accounts of categories are left out unless `books` asks for them."""
+    if not books:
+        accounts = without_extras(accounts)
     nodes = {a.aid: Node(a) for a in accounts}
     roots: list[Node] = []
     for node in nodes.values():

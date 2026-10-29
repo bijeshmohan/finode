@@ -134,8 +134,8 @@ def test_export_formats_and_headers(client: TestClient):
     csv_response = client.get("/api/export", params={"format": "csv"})
     assert csv_response.headers["content-disposition"].endswith('.csv"')
     lines = csv_response.content.decode("utf-8-sig").splitlines()
-    assert lines[0] == "date,payee,note,tags,account,debit,credit"
-    assert "2026-09-03,DMart,weekly groceries,,Expenses:Food,1250.50," in lines
+    assert lines[0] == "date,payee,note,tags,account,category,debit,credit"
+    assert "2026-09-03,DMart,weekly groceries,,Expenses:Food,Food,1250.50," in lines
     assert client.get("/api/export", params={"format": "xml"}).status_code == 422
 
 
@@ -202,7 +202,7 @@ def test_tags_survive_an_export_and_an_import(client: TestClient, session: Sessi
     exported = client.get("/api/export").text
     assert "; weekly groceries" in exported and "; tags: food, weekly-shop" in exported
     csv_lines = client.get("/api/export", params={"format": "csv"}).content.decode("utf-8-sig").splitlines()
-    assert '2026-09-03,DMart,weekly groceries,"food, weekly-shop",Expenses:Food,20.00,' in csv_lines
+    assert '2026-09-03,DMart,weekly groceries,"food, weekly-shop",Expenses:Food,Food,20.00,' in csv_lines
     other = UUID("00000000-0000-4000-8000-000000000002")
     ar, tr, pr = (
         AccountRepository(session, other),
