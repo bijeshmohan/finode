@@ -9,7 +9,7 @@ from .utils import Amount, TimestampMixin
 
 
 class BudgetAllocation(TimestampMixin, table=True):
-    """How much of a month's money the user assigned to a category (an Expenses account).
+    """How much of a month's money the user assigned to a budget category.
 
     Only the plan is stored: what is left to assign, what was spent and what is available are always
     derived from the ledger (see services/budget.py). `month` is the first day of the month and
@@ -17,17 +17,12 @@ class BudgetAllocation(TimestampMixin, table=True):
     """
 
     __tablename__ = "budget_allocations"
-    __table_args__ = (
-        Index("uq_budget_allocations", "user", "month", "account_id", unique=True),
-        Index("uq_budget_allocations_category", "user", "month", "category_id", unique=True),
-    )
+    __table_args__ = (Index("uq_budget_allocations_category", "user", "month", "category_id", unique=True),)
 
     bid: UUID = Field(default_factory=uuid4, primary_key=True)
     user: UUID = Field(index=True, foreign_key="auth.users.id")
     month: Date
-    # Being replaced by `category_id`: a category made later has no account yet, so this may be empty.
-    account_id: UUID | None = Field(default=None, foreign_key="accounts.aid")
-    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.bcid", index=True)
+    category_id: UUID = Field(foreign_key="budget_categories.bcid", index=True)
     amount: Decimal = Field(sa_type=Amount())
 
 

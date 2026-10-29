@@ -149,9 +149,8 @@ class BackupService:
                 for r in self.rr.list()
             ],
             allocations=[
-                BackupAllocation(month=row.month, account_id=row.account_id, amount=row.amount)
+                BackupAllocation(month=row.month, account_id=row.category_id, amount=row.amount)
                 for row in self.br.list()
-                if row.account_id is not None
             ],
             goals=[
                 BackupGoal(

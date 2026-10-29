@@ -301,13 +301,13 @@ def test_merging_two_expense_categories_moves_lines_labels_and_plan(client, sess
     assert {p.category_id for p in session.exec(select(Posting)).all()} <= {food, None}
     assert lines(session, spent.json()["tid"])[(food, "debit")] == food
     rows = session.exec(select(BudgetAllocation)).all()
-    assert [(r.account_id, r.category_id, r.amount) for r in rows] == [(food, food, Decimal("800"))]
+    assert [(r.category_id, r.amount) for r in rows] == [(food, Decimal("800"))]
 
 
 def test_the_plan_is_kept_against_the_category(client, session, books):
     assign(client, books["food"], "300")
     row = session.exec(select(BudgetAllocation)).one()
-    assert row.category_id == UUID(books["food"]["aid"]) and row.account_id == row.category_id
+    assert row.category_id == UUID(books["food"]["aid"])
 
 
 # ---- the category service ----------------------------------------------------------------------
