@@ -4,7 +4,7 @@
   {% if allow_new %}<option value="__new__">+ New account…</option>{% endif %}
   {% for root, nodes in groups %}
   <optgroup label="{{ root }}">
-    {% for n in nodes %}<option value="{{ n.account.aid }}" data-budget="{{ 1 if n.account.on_budget else 0 }}"{% if n.account.payment_category_id %} data-usual="{{ n.account.payment_category_id }}"{% endif %} {{ "selected" if n.account.aid == selected }}>{{ n.path.split(" › ", 1)[1] if " › " in n.path else n.path }}</option>{% endfor %}
+    {% for n in nodes %}<option value="{{ n.account.aid }}" data-budget="{{ 1 if n.account.on_budget else 0 }}"{% if root in ("Assets", "Liabilities") %} data-balance="{{ n.account.balance|money }}"{% endif %}{% if n.account.payment_category_id %} data-usual="{{ n.account.payment_category_id }}"{% endif %} {{ "selected" if n.account.aid == selected }}>{{ n.path.split(" › ", 1)[1] if " › " in n.path else n.path }}</option>{% endfor %}
   </optgroup>
   {% endfor %}
 {%- endmacro %}

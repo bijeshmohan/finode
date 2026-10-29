@@ -38,11 +38,11 @@
     {% set side = "credit" %}{% include "partials/txn_row.html" %}
   </template>
 
-  <dialog id="category-picker" class="sheet sheet-bottom" aria-label="Category">
+  <dialog id="row-picker" class="sheet sheet-bottom" aria-label="Category">
     <div class="sheet-body">
       <div class="sheet-grab" aria-hidden="true"></div>
       <h2 class="filter-title" tabindex="-1" autofocus>Category</h2>
-      <input type="search" class="filter-search" placeholder="Search categories" aria-label="Search categories" autocomplete="off" data-cat-search>
-      <ul class="filter-options" data-cat-list></ul>
+      <input type="search" class="filter-search" placeholder="Search categories" aria-label="Search categories" autocomplete="off" data-pick-search>
+      <ul class="filter-options" data-pick-list></ul>
     </div>
   </dialog>

@@ -214,6 +214,7 @@ document.body.addEventListener("account-added", async (event) => {
       }
     }
     if (target) target.dataset.previous = target.value;
+    syncRowPickers(txnForm);
   }
   document.querySelectorAll("select[data-account-select]").forEach((select) => {
     if (txnForm && txnForm.contains(select)) return;
@@ -628,67 +629,77 @@ document.body.addEventListener("change", (event) => {
   if (event.target.matches && event.target.matches("[data-category-select]")) event.target.dataset.chosen = "1";
 });
 
-// ---- Choosing a category: a sheet instead of the browser's list, for the rows that hold an Income or Expenses account ----
+// ---- Choosing an account or a category: a sheet instead of the browser's list, on every row of the form ----
 // The <select> stays (hidden) so everything that sets or reads the account keeps working; the button shows its choice.
-function syncCategoryPickers(form) {
+function syncRowPickers(form) {
   const kind = KINDS[form.dataset.txnKind] || KINDS.other;
   form.querySelectorAll("[data-row]").forEach((row) => {
     const select = rowAccount(row);
     const side = row.querySelector('[name="side"]').value;
-    const picks = isCategorySide(kind[side].roots);
-    let button = row.querySelector("[data-cat-pick]");
-    if (picks && !button) {
+    const category = isCategorySide(kind[side].roots);
+    let button = row.querySelector("[data-pick]");
+    if (!button) {
       button = document.createElement("button");
       button.type = "button";
-      button.className = "cat-pick";
-      button.dataset.catPick = "";
+      button.className = "row-pick";
+      button.dataset.pick = "";
       button.setAttribute("aria-haspopup", "dialog");
       button.append(document.createElement("span"));
       select.after(button);
-    } else if (!picks && button) {
-      button.remove();
-      button = null;
     }
-    select.classList.toggle("is-picked", picks);
-    if (button) {
-      const option = select.selectedOptions[0];
-      const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
-      // Only when it changed: replacing the text between a press and its release makes Safari drop the click.
-      const label = chosen ? option.textContent : "Choose category…";
-      if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
-      button.classList.toggle("empty", !chosen);
-      button.setAttribute("aria-label", chosen ? `Category: ${option.textContent}` : "Choose a category");
-    }
+    select.classList.add("is-picked");
+    const option = select.selectedOptions[0];
+    const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
+    const noun = category ? "category" : "account";
+    // Only when it changed: replacing the text between a press and its release makes Safari drop the click.
+    const label = chosen ? option.textContent : `Choose ${noun}…`;
+    if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
+    button.classList.toggle("empty", !chosen);
+    button.setAttribute("aria-label", chosen ? `${noun[0].toUpperCase()}${noun.slice(1)}: ${option.textContent}` : (category ? "Choose a category" : "Choose an account"));
   });
 }
 
 (() => {
-  const dialog = document.getElementById("category-picker");
+  const dialog = document.getElementById("row-picker");
   if (!dialog) return;
-  const list = dialog.querySelector("[data-cat-list]");
-  const search = dialog.querySelector("[data-cat-search]");
-  const KEY = "finode.recentCategories";
+  const list = dialog.querySelector("[data-pick-list]");
+  const search = dialog.querySelector("[data-pick-search]");
+  const title = dialog.querySelector(".filter-title");
+  const RECENT = { account: "finode.recentAccounts", category: "finode.recentCategories" };
+  let noun = "category";
   const recent = () => {
-    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(RECENT[noun]) || "[]"); } catch { return []; }
   };
   const remember = (value) => {
-    try { localStorage.setItem(KEY, JSON.stringify([value, ...recent().filter((v) => v !== value)].slice(0, 5))); } catch { /* no storage: fine */ }
+    try { localStorage.setItem(RECENT[noun], JSON.stringify([value, ...recent().filter((v) => v !== value)].slice(0, 5))); } catch { /* no storage: fine */ }
   };
   let target = null;
+  let taken = new Set(); // what the other side of the entry already uses: an account cannot be on both
   const choices = () => [...target.options].filter((o) => o.value && o.value !== NEW_ACCOUNT);
   const row = (option, group) => {
     const li = document.createElement("li");
     const button = document.createElement("button");
     button.type = "button";
-    button.dataset.catOption = option.value;
+    button.dataset.pickOption = option.value;
     button.setAttribute("aria-pressed", String(option.value === target.value));
     const name = group ? option.textContent.slice(group.length + 3) || option.textContent : option.textContent;
     const label = document.createElement("span");
     label.textContent = name;
+    button.append(label);
+    if (option.dataset.balance) {
+      const balance = document.createElement("span");
+      balance.className = "pick-balance muted";
+      balance.textContent = `${option.parentElement.label === "Liabilities" ? "owed " : ""}${option.dataset.balance}`;
+      button.append(balance);
+    }
     const tick = document.createElement("span");
     tick.className = "tag-tick";
     tick.setAttribute("aria-hidden", "true");
-    button.append(label, tick);
+    button.append(tick);
+    if (taken.has(option.value) && option.value !== target.value) {
+      button.disabled = true;
+      button.title = "Already on the other side";
+    }
     li.append(button);
     return li;
   };
@@ -707,7 +718,7 @@ function syncCategoryPickers(form) {
       if (!list.children.length) {
         const li = document.createElement("li");
         li.className = "filter-empty muted";
-        li.textContent = "No category matches.";
+        li.textContent = `No ${noun} matches.`;
         list.append(li);
       }
     } else {
@@ -733,30 +744,45 @@ function syncCategoryPickers(form) {
       const li = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      button.dataset.catNew = "";
-      button.textContent = "＋ New category";
+      button.dataset.pickNew = "";
+      button.textContent = `＋ New ${noun}`;
       li.append(button);
       list.append(li);
     }
   };
   document.body.addEventListener("click", (event) => {
-    const open = event.target.closest && event.target.closest("[data-cat-pick]");
+    const open = event.target.closest && event.target.closest("[data-pick]");
     if (open) {
-      target = rowAccount(open.closest("[data-row]"));
+      const rowEl = open.closest("[data-row]");
+      const form = open.closest("form[data-txn-form]");
+      const side = rowEl.querySelector('[name="side"]').value;
+      const kind = KINDS[form.dataset.txnKind] || KINDS.other;
+      noun = isCategorySide(kind[side].roots) ? "category" : "account";
+      title.textContent = noun === "category" ? "Category" : "Account";
+      dialog.setAttribute("aria-label", title.textContent);
+      search.placeholder = `Search ${noun === "category" ? "categories" : "accounts"}`;
+      search.setAttribute("aria-label", search.placeholder);
+      target = rowAccount(rowEl);
+      taken = new Set(
+        [...form.querySelectorAll("[data-row]")]
+          .filter((r) => r.querySelector('[name="side"]').value !== side)
+          .map((r) => rowAccount(r).value)
+          .filter(Boolean),
+      );
       search.value = "";
       draw();
       dialog.showModal();
       return;
     }
     if (!target || !dialog.contains(event.target)) return;
-    const option = event.target.closest("[data-cat-option]");
-    const fresh = event.target.closest("[data-cat-new]");
+    const option = event.target.closest("[data-pick-option]");
+    const fresh = event.target.closest("[data-pick-new]");
     if (!option && !fresh) return;
     const select = target;
     target = null;
     dialog.close();
-    select.value = option ? option.dataset.catOption : NEW_ACCOUNT;
-    if (option) remember(option.dataset.catOption);
+    select.value = option ? option.dataset.pickOption : NEW_ACCOUNT;
+    if (option) remember(option.dataset.pickOption);
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   search.addEventListener("input", draw);
@@ -812,7 +838,7 @@ function recomputeTxn(form) {
       : `${money(-left)} ${currency} over`;
   });
   syncRowCategories(form);
-  syncCategoryPickers(form);
+  syncRowPickers(form);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
