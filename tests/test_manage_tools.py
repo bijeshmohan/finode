@@ -74,7 +74,7 @@ async def test_close_and_reopen(session, client, books):
 
 @pytest.mark.anyio
 async def test_lower_levels_see_the_tools_but_they_refuse(session, client, books):
-    for scope, message in (("write", "not manage accounts or tags"), ("read", "read-only")):
+    for scope, message in (("write", "not manage accounts, categories or tags"), ("read", "read-only")):
         async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name=scope, scope=scope)) as c:
             names = {t.name for t in (await c.list_tools()).tools}
             assert {"update_account", "close_account", "reopen_account"} <= names

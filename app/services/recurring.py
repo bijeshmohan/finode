@@ -16,7 +16,7 @@ from ..schemas.recurring import RecurringCreate, RecurringPostingData, Recurring
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from . import schedule
 from .account import AccountService
-from .simple import simple_postings
+from .simple import label_simple, simple_postings
 from .transaction import TransactionService
 from .validation import validation_message
 
@@ -64,21 +64,10 @@ class RecurringService:
             )
         postings = simple_postings(rule_like.amount, rule_like.from_account, rule_like.to_account)
         if rule_like.category is not None:
-            self._label_simple(postings, rule_like.category)
+            label_simple({a.aid: a for a in self.accounts.ar.list()}, postings, rule_like.category)
         return TransactionCreate(
             date=day, payee=rule_like.payee, comment=rule_like.comment, tags=list(rule_like.tags), postings=postings
         )
-
-    def _label_simple(self, postings: builtins.list[PostingCreate], category: UUID) -> None:
-        """A simple rule's category goes on the side that is not in the budget and does not stand for a category itself
-        (the loan or fund being paid), the one place a label says anything. If there is none, the checks refuse it."""
-        accounts = {a.aid: a for a in self.accounts.ar.list()}
-        for posting in postings:
-            account = accounts.get(posting.account)
-            if account is not None and not account.on_budget and account.category_id is None:
-                posting.category = category
-                return
-        postings[0].category = category  # the budget account's line: the entry checks name the problem
 
     @staticmethod
     def _rows(data) -> builtins.list[dict]:

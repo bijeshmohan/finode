@@ -133,7 +133,10 @@ async def test_the_removed_tools_and_arguments_are_gone(session, books, secret):
             "recorded"
         ]
         assert "currency" not in recorded and all(
-            set(p) == {"account", "account_id", "side", "amount"} for p in recorded["postings"]
+            {"account", "account_id", "side", "amount"}
+            <= set(p)
+            <= {"account", "account_id", "side", "amount", "category", "category_id"}
+            for p in recorded["postings"]
         )
 
 

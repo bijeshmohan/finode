@@ -27,6 +27,7 @@ from .services import (
 )
 from .services.api_token import ApiTokenService
 from .services.backup import BackupService
+from .services.category import CategoryService
 from .services.erase import EraseService
 from .services.oauth_grant import OAuthGrantService
 
@@ -76,6 +77,10 @@ def get_account_service(
     pr: ProfileRepository = Depends(get_profile_repository),
 ) -> AccountService:
     return AccountService(ar, tr, pr)
+
+
+def get_category_service(accounts: AccountService = Depends(get_account_service)) -> CategoryService:
+    return CategoryService(accounts)
 
 
 def get_profile_service(
@@ -170,6 +175,7 @@ DB = Annotated[Session, Depends(get_db_session)]
 AR = Annotated[AccountRepository, Depends(get_account_repository)]
 TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
+Categories = Annotated[CategoryService, Depends(get_category_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]
 Backup = Annotated[BackupService, Depends(get_backup_service)]

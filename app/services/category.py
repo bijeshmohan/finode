@@ -136,6 +136,7 @@ class CategoryService:
     def delete(self, bcid: UUID) -> CategoryDeleteResult:
         """Remove an unused category for good; one with history (entries, labelled lines, sub-categories or a rule)
         is closed instead, so nothing that was recorded loses its meaning."""
+        self._get(bcid)
         before = self._read(bcid)
         try:
             self.accounts.delete(bcid)

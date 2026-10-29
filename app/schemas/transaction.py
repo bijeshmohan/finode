@@ -29,7 +29,15 @@ class PostingBase(BaseModel):
         return v
 
 
-class PostingCreate(PostingBase): ...
+class PostingCreate(PostingBase):
+    @model_validator(mode="before")
+    @classmethod
+    def _account_from_category(cls, data: Any) -> Any:
+        """A line may name only its category (`{"category": ..., "side": ..., "amount": ...}`): the account it posts to
+        is the category's own books account, which has the category's id."""
+        if isinstance(data, dict) and not data.get("account") and data.get("category"):
+            return {**data, "account": data["category"]}
+        return data
 
 
 class PostingRead(PostingBase):

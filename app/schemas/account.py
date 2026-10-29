@@ -49,6 +49,8 @@ class AccountRead(AccountBase):
     balance: Decimal  # a sum: no digit limits, see schemas/budget.py
     # True when the account's money is part of the budget.
     on_budget: bool = False
+    # An Income or Expenses account: the category it stands for (the same id for its own).
+    category_id: UUID | None = None
     # An account outside the budget: the expense category that payments into it are budgeted under.
     payment_category_id: UUID | None = None
     # The day it was closed (no more postings; its history stays), or null while it is open.

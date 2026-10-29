@@ -327,6 +327,7 @@ class AccountService:
             parent_id=account.parent_id,
             balance=balance,
             on_budget=account.on_budget,
+            category_id=account.category_id,
             payment_category_id=account.payment_category_id,
             closed_on=account.closed_on,
             system_key=account.system_key,
