@@ -588,6 +588,35 @@ function setSuggestion(row, text) {
   field.classList.toggle("suggested", text !== "");
 }
 
+// A payment from the budget into an account outside it (a loan, a fund) can say what it was for: the Category
+// row of that line appears, filled with the account's usual category until the person picks another (or none).
+const OUTSIDE_ROOTS = ["Assets", "Liabilities"];
+function syncRowCategories(form) {
+  const rows = [...form.querySelectorAll("[data-row]")];
+  const chosen = rows.map((row) => rowAccount(row).selectedOptions[0]);
+  const root = (option) => (option && option.parentElement ? option.parentElement.label : "");
+  const inBudget = chosen.some((o) => o && o.value && o.dataset.budget === "1" && OUTSIDE_ROOTS.includes(root(o)));
+  rows.forEach((row, index) => {
+    const select = row.querySelector("[data-category-select]");
+    if (!select) return;
+    const option = chosen[index];
+    const outside = option && option.value && option.dataset.budget === "0" && OUTSIDE_ROOTS.includes(root(option));
+    const show = Boolean(inBudget && outside);
+    if (show && select.hidden && !select.value && option.dataset.usual && !select.dataset.chosen) {
+      select.value = option.dataset.usual;
+    }
+    select.hidden = !show;
+    if (!show) {
+      select.value = "";
+      delete select.dataset.chosen;
+    }
+  });
+}
+
+document.body.addEventListener("change", (event) => {
+  if (event.target.matches && event.target.matches("[data-category-select]")) event.target.dataset.chosen = "1";
+});
+
 function recomputeTxn(form) {
   const field = form.querySelector("#total");
   field.style.setProperty("--n", Math.max(field.value.length - 0.55 * (field.value.split(",").length - 1), 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
@@ -637,6 +666,7 @@ function recomputeTxn(form) {
       : left > 0n ? `${money(left)} ${currency} left to allocate`
       : `${money(-left)} ${currency} over`;
   });
+  syncRowCategories(form);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

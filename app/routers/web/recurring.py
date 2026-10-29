@@ -149,6 +149,7 @@ def _parse(
     start: str,
     end: str,
     tags: list[str],
+    category: list[str] | None = None,
 ) -> dict:
     try:
         count = int(every.strip() or "1")
@@ -157,7 +158,7 @@ def _parse(
     started = _parse_date(start, "the start date")
     if started is None:
         raise ValueError("choose a start date!")
-    rows = split_postings(account, side, amount)
+    rows = split_postings(account, side, amount, category)
     if len(rows) < 2:
         raise ValueError("choose where the money comes from and where it goes!")
     common = {
@@ -177,10 +178,13 @@ def _parse(
             "from_account": credit[0].account,
             "to_account": debit[0].account,
             "amount": credit[0].amount,
+            "category": debit[0].category or credit[0].category,
             **common,
         }
     return {
-        "postings": [RecurringPostingData(account=p.account, side=p.side, amount=p.amount) for p in rows],
+        "postings": [
+            RecurringPostingData(account=p.account, side=p.side, amount=p.amount, category=p.category) for p in rows
+        ],
         **common,
     }
 
@@ -192,6 +196,7 @@ def create_recurring(
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
     amount: Annotated[list[str] | None, Form()] = None,
+    category: Annotated[list[str] | None, Form()] = None,
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     frequency: Annotated[str, Form()] = "monthly",
@@ -202,7 +207,9 @@ def create_recurring(
 ):
     account, side, amount, tags = account or [], side or [], amount or [], tags or []
     try:
-        data = RecurringCreate(**_parse(account, side, amount, payee, comment, frequency, every, start, end, tags))
+        data = RecurringCreate(
+            **_parse(account, side, amount, payee, comment, frequency, every, start, end, tags, category)
+        )
         recurring.create(data)
         recurring.process_due()  # a start date in the past is recorded straight away
     except ValidationError as e:
@@ -232,6 +239,7 @@ def update_recurring(
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
     amount: Annotated[list[str] | None, Form()] = None,
+    category: Annotated[list[str] | None, Form()] = None,
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     frequency: Annotated[str, Form()] = "monthly",
@@ -242,7 +250,9 @@ def update_recurring(
 ):
     account, side, amount, tags = account or [], side or [], amount or [], tags or []
     try:
-        data = RecurringUpdate(**_parse(account, side, amount, payee, comment, frequency, every, start, end, tags))
+        data = RecurringUpdate(
+            **_parse(account, side, amount, payee, comment, frequency, every, start, end, tags, category)
+        )
         rule = recurring.update(rid, data)
         if rule is not None:
             recurring.process_due()
