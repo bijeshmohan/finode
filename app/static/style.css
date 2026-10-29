@@ -1545,4 +1545,35 @@ button.add-row { width: 100%; font: inherit; cursor: pointer; background: transp
 /* The account and category sheet: a balance beside the name, the other side's account greyed. */
 .filter-options .pick-balance { flex: none; margin-left: auto; font-size: .8125rem; font-variant-numeric: tabular-nums; }
 .filter-options button:disabled { opacity: .45; cursor: default; }
+
+/* A chosen item is bold. */
 .filter-options button[aria-pressed="true"] > span:first-child { font-weight: 600; }
+
+/* The category sheet is a grid of tiles; the account sheet stays a list with balances. */
+.filter-options.grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .5rem; }
+.filter-options.grid > li.filter-group, .filter-options.grid > li.filter-empty, .filter-options.grid > li.pick-new-li { grid-column: 1 / -1; }
+.filter-options.grid > li:not(.filter-group):not(.filter-empty) > button { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; min-height: 3.25rem; padding: .55rem .8rem; border: 0; border-radius: 12px; background: var(--surface-2); }
+.filter-options.grid button small { display: block; font-size: .72rem; line-height: 1.3; }
+.filter-options.grid > li:not(.filter-group):not(.filter-empty) > button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.filter-options.grid button[aria-pressed="true"] small { color: inherit; opacity: .7; }
+.filter-options.grid > li.pick-new-li:not(.filter-group):not(.filter-empty) > button { align-items: center; background: none; border: 1px dashed var(--border); color: var(--text); }
+
+/* A category on the Add screen is a chip after the accounts, with no amount of its own until the entry is split. */
+.txn-row .row-pick.pill { display: inline-flex; align-items: center; width: auto; max-width: 100%; min-height: 2.75rem; padding: 0 1.1rem; border: 0; border-radius: 999px; background: var(--surface-2); font-weight: 600; gap: .5rem; }
+.txn-row .row-pick.pill::after { content: none; }
+.txn-row .row-pick.pill::before { content: ""; flex: none; width: 1rem; height: 1rem; background: var(--muted); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12V4h8l10 10-8 8z'/%3E%3Ccircle cx='7.5' cy='8.5' r='1.2'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12V4h8l10 10-8 8z'/%3E%3Ccircle cx='7.5' cy='8.5' r='1.2'/%3E%3C/svg%3E") center / contain no-repeat; }
+.txn-row .row-pick.pill.empty { color: var(--muted); font-weight: 500; }
+.txn-row .row-category + .row-pick.pill { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+.txn-row .row-pick[hidden] { display: none; }
+.split-link { display: none; }
+.txn-side.cat-side { background: none; border: 0; padding: 0; align-items: center; }
+.txn-side.cat-side .txn-side-head, .txn-side.cat-side .side-status:empty { display: none; }
+.txn-side.cat-side:not(.is-split) .txn-rows { align-items: center; width: 100%; }
+.txn-side.cat-side:not(.is-split) .txn-row { display: flex; justify-content: center; }
+.txn-side.cat-side:not(.is-split) .txn-row .row-amount, .txn-side.cat-side:not(.is-split) .txn-row [data-remove-row] { display: none; }
+.txn-side.cat-side:not(.is-split) .split-link { display: block; color: var(--muted); font-size: .875rem; text-decoration: underline; padding: .25rem .5rem; }
+.txn-side.cat-side.is-split { align-items: stretch; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); padding: .75rem 1rem .9rem; }
+.txn-side.cat-side.is-split .txn-side-head { display: flex; }
+.txn-side.cat-side.is-split .txn-row { grid-template-columns: minmax(0, 1fr) 7rem var(--tap); }
+.txn-side.cat-side.is-split .row-pick.pill { width: 100%; justify-content: flex-start; }
+.txn-swap[hidden] { display: none; }

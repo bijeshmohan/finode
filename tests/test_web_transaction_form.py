@@ -383,7 +383,7 @@ def test_delete_returns_to_the_page_it_came_from(client: TestClient, account: di
 
 def test_new_page_has_a_total_and_a_row_on_each_side(client: TestClient, account: dict, expense_account: dict):
     page = client.get("/transactions/new").text
-    assert 'class="tabs' not in page and "Split across" not in page
+    assert 'class="tabs' not in page and "data-split-on" in page
     assert page.count("data-txn-form") == 1 and 'name="total"' in page and date.today().isoformat() in page
     assert page.index('data-rows="credit"') < page.index('data-rows="debit"')
     credit = page[page.index('data-rows="credit"') : page.index('data-rows="debit"')]
@@ -422,7 +422,7 @@ def test_a_transaction_with_several_rows_shows_them_all(client: TestClient, acco
     ).json()
     page = client.get(f"/transactions/{tx['tid']}/edit").text
     debit = page[page.index('data-rows="debit"') :]
-    assert debit.count("data-touched") >= 2 and 'value="10.00"' in page and "Split across" not in page
+    assert debit.count("data-touched") >= 2 and 'value="10.00"' in page and "data-split-on" in page
 
 
 # ---- the Expense / Income / Transfer buttons ---------------------------------------------------------------------

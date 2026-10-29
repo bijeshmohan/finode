@@ -88,20 +88,23 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
 def test_removing_a_row_brings_the_remainder_back(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "100")
+    page.locator('[data-side-section="debit"] [data-split-on]').click()
     page.fill('[data-rows="debit"] [name="amount"]', "30")
     assert amounts(page, "debit") == ["30", "70.00"]
     page.click('[data-rows="debit"] [data-row]:nth-child(1) [data-remove-row]')
     assert amounts(page, "debit") == ["100.00"]
 
 
-def test_swapping_from_and_to_offers_every_account(page: Page, books):
+def test_swapping_from_and_to_keeps_a_transfer_and_an_expense_has_no_swap(page: Page, books):
     page.goto("/transactions/new")
+    expect(page.locator("[data-swap-sides]")).to_be_hidden()  # a category is not swapped with an account
+    page.get_by_role("button", name="Transfer", exact=True).click()
     page.select_option('[data-rows="credit"] select', label="Checking")
-    page.select_option('[data-rows="debit"] select', label="Groceries")
+    page.select_option('[data-rows="debit"] select', label="Cash")
     page.click("[data-swap-sides]")
-    assert page.input_value('[data-rows="credit"] select') == books["food"]["aid"]
+    assert page.input_value('[data-rows="credit"] select') == books["cash"]["aid"]
     assert page.input_value('[data-rows="debit"] select') == books["checking"]["aid"]
-    expect(page.locator("[data-kind][aria-pressed=true]")).to_have_count(0)  # nothing selected: every account
+    expect(page.locator('[data-kind="transfer"]')).to_have_attribute("aria-pressed", "true")
 
 
 def test_adding_an_account_from_the_picker(page: Page, books, api: Api):
@@ -131,7 +134,7 @@ def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
     assert page.input_value("#total") == "40.00" and amounts(page, "credit") == ["40.00"]
     page.fill("#total", "55")
     page.fill('[data-rows="credit"] [name="amount"]', "55")
-    page.fill('[data-rows="debit"] [name="amount"]', "55")
+    assert amounts(page, "debit") == ["55.00"], "a lone category follows the total"
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url("**/transactions")
     assert api.get(f"/transactions/{entry['tid']}")["postings"][0]["amount"] == "55.00"
@@ -175,6 +178,7 @@ def test_a_chip_still_lets_you_split_the_amount_afterwards(page: Page, books, ap
     page.goto("/transactions/new")
     page.fill("#total", "900")
     page.locator("#payee-chips .chip", has_text="Swiggy").click()
+    page.locator('[data-side-section="debit"] [data-split-on]').click()
     page.fill('[data-rows="debit"] [data-row]:nth-child(1) [name="amount"]', "600")
     assert page.locator('[data-rows="debit"] [data-row]').count() == 2, "a row for the rest appears"
     assert page.input_value('[data-rows="debit"] [data-row]:nth-child(2) [name="amount"]') == "300.00"
@@ -277,6 +281,7 @@ def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, book
 def test_the_allocation_status_groups_rupees_in_lakhs(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "1500000")
+    page.locator('[data-side-section="debit"] [data-split-on]').click()
     page.fill('[data-rows="debit"] [name="amount"]', "2000000")
     expect(page.locator('[data-status="debit"]')).to_contain_text("5,00,000.00 INR over")
     page.fill('[data-rows="debit"] [name="amount"]', "1500000")
@@ -355,6 +360,7 @@ def test_the_picker_relates_an_entry_and_the_chip_removes_it(page: Page, books, 
 
 def test_from_and_to_are_the_same_size_and_the_swap_sits_between_them(page: Page, books):
     page.goto("/transactions/new")
+    page.get_by_role("button", name="Transfer", exact=True).click()
     page.fill("#total", "100")
     heights = page.eval_on_selector_all(
         ".txn-side", "els => els.map(e => Math.round(e.getBoundingClientRect().height))"
@@ -444,6 +450,7 @@ def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(page: Page, b
     page.keyboard.press("Tab")
     assert total.input_value() == "12,34,567.50"
     assert page.input_value('[data-rows="debit"] [name="amount"]') == "12,34,567.50", "the rows are grouped too"
+    page.locator('[data-side-section="debit"] [data-split-on]').click()
     page.fill('[data-rows="debit"] [name="amount"]', "")
     page.keyboard.type("1000")
     assert page.input_value('[data-rows="debit"] [name="amount"]') == "1,000"
@@ -454,6 +461,7 @@ def test_a_lone_row_has_no_cross_and_a_split_has_one_on_every_row(page: Page, bo
     expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
     page.fill("#total", "100")
     page.locator('[data-rows="debit"] select').first.select_option(books["food"]["aid"])
+    page.locator('[data-side-section="debit"] [data-split-on]').click()
     page.fill('[data-rows="debit"] [name="amount"]', "60")
     expect(page.locator('[data-rows="debit"] [data-remove-row]:visible')).to_have_count(2)
     (

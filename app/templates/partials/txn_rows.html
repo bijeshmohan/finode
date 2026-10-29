@@ -28,6 +28,7 @@
         {% include "partials/txn_row.html" %}
       {% endfor %}
     </div>
+    <button type="button" class="link-button split-link" data-split-on>Split across categories</button>
     <p class="side-status" data-status="{{ side }}" aria-live="polite"></p>
   </section>
   {% if loop.first %}<div class="txn-swap"><button type="button" class="swap" data-swap-sides title="Swap From and To">{{ icon("swap") }}<span class="sr-only">Swap From and To</span></button></div>{% endif %}
