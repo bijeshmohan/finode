@@ -339,20 +339,20 @@ function money(value) {
 // What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
 const KINDS = {
   expense: {
-    credit: { roots: ["Assets", "Liabilities"], hint: "the account you paid with" },
-    debit: { roots: ["Expenses"], hint: "what it was for" },
+    credit: { roots: ["Assets", "Liabilities"], title: "Paid from", hint: "the account you paid with" },
+    debit: { roots: ["Expenses"], title: "Category", hint: "what it was for" },
   },
   income: {
-    credit: { roots: ["Income"], hint: "who paid you" },
-    debit: { roots: ["Assets", "Liabilities"], hint: "where it landed" },
+    credit: { roots: ["Income"], title: "Category", hint: "who paid you" },
+    debit: { roots: ["Assets", "Liabilities"], title: "Received in", hint: "where it landed" },
   },
   transfer: {
-    credit: { roots: ["Assets", "Liabilities"], hint: "the account the money leaves" },
-    debit: { roots: ["Assets", "Liabilities"], hint: "the account it goes to" },
+    credit: { roots: ["Assets", "Liabilities"], title: "From", hint: "the account the money leaves" },
+    debit: { roots: ["Assets", "Liabilities"], title: "To", hint: "the account it goes to" },
   },
   other: {
-    credit: { roots: null, hint: "where the money comes from" },
-    debit: { roots: null, hint: "where the money goes" },
+    credit: { roots: null, title: "From", hint: "where the money comes from" },
+    debit: { roots: null, title: "To", hint: "where the money goes" },
   },
 };
 
@@ -364,6 +364,9 @@ function withoutSelection(html) {
 }
 
 // The account list for one side of a kind: the placeholder entries and the groups whose type it offers.
+const CATEGORY_ROOTS = ["Expenses", "Income"];
+const isCategorySide = (roots) => Boolean(roots) && roots.every((root) => CATEGORY_ROOTS.includes(root));
+
 function optionsFor(all, roots) {
   if (!roots) return all;
   const holder = document.createElement("select");
@@ -371,6 +374,12 @@ function optionsFor(all, roots) {
   holder.querySelectorAll("optgroup").forEach((group) => {
     if (!roots.includes(group.label)) group.remove();
   });
+  if (isCategorySide(roots)) {  // an Income or Expenses account is what the person calls a category
+    const empty = holder.querySelector('option[value=""]');
+    if (empty) empty.textContent = "Choose category…";
+    const fresh = holder.querySelector('option[value="__new__"]');
+    if (fresh) fresh.textContent = "+ New category…";
+  }
   return holder.innerHTML;
 }
 
@@ -393,6 +402,8 @@ function applyKind(form, kind) {
   ["credit", "debit"].forEach((side) => {
     const hint = form.querySelector(`[data-side-section="${side}"] [data-side-hint]`);
     if (hint) hint.textContent = KINDS[kind][side].hint;
+    const title = form.querySelector(`[data-side-section="${side}"] [data-side-title]`);
+    if (title) title.textContent = KINDS[kind][side].title;
   });
   recomputeTxn(form);
 }
@@ -617,6 +628,140 @@ document.body.addEventListener("change", (event) => {
   if (event.target.matches && event.target.matches("[data-category-select]")) event.target.dataset.chosen = "1";
 });
 
+// ---- Choosing a category: a sheet instead of the browser's list, for the rows that hold an Income or Expenses account ----
+// The <select> stays (hidden) so everything that sets or reads the account keeps working; the button shows its choice.
+function syncCategoryPickers(form) {
+  const kind = KINDS[form.dataset.txnKind] || KINDS.other;
+  form.querySelectorAll("[data-row]").forEach((row) => {
+    const select = rowAccount(row);
+    const side = row.querySelector('[name="side"]').value;
+    const picks = isCategorySide(kind[side].roots);
+    let button = row.querySelector("[data-cat-pick]");
+    if (picks && !button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "cat-pick";
+      button.dataset.catPick = "";
+      button.setAttribute("aria-haspopup", "dialog");
+      button.append(document.createElement("span"));
+      select.after(button);
+    } else if (!picks && button) {
+      button.remove();
+      button = null;
+    }
+    select.classList.toggle("is-picked", picks);
+    if (button) {
+      const option = select.selectedOptions[0];
+      const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
+      // Only when it changed: replacing the text between a press and its release makes Safari drop the click.
+      const label = chosen ? option.textContent : "Choose category…";
+      if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
+      button.classList.toggle("empty", !chosen);
+      button.setAttribute("aria-label", chosen ? `Category: ${option.textContent}` : "Choose a category");
+    }
+  });
+}
+
+(() => {
+  const dialog = document.getElementById("category-picker");
+  if (!dialog) return;
+  const list = dialog.querySelector("[data-cat-list]");
+  const search = dialog.querySelector("[data-cat-search]");
+  const KEY = "finode.recentCategories";
+  const recent = () => {
+    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
+  };
+  const remember = (value) => {
+    try { localStorage.setItem(KEY, JSON.stringify([value, ...recent().filter((v) => v !== value)].slice(0, 5))); } catch { /* no storage: fine */ }
+  };
+  let target = null;
+  const choices = () => [...target.options].filter((o) => o.value && o.value !== NEW_ACCOUNT);
+  const row = (option, group) => {
+    const li = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.catOption = option.value;
+    button.setAttribute("aria-pressed", String(option.value === target.value));
+    const name = group ? option.textContent.slice(group.length + 3) || option.textContent : option.textContent;
+    const label = document.createElement("span");
+    label.textContent = name;
+    const tick = document.createElement("span");
+    tick.className = "tag-tick";
+    tick.setAttribute("aria-hidden", "true");
+    button.append(label, tick);
+    li.append(button);
+    return li;
+  };
+  const heading = (text) => {
+    const li = document.createElement("li");
+    li.className = "filter-group muted";
+    li.textContent = text;
+    return li;
+  };
+  const draw = () => {
+    const text = search.value.trim().toLowerCase();
+    const all = choices();
+    list.replaceChildren();
+    if (text) {
+      all.filter((o) => o.textContent.toLowerCase().includes(text)).forEach((o) => list.append(row(o, "")));
+      if (!list.children.length) {
+        const li = document.createElement("li");
+        li.className = "filter-empty muted";
+        li.textContent = "No category matches.";
+        list.append(li);
+      }
+    } else {
+      const lately = recent().map((v) => all.find((o) => o.value === v)).filter(Boolean);
+      if (lately.length) {
+        list.append(heading("Used lately"));
+        lately.forEach((o) => list.append(row(o, "")));
+      }
+      let current = null;
+      all.forEach((o) => {
+        const [group] = o.textContent.split(" › ");
+        const inGroup = o.textContent.includes(" › ");
+        const label = inGroup ? group : "";
+        if (label !== current) {
+          current = label;
+          if (label) list.append(heading(label));
+          else if (lately.length || list.children.length) list.append(heading("Others"));
+        }
+        list.append(row(o, inGroup ? group : ""));
+      });
+    }
+    if (target.querySelector(`option[value="${NEW_ACCOUNT}"]`)) {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.catNew = "";
+      button.textContent = "＋ New category";
+      li.append(button);
+      list.append(li);
+    }
+  };
+  document.body.addEventListener("click", (event) => {
+    const open = event.target.closest && event.target.closest("[data-cat-pick]");
+    if (open) {
+      target = rowAccount(open.closest("[data-row]"));
+      search.value = "";
+      draw();
+      dialog.showModal();
+      return;
+    }
+    if (!target || !dialog.contains(event.target)) return;
+    const option = event.target.closest("[data-cat-option]");
+    const fresh = event.target.closest("[data-cat-new]");
+    if (!option && !fresh) return;
+    const select = target;
+    target = null;
+    dialog.close();
+    select.value = option ? option.dataset.catOption : NEW_ACCOUNT;
+    if (option) remember(option.dataset.catOption);
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  search.addEventListener("input", draw);
+})();
+
 function recomputeTxn(form) {
   const field = form.querySelector("#total");
   field.style.setProperty("--n", Math.max(field.value.length - 0.55 * (field.value.split(",").length - 1), 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
@@ -667,6 +812,7 @@ function recomputeTxn(form) {
       : `${money(-left)} ${currency} over`;
   });
   syncRowCategories(form);
+  syncCategoryPickers(form);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

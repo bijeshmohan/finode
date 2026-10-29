@@ -1524,3 +1524,11 @@ a.sheet-extra.tag-see .icon { width: 1.1rem; height: 1.1rem; color: var(--faint)
 /* The Category line of a payment into a loan or fund: its own line under the account. */
 .txn-row .row-category { grid-column: 1 / -1; grid-row: 2; }
 .txn-row .row-category[hidden] { display: none !important; }
+
+/* Choosing a category: a button that opens a sheet. The <select> behind it stays, out of sight. */
+.txn-row select.is-picked { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.txn-row .cat-pick { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; min-height: var(--tap); margin: 0; padding: 0 1.5rem 0 0; border: 0; border-bottom: 1px solid var(--field-border); border-radius: 0; background: transparent; box-shadow: none; color: var(--text); font: inherit; font-weight: 400; text-align: left; justify-content: flex-start; cursor: pointer; position: relative; }
+.txn-row .cat-pick.empty { color: var(--faint); }
+.txn-row .cat-pick::after { content: "›"; position: absolute; right: .25rem; color: var(--faint); font-size: 1.25rem; }
+.txn-row .cat-pick:focus-visible { border-bottom-color: var(--text); outline: none; }
+.filter-options .filter-group { padding: .9rem 0 .25rem; font-size: .8125rem; text-transform: none; border: 0; }

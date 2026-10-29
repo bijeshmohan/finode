@@ -63,3 +63,58 @@ def test_an_edit_keeps_the_category_it_had(page: Page, books, api: Api):
     page.wait_for_url("**/transactions")
     entry = api.get(f"/transactions/{made['tid']}")
     assert {p["category"] for p in entry["postings"]} == {more["sip"]["aid"], None}
+
+
+# ---- the category sheet ------------------------------------------------------------------------
+
+
+def test_a_category_is_chosen_in_a_sheet(page: Page, books, api: Api):
+    api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
+    page.goto("/transactions/new")
+    expect(page.locator('[data-side-section="debit"] [data-side-title]')).to_have_text("Category")
+    expect(page.locator('[data-side-section="credit"] [data-side-title]')).to_have_text("Paid from")
+    button = page.locator('[data-rows="debit"] [data-cat-pick]')
+    expect(button).to_have_text("Choose category…")
+    button.click()
+    dialog = page.locator("#category-picker")
+    expect(dialog).to_be_visible()
+    expect(dialog.locator("[data-cat-option]")).to_have_count(3)
+    dialog.locator("[data-cat-search]").fill("din")
+    expect(dialog.locator("[data-cat-option]")).to_have_count(1)
+    dialog.locator("[data-cat-option]").click()
+    expect(dialog).to_be_hidden()
+    expect(button).to_have_text("Dining")
+    assert page.input_value('[data-rows="debit"] select') != ""
+    page.fill("#total", "40")
+    page.select_option('[data-rows="credit"] select', label="Checking")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url("**/transactions")
+    [entry] = api.get("/transactions/")[:1]
+    dining = next(a["aid"] for a in api.get("/accounts/") if a["name"] == "Dining")
+    assert {p["category"] for p in entry["postings"]} == {None, dining}
+
+
+def test_the_last_categories_used_come_first_and_a_new_one_can_be_made(page: Page, books, api: Api):
+    page.goto("/transactions/new")
+    button = page.locator('[data-rows="debit"] [data-cat-pick]')
+    button.click()
+    page.locator("#category-picker [data-cat-option]", has_text="Rent").click()
+    expect(button).to_have_text("Rent")
+    button.click()
+    first = page.locator("#category-picker [data-cat-list] li").first
+    expect(first).to_have_text("Used lately")
+    expect(page.locator("#category-picker [data-cat-option]").first).to_have_text("Rent")
+    expect(page.locator("#category-picker [data-cat-new]")).to_be_visible()
+
+
+def test_income_shows_the_earning_categories_and_a_transfer_keeps_plain_account_lists(page: Page, books):
+    page.goto("/transactions/new")
+    page.get_by_role("button", name="Income", exact=True).click()
+    expect(page.locator('[data-side-section="credit"] [data-side-title]')).to_have_text("Category")
+    expect(page.locator('[data-side-section="debit"] [data-side-title]')).to_have_text("Received in")
+    page.locator('[data-rows="credit"] [data-cat-pick]').click()
+    expect(page.locator("#category-picker [data-cat-option]")).to_have_text(["Salary"])
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="Transfer", exact=True).click()
+    expect(page.locator("[data-cat-pick]")).to_have_count(0)
+    expect(page.locator("select.is-picked")).to_have_count(0)
