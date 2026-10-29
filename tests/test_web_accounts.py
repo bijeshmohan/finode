@@ -568,7 +568,9 @@ def test_accounts_without_a_group_are_listed_together_after_all_the_groups(
     assert "<span>Others</span><span>20.00</span>" in text, "Apple and Cash, 10 each"
 
 
-def test_equity_is_the_page_you_get_when_neither_chip_is_chosen(client: TestClient, root_accounts: dict[str, str]):
+def test_equity_is_the_page_you_get_when_neither_asset_nor_liability_is_chosen(
+    client: TestClient, root_accounts: dict[str, str]
+):
     _bank(client, root_accounts)
     assets = client.get("/accounts").text
     assert 'href="/accounts?tab=equity"' in assets and 'aria-pressed="true"' in assets, (
@@ -576,8 +578,9 @@ def test_equity_is_the_page_you_get_when_neither_chip_is_chosen(client: TestClie
     )
     assert 'href="/accounts?tab=liabilities"' in assets
     equity = client.get("/accounts?tab=equity").text
-    assert 'aria-pressed="true"' not in equity, "neither chip is chosen"
-    assert 'href="/accounts?tab=assets"' in equity and 'href="/accounts?tab=liabilities"' in equity
+    assert equity.count('aria-pressed="true">Equity<') == 1, "the second row is shown, with Equity chosen"
+    assert 'href="/accounts?tab=assets"' in equity, "tapping Equity again goes back to Asset and Liability"
+    assert 'href="/accounts?tab=expense"' in equity and 'href="/accounts?tab=income"' in equity
     assert "Opening Balances" in equity and "Equity" in equity
     liabilities = client.get("/accounts?tab=liabilities").text
     assert 'href="/accounts?tab=equity"' in liabilities and 'href="/accounts?tab=assets"' in liabilities

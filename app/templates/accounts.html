@@ -36,27 +36,28 @@
 
 <div class="cat-bar">
   <div class="chips seg cat-chips" role="group" aria-label="What to show">
-    {#- Equity has no chip: almost nobody needs it. Tapping the chosen chip again leaves neither chosen, and that is the page of Equity. -#}
-    {% for key, name in tabs.items() if key != "equity" %}<a class="chip" href="/accounts?tab={{ 'equity' if tab == key else key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ chip_names[key] }}</a>{% endfor %}
+    {#- Two rows of chips that swap: Asset and Liability, and (tapping the chosen one again) Expense, Equity and Income, where tapping the chosen one again goes back. -#}
+    {% for key, name, target in chips %}<a class="chip" href="/accounts?tab={{ target }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
   </div>
 </div>
 
 <div class="ready zero budget-hero ready-hero cat-hero">
-  <div class="hero-top"><div class="calc-row"><span class="muted">{{ {"assets": "What you own", "liabilities": "What you owe", "equity": "Equity"}[tab] }}</span></div></div>
+  <div class="hero-top"><div class="calc-row"><span class="muted">{{ {"assets": "What you own", "liabilities": "What you owe", "equity": "Equity", "expense": "Total spent", "income": "Total earned"}[tab] }}</span></div></div>
   <span class="figure">{{ figure(root.account.balance, currency) }}</span>
-  <span class="glance-note hero-note"><span>{% if account_count %}{{ account_count }} account{{ "" if account_count == 1 else "s" }}{% else %}No accounts yet{% endif %}</span></span>
+  <span class="glance-note hero-note"><span>{% set one, many = ("category", "categories") if is_category else ("account", "accounts") %}{% if account_count %}{{ account_count }} {{ one if account_count == 1 else many }}{% else %}No {{ many }} yet{% endif %}</span></span>
 </div>
 
 <div data-accounts>
+  {% set add_url = ("/categories/new?root=" ~ tab) if is_category else ("/accounts/new?root=" ~ tab) %}
   {% if blocks %}
   {{ blocks_of(root) }}
   {% else %}
-  <p class="add-pill"><a class="button" href="/accounts/new?root={{ tab }}">{{ icon("plus") }}Add account</a></p>
+  <p class="add-pill"><a class="button" href="{{ add_url }}">{{ icon("plus") }}Add {{ one }}</a></p>
   {% endif %}
 
   {% if closed %}
   <p class="unused-toggle"><button type="button" class="link-button" data-load-more-accounts>Load more</button></p>
   {% endif %}
-  {% if blocks %}<a class="add-row" href="/accounts/new?root={{ tab }}">{{ icon("plus") }}Add account</a>{% endif %}
+  {% if blocks %}<a class="add-row" href="{{ add_url }}">{{ icon("plus") }}Add {{ one }}</a>{% endif %}
 </div>
 {% endblock %}

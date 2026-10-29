@@ -62,6 +62,24 @@ def test_plain_accounts_under_a_type_share_one_block_under_others(client, tree):
     )
 
 
+def test_the_second_row_of_chips_lists_expense_equity_and_income_and_tapping_the_chosen_one_goes_back(client, tree):
+    chip = r'<a class="chip" href="/accounts\?tab=(\w+)" aria-pressed="(\w+)">(\w+)</a>'
+    # Neither Asset nor Liability: Expense, Equity (chosen) and Income; the chosen chip leads back to Assets.
+    equity = client.get("/accounts?tab=equity").text
+    assert re.findall(chip, equity) == [
+        ("expense", "false", "Expense"),
+        ("assets", "true", "Equity"),
+        ("income", "false", "Income"),
+    ]
+    for tab, name, lead in (("expense", "Expense", "Total spent"), ("income", "Income", "Total earned")):
+        page = client.get(f"/accounts?tab={tab}").text
+        found = re.findall(chip, page)
+        assert [n for _, _, n in found] == ["Expense", "Equity", "Income"], tab
+        assert (("assets", "true", name) in found) and lead in page, tab
+        assert f'href="/categories/new?root={tab}"' in page, "adding makes a category, with its books account"
+    assert re.findall(chip, client.get("/accounts?tab=expense").text)[1] == ("equity", "false", "Equity")
+
+
 def test_the_chips_pick_a_type_in_the_order_assets_liabilities_and_equity_has_none(client, tree):
     page = client.get("/accounts").text
     chips = re.findall(r'<a class="chip" href="/accounts\?tab=(\w+)" aria-pressed="(\w+)">(\w+)</a>', page)
