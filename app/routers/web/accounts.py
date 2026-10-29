@@ -178,22 +178,32 @@ CATEGORY_ROOTS = ("Expenses", "Income")
 ACCOUNT_TABS = {"assets": "Assets", "liabilities": "Liabilities", "equity": "Equity"}
 # What the chips say: one kind of account, in the singular (the roots themselves keep their names).
 ACCOUNT_CHIP_NAMES = {"assets": "Asset", "liabilities": "Liability", "equity": "Equity"}
+# The page has two rows of chips. Tapping the chosen chip again swaps the row: the first row's goes to Equity, the
+# second row's back to Assets. The second row also lists the books' side of the categories (Expenses, Income).
+PAGE_TABS = {**ACCOUNT_TABS, "expense": "Expenses", "income": "Income"}
+PAGE_CHIP_NAMES = {**ACCOUNT_CHIP_NAMES, "expense": "Expense", "income": "Income"}
+FIRST_ROW = ("assets", "liabilities")
+SECOND_ROW = ("expense", "equity", "income")
 
 
 @router.get("")
 def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
-    tab = tab.lower() if tab.lower() in ACCOUNT_TABS else "assets"
-    roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
+    tab = tab.lower() if tab.lower() in PAGE_TABS else "assets"
+    roots = [r for r in build_tree(accounts.list()) if r.account.name in PAGE_TABS.values()]
     mark_closed(roots)
-    root = next(r for r in roots if r.account.name == ACCOUNT_TABS[tab])
+    root = next(r for r in roots if r.account.name == PAGE_TABS[tab])
+    row = FIRST_ROW if tab in FIRST_ROW else SECOND_ROW
     return templates.TemplateResponse(
         request,
         "accounts.html",
         {
             "active": "accounts",
             "tab": tab,
-            "tabs": ACCOUNT_TABS,
-            "chip_names": ACCOUNT_CHIP_NAMES,
+            "chips": [
+                (key, PAGE_CHIP_NAMES[key], ("assets" if tab in SECOND_ROW else "equity") if key == tab else key)
+                for key in row
+            ],
+            "is_category": tab in ("expense", "income"),
             "root": root,
             "blocks": page_blocks(root),
             "currency": accounts.currency().code,
