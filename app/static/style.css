@@ -1348,9 +1348,11 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 .filter-head { display: flex; align-items: baseline; gap: 1rem; }
 .filter-head .filter-title { margin: 0; }
 .filter-search { margin: .75rem 0 .25rem; }
-.filter-options { list-style: none; margin: 0; padding: 0; max-height: 45vh; overflow: auto; }
+.filter-options { list-style: none; margin: 0; padding: 0; max-height: 45vh; overflow: auto; scrollbar-gutter: stable; }
 .filter-options button { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 3rem; margin: 0; padding: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font-size: .9375rem; font-weight: 400; text-align: left; }
 .filter-options small { font-size: .8125rem; }
+/* Room beside the right edge, so a scroll bar never lies over a tick or a figure. */
+.filter-options li > button { padding-right: .75rem; }
 .filter-options li[hidden] { display: none; }
 
 /* The sheet opens with focus on its title, not on the first row (iOS drew the focus ring round it, a light box in dark mode). */
@@ -1527,10 +1529,10 @@ a.sheet-extra.tag-see .icon { width: 1.1rem; height: 1.1rem; color: var(--faint)
 
 /* Choosing a category: a button that opens a sheet. The <select> behind it stays, out of sight. */
 .txn-row select.is-picked { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
-.txn-row .cat-pick { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; min-height: var(--tap); margin: 0; padding: 0 1.5rem 0 0; border: 0; border-bottom: 1px solid var(--field-border); border-radius: 0; background: transparent; box-shadow: none; color: var(--text); font: inherit; font-weight: 400; text-align: left; justify-content: flex-start; cursor: pointer; position: relative; }
-.txn-row .cat-pick.empty { color: var(--faint); }
-.txn-row .cat-pick::after { content: "›"; position: absolute; right: .25rem; color: var(--faint); font-size: 1.25rem; }
-.txn-row .cat-pick:focus-visible { border-bottom-color: var(--text); outline: none; }
+.txn-row .row-pick { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; min-height: var(--tap); margin: 0; padding: 0 1.5rem 0 0; border: 0; border-bottom: 1px solid var(--field-border); border-radius: 0; background: transparent; box-shadow: none; color: var(--text); font: inherit; font-weight: 400; text-align: left; justify-content: flex-start; cursor: pointer; position: relative; }
+.txn-row .row-pick.empty { color: var(--faint); }
+.txn-row .row-pick::after { content: "›"; position: absolute; right: .25rem; color: var(--faint); font-size: 1.25rem; }
+.txn-row .row-pick:focus-visible { border-bottom-color: var(--text); outline: none; }
 .filter-options .filter-group { padding: .9rem 0 .25rem; font-size: .8125rem; text-transform: none; border: 0; }
 
 /* Books accounts: a row is the name (and what it feeds) and the account's path. */
@@ -1541,3 +1543,7 @@ a.sheet-extra.tag-see .icon { width: 1.1rem; height: 1.1rem; color: var(--faint)
 .books-row .books-path { font-size: .8125rem; text-align: right; overflow-wrap: anywhere; }
 .books-row.closed .setting-title { color: var(--muted); }
 button.add-row { width: 100%; font: inherit; cursor: pointer; background: transparent; }
+
+/* The account and category sheet: a balance beside the name, the other side's account greyed. */
+.filter-options .pick-balance { flex: none; margin-left: auto; font-size: .8125rem; font-variant-numeric: tabular-nums; }
+.filter-options button:disabled { opacity: .45; cursor: default; }

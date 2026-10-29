@@ -12,7 +12,7 @@ Tap **+** (phone) or **New transaction** (wide screen).
    - Income: a **Category** (such as Salary), **Received in** an account.
    - Transfer: **From** and **To** your own accounts (including paying a card or a loan).
    - Tap the selected kind again to select *none*: every account is offered. Use this for anything unusual.
-3. **Accounts and category**: pick the accounts, and tap the **Category** line to choose from a sheet (the ones you used lately first, then groups, with a search; *＋ New category* makes one). When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional; a loan can have a *usual category* that fills it in. Several categories on one entry make it a split.
+3. **Accounts and category**: pick the accounts and the category: each row opens a sheet to choose from (the ones you used lately first, then groups, with a search; *＋ New category* makes one). When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional; a loan can have a *usual category* that fills it in. Several categories on one entry make it a split.
 4. **Payee**, **note** and **date** (a chip that reads "Today, 24 Oct"; tap it to pick another day).
 5. **Save**, or **Save & add another** to keep entering.
 
