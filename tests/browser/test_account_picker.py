@@ -60,14 +60,18 @@ def test_a_new_account_can_be_made_from_the_sheet(page: Page, books, api: Api):
     assert any(a["name"] == "Kotak" for a in api.get("/accounts/"))
 
 
-def test_the_scroll_bar_stays_clear_of_the_ticks(page: Page, books, api: Api):
+def test_the_chosen_account_is_bold_and_the_scroll_bar_stays_clear_of_the_balances(page: Page, books, api: Api):
     for number in range(25):
-        api.post("/accounts/", name=f"Wallet {number:02d}", parent_id=books["roots"]["Assets"])
+        api.post("/accounts/", name=f"Wallet {number:02d}", parent_id=books["roots"]["Assets"], balance="1500")
     page.goto("/transactions/new")
     page.locator('[data-rows="credit"] [data-pick]').click()
+    page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
+    page.locator('[data-rows="credit"] [data-pick]').click()
+    assert page.locator("#row-picker .tag-tick").count() == 0, "no circle: one choice closes the sheet"
+    chosen = page.locator('#row-picker [aria-pressed="true"] > span:first-child').first
+    assert chosen.evaluate("el => getComputedStyle(el).fontWeight") == "600"
     list_box = page.locator("#row-picker [data-pick-list]")
-    scrolls = list_box.evaluate("el => el.scrollHeight > el.clientHeight")
-    assert scrolls, "the list is long enough to scroll"
-    edge = list_box.bounding_box()["x"] + list_box.evaluate("el => el.clientWidth")  # where the scroll bar begins
-    tick = page.locator("#row-picker .tag-tick").first.bounding_box()
-    assert tick["x"] + tick["width"] <= edge - 8, "a gap between the tick and the scroll bar"
+    assert list_box.evaluate("el => el.scrollHeight > el.clientHeight"), "the list is long enough to scroll"
+    edge = list_box.bounding_box()["x"] + list_box.evaluate("el => el.clientWidth")  # where a scroll bar begins
+    balance = page.locator("#row-picker .pick-balance").first.bounding_box()
+    assert balance["x"] + balance["width"] <= edge, "the figures end before the scroll bar"

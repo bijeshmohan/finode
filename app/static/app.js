@@ -692,10 +692,6 @@ function syncRowPickers(form) {
       balance.textContent = `${option.parentElement.label === "Liabilities" ? "owed " : ""}${option.dataset.balance}`;
       button.append(balance);
     }
-    const tick = document.createElement("span");
-    tick.className = "tag-tick";
-    tick.setAttribute("aria-hidden", "true");
-    button.append(tick);
     if (taken.has(option.value) && option.value !== target.value) {
       button.disabled = true;
       button.title = "Already on the other side";

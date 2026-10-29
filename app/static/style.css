@@ -1351,8 +1351,6 @@ a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; 
 .filter-options { list-style: none; margin: 0; padding: 0; max-height: 45vh; overflow: auto; scrollbar-gutter: stable; }
 .filter-options button { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 3rem; margin: 0; padding: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font-size: .9375rem; font-weight: 400; text-align: left; }
 .filter-options small { font-size: .8125rem; }
-/* Room beside the right edge, so a scroll bar never lies over a tick or a figure. */
-.filter-options li > button { padding-right: .75rem; }
 .filter-options li[hidden] { display: none; }
 
 /* The sheet opens with focus on its title, not on the first row (iOS drew the focus ring round it, a light box in dark mode). */
@@ -1547,3 +1545,4 @@ button.add-row { width: 100%; font: inherit; cursor: pointer; background: transp
 /* The account and category sheet: a balance beside the name, the other side's account greyed. */
 .filter-options .pick-balance { flex: none; margin-left: auto; font-size: .8125rem; font-variant-numeric: tabular-nums; }
 .filter-options button:disabled { opacity: .45; cursor: default; }
+.filter-options button[aria-pressed="true"] > span:first-child { font-weight: 600; }
