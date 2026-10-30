@@ -1553,6 +1553,7 @@ button.add-row { width: 100%; font: inherit; cursor: pointer; background: transp
 .filter-options.grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .5rem; }
 .filter-options.grid > li.filter-group, .filter-options.grid > li.filter-empty, .filter-options.grid > li.pick-new-li { grid-column: 1 / -1; }
 .filter-options.grid > li:not(.filter-group):not(.filter-empty) > button { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; min-height: 3.25rem; padding: .55rem .8rem; border: 0; border-radius: 12px; background: var(--surface-2); }
+.filter-options button small { font-weight: 400; }
 .filter-options.grid button small { display: block; font-size: .72rem; line-height: 1.3; }
 .filter-options.grid > li:not(.filter-group):not(.filter-empty) > button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .filter-options.grid button[aria-pressed="true"] small { color: inherit; opacity: .7; }
