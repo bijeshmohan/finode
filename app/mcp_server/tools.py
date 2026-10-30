@@ -215,7 +215,7 @@ def _via(origin: str | None) -> str | None:
 
 
 def _index(s: Services) -> AccountIndex:
-    return AccountIndex(s.accounts.list())
+    return AccountIndex(s.accounts.list(), s.categories.list(include_closed=True))
 
 
 def _categories(s: Services) -> CategoryIndex:
@@ -675,25 +675,20 @@ def spending_breakdown(
     date_from: Annotated[date | None, Field(description="First day; the 1st of this month when left out")] = None,
     date_to: Annotated[date | None, Field(description="Last day; today when left out")] = None,
     depth: Annotated[int, Field(ge=1, le=2, description="1 = Food, Rent...; 2 = Food:Groceries...")] = 1,
-    by: Annotated[
-        Literal["category", "account"],
-        Field(
-            description="category (default): what the money was for, as the budget counts it, so paying into a loan is "
-            "spending in its category; account: the books' view per Income or Expenses account"
-        ),
-    ] = "category",
 ) -> dict[str, Any]:
-    """Expenses (or income) for a period per category (or per account), largest first."""
+    """Expenses (or income) for a period per category, largest first: what the money was for, as the budget counts
+    it, so paying into a loan is spending in its category."""
     with services() as s:
-        report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth, by)
+        report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
         return {
             "kind": kind,
             "currency": report.currency,
             "from": report.period_start.isoformat(),
             "to": report.period_end.isoformat(),
             "total": text(report.total),
-            "by": by,
-            f"by_{by}": [{by: line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines],
+            "by_category": [
+                {"category": line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines
+            ],
         }
 
 
