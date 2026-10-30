@@ -94,17 +94,13 @@ def test_a_category_is_chosen_in_a_sheet(page: Page, books, api: Api):
     assert {p["category"] for p in entry["postings"]} == {None, dining}
 
 
-def test_the_last_categories_used_come_first_and_a_new_one_can_be_made(page: Page, books, api: Api):
+def test_a_new_category_can_be_made_from_the_sheet(page: Page, books, api: Api):
     page.goto("/transactions/new")
     button = page.locator('[data-rows="debit"] [data-pick]:visible')
     button.click()
-    page.locator("#row-picker [data-pick-option]", has_text="Rent").click()
-    expect(button).to_have_text("Rent")
-    button.click()
-    first = page.locator("#row-picker [data-pick-list] li").first
-    expect(first).to_have_text("Used lately")
-    expect(page.locator("#row-picker [data-pick-option]").first).to_have_text("Rent")
+    expect(page.locator("#row-picker [data-pick-list] li").first).not_to_have_text("Used lately")
     expect(page.locator("#row-picker [data-pick-new]")).to_be_visible()
+    assert "Used lately" not in page.locator("#row-picker").inner_text()
 
 
 def test_income_shows_the_earning_categories_and_a_transfer_lists_accounts(page: Page, books):

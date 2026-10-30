@@ -32,18 +32,14 @@ def test_an_account_is_chosen_in_a_sheet(page: Page, books, api: Api):
     assert {p["account"] for p in entry["postings"]} == {books["checking"]["aid"], books["food"]["aid"]}
 
 
-def test_the_account_on_the_other_side_is_greyed_and_the_last_used_come_first(page: Page, books):
+def test_the_account_on_the_other_side_is_greyed(page: Page, books):
     page.goto("/transactions/new")
     page.get_by_role("button", name="Transfer", exact=True).click()
     page.locator('[data-rows="credit"] [data-pick]:visible').click()
     page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
     page.locator('[data-rows="debit"] [data-pick]:visible').click()
-    for same in page.locator("#row-picker [data-pick-option]", has_text="Checking").all():  # also under Used lately
-        expect(same).to_be_disabled()
-    expect(page.locator("#row-picker [data-pick-option]", has_text="Cash").first).to_be_enabled()
-    page.keyboard.press("Escape")
-    page.locator('[data-rows="credit"] [data-pick]:visible').click()
-    expect(page.locator("#row-picker [data-pick-list] li").first).to_have_text("Used lately")
+    expect(page.locator("#row-picker [data-pick-option]", has_text="Checking")).to_be_disabled()
+    expect(page.locator("#row-picker [data-pick-option]", has_text="Cash")).to_be_enabled()
 
 
 def test_a_new_account_can_be_made_from_the_sheet(page: Page, books, api: Api):
@@ -77,7 +73,7 @@ def test_the_chosen_account_is_bold_and_the_scroll_bar_stays_clear_of_the_balanc
     assert balance["x"] + balance["width"] <= edge, "the figures end before the scroll bar"
 
 
-def test_chips_and_recent_rows_show_the_name_and_the_group_under_it_without_an_arrow(page: Page, books, api: Api):
+def test_chips_and_search_results_show_the_name_and_the_group_under_it_without_an_arrow(page: Page, books, api: Api):
     banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
     api.post("/accounts/", name="Kotak", parent_id=banks["aid"])
     food = api.post("/accounts/", name="Food", parent_id=books["roots"]["Expenses"])
@@ -92,10 +88,11 @@ def test_chips_and_recent_rows_show_the_name_and_the_group_under_it_without_an_a
     page.locator("#row-picker [data-pick-option]", has_text="Dining").first.click()
     expect(category).to_have_text("Dining")
     account.click()
-    recent = page.locator("#row-picker [data-pick-list] li").nth(1)
-    expect(recent).to_contain_text("Kotak")
-    expect(recent).to_contain_text("Banks")
+    page.locator("#row-picker [data-pick-search]").fill("kot")
+    found = page.locator("#row-picker [data-pick-option]")
+    expect(found).to_contain_text("Kotak")
+    expect(found).to_contain_text("Banks")  # a match outside its heading names its group under it
     assert "›" not in page.locator("#row-picker").inner_text()
-    page.keyboard.press("Escape")
+    page.evaluate("document.getElementById('row-picker').close()")
     category.click()
     assert "›" not in page.locator("#row-picker").inner_text()

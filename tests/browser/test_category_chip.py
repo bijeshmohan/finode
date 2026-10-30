@@ -61,7 +61,7 @@ def test_the_category_sheet_is_a_grid_of_tiles_and_the_account_sheet_a_list(page
     assert abs(first["y"] - second["y"]) < 2 and first["x"] != second["x"], "two tiles side by side"
     tiles.first.click()
     page.locator('[data-rows="debit"] [data-pick]:visible').click()
-    expect(page.locator('#row-picker [aria-pressed="true"]').first).to_be_visible()  # also under Used lately
+    expect(page.locator('#row-picker [aria-pressed="true"]').first).to_be_visible()
     page.keyboard.press("Escape")
     page.locator('[data-rows="credit"] [data-pick]:visible').click()
     first, second = tiles.nth(0).bounding_box(), tiles.nth(1).bounding_box()

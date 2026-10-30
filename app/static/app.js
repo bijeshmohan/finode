@@ -694,14 +694,7 @@ function syncRowPickers(form) {
   const list = dialog.querySelector("[data-pick-list]");
   const search = dialog.querySelector("[data-pick-search]");
   const title = dialog.querySelector(".filter-title");
-  const RECENT = { account: "finode.recentAccounts", category: "finode.recentCategories" };
   let noun = "category";
-  const recent = () => {
-    try { return JSON.parse(localStorage.getItem(RECENT[noun]) || "[]"); } catch { return []; }
-  };
-  const remember = (value) => {
-    try { localStorage.setItem(RECENT[noun], JSON.stringify([value, ...recent().filter((v) => v !== value)].slice(0, 5))); } catch { /* no storage: fine */ }
-  };
   let target = null;
   let clearable = false; // a payment's category can be none
   let taken = new Set(); // what the other side of the entry already uses: an account cannot be on both
@@ -755,11 +748,6 @@ function syncRowPickers(form) {
         list.append(li);
       }
     } else {
-      const lately = recent().map((v) => all.find((o) => o.value === v)).filter(Boolean);
-      if (lately.length) {
-        list.append(heading("Used lately"));
-        lately.forEach((o) => list.append(row(o, "")));
-      }
       let current = null;
       all.forEach((o) => {
         const [group] = o.textContent.split(" › ");
@@ -768,7 +756,7 @@ function syncRowPickers(form) {
         if (label !== current) {
           current = label;
           if (label) list.append(heading(label));
-          else if (lately.length || list.children.length) list.append(heading("Others"));
+          else if (list.children.length) list.append(heading("Others"));
         }
         list.append(row(o, inGroup ? group : ""));
       });
@@ -830,7 +818,6 @@ function syncRowPickers(form) {
     target = null;
     dialog.close();
     select.value = option ? option.dataset.pickOption : NEW_ACCOUNT;
-    if (option && option.dataset.pickOption) remember(option.dataset.pickOption);
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   search.addEventListener("input", draw);
