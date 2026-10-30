@@ -4,7 +4,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Request
 
 from ...clock import local_today, month_progress
-from ...dependencies import Accounts, Budget, Profiles, Recurring, Reports, Transactions
+from ...dependencies import Accounts, Budget, Categories, Profiles, Recurring, Reports, Transactions
 from ...services.account import AccountService
 from ...templating import templates
 from .budget import parse_month
@@ -28,6 +28,7 @@ def _catch_up(recurring: Recurring) -> None:
 def dashboard(
     request: Request,
     accounts: Accounts,
+    categories: Categories,
     reports: Reports,
     transactions: Transactions,
     recurring: Recurring,
@@ -45,7 +46,7 @@ def dashboard(
         else reports.summary(when, when.replace(day=calendar.monthrange(when.year, when.month)[1]))
     )
     all_accounts = accounts.list()
-    index = AccountIndex.build(all_accounts)
+    index = AccountIndex.build(all_accounts, categories.list(include_closed=True))
     # The chosen month's own entries, newest first (this month up to today), a few at first and "Show more" for the rest.
     month_end = when.replace(day=calendar.monthrange(when.year, when.month)[1])
     chunk, month_total = transactions.page(0, HOME_FIRST, date_from=when, date_to=min(month_end, local_today()))

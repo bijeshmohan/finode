@@ -82,36 +82,17 @@ class ReportService:
             totals[category] = totals.get(category, Decimal("0.00")) + (amount if side == normal_side else -amount)
         return totals
 
-    def account_totals(self, root_name: str, period_start: date, period_end: date) -> dict:
-        """What each account under Income or Expenses took in a period (what was posted to the account itself:
-        a group's own postings, not its sub-accounts'): the books' view, where paying into a loan is not an expense."""
-        if root_name not in ("Income", "Expenses"):
-            raise ValueError("a breakdown is of Income or Expenses!")
-        accounts = {a.aid: a for a in self.accounts.list()}
-        root = next(a for a in accounts.values() if a.parent_id is None and a.name == root_name)
-        normal_side = PostingSide.CREDIT if root_name == "Income" else PostingSide.DEBIT
-        totals: dict = {}
-        for posting in self.tr.postings_for_accounts(self.accounts.subtree_ids(root.aid), period_start, period_end):
-            value = posting.amount if posting.side == normal_side else -posting.amount
-            totals[posting.account] = totals.get(posting.account, Decimal("0.00")) + value
-        return totals
-
     def breakdown(
         self,
         root_name: str,
         period_start: date | None = None,
         period_end: date | None = None,
         depth: int = 1,
-        by: str = "category",
     ) -> BreakdownRead:
-        """Income or expenses for a period, `depth` levels down. `by="category"` (the default) is what the money was
-        for, as the Budget and Categories count it (a payment into a loan is spending in its category);
-        `by="account"` is the books' view per Income or Expenses account, where paying into a loan is no expense.
-
-        Money on deeper levels counts towards its ancestor at `depth`.
+        """Income or expenses for a period, `depth` levels down: what the money was for, as the Budget and Categories
+        count it (a payment into a loan is spending in its category). Money on deeper levels counts towards its
+        ancestor at `depth`.
         """
-        if by not in ("category", "account"):
-            raise ValueError("a breakdown is by category or by account!")
         if root_name not in ("Income", "Expenses"):
             raise ValueError("a breakdown is of Income or Expenses!")
         if depth < 1:
@@ -122,34 +103,20 @@ class ReportService:
         if period_start > period_end:
             raise ValueError("period start must not be after period end!")
 
-        if by == "account":
-            accounts = {a.aid: a for a in self.accounts.list()}
+        by_id = {c.bcid: c for c in self.accounts_categories()}
 
-            def group_of(aid) -> str:
-                chain = []
-                current = accounts[aid]
-                while current.parent_id is not None:
-                    chain.append(current.name)
-                    current = accounts[current.parent_id]
-                chain.reverse()
-                return " › ".join(chain[:depth])
+        def group_of(bcid) -> str:
+            chain = []
+            current = by_id[bcid]
+            while True:
+                chain.append(current.name)
+                if current.parent_id is None or current.parent_id not in by_id:
+                    break
+                current = by_id[current.parent_id]
+            chain.reverse()
+            return " › ".join(chain[:depth])
 
-            own = self.account_totals(root_name, period_start, period_end)
-        else:
-            by_id = {c.bcid: c for c in self.accounts_categories()}
-
-            def group_of(bcid) -> str:
-                chain = []
-                current = by_id[bcid]
-                while True:
-                    chain.append(current.name)
-                    if current.parent_id is None or current.parent_id not in by_id:
-                        break
-                    current = by_id[current.parent_id]
-                chain.reverse()
-                return " › ".join(chain[:depth])
-
-            own = self.category_totals("spending" if root_name == "Expenses" else "earning", period_start, period_end)
+        own = self.category_totals("spending" if root_name == "Expenses" else "earning", period_start, period_end)
         totals: dict[str, Decimal] = {}
         for aid, value in own.items():
             key = group_of(aid)

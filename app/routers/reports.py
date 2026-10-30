@@ -36,12 +36,10 @@ def get_breakdown(
     date_from: date | None = None,
     date_to: date | None = None,
     depth: int = Query(default=1, ge=1, le=2),
-    by: Literal["category", "account"] = "category",
 ):
-    """Where the money went (or came from) in a period, `depth` levels down. `by=category` (the default) is what it was
-    for, as the Budget counts it: paying into a loan is spending in its category. `by=account` is the books' view per
-    Income or Expenses account, where paying into a loan is not an expense."""
+    """Where the money went (or came from) in a period, `depth` levels down: what it was for, as the Budget counts it
+    (paying into a loan is spending in its category)."""
     try:
-        return reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth, by)
+        return reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
