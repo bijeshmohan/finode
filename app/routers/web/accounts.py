@@ -8,8 +8,8 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
-from ...clock import FIRST_DAY, local_day, local_today
-from ...dependencies import Accounts, Profiles, Reports
+from ...clock import local_day, local_today
+from ...dependencies import Accounts, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...services.account import (
     FIXED_DEFAULTS,
@@ -178,34 +178,22 @@ CATEGORY_ROOTS = ("Expenses", "Income")
 ACCOUNT_TABS = {"assets": "Assets", "liabilities": "Liabilities", "equity": "Equity"}
 # What the chips say: one kind of account, in the singular (the roots themselves keep their names).
 ACCOUNT_CHIP_NAMES = {"assets": "Asset", "liabilities": "Liability", "equity": "Equity"}
-# The page has two rows of chips. Tapping the chosen chip again swaps the row: the first row's goes to Equity, the
-# second row's back to Assets. The second row also lists the books' side of the categories (Expenses, Income).
-PAGE_TABS = {**ACCOUNT_TABS, "expense": "Expenses", "income": "Income"}
-PAGE_CHIP_NAMES = {**ACCOUNT_CHIP_NAMES, "expense": "Expense", "income": "Income"}
-FIRST_ROW = ("assets", "liabilities")
-SECOND_ROW = ("expense", "equity", "income")
 
 
 @router.get("")
-def accounts_page(request: Request, accounts: Accounts, reports: Reports, tab: str = "assets"):
-    tab = tab.lower() if tab.lower() in PAGE_TABS else "assets"
-    roots = [r for r in build_tree(accounts.list()) if r.account.name in PAGE_TABS.values()]
+def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
+    tab = tab.lower() if tab.lower() in ACCOUNT_TABS else "assets"
+    roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
     mark_closed(roots)
-    root = next(r for r in roots if r.account.name == PAGE_TABS[tab])
-    row = FIRST_ROW if tab in FIRST_ROW else SECOND_ROW
-    if tab in SECOND_ROW and tab != "equity":
-        _by_category(root, reports, "spending" if tab == "expense" else "earning")
+    root = next(r for r in roots if r.account.name == ACCOUNT_TABS[tab])
     return templates.TemplateResponse(
         request,
         "accounts.html",
         {
             "active": "accounts",
             "tab": tab,
-            "chips": [
-                (key, PAGE_CHIP_NAMES[key], ("assets" if tab in SECOND_ROW else "equity") if key == tab else key)
-                for key in row
-            ],
-            "is_category": tab in ("expense", "income"),
+            "tabs": ACCOUNT_TABS,
+            "chip_names": ACCOUNT_CHIP_NAMES,
             "root": root,
             "blocks": page_blocks(root),
             "currency": accounts.currency().code,
@@ -216,20 +204,6 @@ def accounts_page(request: Request, accounts: Accounts, reports: Reports, tab: s
             ),
         },
     )
-
-
-def _by_category(root: Node, reports: Reports, kind: str) -> None:
-    """Expense and Income list categories, so each figure is what its lines were labelled for (all time, up to today),
-    not what was posted to the books account: an EMI paid into a loan sits on the loan and counts for its category."""
-    own = reports.category_totals(kind, FIRST_DAY, local_today())
-
-    def walk(node: Node) -> Decimal:
-        node.account.balance = own.get(node.account.aid, Decimal("0.00")) + sum(
-            (walk(child) for child in node.children), Decimal("0.00")
-        )
-        return node.account.balance
-
-    walk(root)
 
 
 def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:

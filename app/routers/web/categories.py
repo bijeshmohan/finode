@@ -1,25 +1,61 @@
-"""Categories: where money goes and comes from (the Expenses and Income accounts), one month at a time.
+"""Categories: what money was for, one month at a time.
 
-The Accounts page is where the money is. A category is an Expenses or Income account shown for a month,
-because the lifetime total of an expense account says nothing."""
+The Accounts page is where the money is. A category is a label on the lines of an entry (Groceries, EMI, Salary), kept
+apart from the books' accounts, and this page shows what each one came to in a month, because a lifetime total says
+nothing."""
+
+from __future__ import annotations
 
 import calendar
+from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from pydantic import ValidationError
 
 from ...clock import local_today
-from ...dependencies import Accounts, Profiles, Reports
+from ...dependencies import Categories, Reports
+from ...schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 from ...templating import templates
-from .accounts import CATEGORY_ROOTS, Node, _load, _root_of, account_context, build_tree, deleted_page, new_account_page
 from .budget import parse_month, shift
+from .utils import htmx_error, htmx_redirect, validation_message
 
 router = APIRouter(prefix="/categories")
 
-TABS = {"expense": "Expenses", "income": "Income"}
+# The chips on the Categories page, and the kind each one shows.
+TABS = {"expense": "spending", "income": "earning"}
+KIND_TABS = {kind: tab for tab, kind in TABS.items()}
 ZERO = Decimal("0.00")
+
+
+@dataclass
+class CatNode:
+    """A category and the categories inside it (a group holds categories; a category holds none)."""
+
+    category: CategoryRead
+    children: list[CatNode] = field(default_factory=list)
+
+    def walk(self):
+        yield self
+        for child in self.children:
+            yield from child.walk()
+
+
+def category_tree(categories: Categories, kind: str, include_closed: bool = False) -> list[CatNode]:
+    """The categories of one kind as groups with their categories inside, A to Z."""
+    found = categories.list(kind, include_closed)
+    nodes = {c.bcid: CatNode(c) for c in found}
+    top: list[CatNode] = []
+    for node in nodes.values():
+        parent = nodes.get(node.category.parent_id) if node.category.parent_id else None
+        (parent.children if parent is not None else top).append(node)
+    for node in nodes.values():
+        node.children.sort(key=lambda n: n.category.name.lower())
+    top.sort(key=lambda n: n.category.name.lower())
+    return top
 
 
 def _period(month: str):
@@ -44,25 +80,25 @@ def _month_context(when, is_current: bool) -> dict:
     }
 
 
-def _figures(accounts, reports, root_name: str, when, end):
-    """The month's amounts for one type: (the type's tree with closed empty categories left out, what was posted to
-    each account itself, what each account and everything inside it came to)."""
-    own = reports.category_totals("spending" if root_name == "Expenses" else "earning", when, end)
-    root = next(r for r in build_tree(accounts.list()) if r.account.name == root_name)
+def _figures(categories: Categories, reports: Reports, kind: str, when, end):
+    """The month's amounts for one kind: (the tree with closed empty categories left out, what was labelled with each
+    category itself, what each category and everything inside it came to)."""
+    own = reports.category_totals(kind, when, end)
+    top = category_tree(categories, kind, include_closed=True)
     totals: dict[UUID, Decimal] = {}
 
-    def walk(node: Node) -> Decimal:
-        total = own.get(node.account.aid, ZERO) + sum((walk(child) for child in node.children), ZERO)
-        totals[node.account.aid] = total
+    def walk(node: CatNode) -> Decimal:
+        total = own.get(node.category.bcid, ZERO) + sum((walk(child) for child in node.children), ZERO)
+        totals[node.category.bcid] = total
         return total
 
     # A deleted (closed) category with nothing in the month is not listed, at either level.
-    def shown(n: Node) -> bool:
-        return n.account.closed_on is None or any(own.get(m.account.aid) for m in n.walk())
+    def shown(n: CatNode) -> bool:
+        return n.category.closed_on is None or any(own.get(m.category.bcid) for m in n.walk())
 
-    for n in root.children:
+    for n in top:
         n.children = [c for c in n.children if shown(c)]
-    top = [n for n in root.children if shown(n)]
+    top = [n for n in top if shown(n)]
     for n in top:
         walk(n)
     return top, own, totals
@@ -79,24 +115,23 @@ def _share(total: Decimal, grand: Decimal) -> str:
     return "<1%" if percent < 1 else f"{round(percent)}%"
 
 
-def _by_amount(nodes: list[Node], totals: dict[UUID, Decimal]) -> list[Node]:
-    return sorted(nodes, key=lambda n: (-abs(totals[n.account.aid]), n.account.name.lower()))
+def _by_amount(nodes: list[CatNode], totals: dict[UUID, Decimal]) -> list[CatNode]:
+    return sorted(nodes, key=lambda n: (-abs(totals[n.category.bcid]), n.category.name.lower()))
 
 
 @router.get("")
-def categories_page(request: Request, accounts: Accounts, reports: Reports, month: str = "", tab: str = "expense"):
+def categories_page(request: Request, categories: Categories, reports: Reports, month: str = "", tab: str = "expense"):
     when, end, is_current = _period(month)
     if when is None:
         return RedirectResponse(f"/categories?tab={tab}", status_code=303)
     tab = {"spending": "expense", "earning": "income"}.get(tab, tab)  # the kinds' own names work too
     tab = tab if tab in TABS else "expense"
-    root_name = TABS[tab]
-    top, _own, totals = _figures(accounts, reports, root_name, when, end)
-    grand = sum((totals[n.account.aid] for n in top), ZERO)
+    top, _own, totals = _figures(categories, reports, TABS[tab], when, end)
+    grand = sum((totals[n.category.bcid] for n in top), ZERO)
     rows = []
     for n in _by_amount(top, totals):
-        total = totals[n.account.aid]
-        inside = [c.account.name for c in _by_amount(n.children, totals) if totals[c.account.aid]]
+        total = totals[n.category.bcid]
+        inside = [c.category.name for c in _by_amount(n.children, totals) if totals[c.category.bcid]]
         hint = " · ".join(inside[:3] + ([f"+{len(inside) - 3}"] if len(inside) > 3 else []))
         rows.append({"node": n, "total": total, "share": _share(total, grand), "hint": hint})
     return templates.TemplateResponse(
@@ -105,64 +140,187 @@ def categories_page(request: Request, accounts: Accounts, reports: Reports, mont
         {
             "active": "categories",
             "tab": tab,
-            "root_name": root_name,
+            "root_name": "Income" if tab == "income" else "Expenses",
             "rows": rows,
             "grand": grand,
-            "currency": accounts.currency().code,
+            "currency": categories.accounts.currency().code,
             **_month_context(when, is_current),
+        },
+    )
+
+
+def _form(request: Request, categories: Categories, current: CategoryRead | None, kind: str, parent: UUID | None):
+    groups = [n.category for n in category_tree(categories, kind) if n.category.bcid != (current and current.bcid)]
+    # A group that holds categories cannot move into another group (two levels at most).
+    if current is not None and any(c.parent_id == current.bcid for c in categories.list(kind, True)):
+        groups = []
+    return templates.TemplateResponse(
+        request,
+        "category_form.html",
+        {
+            "active": "categories",
+            "hide_fab": True,
+            "category": current,
+            "kind": kind,
+            "tab": KIND_TABS[kind],
+            "parent_id": parent,
+            "groups": groups,
         },
     )
 
 
 @router.get("/new")
-def new_category_page(
-    request: Request, accounts: Accounts, profiles: Profiles, parent: UUID | None = None, root: str = ""
+def new_category_page(request: Request, categories: Categories, parent: UUID | None = None, root: str = "expense"):
+    """The form for a new category: a spending one by default, an earning one from the Earning chip. Opened from a
+    group's page ("Add subcategory") it starts inside that group, whose kind it takes."""
+    kind = TABS.get(root.lower(), "spending")
+    if parent is not None:
+        group = categories.read(parent)
+        if group is None:
+            raise HTTPException(status_code=404, detail="category not found")
+        kind = group.kind
+    return _form(request, categories, None, kind, parent)
+
+
+@router.post("")
+def create_category(
+    categories: Categories,
+    name: Annotated[str, Form()] = "",
+    kind: Annotated[str, Form()] = "spending",
+    parent_id: Annotated[str, Form()] = "",
+    details: Annotated[str, Form()] = "",
 ):
-    """The form for a new category is the account form, set to categories (see accounts.new_account_page)."""
-    return new_account_page(request, accounts, profiles, parent=parent, kind="category", root=root)
+    try:
+        made = categories.create(
+            CategoryCreate(
+                name=name.strip(),
+                kind="earning" if kind == "earning" else "spending",
+                parent_id=UUID(parent_id) if parent_id else None,
+                details=details.strip() or None,
+            )
+        )
+    except ValidationError as e:
+        return htmx_error(validation_message(e), "#form-error")
+    except ValueError as e:
+        return htmx_error(str(e), "#form-error")
+    return htmx_redirect(f"/categories/{made.bcid}", flash="category-created")
 
 
 @router.get("/deleted")
-def deleted_categories_page(request: Request, accounts: Accounts):
-    return deleted_page(request, accounts, "categories")
+def deleted_categories_page(request: Request, categories: Categories):
+    closed = [c for c in categories.list(include_closed=True) if c.closed_on is not None]
+    # Show the outermost of each closed branch: a closed group carries the categories in it.
+    shown = [c for c in closed if not any(p.bcid == c.parent_id and p.closed_on for p in closed)]
+    entries = sorted(
+        (
+            {"aid": c.bcid, "name": c.name, "path": c.path, "kind": "closed", "when": c.closed_on}
+            for c in shown
+            if c.closed_on is not None
+        ),
+        key=lambda e: e["when"],
+        reverse=True,
+    )
+    return templates.TemplateResponse(
+        request, "accounts_deleted.html", {"active": "settings", "area": "categories", "entries": entries}
+    )
 
 
-@router.get("/{aid}")
-def category_page(
-    request: Request, aid: UUID, accounts: Accounts, profiles: Profiles, reports: Reports, month: str = ""
-):
-    roots, node = _load(accounts, aid)
-    root = _root_of(roots, node)
-    if root.account.name not in CATEGORY_ROOTS or node.kind == "root":
+def _load(categories: Categories, bcid: UUID) -> CategoryRead:
+    category = categories.read(bcid)
+    if category is None:
         raise HTTPException(status_code=404, detail="category not found")
+    return category
+
+
+@router.get("/{bcid}")
+def category_page(request: Request, bcid: UUID, categories: Categories, reports: Reports, month: str = ""):
+    category = _load(categories, bcid)
     when, end, is_current = _period(month)
     if when is None:
-        return RedirectResponse(f"/categories/{aid}", status_code=303)
+        return RedirectResponse(f"/categories/{bcid}", status_code=303)
 
-    # The figure is the whole category's month; the list is what was posted to this category itself (each
+    # The figure is the whole category's month; the list is what was labelled with this category itself (each
     # subcategory's entries are on its own page).
     def in_month(rows):
         return [e for e in (rows or []) if when <= e.date <= end]
 
-    everything = in_month(accounts.register(aid))
-    entries = in_month(accounts.register(aid, own_only=True))
-    context = account_context(accounts, profiles, aid, entries)
-    # What its subcategories came to in the month, biggest first, and what was posted to it itself.
-    top, own, totals = _figures(accounts, reports, root.account.name, when, end)
-    shown = next((n for t in top for n in t.walk() if n.account.aid == aid), None)
-    subs = [(c, totals[c.account.aid]) for c in _by_amount(shown.children, totals)] if shown is not None else []
-    own_here = own.get(aid, ZERO) if subs else ZERO
+    everything = in_month(categories.register(bcid))
+    entries = in_month(categories.register(bcid, own_only=True))
+    top, own, totals = _figures(categories, reports, category.kind, when, end)
+    shown = next((n for t in top for n in t.walk() if n.category.bcid == bcid), None)
+    subs = [(c, totals[c.category.bcid]) for c in _by_amount(shown.children, totals)] if shown is not None else []
+    own_here = own.get(bcid, ZERO) if subs else ZERO
+    group = categories.read(category.parent_id) if category.parent_id else None
     return templates.TemplateResponse(
         request,
-        "account.html",
+        "category.html",
         {
-            **context,
-            "category": True,
             "active": "categories",
+            "category": category,
+            "group": group,
+            "entries": list(reversed(entries)),
+            "currency": categories.accounts.currency().code,
             "total": sum((e.change for e in everything), ZERO),
             "subs": subs,
             "own_here": own_here,
-            "tab": "income" if root.account.name == "Income" else "expense",
+            "can_add_child": category.parent_id is None and category.closed_on is None and category.system_key is None,
+            "tab": KIND_TABS[category.kind],
+            "earning": category.kind == "earning",
             **_month_context(when, is_current),
         },
     )
+
+
+@router.get("/{bcid}/edit")
+def edit_category_page(request: Request, bcid: UUID, categories: Categories):
+    category = _load(categories, bcid)
+    if category.system_key is not None:
+        raise HTTPException(status_code=404, detail="category not found")
+    return _form(request, categories, category, category.kind, category.parent_id)
+
+
+@router.post("/{bcid}/edit")
+def update_category(
+    bcid: UUID,
+    categories: Categories,
+    name: Annotated[str, Form()] = "",
+    parent_id: Annotated[str, Form()] = "",
+    details: Annotated[str, Form()] = "",
+):
+    current = _load(categories, bcid)
+    try:
+        changes: dict = {}
+        if name.strip() != current.name:
+            changes["name"] = name.strip()
+        if (details.strip() or None) != current.details:
+            changes["details"] = details.strip() or None
+        if (UUID(parent_id) if parent_id else None) != current.parent_id:
+            changes["parent_id"] = UUID(parent_id) if parent_id else None
+        if changes:
+            categories.update(bcid, CategoryUpdate(**changes))
+    except ValidationError as e:
+        return htmx_error(validation_message(e), "#form-error")
+    except ValueError as e:
+        return htmx_error(str(e), "#form-error")
+    return htmx_redirect(f"/categories/{bcid}", flash="category-updated")
+
+
+@router.post("/{bcid}/delete")
+def delete_category(bcid: UUID, categories: Categories):
+    current = _load(categories, bcid)
+    try:
+        categories.delete(bcid)
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/categories?tab={KIND_TABS[current.kind]}", flash="category-deleted")
+
+
+@router.post("/{bcid}/reopen")
+def reopen_category(bcid: UUID, categories: Categories):
+    _load(categories, bcid)
+    try:
+        categories.reopen(bcid)
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/categories/{bcid}", flash="category-restored")
+

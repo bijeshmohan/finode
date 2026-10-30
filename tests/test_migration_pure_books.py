@@ -9,7 +9,7 @@ from alembic.config import Config
 
 from app.config import settings
 
-from .test_migration_budget_categories import BEFORE, USER, account, entry, seed
+from .test_migration_budget_categories import BEFORE, account, entry, seed
 
 PREVIOUS = "e4a6c8d0f2b3"
 HEAD = "f5b7d9e1a3c4"
@@ -58,31 +58,33 @@ def test_lines_move_to_the_root_and_keep_their_category(alembic):
         assert conn.execute(sa.text("SELECT count(*) FROM budget_categories")).scalar() == 5, "categories stay"
 
 
-def test_a_real_books_account_inside_a_mirror_moves_up_to_the_root(alembic):
+def test_an_income_or_expenses_account_of_your_own_is_refused_and_nothing_changes(alembic):
     config, engine = alembic
 
     def extra(conn):
-        account(conn, "9", "Interest", parent="e")  # under EMI
+        account(conn, "9", "Interest", parent="e")  # a books account under EMI that feeds a category
         conn.execute(sa.text("UPDATE accounts SET category_id = :e WHERE aid = :a"), {"e": "e" * 32, "a": "9" * 32})
 
     prepare(config, engine, extra)
-    command.upgrade(config, HEAD)
+    with pytest.raises(RuntimeError, match="of your own"):
+        command.upgrade(config, HEAD)
     with engine.begin() as conn:
-        row = conn.execute(sa.text("SELECT parent_id, category_id FROM accounts WHERE name = 'Interest'")).one()
-        assert row.parent_id == "5" * 32 and row.category_id == "e" * 32
+        assert conn.execute(sa.text("SELECT count(*) FROM accounts WHERE name = 'Groceries'")).scalar() == 1
 
 
-def test_an_entry_that_would_have_an_account_on_both_sides_is_refused(alembic):
+def test_an_entry_that_used_two_categories_on_opposite_sides_still_moves(alembic):
     config, engine = alembic
 
     def extra(conn):
         entry(conn, "6", "2026-10-12", [("d", "DEBIT", 10), ("c", "CREDIT", 10)])  # Groceries to Food, both Expenses
 
     prepare(config, engine, extra)
-    with pytest.raises(RuntimeError, match="nothing was changed"):
-        command.upgrade(config, HEAD)
+    command.upgrade(config, HEAD)
     with engine.begin() as conn:
-        assert conn.execute(sa.text("SELECT count(*) FROM accounts WHERE name = 'Groceries'")).scalar() == 1
+        rows = conn.execute(
+            sa.text('SELECT side, account, category_id FROM postings WHERE "transaction" = :t'), {"t": "6" * 32}
+        ).all()
+        assert {(r.side, r.account[0], r.category_id[0]) for r in rows} == {("DEBIT", "5", "d"), ("CREDIT", "5", "c")}
 
 
 def test_going_back_makes_the_mirror_accounts_again(alembic):

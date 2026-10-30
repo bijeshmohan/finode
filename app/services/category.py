@@ -6,17 +6,19 @@ name is unique among its siblings (capitals aside), and the built-in Uncategoris
 
 import builtins
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from ..clock import local_today
 from ..config import settings
 from ..limits import ensure_room
 from ..models.category import BudgetCategory
+from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, CategoryRepository
 from ..repositories.recurring import RecurringRepository
-from ..schemas.account import MergeResult
+from ..schemas.account import MergeResult, RegisterEntry
 from ..schemas.category import CategoryCreate, CategoryDeleteResult, CategoryRead, CategoryUpdate
-from .account import AccountService
+from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 
 
 class CategoryInUseError(ValueError):
@@ -239,6 +241,47 @@ class CategoryService:
             self.db.rollback()
             raise
         return result
+
+    def register(self, bcid: UUID, own_only: bool = False) -> builtins.list[RegisterEntry]:
+        """The entries that have a line labelled with the category (and with the categories in it, unless `own_only`),
+        oldest first. Each one's change is signed by the kind's normal side (spending adds with a debit, earning with a
+        credit), so the running balance adds up to what the category came to."""
+        category = self._get(bcid)
+        ids = {bcid} if own_only else {m.bcid for m in self._branch(bcid)}
+        normal = PostingSide.DEBIT if category.kind == "spending" else PostingSide.CREDIT
+        lines = self.tr.postings_for_categories(ids)
+        changes: dict[UUID, Decimal] = {}
+        for line in lines:
+            changes[line.transaction] = changes.get(line.transaction, Decimal("0.00")) + (
+                line.amount if line.side == normal else -line.amount
+            )
+        loaded = self.tr.read_many(builtins.list(changes))
+        postings_of = self.tr.postings_for_transactions(builtins.list(changes))
+        accounts = {a.aid: a for a in self.ar.list()}
+        transactions = sorted((loaded[t] for t in changes if t in loaded), key=lambda t: (t.date, t.created))
+        entries: builtins.list[RegisterEntry] = []
+        balance = Decimal("0.00")
+        for transaction in transactions:
+            balance += changes[transaction.tid]
+            counters: builtins.list[str] = []
+            for posting in postings_of.get(transaction.tid, []):
+                account = accounts[posting.account]
+                if AccountService.root_name(account, accounts) in GROUP_POSTING_ROOT_NAMES:
+                    continue
+                if account.name not in counters:
+                    counters.append(account.name)
+            entries.append(
+                RegisterEntry(
+                    tid=transaction.tid,
+                    date=transaction.date,
+                    payee=transaction.payee,
+                    comment=transaction.comment,
+                    counter_accounts=counters,
+                    change=changes[transaction.tid],
+                    balance=balance,
+                )
+            )
+        return entries
 
     def uncategorised(self, kind: str) -> CategoryRead:
         """The built-in Uncategorised of a kind, made the first time it is needed."""

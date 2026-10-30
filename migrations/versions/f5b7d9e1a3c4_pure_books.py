@@ -10,14 +10,16 @@ is the root `Expenses` or `Income` account itself, and the line says what it was
 
 For every such mirror account: its postings move to the root (their category stays, and is set from the account first
 when a line had none), recurring rules that named it name the root and carry the category, and the account is deleted
-(deepest first). A real books account made by the person (one that feeds a category without being its mirror) stays,
-under the root when its parent was a mirror. `accounts.payment_category_id` now points at the category table.
+(deepest first). `accounts.category_id` goes (nothing is left to point at), and `accounts.payment_category_id` now
+points at the category table. An Income or Expenses account that is not a mirror (a "books account" the person made on
+purpose) is not carried over: the migration refuses, changing nothing, so it is never lost silently.
 
 Before finishing, the migration compares what each category took in each month, every other account's balance and the
-number of entries with an account on both sides, before and after; any difference refuses it, changing nothing.
+number of entries with the same account and category on both sides, before and after; any difference refuses it.
 The downgrade makes the mirror accounts again from the categories.
 """
 
+import json
 from collections import defaultdict
 from collections.abc import Sequence
 
@@ -45,8 +47,9 @@ def _root_ids(conn) -> dict[tuple, object]:
     return {(_same(r[1]), r[2]): r[0] for r in rows}
 
 
-def _figures(conn, skip: set) -> tuple[dict, dict, int]:
-    """(what each category took per month, the balance of every other account, entries with an account on both sides)."""
+def _figures(conn, skip: set, keyed: set) -> tuple[dict, dict, int]:
+    """(what each category took per month, the balance of every other account, entries with the same account (and,
+    for the accounts in `keyed`, the same category) on both sides)."""
     by_category: dict = defaultdict(lambda: 0)
     for category, side, month, amount in conn.execute(
         sa.text(
@@ -61,16 +64,16 @@ def _figures(conn, skip: set) -> tuple[dict, dict, int]:
         if account in skip:
             continue
         balances[account] += amount if str(side).lower() == "debit" else -amount
-    both = conn.execute(
-        sa.text(
-            'SELECT count(*) FROM (SELECT "transaction", account FROM postings GROUP BY "transaction", account '
-            "HAVING count(DISTINCT side) > 1) x"
-        )
-    ).scalar()
+    sides: dict = defaultdict(set)
+    for transaction, account, side, category in conn.execute(
+        sa.text('SELECT "transaction", account, side, category_id FROM postings')
+    ):
+        sides[(transaction, account, category if account in keyed else None)].add(str(side).lower())
+    both = sum(1 for v in sides.values() if len(v) > 1)
     return (
         {k: v for k, v in by_category.items() if v},
         {k: v for k, v in balances.items() if v},
-        both or 0,
+        both,
     )
 
 
@@ -84,19 +87,30 @@ def upgrade() -> None:
     ).all()
     roots = _root_ids(conn)
     mirror_ids = {m[0] for m in mirrors}
+    every = {r[0]: r for r in conn.execute(sa.text("SELECT aid, parent_id, name, category_id FROM accounts")).all()}
+
+    def top(aid):
+        while every[aid][1] is not None and every[aid][1] in every:
+            aid = every[aid][1]
+        return every[aid][2]
+
+    for aid, parent, name, category in every.values():
+        if parent is not None and top(aid) in ROOTS.values() and category != aid:
+            raise RuntimeError(f"'{name}' is an Income or Expenses account of your own; nothing was changed.")
     root_of = {}
     for aid, user, _parent, kind in mirrors:
         root = roots.get((_same(user), ROOTS.get(kind, "")))
         if root is None:
             raise RuntimeError("a category has no Income or Expenses root to move to; nothing was changed.")
         root_of[aid] = root
-    before = _figures(conn, mirror_ids | set(roots.values()))
-
-    for aid in mirror_ids:
+    for aid in mirror_ids:  # a line on a mirror account is labelled with it, whatever it said before
         conn.execute(
             sa.text("UPDATE postings SET category_id = :c WHERE account = :a AND category_id IS NULL"),
             {"c": aid, "a": aid},
         )
+    before = _figures(conn, mirror_ids | set(roots.values()), mirror_ids | set(roots.values()))
+
+    for aid in mirror_ids:
         conn.execute(sa.text("UPDATE postings SET account = :r WHERE account = :a"), {"r": root_of[aid], "a": aid})
         for column in ("from_account", "to_account"):
             conn.execute(
@@ -111,21 +125,6 @@ def upgrade() -> None:
                 "UPDATE recurring_postings SET category_id = COALESCE(category_id, :c), account = :r WHERE account = :a"
             ),
             {"c": aid, "r": root_of[aid], "a": aid},
-        )
-
-    # A real books account that sat inside a mirror account moves up to the root (its name must stay free there).
-    inside = conn.execute(sa.text('SELECT aid, "user", parent_id, name FROM accounts')).all()
-    taken = {(u, p, n.casefold()) for _a, u, p, n in inside}
-    for aid, user, parent, name in inside:
-        if aid in mirror_ids or parent not in mirror_ids:
-            continue
-        root = root_of[parent]
-        new = name
-        while (user, root, new.casefold()) in taken:
-            new = f"{new} (moved)"
-        taken.add((user, root, new.casefold()))
-        conn.execute(
-            sa.text("UPDATE accounts SET parent_id = :r, name = :n WHERE aid = :a"), {"r": root, "n": new, "a": aid}
         )
 
     with op.batch_alter_table("accounts") as batch:
@@ -152,12 +151,26 @@ def upgrade() -> None:
         conn.execute(sa.text("UPDATE accounts SET category_id = NULL WHERE aid = :a"), {"a": aid})
         conn.execute(sa.text("DELETE FROM accounts WHERE aid = :a"), {"a": aid})
 
-    after = _figures(conn, mirror_ids | set(roots.values()))
+    # What was deleted for good under Expenses or Income was a category, not an account: it cannot come back as one.
+    for did, snapshot in conn.execute(sa.text("SELECT did, snapshot FROM account_deletions")).all():
+        data = json.loads(snapshot) if isinstance(snapshot, str) else snapshot
+        if (data or {}).get("root") in ROOTS.values():
+            conn.execute(sa.text("DELETE FROM account_deletions WHERE did = :d"), {"d": did})
+
+    with op.batch_alter_table("accounts") as batch:
+        batch.drop_index("ix_accounts_category_id")
+        batch.drop_column("category_id")
+
+    after = _figures(conn, mirror_ids | set(roots.values()), mirror_ids | set(roots.values()))
     if after != before:
         raise RuntimeError("the amounts per category or the balances changed; nothing was changed.")
 
 
 def downgrade() -> None:
+    with op.batch_alter_table("accounts") as batch:
+        batch.add_column(sa.Column("category_id", sa.Uuid(), nullable=True))
+        batch.create_foreign_key("fk_accounts_category_id", "budget_categories", ["category_id"], ["bcid"])
+        batch.create_index("ix_accounts_category_id", ["category_id"])
     conn = op.get_bind()
     roots = _root_ids(conn)
     cats = conn.execute(
