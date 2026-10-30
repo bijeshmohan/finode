@@ -80,13 +80,13 @@ def test_a_payment_into_a_loan_with_no_category_is_listed_until_it_gets_one(clie
     assert [(u["tid"], u["amount"], u["account"]) for u in listed] == [
         (made["tid"], "19277.00", "Liabilities:Home Loan")
     ]
-    page = client.get("/budget").text
-    assert "1 payment has no category" in page and "1 thing needs you" in page
-    answer = client.post(
-        f"/budget/payments/{made['tid']}/category",
-        data={"category": books["emi"]["aid"], "month": "", "tab": "spend"},
-    )
+    assert "needs you" not in client.get("/budget").text, "what needs a decision lives under the bell"
+    todo = client.get("/api/todo/").json()
+    assert todo["count"] == 1 and [u["tid"] for u in todo["uncategorised"]] == [made["tid"]]
+    assert "1 payment has no category" in client.get("/todo/sheet").text
+    answer = client.post(f"/todo/payments/{made['tid']}/category", data={"category": books["emi"]["aid"]})
     assert answer.status_code == 200
+    assert "Nothing needs you" in answer.text
     data = budget(client)
     assert data["uncategorised"] == [] and line(data, "EMI")["activity"] == "19277.00"
     entry = client.get(f"/api/transactions/{made['tid']}").json()
@@ -99,14 +99,14 @@ def test_payments_that_have_a_category_or_stay_inside_the_budget_are_not_listed(
     cash = account(client, root_accounts, "Cash", "Assets")
     paid(client, books["bank"], cash, "50")  # a move inside the budget
     assert budget(client)["uncategorised"] == []
-    assert "no category" not in client.get("/budget").text
+    assert "no category" not in client.get("/todo/sheet").text
 
 
 def test_giving_a_payment_a_category_is_refused_for_what_does_not_wait_for_one(client, books):
     made = paid(client, books["bank"], books["loan"], "100", books["emi"])
-    refused = client.post(f"/budget/payments/{made['tid']}/category", data={"category": books["sip"]["aid"]})
+    refused = client.post(f"/todo/payments/{made['tid']}/category", data={"category": books["sip"]["aid"]})
     assert refused.status_code == 400 and "no payment waiting" in refused.text
     missing = client.post(
-        "/budget/payments/00000000-0000-4000-8000-0000000000aa/category", data={"category": books["sip"]["aid"]}
+        "/todo/payments/00000000-0000-4000-8000-0000000000aa/category", data={"category": books["sip"]["aid"]}
     )
     assert missing.status_code == 404

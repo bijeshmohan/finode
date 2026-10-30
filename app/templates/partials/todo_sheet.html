@@ -1,0 +1,45 @@
+{#- What needs a decision, with the fix on each item. Swapped into #todo-sheet-body. -#}
+<div class="sheet-grab" aria-hidden="true"></div>
+{#- Each time the sheet is drawn the bell's count is asked for again, so it follows what is left. -#}
+<span hidden hx-get="/todo/badge" hx-trigger="load" hx-swap="none"></span>
+<h2 class="filter-title" tabindex="-1" autofocus>To do</h2>
+<p id="todo-error" class="error" role="alert"></p>
+{% if not todo.count %}
+<p class="muted todo-empty">Nothing needs you.</p>
+{% else %}
+<div class="todo-list">
+  {% if todo.uncategorised %}
+  <div class="todo-item">
+    <strong>{{ todo.uncategorised|length }} payment{{ " has" if todo.uncategorised|length == 1 else "s have" }} no category</strong>
+    <p class="muted">The money left the budget and no category paid for it.</p>
+    <ul class="plain-list flat">
+      {% for u in todo.uncategorised %}
+      <li>
+        <span>{{ u.payee or u.account }} <span class="muted">· {{ u.date|short_date }} · {{ u.amount|money }}</span></span>
+        <form hx-post="/todo/payments/{{ u.tid }}/category" hx-trigger="change" hx-target="#todo-sheet-body" hx-swap="innerHTML">
+          <select name="category" aria-label="Category for {{ u.payee or u.account }}">
+            <option value="">Choose category…</option>
+            {% for bcid, path in category_choices %}<option value="{{ bcid }}">{{ path }}</option>{% endfor %}
+          </select>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% for a in todo.left_out_accounts %}
+  <div class="todo-item">
+    <strong>{{ a.path }} is not in the budget</strong>
+    <p class="muted">{{ a.spent|money|amount(currency) }} spent this month in {{ a.entries }} {{ "entry" if a.entries == 1 else "entries" }} is in no category.</p>
+    <button type="button" class="secondary" hx-post="/todo/accounts/{{ a.aid }}/include" hx-target="#todo-sheet-body" hx-swap="innerHTML">Add to budget</button>
+  </div>
+  {% endfor %}
+  {% for r in todo.failing_rules %}
+  <div class="todo-item">
+    <strong>{{ r.name }} could not be recorded</strong>
+    <p class="muted">{{ r.error }}</p>
+    <a class="button secondary" href="/recurring/{{ r.rid }}">Open rule</a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

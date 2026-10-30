@@ -217,12 +217,12 @@ def test_unused_groups_are_tucked_away_once_something_is_in_use_but_plain_catego
     )
 
 
-def test_what_needs_you_is_a_slim_line_that_opens_a_panel(client, setup):
+def test_copying_last_month_is_a_quiet_link_and_nothing_else_needs_you_here(client, setup):
     last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
     assign(client, setup["food"], "300", last)
     page = client.get("/budget").text
-    assert "data-toggle-attn" in page and "1 thing needs you" in page and "Copy last month's amounts" in page
-    assert 'aria-expanded="false"' in page and "Show" in page, "closed until asked"
+    assert "Copy last month's amounts" in page and 'class="quiet-link"' in page
+    assert "data-toggle-attn" not in page and "needs you" not in page and "need you" not in page
 
 
 def test_the_sheet_of_a_plain_account_is_not_offered(client, root_accounts, setup):
@@ -246,7 +246,8 @@ def test_the_page_explains_last_months_overspending(client, root_accounts):
     assign(client, food, "10", last)
     move(client, bank, food, "30", on=last.replace(day=5).isoformat())
     page = client.get("/budget").text
-    assert "was overspent last month" in page and "20.00 overspent last month" in page
+    assert "20.00 overspent last month" in page, "the category's own line says it"
+    assert "was overspent last month" not in page, "the long note is gone: the sum behind the i covers it"
     assert "overspent last month" not in client.get(f"/budget?month={last:%Y-%m}").text
 
 
@@ -255,12 +256,12 @@ def test_the_page_offers_to_add_a_card_and_adding_it_counts_its_spending(client,
     card = account(client, root_accounts, "Card", "Liabilities")
     food = account(client, root_accounts, "Food", "Expenses")
     move(client, card, food, "75")
-    page = client.get("/budget").text
-    assert "not part of the budget" in page and "Liabilities:Card" in page and "Add to budget" in page
-    response = client.post(f"/budget/accounts/{card['aid']}/include", data={"month": THIS_MONTH.strftime("%Y-%m")})
-    assert response.status_code == 200 and 'id="budget"' in response.text
-    assert "Add to budget" not in response.text and "\u221275.00" in response.text
-    assert client.post(f"/budget/accounts/{food['aid']}/include", data={}).status_code == 400
+    sheet = client.get("/todo/sheet").text
+    assert "Liabilities:Card is not in the budget" in sheet and "Add to budget" in sheet
+    response = client.post(f"/todo/accounts/{card['aid']}/include")
+    assert response.status_code == 200 and "Nothing needs you" in response.text
+    assert "\u221275.00" in client.get("/budget").text
+    assert client.post(f"/todo/accounts/{food['aid']}/include", data={}).status_code == 400
 
 
 def test_the_page_offers_to_copy_last_month_and_does_it(client, setup):
@@ -387,7 +388,7 @@ def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_
     )
 
 
-def test_the_month_pill_is_in_the_title_row_and_needs_you_is_a_slim_line_under_the_head(client, root_accounts, setup):
+def test_the_month_pill_is_in_the_title_row_and_what_needs_you_is_under_the_bell(client, root_accounts, setup):
     page = client.get("/budget").text
     head = page.split('<div class="page-head tall">', 1)[1].split('<div id="budget">', 1)[0]
     assert "<h1>Budgets</h1>" in head and 'class="month-pill"' in head and 'href="/budget?tab=spend&amp;month=' in head
@@ -406,7 +407,6 @@ def test_the_month_pill_is_in_the_title_row_and_needs_you_is_a_slim_line_under_t
         },
     )
     page = client.get("/budget").text
-    assert page.index("data-budget-head") < page.index("data-toggle-attn") < page.index('id="attn-panel"'), (
-        "the line is under the head, its panel right below"
-    )
-    assert "1 thing needs you" in page
+    assert "data-toggle-attn" not in page and "attn-panel" not in page, "no line on the page any more"
+    assert client.get("/api/todo/").json()["count"] == 1 and "is not in the budget" in client.get("/todo/sheet").text
+    assert 'hx-get="/todo/badge"' in page and 'id="todo-sheet"' in page, "the bell and its sheet are on every page"

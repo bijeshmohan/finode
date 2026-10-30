@@ -28,58 +28,13 @@
     {{ calc_panel(sum_rows, "Ready to assign", rta, cur, "Money in your accounts that has no job yet.") }}
   </div>
   {% endif %}
-  {#- One slim line when something needs a decision; it opens the list in place and is closed by default. -#}
-  {% if attention %}
-  <button type="button" class="need-line" data-toggle-attn aria-expanded="false" aria-controls="attn-panel"><span>{{ attention }} thing{{ " needs" if attention == 1 else "s need" }} you</span><span class="need-more" aria-hidden="true">Show ▾</span></button>
-  {% endif %}
-  {% if attention %}
-  <div class="attn-panel" id="attn-panel" hidden>
-    {% if budget.uncategorised %}
-    <div class="attn-item uncategorised">
-      <p><strong>{{ budget.uncategorised|length }} payment{{ " has" if budget.uncategorised|length == 1 else "s have" }} no category.</strong>
-        The money left the budget and no category paid for it. Pick one for each:</p>
-      <ul class="plain-list flat">
-        {% for u in budget.uncategorised %}
-        <li>
-          <span>{{ u.payee or u.account }} <span class="muted">· {{ u.date|short_date }} · {{ u.amount|money }}</span></span>
-          <form hx-post="/budget/payments/{{ u.tid }}/category" hx-trigger="change" hx-target="#budget" hx-swap="outerHTML">
-            <input type="hidden" name="month" value="{{ month_key }}">
-            <input type="hidden" name="tab" value="{{ tab }}">
-            <select name="category" aria-label="Category for {{ u.payee or u.account }}">
-              <option value="">Choose…</option>
-              {% for bcid, path in category_choices %}<option value="{{ bcid }}">{{ path }}</option>{% endfor %}
-            </select>
-          </form>
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-    {% if budget.left_out_accounts %}
-    <div class="attn-item left-out">
-      <p><strong>{{ budget.left_out|money|amount(budget.currency) }}</strong> spent this month is not in the categories below, because it was paid from
-        accounts that are not part of the budget. Add them to count their spending and money:</p>
-      <ul class="plain-list flat">
-        {% for a in budget.left_out_accounts %}
-        <li>
-          <span>{{ a.path }} <span class="muted">· {{ a.entries }} {{ "entry" if a.entries == 1 else "entries" }}, {{ a.spent|money }}</span></span>
-          <button class="secondary" hx-post="/budget/accounts/{{ a.aid }}/include" hx-vals='{"month": "{{ month_key }}", "tab": "{{ tab }}"}' hx-target="#budget" hx-swap="outerHTML">Add to budget</button>
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-    {% if budget.overspent_last_month %}
-    <p class="attn-item">{{ budget.overspent_last_month|money|amount(budget.currency) }} was overspent last month. That money had already been spent, so it was taken out of Ready to Assign, and the categories start this month at zero.</p>
-    {% endif %}
-    {% if budget.copyable %}
-    <form class="attn-item copy-last" hx-post="/budget/copy" hx-target="#budget" hx-swap="outerHTML">
-      <input type="hidden" name="month" value="{{ month_key }}">
-      <input type="hidden" name="tab" value="{{ tab }}">
-      <button type="submit" class="secondary">Copy last month's amounts · {{ budget.copyable|money }}</button>
-    </form>
-    {% endif %}
-  </div>
+  {#- Setting up a month: copy what each category got last month. What needs a decision lives under the bell (To do). -#}
+  {% if budget.copyable and tab == "spend" %}
+  <form class="copy-last" hx-post="/budget/copy" hx-target="#budget" hx-swap="outerHTML">
+    <input type="hidden" name="month" value="{{ month_key }}">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <button type="submit" class="quiet-link">Copy last month's amounts · {{ budget.copyable|money }}</button>
+  </form>
   {% endif %}
   {% if show_intro and tab == "spend" %}
   <div class="intro" data-plan-intro>

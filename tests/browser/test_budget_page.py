@@ -42,7 +42,6 @@ def test_copying_last_months_amounts(page: Page, books, api: Api):
     api.put(f"/budget/categories/{books['food']['aid']}", month=LAST_MONTH.isoformat(), amount="300")
     api.put(f"/budget/categories/{books['rent']['aid']}", month=LAST_MONTH.isoformat(), amount="900")
     page.goto("/budget")
-    page.locator("button.need-line").click()
     button = page.get_by_role("button", name="Copy last month's amounts")
     expect(button).to_contain_text("1,200.00")
     button.click()

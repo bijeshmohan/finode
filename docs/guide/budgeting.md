@@ -47,7 +47,7 @@ You have ₹50,000 in your bank account, and no budget yet.
 <img src="img/budget-sheet.png" alt="The category sheet: Assigned this month, Spent, Save, Move money" width="300">
 - Budgets looks at the **whole month**, so an entry dated later this month already counts as spent in its category, while Home's Transactions list, account balances count up to today.
 - **Move money** never changes Ready to assign; it limits you to what the source category has left. Typing a smaller (even negative) amount in a category's *Assign* field takes money back to Ready to assign, but never more than the category has left.
-- Behind the slim **"N things need you"** line under the figure (tap to open it) are the things that need a decision: accounts left out of the budget, last month's overspending, and *Copy last month's amounts*.
+- What needs a decision is under the **bell** at the top of every page (a number beside it when something is waiting): payments no category took, accounts left out of the budget, and recurring transactions that could not be recorded. Each item has its fix on the spot. On a month with nothing assigned yet, a quiet **Copy last month's amounts** link sits under the figure.
 - **Copy last month's amounts** assigns each category what it got last month, but only where nothing is assigned yet.
 
 ### Credit cards, loans and EMIs

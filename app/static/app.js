@@ -420,11 +420,13 @@ function applyKind(form, kind) {
 
 // A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
 // if it never does (an error, no connection) the sheet closes again.
-const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "books-sheet-body"];
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "books-sheet-body", "todo-sheet-body"];
 const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
 document.body.addEventListener("htmx:beforeRequest", (event) => {
   const body = event.detail && event.detail.target;
   if (!body || !SHEET_BODIES.includes(body.id)) return;
+  // Only opening a sheet shows the placeholders: a form inside it (the to-do list's) must stay until its answer comes.
+  if (event.detail.requestConfig && event.detail.requestConfig.verb !== "get") return;
   const dialog = document.getElementById(body.id.replace("-body", ""));
   if (!dialog) return;
   body.innerHTML = SHEET_SKELETON;
@@ -1110,20 +1112,6 @@ document.body.addEventListener("click", (event) => {
 })();
 
 // ---- Budget: unused groups can be shown ----
-// The "N things need you" line on the budget page opens and closes the list of what needs a decision.
-(() => {
-  document.body.addEventListener("click", (event) => {
-    const badge = event.target.closest && event.target.closest("[data-toggle-attn]");
-    if (!badge) return;
-    const panel = document.getElementById(badge.getAttribute("aria-controls"));
-    if (!panel) return;
-    panel.hidden = !panel.hidden;
-    badge.setAttribute("aria-expanded", String(!panel.hidden));
-    const more = badge.querySelector(".need-more");
-    if (more) more.textContent = panel.hidden ? "Show ▾" : "Hide ▴";
-  });
-})();
-
 (() => {
   document.body.addEventListener("click", (event) => {
     const button = event.target.closest && event.target.closest("[data-toggle-budget-unused]");

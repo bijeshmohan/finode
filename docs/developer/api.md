@@ -101,6 +101,7 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 | Method | Path | What it does |
 |---|---|---|
 | `GET` | `/budget/` | The month's budget (the current month by default): what is left to assign and each category's figures. |
+| `GET` | `/todo/` | What needs a decision now: payments no category took, accounts left out of the budget, failing recurring rules, and a count. |
 | `PUT` | `/budget/categories/{aid}` | Set how much of the month a category gets (an expense account); 0 removes it. |
 | `POST` | `/budget/move` | Move assigned money from one category to another (at most what is available); Ready to assign does not change. |
 | `POST` | `/budget/copy` | Assign a month what each category got the month before, where nothing is assigned yet (nothing is overwritten). |
