@@ -185,7 +185,7 @@ def downgrade() -> None:
         conn.execute(
             sa.text(
                 'INSERT INTO accounts (aid, "user", name, details, parent_id, category_id, closed_on, on_budget, created, updated) '
-                "VALUES (:aid, :u, :n, :d, :p, :c, :x, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                "VALUES (:aid, :u, :n, :d, :p, :c, :x, :ob, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
             ),
             {
                 "aid": bcid,
@@ -195,6 +195,7 @@ def downgrade() -> None:
                 "p": parent if parent in by_id else root,
                 "c": bcid,
                 "x": closed_on,
+                "ob": False,
             },
         )
     for root in set(roots.values()):
