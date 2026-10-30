@@ -18,7 +18,6 @@ from ..limits import ensure_room
 from ..models import Account, AccountDeletion
 from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
-from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.account import AccountChangeRead, BalanceCheck, MergeResult
@@ -493,14 +492,23 @@ class AccountService:
                 )
 
     def _check_feeds(self, root: str, category_id: UUID) -> None:
-        """An Income or Expenses account can feed a category of its own kind that is open."""
+        """An Income or Expenses account can have a default category of its own kind that is open: the lines posted to
+        it carry that category unless they say another."""
         if root not in ("Expenses", "Income"):
-            raise ValueError("only an Income or Expenses account can feed a category!")
+            raise ValueError("only an Income or Expenses account can have a default category!")
         category = CategoryRepository(self.ar.db, self.ar.uid).read(category_id)
         if category is None:
             raise ValueError("category not found!")
         if category.kind != ("spending" if root == "Expenses" else "earning"):
-            raise ValueError(f"'{category.name}' is a {category.kind} category: {root} accounts cannot feed it!")
+            raise ValueError(f"'{category.name}' is a {category.kind} category: {root} accounts cannot use it!")
+        if category.closed_on is not None:
+            raise ValueError(f"'{category.name}' is closed: reopen it first!")
+
+    def _check_payment_category(self, bcid: UUID) -> None:
+        """The category a loan's or fund's payments are budgeted under is an open spending category."""
+        category = CategoryRepository(self.ar.db, self.ar.uid).read(bcid)
+        if category is None or category.kind != "spending":
+            raise ValueError("payments can only be budgeted under a spending category!")
         if category.closed_on is not None:
             raise ValueError(f"'{category.name}' is closed: reopen it first!")
 
@@ -539,9 +547,7 @@ class AccountService:
         elif in_budget:
             self._check_budgetable(parent, accounts_by_id)
         if account.payment_category_id is not None:
-            target = accounts_by_id.get(account.payment_category_id)
-            if target is None or target.parent_id is None or self._get_root_name(target, accounts_by_id) != "Expenses":
-                raise ValueError("payments can only be budgeted under an expense category!")
+            self._check_payment_category(account.payment_category_id)
             if self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):
                 raise ValueError("only asset and liability accounts can have a payment category!")
             if in_budget:
@@ -600,12 +606,7 @@ class AccountService:
         normal_side = self._normal_side(account, accounts_by_id)
 
         changes: dict[UUID, Decimal] = {}
-        # An Income or Expenses account is its category: its entries are the lines labelled with it (or one inside it),
-        # which includes a payment into a loan that was labelled for it. Any other account lists what was posted to it.
-        if account.category_id is not None:
-            rows = self.tr.postings_for_categories(target_ids)
-        else:
-            rows = self.tr.postings_for_accounts(list(target_ids))
+        rows = self.tr.postings_for_accounts(list(target_ids))
         loaded = self.tr.read_many(list({p.transaction for p in rows}))  # one query for every transaction it needs
         for posting in rows:
             signed = posting.amount if posting.side == normal_side else -posting.amount
@@ -682,12 +683,9 @@ class AccountService:
         clashing = RecurringRepository.merge_conflicts(self.ar.db, self.ar.uid, source_id, target_id)
         if clashing:
             raise ValueError(f"the recurring transaction '{clashing[0]}' uses both accounts: change it first!")
-        budget = BudgetRepository(self.ar.db, self.ar.uid)
         balance = self._to_read(source, all_accounts).balance
         tids = self.tr.transactions_touching(source_id)
-        months = budget.months_for_category(source_id)
         rules = RecurringRepository.rules_using(self.ar.db, self.ar.uid, source_id)
-        links = sum(1 for a in all_accounts if a.payment_category_id == source_id)
         result = MergeResult(
             dry_run=dry_run,
             merged=not dry_run,
@@ -695,22 +693,15 @@ class AccountService:
             into=self._path(target, by_id),
             balance_moved=balance,
             entries_moved=len(tids),
-            plan_months_moved=months,
+            plan_months_moved=0,
             recurring_rules_moved=rules,
-            payment_links_moved=links,
+            payment_links_moved=0,
         )
         if dry_run:
             return result
         try:
-            pair = (
-                (source.category_id, target.category_id)
-                if source.category_id is not None and target.category_id is not None
-                else None
-            )
-            self.tr.repoint_account(source_id, target_id, self.ar.origin, pair)
-            budget.merge_category(source_id, target_id)
+            self.tr.repoint_account(source_id, target_id, self.ar.origin)
             RecurringRepository.repoint_account(self.ar.db, self.ar.uid, source_id, target_id)
-            self.ar.repoint_payment_category(source_id, target_id)
             self.ar._record(self._read(target_id), "updated", merged_from=result.source)
             self.delete(source_id, merged_into=result.into)  # commits
         except Exception:
@@ -963,13 +954,7 @@ class AccountService:
             payment_category = data.payment_category_id
             if payment_category is not None:
                 accounts_by_id = {a.aid: a for a in all_accounts}
-                target = accounts_by_id.get(payment_category)
-                if (
-                    target is None
-                    or target.parent_id is None
-                    or self._get_root_name(target, accounts_by_id) != "Expenses"
-                ):
-                    raise ValueError("payments can only be budgeted under an expense category!")
+                self._check_payment_category(payment_category)
                 if (
                     is_system_root
                     or account.parent_id is None
@@ -990,8 +975,6 @@ class AccountService:
         if "category_id" in data.model_fields_set and data.category_id != previous_category:
             if data.category_id is None:
                 raise ValueError("an account needs a category: pick another one instead!")
-            if previous_category == account.aid:
-                raise ValueError(f"'{account.name}' stands for its own category: rename or merge the category instead!")
             self._check_feeds(self._get_root_name(account, {a.aid: a for a in all_accounts}), data.category_id)
         updated = self.ar.update(aid, data, on_budget, payment_category)
         if not updated:
@@ -1038,9 +1021,7 @@ class AccountService:
             current = by_id.get(current.parent_id) if current.parent_id else None
         return ":".join(reversed(names))
 
-    def _deletion_snapshot(
-        self, account: Account, all_accounts: builtins.list[Account], budget: BudgetRepository
-    ) -> dict:
+    def _deletion_snapshot(self, account: Account, all_accounts: builtins.list[Account]) -> dict:
         """What is needed to bring an unused account back (see models/account_deletion.py)."""
         by_id = {a.aid: a for a in all_accounts}
         return {
@@ -1051,12 +1032,6 @@ class AccountService:
             "root": self._get_root_name(account, by_id),
             "on_budget": account.on_budget,
             "payment_category_id": str(account.payment_category_id) if account.payment_category_id else None,
-            "plan": [
-                {"month": row.month.isoformat(), "amount": str(row.amount)}
-                for row in budget.list()
-                if row.category_id == account.aid
-            ],
-            "linked": [str(a.aid) for a in all_accounts if a.payment_category_id == account.aid],
         }
 
     def restorable(self, limit: int = 50) -> builtins.list[dict]:
@@ -1131,17 +1106,11 @@ class AccountService:
                 "details": snap.get("details"),
                 "parent_id": parent.aid,
                 "on_budget": bool(snap.get("on_budget")),
-                "payment_category_id": payment if payment in by_id else None,
+                "payment_category_id": payment
+                if payment is not None and CategoryRepository(self.ar.db, self.ar.uid).read(payment) is not None
+                else None,
             },
         )
-        budget = BudgetRepository(self.ar.db, self.ar.uid)
-        for item in snap.get("plan", []):
-            budget.set(date.fromisoformat(item["month"]), restored.aid, Decimal(item["amount"]))
-        for linked in snap.get("linked", []):
-            other = by_id.get(UUID(linked))
-            if other is not None and other.payment_category_id is None:
-                other.payment_category_id = restored.aid
-                self.ar.db.add(other)
         self.ar.db.commit()
         self.ar.db.refresh(restored)
         return self._to_read(restored, self._ensure_roots())
@@ -1164,16 +1133,11 @@ class AccountService:
             raise AccountInUseError("account has sub-accounts")
         if self.tr.postings_for_account(aid):
             raise AccountInUseError("account has postings")
-        if account.category_id is not None and self.tr.labelled(account.category_id):
-            raise AccountInUseError("account's category labels entries")
         if RecurringRepository.uses_account(self.ar.db, aid):
             raise AccountInUseError("account is used by a recurring transaction")
 
         account_read = self._to_read(account, all_accounts)
-        budget = BudgetRepository(self.ar.db, self.ar.uid)
-        self.ar.record_deletion(aid, self._deletion_snapshot(account, all_accounts, budget))
-        budget.delete_for_category(aid)  # only a plan: it goes with the category
-        self.ar.clear_payment_category(aid)
+        self.ar.record_deletion(aid, self._deletion_snapshot(account, all_accounts))
         deleted = self.ar.delete(aid, **({"merged_into": merged_into} if merged_into else {}))
         if not deleted:
             raise ValueError(f"account with aid '{aid}' not found!")

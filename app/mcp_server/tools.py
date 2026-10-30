@@ -191,8 +191,8 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
         "total": text(total),
         "postings": [
             {
-                "account": index.path(p.account),
-                "account_id": str(p.account),
+                "account": index.path(p.target),
+                "account_id": str(p.target),
                 "side": p.side.value,
                 "amount": text(p.amount),
                 **({"category": names.path(p.category), "category_id": str(p.category)} if p.category else {}),
@@ -816,8 +816,8 @@ def _dry_run(key: str, preview: TransactionPreview, index: AccountIndex) -> dict
         "total": text(debits),
         "postings": [
             {
-                "account": index.path(p.account),
-                "account_id": str(p.account),
+                "account": index.path(p.target),
+                "account_id": str(p.target),
                 "side": p.side.value,
                 "amount": text(p.amount),
             }

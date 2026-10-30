@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     recurring_interval_minutes: int = Field(default=15, ge=0)
     # What one person may hold (0 = no limit): so nobody can fill the shared database.
     max_accounts: int = Field(default=500, ge=0)
+    max_categories: int = Field(default=500, ge=0)
     max_tags: int = Field(default=200, ge=0)
     max_transactions: int = Field(default=100_000, ge=0)
     max_transactions_per_day: int = Field(default=1_000, ge=0)

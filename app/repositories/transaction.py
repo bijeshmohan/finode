@@ -20,6 +20,7 @@ from ..models.utils import without_nul
 from ..schemas.transaction import TransactionCreate, TransactionUpdate
 from ..tags import clean_tag
 from .cache import remembered
+from .category import ROOT_KINDS, CategoryRepository
 
 
 def comparable_snapshot(snapshot: dict) -> dict:
@@ -168,21 +169,15 @@ class TransactionRepository:
         ).first()
 
     def _line_categories(self, postings) -> builtins.list[UUID | None]:
-        """The category of each line: the one given, else the one its account stands for (an Income or Expenses account
-        has its own) or, for a payment into a loan or fund outside the budget that has a payment category, that
-        category (only in an entry that touches the budget, which is when the budget counts it as spending)."""
+        """The category of each line: the one given, else the default of its books account, else (on Expenses or
+        Income) Uncategorised or, for a payment into a loan or fund outside the budget that has a payment category,
+        that category (only in an entry that touches the budget, which is when the budget counts it as spending)."""
         ids = {p.account for p in postings}
         accounts: dict[UUID, Account] = {
             a.aid: a for a in self.db.exec(select(Account).where(Account.user == self.uid, col(Account.aid).in_(ids)))
         }
         touches_budget = any(a.on_budget for a in accounts.values())
-        # The category an Expenses account stands for has the same id as the account.
-        paid_ids = {a.payment_category_id for a in accounts.values() if a.payment_category_id is not None}
-        paid: dict[UUID, UUID | None] = (
-            dict(self.db.exec(select(Account.aid, Account.category_id).where(col(Account.aid).in_(paid_ids))).all())
-            if touches_budget and paid_ids
-            else {}
-        )
+        every: dict[UUID, Account] | None = None
         found: builtins.list[UUID | None] = []
         for p in postings:
             account = accounts.get(p.account)
@@ -196,7 +191,17 @@ class TransactionRepository:
                     and account.payment_category_id is not None
                     and p.side == PostingSide.DEBIT
                 ):
-                    category = paid.get(account.payment_category_id)
+                    category = account.payment_category_id
+                else:
+                    if every is None:
+                        every = {a.aid: a for a in self.db.exec(select(Account).where(Account.user == self.uid))}
+                    root = account
+                    while root.parent_id is not None and root.parent_id in every:
+                        root = every[root.parent_id]
+                    if root.name in ROOT_KINDS and root.parent_id is None:
+                        category = (
+                            CategoryRepository(self.db, self.uid).ensure_uncategorised(ROOT_KINDS[root.name]).bcid
+                        )
             found.append(category)
         return found
 
@@ -740,6 +745,23 @@ class TransactionRepository:
             .values(updated_via=origin)
         )
         self._record_updated(tids, origin)
+
+    def relabel_category(self, old: UUID, new: UUID, origin: str | None) -> builtins.list[UUID]:
+        """Every line labelled with one category takes another (a merge). Each entry gets an "updated" history row.
+        Returns the entries that changed. Nothing is committed."""
+        tids = self.labelled(old)
+        if not tids:
+            return []
+        self.db.exec(
+            update(Posting).where(Posting.user == self.uid, Posting.category_id == old).values(category_id=new)
+        )
+        self.db.exec(
+            update(Transaction)
+            .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
+            .values(updated_via=origin)
+        )
+        self._record_updated(tids, origin)
+        return tids
 
     def last_change(self) -> datetime | None:
         """When any transaction was last made or changed."""

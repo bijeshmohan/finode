@@ -174,11 +174,30 @@ class TransactionService:
                 raise RuntimeError("the profile names a currency finode does not know")
         return self._currency
 
+    def _fill_accounts(self, postings, accounts: builtins.list[Account]) -> None:
+        """Where a line posts: a line that names only its category posts to Expenses (a spending category) or Income
+        (an earning one), and so does a line whose "account" is a category's id (the ids of the categories that were
+        Expenses and Income accounts are the same, so what posted to them keeps working)."""
+        roots = {a.name: a.aid for a in accounts if a.parent_id is None}
+        known = {a.aid for a in accounts}
+        categories = {c.bcid: c for c in self.cr.list()}
+        for posting in postings:
+            if posting.account is not None and (posting.account in known or posting.account not in categories):
+                continue
+            wanted = posting.category if posting.account is None else posting.account
+            category = categories.get(wanted)
+            if category is None:
+                raise InvalidPostingError(f"category with bcid '{wanted}' not found!")
+            if posting.category is None:
+                posting.category = category.bcid
+            posting.account = roots["Expenses" if category.kind == "spending" else "Income"]
+
     def _check_categories(
         self, postings, accounts_by_id: dict[UUID, Account], keep_categories: Collection[UUID] = frozenset()
     ) -> None:
-        """A category named on a line is the person's own, open (unless the entry already used it), fits the account
-        (an Income or Expenses account stands for one category, and a line to any other account can only be spending)."""
+        """A category named on a line is the person's own, open (unless the entry already used it) and fits the line:
+        a spending category goes on Expenses (or an expense account) or on a payment out of the budget into an account
+        outside it, an earning category on Income, and nothing goes on Equity."""
         named = [p for p in postings if p.category is not None]
         if not named:
             return
@@ -190,21 +209,23 @@ class TransactionService:
             if category.closed_on is not None and category.bcid not in keep_categories:
                 raise InvalidPostingError(f"category '{category.name}' is closed: reopen it to use it!")
             account = accounts_by_id[posting.account]
-            if account.on_budget:
+            root = AccountService.root_name(account, accounts_by_id)
+            if root in GROUP_POSTING_ROOT_NAMES:
+                wanted = "spending" if root == "Expenses" else "earning"
+                if category.kind != wanted:
+                    raise InvalidPostingError(
+                        f"'{category.name}' is a {category.kind} category: it cannot go on a line to {root}!"
+                    )
+            elif root == "Equity":
+                raise InvalidPostingError("a category cannot go on a line to an equity account!")
+            elif account.on_budget:
                 raise InvalidPostingError(
                     f"'{account.name}' is part of the budget: a category goes on the other side of the entry, "
                     "the account the money was spent on!"
                 )
-            if account.category_id is not None:
-                if account.category_id != category.bcid:
-                    own = categories.get(account.category_id)
-                    raise InvalidPostingError(
-                        f"'{account.name}' stands for the category '{own.name if own else account.category_id}', "
-                        f"not '{category.name}': leave the category out, or pick the account that fits!"
-                    )
             elif category.kind != "spending":
                 raise InvalidPostingError(
-                    f"'{category.name}' is an earning category: it can only go on a line to an income account!"
+                    f"'{category.name}' is an earning category: it can only go on a line to Income!"
                 )
 
     def _resolve(
@@ -225,13 +246,15 @@ class TransactionService:
         currency = self.currency()
         # One read of the account list serves every posting (it is remembered for the session), instead of two
         # queries per posting: a split of 20 rows used to cost 40 round trips.
-        accounts_by_id = {a.aid: a for a in self.ar.list()}
+        every_account = self.ar.list()
+        accounts_by_id = {a.aid: a for a in every_account}
+        self._fill_accounts(postings, every_account)
         has_children = {a.parent_id for a in accounts_by_id.values() if a.parent_id is not None}
         for posting in postings:
-            account = accounts_by_id.get(posting.account)
+            account = accounts_by_id.get(posting.target)
             if not account:
                 raise ValueError(f"account with aid '{posting.account}' not found!")
-            if account.parent_id is None:
+            if account.parent_id is None and account.name not in GROUP_POSTING_ROOT_NAMES:
                 raise InvalidPostingAccountError(f"cannot post to root account '{account.name}'!")
             if account.closed_on is not None and account.aid not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
@@ -250,11 +273,17 @@ class TransactionService:
 
         self._check_categories(postings, accounts_by_id, keep_categories)
 
-        both = {p.account for p in postings if p.side == PostingSide.DEBIT} & {
-            p.account for p in postings if p.side == PostingSide.CREDIT
+        # Expenses and Income take many lines (one per category), so on them it is the same category on both sides that
+        # moves money from itself to itself; any other account may not be on both sides at all.
+        def whole(p) -> tuple:
+            books = AccountService.root_name(accounts_by_id[p.account], accounts_by_id) in GROUP_POSTING_ROOT_NAMES
+            return (p.account, p.category if books else None)
+
+        both = {whole(p) for p in postings if p.side == PostingSide.DEBIT} & {
+            whole(p) for p in postings if p.side == PostingSide.CREDIT
         }
         if both:
-            name = accounts_by_id[min(both, key=str)].name
+            name = accounts_by_id[min(both, key=str)[0]].name
             raise InvalidPostingError(
                 f"'{name}' is on both sides of the entry: money cannot move from an account to itself. "
                 "Leave it out, or enter only the difference!"

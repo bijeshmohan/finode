@@ -100,7 +100,7 @@ def _form_page(accounts: Accounts, recurring: Recurring, rule: RecurringRead | N
         keep = ()
     else:
         recorded = recurring.as_transaction(rule)
-        keep = {p.account for p in recorded.postings}
+        keep = {p.target for p in recorded.postings}
         transaction = None
         total = sum((p.amount for p in recorded.postings if p.side == PostingSide.DEBIT), Decimal(0))
         kind = infer_kind(
@@ -183,7 +183,7 @@ def _parse(
         }
     return {
         "postings": [
-            RecurringPostingData(account=p.account, side=p.side, amount=p.amount, category=p.category) for p in rows
+            RecurringPostingData(account=p.target, side=p.side, amount=p.amount, category=p.category) for p in rows
         ],
         **common,
     }

@@ -478,7 +478,6 @@ class BackupService:
                 account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)
                 db.flush()
-                self.ar.sync_categories([account])  # its category is closed as well
                 if a.category_key:
                     self.cr.set_system_key(ids[a.id], a.category_key)
             db.flush()

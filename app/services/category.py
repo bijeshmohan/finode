@@ -1,32 +1,42 @@
 """Budget categories: what money was for (Groceries, EMI, Salary), kept apart from the books' accounts.
 
-A category has a books account behind it (an Income or Expenses account with the same id, kept in step by
-`AccountRepository`), so the rules of accounts (two levels deep, names unique among siblings, closing, merging, the
-limits) are the rules of categories, and this service is the one door the budget and the pages use. The account
-side stays out of sight."""
+A category stands alone. The books post an expense to the root Expenses account and an income to the root Income
+account; the line carries the category. A category sits at most two levels deep (a group and the categories in it), its
+name is unique among its siblings (capitals aside), and the built-in Uncategorised of each kind is made on demand."""
 
+import builtins
+from datetime import date
 from uuid import UUID
 
-from ..models.account import Account
+from ..clock import local_today
+from ..config import settings
+from ..limits import ensure_room
 from ..models.category import BudgetCategory
-from ..repositories import AccountRepository, CategoryRepository
-from ..schemas.account import AccountCreate, AccountUpdate
+from ..repositories import BudgetRepository, CategoryRepository
+from ..repositories.recurring import RecurringRepository
+from ..schemas.account import MergeResult
 from ..schemas.category import CategoryCreate, CategoryDeleteResult, CategoryRead, CategoryUpdate
-from .account import AccountInUseError, AccountService
+from .account import AccountService
 
-ROOT_NAMES = {"spending": "Expenses", "earning": "Income"}
-UNCATEGORISED = "Uncategorised"
+
+class CategoryInUseError(ValueError):
+    """A category cannot be removed or closed because something still depends on it."""
 
 
 class CategoryService:
     def __init__(self, accounts: AccountService, cr: CategoryRepository | None = None):
         self.accounts = accounts
-        self.ar: AccountRepository = accounts.ar
+        self.ar = accounts.ar
+        self.tr = accounts.tr
         self.cr = cr or CategoryRepository(self.ar.db, self.ar.uid)
+        self.origin = self.ar.origin
+        self.db = self.ar.db
+        self.uid = self.ar.uid
 
     # ---- reading -----------------------------------------------------------------------------------
 
-    def _path(self, category: BudgetCategory, by_id: dict[UUID, BudgetCategory]) -> str:
+    @staticmethod
+    def _path(category: BudgetCategory, by_id: dict[UUID, BudgetCategory]) -> str:
         names: list[str] = []
         seen: set[UUID] = set()
         current: BudgetCategory | None = category
@@ -48,8 +58,7 @@ class CategoryService:
             path=self._path(category, by_id),
         )
 
-    def list(self, kind: str | None = None, include_closed: bool = False) -> list[CategoryRead]:
-        self.accounts.ensure_roots()
+    def list(self, kind: str | None = None, include_closed: bool = False) -> builtins.list[CategoryRead]:
         every = self.cr.list()
         by_id = {c.bcid: c for c in every}
         return sorted(
@@ -71,107 +80,168 @@ class CategoryService:
             raise ValueError(f"category with bcid '{bcid}' not found!")
         return category
 
-    # ---- changing ----------------------------------------------------------------------------------
-
-    def _root(self, kind: str) -> Account:
-        roots = self.accounts.ensure_roots()
-        return next(a for a in roots if a.parent_id is None and a.name == ROOT_NAMES[kind])
-
-    def create(self, data: CategoryCreate) -> CategoryRead:
-        """Make a group or a category: its books account is made with it, under its group's."""
-        root = self._root(data.kind)
-        if data.parent_id is None:
-            parent_account = root.aid
-        else:
-            parent = self._get(data.parent_id)
-            if parent.kind != data.kind:
-                raise ValueError(f"'{parent.name}' is a {parent.kind} group: it cannot hold {data.kind} categories!")
-            parent_account = parent.bcid
-        self.accounts.create(AccountCreate(name=data.name, details=data.details, parent_id=parent_account))
-        return self._read(self._by_name(data.name, parent_account))
-
-    def _by_name(self, name: str, parent_account: UUID) -> UUID:
-        account = next(
-            a
-            for a in self.ar.list()
-            if a.parent_id == parent_account and a.name.casefold() == name.casefold() and a.category_id == a.aid
-        )
-        return account.aid
-
     def _read(self, bcid: UUID) -> CategoryRead:
         read = self.read(bcid)
         if read is None:
             raise RuntimeError(f"category '{bcid}' should exist!")
         return read
 
+    # ---- rules -------------------------------------------------------------------------------------
+
+    def _check_name_free(self, name: str, parent_id: UUID | None, kind: str, exclude: UUID | None = None) -> None:
+        wanted = name.casefold()
+        for other in self.cr.list():
+            same_place = other.parent_id == parent_id and other.kind == kind and other.bcid != exclude
+            if same_place and other.name.casefold() == wanted:
+                where = "there" if parent_id is None else repr(self._get(parent_id).name)
+                raise ValueError(f"{where} already has a category called '{other.name}'!")
+
+    def _check_parent(self, parent_id: UUID | None, kind: str, moving: UUID | None = None) -> None:
+        """A parent is a top-level category of the same kind that is open and is not the one being moved (a category
+        goes two levels deep: a group and the categories in it)."""
+        if parent_id is None:
+            return
+        parent = self._get(parent_id)
+        if parent.kind != kind:
+            raise ValueError(f"'{parent.name}' is a {parent.kind} group: it cannot hold {kind} categories!")
+        if parent.parent_id is not None:
+            raise ValueError("categories can be at most two levels deep (a group and the categories in it)!")
+        if parent.closed_on is not None:
+            raise ValueError(f"'{parent.name}' is closed: reopen it to add categories to it!")
+        if moving is not None:
+            if parent.bcid == moving:
+                raise ValueError("a category cannot be moved into itself!")
+            if self.cr.has_children(moving):
+                raise ValueError("a group that holds categories cannot become part of another group!")
+
+    # ---- changing ----------------------------------------------------------------------------------
+
+    def create(self, data: CategoryCreate) -> CategoryRead:
+        ensure_room(len(self.cr.list()), settings.max_categories, "categories")
+        self._check_parent(data.parent_id, data.kind)
+        self._check_name_free(data.name, data.parent_id, data.kind)
+        made = self.cr.add(
+            BudgetCategory(
+                user=self.uid, name=data.name, details=data.details, kind=data.kind, parent_id=data.parent_id
+            )
+        )
+        self.db.commit()
+        return self._read(made.bcid)
+
     def update(self, bcid: UUID, data: CategoryUpdate) -> CategoryRead:
         """Rename it, change its note or move it into another group (or out of its group)."""
         category = self._get(bcid)
-        changes: dict = {}
-        for key in data.model_fields_set:
-            if key == "parent_id":
-                if data.parent_id is None:
-                    changes["parent_id"] = self._root(category.kind).aid
-                else:
-                    parent = self._get(data.parent_id)
-                    if parent.kind != category.kind:
-                        raise ValueError("a category cannot move into a group of the other kind!")
-                    changes["parent_id"] = parent.bcid
-            else:
-                changes[key] = getattr(data, key)
-        if changes:
-            self.accounts.update(bcid, AccountUpdate(**changes))
+        if category.system_key is not None and (
+            "name" in data.model_fields_set or "parent_id" in data.model_fields_set
+        ):
+            raise ValueError(f"'{category.name}' is built in and can't be renamed or moved!")
+        name = data.name if "name" in data.model_fields_set and data.name is not None else category.name
+        parent = data.parent_id if "parent_id" in data.model_fields_set else category.parent_id
+        if parent != category.parent_id:
+            self._check_parent(parent, category.kind, moving=bcid)
+        if name != category.name or parent != category.parent_id:
+            self._check_name_free(name, parent, category.kind, exclude=bcid)
+        category.name, category.parent_id = name, parent
+        if "details" in data.model_fields_set:
+            category.details = data.details
+        self.cr.save(category)
+        self.db.commit()
         return self._read(bcid)
 
-    def close(self, bcid: UUID) -> CategoryRead:
-        self._get(bcid)
-        self.accounts.close(bcid)
-        return self._read(bcid)
+    def _branch(self, bcid: UUID) -> builtins.list[BudgetCategory]:
+        return [c for c in self.cr.list() if c.bcid == bcid or c.parent_id == bcid]
+
+    def close(self, bcid: UUID, today: date | None = None) -> CategoryRead:
+        """No longer offered, history kept: closes the category and the categories in it. Refused while a running
+        recurring transaction still records into it."""
+        category = self._get(bcid)
+        branch = self._branch(bcid)
+        for member in branch:
+            rules = RecurringRepository.active_rules_for_category(self.db, self.uid, member.bcid)
+            if rules:
+                label = rules[0].payee or "a recurring transaction"
+                raise CategoryInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
+        for member in branch:
+            self.ar.clear_payment_category(member.bcid)
+        self.cr.set_closed([m.bcid for m in branch if m.closed_on is None], today or local_today())
+        self.db.commit()
+        return self._read(category.bcid)
 
     def reopen(self, bcid: UUID) -> CategoryRead:
-        self._get(bcid)
-        self.accounts.reopen(bcid)
+        """Reopen a category with the categories in it, and the group it is in (an open one sits in an open group)."""
+        category = self._get(bcid)
+        ids = [m.bcid for m in self._branch(bcid)]
+        if category.parent_id is not None:
+            ids.append(category.parent_id)
+        self.cr.set_closed(ids, None)
+        self.db.commit()
         return self._read(bcid)
 
+    def _unused(self, category: BudgetCategory) -> bool:
+        return not (
+            self.cr.has_children(category.bcid)
+            or self.cr.used_by_lines(category.bcid)
+            or RecurringRepository.uses_category(self.db, self.uid, category.bcid)
+            or BudgetRepository(self.db, self.uid).uses_category(category.bcid)
+            or category.system_key is not None
+        )
+
     def delete(self, bcid: UUID) -> CategoryDeleteResult:
-        """Remove an unused category for good; one with history (entries, labelled lines, sub-categories or a rule)
-        is closed instead, so nothing that was recorded loses its meaning."""
-        self._get(bcid)
+        """Remove an unused category for good; one with history (lines, categories inside it, a rule or a planned
+        amount) is closed instead, so nothing that was recorded loses its meaning."""
+        category = self._get(bcid)
         before = self._read(bcid)
-        try:
-            self.accounts.delete(bcid)
-        except AccountInUseError:
+        if not self._unused(category):
             return CategoryDeleteResult(outcome="closed", category=self.close(bcid))
+        self.ar.clear_payment_category(bcid)
+        self.cr.delete(category)
+        self.db.commit()
         return CategoryDeleteResult(outcome="deleted", category=before)
 
-    def merge(self, source: UUID, target: UUID, dry_run: bool = False):
-        """Fold one category into another of the same kind: its entries, lines, planned amounts and rules become the
-        target's. Same rules as merging the accounts behind them."""
-        self._get(source)
-        self._get(target)
-        return self.accounts.merge(source, target, dry_run)
-
-    # ---- the books side ----------------------------------------------------------------------------
-
-    def books_account(self, bcid: UUID) -> UUID:
-        """The account an entry posts to for this category: its own books account."""
-        category = self._get(bcid)
-        if category.closed_on is not None:
-            raise ValueError(f"category '{category.name}' is closed: reopen it to use it!")
-        return category.bcid
+    def merge(self, source: UUID, target: UUID, dry_run: bool = False) -> MergeResult:
+        """Fold one category into another of the same kind: its lines, planned amounts, recurring rules and payment
+        links become the target's, and the source is deleted. All or nothing."""
+        origin, into = self._get(source), self._get(target)
+        if source == target:
+            raise ValueError("a category cannot be merged into itself!")
+        if origin.system_key is not None or into.system_key is not None:
+            raise ValueError("the built-in Uncategorised cannot be merged: merge a category into it instead.")
+        if origin.kind != into.kind:
+            raise ValueError("cannot merge a spending category into an earning one!")
+        if self.cr.has_children(source):
+            raise ValueError(f"'{origin.name}' holds categories: merge or move them first!")
+        if into.closed_on is not None:
+            raise ValueError(f"'{into.name}' is closed: reopen it first!")
+        by_id = {c.bcid: c for c in self.cr.list()}
+        budget = BudgetRepository(self.db, self.uid)
+        tids = self.tr.labelled(source)
+        result = MergeResult(
+            dry_run=dry_run,
+            merged=not dry_run,
+            source=self._path(origin, by_id),
+            into=self._path(into, by_id),
+            balance_moved=0,
+            entries_moved=len(tids),
+            plan_months_moved=budget.months_for_category(source),
+            recurring_rules_moved=0,
+            payment_links_moved=self.ar.count_payment_links(source),
+        )
+        if dry_run:
+            return result
+        try:
+            self.tr.relabel_category(source, target, self.origin)
+            budget.merge_category(source, target)
+            result.recurring_rules_moved = RecurringRepository.repoint_category(self.db, self.uid, source, target)
+            self.ar.repoint_payment_category(source, target)
+            self.cr.delete(origin)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        return result
 
     def uncategorised(self, kind: str) -> CategoryRead:
-        """The built-in Uncategorised of a kind, made the first time it is needed (a person has one of each at most)."""
-        key = f"uncategorised.{kind}"
-        found = self.cr.by_system_key(key)
-        if found is not None:
-            if found.closed_on is not None:
-                return self.reopen(found.bcid)
-            return self._read(found.bcid)
-        root = self._root(kind)
-        taken = {a.name.casefold() for a in self.ar.list() if a.parent_id == root.aid}
-        name = UNCATEGORISED if UNCATEGORISED.casefold() not in taken else f"{UNCATEGORISED} (built-in)"
-        made = self.create(CategoryCreate(name=name, kind="spending" if kind == "spending" else "earning"))
-        self.cr.set_system_key(made.bcid, key)
-        self.ar.db.commit()
+        """The built-in Uncategorised of a kind, made the first time it is needed."""
+        made = self.cr.ensure_uncategorised(kind)
+        self.db.commit()
         return self._read(made.bcid)
