@@ -8,8 +8,8 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
-from ...clock import local_day, local_today
-from ...dependencies import Accounts, Profiles
+from ...clock import FIRST_DAY, local_day, local_today
+from ...dependencies import Accounts, Profiles, Reports
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...services.account import (
     FIXED_DEFAULTS,
@@ -187,12 +187,14 @@ SECOND_ROW = ("expense", "equity", "income")
 
 
 @router.get("")
-def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
+def accounts_page(request: Request, accounts: Accounts, reports: Reports, tab: str = "assets"):
     tab = tab.lower() if tab.lower() in PAGE_TABS else "assets"
     roots = [r for r in build_tree(accounts.list()) if r.account.name in PAGE_TABS.values()]
     mark_closed(roots)
     root = next(r for r in roots if r.account.name == PAGE_TABS[tab])
     row = FIRST_ROW if tab in FIRST_ROW else SECOND_ROW
+    if tab in SECOND_ROW and tab != "equity":
+        _by_category(root, reports, "spending" if tab == "expense" else "earning")
     return templates.TemplateResponse(
         request,
         "accounts.html",
@@ -214,6 +216,20 @@ def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
             ),
         },
     )
+
+
+def _by_category(root: Node, reports: Reports, kind: str) -> None:
+    """Expense and Income list categories, so each figure is what its lines were labelled for (all time, up to today),
+    not what was posted to the books account: an EMI paid into a loan sits on the loan and counts for its category."""
+    own = reports.category_totals(kind, FIRST_DAY, local_today())
+
+    def walk(node: Node) -> Decimal:
+        node.account.balance = own.get(node.account.aid, Decimal("0.00")) + sum(
+            (walk(child) for child in node.children), Decimal("0.00")
+        )
+        return node.account.balance
+
+    walk(root)
 
 
 def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
