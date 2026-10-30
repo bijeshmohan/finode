@@ -10,6 +10,8 @@ class ImportSummary(BaseModel):
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     new_accounts: list[str] = Field(default_factory=list)
+    # Expenses and Income paths in the file are categories here: the ones that are new.
+    new_categories: list[str] = Field(default_factory=list)
     accounts_reused: int = 0
     transactions: int = 0
     skipped_empty: int = 0

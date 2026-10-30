@@ -15,9 +15,11 @@ from ..config import settings
 from ..ledger import AccountDecl, LedgerPosting, LedgerTransaction, parse, write
 from ..ledger.parse import _plain
 from ..limits import LimitReached, ensure_room
+from ..models.category import BudgetCategory
 from ..models.transaction import PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..schemas.account import AccountCreate
+from ..schemas.category import CategoryCreate
 from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from ..tags import clean_names
@@ -82,6 +84,7 @@ class _Plan:
     release: list[UUID] = field(default_factory=list)  # empty built-in groups the file does not use: they step aside
     summary: ImportSummary = field(default_factory=ImportSummary)
     new_accounts: list[tuple[Key, str | None]] = field(default_factory=list)  # key, note
+    new_categories: list[tuple[Key, str | None]] = field(default_factory=list)  # key (Expenses:Food:Groceries), note
     transactions: list[_Planned] = field(default_factory=list)
 
 
@@ -110,6 +113,14 @@ def _resolve(path: str) -> Key:
     if root == "Equity" and len(parts) == 2 and parts[1].casefold() in OPENING_BALANCE_NAMES:
         parts[1] = OPENING_BALANCES_ACCOUNT_NAME
     return tuple(parts)
+
+
+CATEGORY_ROOTS = {"Expenses": "spending", "Income": "earning"}
+
+
+def _is_category(key: Key) -> bool:
+    """A path below Expenses or Income names a category here, not an account."""
+    return len(key) >= 2 and key[0] in CATEGORY_ROOTS
 
 
 def _formula_safe(text: str | None) -> str:
@@ -164,23 +175,45 @@ class DataService:
             found[bcid] = ":".join(reversed(names))
         return found
 
+    def _line_paths(self, accounts, paths: dict[UUID, str]):
+        """How a line is named in a journal: a line on Expenses or Income is written as the account of its category
+        (`Expenses:Food:Groceries`, which is what other ledger tools expect); any other line by its account."""
+        roots = {a.aid for a in accounts if a.parent_id is None and a.name in CATEGORY_ROOTS}
+        names = self._category_paths()
+
+        def path_of(p) -> str:
+            if p.account in roots and p.category_id in names:
+                return f"{paths[p.account]}:{':'.join(_segment(n) for n in names[p.category_id].split(':'))}"
+            return paths[p.account]
+
+        return path_of, roots
+
     def export_ledger(self) -> str:
         accounts, paths, postings, transactions, tags = self._snapshot()
+        path_of, roots = self._line_paths(accounts, paths)
+        categories = CategoryRepository(self.ar.db, self.ar.uid).list()
+        names = self._category_paths()
         decls = [
             AccountDecl(paths[a.aid], a.details)
             for a in sorted(accounts, key=lambda a: paths[a.aid])
             if a.parent_id is not None
+        ] + [
+            AccountDecl(
+                ("Expenses" if c.kind == "spending" else "Income")
+                + ":"
+                + ":".join(_segment(n) for n in names[c.bcid].split(":")),
+                c.details,
+            )
+            for c in sorted(categories, key=lambda c: (c.kind, names[c.bcid]))
         ]
         entries = []
-        own = {a.aid: a.category_id for a in accounts}
-        names = self._category_paths()
         for t in transactions:
             lines = [
                 LedgerPosting(
-                    paths[p.account],
+                    path_of(p),
                     p.amount if p.side == PostingSide.DEBIT else -p.amount,
                     # Only a label the account does not say itself (a payment into a loan: EMI) is written.
-                    category=names.get(p.category_id) if p.category_id != own.get(p.account) else None,
+                    category=names.get(p.category_id) if p.account not in roots and p.category_id else None,
                 )
                 for p in postings.get(t.tid, [])
             ]
@@ -192,7 +225,8 @@ class DataService:
         return write(decls, entries, local_today())
 
     def export_csv(self) -> str:
-        _accounts, paths, postings, transactions, tags = self._snapshot()
+        accounts, paths, postings, transactions, tags = self._snapshot()
+        path_of, _roots = self._line_paths(accounts, paths)
         out = io.StringIO()
         writer = csv.writer(out)
         writer.writerow(["date", "payee", "note", "tags", "account", "category", "debit", "credit"])
@@ -208,7 +242,7 @@ class DataService:
                         _formula_safe(t.payee),
                         _formula_safe(t.comment),
                         ", ".join(tags.get(t.tid, [])),
-                        paths[p.account],
+                        path_of(p),
                         names.get(p.category_id, "") if p.category_id else "",
                         debit,
                         credit,
@@ -217,6 +251,14 @@ class DataService:
         return out.getvalue()
 
     # --- import -----------------------------------------------------------
+
+    def _category_keys(self) -> dict[Key, UUID]:
+        """The categories as the journal paths that name them (`Expenses:Food:Groceries`)."""
+        found: dict[Key, UUID] = {}
+        for bcid, path in self._category_paths().items():
+            category = next(c for c in CategoryRepository(self.ar.db, self.ar.uid).list() if c.bcid == bcid)
+            found[(("Expenses" if category.kind == "spending" else "Income"), *path.split(":"))] = bcid
+        return found
 
     def can_import(self) -> bool:
         return not self.tr.list(limit=1)
@@ -279,6 +321,29 @@ class DataService:
                         f"{currency.code}: finode keeps one currency (you can change it in Settings before importing)"
                     )
 
+        # Paths below Expenses and Income are categories here, not accounts: they are made as categories, and a line to
+        # one posts to the Expenses or Income account with that category on it.
+        category_notes: dict[Key, tuple[str | None, int]] = {}
+        seen_paths: list[tuple[Key, tuple[str | None, int]]] = [
+            *declared.items(),
+            *((k, (None, n)) for k, n in used.items()),
+        ]
+        for key, meta in seen_paths:
+            if _is_category(key):
+                category_notes.setdefault(key, meta)
+                if len(key) > 3:
+                    errors.append(
+                        f"line {meta[1]}: '{':'.join(key)}' is {len(key) - 1} levels deep, but categories can be "
+                        "at most two levels deep (a group and a category): flatten it."
+                    )
+        declared = {k: v for k, v in declared.items() if not _is_category(k)}
+        used = {k: v for k, v in used.items() if not _is_category(k)}
+        existing_categories = self._category_keys()
+        known_categories: set[Key] = set(existing_categories) | set(category_notes)
+        for key in list(known_categories):
+            if len(key) == 3:
+                known_categories.add(key[:2])  # the group a category is in
+
         # An empty built-in group the file wants as a plain account (a posting to "Assets:Cash") steps aside for it; the groups
         # it builds on ("Assets:Bank Accounts:HDFC") and the ones it does not mention stay.
         parents_wanted = {key[:depth] for key in (*declared, *used) for depth in range(2, len(key))}
@@ -296,7 +361,7 @@ class DataService:
 
         for key, line in used.items():
             label = ":".join(key)
-            if len(key) == 1:
+            if len(key) == 1 and key[0] not in CATEGORY_ROOTS:
                 errors.append(f"line {line}: cannot post to the top-level account '{label}'")
             elif key in parents and not (
                 key[0] in GROUP_POSTING_ROOT_NAMES and key[1:] != (OPENING_BALANCES_ACCOUNT_NAME,)
@@ -325,6 +390,14 @@ class DataService:
                 errors.append(f"line {line}: account '{':'.join(key)}': {_message(e)}")
             plan.new_accounts.append((key, note))
 
+        for key in sorted((k for k in known_categories if k not in existing_categories), key=lambda k: (len(k), k)):
+            note, line = category_notes.get(key, (None, 0))
+            try:
+                CategoryCreate(name=key[-1], kind=CATEGORY_ROOTS[key[0]], details=note)  # type: ignore[arg-type]
+            except ValidationError as e:
+                errors.append(f"line {line}: category '{':'.join(key)}': {_message(e)}")
+            plan.new_categories.append((key, note))
+
         totals = {"Assets": Decimal("0.00"), "Liabilities": Decimal("0.00")}
         for transaction in journal.transactions:
             lines = [p for p in transaction.postings if p.amount != 0]
@@ -339,7 +412,14 @@ class DataService:
             notes, tags = _take_tags(notes, transaction.line, errors)
             comment = " · ".join(notes) or None
             planned = self._plan_transaction(
-                transaction, lines, payee, comment, currency.decimals, errors, tags, known | set(existing)
+                transaction,
+                lines,
+                payee,
+                comment,
+                currency.decimals,
+                errors,
+                tags,
+                known | set(existing) | known_categories,
             )
             if planned is None:
                 continue
@@ -351,6 +431,7 @@ class DataService:
 
         summary = plan.summary
         summary.new_accounts = [":".join(key) for key, _ in plan.new_accounts]
+        summary.new_categories = [":".join(key) for key, _ in plan.new_categories]
         summary.accounts_reused = sum(1 for key in known if key in existing and len(key) > 1)
         summary.transactions = len(plan.transactions)
         if plan.transactions:
@@ -362,6 +443,9 @@ class DataService:
             errors.append("The file has no transactions to import.")
         for room in (
             lambda: ensure_room(len(by_aid), settings.max_accounts, "accounts", len(plan.new_accounts)),
+            lambda: ensure_room(
+                len(existing_categories), settings.max_categories, "categories", len(plan.new_categories)
+            ),
             lambda: ensure_room(self.tr.count(), settings.max_transactions, "transactions", len(plan.transactions)),
             lambda: ensure_room(
                 self.tr.count_tags(),
@@ -434,8 +518,8 @@ class DataService:
 
     @staticmethod
     def _line_category(posting: LedgerPosting, key: Key, known: set[Key], errors: list[str]) -> Key | None:
-        """The expense category a line names (`; category: EMI`) as the key of its Expenses account, checked: it must be
-        an expense category of the file or the books, and a line to an Expenses or Income account can only name its own."""
+        """The spending category a line names (`; category: EMI`) as its journal path (`Expenses:EMI`), checked: it must
+        be a category of the file or the books, and a line to a category's own path can only name that category."""
         if not posting.category:
             return None
         try:
@@ -444,10 +528,10 @@ class DataService:
             errors.append(f"line {posting.line}: '{posting.category}' is not a category name")
             return None
         if named not in known:
-            errors.append(f"line {posting.line}: the category '{posting.category}' is not an expense category here")
+            errors.append(f"line {posting.line}: the category '{posting.category}' is not a spending category here")
         elif key[0] in ("Expenses", "Income"):
             if key != named:
-                errors.append(f"line {posting.line}: '{':'.join(key)}' stands for its own category; leave it out")
+                errors.append(f"line {posting.line}: '{':'.join(key)}' is its own category; leave the label out")
         elif key[0] == "Assets":
             errors.append(
                 f"line {posting.line}: a category goes on the other side of the entry, "
@@ -469,6 +553,27 @@ class DataService:
             for key, note in plan.new_accounts:
                 created = self.ar.create(AccountCreate(name=key[-1], details=note, parent_id=ids[key[:-1]]))
                 ids[key] = created.aid
+            categories = self._category_keys()
+            repository = CategoryRepository(self.ar.db, self.ar.uid)
+            for key, note in plan.new_categories:
+                made = repository.add(
+                    BudgetCategory(
+                        user=self.ar.uid,
+                        name=key[-1],
+                        details=note,
+                        kind=CATEGORY_ROOTS[key[0]],
+                        parent_id=categories[key[:2]] if len(key) == 3 else None,
+                    )
+                )
+                categories[key] = made.bcid
+
+            def line(key: Key, side: PostingSide, amount: Decimal, label: Key | None) -> PostingCreate:
+                if _is_category(key):  # an expense or an income: the root account, labelled with the category
+                    return PostingCreate(account=ids[key[:1]], side=side, amount=amount, category=categories[key])
+                return PostingCreate(
+                    account=ids[key], side=side, amount=amount, category=categories[label] if label else None
+                )
+
             for planned in plan.transactions:
                 self.tr.create(
                     TransactionCreate(
@@ -476,8 +581,7 @@ class DataService:
                         payee=planned.payee,
                         comment=planned.comment,
                         postings=[
-                            PostingCreate(account=ids[k], side=s, amount=a, category=ids[c] if c else None)
-                            for (k, s, a), c in zip(planned.postings, planned.categories, strict=True)
+                            line(k, s, a, c) for (k, s, a), c in zip(planned.postings, planned.categories, strict=True)
                         ],
                         tags=planned.tags,
                     ),
