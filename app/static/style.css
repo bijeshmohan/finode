@@ -1560,7 +1560,7 @@ button.add-row { width: 100%; font: inherit; cursor: pointer; background: transp
 .filter-options.grid > li.pick-new-li:not(.filter-group):not(.filter-empty) > button { align-items: center; background: none; border: 1px dashed var(--border); color: var(--text); }
 
 /* A category on the Add screen is a chip after the accounts, with no amount of its own until the entry is split. */
-.txn-row .row-pick.pill { display: inline-flex; align-items: center; width: auto; max-width: 100%; min-height: 2.75rem; padding: 0 1.1rem; border: 0; border-radius: 999px; background: var(--surface-2); font-weight: 600; gap: .5rem; }
+.txn-row .row-pick.pill { display: inline-flex; align-items: center; width: 100%; max-width: 100%; min-height: 3rem; padding: 0 1.15rem; border: 0; border-radius: 999px; background: var(--surface-2); font-size: 1rem; font-weight: 600; justify-content: flex-start; gap: .6rem; }
 .txn-row .row-pick.pill::after { content: none; }
 .txn-row .row-pick.pill::before { content: ""; flex: none; width: 1rem; height: 1rem; background: var(--muted); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12V4h8l10 10-8 8z'/%3E%3Ccircle cx='7.5' cy='8.5' r='1.2'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12V4h8l10 10-8 8z'/%3E%3Ccircle cx='7.5' cy='8.5' r='1.2'/%3E%3C/svg%3E") center / contain no-repeat; }
 .txn-row .row-pick.pill.empty { color: var(--muted); font-weight: 500; }
@@ -1571,3 +1571,6 @@ button.add-row { width: 100%; font: inherit; cursor: pointer; background: transp
 .txn-row .row-pick.pill { justify-self: start; min-width: 0; }
 .txn-row .row-pick.pill > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .txn-swap[hidden] { display: none; }
+
+/* An account chip is a pill too (its empty text is "Account…", short enough for a split row), with a bank glyph where a category has a tag. */
+.txn-row .row-pick.pill.account::before { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18'/%3E%3C/svg%3E") center / contain no-repeat; }
