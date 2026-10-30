@@ -256,7 +256,7 @@ class BackupService:
         """A file from before version 5 kept categories as Income and Expenses accounts (with the same ids). Make them
         categories: the accounts go, a line on one posts to Expenses or Income with the category on it, and the
         rules and plan rows (which already named the category by that id) follow."""
-        if file.version >= 5:
+        if file.version >= 5 or file.categories:
             return
         by_id = {a.id: a for a in file.accounts}
 
@@ -422,7 +422,8 @@ class BackupService:
                     errors.append(f"the goal '{g.name}' would hold less than nothing in {alloc.month:%B %Y}.")
                     break
         for row in file.allocations:
-            if row.category_id not in category_ids:
+            # (plan rows of a fund or an income account, from when the Plan had Build and Earn, are read and dropped)
+            if row.category_id not in category_ids and row.category_id not in accounts:
                 errors.append("a budget entry refers to a category that is not in the file.")
                 break
 
