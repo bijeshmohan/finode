@@ -334,7 +334,7 @@ class DataService:
                 if len(key) > 3:
                     errors.append(
                         f"line {meta[1]}: '{':'.join(key)}' is {len(key) - 1} levels deep, but categories can be "
-                        "at most two levels deep (a group and a category): flatten it."
+                        "at most 2 levels deep (a category and a subcategory): flatten it."
                     )
         declared = {k: v for k, v in declared.items() if not _is_category(k)}
         used = {k: v for k, v in used.items() if not _is_category(k)}

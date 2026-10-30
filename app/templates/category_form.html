@@ -13,7 +13,7 @@
            placeholder="{{ 'e.g. Groceries' if kind == 'spending' else 'e.g. Salary' }}" {{ "autofocus" if not editing }}>
   </label>
   {% if groups or parent_id %}
-  <label>Group
+  <label>Under
     <select name="parent_id">
       <option value="">None (top level)</option>
       {% for g in groups %}<option value="{{ g.bcid }}" {{ "selected" if g.bcid == parent_id }}>{{ g.name }}</option>{% endfor %}

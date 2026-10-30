@@ -179,11 +179,15 @@ class ReportService:
                 if account is None:
                     problems.append(f"{label} posts to an account that does not exist or is not yours")
                     continue
-                if account.parent_id is None:
+                on_books = account.parent_id is None and account.name in ("Expenses", "Income")
+                if account.parent_id is None and not on_books:
                     problems.append(f"{label} posts to the root account '{account.name}'")
                 if posting.amount <= 0:
                     problems.append(f"{label} has a posting that is not positive")
-                line = lines.setdefault(account.aid, [Decimal(0), Decimal(0)])
+                # A line on Expenses or Income is told apart by what it was for, as a journal would by its account.
+                line = lines.setdefault(
+                    (account.aid, posting.category_id if on_books else None), [Decimal(0), Decimal(0)]
+                )
                 if posting.side == PostingSide.DEBIT:
                     debit += posting.amount
                     line[0] += posting.amount
@@ -195,8 +199,23 @@ class ReportService:
             total_debit += debit
             total_credit += credit
 
+        categories = {c.bcid: c for c in self.cr.list()}
+
+        def category_path(bcid) -> str:
+            names, current, seen = [], categories.get(bcid), set()
+            while current is not None and current.bcid not in seen:
+                seen.add(current.bcid)
+                names.append(current.name)
+                current = categories.get(current.parent_id) if current.parent_id else None
+            return ":".join(reversed(names))
+
         result_lines = [
-            TrialBalanceLine(account=path_of(aid), debit=debit, credit=credit) for aid, (debit, credit) in lines.items()
+            TrialBalanceLine(
+                account=f"{path_of(aid)}:{category_path(category)}" if category in categories else path_of(aid),
+                debit=debit,
+                credit=credit,
+            )
+            for (aid, category), (debit, credit) in lines.items()
         ]
         result_lines.sort(key=lambda line: line.account)
         return TrialBalanceRead(

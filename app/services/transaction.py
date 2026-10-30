@@ -80,8 +80,18 @@ def _rows(postings) -> list[tuple[str, str, Decimal]]:
     return sorted((str(p.account), PostingSide(p.side).value, p.amount) for p in postings)
 
 
-def _diff(before: dict, after: dict, paths: dict[UUID, str]) -> dict:
+def _where(p: dict, paths: dict[UUID, str], categories: dict[UUID, str]) -> str:
+    """Where a snapshot's line posted, as a journal would write it: a line on Expenses or Income by its category
+    (Expenses:Food:Groceries), any other line by its account."""
+    path = paths.get(UUID(p["account"]), p["account"])
+    if path in ("Expenses", "Income") and p.get("category") and UUID(p["category"]) in categories:
+        return categories[UUID(p["category"])]
+    return path
+
+
+def _diff(before: dict, after: dict, paths: dict[UUID, str], categories: dict[UUID, str] | None = None) -> dict:
     """What an update changed between two snapshots: fields as {"from", "to"}, rows added, removed or changed."""
+    categories = categories or {}
     before, after = comparable_snapshot(before), comparable_snapshot(after)
     changes: dict = {}
     for key, label in (("date", "date"), ("payee", "payee"), ("comment", "note")):
@@ -97,14 +107,14 @@ def _diff(before: dict, after: dict, paths: dict[UUID, str]) -> dict:
     def rows(snapshot: dict) -> dict[tuple[str, str], Decimal]:
         found: dict[tuple[str, str], Decimal] = {}
         for p in snapshot.get("postings", []):
-            key = (paths.get(UUID(p["account"]), p["account"]), p["side"])
+            key = (_where(p, paths, categories), p["side"])
             found[key] = found.get(key, Decimal(0)) + Decimal(p["amount"])
         return found
 
     def labels(snapshot: dict) -> dict[tuple[str, str], tuple[str | None, ...]]:
         found: dict[tuple[str, str], list[str | None]] = {}
         for p in snapshot.get("postings", []):
-            key = (paths.get(UUID(p["account"]), p["account"]), p["side"])
+            key = (_where(p, paths, categories), p["side"])
             found.setdefault(key, []).append(p.get("category"))
         return {key: tuple(sorted(value, key=str)) for key, value in found.items()}
 
@@ -333,9 +343,22 @@ class TransactionService:
             updated=transaction.updated,
         )
 
+    def _category_paths(self) -> dict[UUID, str]:
+        """Each category as the journal account it stands for: Expenses:Food:Groceries, Income:Salary."""
+        found = {c.bcid: c for c in self.cr.list()}
+        paths: dict[UUID, str] = {}
+        for bcid, category in found.items():
+            chain, current = [], category
+            while current is not None:
+                chain.append(current.name)
+                current = found.get(current.parent_id) if current.parent_id else None
+            paths[bcid] = ("Expenses" if category.kind == "spending" else "Income") + ":" + ":".join(reversed(chain))
+        return paths
+
     def _history_read(self, row, paths: dict[UUID, str]) -> HistoryRead:
         snap = row.snapshot
         names = {c.bcid: c.name for c in self.cr.list()}
+        where = self._category_paths()
         return HistoryRead(
             hid=row.hid,
             transaction=row.transaction_id,
@@ -350,7 +373,7 @@ class TransactionService:
             source_url=snap.get("source_url"),
             postings=[
                 HistoryPosting(
-                    account=paths.get(UUID(p["account"]), p["account"]),
+                    account=_where(p, paths, where),
                     side=p["side"],
                     amount=Decimal(p["amount"]),
                     category=names.get(UUID(p["category"])) if p.get("category") else None,
@@ -408,7 +431,7 @@ class TransactionService:
             at=row.at,
             via=row.via,
             entry=self._history_read(row, paths),
-            changes=_diff(before.snapshot, row.snapshot, paths)
+            changes=_diff(before.snapshot, row.snapshot, paths, self._category_paths())
             if before is not None and row.action == "updated"
             else {},
         )
@@ -743,6 +766,8 @@ class TransactionService:
         return [c.bcid for c in categories if c.bcid == bcid or c.parent_id == bcid]
 
     def _args(self, account, kind, also):
+        if account and not any(a.aid == account for a in self.ar.list()) and self.cr.read(account) is not None:
+            account, also = None, account  # a category's id where an account goes: the entries labelled with it
         account_ids = self._account_subtree(account) if account else None
         also_ids = self._category_subtree(also) if also else None
         if kind not in (None, "", "expense", "income", "transfer"):
@@ -947,12 +972,7 @@ class TransactionService:
         """`payee_routes` with account paths and the kind of entry, for the API and the assistants."""
         paths = self._account_paths()
         categories = {c.bcid: c for c in self.cr.list()}
-        for c in categories.values():  # a category reads like the journal's account: Expenses:Food:Groceries
-            chain, current = [], c
-            while current is not None:
-                chain.append(current.name)
-                current = categories.get(current.parent_id) if current.parent_id else None
-            paths[c.bcid] = ("Expenses" if c.kind == "spending" else "Income") + ":" + ":".join(reversed(chain))
+        paths.update(self._category_paths())  # a category reads like the journal's account: Expenses:Food:Groceries
 
         def side(aid: UUID) -> RouteAccount:
             return RouteAccount(id=aid, path=paths.get(aid, "?"))

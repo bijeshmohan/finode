@@ -147,7 +147,7 @@ class AccountService:
         resulting = self._depth(parent, {a.aid: a for a in all_accounts}) + levels_below_parent
         if resulting > MAX_ACCOUNT_DEPTH:
             raise AccountDepthError(
-                "accounts can be at most two levels deep (a category and a subcategory, like Expenses › Food › Groceries)!"
+                "accounts can be at most two levels deep (a group and an account, like Assets › Banks › HDFC)!"
             )
 
     @staticmethod
@@ -608,7 +608,7 @@ class AccountService:
             for posting in postings_of.get(transaction.tid, []):
                 if posting.account in target_ids:
                     continue
-                name = accounts_by_id[posting.account].name
+                name = self._counter_name(posting, accounts_by_id)
                 if name not in counter_accounts:
                     counter_accounts.append(name)
             entries.append(
@@ -623,6 +623,17 @@ class AccountService:
                 )
             )
         return entries
+
+    def _counter_name(self, posting, accounts_by_id: dict[UUID, Account]) -> str:
+        """What the other side of an entry is called in an account's list: a line on Expenses or Income is named for
+        its category (Groceries), not for the account every expense and income is posted to."""
+        account = accounts_by_id[posting.account]
+        if account.parent_id is None and account.name in GROUP_POSTING_ROOT_NAMES:
+            category = next(
+                (c for c in CategoryRepository(self.ar.db, self.ar.uid).list() if c.bcid == posting.category_id), None
+            )
+            return category.name if category is not None else "Uncategorised"
+        return account.name
 
     def merge(self, source_id: UUID, target_id: UUID, dry_run: bool = False) -> MergeResult:
         """Make one account part of another: every entry, planned amount, recurring rule and payment link of
@@ -826,7 +837,7 @@ class AccountService:
             for posting in postings_of.get(tid, []):
                 if posting.account in target_ids:
                     continue
-                name = accounts_by_id[posting.account].name
+                name = self._counter_name(posting, accounts_by_id)
                 if name not in counter:
                     counter.append(name)
             return RegisterEntry(

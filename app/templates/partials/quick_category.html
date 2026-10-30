@@ -10,7 +10,7 @@
     <input type="text" name="name" maxlength="40" required autofocus autocomplete="off" placeholder="{{ 'e.g. Pharmacy' if kind == 'spending' else 'e.g. Freelance' }}">
   </label>
 
-  <label>Group
+  <label>Under
     <select name="parent_id">
       <option value="">None (top level)</option>
       {% for g in groups %}<option value="{{ g.bcid }}">{{ g.name }}</option>{% endfor %}

@@ -441,7 +441,10 @@ class BackupService:
             if c.kind not in ("spending", "earning"):
                 errors.append(f"category '{c.name}' is neither spending nor earning.")
             elif c.parent_id is not None and (parent is None or parent.parent_id is not None or parent.kind != c.kind):
-                errors.append(f"category '{c.name}' is in a group that is missing, too deep or of the other kind.")
+                errors.append(
+                    f"category '{c.name}' is inside a category that is missing, of the other kind, or too deep: "
+                    "categories can be at most 2 levels deep (a category and a subcategory)."
+                )
             elif not c.name.strip() or len(c.name) > 40:
                 errors.append("a category has no name, or a name that is too long.")
             elif (c.kind, c.parent_id, c.name.casefold()) in names:

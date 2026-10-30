@@ -99,22 +99,26 @@ class CategoryService:
                 raise ValueError(f"{where} already has a category called '{other.name}'!")
 
     def _check_parent(self, parent_id: UUID | None, kind: str, moving: UUID | None = None) -> None:
-        """A parent is a top-level category of the same kind that is open and is not the one being moved (a category
-        goes two levels deep: a group and the categories in it)."""
+        """A parent is a top-level category of the same kind that is open and is not the one being moved (categories
+        go two levels deep: a category and its subcategories)."""
         if parent_id is None:
             return
         parent = self._get(parent_id)
         if parent.kind != kind:
-            raise ValueError(f"'{parent.name}' is a {parent.kind} group: it cannot hold {kind} categories!")
+            raise ValueError(f"'{parent.name}' is a {parent.kind} category: it cannot hold {kind} subcategories!")
         if parent.parent_id is not None:
-            raise ValueError("categories can be at most two levels deep (a group and the categories in it)!")
+            raise ValueError(
+                "categories can be at most two levels deep (a category and a subcategory, like Food › Groceries)!"
+            )
         if parent.closed_on is not None:
-            raise ValueError(f"'{parent.name}' is closed: reopen it to add categories to it!")
+            raise ValueError(f"'{parent.name}' is closed: reopen it to add subcategories to it!")
         if moving is not None:
             if parent.bcid == moving:
                 raise ValueError("a category cannot be moved into itself!")
             if self.cr.has_children(moving):
-                raise ValueError("a group that holds categories cannot become part of another group!")
+                raise ValueError(
+                    "categories can be at most two levels deep: a category that holds subcategories cannot move inside another!"
+                )
 
     # ---- changing ----------------------------------------------------------------------------------
 
@@ -217,15 +221,16 @@ class CategoryService:
         by_id = {c.bcid: c for c in self.cr.list()}
         budget = BudgetRepository(self.db, self.uid)
         tids = self.tr.labelled(source)
+        entries = self.register(source, own_only=True)
         result = MergeResult(
             dry_run=dry_run,
             merged=not dry_run,
             source=self._path(origin, by_id),
             into=self._path(into, by_id),
-            balance_moved=0,
+            balance_moved=entries[-1].balance if entries else Decimal("0.00"),
             entries_moved=len(tids),
             plan_months_moved=budget.months_for_category(source),
-            recurring_rules_moved=0,
+            recurring_rules_moved=RecurringRepository.rules_for_category(self.db, self.uid, source),
             payment_links_moved=self.ar.count_payment_links(source),
         )
         if dry_run:
@@ -233,7 +238,7 @@ class CategoryService:
         try:
             self.tr.relabel_category(source, target, self.origin)
             budget.merge_category(source, target)
-            result.recurring_rules_moved = RecurringRepository.repoint_category(self.db, self.uid, source, target)
+            RecurringRepository.repoint_category(self.db, self.uid, source, target)
             self.ar.repoint_payment_category(source, target)
             self.cr.delete(origin)
             self.db.commit()

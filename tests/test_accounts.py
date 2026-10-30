@@ -94,11 +94,8 @@ def test_filter_accounts_by_type(
     response = client.get("/api/accounts/?type=Expenses")
     assert response.status_code == 200
     data = response.json()
-    # Should only return the root Expenses account and the groceries expense account
-    assert len(data) == 2
-    aids = {item["aid"] for item in data}
-    assert expense_account["aid"] in aids
-    assert {item["name"] for item in data} == {"Expenses", "groceries"}
+    # Expenses holds categories, not accounts: only the root is an account
+    assert [item["name"] for item in data] == ["Expenses"]
 
 
 def test_filter_accounts_by_invalid_type(client: TestClient):
@@ -283,17 +280,20 @@ def test_root_accounts_are_provisioned_once(client: TestClient):
 def test_move_account_to_different_root_fails(client: TestClient, account: dict, root_accounts: dict[str, str]):
     response = client.patch(
         f"/api/accounts/{account['aid']}",
-        json={"parent_id": root_accounts["Expenses"]},
+        json={"parent_id": root_accounts["Liabilities"]},
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "cannot move account under a different root account!"
     assert client.get(f"/api/accounts/{account['aid']}").json()["parent_id"] == root_accounts["Assets"]
 
 
-def test_move_account_under_account_of_different_root_fails(client: TestClient, account: dict, expense_account: dict):
+def test_move_account_under_account_of_different_root_fails(
+    client: TestClient, account: dict, root_accounts: dict[str, str]
+):
+    card = post_account(client, {"name": "card", "parent_id": root_accounts["Liabilities"]}).json()
     response = client.patch(
         f"/api/accounts/{account['aid']}",
-        json={"parent_id": expense_account["aid"]},
+        json={"parent_id": card["aid"]},
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "cannot move account under a different root account!"
@@ -444,7 +444,7 @@ def test_account_register_uses_normal_side_and_sub_accounts(
     child = post_account(client, {"name": "dining", "parent_id": parent["aid"]}).json()
     _transfer(client, child, account, "12.50", "2026-02-02", "lunch")
 
-    entries = plain(services(session).accounts.register(UUID(parent["aid"])))
+    entries = plain(services(session).categories.register(UUID(parent["aid"])))
     assert len(entries) == 1
     assert entries[0]["change"] == "12.50"
     assert entries[0]["balance"] == "12.50"

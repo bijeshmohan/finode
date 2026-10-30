@@ -1,4 +1,4 @@
-"""Accounts are two levels deep at most: a category and a subcategory (Expenses › Food › Groceries)."""
+"""Accounts are two levels deep at most (Assets › Banks › HDFC), and so are categories (Food › Groceries)."""
 
 import json
 
@@ -14,7 +14,7 @@ def _make(client: TestClient, name: str, parent: str):
     return post_account(client, {"name": name, "parent_id": parent})
 
 
-@pytest.mark.parametrize("root", ["Expenses", "Income", "Assets", "Liabilities", "Equity"])
+@pytest.mark.parametrize("root", ["Assets", "Liabilities", "Equity", "Expenses", "Income"])
 def test_every_type_stops_at_two_levels(client: TestClient, root_accounts, root):
     level1 = _make(client, "One", root_accounts[root])
     assert level1.status_code == 201
@@ -22,10 +22,7 @@ def test_every_type_stops_at_two_levels(client: TestClient, root_accounts, root)
     assert level2.status_code == 201
     refused = _make(client, "Three", level2.json()["aid"])
     assert refused.status_code == 400
-    assert (
-        "at most two levels deep" in refused.json()["detail"]
-        and "category and a subcategory" in refused.json()["detail"]
-    )
+    assert "at most two levels deep" in refused.json()["detail"]
 
 
 def test_there_is_no_depth_setting_any_more(client: TestClient):
@@ -40,14 +37,23 @@ def test_there_is_no_depth_setting_any_more(client: TestClient):
 
 
 def test_moving_a_subtree_respects_the_two_levels(client: TestClient, root_accounts):
-    a = _make(client, "A", root_accounts["Expenses"]).json()
-    b = _make(client, "B", root_accounts["Expenses"]).json()
+    a = _make(client, "A", root_accounts["Assets"]).json()
+    b = _make(client, "B", root_accounts["Assets"]).json()
     c = _make(client, "C", b["aid"]).json()
     # B (with C below it) under A would be 3 levels deep
     refused = client.patch(f"/api/accounts/{b['aid']}", json={"parent_id": a["aid"]})
     assert refused.status_code == 400 and "at most two levels deep" in refused.json()["detail"]
     # C alone under A is 2 levels
     assert client.patch(f"/api/accounts/{c['aid']}", json={"parent_id": a["aid"]}).status_code == 200
+
+
+def test_moving_a_category_with_subcategories_inside_another_is_refused(client: TestClient, root_accounts):
+    a = _make(client, "A", root_accounts["Expenses"]).json()
+    b = _make(client, "B", root_accounts["Expenses"]).json()
+    c = _make(client, "C", b["aid"]).json()
+    refused = client.patch(f"/api/categories/{b['aid']}", json={"parent_id": a["aid"]})
+    assert refused.status_code == 400 and "at most two levels deep" in refused.json()["detail"]
+    assert client.patch(f"/api/categories/{c['aid']}", json={"parent_id": a["aid"]}).status_code == 200
 
 
 def test_import_refuses_a_third_level(client: TestClient):
@@ -70,8 +76,13 @@ def test_a_restore_refuses_a_third_level_and_ignores_old_limits(client: TestClie
     doc = client.get("/api/backup").json()
     assert not [k for k in doc["profile"] if "depth" in k]
     deep = json.loads(json.dumps(doc))
-    deep["accounts"].append(
-        {"id": "00000000-0000-4000-8000-0000000000d3", "parent_id": dining["aid"], "name": "Takeaway"}
+    deep["categories"].append(
+        {
+            "id": "00000000-0000-4000-8000-0000000000d3",
+            "parent_id": dining["aid"],
+            "name": "Takeaway",
+            "kind": "spending",
+        }
     )
     old = json.loads(json.dumps(doc))
     old["profile"]["max_depth_expenses"] = 1  # what an older backup carries
@@ -93,7 +104,7 @@ def test_a_restore_refuses_a_third_level_and_ignores_old_limits(client: TestClie
 def test_parent_pickers_leave_out_accounts_that_cannot_hold_more(client: TestClient, root_accounts):
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     groceries = _make(client, "Groceries", food["aid"]).json()
-    for url in ("/categories/new", "/accounts/quick"):
+    for url in ("/categories/new", "/accounts/quick?hint=Expenses"):
         text = client.get(url).text
         assert f'value="{food["aid"]}"' in text
         assert f'value="{groceries["aid"]}"' not in text
@@ -108,9 +119,17 @@ def test_account_page_offers_sub_accounts_only_where_there_is_room(client: TestC
 
 
 def test_edit_form_offers_only_parents_that_fit_the_moved_subtree(client: TestClient, root_accounts):
-    a = _make(client, "A", root_accounts["Expenses"]).json()
-    b = _make(client, "B", root_accounts["Expenses"]).json()
+    a = _make(client, "A", root_accounts["Assets"]).json()
+    b = _make(client, "B", root_accounts["Assets"]).json()
     _make(client, "C", b["aid"])
     text = client.get(f"/accounts/{b['aid']}/edit").text
     assert f'value="{a["aid"]}"' not in text  # B has a child, so under A it would be 3 deep
-    assert f'value="{root_accounts["Expenses"]}"' in text
+    assert f'value="{root_accounts["Assets"]}"' in text
+
+
+def test_the_category_form_offers_only_categories_that_can_hold_subcategories(client: TestClient, root_accounts):
+    a = _make(client, "A", root_accounts["Expenses"]).json()
+    b = _make(client, "B", root_accounts["Expenses"]).json()
+    _make(client, "C", b["aid"])
+    text = client.get(f"/categories/{b['aid']}/edit").text
+    assert f'value="{a["aid"]}"' not in text  # B holds a subcategory, so it cannot go inside A

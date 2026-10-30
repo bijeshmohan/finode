@@ -225,6 +225,23 @@ class RecurringRepository:
         )
 
     @staticmethod
+    def rules_for_category(db: Session, uid: UUID, bcid: UUID) -> int:
+        """How many rules (running or not) are labelled with the category."""
+        by_rows = set(
+            db.exec(
+                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.category_id == bcid)
+            ).all()
+        )
+        by_rule = set(
+            db.exec(
+                select(RecurringTransaction.rid).where(
+                    RecurringTransaction.user == uid, RecurringTransaction.category_id == bcid
+                )
+            ).all()
+        )
+        return len(by_rows | by_rule)
+
+    @staticmethod
     def repoint_category(db: Session, uid: UUID, source: UUID, target: UUID) -> int:
         """Rules labelled with `source` are labelled with `target` instead (a merge). Returns how many rules changed."""
         rules = set(
