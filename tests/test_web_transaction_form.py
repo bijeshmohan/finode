@@ -7,7 +7,12 @@ from .htmlutil import option_offset, option_selected
 
 
 def _balance(client: TestClient, account: dict) -> str:
-    return client.get(f"/api/accounts/{account['aid']}").json()["balance"]
+    """An account's balance, or what a category has come to."""
+    found = client.get(f"/api/accounts/{account['aid']}")
+    if found.status_code == 200:
+        return found.json()["balance"]
+    entries = client.get(f"/api/categories/{account['aid']}/register").json()
+    return entries[-1]["balance"] if entries else "0.00"
 
 
 def test_form_only_offers_postable_accounts(client: TestClient, root_accounts: dict[str, str], account: dict):
@@ -43,7 +48,7 @@ def test_create_simple_transaction(client: TestClient, account: dict, expense_ac
     [tx] = client.get("/api/transactions/").json()
     assert tx["date"] == "2026-05-04"
     assert tx["payee"] == "Market"
-    sides = {p["account"]: p["side"] for p in tx["postings"]}
+    sides = {p["category"] or p["account"]: p["side"] for p in tx["postings"]}
     assert sides[expense_account["aid"]] == "debit"
     assert sides[account["aid"]] == "credit"
     assert _balance(client, account) == "-42.50"
@@ -80,7 +85,7 @@ def test_create_simple_transaction_rejects_root_account(
     response = client.post(
         "/transactions/split",
         data={
-            "account": [root_accounts["Expenses"], account["aid"]],
+            "account": [account["aid"], root_accounts["Assets"]],
             "side": ["debit", "credit"],
             "amount": ["5", "5"],
         },
@@ -350,7 +355,7 @@ def test_update_transaction_to_other_accounts(
     assert response.status_code == 200
     updated = client.get(f"/api/transactions/{tx['tid']}").json()
     assert updated["payee"] == "moved"
-    assert {(p["account"], p["side"], p["amount"]) for p in updated["postings"]} == {
+    assert {(p["category"] or p["account"], p["side"], p["amount"]) for p in updated["postings"]} == {
         (expense_account["aid"], "debit", "15.50"),
         (other_account["aid"], "credit", "15.50"),
     }
@@ -401,7 +406,7 @@ def test_new_form_prefills_from_for_asset_and_to_for_expense(client: TestClient,
     where = option_offset(from_asset, account["aid"])
     assert from_asset.index('data-rows="credit"') < where < from_asset.index('data-rows="debit"')
 
-    to_expense = client.get("/transactions/new", params={"account": expense_account["aid"]}).text
+    to_expense = client.get("/transactions/new", params={"category": expense_account["aid"]}).text
     assert to_expense.index('data-rows="debit"') < option_offset(to_expense, expense_account["aid"])
 
 
@@ -409,8 +414,10 @@ def test_old_mode_links_still_open_the_form(client: TestClient, account: dict):
     assert client.get("/transactions/new?mode=split").status_code == 200
 
 
-def test_a_transaction_with_several_rows_shows_them_all(client: TestClient, account: dict, expense_account: dict):
-    other = post_account(client, {"name": "Tips", "parent_id": expense_account["parent_id"]}).json()
+def test_a_transaction_with_several_rows_shows_them_all(
+    client: TestClient, root_accounts, account: dict, expense_account: dict
+):
+    other = post_account(client, {"name": "Tips", "parent_id": root_accounts["Expenses"]}).json()
     tx = client.post(
         "/api/transactions/",
         json={
@@ -471,9 +478,9 @@ def test_opening_a_form_from_an_account_picks_the_kind(
 ):
     salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()
     capital = post_account(client, {"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
-    assert _kind(client.get("/transactions/new", params={"account": salary["aid"]}).text) == "income"
+    assert _kind(client.get("/transactions/new", params={"category": salary["aid"]}).text) == "income"
     assert _kind(client.get("/transactions/new", params={"account": capital["aid"]}).text) == "other"
-    assert _kind(client.get("/transactions/new", params={"account": expense_account["aid"]}).text) == "expense"
+    assert _kind(client.get("/transactions/new", params={"category": expense_account["aid"]}).text) == "expense"
     assert _kind(client.get("/transactions/new", params={"account": account["aid"]}).text) == "expense"
 
 
