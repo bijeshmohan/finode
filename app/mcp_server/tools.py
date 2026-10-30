@@ -1385,7 +1385,7 @@ def _month(value: str | None) -> date | None:
 
 def _category(index: AccountIndex, text: str):
     entry = index.find(text)
-    if entry.root != "Expenses" or entry.account.parent_id is None:
+    if entry.root != "Expenses" or entry.is_root:
         raise ToolError(f"'{entry.path}' is not an expense account: budget categories are expense accounts!")
     return entry
 

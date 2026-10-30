@@ -26,6 +26,9 @@ account Assets:Bank:HDFC
 """
 
 
+PERIOD = {"date_from": "2026-09-01", "date_to": "2026-09-30"}
+
+
 def _import(client: TestClient, text: str, **params):
     return client.post("/api/import", files={"file": ("a.ledger", text.encode())}, params=params)
 
@@ -49,8 +52,15 @@ def test_import_creates_accounts_and_transactions(client: TestClient):
     assert response.status_code == 200
     balances = _balances(client)
     assert balances["HDFC"] == "13749.50"
-    assert balances["Food"] == "1250.50"
-    assert balances["Salary"] == "5000.00"
+    assert "Food" not in balances and "Salary" not in balances, "Expenses and Income paths become categories"
+    spent = {
+        line["account"]: line["amount"] for line in client.get("/api/reports/breakdown", params=PERIOD).json()["lines"]
+    }
+    earned = {
+        line["account"]: line["amount"]
+        for line in client.get("/api/reports/breakdown", params={**PERIOD, "kind": "income"}).json()["lines"]
+    }
+    assert spent == {"Food": "1250.50"} and earned == {"Salary": "5000.00"}
     accounts = {a["name"]: a for a in client.get("/api/accounts/").json()}
     assert accounts["HDFC"]["details"] == "Salary account"
     transactions = client.get("/api/transactions/").json()

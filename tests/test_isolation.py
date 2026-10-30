@@ -584,7 +584,9 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         )
         refused("move page for A's category", "GET", "/budget/move", params={"source": a["Groceries"]})
         refused("quick account under A's group", "POST", "/accounts/quick", data={"name": "x", "parent_id": a["Banks"]})
-        refused("quick category inside A's", "POST", "/categories/quick", data={"name": "x", "parent_id": a["Groceries"]})
+        refused(
+            "quick category inside A's", "POST", "/categories/quick", data={"name": "x", "parent_id": a["Groceries"]}
+        )
         refused("a category inside A's", "POST", "/categories", data={"name": "x", "parent_id": a["Groceries"]})
         refused("account form under A's group", "POST", "/accounts", data={"name": "x", "parent_id": a["Banks"]})
     assert len(refusals) >= 18

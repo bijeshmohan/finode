@@ -52,7 +52,7 @@ async def test_move_budget_flag_and_clearing_a_note(session, client, books):
 @pytest.mark.anyio
 async def test_the_rules_still_apply(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="manage")) as c:
-        with pytest.raises(ToolFailed, match="different root"):
+        with pytest.raises(ToolFailed, match="hold categories"):
             await call(c, "update_account", account="HDFC", parent="Expenses")
         with pytest.raises(ToolFailed, match="already|exists"):
             await call(c, "update_account", account="Cash2", name="Banks")
