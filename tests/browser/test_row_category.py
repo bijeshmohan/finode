@@ -74,7 +74,7 @@ def test_a_category_is_chosen_in_a_sheet(page: Page, books, api: Api):
     expect(page.locator('[data-side-section="debit"] [data-side-title]')).to_have_text("Category")
     expect(page.locator('[data-side-section="credit"] [data-side-title]')).to_have_text("Paid from")
     button = page.locator('[data-rows="debit"] [data-pick]:visible')
-    expect(button).to_have_text("Choose category…")
+    expect(button).to_have_text("Category…")
     button.click()
     dialog = page.locator("#row-picker")
     expect(dialog).to_be_visible()
