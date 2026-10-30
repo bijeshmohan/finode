@@ -343,7 +343,7 @@ def get_account(
     """One account: its balance and its recent entries with a running balance. Entries of sub-accounts count towards a group."""
     with services() as s:
         index = _index(s)
-        entry = index.find(account, allow_root=True)
+        entry = index.find(account, allow_root=True, accounts_only=True)
         aid = entry.account.aid
         register = s.accounts.register(aid) or []
         result: dict[str, Any] = {
@@ -1116,7 +1116,7 @@ def create_account(
     """Add an account. Check list_accounts first so you don't create a duplicate."""
     with services() as s:
         index = _index(s)
-        parent_entry = index.find(parent, allow_root=True)
+        parent_entry = index.find(parent, allow_root=True, accounts_only=True)
         name = name.strip()
         siblings = [e for e in index.entries.values() if e.account.parent_id == parent_entry.account.aid]
         twin = next((e for e in siblings if e.account.name.casefold() == name.casefold()), None)
@@ -1166,14 +1166,14 @@ def update_account(
     Opening Balances cannot be changed. Tell the user what you are changing first."""
     with services() as s:
         index = _index(s)
-        entry = index.find(account)
+        entry = index.find(account, accounts_only=True)
         changes: dict[str, Any] = {}
         if name is not None:
             changes["name"] = name
         if details is not None:
             changes["details"] = details.strip() or None
         if parent is not None:
-            changes["parent_id"] = index.find(parent, allow_root=True).account.aid
+            changes["parent_id"] = index.find(parent, allow_root=True, accounts_only=True).account.aid
         if on_budget is not None:
             changes["on_budget"] = on_budget
         if payment_category is not None:
@@ -1194,7 +1194,7 @@ def close_account(account: AccountRef) -> dict[str, Any]:
     pickers, but its history stays and the user can reopen it. Refused while anything inside still holds money or
     a recurring transaction still uses it."""
     with services() as s:
-        entry = _index(s).find(account)
+        entry = _index(s).find(account, accounts_only=True)
         s.accounts.close(entry.account.aid)
         fresh = _index(s)
         return {"closed": _account_row(fresh.entries[entry.account.aid], fresh)}
@@ -1204,7 +1204,7 @@ def close_account(account: AccountRef) -> dict[str, Any]:
 def reopen_account(account: AccountRef) -> dict[str, Any]:
     """Reopen a closed account with everything inside it, and the groups above it."""
     with services() as s:
-        entry = _index(s).find(account)
+        entry = _index(s).find(account, accounts_only=True)
         s.accounts.reopen(entry.account.aid)
         fresh = _index(s)
         return {"reopened": _account_row(fresh.entries[entry.account.aid], fresh)}
@@ -1222,8 +1222,8 @@ def merge_accounts(
     first, tell the user what would move, and only merge after their go-ahead."""
     with services() as s:
         index = _index(s)
-        source = index.find(from_account)
-        target = index.find(into_account)
+        source = index.find(from_account, accounts_only=True)
+        target = index.find(into_account, accounts_only=True)
         done = s.accounts.merge(source.account.aid, target.account.aid, dry_run)
         out = {
             "dry_run": done.dry_run,
