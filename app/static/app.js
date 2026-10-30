@@ -667,7 +667,7 @@ function syncRowPickers(form) {
       button.classList.toggle("pill", category);
       const option = select.selectedOptions[0];
       const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
-      const empty = select.matches("[data-category-select]") ? "No category" : `Choose ${category ? "category" : "account"}…`;
+      const empty = select.matches("[data-category-select]") ? "No category" : (category ? "Category…" : "Choose account…");
       // Only when it changed: replacing the text between a press and its release makes Safari drop the click.
       const label = chosen ? option.textContent : empty;
       if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
@@ -838,8 +838,6 @@ function recomputeTxn(form) {
     const onCategories = isCategorySide((KINDS[form.dataset.txnKind] || KINDS.other)[side].roots);
     section.classList.toggle("cat-side", onCategories);
     let rows = [...list.querySelectorAll("[data-row]")];
-    // One category is a chip with no amount of its own: its amount is the total, so it follows the total.
-    if (onCategories && rows.length === 1 && section.dataset.splitOn !== "1") rows[0].removeAttribute("data-touched");
     let touched = rows.filter((r) => r.hasAttribute("data-touched"));
     let sum = touched.reduce((acc, r) => acc + rowShare(r), 0n);
     const remaining = total - sum;
@@ -863,7 +861,6 @@ function recomputeTxn(form) {
       rows = [...list.querySelectorAll("[data-row]")];
       open = rows.filter((r) => !r.hasAttribute("data-touched"));
     }
-    section.classList.toggle("is-split", onCategories && (rows.length > 1 || section.dataset.splitOn === "1"));
     open.forEach((row, index) => setSuggestion(row, index === 0 && remaining > 0n ? formatDec(remaining) : ""));
     rows.forEach((row) => {
       const only = rows.length === 1;
@@ -965,20 +962,9 @@ document.body.addEventListener("click", (event) => {
       row.removeAttribute("data-touched");
     }
     const left = list.querySelectorAll("[data-row]");
-    if (left.length === 1) {  // back to one category: it is the whole amount again
-      delete section.dataset.splitOn;
-      left[0].removeAttribute("data-touched");
-    }
+    // One category left is the whole amount again, not what was typed before the split.
+    if (left.length === 1 && section.classList.contains("cat-side")) left[0].removeAttribute("data-touched");
     recomputeTxn(form);
-    return;
-  }
-  const splitOn = event.target.closest("[data-split-on]");
-  if (splitOn) {
-    const section = splitOn.closest("[data-side-section]");
-    section.dataset.splitOn = "1";
-    recomputeTxn(form);
-    const amount = section.querySelector('[name="amount"]');
-    if (amount) amount.focus();
     return;
   }
   if (event.target.closest("[data-swap-sides]")) {

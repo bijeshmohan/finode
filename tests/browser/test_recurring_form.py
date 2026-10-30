@@ -9,7 +9,6 @@ def test_a_split_rule_from_the_form(page: Page, books, api: Api):
     page.goto("/recurring/new")
     page.fill("#total", "1000")
     page.select_option('[data-rows="credit"] select', label="Checking")
-    page.locator('[data-side-section="debit"] [data-split-on]').click()
     page.fill('[data-rows="debit"] [name="amount"]', "700")
     page.select_option('[data-rows="debit"] [data-row]:nth-child(1) select', label="Rent")
     page.select_option('[data-rows="debit"] [data-row]:nth-child(2) select', label="Groceries")
