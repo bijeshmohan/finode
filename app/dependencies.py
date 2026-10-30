@@ -30,6 +30,7 @@ from .services.backup import BackupService
 from .services.category import CategoryService
 from .services.erase import EraseService
 from .services.oauth_grant import OAuthGrantService
+from .services.todo import TodoService
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
 
@@ -157,6 +158,13 @@ def get_budget_service(
     return BudgetService(accounts, tr, BudgetRepository(db, user.id))
 
 
+def get_todo_service(
+    budget: BudgetService = Depends(get_budget_service),
+    recurring: RecurringService = Depends(get_recurring_service),
+) -> TodoService:
+    return TodoService(budget, recurring)
+
+
 def get_api_token_service(
     db: Session = Depends(get_db_session),
     user: CurrentUser = Depends(require_authenticated_user),
@@ -184,5 +192,6 @@ Profiles = Annotated[ProfileService, Depends(get_profile_service)]
 Recurring = Annotated[RecurringService, Depends(get_recurring_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]
 Budget = Annotated[BudgetService, Depends(get_budget_service)]
+Todo = Annotated[TodoService, Depends(get_todo_service)]
 ApiTokens = Annotated[ApiTokenService, Depends(get_api_token_service)]
 OAuthGrants = Annotated[OAuthGrantService, Depends(get_oauth_grant_service)]

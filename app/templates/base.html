@@ -25,6 +25,7 @@
   {% block header %}
   <header class="topbar">
     <a class="brand" href="/"><span>finode</span></a>
+    <button type="button" class="icon-button todo-open" title="To do" aria-label="To do" hx-get="/todo/sheet" hx-target="#todo-sheet-body" hx-swap="innerHTML">{{ icon("bell") }}<span id="todo-count-bar" class="bell-badge" hidden></span></button>
     <a class="icon-button avatar-link" href="/settings" title="Settings" {% if active in ('settings', 'profile') %}aria-current="page"{% endif %}>{{ icon("user") }}<span class="sr-only">Settings</span></a>
   </header>
   <aside class="sidebar" aria-label="Main">
@@ -40,9 +41,15 @@
       <a href="/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
     </nav>
     <div class="sidebar-foot">
+      <button type="button" class="todo-open" hx-get="/todo/sheet" hx-target="#todo-sheet-body" hx-swap="innerHTML">{{ icon("bell") }}<span>To do</span><span id="todo-count-side" class="bell-badge" hidden></span></button>
       <a href="/settings" {% if active in ('settings', 'profile') %}aria-current="page"{% endif %}>{{ icon("gear") }}<span>Settings</span></a>
     </div>
   </aside>
+  {#- The to-do bell: its count is fetched after the page has loaded (and again each time the sheet is drawn), so no page waits for it. -#}
+  <span hidden hx-get="/todo/badge" hx-trigger="load" hx-swap="none"></span>
+  <dialog id="todo-sheet" class="sheet sheet-bottom" aria-label="To do">
+    <div id="todo-sheet-body" class="sheet-body"></div>
+  </dialog>
   {% endblock %}
 
   <div id="net-banner" class="net-banner" role="status" aria-live="polite" hidden></div>

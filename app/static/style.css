@@ -1041,12 +1041,7 @@ details.menu > summary::-webkit-details-marker { display: none; }
 details[open] > summary .gcaret { transform: none; }
 
 /* Budget names line up in one column: a row without a fold arrow keeps the arrow's room, and subcategories indent from there. */
-.attn-panel { margin: 0 0 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; padding: 0 1rem; font-size: .875rem; }
-.attn-panel .attn-item:first-child { border-top: 0; }
 
-.attn-item { margin: 0; padding: .75rem 0; border-top: 1px solid var(--surface-2); color: var(--muted); }
-.attn-item p { margin: 0 0 .4rem; }
-.attn-item button { margin: 0; }
 .unused-hidden { display: none; }
 .show-budget-unused .unused-hidden { display: block; }
 
@@ -1155,11 +1150,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 .del-amount { font-variant-numeric: tabular-nums; }
 .del-side button { margin: 0; min-height: 2rem; padding: .25rem .9rem; font-size: .875rem; }
 
-/* The "Needs you" badge beside the month on the budget page. */
-.need-line { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 1rem; min-height: 2.75rem; margin: 0 0 .75rem; padding: 0 1rem; font: inherit; font-size: .875rem; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--tile-border); border-radius: 14px; cursor: pointer; box-shadow: none; }
-.need-line .need-more { font-weight: 400; color: var(--muted); }
-.need-line[aria-expanded="true"] { margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-.need-line[aria-expanded="true"] + .attn-panel { border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 .more-entries { display: flex; justify-content: center; padding: .25rem 0 1rem; }
 .more-entries button { margin: 0; }
 /* The "i" beside a headline figure opens the sum behind it, in place (Home, Budget). */
@@ -1198,7 +1188,6 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .budget-group .budget-hero { padding-bottom: 1.5rem; }
 /* Budget's title row is as tall as the rows that carry round buttons (Accounts, Categories), so the titles line up. */
 .page-head.tall { min-height: 2.75rem; }
-@media (hover: hover) { .need-line:hover { background: var(--surface-2); } }
 
 /* A short welcome on the Plan until the first amount is assigned. */
 .intro { background: var(--surface-2); border-radius: var(--radius); padding: .8rem 1rem; margin: .75rem 0 1rem; display: flex; flex-direction: column; gap: .2rem; }
@@ -1308,15 +1297,15 @@ html:not([data-live]) .crow:nth-child(n+4) .bar i { animation-delay: .15s; }
 /* Folding rows: the height eases (where the browser can) and the content comes in just behind. */
 details.upcoming::details-content { block-size: 0; overflow: clip; transition: block-size .26s cubic-bezier(.3, .7, .2, 1), content-visibility .26s allow-discrete; }
 details.upcoming[open]::details-content { block-size: auto; }
-details.upcoming[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: rise-in .22s ease-out; }
+details.upcoming[open] > :not(summary), .calc-panel { animation: rise-in .22s ease-out; }
 /* A row or button that is being pressed dims a little, at once, and eases back when let go. */
-a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button, .need-line { transition: opacity .15s ease, transform .15s ease; }
-a.tx:active, a.crow:active, a.up-row:active, a.setting-link:active, a.add-row:active, a.intro-step:active, .need-line:active { opacity: .55; transition-duration: 0s; }
+a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button { transition: opacity .15s ease, transform .15s ease; }
+a.tx:active, a.crow:active, a.up-row:active, a.setting-link:active, a.add-row:active, a.intro-step:active { opacity: .55; transition-duration: 0s; }
 a.button:active, button:not(.switch):not(.chip):active { transform: scale(.98); opacity: .8; transition-duration: 0s; }
 @media (prefers-reduced-motion: reduce) {
   html:not([data-live]) .glance-bar i, html:not([data-live]) .crow .bar i { animation: none; }
-  details.upcoming::details-content, a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button, .need-line { transition: none; }
-  details.upcoming[open] > :not(summary), .attn-panel:not([hidden]), .calc-panel { animation: none; }
+  details.upcoming::details-content, a.tx, a.crow, a.up-row, a.setting-link, a.add-row, a.intro-step, a.button { transition: none; }
+  details.upcoming[open] > :not(summary), .calc-panel { animation: none; }
   a.button:active, button:not(.switch):not(.chip):active { transform: none; }
 }
 
@@ -1574,3 +1563,22 @@ button.add-row { width: 100%; font: inherit; cursor: pointer; background: transp
 
 /* An account chip is a pill too (its empty text is "Account…", short enough for a split row), with a bank glyph where a category has a tag. */
 .txn-row .row-pick.pill.account::before { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18'/%3E%3C/svg%3E") center / contain no-repeat; }
+
+/* The to-do bell: a count beside it, and the sheet of what needs a decision. */
+.topbar .todo-open { margin-left: auto; position: relative; }
+.topbar .todo-open + .avatar-link { margin-left: .25rem; }
+.bell-badge { display: inline-grid; place-items: center; min-width: 1.1rem; height: 1.1rem; padding: 0 .3rem; border-radius: 999px; background: var(--negative); color: var(--on-accent); font-size: .7rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bell-badge[hidden] { display: none; }
+.topbar .todo-open .bell-badge { position: absolute; top: .1rem; right: .1rem; }
+.sidebar-foot .todo-open { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 2.5rem; padding: 0 .75rem; border: 0; border-radius: 10px; background: none; box-shadow: none; color: var(--muted); font-size: .9375rem; font-weight: 500; text-align: left; }
+.sidebar-foot .todo-open:hover { color: var(--text); background: var(--border); }
+.sidebar-foot .todo-open .bell-badge { margin-left: auto; }
+.todo-empty { padding: 1.5rem 0; }
+.todo-list { display: flex; flex-direction: column; }
+.todo-item { padding: .9rem 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: .35rem; align-items: flex-start; }
+.todo-item:first-child { border-top: 0; }
+.todo-item p { margin: 0; font-size: .875rem; }
+.todo-item .plain-list { width: 100%; }
+.todo-item button, .todo-item a.button { margin: .25rem 0 0; }
+form.copy-last { margin: .25rem 0 .75rem; }
+.quiet-link { background: none; border: 0; box-shadow: none; padding: .25rem 0; color: var(--muted); font-size: .875rem; text-decoration: underline; font-weight: 500; }

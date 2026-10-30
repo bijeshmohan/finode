@@ -135,7 +135,8 @@ def test_each_filter_shows_its_value_with_a_way_to_remove_it(client, books, ledg
 
 def test_the_sheet_lists_the_choices(client, books, ledger):
     html = page(client)
-    sheet = html[html.index('id="tx-filter"') : html.index("</dialog>")]
+    start = html.index('id="tx-filter"')
+    sheet = html[start : html.index("</dialog>", start)]
     assert 'data-filter-list="account"' in sheet and "HDFC" in sheet and "Regalia Gold" in sheet
     assert 'data-filter-list="category"' in sheet and "Groceries" in sheet and "Salary" in sheet
     assert 'data-filter-list="merchant"' in sheet and "Swiggy" in sheet and "DMart" in sheet

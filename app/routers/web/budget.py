@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Form, HTTPException, Request
 
 from ...clock import FIRST_MONTH, LAST_MONTH, month_progress
-from ...dependencies import Budget, Transactions
+from ...dependencies import Budget
 from ...schemas.budget import BudgetLine, GoalLine
 from ...services.budget import BudgetError, first_of_month, month_start, months_between
 from ...templating import grouping_for, money, templates
@@ -183,16 +183,6 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "unused_count": len(unused),
         # More spent than there was to spend in all the categories together (a single overspent category shows on its own bar).
         "overspent": -data.available if data.available < 0 else Decimal("0.00"),
-        "attention": sum(
-            1
-            for flag in (
-                bool(data.uncategorised),
-                bool(data.left_out_accounts),
-                bool(data.overspent_last_month),
-                bool(data.copyable),
-            )
-            if flag
-        ),
         "month_key": data.month.strftime("%Y-%m"),
         "month_name": f"{calendar.month_name[data.month.month]} {data.month.year}",
         "previous": shift(data.month, -1).strftime("%Y-%m"),
@@ -325,47 +315,6 @@ def move(
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-moved")
-
-
-@router.post("/accounts/{aid}/include")
-def include_account(
-    request: Request,
-    budget: Budget,
-    aid: UUID,
-    month: Annotated[str, Form()] = "",
-    tab: Annotated[str, Form()] = "spend",
-):
-    when = parse_month(month)
-    try:
-        budget.include_account(aid)
-    except BudgetError as e:
-        return htmx_error(str(e), "#budget-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
-
-
-@router.post("/payments/{tid}/category")
-def label_payment(
-    request: Request,
-    budget: Budget,
-    transactions: Transactions,
-    tid: UUID,
-    category: Annotated[str, Form()] = "",
-    month: Annotated[str, Form()] = "",
-    tab: Annotated[str, Form()] = "spend",
-):
-    when = parse_month(month)
-    try:
-        transactions.read(tid) or _missing()
-        transactions.label_payment(tid, UUID(category))
-    except ValueError as e:
-        if "not found" in str(e) and f"'{tid}'" in str(e):
-            raise HTTPException(status_code=404, detail="transaction not found") from None
-        return htmx_error(str(e), "#budget-error")
-    return templates.TemplateResponse(request, "partials/budget_body.html", _context(budget, when, tab))
-
-
-def _missing():
-    raise HTTPException(status_code=404, detail="transaction not found")
 
 
 @router.post("/copy")
