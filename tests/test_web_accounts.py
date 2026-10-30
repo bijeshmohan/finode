@@ -99,9 +99,8 @@ def test_new_account_page_preselects_parent(client: TestClient, root_accounts: d
 
 
 def test_new_category_page_offers_income_and_expenses_and_no_balance(client: TestClient, root_accounts: dict[str, str]):
-    text = client.get("/categories/new", params={"parent": root_accounts["Income"]}).text
-    assert f'<option value="{root_accounts["Income"]}" selected>' in text
-    assert f'value="{root_accounts["Assets"]}"' not in text
+    text = client.get("/categories/new", params={"root": "income"}).text
+    assert 'name="kind" value="earning"' in text and f'value="{root_accounts["Assets"]}"' not in text
     assert 'name="balance"' not in text and "Add category" in text
 
 
@@ -199,7 +198,7 @@ def test_update_account_unchanged_is_a_noop(client: TestClient, root_accounts: d
 def test_update_account_shows_service_errors(client: TestClient, root_accounts: dict[str, str], account: dict):
     response = client.post(
         f"/accounts/{account['aid']}/edit",
-        data={"name": "checking", "parent_id": root_accounts["Expenses"]},
+        data={"name": "checking", "parent_id": root_accounts["Liabilities"]},
     )
     assert response.status_code == 400
     assert response.headers["HX-Retarget"] == "#form-error"
@@ -245,8 +244,8 @@ def test_expense_group_page_shows_direct_postings(client: TestClient, account: d
     post_account(client, {"name": "snacks", "parent_id": expense_account["aid"]})
 
     text = client.get(f"/categories/{expense_account['aid']}").text
-    assert "30.00 posted directly to groceries" in text
-    assert f"/transactions/new?account={expense_account['aid']}" in text
+    assert "posted to groceries itself" in text and "30.00" in text
+    assert f"/transactions/new?category={expense_account['aid']}" in text
     assert f"/categories/new?parent={expense_account['aid']}" in text
 
 
@@ -258,7 +257,7 @@ def test_the_edit_button_is_beside_the_menu_not_inside_it(client, root_accounts)
     assert f"/accounts/{bank['aid']}/edit" not in menu.split("</details>", 1)[0], "it left the menu"
     food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     cat = client.get(f"/categories/{food['aid']}").text
-    assert f'class="circ-button" href="/accounts/{food["aid"]}/edit"' in cat.split('<details class="menu">', 1)[0]
+    assert f'class="circ-button" href="/categories/{food["aid"]}/edit"' in cat.split('<details class="menu">', 1)[0]
     roots_page = client.get(f"/accounts/{root_accounts['Assets']}").text
     assert f"/accounts/{root_accounts['Assets']}/edit" not in roots_page, "a top-level account cannot be edited"
 
@@ -291,7 +290,7 @@ def test_a_category_has_the_month_pill_in_the_top_row_and_no_label(client, root_
     assert nav.index('class="back"') < nav.index("month-pill"), (
         "the back link and the month share one row above the title"
     )
-    assert "month-pill" not in head and ">Expenses</p>" in head, "the type stays under the title"
+    assert "month-pill" not in head and ">Spending</p>" in head, "the type stays under the title"
     assert "so far" not in head and "Spent" not in head and "Earned" not in head, "the figure needs no label"
     assert 'title="Previous month"' in nav and 'title="Next month"' not in nav, "nothing after the current month"
     assert "acct-add" not in page, "adding is a + on the Transactions heading"
@@ -555,9 +554,7 @@ def test_accounts_without_a_group_are_listed_together_after_all_the_groups(
     assert "<span>Others</span><span>20.00</span>" in text, "Apple and Cash, 10 each"
 
 
-def test_equity_is_the_page_you_get_when_neither_asset_nor_liability_is_chosen(
-    client: TestClient, root_accounts: dict[str, str]
-):
+def test_equity_is_the_page_you_get_when_neither_chip_is_chosen(client: TestClient, root_accounts: dict[str, str]):
     _bank(client, root_accounts)
     assets = client.get("/accounts").text
     assert 'href="/accounts?tab=equity"' in assets and 'aria-pressed="true"' in assets, (
@@ -565,9 +562,8 @@ def test_equity_is_the_page_you_get_when_neither_asset_nor_liability_is_chosen(
     )
     assert 'href="/accounts?tab=liabilities"' in assets
     equity = client.get("/accounts?tab=equity").text
-    assert equity.count('aria-pressed="true">Equity<') == 1, "the second row is shown, with Equity chosen"
-    assert 'href="/accounts?tab=assets"' in equity, "tapping Equity again goes back to Asset and Liability"
-    assert 'href="/accounts?tab=expense"' in equity and 'href="/accounts?tab=income"' in equity
+    assert 'aria-pressed="true"' not in equity, "neither chip is chosen"
+    assert 'href="/accounts?tab=assets"' in equity and 'href="/accounts?tab=liabilities"' in equity
     assert "Opening Balances" in equity and "Equity" in equity
     liabilities = client.get("/accounts?tab=liabilities").text
     assert 'href="/accounts?tab=equity"' in liabilities and 'href="/accounts?tab=assets"' in liabilities

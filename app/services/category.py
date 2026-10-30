@@ -95,8 +95,8 @@ class CategoryService:
         for other in self.cr.list():
             same_place = other.parent_id == parent_id and other.kind == kind and other.bcid != exclude
             if same_place and other.name.casefold() == wanted:
-                where = "there" if parent_id is None else repr(self._get(parent_id).name)
-                raise ValueError(f"{where} already has a category called '{other.name}'!")
+                who = "you already have" if parent_id is None else f"'{self._get(parent_id).name}' already has"
+                raise ValueError(f"{who} a category called '{other.name}'!")
 
     def _check_parent(self, parent_id: UUID | None, kind: str, moving: UUID | None = None) -> None:
         """A parent is a top-level category of the same kind that is open and is not the one being moved (categories
