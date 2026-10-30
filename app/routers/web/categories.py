@@ -297,8 +297,6 @@ def category_page(request: Request, bcid: UUID, categories: Categories, reports:
 @router.get("/{bcid}/edit")
 def edit_category_page(request: Request, bcid: UUID, categories: Categories):
     category = _load(categories, bcid)
-    if category.system_key is not None:
-        raise HTTPException(status_code=404, detail="category not found")
     return _form(request, categories, category, category.kind, category.parent_id)
 
 

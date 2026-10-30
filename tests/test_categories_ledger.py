@@ -1,5 +1,6 @@
-"""Budget categories on the ledger: every Income or Expenses account has a category of the same id, every line of an
-entry can say what it was for, and the rules of accounts (closing, deleting, merging) carry over to categories."""
+"""Budget categories on the ledger: a category is its own thing (no account stands behind it), every line of an entry says
+what it was for, an expense or an income posts to the Expenses or Income account, and categories close, delete and merge
+by their own rules."""
 
 from decimal import Decimal
 from uuid import UUID
@@ -32,10 +33,15 @@ def categories(session):
 
 
 def lines(session, tid):
-    return {
-        (p.account, p.side.value): p.category_id
-        for p in session.exec(select(Posting).where(Posting.transaction == UUID(tid))).all()
-    }
+    """The lines of an entry as {(account, side): category}; a line to Expenses or Income is told by its category."""
+    found = {}
+    for p in session.exec(select(Posting).where(Posting.transaction == UUID(tid))).all():
+        found[(p.account, p.side.value)] = p.category_id
+    return found
+
+
+def roots(client):
+    return {a["name"]: UUID(a["aid"]) for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
 
 
 @pytest.fixture
@@ -46,47 +52,51 @@ def books(client, root_accounts):
     groceries = post_account(client, {"name": "Groceries", "parent_id": food["aid"]}).json()
     emi = account(client, root_accounts, "EMI", "Expenses")
     salary = account(client, root_accounts, "Salary", "Income")
-    return {"bank": bank, "loan": loan, "food": food, "groceries": groceries, "emi": emi, "salary": salary}
+    return {
+        "bank": bank,
+        "loan": loan,
+        "food": food,
+        "groceries": groceries,
+        "emi": emi,
+        "salary": salary,
+        "roots": root_accounts,
+    }
 
 
-# ---- an account and its category ---------------------------------------------------------------
+# ---- a category stands alone -------------------------------------------------------------------
 
 
-def test_an_income_or_expenses_account_has_a_category_of_the_same_id(client, session, books):
+def test_a_category_has_no_account_behind_it(client, session, books):
     got = categories(session)
-    assert set(got) == {"Food", "Groceries", "EMI", "Salary"}, "assets and liabilities have none"
+    assert set(got) == {"Food", "Groceries", "EMI", "Salary"}
     assert got["Groceries"].bcid == UUID(books["groceries"]["aid"])
     assert got["Groceries"].parent_id == got["Food"].bcid and got["Food"].parent_id is None
     assert (got["Food"].kind, got["Salary"].kind) == ("spending", "earning")
-    accounts = {a["name"]: a for a in client.get("/api/accounts/").json()}
-    assert "Bank" in accounts
+    accounts = {a["name"] for a in client.get("/api/accounts/").json()}
+    assert {"Bank", "Home Loan"} <= accounts and not accounts & {"Food", "Groceries", "EMI", "Salary"}
 
 
-def test_renaming_moving_and_closing_the_account_follow_into_the_category(client, session, books):
+def test_renaming_moving_and_closing_a_category(client, session, books):
     groceries = books["groceries"]["aid"]
-    client.patch(f"/api/accounts/{groceries}", json={"name": "Supermarket", "details": "weekly"})
-    client.patch(f"/api/accounts/{groceries}", json={"parent_id": books["emi"]["aid"]})
+    client.patch(f"/api/categories/{groceries}", json={"name": "Supermarket", "details": "weekly"})
+    client.patch(f"/api/categories/{groceries}", json={"parent_id": books["emi"]["aid"]})
     got = categories(session)
     assert got["Supermarket"].details == "weekly" and got["Supermarket"].parent_id == got["EMI"].bcid
-    client.post(f"/api/accounts/{groceries}/close")
+    client.post(f"/api/categories/{groceries}/close")
     session.expire_all()
     assert categories(session)["Supermarket"].closed_on is not None
-    client.post(f"/api/accounts/{groceries}/reopen")
+    client.post(f"/api/categories/{groceries}/reopen")
     session.expire_all()
     assert categories(session)["Supermarket"].closed_on is None
 
 
-def test_deleting_an_unused_account_removes_its_category_and_restoring_brings_it_back(client, session, books):
+def test_deleting_an_unused_category_removes_it(client, session, books):
     made = account(client, books_roots(client), "Hobbies", "Expenses")
     assert "Hobbies" in categories(session)
     svc = services(session)
-    svc.accounts.delete(UUID(made["aid"]))
+    assert svc.categories.delete(UUID(made["aid"])).outcome == "deleted"
     session.expire_all()
     assert "Hobbies" not in categories(session)
-    deleted = svc.accounts.restorable()[0]
-    svc.accounts.restore_deleted(deleted["did"])
-    session.expire_all()
-    assert categories(session)["Hobbies"].bcid == UUID(made["aid"])
 
 
 def books_roots(client):
@@ -96,15 +106,16 @@ def books_roots(client):
 # ---- the lines of an entry ---------------------------------------------------------------------
 
 
-def test_a_line_to_an_expenses_or_income_account_carries_its_category(client, session, books):
+def test_a_line_to_a_category_posts_to_expenses_and_carries_it(client, session, books):
     made = entry(
         client, [(books["groceries"]["aid"], "debit", "400", None), (books["bank"]["aid"], "credit", "400", None)]
     )
     assert made.status_code == 201, made.text
     got = lines(session, made.json()["tid"])
-    assert got[(UUID(books["groceries"]["aid"]), "debit")] == UUID(books["groceries"]["aid"])
+    assert got[(roots(client)["Expenses"], "debit")] == UUID(books["groceries"]["aid"])
     assert got[(UUID(books["bank"]["aid"]), "credit")] is None
     assert [p["category"] for p in made.json()["postings"]] == [books["groceries"]["aid"], None]
+    assert made.json()["postings"][0]["account"] == str(roots(client)["Expenses"]), "it posts to Expenses"
 
 
 def test_a_payment_into_a_loan_carries_its_payment_category_only_when_it_touches_the_budget(client, session, books):
@@ -131,7 +142,7 @@ def test_a_line_can_name_its_category_and_a_split_can_use_several(client, sessio
     assert split.status_code == 201, split.text
     got = lines(session, split.json()["tid"])
     assert got[(UUID(books["loan"]["aid"]), "debit")] == UUID(books["emi"]["aid"])
-    assert got[(UUID(books["groceries"]["aid"]), "debit")] == UUID(books["groceries"]["aid"])
+    assert got[(roots(client)["Expenses"], "debit")] == UUID(books["groceries"]["aid"])
 
 
 def test_the_same_account_twice_with_different_categories_is_a_split_of_that_account(client, session, books):
@@ -153,13 +164,13 @@ def test_the_same_account_twice_with_different_categories_is_a_split_of_that_acc
 
 @pytest.mark.parametrize(
     ("which", "message"),
-    [("unknown", "not found"), ("earning_on_loan", "earning category"), ("mismatch", "stands for")],
+    [("unknown", "not found"), ("earning_on_loan", "earning category"), ("earning_on_expenses", "cannot go on")],
 )
 def test_a_category_that_does_not_fit_the_line_is_refused(client, books, which, message):
     bad = {
         "unknown": (books["loan"]["aid"], "00000000-0000-4000-8000-0000000000aa"),
         "earning_on_loan": (books["loan"]["aid"], books["salary"]["aid"]),
-        "mismatch": (books["groceries"]["aid"], books["emi"]["aid"]),
+        "earning_on_expenses": (books["roots"]["Expenses"], books["salary"]["aid"]),
     }[which]
     response = entry(client, [(bad[0], "debit", "10", bad[1]), (books["bank"]["aid"], "credit", "10", None)])
     assert response.status_code == 400 and message in response.text
@@ -171,7 +182,7 @@ def test_a_closed_category_cannot_be_used_but_an_entry_that_already_has_it_can_b
         [(books["loan"]["aid"], "debit", "10", books["emi"]["aid"]), (books["bank"]["aid"], "credit", "10", None)],
     )
     tid = made.json()["tid"]
-    client.post(f"/api/accounts/{books['emi']['aid']}/close")
+    client.post(f"/api/categories/{books['emi']['aid']}/close")
     refused = entry(
         client,
         [(books["loan"]["aid"], "debit", "10", books["emi"]["aid"]), (books["bank"]["aid"], "credit", "10", None)],
@@ -202,11 +213,6 @@ def test_history_remembers_the_categories_and_an_unchanged_save_adds_nothing(cli
     )
     assert {p["category"] for p in snapshot["postings"]} == {books["groceries"]["aid"], None}
     resave = {"postings": [p | {"category": p.get("category")} for p in made.json()["postings"]]}
-    resave = {
-        "postings": [
-            {"account": p["account"], "side": p["side"], "amount": p["amount"]} for p in made.json()["postings"]
-        ]
-    }
     client.patch(f"/api/transactions/{tid}", json=resave)
     rows = session.exec(select(TransactionHistory).where(TransactionHistory.transaction_id == UUID(tid))).all()
     assert len(rows) == 1
@@ -228,7 +234,8 @@ def test_an_old_snapshot_without_categories_does_not_make_a_resave_look_like_a_c
         f"/api/transactions/{tid}",
         json={
             "postings": [
-                {"account": p["account"], "side": p["side"], "amount": p["amount"]} for p in made.json()["postings"]
+                {"account": p["account"], "side": p["side"], "amount": p["amount"], "category": p["category"]}
+                for p in made.json()["postings"]
             ]
         },
     )
@@ -300,7 +307,7 @@ def test_merging_two_expense_categories_moves_lines_labels_and_plan(client, sess
     assert "EMI" not in categories(session)
     food = UUID(books["food"]["aid"])
     assert {p.category_id for p in session.exec(select(Posting)).all()} <= {food, None}
-    assert lines(session, spent.json()["tid"])[(food, "debit")] == food
+    assert lines(session, spent.json()["tid"])[(roots(client)["Expenses"], "debit")] == food
     rows = session.exec(select(BudgetAllocation)).all()
     assert [(r.category_id, r.amount) for r in rows] == [(food, Decimal("800"))]
 
@@ -334,10 +341,7 @@ def test_the_category_service_makes_changes_closes_and_removes_categories(sessio
     assert svc.categories.close(dining.bcid).closed_on is not None
     assert [c.name for c in svc.categories.list()] == ["Food"], "closed ones are left out"
     assert {c.name for c in svc.categories.list(include_closed=True)} == {"Food", "Eating out"}
-    with pytest.raises(ValueError, match="closed"):
-        svc.categories.books_account(dining.bcid)
     assert svc.categories.reopen(dining.bcid).closed_on is None
-    assert svc.categories.books_account(dining.bcid) == dining.bcid
 
 
 def test_uncategorised_is_made_once_per_kind_and_comes_back_if_closed(session, root_accounts):

@@ -24,9 +24,7 @@
       <p class="acct-sub">{{ group.name if group else ("Earning" if earning else "Spending") }}</p>
     </div>
     <div class="acct-icons">
-      {% if not category.system_key %}
       <a class="circ-button" href="/categories/{{ category.bcid }}/edit" title="Edit" aria-label="Edit {{ category.name }}">{{ icon("edit") }}</a>
-      {% endif %}
       <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">

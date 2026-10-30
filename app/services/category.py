@@ -137,10 +137,6 @@ class CategoryService:
     def update(self, bcid: UUID, data: CategoryUpdate) -> CategoryRead:
         """Rename it, change its note or move it into another group (or out of its group)."""
         category = self._get(bcid)
-        if category.system_key is not None and (
-            "name" in data.model_fields_set or "parent_id" in data.model_fields_set
-        ):
-            raise ValueError(f"'{category.name}' is built in and can't be renamed or moved!")
         name = data.name if "name" in data.model_fields_set and data.name is not None else category.name
         parent = data.parent_id if "parent_id" in data.model_fields_set else category.parent_id
         if parent != category.parent_id:
