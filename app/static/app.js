@@ -406,6 +406,15 @@ function applyKind(form, kind) {
     const title = form.querySelector(`[data-side-section="${side}"] [data-side-title]`);
     if (title) title.textContent = KINDS[kind][side].title;
   });
+  // The category side comes after the accounts (Income lists it first in the data, not on the screen), and a
+  // category is not swapped with an account, so the swap button goes.
+  const credit = form.querySelector('[data-side-section="credit"]');
+  const debit = form.querySelector('[data-side-section="debit"]');
+  const swap = form.querySelector(".txn-swap");
+  const categoryFirst = isCategorySide(KINDS[kind].credit.roots);
+  if (categoryFirst) debit.after(credit);
+  else if (swap) { credit.after(swap); swap.after(debit); }
+  if (swap) swap.hidden = categoryFirst || isCategorySide(KINDS[kind].debit.roots);
   recomputeTxn(form);
 }
 
@@ -631,31 +640,41 @@ document.body.addEventListener("change", (event) => {
 
 // ---- Choosing an account or a category: a sheet instead of the browser's list, on every row of the form ----
 // The <select> stays (hidden) so everything that sets or reads the account keeps working; the button shows its choice.
+function ensurePick(select) {
+  let button = select.nextElementSibling;
+  if (button && button.matches("[data-pick]")) return button;
+  button = document.createElement("button");
+  button.type = "button";
+  button.className = "row-pick";
+  button.dataset.pick = "";
+  button.setAttribute("aria-haspopup", "dialog");
+  button.append(document.createElement("span"));
+  select.after(button);
+  select.classList.add("is-picked");
+  return button;
+}
+
 function syncRowPickers(form) {
   const kind = KINDS[form.dataset.txnKind] || KINDS.other;
   form.querySelectorAll("[data-row]").forEach((row) => {
-    const select = rowAccount(row);
     const side = row.querySelector('[name="side"]').value;
-    const category = isCategorySide(kind[side].roots);
-    let button = row.querySelector("[data-pick]");
-    if (!button) {
-      button = document.createElement("button");
-      button.type = "button";
-      button.className = "row-pick";
-      button.dataset.pick = "";
-      button.setAttribute("aria-haspopup", "dialog");
-      button.append(document.createElement("span"));
-      select.after(button);
-    }
-    select.classList.add("is-picked");
-    const option = select.selectedOptions[0];
-    const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
-    const noun = category ? "category" : "account";
-    // Only when it changed: replacing the text between a press and its release makes Safari drop the click.
-    const label = chosen ? option.textContent : `Choose ${noun}…`;
-    if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
-    button.classList.toggle("empty", !chosen);
-    button.setAttribute("aria-label", chosen ? `${noun[0].toUpperCase()}${noun.slice(1)}: ${option.textContent}` : (category ? "Choose a category" : "Choose an account"));
+    const onCategories = isCategorySide(kind[side].roots);
+    // The row's account (a category, for an expense or income) and, on a payment into a loan, its category.
+    [[rowAccount(row), onCategories], [row.querySelector("[data-category-select]"), true]].forEach(([select, category]) => {
+      if (!select) return;
+      const button = ensurePick(select);
+      button.hidden = select.hidden;
+      button.classList.toggle("pill", category);
+      const option = select.selectedOptions[0];
+      const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
+      const empty = select.matches("[data-category-select]") ? "No category" : `Choose ${category ? "category" : "account"}…`;
+      // Only when it changed: replacing the text between a press and its release makes Safari drop the click.
+      const label = chosen ? option.textContent : empty;
+      if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
+      button.classList.toggle("empty", !chosen);
+      const noun = category ? "Category" : "Account";
+      button.setAttribute("aria-label", chosen ? `${noun}: ${option.textContent}` : `Choose ${category ? "a category" : "an account"}`);
+    });
   });
 }
 
@@ -674,6 +693,7 @@ function syncRowPickers(form) {
     try { localStorage.setItem(RECENT[noun], JSON.stringify([value, ...recent().filter((v) => v !== value)].slice(0, 5))); } catch { /* no storage: fine */ }
   };
   let target = null;
+  let clearable = false; // a payment's category can be none
   let taken = new Set(); // what the other side of the entry already uses: an account cannot be on both
   const choices = () => [...target.options].filter((o) => o.value && o.value !== NEW_ACCOUNT);
   const row = (option, group) => {
@@ -684,7 +704,14 @@ function syncRowPickers(form) {
     button.setAttribute("aria-pressed", String(option.value === target.value));
     const name = group ? option.textContent.slice(group.length + 3) || option.textContent : option.textContent;
     const label = document.createElement("span");
-    label.textContent = name;
+    const [outer, inner] = noun === "category" && !group ? option.textContent.split(" › ") : [];
+    if (inner) {  // a tile outside its group's heading names the group too, so two "Dining" can be told apart
+      label.textContent = inner;
+      const small = document.createElement("small");
+      small.className = "muted";
+      small.textContent = outer;
+      label.append(small);
+    } else label.textContent = name;
     button.append(label);
     if (option.dataset.balance) {
       const balance = document.createElement("span");
@@ -736,8 +763,19 @@ function syncRowPickers(form) {
         list.append(row(o, inGroup ? group : ""));
       });
     }
+    if (clearable && !text) {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.pickOption = "";
+      button.setAttribute("aria-pressed", String(!target.value));
+      button.textContent = "No category";
+      li.append(button);
+      list.prepend(li);
+    }
     if (target.querySelector(`option[value="${NEW_ACCOUNT}"]`)) {
       const li = document.createElement("li");
+      li.className = "pick-new-li";
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.pickNew = "";
@@ -753,18 +791,22 @@ function syncRowPickers(form) {
       const form = open.closest("form[data-txn-form]");
       const side = rowEl.querySelector('[name="side"]').value;
       const kind = KINDS[form.dataset.txnKind] || KINDS.other;
-      noun = isCategorySide(kind[side].roots) ? "category" : "account";
+      target = open.previousElementSibling; // the hidden select this button stands for
+      clearable = target.matches("[data-category-select]");
+      noun = clearable || isCategorySide(kind[side].roots) ? "category" : "account";
       title.textContent = noun === "category" ? "Category" : "Account";
       dialog.setAttribute("aria-label", title.textContent);
       search.placeholder = `Search ${noun === "category" ? "categories" : "accounts"}`;
       search.setAttribute("aria-label", search.placeholder);
-      target = rowAccount(rowEl);
-      taken = new Set(
-        [...form.querySelectorAll("[data-row]")]
-          .filter((r) => r.querySelector('[name="side"]').value !== side)
-          .map((r) => rowAccount(r).value)
-          .filter(Boolean),
-      );
+      list.classList.toggle("grid", noun === "category");
+      taken = clearable
+        ? new Set()
+        : new Set(
+            [...form.querySelectorAll("[data-row]")]
+              .filter((r) => r.querySelector('[name="side"]').value !== side)
+              .map((r) => rowAccount(r).value)
+              .filter(Boolean),
+          );
       search.value = "";
       draw();
       dialog.showModal();
@@ -778,7 +820,7 @@ function syncRowPickers(form) {
     target = null;
     dialog.close();
     select.value = option ? option.dataset.pickOption : NEW_ACCOUNT;
-    if (option) remember(option.dataset.pickOption);
+    if (option && option.dataset.pickOption) remember(option.dataset.pickOption);
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   search.addEventListener("input", draw);
@@ -792,7 +834,12 @@ function recomputeTxn(form) {
 
   ["credit", "debit"].forEach((side) => {
     const list = form.querySelector(`[data-rows="${side}"]`);
+    const section = form.querySelector(`[data-side-section="${side}"]`);
+    const onCategories = isCategorySide((KINDS[form.dataset.txnKind] || KINDS.other)[side].roots);
+    section.classList.toggle("cat-side", onCategories);
     let rows = [...list.querySelectorAll("[data-row]")];
+    // One category is a chip with no amount of its own: its amount is the total, so it follows the total.
+    if (onCategories && rows.length === 1 && section.dataset.splitOn !== "1") rows[0].removeAttribute("data-touched");
     let touched = rows.filter((r) => r.hasAttribute("data-touched"));
     let sum = touched.reduce((acc, r) => acc + rowShare(r), 0n);
     const remaining = total - sum;
@@ -816,6 +863,7 @@ function recomputeTxn(form) {
       rows = [...list.querySelectorAll("[data-row]")];
       open = rows.filter((r) => !r.hasAttribute("data-touched"));
     }
+    section.classList.toggle("is-split", onCategories && (rows.length > 1 || section.dataset.splitOn === "1"));
     open.forEach((row, index) => setSuggestion(row, index === 0 && remaining > 0n ? formatDec(remaining) : ""));
     rows.forEach((row) => {
       const only = rows.length === 1;
@@ -909,13 +957,28 @@ document.body.addEventListener("click", (event) => {
   if (remove) {
     const row = remove.closest("[data-row]");
     const list = row.parentElement;
+    const section = row.closest("[data-side-section]");
     if (list.querySelectorAll("[data-row]").length > 1) row.remove();
     else {
       rowAccount(row).value = "";
       row.querySelectorAll('[name="amount"]').forEach((f) => { f.value = ""; });
       row.removeAttribute("data-touched");
     }
+    const left = list.querySelectorAll("[data-row]");
+    if (left.length === 1) {  // back to one category: it is the whole amount again
+      delete section.dataset.splitOn;
+      left[0].removeAttribute("data-touched");
+    }
     recomputeTxn(form);
+    return;
+  }
+  const splitOn = event.target.closest("[data-split-on]");
+  if (splitOn) {
+    const section = splitOn.closest("[data-side-section]");
+    section.dataset.splitOn = "1";
+    recomputeTxn(form);
+    const amount = section.querySelector('[name="amount"]');
+    if (amount) amount.focus();
     return;
   }
   if (event.target.closest("[data-swap-sides]")) {

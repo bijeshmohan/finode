@@ -8,7 +8,7 @@ from .conftest import Api
 
 def test_an_account_is_chosen_in_a_sheet(page: Page, books, api: Api):
     page.goto("/transactions/new")
-    button = page.locator('[data-rows="credit"] [data-pick]')
+    button = page.locator('[data-rows="credit"] [data-pick]:visible')
     expect(button).to_have_text("Choose account…")
     button.click()
     dialog = page.locator("#row-picker")
@@ -24,7 +24,7 @@ def test_an_account_is_chosen_in_a_sheet(page: Page, books, api: Api):
     expect(button).to_have_text("Checking")
     assert page.input_value('[data-rows="credit"] select') == books["checking"]["aid"]
     page.fill("#total", "40")
-    page.locator('[data-rows="debit"] [data-pick]').click()
+    page.locator('[data-rows="debit"] [data-pick]:visible').click()
     page.locator("#row-picker [data-pick-option]", has_text="Groceries").click()
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
@@ -35,20 +35,20 @@ def test_an_account_is_chosen_in_a_sheet(page: Page, books, api: Api):
 def test_the_account_on_the_other_side_is_greyed_and_the_last_used_come_first(page: Page, books):
     page.goto("/transactions/new")
     page.get_by_role("button", name="Transfer", exact=True).click()
-    page.locator('[data-rows="credit"] [data-pick]').click()
+    page.locator('[data-rows="credit"] [data-pick]:visible').click()
     page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
-    page.locator('[data-rows="debit"] [data-pick]').click()
+    page.locator('[data-rows="debit"] [data-pick]:visible').click()
     for same in page.locator("#row-picker [data-pick-option]", has_text="Checking").all():  # also under Used lately
         expect(same).to_be_disabled()
     expect(page.locator("#row-picker [data-pick-option]", has_text="Cash").first).to_be_enabled()
     page.keyboard.press("Escape")
-    page.locator('[data-rows="credit"] [data-pick]').click()
+    page.locator('[data-rows="credit"] [data-pick]:visible').click()
     expect(page.locator("#row-picker [data-pick-list] li").first).to_have_text("Used lately")
 
 
 def test_a_new_account_can_be_made_from_the_sheet(page: Page, books, api: Api):
     page.goto("/transactions/new")
-    button = page.locator('[data-rows="credit"] [data-pick]')
+    button = page.locator('[data-rows="credit"] [data-pick]:visible')
     button.click()
     page.locator("#row-picker [data-pick-new]").click()
     dialog = page.locator("#quick-account")
@@ -64,9 +64,9 @@ def test_the_chosen_account_is_bold_and_the_scroll_bar_stays_clear_of_the_balanc
     for number in range(25):
         api.post("/accounts/", name=f"Wallet {number:02d}", parent_id=books["roots"]["Assets"], balance="1500")
     page.goto("/transactions/new")
-    page.locator('[data-rows="credit"] [data-pick]').click()
+    page.locator('[data-rows="credit"] [data-pick]:visible').click()
     page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
-    page.locator('[data-rows="credit"] [data-pick]').click()
+    page.locator('[data-rows="credit"] [data-pick]:visible').click()
     assert page.locator("#row-picker .tag-tick").count() == 0, "no circle: one choice closes the sheet"
     chosen = page.locator('#row-picker [aria-pressed="true"] > span:first-child').first
     assert chosen.evaluate("el => getComputedStyle(el).fontWeight") == "600"
