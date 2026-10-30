@@ -60,7 +60,7 @@
   {% endfor %}
   {% if own_here %}
   <div class="r crow">
-    <span class="crow-main"><span class="crow-name">Everything else</span><span class="crow-sub">labelled {{ category.name }} itself</span></span>
+    <span class="crow-main"><span class="crow-name">Everything else</span><span class="crow-sub">posted to {{ category.name }} itself</span></span>
     <span class="crow-amt"><span class="{{ 'income' if earning and own_here > 0 }}">{{ own_here|money }}</span></span>
   </div>
   {% endif %}

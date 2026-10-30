@@ -148,18 +148,17 @@ def test_a_category_page_shows_its_month_and_its_transactions(client, books):
     assert "Add subcategory" in client.get(f"/categories/{books['food']['aid']}").text
 
 
-def test_an_account_page_for_a_category_goes_to_the_category_page(client, books):
-    response = client.get(f"/accounts/{books['rent']['aid']}", follow_redirects=False)
-    assert response.status_code == 303 and response.headers["location"] == f"/categories/{books['rent']['aid']}"
+def test_a_category_has_no_account_page(client, books):
+    assert client.get(f"/accounts/{books['rent']['aid']}").status_code == 404
     assert client.get(f"/categories/{books['bank']['aid']}").status_code == 404, "an asset is not a category"
 
 
 def test_adding_and_deleting_a_category_stay_on_the_categories_side(client, books):
-    created = client.post("/accounts", data={"name": "Gifts", "parent_id": books["food"]["aid"]})
+    created = client.post("/categories", data={"name": "Gifts", "parent_id": books["food"]["aid"]})
     assert created.status_code == 200
-    gift = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Gifts")
-    assert "Delete category" in client.get(f"/accounts/{gift['aid']}/edit").text
-    deleted = client.post(f"/accounts/{gift['aid']}/delete")
+    gift = next(c for c in client.get("/api/categories/").json() if c["name"] == "Gifts")
+    assert "Delete category" in client.get(f"/categories/{gift['bcid']}/edit").text
+    deleted = client.post(f"/categories/{gift['bcid']}/delete")
     assert deleted.headers["HX-Redirect"] == "/categories"
 
 
@@ -181,30 +180,34 @@ def test_the_chips_are_spending_and_earning_and_both_spellings_of_the_tab_work(c
 
 
 def names(client):
-    return {a["name"]: a for a in client.get("/api/accounts/").json()}
+    return {c["name"]: c for c in client.get("/api/categories/", params={"include_closed": True}).json()}
+
+
+def open_names(client):
+    return {c["name"] for c in client.get("/api/categories/").json()}
 
 
 def test_an_unused_category_is_deleted_for_good(client, books):
-    response = client.post(f"/accounts/{books['dining']['aid']}/delete")
+    response = client.post(f"/categories/{books['dining']['aid']}/delete")
     assert response.headers["HX-Redirect"] == "/categories" and "category-deleted" in response.headers["set-cookie"]
     assert "Dining" not in names(client)
 
 
 def test_a_category_with_entries_leaves_the_lists_but_keeps_its_history(client, books):
     entry(client, books["groceries"], books["bank"], "300", LAST_MONTH.replace(day=3))
-    response = client.post(f"/accounts/{books['groceries']['aid']}/delete")
+    response = client.post(f"/categories/{books['groceries']['aid']}/delete")
     assert response.headers["HX-Redirect"] == "/categories" and "category-deleted" in response.headers["set-cookie"]
     assert names(client)["Groceries"]["closed_on"], "kept, so the old entry still has its category"
     this = client.get("/categories").text
     assert "Groceries" not in this, "not listed where it has nothing"
     assert "Groceries" in client.get(f"/categories?month={LAST_MONTH:%Y-%m}").text, "still in the month it was used"
     assert f'value="{books["groceries"]["aid"]}"' not in client.get("/transactions/new").text
-    restored = client.post(f"/accounts/{books['groceries']['aid']}/reopen")
+    restored = client.post(f"/categories/{books['groceries']['aid']}/reopen")
     assert "category-restored" in restored.headers["set-cookie"] and not names(client)["Groceries"]["closed_on"]
 
 
 def test_a_category_with_sub_categories_takes_them_along(client, books):
-    response = client.post(f"/accounts/{books['food']['aid']}/delete")
+    response = client.post(f"/categories/{books['food']['aid']}/delete")
     assert response.headers["HX-Redirect"] == "/categories"
     after = names(client)
     assert after["Food"]["closed_on"] and after["Groceries"]["closed_on"] and after["Dining"]["closed_on"]
@@ -213,7 +216,7 @@ def test_a_category_with_sub_categories_takes_them_along(client, books):
 
 def test_a_closed_sub_category_is_not_listed_under_its_group(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
-    client.post(f"/api/accounts/{books['dining']['aid']}/close")
+    client.post(f"/api/categories/{books['dining']['aid']}/close")
     page = client.get(f"/categories/{books['food']['aid']}").text
     assert "Groceries" in page and "Dining" not in page.split("Subcategories")[1].split("Transactions")[0]
     assert rows(client.get("/categories").text)[0] == ("Food", "Groceries · 100%", "300.00")
@@ -221,7 +224,7 @@ def test_a_closed_sub_category_is_not_listed_under_its_group(client, books):
 
 def test_a_category_that_was_spent_in_can_be_deleted_without_emptying_it_first(client, books):
     entry(client, books["rent"], books["bank"], "900", THIS_MONTH)
-    assert client.post(f"/api/accounts/{books['rent']['aid']}/close").status_code == 200, (
+    assert client.post(f"/api/categories/{books['rent']['aid']}/close").status_code == 200, (
         "its balance is spending, not money"
     )
     assert client.post(f"/api/accounts/{books['bank']['aid']}/close").status_code == 400, (
@@ -232,10 +235,10 @@ def test_a_category_that_was_spent_in_can_be_deleted_without_emptying_it_first(c
 def test_a_category_page_says_delete_where_an_account_says_close(client, books):
     category = client.get(f"/categories/{books['rent']['aid']}").text
     assert "Delete category" in category and "Close account" not in category
-    assert f"/accounts/{books['rent']['aid']}/delete" in category
+    assert f"/categories/{books['rent']['aid']}/delete" in category
     account_page = client.get(f"/accounts/{books['bank']['aid']}").text
     assert "Close account" in account_page and "Delete category" not in account_page
-    form = client.get(f"/accounts/{books['rent']['aid']}/edit").text
+    form = client.get(f"/categories/{books['rent']['aid']}/edit").text
     assert "removed for good" in form and "Delete category" in form
 
 
@@ -292,7 +295,7 @@ def test_each_list_heading_on_a_category_page_has_its_own_plus(client, books):
     entry(client, books["groceries"], books["bank"], "30", THIS_MONTH)
     group = client.get(f"/categories/{books['food']['aid']}").text
     assert f'href="/categories/new?parent={books["food"]["aid"]}"' in group and 'title="Add subcategory"' in group
-    assert f'href="/transactions/new?account={books["food"]["aid"]}' in group and 'title="Add transaction"' in group
+    assert f'href="/transactions/new?category={books["food"]["aid"]}' in group and 'title="Add transaction"' in group
     leaf = client.get(f"/categories/{books['groceries']['aid']}").text
     assert (
         'title="Add transaction"' in leaf and "Subcategories" not in leaf and 'title="Add subcategory"' not in leaf
@@ -323,18 +326,10 @@ def test_the_categories_pages_have_no_share_bar_and_no_colour_dots(client, books
     assert "--chart-" not in css and ".sharebar" not in css and ".cdot" not in css
 
 
-def test_the_plus_on_a_categories_tab_offers_only_that_kind(client, root_accounts):
+def test_the_plus_on_a_categories_tab_offers_only_that_kind(client, books):
     assert 'href="/categories/new?root=income"' in client.get("/categories?tab=income").text
     assert 'href="/categories/new?root=expense"' in client.get("/categories").text
     income = client.get("/categories/new?root=income").text
-    assert f'value="{root_accounts["Income"]}" selected' in income, "it starts on the kind itself"
-    assert f'value="{root_accounts["Expenses"]}"' not in income, "no Expenses accounts to put it under"
+    assert 'name="kind" value="earning"' in income and f'value="{books["food"]["aid"]}"' not in income
     expense = client.get("/categories/new?root=expense").text
-    assert (
-        f'value="{root_accounts["Expenses"]}" selected' in expense
-        and f'value="{root_accounts["Income"]}"' not in expense
-    )
-    both = client.get("/categories/new").text
-    assert f'value="{root_accounts["Income"]}"' in both and f'value="{root_accounts["Expenses"]}"' in both, (
-        "no tab: both, as before"
-    )
+    assert 'name="kind" value="spending"' in expense and f'value="{books["food"]["aid"]}"' in expense
