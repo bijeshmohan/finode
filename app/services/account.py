@@ -125,7 +125,7 @@ class AccountService:
             raise SystemAccountError(f"cannot add sub-accounts to system account '{parent.name}'!")
         accounts_by_id = {a.aid: a for a in all_accounts}
         if self._get_root_name(parent, accounts_by_id) in GROUP_POSTING_ROOT_NAMES:
-            return
+            raise ValueError("Expenses and Income hold categories, not accounts: add a category instead!")
         if self.tr.postings_for_account(parent.aid):
             raise ValueError(f"cannot add sub-accounts to '{parent.name}' because it has postings!")
 
@@ -326,7 +326,6 @@ class AccountService:
             parent_id=account.parent_id,
             balance=balance,
             on_budget=account.on_budget,
-            category_id=account.category_id,
             payment_category_id=account.payment_category_id,
             closed_on=account.closed_on,
             system_key=account.system_key,
@@ -491,19 +490,6 @@ class AccountService:
                     f"{'there' if parent is None else repr(parent)} already has an account called '{other.name}'!"
                 )
 
-    def _check_feeds(self, root: str, category_id: UUID) -> None:
-        """An Income or Expenses account can have a default category of its own kind that is open: the lines posted to
-        it carry that category unless they say another."""
-        if root not in ("Expenses", "Income"):
-            raise ValueError("only an Income or Expenses account can have a default category!")
-        category = CategoryRepository(self.ar.db, self.ar.uid).read(category_id)
-        if category is None:
-            raise ValueError("category not found!")
-        if category.kind != ("spending" if root == "Expenses" else "earning"):
-            raise ValueError(f"'{category.name}' is a {category.kind} category: {root} accounts cannot use it!")
-        if category.closed_on is not None:
-            raise ValueError(f"'{category.name}' is closed: reopen it first!")
-
     def _check_payment_category(self, bcid: UUID) -> None:
         """The category a loan's or fund's payments are budgeted under is an open spending category."""
         category = CategoryRepository(self.ar.db, self.ar.uid).read(bcid)
@@ -535,8 +521,6 @@ class AccountService:
 
         self._check_name_free(account.name, account.parent_id, all_accounts)
         accounts_by_id = {a.aid: a for a in all_accounts}
-        if account.category_id is not None:
-            self._check_feeds(self._get_root_name(parent, accounts_by_id), account.category_id)
         start = FIXED_DEFAULTS.get(parent.system_key or "")
         if start and account.on_budget is None and account.payment_category_id is None:
             # Made under a built-in group without saying how: it starts as the group says (a bank in the budget, a loan outside it).
@@ -971,18 +955,11 @@ class AccountService:
             payment_category = None  # now part of the budget itself
 
         previous_payment = account.payment_category_id
-        previous_category = account.category_id
-        if "category_id" in data.model_fields_set and data.category_id != previous_category:
-            if data.category_id is None:
-                raise ValueError("an account needs a category: pick another one instead!")
-            self._check_feeds(self._get_root_name(account, {a.aid: a for a in all_accounts}), data.category_id)
         updated = self.ar.update(aid, data, on_budget, payment_category)
         if not updated:
             raise RuntimeError(f"failed to update account with aid '{aid}'!")
         if payment_category is not ... or on_budget is not None:
             self.tr.refresh_payment_labels(aid, previous_payment)
-        if updated.category_id != previous_category and previous_category is not None:
-            self.tr.relabel_account(aid, previous_category, updated.category_id, self.ar.origin)
 
         all_accounts = [a if a.aid != aid else updated for a in all_accounts]
 

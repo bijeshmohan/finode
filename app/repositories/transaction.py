@@ -183,9 +183,7 @@ class TransactionRepository:
             account = accounts.get(p.account)
             category = p.category
             if category is None and account is not None:
-                if account.category_id is not None:
-                    category = account.category_id
-                elif (
+                if (
                     touches_budget
                     and not account.on_budget
                     and account.payment_category_id is not None
@@ -259,11 +257,17 @@ class TransactionRepository:
                 .join(Account, Account.aid == Posting.account)
                 .where(Posting.user == self.uid, col(Account.name).icontains(text, autoescape=True))
             )
+            labelled = (
+                select(Posting.transaction)
+                .join(BudgetCategory, BudgetCategory.bcid == Posting.category_id)
+                .where(Posting.user == self.uid, col(BudgetCategory.name).icontains(text, autoescape=True))
+            )
             statement = statement.where(
                 or_(
                     col(Transaction.payee).icontains(text, autoescape=True),
                     col(Transaction.comment).icontains(text, autoescape=True),
                     col(Transaction.tid).in_(named),
+                    col(Transaction.tid).in_(labelled),
                 )
             )
         if kind and kind_accounts is not None:
@@ -295,10 +299,10 @@ class TransactionRepository:
                     )
                 )
             )
-        if also_ids is not None:  # a second account the entry must touch as well (the web filter's category)
+        if also_ids is not None:  # the entry must have a line labelled with one of these categories
             statement = statement.where(
                 col(Transaction.tid).in_(
-                    select(Posting.transaction).where(col(Posting.account).in_(also_ids), Posting.user == self.uid)
+                    select(Posting.transaction).where(col(Posting.category_id).in_(also_ids), Posting.user == self.uid)
                 )
             )
         if payee:  # exactly this payee, capitals aside
@@ -627,8 +631,6 @@ class TransactionRepository:
         loan = self.db.get(Account, account_id)
         if loan is not None and loan.user == self.uid:
             new = loan.payment_category_id if not loan.on_budget else None
-            if new is not None:
-                new = self.db.exec(select(Account.category_id).where(Account.aid == new)).first()
             stale = Posting.category_id.is_(None) if previous is None else col(Posting.category_id).in_([previous])
             self.db.exec(
                 update(Posting)
@@ -650,9 +652,7 @@ class TransactionRepository:
                 Account.aid != account_id,
             )
         ).all():
-            category = self.db.exec(select(Account.category_id).where(Account.aid == other.payment_category_id)).first()
-            if category is None:
-                continue
+            category = other.payment_category_id
             self.db.exec(
                 update(Posting)
                 .where(

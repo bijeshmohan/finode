@@ -735,9 +735,16 @@ class TransactionService:
                 to_visit.append(child)
         return subtree
 
+    def _category_subtree(self, bcid: UUID) -> builtins.list[UUID]:
+        """A category and the categories inside it."""
+        categories = self.cr.list()
+        if not any(c.bcid == bcid for c in categories):
+            raise ValueError(f"category with bcid '{bcid}' not found!")
+        return [c.bcid for c in categories if c.bcid == bcid or c.parent_id == bcid]
+
     def _args(self, account, kind, also):
         account_ids = self._account_subtree(account) if account else None
-        also_ids = self._account_subtree(also) if also else None
+        also_ids = self._category_subtree(also) if also else None
         if kind not in (None, "", "expense", "income", "transfer"):
             raise ValueError("the kind must be expense, income or transfer!")
         kind_accounts = None
@@ -884,6 +891,14 @@ class TransactionService:
         starting with, then containing, what was typed (an exact match first)."""
         accounts = {a.aid: a for a in self.ar.list()}
         usable = {aid for aid, a in accounts.items() if a.parent_id is not None and a.closed_on is None}
+        categories = {c.bcid: c for c in self.cr.list()}
+        usable |= {bcid for bcid, c in categories.items() if c.closed_on is None}
+
+        def route_id(p: PostingRead) -> UUID:
+            """What the Add screen picks for a line: the category on a line to Expenses or Income, else the account."""
+            on_books = AccountService.root_name(accounts[p.account], accounts) in GROUP_POSTING_ROOT_NAMES
+            return p.category if on_books and p.category is not None else p.account
+
         wanted = query.strip().lower()
         seen: dict[str, dict] = {}
         for position, t in enumerate(self.list(limit=history)):
@@ -892,12 +907,12 @@ class TransactionService:
             payee = (t.payee or "").strip()
             if not payee or len(credits) != 1 or len(debits) != 1:
                 continue
-            source, target = credits[0].account, debits[0].account
+            source, target = route_id(credits[0]), route_id(debits[0])
             if source not in usable or target not in usable:
                 continue
             if "Equity" in (
-                AccountService.root_name(accounts[source], accounts),
-                AccountService.root_name(accounts[target], accounts),
+                AccountService.root_name(accounts[credits[0].account], accounts),
+                AccountService.root_name(accounts[debits[0].account], accounts),
             ):
                 continue  # opening balances are not a payee
             entry = seen.setdefault(
@@ -931,17 +946,22 @@ class TransactionService:
     def payee_defaults(self, query: str = "", limit: int = 5) -> builtins.list[PayeeDefaultRead]:
         """`payee_routes` with account paths and the kind of entry, for the API and the assistants."""
         paths = self._account_paths()
-        accounts = {a.aid: a for a in self.ar.list()}
+        categories = {c.bcid: c for c in self.cr.list()}
+        for c in categories.values():  # a category reads like the journal's account: Expenses:Food:Groceries
+            chain, current = [], c
+            while current is not None:
+                chain.append(current.name)
+                current = categories.get(current.parent_id) if current.parent_id else None
+            paths[c.bcid] = ("Expenses" if c.kind == "spending" else "Income") + ":" + ":".join(reversed(chain))
 
         def side(aid: UUID) -> RouteAccount:
             return RouteAccount(id=aid, path=paths.get(aid, "?"))
 
         found = []
         for r in self.payee_routes(query, limit):
-            source, target = accounts[r.from_id], accounts[r.to_id]
-            if AccountService.root_name(target, accounts) == "Expenses":
+            if r.to_id in categories and categories[r.to_id].kind == "spending":
                 kind = "expense"
-            elif AccountService.root_name(source, accounts) == "Income":
+            elif r.from_id in categories and categories[r.from_id].kind == "earning":
                 kind = "income"
             else:
                 kind = "transfer"
@@ -1012,7 +1032,6 @@ class TransactionService:
                 p.side == PostingSide.DEBIT
                 and p.category is None
                 and not account.on_budget
-                and account.category_id is None
                 and AccountService.root_name(account, accounts) in ("Assets", "Liabilities")
             )
             changed = changed or waiting

@@ -1,21 +1,21 @@
 from collections.abc import Collection
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
 from ...clock import local_day, local_today
-from ...dependencies import Accounts, Profiles
+from ...dependencies import Accounts, Categories, Profiles
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
+from ...schemas.category import CategoryRead
 from ...services.account import (
     FIXED_DEFAULTS,
     GROUP_POSTING_ROOT_NAMES,
     MAX_ACCOUNT_DEPTH,
-    AccountInUseError,
     AccountService,
     RegisterPage,
 )
@@ -51,26 +51,8 @@ class Node:
             yield from child.walk()
 
 
-def is_extra(account: AccountRead) -> bool:
-    """An Income or Expenses account that feeds a category it is not itself (Interest under EMI): books only."""
-    return account.category_id is not None and account.category_id != account.aid
-
-
-def without_extras(accounts: list[AccountRead]) -> list[AccountRead]:
-    """The accounts a person sees as accounts and categories: the extra books accounts, and what hangs under them, are out."""
-    hidden = {a.aid for a in accounts if is_extra(a)}
-    grew = True
-    while grew:
-        more = {a.aid for a in accounts if a.parent_id in hidden and a.aid not in hidden}
-        grew = bool(more)
-        hidden |= more
-    return [a for a in accounts if a.aid not in hidden]
-
-
-def build_tree(accounts: list[AccountRead], books: bool = False) -> list[Node]:
-    """The accounts as a tree. The extra books accounts of categories are left out unless `books` asks for them."""
-    if not books:
-        accounts = without_extras(accounts)
+def build_tree(accounts: list[AccountRead]) -> list[Node]:
+    """The accounts as a tree."""
     nodes = {a.aid: Node(a) for a in accounts}
     roots: list[Node] = []
     for node in nodes.values():
@@ -110,11 +92,47 @@ def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> l
     return groups
 
 
+def _category_nodes(
+    category: CategoryRead, by_parent: dict[UUID | None, list[CategoryRead]], depth: int, path: str, stamp: datetime
+) -> list[Node]:
+    account = AccountRead(
+        aid=category.bcid,
+        name=category.name,
+        details=category.details,
+        parent_id=category.parent_id,
+        balance=Decimal("0.00"),
+        created=stamp,
+        updated=stamp,
+    )
+    nodes = [Node(account, depth=depth, kind="user", path=path, postable=True)]
+    for child in by_parent.get(category.bcid, []):
+        nodes += _category_nodes(child, by_parent, depth + 1, f"{path} › {child.name}", stamp)
+    return nodes
+
+
+def category_groups(
+    categories: list[CategoryRead], keep: Collection[UUID] = frozenset()
+) -> list[tuple[str, list[Node]]]:
+    """The categories an entry's lines may be labelled with, shaped like the accounts of `posting_groups` so the same
+    pickers list them: Income and Expenses, each with its groups and the categories in them. Closed categories are
+    left out, except those in `keep` (what an entry being edited already uses)."""
+    stamp = datetime.now(UTC)
+    found = []
+    for root, kind in (("Income", "earning"), ("Expenses", "spending")):
+        mine = [c for c in categories if c.kind == kind and (c.closed_on is None or c.bcid in keep)]
+        by_parent: dict[UUID | None, list[CategoryRead]] = {}
+        for c in sorted(mine, key=lambda c: c.name.lower()):
+            by_parent.setdefault(c.parent_id, []).append(c)
+        nodes: list[Node] = []
+        for top in by_parent.get(None, []):
+            nodes += _category_nodes(top, by_parent, 1, f"{root} › {top.name}", stamp)
+        if nodes:
+            found.append((root, nodes))
+    return found
+
+
 def _find(roots: list[Node], aid: UUID) -> Node | None:
     return next((n for root in roots for n in root.walk() if n.account.aid == aid), None)
-
-
-CATEGORY_TABS = {"expense": "Expenses", "income": "Income"}
 
 
 def _parent_options(
@@ -154,24 +172,17 @@ def _load(accounts: AccountService, aid: UUID) -> tuple[list[Node], Node]:
     return roots, node
 
 
-def _category_options(roots: list[Node]) -> list[tuple[UUID, str]]:
-    """The expense categories a payment-category choice may name: (aid, path below Expenses)."""
-    return [
-        (n.account.aid, n.path.split(" › ", 1)[1])
-        for r in roots
-        if r.account.name == "Expenses"
-        for n in r.walk()
-        if n.account.parent_id is not None
-    ]
+def spending_options(categories: Categories) -> list[tuple[UUID, str]]:
+    """The spending categories a payment-category choice may name: (bcid, "Group › Category")."""
+    return [(c.bcid, c.path.replace(":", " › ")) for c in categories.list("spending")]
 
 
 def _root_of(roots: list[Node], node: Node) -> Node:
     return next(r for r in roots if any(n is node for n in r.walk()))
 
 
-# Where the money is (the Accounts page) and where it goes and comes from (the Categories page).
+# Where the money is (the Accounts page); where it goes and comes from is a category (the Categories page).
 ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
-CATEGORY_ROOTS = ("Expenses", "Income")
 
 
 # The chips on the accounts page, in this order (?tab=): each shows one type of account.
@@ -237,21 +248,17 @@ def closed_count(roots: list[Node]) -> int:
 def new_account_page(
     request: Request,
     accounts: Accounts,
-    profiles: Profiles,
+    categories: Categories,
     parent: UUID | None = None,
-    kind: str = "account",
     root: str = "",
 ):
-    """The form for a new account (under Assets or Liabilities), or with kind=category for a new category
-    (under Expenses or Income, reached from the Categories page)."""
-    kind = "category" if kind == "category" else "account"
-    allowed = CATEGORY_ROOTS if kind == "category" else ACCOUNT_ROOTS
+    """The form for a new account (under Assets, Liabilities or Equity)."""
     everything = build_tree(accounts.list())
-    roots = [r for r in everything if r.account.name in allowed]
+    roots = [r for r in everything if r.account.name in ACCOUNT_ROOTS]
     root_of = {n.account.aid: r.account.name for r in roots for n in r.walk()}
-    only = (ACCOUNT_TABS if kind == "account" else CATEGORY_TABS).get(root.lower())
+    only = ACCOUNT_TABS.get(root.lower())
     if only:
-        # Opened from a type's tab on the Accounts or Categories page: only that type's accounts can be made.
+        # Opened from a type's tab on the Accounts page: only that type's accounts can be made.
         parent_roots = [r for r in roots if r.account.name == only]
         if parent is None or root_of.get(parent) != only:
             parent = parent_roots[0].account.aid if parent_roots else None
@@ -269,8 +276,7 @@ def new_account_page(
         request,
         "account_form.html",
         {
-            "active": "categories" if kind == "category" else "accounts",
-            "kind": kind,
+            "active": "accounts",
             "hide_fab": True,
             "starts": starts,
             "node": None,
@@ -283,7 +289,7 @@ def new_account_page(
             "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
             # an asset starts in the budget; a card or loan, outside it; under a built-in group, as that group says
             "on_budget": (starts.get(parent) == "budget") if parent in starts else root_of.get(parent) == "Assets",
-            "category_options": _category_options(everything),
+            "category_options": spending_options(categories),
         },
     )
 
@@ -448,22 +454,23 @@ def account_context(accounts: AccountService, profiles, aid: UUID, entries=None,
     }
 
 
-def deleted_page(request: Request, accounts: Accounts, area: str):
-    """Closed and deleted accounts (`area` "accounts") or categories ("categories"), newest first, each with Restore."""
-    roots = ACCOUNT_ROOTS if area == "accounts" else CATEGORY_ROOTS
-    closed = [dict(c, kind="closed", when=c["closed_on"]) for c in accounts.closed() if c["root"] in roots]
-    gone = [dict(d, kind="deleted", when=local_day(d["at"])) for d in accounts.restorable() if d["root"] in roots]
+def deleted_page(request: Request, accounts: Accounts):
+    """Closed and deleted accounts, newest first, each with Restore."""
+    closed = [dict(c, kind="closed", when=c["closed_on"]) for c in accounts.closed() if c["root"] in ACCOUNT_ROOTS]
+    gone = [
+        dict(d, kind="deleted", when=local_day(d["at"])) for d in accounts.restorable() if d["root"] in ACCOUNT_ROOTS
+    ]
     entries = sorted(closed + gone, key=lambda e: e["when"], reverse=True)
     return templates.TemplateResponse(
         request,
         "accounts_deleted.html",
-        {"active": "settings", "area": area, "entries": entries},
+        {"active": "settings", "area": "accounts", "entries": entries},
     )
 
 
 @router.get("/deleted")
 def deleted_accounts_page(request: Request, accounts: Accounts):
-    return deleted_page(request, accounts, "accounts")
+    return deleted_page(request, accounts)
 
 
 @router.post("/deleted/{did}/restore")
@@ -474,30 +481,16 @@ def restore_deleted_account(did: UUID, accounts: Accounts):
         return htmx_error("That deleted account is not there any more.", "#restore-error", status_code=404)
     except ValueError as e:
         return htmx_error(str(e), "#restore-error")
-    category = area_of(accounts, restored.aid) == "/categories"
-    return htmx_redirect(f"/accounts/{restored.aid}", flash="category-restored" if category else "account-restored")
+    return htmx_redirect(f"/accounts/{restored.aid}", flash="account-restored")
 
 
 @router.get("/{aid}")
 def account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles):
-    roots, node = _load(accounts, aid)
-    root = _root_of(roots, node)
-    if root.account.name in CATEGORY_ROOTS and node.kind != "root":
-        return RedirectResponse(f"/categories/{aid}", status_code=303)
     return templates.TemplateResponse(request, "account.html", account_context(accounts, profiles, aid))
-
-
-def area_of(accounts: AccountService, aid: UUID) -> str:
-    """Where an account's pages live: categories (Expenses, Income) have their own tab."""
-    roots = build_tree(accounts.list())
-    node = _find(roots, aid)
-    return "/categories" if node is not None and _root_of(roots, node).account.name in CATEGORY_ROOTS else "/accounts"
 
 
 def _list_for_root(root: str | None) -> str:
     """The list a root's accounts are on, on the chip they are under (so going back lands where the person came from)."""
-    if root in CATEGORY_ROOTS:
-        return "/categories" + ("?tab=income" if root == "Income" else "")
     return f"/accounts?tab={root.lower()}" if root and root in ACCOUNT_TABS.values() else "/accounts"
 
 
@@ -519,36 +512,31 @@ def close_account(aid: UUID, accounts: Accounts):
 
 @router.post("/{aid}/reopen")
 def reopen_account(aid: UUID, accounts: Accounts):
-    category = area_of(accounts, aid) == "/categories"
     try:
         accounts.reopen(aid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect(f"/accounts/{aid}", flash="category-restored" if category else "account-reopened")
+    return htmx_redirect(f"/accounts/{aid}", flash="account-reopened")
 
 
 @router.get("/{aid}/more")
 def account_more(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles, offset: int = 0):
     """The next chunk of an account's transactions (htmx replaces the "Load more" button with it)."""
     context = account_context(accounts, profiles, aid, None, offset=max(offset, 0))
-    return templates.TemplateResponse(
-        request, "partials/account_entries.html", {**context, "category": False, "area": "/accounts"}
-    )
+    return templates.TemplateResponse(request, "partials/account_entries.html", {**context, "area": "/accounts"})
 
 
 @router.get("/{aid}/edit")
-def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles: Profiles):
+def edit_account_page(request: Request, aid: UUID, accounts: Accounts, categories: Categories):
     roots, node = _load(accounts, aid)
     if node.kind != "user":
         raise HTTPException(status_code=404, detail="account not found")
     root = _root_of(roots, node)
-    kind = "category" if root.account.name in CATEGORY_ROOTS else "account"
     return templates.TemplateResponse(
         request,
         "account_form.html",
         {
-            "active": "categories" if kind == "category" else "accounts",
-            "kind": kind,
+            "active": "accounts",
             "hide_fab": True,
             "node": node,
             "parent_id": node.account.parent_id,
@@ -558,7 +546,7 @@ def edit_account_page(request: Request, aid: UUID, accounts: Accounts, profiles:
             "on_budget": node.account.on_budget,
             "payment_category_id": node.account.payment_category_id,
             "starts": _starts(roots),
-            "category_options": _category_options(roots),
+            "category_options": spending_options(categories),
             "parent_options": [
                 n
                 for n in _parent_options(roots, exclude=node, keep=node.account.parent_id)
@@ -613,17 +601,9 @@ def update_account(
 
 @router.post("/{aid}/delete")
 def delete_account(aid: UUID, accounts: Accounts):
-    area = area_of(accounts, aid)
     where = list_url(accounts, aid)
     try:
         accounts.delete(aid)
     except ValueError as e:
-        if area != "/categories" or not isinstance(e, AccountInUseError):
-            return htmx_error(str(e), "#page-error")
-        # A category with entries (or subcategories) cannot vanish from the history: it leaves every list and
-        # picker instead, and its past stays in the reports.
-        try:
-            accounts.close(aid)
-        except ValueError as closing:
-            return htmx_error(str(closing), "#page-error")
-    return htmx_redirect(where, flash="category-deleted" if area == "/categories" else "account-deleted")
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(where, flash="account-deleted")

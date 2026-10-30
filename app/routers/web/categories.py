@@ -323,4 +323,3 @@ def reopen_category(bcid: UUID, categories: Categories):
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
     return htmx_redirect(f"/categories/{bcid}", flash="category-restored")
-

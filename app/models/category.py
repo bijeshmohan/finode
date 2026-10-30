@@ -18,8 +18,8 @@ class BudgetCategory(TimestampMixin, table=True):
 
     A category is a label on the lines of a transaction (`postings.category_id`) and the thing the budget plans against
     (`budget_allocations.category_id`). Two kinds: spending (an envelope) and earning (a label for reports). It sits at
-    most two levels deep: a group (no parent) and the categories inside it. The Income or Expenses accounts the books
-    need on the other side of an entry point back at it (`accounts.category_id`); several accounts may share one.
+    most two levels deep: a group (no parent) and the categories inside it. The books post every expense to the root
+    Expenses account and every income to the root Income account; the line carries the category.
     """
 
     __tablename__ = "budget_categories"
