@@ -673,10 +673,11 @@ function syncRowPickers(form) {
       if (!select) return;
       const button = ensurePick(select);
       button.hidden = select.hidden;
-      button.classList.toggle("pill", category);
+      button.classList.add("pill");
+      button.classList.toggle("account", !category);
       const option = select.selectedOptions[0];
       const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
-      const empty = select.matches("[data-category-select]") ? "No category" : (category ? "Category…" : "Choose account…");
+      const empty = select.matches("[data-category-select]") ? "No category" : (category ? "Category…" : "Account…");
       // Only when it changed: replacing the text between a press and its release makes Safari drop the click.
       const label = chosen ? leafLabel(select, option) : empty;
       if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;

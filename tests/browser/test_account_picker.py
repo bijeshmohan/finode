@@ -9,7 +9,7 @@ from .conftest import Api
 def test_an_account_is_chosen_in_a_sheet(page: Page, books, api: Api):
     page.goto("/transactions/new")
     button = page.locator('[data-rows="credit"] [data-pick]:visible')
-    expect(button).to_have_text("Choose account…")
+    expect(button).to_have_text("Account…")
     button.click()
     dialog = page.locator("#row-picker")
     expect(dialog).to_be_visible()
