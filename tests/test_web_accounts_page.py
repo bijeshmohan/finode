@@ -147,3 +147,25 @@ def test_categories_end_with_an_add_row_and_an_empty_page_keeps_its_button(clien
     assert client.get("/categories?tab=income").text.count('class="add-row"') == 0, (
         "nothing in Income yet: its own button"
     )
+
+
+def test_the_expense_chip_shows_what_each_category_took_even_when_the_money_went_into_a_loan(
+    client, tree, root_accounts
+):
+    emi = client.post("/api/accounts/", json={"name": "EMI", "parent_id": root_accounts["Expenses"]}).json()["aid"]
+    loan = client.post("/api/accounts/", json={"name": "Home loan", "parent_id": root_accounts["Liabilities"]}).json()[
+        "aid"
+    ]
+    made = client.post(
+        "/api/transactions/",
+        json={
+            "date": "2026-01-05",
+            "postings": [
+                {"account": tree["hdfc"], "side": "credit", "amount": "700"},
+                {"account": loan, "side": "debit", "amount": "700", "category": emi},
+            ],
+        },
+    )
+    assert made.status_code == 201, made.text
+    page = client.get("/accounts?tab=expense").text
+    assert "700.00" in page
