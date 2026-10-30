@@ -21,6 +21,7 @@ from app.main import app
 from app.models.account import Account
 from app.models.transaction import Posting, PostingSide, Transaction
 from app.schemas import AccountCreate, AccountUpdate
+from app.schemas.category import CategoryCreate
 from app.schemas.transaction import PostingCreate, TransactionCreate, TransactionUpdate
 
 from .conftest import TEST_USER_ID
@@ -249,10 +250,10 @@ def run_budget(session, seed: int, steps: int) -> int:
     roots = {a.name: a.aid for a in s.accounts.list() if a.parent_id is None}
     bank = s.accounts.create(AccountCreate(name="Bank", parent_id=roots["Assets"], balance=Decimal(5000)))
     card = s.accounts.create(AccountCreate(name="Card", parent_id=roots["Liabilities"], on_budget=True))
-    salary = s.accounts.create(AccountCreate(name="Salary", parent_id=roots["Income"]))
-    cats = [
-        s.accounts.create(AccountCreate(name=n, parent_id=roots["Expenses"])) for n in ("Rent", "Food", "Fun", "Bills")
-    ]
+    salary = s.categories.create(CategoryCreate(name="Salary", kind="earning"))
+    cats = [s.categories.create(CategoryCreate(name=n, kind="spending")) for n in ("Rent", "Food", "Fun", "Bills")]
+    for c in (salary, *cats):
+        c.__dict__["aid"] = c.bcid  # the tests below name a category by `aid`, as they did when it was an account
     done = 0
     for step in range(steps):
         s = services(session)
