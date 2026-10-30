@@ -75,3 +75,27 @@ def test_the_chosen_account_is_bold_and_the_scroll_bar_stays_clear_of_the_balanc
     edge = list_box.bounding_box()["x"] + list_box.evaluate("el => el.clientWidth")  # where a scroll bar begins
     balance = page.locator("#row-picker .pick-balance").first.bounding_box()
     assert balance["x"] + balance["width"] <= edge, "the figures end before the scroll bar"
+
+
+def test_chips_and_recent_rows_show_the_name_and_the_group_under_it_without_an_arrow(page: Page, books, api: Api):
+    banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
+    api.post("/accounts/", name="Kotak", parent_id=banks["aid"])
+    food = api.post("/accounts/", name="Food", parent_id=books["roots"]["Expenses"])
+    api.post("/accounts/", name="Dining", parent_id=food["aid"])
+    page.goto("/transactions/new")
+    account = page.locator('[data-rows="credit"] [data-pick]:visible')
+    account.click()
+    page.locator("#row-picker [data-pick-option]", has_text="Kotak").first.click()
+    expect(account).to_have_text("Kotak")
+    category = page.locator('[data-rows="debit"] [data-pick]:visible')
+    category.click()
+    page.locator("#row-picker [data-pick-option]", has_text="Dining").first.click()
+    expect(category).to_have_text("Dining")
+    account.click()
+    recent = page.locator("#row-picker [data-pick-list] li").nth(1)
+    expect(recent).to_contain_text("Kotak")
+    expect(recent).to_contain_text("Banks")
+    assert "›" not in page.locator("#row-picker").inner_text()
+    page.keyboard.press("Escape")
+    category.click()
+    assert "›" not in page.locator("#row-picker").inner_text()

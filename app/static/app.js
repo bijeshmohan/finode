@@ -654,6 +654,15 @@ function ensurePick(select) {
   return button;
 }
 
+// What a chosen account or category reads as on its chip: its own name, without the group's ("Food › Dining" is
+// Dining). Only when two options share a name does the group stay, in brackets.
+function leafLabel(select, option) {
+  const [group, leaf] = option.textContent.split(" › ");
+  if (leaf === undefined) return option.textContent;
+  const twins = [...select.options].filter((o) => o.textContent.split(" › ").pop() === leaf).length;
+  return twins > 1 ? `${leaf} (${group})` : leaf;
+}
+
 function syncRowPickers(form) {
   const kind = KINDS[form.dataset.txnKind] || KINDS.other;
   form.querySelectorAll("[data-row]").forEach((row) => {
@@ -669,11 +678,11 @@ function syncRowPickers(form) {
       const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
       const empty = select.matches("[data-category-select]") ? "No category" : (category ? "Category…" : "Choose account…");
       // Only when it changed: replacing the text between a press and its release makes Safari drop the click.
-      const label = chosen ? option.textContent : empty;
+      const label = chosen ? leafLabel(select, option) : empty;
       if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
       button.classList.toggle("empty", !chosen);
       const noun = category ? "Category" : "Account";
-      button.setAttribute("aria-label", chosen ? `${noun}: ${option.textContent}` : `Choose ${category ? "a category" : "an account"}`);
+      button.setAttribute("aria-label", chosen ? `${noun}: ${option.textContent.replace(" › ", ", ")}` : `Choose ${category ? "a category" : "an account"}`);
     });
   });
 }
@@ -704,7 +713,7 @@ function syncRowPickers(form) {
     button.setAttribute("aria-pressed", String(option.value === target.value));
     const name = group ? option.textContent.slice(group.length + 3) || option.textContent : option.textContent;
     const label = document.createElement("span");
-    const [outer, inner] = noun === "category" && !group ? option.textContent.split(" › ") : [];
+    const [outer, inner] = !group ? option.textContent.split(" › ") : [];
     if (inner) {  // a tile outside its group's heading names the group too, so two "Dining" can be told apart
       label.textContent = inner;
       const small = document.createElement("small");
