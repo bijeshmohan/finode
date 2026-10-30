@@ -179,6 +179,24 @@ def _tool_errors(fn: Callable) -> Callable:
     return wrapper
 
 
+def _where(index: AccountIndex, account: UUID, category: UUID | None) -> str:
+    """The path an assistant knows a place by: a category's (Expenses:Food) where the money went to Expenses or came
+    from Income, else the account's."""
+    entry = index.entries.get(account)
+    if entry is not None and entry.is_root and entry.root in ("Expenses", "Income") and category in index.entries:
+        return index.path(cast(UUID, category))
+    return index.path(account)
+
+
+def _line_ref(index: AccountIndex, p) -> tuple[str, UUID]:
+    """What a line is called to an assistant: a line on Expenses or Income by its category (Expenses:Food:Groceries and
+    the category's id, which works wherever an account goes), any other line by its account."""
+    entry = index.entries.get(p.target)
+    if entry is not None and entry.is_root and entry.root in ("Expenses", "Income") and p.category in index.entries:
+        return index.path(p.category), p.category
+    return index.path(p.target), p.target
+
+
 def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[str, Any]:
     names = _categories(s) if any(p.category for p in t.postings) else CategoryIndex([])
     total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
@@ -191,8 +209,8 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
         "total": text(total),
         "postings": [
             {
-                "account": index.path(p.target),
-                "account_id": str(p.target),
+                "account": _line_ref(index, p)[0],
+                "account_id": str(_line_ref(index, p)[1]),
                 "side": p.side.value,
                 "amount": text(p.amount),
                 **({"category": names.path(p.category), "category_id": str(p.category)} if p.category else {}),
@@ -706,14 +724,18 @@ def list_recurring() -> dict[str, Any]:
                     **(
                         {
                             "postings": [
-                                {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)}
+                                {
+                                    "account": _where(index, p.account, p.category),
+                                    "side": p.side.value,
+                                    "amount": text(p.amount),
+                                }
                                 for p in r.postings
                             ],
                         }
                         if r.postings
                         else {
-                            "from": index.path(cast(UUID, r.from_account)),
-                            "to": index.path(cast(UUID, r.to_account)),
+                            "from": _where(index, cast(UUID, r.from_account), r.category),
+                            "to": _where(index, cast(UUID, r.to_account), r.category),
                             "amount": text(r.amount),
                         }
                     ),
@@ -811,8 +833,8 @@ def _dry_run(key: str, preview: TransactionPreview, index: AccountIndex) -> dict
         "total": text(debits),
         "postings": [
             {
-                "account": index.path(p.target),
-                "account_id": str(p.target),
+                "account": _line_ref(index, p)[0],
+                "account_id": str(_line_ref(index, p)[1]),
                 "side": p.side.value,
                 "amount": text(p.amount),
             }
@@ -1297,7 +1319,7 @@ def create_recurring(
             if source is not None and target is not None
             else {
                 "postings": [
-                    {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)}
+                    {"account": _where(index, p.account, p.category), "side": p.side.value, "amount": text(p.amount)}
                     for p in rule.postings
                 ]
             }

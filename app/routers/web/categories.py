@@ -333,9 +333,7 @@ def delete_category(bcid: UUID, categories: Categories):
         categories.delete(bcid)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect(
-        "/categories" + ("?tab=income" if current.kind == "earning" else ""), flash="category-deleted"
-    )
+    return htmx_redirect("/categories" + ("?tab=income" if current.kind == "earning" else ""), flash="category-deleted")
 
 
 @router.post("/{bcid}/reopen")

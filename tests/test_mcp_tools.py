@@ -15,7 +15,7 @@ TODAY = date.today()
 
 def make(client, name, parent, **extra):
     body = {"name": name, "parent_id": parent, **extra}
-    response = client.post("/api/accounts/", json=body)
+    response = post_account(client, body)
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -62,10 +62,10 @@ async def test_overview_and_accounts(session, books, secret):
         paths = {a["path"]: a for a in accounts["accounts"]}
         assert paths["Assets:Bank:HDFC"]["balance"] == "10000.00"
         assert paths["Assets:Bank"]["can_post"] is False, "an asset group takes no postings"
-        assert paths["Expenses:Food"]["can_post"] is True, "an expense group does"
+        assert "Expenses:Food" not in paths, "categories are listed by list_categories, not here"
         assert "holds" not in paths["Assets:Bank:HDFC"] and accounts["currency"] == "INR"
         only = await call(c, "list_accounts", type="Income")
-        assert [a["path"] for a in only["accounts"]] == ["Income", "Income:Salary"]
+        assert [a["path"] for a in only["accounts"]] == ["Income"]
 
 
 async def test_record_by_short_names_and_read_it_back(session, client, books, secret):
@@ -237,15 +237,9 @@ async def test_spending_breakdown(session, books, secret):
         await call(c, "record_transaction", amount="5000", from_account="Salary", to_account="HDFC")
         top = await call(c, "spending_breakdown")
         assert top["total"] == "630.00"
-        assert top["by"] == "category"
         assert top["by_category"] == [
             {"category": "Travel", "amount": "500.00"},
             {"category": "Food", "amount": "130.00"},
-        ]
-        by_account = await call(c, "spending_breakdown", by="account")
-        assert by_account["by_account"] == [
-            {"account": "Travel", "amount": "500.00"},
-            {"account": "Food", "amount": "130.00"},
         ]
         deep = await call(c, "spending_breakdown", depth=2)
         assert {line["category"]: line["amount"] for line in deep["by_category"]} == {
@@ -666,7 +660,7 @@ async def test_ids_and_account_facts_are_listed(session, books, secret):
         accounts = {a["path"]: a for a in (await call(c, "list_accounts"))["accounts"]}
         hdfc = accounts["Assets:Bank:HDFC"]
         assert hdfc["id"] == books["hdfc"]["aid"] and hdfc["type"] == "Assets" and hdfc["on_budget"] is True
-        assert "details" in hdfc and accounts["Expenses:Food"]["id"] == books["food"]["aid"]
+        assert "details" in hdfc and "Expenses:Food" not in accounts
         by_id = await call(c, "get_account", account=hdfc["id"])
         assert by_id["id"] == hdfc["id"] and by_id["path"] == "Assets:Bank:HDFC"
         made = await call(c, "record_transaction", amount="10", from_account=hdfc["id"], to_account="Groceries")

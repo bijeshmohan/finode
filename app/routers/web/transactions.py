@@ -437,12 +437,8 @@ def transaction_sheet(
             "back": safe_back(back, ""),  # the page to return to after Edit, Repeat or Related (an account's page, say)
             "from_label": labels[0],
             "to_label": labels[1],
-            "from_postings": [
-                (index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.CREDIT
-            ],
-            "to_postings": [
-                (index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.DEBIT
-            ],
+            "from_postings": [(index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
+            "to_postings": [(index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.DEBIT],
             "related_to": related_info(transactions, index, transaction.related_id),
             "related": [to_row(r, index) for r in transactions.related(tid)],
         },
