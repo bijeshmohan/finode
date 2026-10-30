@@ -422,7 +422,6 @@ def transaction_sheet(
         raise HTTPException(status_code=404, detail="transaction not found")
     index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     row = to_row(transaction, index)
-    names = index.names
     labels = {
         "expense": ("Paid from", "Spent on"),
         "income": ("From", "Received in"),
@@ -439,10 +438,10 @@ def transaction_sheet(
             "from_label": labels[0],
             "to_label": labels[1],
             "from_postings": [
-                (names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT
+                (index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.CREDIT
             ],
             "to_postings": [
-                (names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.DEBIT
+                (index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.DEBIT
             ],
             "related_to": related_info(transactions, index, transaction.related_id),
             "related": [to_row(r, index) for r in transactions.related(tid)],

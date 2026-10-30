@@ -184,18 +184,18 @@ class CategoryService:
             self.cr.has_children(category.bcid)
             or self.cr.used_by_lines(category.bcid)
             or RecurringRepository.uses_category(self.db, self.uid, category.bcid)
-            or BudgetRepository(self.db, self.uid).uses_category(category.bcid)
             or category.system_key is not None
         )
 
     def delete(self, bcid: UUID) -> CategoryDeleteResult:
-        """Remove an unused category for good; one with history (lines, categories inside it, a rule or a planned
-        amount) is closed instead, so nothing that was recorded loses its meaning."""
+        """Remove an unused category for good (its planned amounts go with it); one with history (lines, categories
+        inside it or a rule) is closed instead, so nothing that was recorded loses its meaning."""
         category = self._get(bcid)
         before = self._read(bcid)
         if not self._unused(category):
             return CategoryDeleteResult(outcome="closed", category=self.close(bcid))
         self.ar.clear_payment_category(bcid)
+        BudgetRepository(self.db, self.uid).delete_for_category(bcid)  # only a plan: it goes with the category
         self.cr.delete(category)
         self.db.commit()
         return CategoryDeleteResult(outcome="deleted", category=before)
