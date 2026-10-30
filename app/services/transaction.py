@@ -293,7 +293,9 @@ class TransactionService:
             whole(p) for p in postings if p.side == PostingSide.CREDIT
         }
         if both:
-            name = accounts_by_id[min(both, key=str)[0]].name
+            account_id, category_id = min(both, key=str)
+            named = {c.bcid: c.name for c in self.cr.list()}
+            name = named.get(category_id) if category_id in named else accounts_by_id[account_id].name
             raise InvalidPostingError(
                 f"'{name}' is on both sides of the entry: money cannot move from an account to itself. "
                 "Leave it out, or enter only the difference!"
@@ -586,6 +588,7 @@ class TransactionService:
         if data.source and data.external_id:
             found = self.tr.find_by_reference(data.source, data.external_id)
             if found is not None:
+                self._fill_accounts(data.postings, self.ar.list())  # a category's id where an account goes
                 existing = self._to_read(found)
                 if not _same_content(existing, data):
                     raise DuplicateReferenceError(_different_content(data, found.tid))
@@ -716,6 +719,7 @@ class TransactionService:
         if data.source and data.external_id:
             found = self.tr.find_by_reference(data.source, data.external_id)
             if found is not None:
+                self._fill_accounts(data.postings, self.ar.list())  # a category's id where an account goes
                 existing = self._to_read(found)
                 if _same_content(existing, data):
                     return existing, False

@@ -184,7 +184,7 @@ def test_a_transaction_cannot_have_endless_rows(client, two_accounts, monkeypatc
 
 def test_an_import_that_would_pass_the_limits_is_refused_with_a_reason(client, root_accounts, monkeypatch):
     journal = "2026-01-01 Shop\n    Expenses:Food    5\n    Assets:Bank\n"
-    monkeypatch.setattr(settings, "max_accounts", 6)
+    monkeypatch.setattr(settings, "max_accounts", 5)
     preview = client.post("/api/import", params={"dry_run": True}, files={"file": ("j.ledger", journal, "text/plain")})
     assert preview.status_code == 200 and any("too big for your limits" in e for e in preview.json()["errors"])
     refused = client.post("/api/import", files={"file": ("j.ledger", journal, "text/plain")})

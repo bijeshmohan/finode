@@ -52,6 +52,7 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 | `POST` | `/categories/{bcid}/close` | Close it (and what is inside a group): history stays, nothing more can be labelled with it. |
 | `POST` | `/categories/{bcid}/reopen` | Reopen it. |
 | `POST` | `/categories/{bcid}/delete` | Remove an unused category for good. One with history is closed instead; the answer's `outcome` says `deleted` or `closed`. |
+| `GET` | `/categories/{bcid}/register` | The entries that have a line labelled with the category (and its subcategories, unless `own_only=true`), oldest first, with what each changed and the running total. |
 | `POST` | `/categories/{bcid}/merge` | Fold it into another category (`into`): entries, labelled lines, planned amounts and recurring rules become the other's. `dry_run=true` only says what would move. |
 
 **On a transaction line** (`postings[]` of `/transactions/`, and the rows of a recurring split) `category` says what the line was for. Leave it out and the account decides: an Income or Expenses account stands for its category, and a payment into a loan or fund that has a payment category takes that one. A line may carry **only** its category (no `account`): it then posts to that category's books account. A category on a line to an Income or Expenses account must be that account's own; on any other account it must be a spending category, and not on an account that is part of the budget (the category goes on the other side). A simple recurring rule takes one `category`.

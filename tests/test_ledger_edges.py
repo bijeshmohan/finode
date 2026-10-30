@@ -18,7 +18,7 @@ def post(client, debit, credit, amount, **extra):
     )
 
 
-def test_sums_longer_than_one_amount_can_be_still_show_up(client, account, expense_account):
+def test_sums_longer_than_one_amount_can_be_still_show_up(client, root_accounts, account, expense_account):
     """Each amount may have 16 digits before the point; three of them add up to 17, and every page still opens.
     (5 followed by 15 zeros is exact even in SQLite's floating point, which the tests use; Postgres keeps 16 digits.)"""
     for _ in range(3):
@@ -36,7 +36,7 @@ def test_sums_longer_than_one_amount_can_be_still_show_up(client, account, expen
     ):
         assert client.get(page).status_code == 200, page
     assert client.get("/api/reports/trial-balance").json()["balanced"]
-    assert client.get(f"/api/accounts/{expense_account['aid']}").json()["balance"] == "15000000000000000.00"
+    assert client.get(f"/api/accounts/{root_accounts['Expenses']}").json()["balance"] == "15000000000000000.00"
 
 
 @pytest.mark.parametrize("day", ["1899-12-31", "3000-01-01", "0001-01-01", "9999-12-31"])
@@ -104,20 +104,20 @@ def test_account_names_are_trimmed_and_unique_where_they_sit(client, root_accoun
     food = make("  Food  ", root_accounts["Expenses"])
     assert food.status_code == 201 and food.json()["name"] == "Food"
     clash = make("food", root_accounts["Expenses"])
-    assert clash.status_code == 400 and "already has an account called 'Food'" in clash.json()["detail"]
+    assert clash.status_code == 400 and "a category called 'Food'" in clash.json()["detail"]
     assert make("Food", root_accounts["Income"]).status_code == 201, "the same name elsewhere is fine"
     sub = make("Food", food.json()["aid"])
     assert sub.status_code == 201, "a subcategory may share its parent's name"
 
     fun = make("Fun", root_accounts["Expenses"]).json()
-    assert client.patch(f"/api/accounts/{fun['aid']}", json={"name": "FOOD"}).status_code == 400
-    assert client.patch(f"/api/accounts/{fun['aid']}", json={"name": "FUN"}).status_code == 200, (
+    assert client.patch(f"/api/categories/{fun['aid']}", json={"name": "FOOD"}).status_code == 400
+    assert client.patch(f"/api/categories/{fun['aid']}", json={"name": "FUN"}).status_code == 200, (
         "its own name, new capitals"
     )
-    assert client.patch(f"/api/accounts/{food.json()['aid']}", json={"name": "Fun"}).status_code == 400
-    moved = client.patch(f"/api/accounts/{sub.json()['aid']}", json={"parent_id": root_accounts["Expenses"]})
-    assert moved.status_code == 400 and "already has an account" in moved.json()["detail"], (
-        "moving it in would clash with Food"
+    assert client.patch(f"/api/categories/{food.json()['aid']}", json={"name": "Fun"}).status_code == 400
+    moved = client.patch(f"/api/categories/{sub.json()['aid']}", json={"parent_id": None})
+    assert moved.status_code == 400 and "a category called" in moved.json()["detail"], (
+        "moving it out would clash with Food"
     )
 
 

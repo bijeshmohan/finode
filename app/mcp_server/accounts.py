@@ -37,7 +37,7 @@ class Entry:
 
     @property
     def is_root(self) -> bool:
-        return self.account.parent_id is None
+        return self.account.parent_id is None and not self.is_category
 
     @property
     def postable(self) -> bool:

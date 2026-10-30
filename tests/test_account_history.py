@@ -44,7 +44,7 @@ def test_a_save_that_changes_nothing_adds_no_step(client, root_accounts):
 
 
 def test_a_deleted_account_keeps_its_history(client, root_accounts):
-    made = post_account(client, {"name": "Temp", "parent_id": root_accounts["Expenses"]}).json()
+    made = post_account(client, {"name": "Temp", "parent_id": root_accounts["Assets"]}).json()
     assert client.delete(f"/api/accounts/{made['aid']}").status_code == 204
     got = steps(client, made["aid"])
     assert [s["action"] for s in got] == ["created", "deleted"] and got[1]["entry"]["name"] == "Temp"
