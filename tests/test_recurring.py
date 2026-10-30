@@ -11,6 +11,7 @@ from app.models.transaction import Transaction
 from app.recurring_runner import run_once
 from app.services.schedule import describe, first_after, first_on_or_after, occurrence
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 
 # ---- the arithmetic of dates -----------------------------------------------------------------------
@@ -58,9 +59,7 @@ def test_describing_a_schedule():
 @pytest.fixture
 def accounts(client, root_accounts):
     def make(name, root, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra}).json()[
-            "aid"
-        ]
+        return post_account(client, {"name": name, "parent_id": root_accounts[root], **extra}).json()["aid"]
 
     return {"bank": make("Bank", "Assets", balance="10000"), "rent": make("Rent", "Expenses")}
 
@@ -190,10 +189,10 @@ def test_a_rule_that_cannot_be_recorded_is_refused_or_reported(client, accounts,
         },
     )
     assert bad.status_code == 400 and "differ" in bad.json()["detail"]
-    wallet = client.post("/api/accounts/", json={"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()["aid"]
+    wallet = post_account(client, {"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()["aid"]
     created = rule(client, {"bank": wallet, "rent": accounts["rent"]}, start_date="2999-01-01")
     # the source later gains a sub-account, so it can no longer be posted to
-    assert client.post("/api/accounts/", json={"name": "Sub", "parent_id": wallet}).status_code == 201
+    assert post_account(client, {"name": "Sub", "parent_id": wallet}).status_code == 201
     session.exec(
         RecurringTransaction.__table__.update().values(start_date=date(2026, 1, 1), next_date=date(2026, 1, 1))
     )
@@ -370,7 +369,7 @@ def test_opening_the_dashboard_catches_up(client, accounts, session):
 @pytest.fixture
 def split_accounts(client, accounts, root_accounts):
     extra = {
-        name: client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root]}).json()["aid"]
+        name: post_account(client, {"name": name, "parent_id": root_accounts[root]}).json()["aid"]
         for name, root in (("Water", "Expenses"), ("Savings", "Assets"))
     }
     return {**accounts, **extra}

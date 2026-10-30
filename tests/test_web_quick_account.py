@@ -2,6 +2,8 @@ import json
 
 from fastapi.testclient import TestClient
 
+from .books import post_account
+
 
 def _quick(client: TestClient, **data):
     return client.post("/accounts/quick", data=data)
@@ -60,8 +62,8 @@ def test_sheet_without_a_hint_asks_for_a_parent(client: TestClient, root_account
 
 
 def test_sheet_lists_sub_groups_but_not_the_system_account(client: TestClient, root_accounts: dict[str, str]):
-    client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]})
-    client.post("/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "5.00"})
+    post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "5.00"})
     text = client.get("/accounts/quick").text
     assert "Food</option>" in text
     assert "Opening Balances" not in text
@@ -107,7 +109,7 @@ def test_non_ascii_names_survive_the_header(client: TestClient, root_accounts: d
 
 
 def test_can_create_under_a_sub_group(client: TestClient, root_accounts: dict[str, str]):
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     assert _quick(client, name="Dining", parent_id=food["aid"]).status_code == 200
     assert _by_name(client, "Dining")["parent_id"] == food["aid"]
 

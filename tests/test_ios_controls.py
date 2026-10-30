@@ -5,6 +5,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from .books import post_account
+
 CSS = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
 
 
@@ -21,7 +23,7 @@ def test_fieldsets_stay_block_for_safari():
 
 
 def test_the_budget_checkbox_is_a_whole_tappable_row(client: TestClient, root_accounts):
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
     page = client.get(f"/accounts/{bank['aid']}/edit").text
     assert '<label class="check">' in page and 'type="checkbox" name="on_budget"' in page
     assert "label.check" in CSS and "cursor: pointer" in CSS

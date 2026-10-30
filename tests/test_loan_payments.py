@@ -2,6 +2,7 @@
 
 import pytest
 
+from .books import post_account
 from .test_budget import account, assign, budget, line, move
 
 
@@ -165,7 +166,7 @@ def test_a_payment_not_from_the_budget_is_not_spending(client, books, root_accou
 
 def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root_accounts):
     debts = account(client, root_accounts, "Debts", "Expenses")
-    sub = client.post("/api/accounts/", json={"name": "Car EMI", "parent_id": debts["aid"]}).json()
+    sub = post_account(client, {"name": "Car EMI", "parent_id": debts["aid"]}).json()
     point(client, books["loan"], sub)
     move(client, books["bank"], books["loan"], "7000")
     assert "7,000.00" in client.get("/categories").text

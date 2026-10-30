@@ -13,6 +13,7 @@ from app.models.transaction import Posting
 from app.models.transaction_history import TransactionHistory
 from app.schemas.category import CategoryCreate, CategoryUpdate
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .svc import services
 from .test_budget import account, assign
@@ -42,7 +43,7 @@ def books(client, root_accounts):
     bank = account(client, root_accounts, "Bank", "Assets", balance="100000")
     loan = account(client, root_accounts, "Home Loan", "Liabilities", on_budget=False)
     food = account(client, root_accounts, "Food", "Expenses")
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": food["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": food["aid"]}).json()
     emi = account(client, root_accounts, "EMI", "Expenses")
     salary = account(client, root_accounts, "Salary", "Income")
     return {"bank": bank, "loan": loan, "food": food, "groceries": groceries, "emi": emi, "salary": salary}

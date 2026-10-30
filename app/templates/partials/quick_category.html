@@ -1,0 +1,25 @@
+{% from "partials/icons.html" import icon %}
+<form class="stack" hx-post="/categories/quick" hx-swap="none">
+  <input type="hidden" name="kind" value="{{ kind }}">
+  <header class="sheet-head">
+    <h2 id="quick-account-title">New category</h2>
+    <button type="button" class="icon-button" data-quick-cancel title="Close">{{ icon("close") }}<span class="sr-only">Close</span></button>
+  </header>
+
+  <label>Name
+    <input type="text" name="name" maxlength="40" required autofocus autocomplete="off" placeholder="{{ 'e.g. Pharmacy' if kind == 'spending' else 'e.g. Freelance' }}">
+  </label>
+
+  <label>Group
+    <select name="parent_id">
+      <option value="">None (top level)</option>
+      {% for g in groups %}<option value="{{ g.bcid }}">{{ g.name }}</option>{% endfor %}
+    </select>
+  </label>
+
+  <p id="quick-error" class="error" role="alert"></p>
+  <div class="actions form-actions">
+    <button type="submit">Add category</button>
+    <button type="button" class="secondary" data-quick-cancel>Cancel</button>
+  </div>
+</form>

@@ -4,13 +4,14 @@ import re
 
 import pytest
 
+from .books import post_account
 from .htmlutil import option_selected
 
 
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, root, **extra):
-        response = client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra})
+        response = post_account(client, {"name": name, "parent_id": root_accounts[root], **extra})
         assert response.status_code == 201, response.text
         return response.json()
 
@@ -102,7 +103,7 @@ def test_splits_entries_without_a_payee_and_closed_accounts_are_left_out(client,
         },
     )
     pay(client, "", books["hdfc"], books["groceries"])
-    extra = client.post("/api/accounts/", json={"name": "Gone", "parent_id": books["delivery"]["parent_id"]}).json()
+    extra = post_account(client, {"name": "Gone", "parent_id": books["delivery"]["parent_id"]}).json()
     pay(client, "Old place", books["hdfc"], extra)
     pay(client, "Refund", extra, books["hdfc"])  # back to zero, so it can be closed
     assert {c[0] for c in chips(client)} == {"Old place", "Refund"}

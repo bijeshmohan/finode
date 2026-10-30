@@ -5,13 +5,15 @@ import pytest
 
 from app.clock import local_today
 
+from .books import post_account
+
 THIS_MONTH = local_today().replace(day=1)
 
 
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, parent, **extra):
-        r = client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra})
+        r = post_account(client, {"name": name, "parent_id": parent, **extra})
         assert r.status_code == 201, r.text
         return r.json()["aid"]
 

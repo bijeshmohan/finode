@@ -8,13 +8,14 @@ import pytest
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 
 OTHER = UUID("00000000-0000-4000-8000-0000000000bb")
 
 
 def acct(client, name, parent, **extra):
-    response = client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra})
+    response = post_account(client, {"name": name, "parent_id": parent, **extra})
     assert response.status_code == 201, response.text
     return response.json()
 

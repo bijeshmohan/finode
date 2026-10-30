@@ -2,6 +2,8 @@
 
 import pytest
 
+from .books import post_account
+
 
 def post(client, debit, credit, amount, **extra):
     return client.post(
@@ -84,7 +86,7 @@ def test_the_ends_of_the_calendar_do_not_move_the_month_arrows_off_it():
 def test_a_nul_character_is_dropped_instead_of_failing(client, account, expense_account, root_accounts):
     made = post(client, expense_account, account, "5", payee="Caf\x00e", comment="a\x00b")
     assert made.status_code == 201 and made.json()["payee"] == "Cafe" and made.json()["comment"] == "ab"
-    refused = client.post("/api/accounts/", json={"name": "x\x00y", "parent_id": root_accounts["Expenses"]})
+    refused = post_account(client, {"name": "x\x00y", "parent_id": root_accounts["Expenses"]})
     assert refused.status_code == 422 and "control characters" in refused.text
     assert client.get("/transactions", params={"q": "Caf\x00e"}).status_code == 200
     assert "Cafe" in client.get("/transactions", params={"q": "Caf\x00e"}).text
@@ -92,12 +94,12 @@ def test_a_nul_character_is_dropped_instead_of_failing(client, account, expense_
 
 @pytest.mark.parametrize("name", ["", "   ", "\t", "\u200b", " \u200b\u200d ", "two\nlines", "a:b"])
 def test_an_account_name_must_be_visible_and_on_one_line(client, root_accounts, name):
-    assert client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts["Expenses"]}).status_code == 422
+    assert post_account(client, {"name": name, "parent_id": root_accounts["Expenses"]}).status_code == 422
 
 
 def test_account_names_are_trimmed_and_unique_where_they_sit(client, root_accounts):
     def make(name, parent):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": parent})
+        return post_account(client, {"name": name, "parent_id": parent})
 
     food = make("  Food  ", root_accounts["Expenses"])
     assert food.status_code == 201 and food.json()["name"] == "Food"

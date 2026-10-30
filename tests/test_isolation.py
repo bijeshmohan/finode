@@ -26,6 +26,7 @@ from app.services.api_token import ApiTokenService
 from app.services.oauth_grant import OAuthGrantService
 from app.web_auth import web_login_required
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .svc import plain, services
@@ -237,7 +238,7 @@ def world(client: TestClient, session, rich) -> World:
     assets = next(
         a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets"
     )
-    shelf = client.post("/api/accounts/", json={"name": "Spare shelf", "parent_id": assets}).json()["aid"]
+    shelf = post_account(client, {"name": "Spare shelf", "parent_id": assets}).json()["aid"]
     client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
     w.dids = [str(d["did"]) for d in services(session).accounts.restorable()]
     client.post("/budget/goal", data={"name": "Isolated holiday", "amount": "5000", "by": "2999-12", "assign_now": "1"})
@@ -260,10 +261,8 @@ def world(client: TestClient, session, rich) -> World:
     with signed_in_as(B_USER):
         roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
         w.b_roots = roots
-        w.b_mine = client.post(
-            "/api/accounts/", json={"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}
-        ).json()
-        w.b_bills = client.post("/api/accounts/", json={"name": "Bills", "parent_id": roots["Expenses"]}).json()
+        w.b_mine = post_account(client, {"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}).json()
+        w.b_bills = post_account(client, {"name": "Bills", "parent_id": roots["Expenses"]}).json()
         client.post(
             "/api/transactions/",
             json={

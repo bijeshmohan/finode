@@ -7,11 +7,13 @@ import pytest
 
 from app.models.account import Account
 
+from .books import post_account
+
 
 @pytest.fixture
 def tree(client, root_accounts, session):
     def make(name, parent, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra}).json()["aid"]
+        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["aid"]
 
     banks = make("Banks", root_accounts["Assets"])
     ids = {
@@ -141,7 +143,7 @@ def test_the_page_has_no_note_under_its_list(client, root_accounts):
 def test_categories_end_with_an_add_row_and_an_empty_page_keeps_its_button(client, root_accounts):
     empty = client.get("/categories").text
     assert "Add a category" in empty and 'class="add-row"' not in empty
-    client.post("/api/accounts/", json={"name": "Dining", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Dining", "parent_id": root_accounts["Expenses"]})
     page = client.get("/categories?tab=expense").text
     assert 'class="add-row" href="/categories/new?root=expense"' in page and "circ-button" not in page
     assert client.get("/categories?tab=income").text.count('class="add-row"') == 0, (
@@ -152,10 +154,8 @@ def test_categories_end_with_an_add_row_and_an_empty_page_keeps_its_button(clien
 def test_the_expense_chip_shows_what_each_category_took_even_when_the_money_went_into_a_loan(
     client, tree, root_accounts
 ):
-    emi = client.post("/api/accounts/", json={"name": "EMI", "parent_id": root_accounts["Expenses"]}).json()["aid"]
-    loan = client.post("/api/accounts/", json={"name": "Home loan", "parent_id": root_accounts["Liabilities"]}).json()[
-        "aid"
-    ]
+    emi = post_account(client, {"name": "EMI", "parent_id": root_accounts["Expenses"]}).json()["aid"]
+    loan = post_account(client, {"name": "Home loan", "parent_id": root_accounts["Liabilities"]}).json()["aid"]
     made = client.post(
         "/api/transactions/",
         json={

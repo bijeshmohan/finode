@@ -6,6 +6,7 @@ from datetime import date
 
 import pytest
 
+from .books import post_account
 from .htmlutil import text_of
 
 TODAY = date.today()
@@ -15,7 +16,7 @@ MONTH = TODAY.strftime("%Y-%m")
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, root, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra}).json()
+        return post_account(client, {"name": name, "parent_id": root_accounts[root], **extra}).json()
 
     return {
         "bank": make("Bank", "Assets", balance="100000"),

@@ -295,9 +295,16 @@ def new_account_page(
 
 
 @router.get("/quick")
-def quick_account_sheet(request: Request, accounts: Accounts, profiles: Profiles, hint: str = ""):
-    """The "new account" sheet shown over the transaction form."""
-    roots = build_tree(accounts.list())
+def quick_account_sheet(
+    request: Request, accounts: Accounts, categories: Categories, profiles: Profiles, hint: str = ""
+):
+    """The "new account" sheet shown over the transaction form (a "new category" sheet where the picker lists
+    categories: the Expenses and Income kinds)."""
+    if hint in ("Expenses", "Income"):
+        kind = "spending" if hint == "Expenses" else "earning"
+        groups = [c for c in categories.list(kind) if c.parent_id is None]
+        return templates.TemplateResponse(request, "partials/quick_category.html", {"kind": kind, "groups": groups})
+    roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
     suggested = next((r.account.aid for r in roots if r.account.name == hint), None)
     return templates.TemplateResponse(
         request,
@@ -312,12 +319,17 @@ def quick_account_sheet(request: Request, accounts: Accounts, profiles: Profiles
 
 
 @router.get("/options")
-def account_options_list(request: Request, accounts: Accounts):
-    """Fresh <option>s for the transaction form's account pickers."""
+def account_options_list(request: Request, accounts: Accounts, categories: Categories):
+    """Fresh <option>s for the transaction form's account pickers (and the categories among them)."""
     return templates.TemplateResponse(
         request,
         "partials/account_options_list.html",
-        {"groups": posting_groups(build_tree(accounts.list()))},
+        {
+            "groups": [
+                *posting_groups(build_tree(accounts.list())),
+                *category_groups(categories.list(include_closed=True)),
+            ]
+        },
     )
 
 

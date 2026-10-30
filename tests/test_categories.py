@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from .books import post_account
 from .test_budget import account
 
 THIS_MONTH = date.today().replace(day=1)
@@ -15,8 +16,8 @@ def books(client, root_accounts):
     bank = account(client, root_accounts, "Bank", "Assets", balance="10000")
     salary = account(client, root_accounts, "Salary", "Income")
     food = account(client, root_accounts, "Food", "Expenses")
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": food["aid"]}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": food["aid"]}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": food["aid"]}).json()
     rent = account(client, root_accounts, "Rent", "Expenses")
     travel = account(client, root_accounts, "Travel", "Expenses")
     return {
@@ -78,7 +79,7 @@ def test_categories_are_ranked_by_what_they_came_to_with_their_share_and_what_is
 
 def test_the_hint_names_the_three_biggest_and_counts_the_rest(client, books):
     for name, amount in (("A1", "50"), ("A2", "40"), ("A3", "30"), ("A4", "20")):
-        made = client.post("/api/accounts/", json={"name": name, "parent_id": books["travel"]["aid"]}).json()
+        made = post_account(client, {"name": name, "parent_id": books["travel"]["aid"]}).json()
         entry(client, made, books["bank"], amount, THIS_MONTH)
     assert rows(client.get("/categories").text)[0] == ("Travel", "A1 · A2 · A3 · +1 · 100%", "140.00")
 

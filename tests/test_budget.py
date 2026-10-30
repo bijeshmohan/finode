@@ -5,12 +5,14 @@ from decimal import Decimal
 
 import pytest
 
+from .books import post_account
+
 THIS_MONTH = date.today().replace(day=1)
 LAST_MONTH = (THIS_MONTH - timedelta(days=1)).replace(day=1)
 
 
 def account(client, root, name, parent, **extra):
-    response = client.post("/api/accounts/", json={"name": name, "parent_id": root[parent], **extra})
+    response = post_account(client, {"name": name, "parent_id": root[parent], **extra})
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -97,7 +99,7 @@ def test_the_flag_can_be_changed_but_only_where_it_makes_sense(client, root_acco
     food = account(client, root_accounts, "Food", "Expenses")
     assert client.patch(f"/api/accounts/{food['aid']}", json={"on_budget": True}).status_code == 400
     group = account(client, root_accounts, "Banks", "Assets", on_budget=False)
-    account_child = client.post("/api/accounts/", json={"name": "Child", "parent_id": group["aid"]}).json()
+    account_child = post_account(client, {"name": "Child", "parent_id": group["aid"]}).json()
     assert client.patch(f"/api/accounts/{group['aid']}", json={"on_budget": True}).status_code == 400
     assert account_child["on_budget"] is True
 
@@ -234,8 +236,8 @@ def test_any_day_in_the_month_names_it(client, setup):
 
 
 def test_sub_categories_roll_up_into_their_group(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
     assign(client, groceries, "200")
     assign(client, dining, "100")
     move(client, setup["bank"], groceries, "50")
@@ -251,7 +253,7 @@ def test_sub_categories_roll_up_into_their_group(client, root_accounts, setup):
 
 
 def test_a_group_posted_to_directly_gets_its_own_row(client, root_accounts, setup):
-    client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]})
+    post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]})
     move(client, setup["bank"], setup["food"], "30")
     data = budget(client)
     other = line(data, "Food (other)")
@@ -385,8 +387,8 @@ def test_groups_add_up_the_overspending_of_their_categories(client, root_account
     bank = account(client, root_accounts, "Bank", "Assets")
     salary = account(client, root_accounts, "Salary", "Income")
     food = account(client, root_accounts, "Food", "Expenses")
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": food["aid"]}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": food["aid"]}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": food["aid"]}).json()
     move(client, salary, bank, "1000", on=LAST_MONTH.replace(day=2).isoformat())
     assign(client, groceries, "10", LAST_MONTH)
     move(client, bank, groceries, "30", on=LAST_MONTH.replace(day=5).isoformat())

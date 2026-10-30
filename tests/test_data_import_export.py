@@ -8,6 +8,8 @@ from app.repositories import AccountRepository, ProfileRepository, TransactionRe
 from app.services import AccountService, DataService, TransactionService
 from app.services.data import ImportRejected
 
+from .books import post_account
+
 JOURNAL = """\
 account Assets:Bank:HDFC
     note Salary account
@@ -146,21 +148,21 @@ def test_csv_neutralises_spreadsheet_formulas(client: TestClient):
 
 
 def test_export_sanitises_colons_and_spaces_in_names(client: TestClient, root_accounts):
-    client.post("/api/accounts/", json={"name": "Rent  Flat", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Rent  Flat", "parent_id": root_accounts["Expenses"]})
     text = client.get("/api/export").text
     assert "account Expenses:Rent Flat" in text
 
 
 def test_colon_in_account_name_rejected(client: TestClient, root_accounts):
-    response = client.post("/api/accounts/", json={"name": "a:b", "parent_id": root_accounts["Assets"]})
+    response = post_account(client, {"name": "a:b", "parent_id": root_accounts["Assets"]})
     assert response.status_code == 422
 
 
 def test_export_then_import_round_trips_for_another_user(client: TestClient, session: Session):
     _import(client, JOURNAL)
-    client.post(
-        "/api/accounts/",
-        json={
+    post_account(
+        client,
+        {
             "name": "Empty",
             "parent_id": next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Assets"),
         },
@@ -182,10 +184,8 @@ def test_export_then_import_round_trips_for_another_user(client: TestClient, ses
 
 
 def test_tags_survive_an_export_and_an_import(client: TestClient, session: Session, root_accounts):
-    bank = client.post(
-        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}
-    ).json()
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     client.post(
         "/api/transactions/",
         json={

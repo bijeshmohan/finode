@@ -2,6 +2,8 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from .books import post_account
+
 
 def test_create_transaction(
     client: TestClient,
@@ -324,14 +326,14 @@ def test_create_transaction_rejects_root_account(client: TestClient, account: di
 
 
 def test_create_transaction_rejects_asset_with_sub_accounts(client: TestClient, account: dict, expense_account: dict):
-    client.post("/api/accounts/", json={"name": "child", "parent_id": account["aid"]})
+    post_account(client, {"name": "child", "parent_id": account["aid"]})
     response = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"]))
     assert response.status_code == 400
     assert response.json()["detail"] == ("cannot post to account 'checking' because it has sub-accounts!")
 
 
 def test_create_transaction_to_expense_group(client: TestClient, account: dict, expense_account: dict):
-    client.post("/api/accounts/", json={"name": "child", "parent_id": expense_account["aid"]})
+    post_account(client, {"name": "child", "parent_id": expense_account["aid"]})
     response = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"]))
     assert response.status_code == 201
     group = client.get(f"/api/accounts/{expense_account['aid']}").json()
@@ -339,7 +341,7 @@ def test_create_transaction_to_expense_group(client: TestClient, account: dict, 
 
 
 def test_create_transaction_to_leaf_sub_account(client: TestClient, account: dict, expense_account: dict):
-    child = client.post("/api/accounts/", json={"name": "child", "parent_id": expense_account["aid"]}).json()
+    child = post_account(client, {"name": "child", "parent_id": expense_account["aid"]}).json()
     response = client.post("/api/transactions/", json=_two_postings(child["aid"], account["aid"]))
     assert response.status_code == 201
     parent = client.get(f"/api/accounts/{expense_account['aid']}").json()
@@ -399,7 +401,7 @@ def test_list_transactions_filter_by_account_includes_sub_accounts(
     other_account: dict,
     expense_account: dict,
 ):
-    child = client.post("/api/accounts/", json={"name": "food", "parent_id": expense_account["aid"]}).json()
+    child = post_account(client, {"name": "food", "parent_id": expense_account["aid"]}).json()
     _post(client, child, account, "5.00", "2026-01-05", "food")
     _post(client, other_account, account, "9.00", "2026-01-06", "transfer")
 

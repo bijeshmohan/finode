@@ -4,13 +4,14 @@ import pytest
 
 from app.services.account import AccountService
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .test_transaction_references import body
 
 
 def account(client, name, parent, **extra):
-    made = client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra})
+    made = post_account(client, {"name": name, "parent_id": parent, **extra})
     assert made.status_code == 201, made.text
     return made.json()
 

@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 
@@ -288,8 +289,8 @@ async def test_accounts_cannot_be_deleted_and_prompts_exist(session, secret):
 
 @pytest.mark.anyio
 async def test_assistants_can_list_create_and_stop_recurring_transactions(session, root_accounts, client):
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "5000"})
-    client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "5000"})
+    post_account(client, {"name": "Rent", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         assert payload(await c.call_tool("list_recurring", {}))["recurring"] == []
         made = payload(
@@ -335,7 +336,7 @@ async def test_read_only_assistants_can_list_but_not_create_recurring(session, r
 
 @pytest.mark.anyio
 async def test_assistants_can_check_the_books(session, root_accounts, client):
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "250"})
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "250"})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
         result = payload(await c.call_tool("check_books", {}))
         assert result["balanced"] and result["problems"] == []
@@ -347,9 +348,9 @@ async def test_assistants_can_check_the_books(session, root_accounts, client):
 
 @pytest.mark.anyio
 async def test_assistants_can_read_and_plan_the_budget(session, root_accounts, client):
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
-    client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]})
-    client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Rent", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         start = payload(await c.call_tool("get_budget", {}))
         assert start["ready_to_assign"] == "1000.00" and start["budget_accounts"] == ["Assets:Bank"]
@@ -384,9 +385,9 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
 
     this = date.today().replace(day=1)
     last = (this - timedelta(days=1)).replace(day=1)
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
-    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
+    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     for debit, credit, amount, on in ((bank, salary, "1000", 2), (food, bank, "30", 5)):
         client.post(
             "/api/transactions/",
@@ -407,8 +408,8 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
 
 @pytest.mark.anyio
 async def test_assistants_can_set_money_aside_for_a_goal_and_hand_it_to_a_category(session, root_accounts, client):
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
-    client.post("/api/accounts/", json={"name": "Hospital", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    post_account(client, {"name": "Hospital", "parent_id": root_accounts["Expenses"]})
     client.post("/budget/goal", data={"name": "Emergency fund", "amount": "600", "by": "2999-12"})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         data = payload(await c.call_tool("assign_to_goal", {"goal": "emergency FUND", "amount": "300"}))
@@ -434,8 +435,8 @@ async def test_assistants_can_copy_last_months_budget(session, root_accounts, cl
 
     this = date.today().replace(day=1)
     last = (this - timedelta(days=1)).replace(day=1)
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     client.put(f"/api/budget/categories/{food['aid']}", json={"month": last.isoformat(), "amount": "200"})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         data = payload(await c.call_tool("copy_budget_from_previous_month", {}))
@@ -446,9 +447,9 @@ async def test_assistants_can_copy_last_months_budget(session, root_accounts, cl
 
 @pytest.mark.anyio
 async def test_assistants_can_create_split_recurring_transactions_and_skip_one(session, root_accounts, client):
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "5000"})
-    client.post("/api/accounts/", json={"name": "Rent", "parent_id": root_accounts["Expenses"]})
-    client.post("/api/accounts/", json={"name": "Water", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "5000"})
+    post_account(client, {"name": "Rent", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Water", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         made = payload(
             await c.call_tool(
@@ -511,9 +512,9 @@ async def test_assistants_can_create_split_recurring_transactions_and_skip_one(s
 
 @pytest.mark.anyio
 async def test_only_expense_categories_can_be_planned(session, root_accounts, client):
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
-    client.post("/api/accounts/", json={"name": "Fund", "parent_id": root_accounts["Assets"], "on_budget": False})
-    client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]})
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    post_account(client, {"name": "Fund", "parent_id": root_accounts["Assets"], "on_budget": False})
+    post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         for name in ("Bank", "Fund", "Salary"):
             with pytest.raises(ToolFailed, match="not an expense account"):

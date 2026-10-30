@@ -4,6 +4,7 @@ from uuid import UUID
 
 import pytest
 
+from .books import post_account
 from .svc import services
 from .test_budget import assign, budget, line
 
@@ -11,7 +12,7 @@ from .test_budget import assign, budget, line
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, parent, **extra):
-        response = client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra})
+        response = post_account(client, {"name": name, "parent_id": parent, **extra})
         assert response.status_code == 201, response.text
         return response.json()
 
@@ -104,7 +105,7 @@ def test_nothing_can_be_posted_to_a_closed_account(client, books):
     close(client, books["old"])
     refused = spend(client, books["hdfc"], books["old"])
     assert refused.status_code == 400 and "is closed" in refused.json()["detail"]
-    created = client.post("/api/accounts/", json={"name": "Child", "parent_id": books["old"]["aid"]})
+    created = post_account(client, {"name": "Child", "parent_id": books["old"]["aid"]})
     assert created.status_code == 400 and "closed" in created.json()["detail"]
     assert client.patch(f"/api/accounts/{books['old']['aid']}", json={"balance": "5"}).status_code == 400
     moved = client.patch(f"/api/accounts/{books['hdfc']['aid']}", json={"parent_id": books["old"]["aid"]})

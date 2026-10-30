@@ -7,11 +7,13 @@ import pytest
 
 from app.clock import local_today
 
+from .books import post_account
+
 
 @pytest.fixture
 def ledger(client, root_accounts):
     def make(name, parent, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra}).json()["aid"]
+        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["aid"]
 
     return make("Bank", root_accounts["Assets"], balance="5000"), make("Food", root_accounts["Expenses"])
 

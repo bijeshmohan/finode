@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .mcputil import make_token, mcp_client, payload, running_app
 from .test_transaction_references import body
@@ -17,7 +18,7 @@ def day(back):
 
 @pytest.fixture
 def books(client, root_accounts, expense_account, income_account):
-    bank = client.post("/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"]}).json()
+    bank = post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"]}).json()
     client.post("/api/transactions/", json=body(bank, income_account, "1000", on=day(40), payee="Pay"))
     for back, amount in ((30, "5"), (6, "40"), (2, "75")):
         client.post("/api/transactions/", json=body(expense_account, bank, amount, on=day(back), payee=f"p{amount}"))

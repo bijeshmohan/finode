@@ -10,6 +10,7 @@ from app.ratelimit import AttemptLimiter
 from app.routers.web import auth as web_auth_router
 from app.web_auth import InvalidCredentialsError, SessionTokens
 
+from .books import post_account
 from .test_web_signup import CODE, FORM, raw_client, signup_on, supabase  # noqa: F401  (fixtures used by name)
 
 # ---- the counter ----------------------------------------------------------------------------------------------
@@ -112,15 +113,15 @@ def test_sign_up_attempts_are_limited_even_with_the_right_code(raw_client, signu
 def test_accounts_are_limited(client, root_accounts, monkeypatch):
     count = len(client.get("/api/accounts/").json())
     monkeypatch.setattr(settings, "max_accounts", count + 1)
-    assert client.post("/api/accounts/", json={"name": "One", "parent_id": root_accounts["Assets"]}).status_code == 201
-    refused = client.post("/api/accounts/", json={"name": "Two", "parent_id": root_accounts["Assets"]})
+    assert post_account(client, {"name": "One", "parent_id": root_accounts["Assets"]}).status_code == 201
+    refused = post_account(client, {"name": "Two", "parent_id": root_accounts["Assets"]})
     assert refused.status_code == 400 and f"limit of {count + 1} accounts" in refused.json()["detail"]
     form = client.post("/accounts", data={"name": "Three", "parent_id": root_accounts["Assets"]})
     assert "limit of" in form.text
     monkeypatch.setattr(settings, "max_accounts", 0)
-    assert (
-        client.post("/api/accounts/", json={"name": "Two", "parent_id": root_accounts["Assets"]}).status_code == 201
-    ), "0 = no limit"
+    assert post_account(client, {"name": "Two", "parent_id": root_accounts["Assets"]}).status_code == 201, (
+        "0 = no limit"
+    )
 
 
 def make_tx(client, a, b, amount="1"):
@@ -137,8 +138,8 @@ def make_tx(client, a, b, amount="1"):
 
 @pytest.fixture
 def two_accounts(client, root_accounts):
-    a = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
-    b = client.post("/api/accounts/", json={"name": "Shop", "parent_id": root_accounts["Expenses"]}).json()
+    a = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
+    b = post_account(client, {"name": "Shop", "parent_id": root_accounts["Expenses"]}).json()
     return a, b
 
 

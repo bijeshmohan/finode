@@ -2,6 +2,7 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
+from .books import post_account
 from .htmlutil import option_offset, option_selected
 
 
@@ -10,13 +11,13 @@ def _balance(client: TestClient, account: dict) -> str:
 
 
 def test_form_only_offers_postable_accounts(client: TestClient, root_accounts: dict[str, str], account: dict):
-    parent = client.post("/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}).json()
-    client.post("/api/accounts/", json={"name": "dining", "parent_id": parent["aid"]})
+    parent = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
+    post_account(client, {"name": "dining", "parent_id": parent["aid"]})
 
     text = client.get("/transactions/new").text
     assert f'<option value="{parent["aid"]}"' in text  # expense groups are postable
-    asset_group = client.post("/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"]}).json()
-    client.post("/api/accounts/", json={"name": "hdfc", "parent_id": asset_group["aid"]})
+    asset_group = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"]}).json()
+    post_account(client, {"name": "hdfc", "parent_id": asset_group["aid"]})
     text = client.get("/transactions/new").text
     assert f'<option value="{asset_group["aid"]}"' not in text  # asset groups are not
     for aid in root_accounts.values():
@@ -409,7 +410,7 @@ def test_old_mode_links_still_open_the_form(client: TestClient, account: dict):
 
 
 def test_a_transaction_with_several_rows_shows_them_all(client: TestClient, account: dict, expense_account: dict):
-    other = client.post("/api/accounts/", json={"name": "Tips", "parent_id": expense_account["parent_id"]}).json()
+    other = post_account(client, {"name": "Tips", "parent_id": expense_account["parent_id"]}).json()
     tx = client.post(
         "/api/transactions/",
         json={
@@ -451,7 +452,7 @@ def test_a_new_entry_starts_as_an_expense_with_three_buttons_in_order(
 def test_an_entry_that_fits_no_kind_has_nothing_selected(
     client: TestClient, root_accounts, account: dict, expense_account: dict
 ):
-    capital = client.post("/api/accounts/", json={"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
+    capital = post_account(client, {"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
     tid = client.post(
         "/api/transactions/",
         json={
@@ -468,8 +469,8 @@ def test_an_entry_that_fits_no_kind_has_nothing_selected(
 def test_opening_a_form_from_an_account_picks_the_kind(
     client: TestClient, root_accounts, account: dict, expense_account: dict
 ):
-    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
-    capital = client.post("/api/accounts/", json={"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
+    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()
+    capital = post_account(client, {"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
     assert _kind(client.get("/transactions/new", params={"account": salary["aid"]}).text) == "income"
     assert _kind(client.get("/transactions/new", params={"account": capital["aid"]}).text) == "other"
     assert _kind(client.get("/transactions/new", params={"account": expense_account["aid"]}).text) == "expense"
@@ -479,9 +480,9 @@ def test_opening_a_form_from_an_account_picks_the_kind(
 def test_editing_shows_what_the_entry_is(
     client: TestClient, root_accounts, account: dict, other_account: dict, expense_account: dict
 ):
-    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()
-    card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
-    capital = client.post("/api/accounts/", json={"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
+    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()
+    card = post_account(client, {"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
+    capital = post_account(client, {"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
 
     def entry(debit, credit):
         return client.post(
@@ -510,7 +511,7 @@ def test_editing_shows_what_the_entry_is(
 def test_a_split_across_expenses_is_still_an_expense(
     client: TestClient, account: dict, expense_account: dict, root_accounts
 ):
-    other = client.post("/api/accounts/", json={"name": "Tips", "parent_id": root_accounts["Expenses"]}).json()
+    other = post_account(client, {"name": "Tips", "parent_id": root_accounts["Expenses"]}).json()
     tid = client.post(
         "/api/transactions/",
         json={

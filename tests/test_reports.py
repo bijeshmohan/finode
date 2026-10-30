@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
+from .books import post_account
 from .svc import plain
 
 
@@ -36,14 +37,8 @@ def test_summary_net_worth_and_period_totals(
     expense_account: dict,
     svc,
 ):
-    bank = client.post(
-        "/api/accounts/",
-        json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"},
-    ).json()
-    card = client.post(
-        "/api/accounts/",
-        json={"name": "card", "parent_id": root_accounts["Liabilities"], "balance": "200.00"},
-    ).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
+    card = post_account(client, {"name": "card", "parent_id": root_accounts["Liabilities"], "balance": "200.00"}).json()
     _transfer(client, bank, income_account, "500.00", "2026-03-10")
     _transfer(client, expense_account, bank, "120.00", "2026-03-12")
     _transfer(client, expense_account, card, "30.00", "2026-04-01")

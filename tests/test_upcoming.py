@@ -6,11 +6,13 @@ import pytest
 
 from app.clock import local_today
 
+from .books import post_account
+
 
 @pytest.fixture
 def ledger(client, root_accounts):
     def make(name, parent, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra}).json()["aid"]
+        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["aid"]
 
     bank = make("Bank", root_accounts["Assets"], balance="5000")
     loan = make("Bicycle loan", root_accounts["Liabilities"])
@@ -91,7 +93,7 @@ def test_the_header_says_what_the_schedule_comes_to(client, ledger):
 
 def test_no_total_when_something_coming_in_is_mixed_with_what_goes_out(client, ledger, root_accounts):
     bank, loan = ledger
-    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()["aid"]
+    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()["aid"]
     record(client, bank, loan, "EMI", local_today() + timedelta(days=10))
     client.post(
         "/api/transactions/",
@@ -145,7 +147,7 @@ def test_an_account_page_with_nothing_ahead_has_no_card(client, ledger):
 
 def test_money_in_and_out_ahead_gives_no_total_on_an_account(client, ledger, root_accounts):
     bank, loan = ledger
-    salary = client.post("/api/accounts/", json={"name": "Salary", "parent_id": root_accounts["Income"]}).json()["aid"]
+    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()["aid"]
     record(client, bank, loan, "EMI", local_today() + timedelta(days=10))
     client.post(
         "/api/transactions/",
@@ -165,7 +167,7 @@ def test_money_in_and_out_ahead_gives_no_total_on_an_account(client, ledger, roo
 
 def test_a_category_page_only_lists_what_has_happened(client, ledger, root_accounts):
     bank, _ = ledger
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()["aid"]
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()["aid"]
     for payee, days in (("Lunch", 0), ("Dinner next week", 7)):
         client.post(
             "/api/transactions/",

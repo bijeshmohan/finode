@@ -21,7 +21,7 @@ from ...dependencies import Categories, Reports
 from ...schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 from ...templating import templates
 from .budget import parse_month, shift
-from .utils import htmx_error, htmx_redirect, validation_message
+from .utils import htmx_error, htmx_redirect, htmx_trigger, validation_message
 
 router = APIRouter(prefix="/categories")
 
@@ -204,6 +204,29 @@ def create_category(
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(f"/categories/{made.bcid}", flash="category-created")
+
+
+@router.post("/quick")
+def quick_create_category(
+    categories: Categories,
+    name: Annotated[str, Form()] = "",
+    kind: Annotated[str, Form()] = "spending",
+    parent_id: Annotated[str, Form()] = "",
+):
+    """The "new category" sheet over the transaction form: tells the form so it can refresh its pickers."""
+    try:
+        made = categories.create(
+            CategoryCreate(
+                name=name.strip(),
+                kind="earning" if kind == "earning" else "spending",
+                parent_id=UUID(parent_id) if parent_id else None,
+            )
+        )
+    except ValidationError as e:
+        return htmx_error(validation_message(e), "#quick-error")
+    except ValueError as e:
+        return htmx_error(str(e), "#quick-error")
+    return htmx_trigger("account-added", {"aid": str(made.bcid), "name": made.name})
 
 
 @router.get("/deleted")

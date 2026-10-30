@@ -5,12 +5,13 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .test_backup import OTHER, as_user
 
 
 def _make(client: TestClient, name: str, parent: str):
-    return client.post("/api/accounts/", json={"name": name, "parent_id": parent})
+    return post_account(client, {"name": name, "parent_id": parent})
 
 
 @pytest.mark.parametrize("root", ["Expenses", "Income", "Assets", "Liabilities", "Equity"])
