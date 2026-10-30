@@ -103,11 +103,12 @@ def test_splits_entries_without_a_payee_and_closed_accounts_are_left_out(client,
         },
     )
     pay(client, "", books["hdfc"], books["groceries"])
-    extra = post_account(client, {"name": "Gone", "parent_id": books["delivery"]["parent_id"]}).json()
+    extra = client.post("/api/categories/", json={"name": "Gone", "kind": "spending"}).json() | {}
+    extra["aid"] = extra["bcid"]
     pay(client, "Old place", books["hdfc"], extra)
     pay(client, "Refund", extra, books["hdfc"])  # back to zero, so it can be closed
     assert {c[0] for c in chips(client)} == {"Old place", "Refund"}
-    assert client.post(f"/api/accounts/{extra['aid']}/close").status_code == 200
+    assert client.post(f"/api/categories/{extra['aid']}/close").status_code == 200
     assert chips(client) == [], (
         "a closed account is never suggested, and splits and entries without a payee are not either"
     )

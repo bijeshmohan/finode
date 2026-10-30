@@ -106,7 +106,8 @@ def test_recording_moves_the_money_and_is_idempotent(client, accounts, session):
     rows = transactions(session)
     assert [r.date for r in rows][:3] == [date(2026, 1, 31), date(2026, 2, 28), date(2026, 3, 31)]
     assert len({r.date for r in rows}) == len(rows), "each date once, however often it runs"
-    assert client.get(f"/api/accounts/{accounts['rent']}").json()["balance"] == str(Decimal("1500") * len(rows)) + ".00"
+    expenses = next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Expenses")
+    assert client.get(f"/api/accounts/{expenses}").json()["balance"] == str(Decimal("1500") * len(rows)) + ".00"
 
 
 def test_each_occurrence_is_linked_and_marked(client, accounts, session):
@@ -170,10 +171,10 @@ def test_deleting_keeps_what_was_recorded(client, accounts, session):
     assert client.get("/api/recurring/").json() == []
 
 
-def test_an_account_a_rule_uses_cannot_be_deleted(client, accounts):
+def test_a_category_a_rule_uses_cannot_be_deleted(client, accounts):
     rule(client, accounts, start_date="2999-01-01")
-    response = client.delete(f"/api/accounts/{accounts['rent']}")
-    assert response.status_code == 409 or response.status_code == 400
+    response = client.post(f"/api/categories/{accounts['rent']}/delete")
+    assert response.status_code == 400
     assert "recurring" in response.text
 
 
@@ -445,9 +446,9 @@ def test_a_split_rule_can_be_edited_into_a_plain_one_and_back(client, split_acco
     assert len(again["postings"]) == 3 and again["from_account"] is None
 
 
-def test_an_account_a_split_rule_uses_cannot_be_deleted(client, split_accounts):
+def test_a_category_a_split_rule_uses_cannot_be_deleted(client, split_accounts):
     split_rule(client, split_accounts, start_date="2999-01-01")
-    assert client.delete(f"/api/accounts/{split_accounts['Water']}").status_code == 409
+    assert client.post(f"/api/categories/{split_accounts['Water']}/delete").status_code == 400
 
 
 def test_deleting_a_split_rule_removes_its_rows(client, split_accounts, session):

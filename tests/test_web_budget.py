@@ -309,7 +309,7 @@ def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts
 def test_a_budget_account_with_sub_accounts_is_not_announced_on_the_page(client, setup, root_accounts):
     """It is left out of the sums (only accounts that hold money count) but the page does not say so: nothing to do."""
     deposits = account(client, root_accounts, "Deposits", "Assets")
-    post_account(client, {"name": "FD", "parent_id": deposits, "balance": "10"})
+    post_account(client, {"name": "FD", "parent_id": deposits["aid"], "balance": "10"})
     page = client.get("/budget").text
     assert "Left out because" not in page and "sub-accounts" not in page
 

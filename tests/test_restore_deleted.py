@@ -109,10 +109,9 @@ def test_only_the_latest_deletion_of_an_entry_can_be_restored(client, ledger, sv
 
 def test_an_account_that_is_gone_blocks_the_restore_with_a_reason(client, ledger, svc):
     bank, food = ledger
-    other = client.post(
-        "/api/accounts/", json={"name": "Snacks", "parent_id": client.get(f"/api/accounts/{food}").json()["parent_id"]}
-    ).json()["aid"]
-    tid = record(client, bank, other)
+    assets = client.get(f"/api/accounts/{bank}").json()["parent_id"]
+    other = client.post("/api/accounts/", json={"name": "Wallet", "parent_id": assets}).json()["aid"]
+    tid = record(client, other, food)
     client.delete(f"/api/transactions/{tid}")
     assert client.delete(f"/api/accounts/{other}").status_code in (200, 204)
     refused = restore(client, hid_of(svc, tid))
