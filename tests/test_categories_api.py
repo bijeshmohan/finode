@@ -112,7 +112,8 @@ def test_a_line_may_name_only_its_category(client, books):
     )
     assert made.status_code == 201, made.text
     first = made.json()["postings"][0]
-    assert first["account"] == books["groceries"]["aid"] and first["category"] == books["groceries"]["aid"]
+    expenses = next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Expenses")
+    assert first["account"] == expenses and first["category"] == books["groceries"]["aid"]
     neither = client.post(
         "/api/transactions/",
         json={
@@ -125,10 +126,9 @@ def test_a_line_may_name_only_its_category(client, books):
     assert neither.status_code == 422
 
 
-def test_the_account_says_which_category_it_stands_for(client, books):
-    got = client.get(f"/api/accounts/{books['emi']['aid']}").json()
-    assert got["category_id"] == books["emi"]["aid"]
-    assert client.get(f"/api/accounts/{books['bank']['aid']}").json()["category_id"] is None
+def test_an_account_has_no_category_of_its_own(client, books):
+    assert "category_id" not in client.get(f"/api/accounts/{books['bank']['aid']}").json()
+    assert client.get(f"/api/accounts/{books['emi']['aid']}").status_code == 404, "a category is not an account"
 
 
 # ---- the assistants' tools -------------------------------------------------------------------------

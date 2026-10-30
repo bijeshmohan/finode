@@ -1,11 +1,11 @@
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..dependencies import Categories
-from ..schemas.account import MergeRequest, MergeResult
+from ..schemas.account import MergeRequest, MergeResult, RegisterEntry
 from ..schemas.category import CategoryCreate, CategoryDeleteResult, CategoryRead, CategoryUpdate
 from ..services.account import SystemAccountError
 
@@ -57,6 +57,22 @@ def update_category(bcid: UUID, data: CategoryUpdate, categories: Categories):
         raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError as e:
         raise _refused(e) from None
+
+
+@router.get("/{bcid}/register", response_model=list[RegisterEntry])
+def category_register(
+    bcid: UUID,
+    categories: Categories,
+    own_only: bool = False,
+    limit: int | None = Query(default=None, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+):
+    """The entries that have a line labelled with the category (and with the categories in it, unless `own_only`),
+    oldest first, each with what it changed and the running total."""
+    if categories.read(bcid) is None:
+        raise HTTPException(status_code=404, detail="category not found")
+    entries = categories.register(bcid, own_only=own_only)
+    return entries[offset : offset + limit] if limit else entries[offset:]
 
 
 @router.post("/{bcid}/close", response_model=CategoryRead)
