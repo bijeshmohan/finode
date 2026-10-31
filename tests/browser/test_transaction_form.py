@@ -2,6 +2,7 @@
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -124,8 +125,8 @@ def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
         "/transactions/",
         payee="Old",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
+            leg(books["food"], "debit", "40"),
+            leg(books["checking"], "credit", "40"),
         ],
     )
     page.goto(f"/transactions/{entry['tid']}/edit")
@@ -144,8 +145,8 @@ def history(api: Api, books, payee="Swiggy", source="card", target="food"):
         "/transactions/",
         payee=payee,
         postings=[
-            {"account": books[target]["aid"], "side": "debit", "amount": "100"},
-            {"account": books[source]["aid"], "side": "credit", "amount": "100"},
+            leg(books[target], "debit", "100"),
+            leg(books[source], "credit", "100"),
         ],
     )
 
@@ -292,8 +293,8 @@ def _spend(api: Api, books, payee: str, amount: str, on: str, **extra):
         date=on,
         payee=payee,
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": amount},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
+            leg(books["food"], "debit", amount),
+            leg(books["checking"], "credit", amount),
         ],
         **extra,
     )

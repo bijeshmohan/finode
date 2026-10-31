@@ -5,6 +5,7 @@ from datetime import date
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -21,8 +22,8 @@ def spend(api: Api, books, category, amount="300"):
         "/transactions/",
         date=date.today().isoformat(),
         postings=[
-            {"account": category["aid"], "side": "debit", "amount": amount},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
+            leg(category, "debit", amount),
+            leg(books["checking"], "credit", amount),
         ],
     )
 
@@ -64,8 +65,8 @@ def test_the_month_total_and_the_income_tab(page: Page, books, api: Api):
         "/transactions/",
         date=date.today().isoformat(),
         postings=[
-            {"account": books["checking"]["aid"], "side": "debit", "amount": "5000"},
-            {"account": books["salary"]["aid"], "side": "credit", "amount": "5000"},
+            leg(books["checking"], "debit", "5000"),
+            leg(books["salary"], "credit", "5000"),
         ],
     )
     page.goto("/categories")

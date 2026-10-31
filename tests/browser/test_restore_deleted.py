@@ -2,6 +2,7 @@
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -10,8 +11,8 @@ def test_restore_puts_the_entry_back_and_it_leaves_the_list(page: Page, books, a
         "/transactions/",
         payee="Lunch",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "120"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "120"},
+            leg(books["food"], "debit", "120"),
+            leg(books["checking"], "credit", "120"),
         ],
     )
     page.goto("/settings")
@@ -33,8 +34,8 @@ def test_restoring_a_deleted_category_opens_it_again(page: Page, books, api: Api
     api.post(
         "/transactions/",
         postings=[
-            {"account": snack["aid"], "side": "debit", "amount": "5"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "5"},
+            leg(snack, "debit", "5"),
+            leg(books["checking"], "credit", "5"),
         ],
     )
     api.post(f"/categories/{snack['aid']}/delete")  # it has an entry, so it is closed

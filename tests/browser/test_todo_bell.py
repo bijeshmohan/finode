@@ -2,6 +2,7 @@
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -12,8 +13,8 @@ def loan_payment(api: Api, books: dict):
         "/transactions/",
         payee="EMI payment",
         postings=[
-            {"account": loan["aid"], "side": "debit", "amount": "500"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "500"},
+            leg(loan, "debit", "500"),
+            leg(books["checking"], "credit", "500"),
         ],
     )
     return emi

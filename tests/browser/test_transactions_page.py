@@ -4,6 +4,7 @@ import re
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -12,8 +13,8 @@ def add(api: Api, books, payee, target, source, amount="100"):
         "/transactions/",
         payee=payee,
         postings=[
-            {"account": books[target]["aid"], "side": "debit", "amount": amount},
-            {"account": books[source]["aid"], "side": "credit", "amount": amount},
+            leg(books[target], "debit", amount),
+            leg(books[source], "credit", amount),
         ],
     )
 
@@ -174,8 +175,8 @@ def test_filtering_leaves_the_upcoming_row_closed_when_something_matches(page: P
         "/transactions/",
         payee="Lunch",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "120"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "120"},
+            leg(books["food"], "debit", "120"),
+            leg(books["checking"], "credit", "120"),
         ],
     )
     api.post(
@@ -183,8 +184,8 @@ def test_filtering_leaves_the_upcoming_row_closed_when_something_matches(page: P
         payee="Next month",
         date=str(date.today() + timedelta(days=40)),
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "90"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "90"},
+            leg(books["food"], "debit", "90"),
+            leg(books["checking"], "credit", "90"),
         ],
     )
     page.goto("/transactions")
@@ -213,8 +214,8 @@ def test_show_more_loads_the_rest_of_the_month_in_place(page: Page, books, api: 
             payee=f"Shop {i:02d}",
             date=f"2026-01-{i % 28 + 1:02d}",
             postings=[
-                {"account": books["food"]["aid"], "side": "debit", "amount": "10"},
-                {"account": books["checking"]["aid"], "side": "credit", "amount": "10"},
+                leg(books["food"], "debit", "10"),
+                leg(books["checking"], "credit", "10"),
             ],
         )
     page.goto("/transactions?month=2026-01")
@@ -236,8 +237,8 @@ def test_home_starts_short_and_show_more_finishes_the_month(page: Page, books, a
             payee=f"Shop {i:02d}",
             date=f"2026-01-{i + 1:02d}",
             postings=[
-                {"account": books["food"]["aid"], "side": "debit", "amount": "10"},
-                {"account": books["checking"]["aid"], "side": "credit", "amount": "10"},
+                leg(books["food"], "debit", "10"),
+                leg(books["checking"], "credit", "10"),
             ],
         )
     page.goto("/?month=2026-01")
@@ -269,8 +270,8 @@ def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(page: Pag
         "/transactions/",
         payee="Swiggy",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "450"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "450"},
+            leg(books["food"], "debit", "450"),
+            leg(books["checking"], "credit", "450"),
         ],
     )
     api.post(
@@ -280,8 +281,8 @@ def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(page: Pag
         source="gmail",
         external_id="msg-1042",
         postings=[
-            {"account": books["checking"]["aid"], "side": "debit", "amount": "120"},
-            {"account": books["food"]["aid"], "side": "credit", "amount": "120"},
+            leg(books["checking"], "debit", "120"),
+            leg(books["food"], "credit", "120"),
         ],
     )
     page.goto("/transactions")
