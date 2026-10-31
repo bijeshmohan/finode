@@ -1,5 +1,5 @@
 import calendar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Annotated
@@ -10,10 +10,11 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import ValidationError
 
 from ...clock import local_today
-from ...dependencies import Accounts, Recurring, Transactions
+from ...dependencies import Accounts, Categories, Recurring, Transactions
 from ...models.transaction import PostingSide
 from ...repositories.transaction import SYSTEM_PAYEES
 from ...schemas import AccountRead
+from ...schemas.category import CategoryRead
 from ...schemas.transaction import (
     PostingCreate,
     TransactionCreate,
@@ -22,7 +23,7 @@ from ...schemas.transaction import (
 )
 from ...tags import clean_tag
 from ...templating import templates
-from .accounts import build_tree, posting_groups
+from .accounts import build_tree, category_groups, posting_groups
 from .budget import parse_month
 from .categories import _month_context
 from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
@@ -59,7 +60,11 @@ def _applied(filters: dict, index: AccountIndex, rest: dict) -> list[dict]:
             if key == "tag":
                 name = f"#{value}"
             else:
-                name = index.names.get(UUID(value), "?") if key != "merchant" else value
+                name = (
+                    (index.names.get(UUID(value)) or index.categories.get(UUID(value), "?"))
+                    if key != "merchant"
+                    else value
+                )
         except ValueError:
             name = "?"
         keep = {**rest, **{k: v for k, v in filters.items() if v and k != key}}
@@ -75,20 +80,25 @@ def _summary(found: list, index: AccountIndex) -> dict:
     return {"count": len(rows), "total": sum((r.amount for r in rows), Decimal(0)) if word else None, "word": word}
 
 
-def _filter_options(all_accounts, transactions) -> dict:
-    """The choices behind the Filter sheet: accounts (assets, liabilities, equity), categories (expenses, income), payees."""
+def _filter_options(all_accounts, categories: list[CategoryRead], transactions) -> dict:
+    """The choices behind the Filter sheet: accounts (assets, liabilities, equity), categories, payees."""
     accounts: list[dict] = []
-    categories: list[dict] = []
     for root in build_tree(all_accounts):
-        target = categories if root.account.name in ("Expenses", "Income") else accounts
+        if root.account.name in ("Expenses", "Income"):
+            continue
         parents: dict[int, str] = {}
         for node in root.walk():
             parents[node.depth] = node.account.name
             if node.depth == 0:
                 continue
             sub = parents.get(node.depth - 1) if node.depth > 1 else ""
-            target.append({"aid": str(node.account.aid), "name": node.account.name, "sub": sub})
-    return {"accounts": accounts, "categories": categories, "merchants": [name for name, _ in transactions.payees()]}
+            accounts.append({"aid": str(node.account.aid), "name": node.account.name, "sub": sub})
+    names = {c.bcid: c.name for c in categories}
+    found = [
+        {"aid": str(c.bcid), "name": c.name, "sub": names.get(c.parent_id, "") if c.parent_id else ""}
+        for c in categories
+    ]
+    return {"accounts": accounts, "categories": found, "merchants": [name for name, _ in transactions.payees()]}
 
 
 @dataclass
@@ -104,19 +114,27 @@ class TransactionRow:
 class AccountIndex:
     names: dict[UUID, str]
     roots: dict[UUID, str]
+    # The categories' names: a line on Expenses or Income is named for what it was for.
+    categories: dict[UUID, str] = field(default_factory=dict)
 
     @classmethod
-    def build(cls, accounts: list[AccountRead]) -> AccountIndex:
+    def build(cls, accounts: list[AccountRead], categories: list[CategoryRead] | None = None) -> AccountIndex:
         names = {a.aid: a.name for a in accounts}
         roots = {node.account.aid: root.account.name for root in build_tree(accounts) for node in root.walk()}
-        return cls(names, roots)
+        return cls(names, roots, {c.bcid: c.name for c in categories or []})
+
+    def line_name(self, posting) -> str:
+        """What a line is called in a list: its category when it sits on Expenses or Income, else its account."""
+        if self.roots.get(posting.account) in ("Expenses", "Income"):
+            return self.categories.get(posting.category, "Uncategorised") if posting.category else "Uncategorised"
+        return self.names.get(posting.account, "?")
 
 
 def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
     def side_names(side: PostingSide) -> list[str]:
         found: list[str] = []
         for posting in transaction.postings:
-            name = index.names.get(posting.account, "?")
+            name = index.line_name(posting)
             if posting.side == side and name not in found:
                 found.append(name)
         return found
@@ -153,6 +171,7 @@ def _parse_date(value: str) -> date | None:
 def transactions_page(
     request: Request,
     accounts: Accounts,
+    categories: Categories,
     transactions: Transactions,
     recurring: Recurring,
     account: str = "",
@@ -170,7 +189,7 @@ def transactions_page(
     except Exception:
         recurring.repo.db.rollback()
     all_accounts = accounts.list()
-    index = AccountIndex.build(all_accounts)
+    index = AccountIndex.build(all_accounts, categories.list(include_closed=True))
     kind = KIND_FILTERS.get(kind, "")  # one spelling from here on
     this_month = local_today().replace(day=1)
     when = min(parse_month(month), this_month)  # never a month that has not started
@@ -261,7 +280,7 @@ def transactions_page(
     }
     query = {k: v for k, v in filters.items() if v}
     summary = _summary(everything, index) if everything is not None else None
-    options = _filter_options(all_accounts, transactions)
+    options = _filter_options(all_accounts, categories.list(include_closed=True), transactions)
     # The month, the filters and the chosen chip also travel with the page links.
     base = {"month": when.strftime("%Y-%m"), **query, **({"q": q.strip()} if q.strip() else {})}
     shown = {**base, **({"kind": kind} if kind else {})}
@@ -325,6 +344,7 @@ HOME_MORE = 10
 def more_transactions(
     request: Request,
     accounts: Accounts,
+    categories: Categories,
     transactions: Transactions,
     offset: int = 0,
     size: int = PAGE_SIZE,
@@ -363,7 +383,7 @@ def more_transactions(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
-    index = AccountIndex.build(accounts.list())
+    index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     params = {
         k: v
         for k, v in {
@@ -393,14 +413,15 @@ def more_transactions(
 
 
 @router.get("/{tid}/sheet")
-def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transactions: Transactions, back: str = ""):
+def transaction_sheet(
+    request: Request, tid: UUID, accounts: Accounts, categories: Categories, transactions: Transactions, back: str = ""
+):
     """The details of one transaction, for the sheet that opens over a list (the edit page has the rest)."""
     transaction = transactions.read(tid)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
-    index = AccountIndex.build(accounts.list())
+    index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     row = to_row(transaction, index)
-    names = index.names
     labels = {
         "expense": ("Paid from", "Spent on"),
         "income": ("From", "Received in"),
@@ -416,12 +437,8 @@ def transaction_sheet(request: Request, tid: UUID, accounts: Accounts, transacti
             "back": safe_back(back, ""),  # the page to return to after Edit, Repeat or Related (an account's page, say)
             "from_label": labels[0],
             "to_label": labels[1],
-            "from_postings": [
-                (names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.CREDIT
-            ],
-            "to_postings": [
-                (names.get(p.account, "?"), p) for p in transaction.postings if p.side == PostingSide.DEBIT
-            ],
+            "from_postings": [(index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
+            "to_postings": [(index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.DEBIT],
             "related_to": related_info(transactions, index, transaction.related_id),
             "related": [to_row(r, index) for r in transactions.related(tid)],
         },
@@ -506,10 +523,12 @@ def infer_kind(postings, roots: dict[UUID, str]) -> str:
     return "other"
 
 
-def form_context(accounts: Accounts, **extra) -> dict:
+def form_context(accounts: Accounts, categories: Categories, **extra) -> dict:
     all_accounts = accounts.list()
-    # Accounts an entry being edited already uses stay offered even if they were closed since.
-    keep = set(extra.pop("keep", ())) | {p.account for p in getattr(extra.get("transaction"), "postings", ())}
+    # Accounts and categories an entry being edited already uses stay offered even if they were closed since.
+    used = getattr(extra.get("transaction"), "postings", ())
+    keep = set(extra.pop("keep", ())) | {p.account for p in used}
+    keep_categories = {p.category for p in used if p.category}
     roots = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
     if "kind" not in extra:
         recorded = getattr(extra.get("transaction"), "postings", None)
@@ -517,7 +536,10 @@ def form_context(accounts: Accounts, **extra) -> dict:
     return {
         "active": "transactions",
         "hide_fab": True,
-        "groups": posting_groups(build_tree(all_accounts), keep),
+        "groups": [
+            *posting_groups(build_tree(all_accounts), keep),
+            *category_groups(categories.list(include_closed=True), keep_categories),
+        ],
         "currency": accounts.currency().code,
         **extra,
     }
@@ -572,10 +594,13 @@ class PayeeHabit:
 HABIT_HISTORY = 300  # how many recent transactions the suggestions look at
 
 
-def payee_habits(transactions: Transactions, accounts: Accounts, query: str = "", limit: int = 6) -> list[PayeeHabit]:
-    """Suggestions for the payee field: the people paid most, each with the accounts used the last time (see
-    `TransactionService.payee_routes`, which the assistants' `payee_defaults` shares)."""
-    index = AccountIndex.build(accounts.list())
+def payee_habits(
+    transactions: Transactions, accounts: Accounts, categories: Categories, query: str = "", limit: int = 6
+) -> list[PayeeHabit]:
+    """Suggestions for the payee field: the people paid most, each with the accounts (or the category) used the last
+    time (see `TransactionService.payee_routes`, which the assistants' `payee_defaults` shares)."""
+    index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
+    kinds = {c.bcid: c.kind for c in categories.list(include_closed=True)}
     habits = []
     for route in transactions.payee_routes(query, limit, HABIT_HISTORY):
         habits.append(
@@ -584,11 +609,13 @@ def payee_habits(transactions: Transactions, accounts: Accounts, query: str = ""
                 count=route.count,
                 from_id=route.from_id,
                 to_id=route.to_id,
-                kind=infer_kind(
-                    [_P(route.from_id, PostingSide.CREDIT), _P(route.to_id, PostingSide.DEBIT)], index.roots
-                ),
-                from_name=index.names.get(route.from_id, "?"),
-                to_name=index.names.get(route.to_id, "?"),
+                kind="expense"
+                if kinds.get(route.to_id) == "spending"
+                else "income"
+                if kinds.get(route.from_id) == "earning"
+                else "transfer",
+                from_name=index.names.get(route.from_id) or index.categories.get(route.from_id, "?"),
+                to_name=index.names.get(route.to_id) or index.categories.get(route.to_id, "?"),
                 exact=route.exact,
             )
         )
@@ -604,17 +631,19 @@ class _P:
 
 
 @router.get("/suggest")
-def suggest_payees(request: Request, accounts: Accounts, transactions: Transactions, payee: str = ""):
+def suggest_payees(
+    request: Request, accounts: Accounts, categories: Categories, transactions: Transactions, payee: str = ""
+):
     """The chips under the payee field: people you pay, with the accounts you used the last time."""
-    habits = payee_habits(transactions, accounts, payee)
+    habits = payee_habits(transactions, accounts, categories, payee)
     return templates.TemplateResponse(request, "partials/payee_chips.html", {"habits": habits})
 
 
 @router.get("/tag-options")
-def tag_options(request: Request, accounts: Accounts, transactions: Transactions):
+def tag_options(request: Request, accounts: Accounts, categories: Categories, transactions: Transactions):
     """The tags for the Filter sheet's Tag list, loaded when the list is opened: how many entries carry each, the last
     day, and what they come to when they all go one way (spending or income)."""
-    index = AccountIndex.build(accounts.list())
+    index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     stats: dict[str, dict] = {}
     for t in transactions.tagged():
         row = to_row(t, index)
@@ -656,13 +685,14 @@ def parse_related(value: str) -> UUID | None:
 def related_picker(
     request: Request,
     accounts: Accounts,
+    categories: Categories,
     transactions: Transactions,
     q: str = "",
     exclude: UUID | None = None,
     results: str = "",
 ):
     """The sheet that lists earlier entries to relate a new one to: the newest first, narrowed by what is typed."""
-    index = AccountIndex.build(accounts.list())
+    index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     found = transactions.list(text=q, limit=RELATED_PICKER_LIMIT + 1, date_to=local_today())
     rows = [to_row(t, index) for t in found if t.tid != exclude and t.payee not in SYSTEM_PAYEES][:RELATED_PICKER_LIMIT]
     return templates.TemplateResponse(
@@ -672,9 +702,26 @@ def related_picker(
     )
 
 
-def form_rows(postings, side: PostingSide, account_id: UUID | None = None) -> list[dict]:
-    """The rows of one side of the form: the transaction's own postings, or one blank row (maybe with an account)."""
-    found = [{"posting": p, "account": p.account} for p in postings if p.side == side]
+def roots_by_id(accounts: Accounts) -> dict[UUID, str]:
+    """Each account's top-level account (Assets, Expenses…), by id."""
+    return {n.account.aid: r.account.name for r in build_tree(accounts.list()) for n in r.walk()}
+
+
+def form_rows(
+    postings, side: PostingSide, account_id: UUID | None = None, roots: dict[UUID, str] | None = None
+) -> list[dict]:
+    """The rows of one side of the form: the transaction's own postings, or one blank row (maybe with an account).
+    A line on Expenses or Income is picked by its category, which is what the row shows."""
+    found = [
+        {
+            "posting": p,
+            "account": p.category
+            if roots and p.category and roots.get(p.account) in ("Expenses", "Income")
+            else p.account,
+        }
+        for p in postings
+        if p.side == side
+    ]
     return found or [{"posting": None, "account": account_id}]
 
 
@@ -682,8 +729,10 @@ def form_rows(postings, side: PostingSide, account_id: UUID | None = None) -> li
 def new_transaction_page(
     request: Request,
     accounts: Accounts,
+    categories: Categories,
     transactions: Transactions,
     account: UUID | None = None,
+    category: UUID | None = None,  # opened from a category's page: the entry starts on that category
     back: str = "",
     repeat: UUID | None = None,  # "add again": a copy of this transaction, dated today
     related: UUID | None = None,  # "related": a blank new entry linked to that transaction
@@ -699,14 +748,15 @@ def new_transaction_page(
             "transaction_form.html",
             form_context(
                 accounts,
+                categories,
                 today=local_today().isoformat(),
                 transaction=None,
                 copy_of=again,
                 total=sum((p.amount for p in again.postings if p.side == PostingSide.DEBIT), Decimal(0)),
                 new_payee=again.payee or "",
                 new_note=again.comment or "",
-                from_rows=form_rows(again.postings, PostingSide.CREDIT),
-                to_rows=form_rows(again.postings, PostingSide.DEBIT),
+                from_rows=form_rows(again.postings, PostingSide.CREDIT, roots=roots),
+                to_rows=form_rows(again.postings, PostingSide.DEBIT, roots=roots),
                 kind=infer_kind(again.postings, roots),
                 account=None,
                 back=safe_back(back, ""),
@@ -715,23 +765,28 @@ def new_transaction_page(
         )
     linked = None
     if related is not None:
-        linked = related_info(transactions, AccountIndex.build(all_accounts), related)
+        linked = related_info(
+            transactions, AccountIndex.build(all_accounts, categories.list(include_closed=True)), related
+        )
         if linked is None:
             raise HTTPException(status_code=404, detail="transaction not found")
     from_id = to_id = None
     roots_of = {n.account.aid: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
     kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account, ""), "expense")
-    if account is not None:
-        # From an expense category the money arrives there; from anything else it leaves.
-        if roots_of.get(account) == "Expenses":
-            to_id = account
-        elif account in roots_of:
-            from_id = account
+    if account is not None and account in roots_of:
+        from_id = account  # the money leaves the account the entry is started from
+    chosen = categories.read(category) if category is not None else None
+    if chosen is not None:
+        if chosen.kind == "spending":
+            to_id = chosen.bcid
+        else:
+            from_id, kind = chosen.bcid, "income"
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
         form_context(
             accounts,
+            categories,
             today=local_today().isoformat(),
             transaction=None,
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
@@ -788,6 +843,7 @@ def edit_transaction_page(
     request: Request,
     tid: UUID,
     accounts: Accounts,
+    categories: Categories,
     transactions: Transactions,
     back: str = "",
 ):
@@ -800,12 +856,17 @@ def edit_transaction_page(
         "transaction_form.html",
         form_context(
             accounts,
+            categories,
             editing=True,
             transaction=transaction,
             total=total,
-            from_rows=form_rows(transaction.postings, PostingSide.CREDIT),
-            to_rows=form_rows(transaction.postings, PostingSide.DEBIT),
-            related=related_info(transactions, AccountIndex.build(accounts.list()), transaction.related_id),
+            from_rows=form_rows(transaction.postings, PostingSide.CREDIT, roots=roots_by_id(accounts)),
+            to_rows=form_rows(transaction.postings, PostingSide.DEBIT, roots=roots_by_id(accounts)),
+            related=related_info(
+                transactions,
+                AccountIndex.build(accounts.list(), categories.list(include_closed=True)),
+                transaction.related_id,
+            ),
             account=None,
             back=safe_back(back, ""),
             back_url=safe_back(back),

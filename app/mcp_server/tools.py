@@ -41,10 +41,11 @@ from .context import Services, services
 INSTRUCTIONS = """\
 finode is the user's personal double-entry ledger.
 
-- Accounts form a tree under five top-level accounts: Assets, Liabilities, Equity, Income and
-  Expenses. Refer to an account by its path with ':' between names (Assets:Bank:HDFC,
-  Expenses:Food) or by the end of the path when that is unique (HDFC, Food). Call list_accounts
-  when unsure; never invent an account: ask the user, or create it with create_account if they agree.
+- Accounts form a tree under Assets, Liabilities and Equity; spending and income post to the single
+  Expenses and Income accounts and are told apart by a budget category (Food, Food:Groceries, Salary:
+  call list_categories). Refer to an account by its path with ':' between names (Assets:Bank:HDFC) or by
+  the end of the path when that is unique (HDFC); a category path (Expenses:Food, or just Food) works
+  wherever an account goes. Call list_accounts when unsure; never invent an account: ask the user, or create it with create_account if they agree.
   New users start with built-in groups under Assets (Bank Accounts, Cash, Investments) and Liabilities
   (Credit Cards, Loans); they cannot be changed or removed. Put a bank under Bank Accounts and a card under
   Credit Cards (they start as part of the budget), a fund under Investments and a loan under Loans (they
@@ -179,6 +180,24 @@ def _tool_errors(fn: Callable) -> Callable:
     return wrapper
 
 
+def _where(index: AccountIndex, account: UUID, category: UUID | None) -> str:
+    """The path an assistant knows a place by: a category's (Expenses:Food) where the money went to Expenses or came
+    from Income, else the account's."""
+    entry = index.entries.get(account)
+    if entry is not None and entry.is_root and entry.root in ("Expenses", "Income") and category in index.entries:
+        return index.path(cast(UUID, category))
+    return index.path(account)
+
+
+def _line_ref(index: AccountIndex, p) -> tuple[str, UUID]:
+    """What a line is called to an assistant: a line on Expenses or Income by its category (Expenses:Food:Groceries and
+    the category's id, which works wherever an account goes), any other line by its account."""
+    entry = index.entries.get(p.target)
+    if entry is not None and entry.is_root and entry.root in ("Expenses", "Income") and p.category in index.entries:
+        return index.path(p.category), p.category
+    return index.path(p.target), p.target
+
+
 def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[str, Any]:
     names = _categories(s) if any(p.category for p in t.postings) else CategoryIndex([])
     total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
@@ -191,8 +210,8 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
         "total": text(total),
         "postings": [
             {
-                "account": index.path(p.account),
-                "account_id": str(p.account),
+                "account": _line_ref(index, p)[0],
+                "account_id": str(_line_ref(index, p)[1]),
                 "side": p.side.value,
                 "amount": text(p.amount),
                 **({"category": names.path(p.category), "category_id": str(p.category)} if p.category else {}),
@@ -215,7 +234,7 @@ def _via(origin: str | None) -> str | None:
 
 
 def _index(s: Services) -> AccountIndex:
-    return AccountIndex(s.accounts.list())
+    return AccountIndex(s.accounts.list(), s.categories.list(include_closed=True))
 
 
 def _categories(s: Services) -> CategoryIndex:
@@ -325,7 +344,7 @@ def get_account(
     """One account: its balance and its recent entries with a running balance. Entries of sub-accounts count towards a group."""
     with services() as s:
         index = _index(s)
-        entry = index.find(account, allow_root=True)
+        entry = index.find(account, allow_root=True, accounts_only=True)
         aid = entry.account.aid
         register = s.accounts.register(aid) or []
         result: dict[str, Any] = {
@@ -675,25 +694,20 @@ def spending_breakdown(
     date_from: Annotated[date | None, Field(description="First day; the 1st of this month when left out")] = None,
     date_to: Annotated[date | None, Field(description="Last day; today when left out")] = None,
     depth: Annotated[int, Field(ge=1, le=2, description="1 = Food, Rent...; 2 = Food:Groceries...")] = 1,
-    by: Annotated[
-        Literal["category", "account"],
-        Field(
-            description="category (default): what the money was for, as the budget counts it, so paying into a loan is "
-            "spending in its category; account: the books' view per Income or Expenses account"
-        ),
-    ] = "category",
 ) -> dict[str, Any]:
-    """Expenses (or income) for a period per category (or per account), largest first."""
+    """Expenses (or income) for a period per category, largest first: what the money was for, as the budget counts
+    it, so paying into a loan is spending in its category."""
     with services() as s:
-        report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth, by)
+        report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
         return {
             "kind": kind,
             "currency": report.currency,
             "from": report.period_start.isoformat(),
             "to": report.period_end.isoformat(),
             "total": text(report.total),
-            "by": by,
-            f"by_{by}": [{by: line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines],
+            "by_category": [
+                {"category": line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines
+            ],
         }
 
 
@@ -711,14 +725,18 @@ def list_recurring() -> dict[str, Any]:
                     **(
                         {
                             "postings": [
-                                {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)}
+                                {
+                                    "account": _where(index, p.account, p.category),
+                                    "side": p.side.value,
+                                    "amount": text(p.amount),
+                                }
                                 for p in r.postings
                             ],
                         }
                         if r.postings
                         else {
-                            "from": index.path(cast(UUID, r.from_account)),
-                            "to": index.path(cast(UUID, r.to_account)),
+                            "from": _where(index, cast(UUID, r.from_account), r.category),
+                            "to": _where(index, cast(UUID, r.to_account), r.category),
                             "amount": text(r.amount),
                         }
                     ),
@@ -816,8 +834,8 @@ def _dry_run(key: str, preview: TransactionPreview, index: AccountIndex) -> dict
         "total": text(debits),
         "postings": [
             {
-                "account": index.path(p.account),
-                "account_id": str(p.account),
+                "account": _line_ref(index, p)[0],
+                "account_id": str(_line_ref(index, p)[1]),
                 "side": p.side.value,
                 "amount": text(p.amount),
             }
@@ -1099,7 +1117,7 @@ def create_account(
     """Add an account. Check list_accounts first so you don't create a duplicate."""
     with services() as s:
         index = _index(s)
-        parent_entry = index.find(parent, allow_root=True)
+        parent_entry = index.find(parent, allow_root=True, accounts_only=True)
         name = name.strip()
         siblings = [e for e in index.entries.values() if e.account.parent_id == parent_entry.account.aid]
         twin = next((e for e in siblings if e.account.name.casefold() == name.casefold()), None)
@@ -1149,14 +1167,14 @@ def update_account(
     Opening Balances cannot be changed. Tell the user what you are changing first."""
     with services() as s:
         index = _index(s)
-        entry = index.find(account)
+        entry = index.find(account, accounts_only=True)
         changes: dict[str, Any] = {}
         if name is not None:
             changes["name"] = name
         if details is not None:
             changes["details"] = details.strip() or None
         if parent is not None:
-            changes["parent_id"] = index.find(parent, allow_root=True).account.aid
+            changes["parent_id"] = index.find(parent, allow_root=True, accounts_only=True).account.aid
         if on_budget is not None:
             changes["on_budget"] = on_budget
         if payment_category is not None:
@@ -1177,7 +1195,7 @@ def close_account(account: AccountRef) -> dict[str, Any]:
     pickers, but its history stays and the user can reopen it. Refused while anything inside still holds money or
     a recurring transaction still uses it."""
     with services() as s:
-        entry = _index(s).find(account)
+        entry = _index(s).find(account, accounts_only=True)
         s.accounts.close(entry.account.aid)
         fresh = _index(s)
         return {"closed": _account_row(fresh.entries[entry.account.aid], fresh)}
@@ -1187,7 +1205,7 @@ def close_account(account: AccountRef) -> dict[str, Any]:
 def reopen_account(account: AccountRef) -> dict[str, Any]:
     """Reopen a closed account with everything inside it, and the groups above it."""
     with services() as s:
-        entry = _index(s).find(account)
+        entry = _index(s).find(account, accounts_only=True)
         s.accounts.reopen(entry.account.aid)
         fresh = _index(s)
         return {"reopened": _account_row(fresh.entries[entry.account.aid], fresh)}
@@ -1205,8 +1223,8 @@ def merge_accounts(
     first, tell the user what would move, and only merge after their go-ahead."""
     with services() as s:
         index = _index(s)
-        source = index.find(from_account)
-        target = index.find(into_account)
+        source = index.find(from_account, accounts_only=True)
+        target = index.find(into_account, accounts_only=True)
         done = s.accounts.merge(source.account.aid, target.account.aid, dry_run)
         out = {
             "dry_run": done.dry_run,
@@ -1302,7 +1320,7 @@ def create_recurring(
             if source is not None and target is not None
             else {
                 "postings": [
-                    {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)}
+                    {"account": _where(index, p.account, p.category), "side": p.side.value, "amount": text(p.amount)}
                     for p in rule.postings
                 ]
             }
@@ -1390,7 +1408,7 @@ def _month(value: str | None) -> date | None:
 
 def _category(index: AccountIndex, text: str):
     entry = index.find(text)
-    if entry.root != "Expenses" or entry.account.parent_id is None:
+    if entry.root != "Expenses" or entry.is_root:
         raise ToolError(f"'{entry.path}' is not an expense account: budget categories are expense accounts!")
     return entry
 

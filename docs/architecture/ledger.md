@@ -13,23 +13,21 @@ flowchart TD
     Bank --> SBI["SBI (account)"]
     A --> Cash["Cash (account)"]
     L[Liabilities] --> Card["Credit card"]
-    E[Expenses] --> Food[Food]
-    Food --> Groc["Groceries"]
-    Food --> Eat["Eating out"]
-    I[Income] --> Sal[Salary]
+    E["Expenses (takes every expense)"]
+    I["Income (takes every income)"]
     Eq[Equity] --> OB["Opening Balances (system)"]
 ```
 
-In the web app, **Assets, Liabilities and Equity** are shown as *Accounts* and **Expenses and Income** as *Categories*. This is presentation only; a category is an Expenses or Income account everywhere else (database, API, backup, MCP).
+**Assets, Liabilities and Equity** hold the accounts. **Expenses and Income are single accounts that nothing is made under**: an expense debits `Expenses`, an income credits `Income`, and the line says what it was for with a **budget category** (`postings.category_id`, a table of its own, two levels: Food › Groceries). A category is a label, not an account; there are no ghost accounts such as `Expenses:EMI:Loans`. The journal export writes a category as `Expenses:Food:Groceries` so other ledger tools can read it.
 
 Rules enforced by `AccountService`:
 
-- **Two levels.** Accounts go at most two levels below a root (`MAX_ACCOUNT_DEPTH = 2`): `Expenses › Food › Groceries` is the deepest there is.
+- **Two levels.** Accounts go at most two levels below a root (`MAX_ACCOUNT_DEPTH = 2`): `Assets › Banks › HDFC` is the deepest there is; categories are two levels too (Food › Groceries).
 - **Names** are trimmed, visible, on one line, at most 40 characters and cannot contain `:` (it is the path separator, as in `Assets:Bank:HDFC`). They are **unique among their siblings, capitals aside** (`_check_name_free`), because the paths name accounts in journal files and for assistants. A journal import is case-sensitive, like the format, and may create `Food` and `food` side by side.
 - **Dates** a person can enter lie between 1 Jan 1900 and 31 Dec 2999 (`clock.FIRST_DAY`, `LAST_DAY`, the `Day` type). Past the ends the month arithmetic could fail, so the edges are refused with a message rather than allowed to break pages.
 - **Text** never holds a NUL character (Postgres cannot store it); it is dropped on every write.
-- **No posting to a root.** Postings may not target a root account.
-- **Groups.** An Assets or Liabilities account that has sub-accounts cannot be posted to, and cannot gain sub-accounts once it has postings. Income and Expenses groups *can* be posted to (`GROUP_POSTING_ROOT_NAMES`); the budget shows that money as "Everything else".
+- **No posting to a root** except `Expenses` and `Income`, which take every expense and income.
+- **Groups.** An Assets or Liabilities account that has sub-accounts cannot be posted to, and cannot gain sub-accounts once it has postings. A category that has subcategories can be labelled on a line itself; the budget shows that money as "Everything else".
 - **No reclassifying.** An account cannot move under a different root, because that would silently change what its history means.
 - **Opening Balances** is a system account under Equity. Opening balances and direct balance edits are posted against it. It cannot be renamed, moved, deleted or given a balance directly.
 - **Closing.** A closed account keeps its history but cannot be posted to. Closing is refused while it holds a balance or a running recurring rule uses it. For a category the word is *Delete*: an unused one is removed for good, one with history is closed instead.
@@ -63,7 +61,7 @@ Which side raises a balance:
 
 An account cannot be on both sides of one entry (money cannot move from an account to itself); the same account on several rows of one side is an ordinary split.
 
-So buying groceries with cash is: debit `Expenses:Food:Groceries`, credit `Assets:Cash`, same amount.
+So buying groceries with cash is: debit `Expenses` (labelled with the category Groceries), credit `Assets:Cash`, same amount.
 
 `TransactionService._resolve` is where the invariants live: it checks that postings balance, that every account belongs to the person, that none is closed, deleted or a forbidden target, the decimal places the currency allows, and the per-person limits. The web form, the API, imports, recurring rules and the assistants all create transactions through this one service.
 

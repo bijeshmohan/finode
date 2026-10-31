@@ -11,6 +11,8 @@ from app.config import settings
 from app.dependencies import get_db_session
 from app.main import app
 
+from .books import post_account
+
 USER_A_ID = UUID("00000000-0000-4000-8000-00000000000a")
 USER_B_ID = UUID("00000000-0000-4000-8000-00000000000b")
 
@@ -78,14 +80,8 @@ def test_users_can_only_access_their_own_data(session: Session):
         with TestClient(app) as client:
             authenticate_as(USER_A_ID)
             roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
-            account = client.post(
-                "/api/accounts/",
-                json={"name": "checking", "details": None, "parent_id": roots["Assets"]},
-            ).json()
-            expense_account = client.post(
-                "/api/accounts/",
-                json={"name": "groceries", "parent_id": roots["Expenses"]},
-            ).json()
+            account = post_account(client, {"name": "checking", "details": None, "parent_id": roots["Assets"]}).json()
+            expense_account = post_account(client, {"name": "groceries", "parent_id": roots["Expenses"]}).json()
             transaction = client.post(
                 "/api/transactions/",
                 json={

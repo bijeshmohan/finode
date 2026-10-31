@@ -26,6 +26,7 @@ from app.services.api_token import ApiTokenService
 from app.services.oauth_grant import OAuthGrantService
 from app.web_auth import web_login_required
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .svc import plain, services
@@ -75,8 +76,6 @@ LISTS = {
     ("GET", "/accounts/options"),
     ("GET", "/accounts/quick"),
     ("GET", "/api/accounts/"),
-    ("GET", "/books"),
-    ("GET", "/books/new"),
     ("GET", "/api/categories/"),
     ("GET", "/api/backup"),
     ("GET", "/api/budget/"),
@@ -131,7 +130,8 @@ REFERENCES = {
     ("POST", "/accounts/quick"),
     ("POST", "/api/accounts/"),
     ("POST", "/api/categories/"),
-    ("POST", "/books"),
+    ("POST", "/categories"),
+    ("POST", "/categories/quick"),
     ("POST", "/api/import"),
     ("PATCH", "/api/profile/"),
     ("POST", "/api/recurring/"),
@@ -237,14 +237,15 @@ def world(client: TestClient, session, rich) -> World:
     assets = next(
         a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets"
     )
-    shelf = client.post("/api/accounts/", json={"name": "Spare shelf", "parent_id": assets}).json()["aid"]
+    shelf = post_account(client, {"name": "Spare shelf", "parent_id": assets}).json()["aid"]
     client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
     w.dids = [str(d["did"]) for d in services(session).accounts.restorable()]
     client.post("/budget/goal", data={"name": "Isolated holiday", "amount": "5000", "by": "2999-12", "assign_now": "1"})
     w.goal_ids = [g["gid"] for g in client.get("/api/budget/").json()["goals"]]
     doc = client.get("/api/backup").json()
     w.backup = doc
-    w.accounts = {a["name"]: a["id"] for a in doc["accounts"]}
+    w.categories = {c["name"]: c["id"] for c in doc["categories"]}
+    w.accounts = {**{a["name"]: a["id"] for a in doc["accounts"]}, **w.categories}
     w.roots = [a["id"] for a in doc["accounts"] if a["parent_id"] is None]
     w.tags = sorted({name for t in doc["transactions"] for name in t.get("tags", [])})
     w.tids = [t["id"] for t in doc["transactions"]] + [spare["tid"]]
@@ -260,10 +261,8 @@ def world(client: TestClient, session, rich) -> World:
     with signed_in_as(B_USER):
         roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
         w.b_roots = roots
-        w.b_mine = client.post(
-            "/api/accounts/", json={"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}
-        ).json()
-        w.b_bills = client.post("/api/accounts/", json={"name": "Bills", "parent_id": roots["Expenses"]}).json()
+        w.b_mine = post_account(client, {"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}).json()
+        w.b_bills = post_account(client, {"name": "Bills", "parent_id": roots["Expenses"]}).json()
         client.post(
             "/api/transactions/",
             json={
@@ -304,7 +303,7 @@ def id_routes() -> list[tuple[str, str]]:
 def candidates(world: World, name: str) -> list[str]:
     return {
         "aid": [*world.accounts.values(), *world.roots],
-        "bcid": list(world.accounts.values()),  # a category has the id of its books account
+        "bcid": list(world.categories.values()),
         "tid": world.tids,
         "hid": world.hids,
         "did": world.dids,
@@ -393,9 +392,9 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
         }
         assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"]} == {
             "Mine",
-            "Bills",
             "Opening Balances",
         }
+        assert {c["name"] for c in client.get("/api/categories/").json()} == {"Bills"}
         assert sorted(t["payee"] for t in client.get("/api/transactions/").json() if t["payee"]) == [
             "Opening balance",
             "Power",
@@ -474,15 +473,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             json={"name": "Mine", "kind": "spending", "parent_id": a["Groceries"]},
         )
         refused("a category merged into A's", "POST", f"/api/categories/{bills}/merge", json={"into": a["Groceries"]})
-        refused(
-            "a books account feeding A's category", "POST", "/books", data={"name": "Mine", "category": a["Groceries"]}
-        )
-        refused(
-            "an API account feeding A's category",
-            "POST",
-            "/api/accounts/",
-            json={"name": "Mine", "parent_id": world.b_bills["parent_id"], "category_id": a["Groceries"]},
-        )
         refused(
             "batch with A's account",
             "POST",
@@ -594,6 +584,10 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         )
         refused("move page for A's category", "GET", "/budget/move", params={"source": a["Groceries"]})
         refused("quick account under A's group", "POST", "/accounts/quick", data={"name": "x", "parent_id": a["Banks"]})
+        refused(
+            "quick category inside A's", "POST", "/categories/quick", data={"name": "x", "parent_id": a["Groceries"]}
+        )
+        refused("a category inside A's", "POST", "/categories", data={"name": "x", "parent_id": a["Groceries"]})
         refused("account form under A's group", "POST", "/accounts", data={"name": "x", "parent_id": a["Banks"]})
     assert len(refusals) >= 18
     assert books_of(client, TEST_USER_ID) == before_a, "A's books were changed"

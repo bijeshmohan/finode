@@ -5,6 +5,7 @@ from uuid import UUID
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .svc import services
 
@@ -54,8 +55,8 @@ def test_the_link_must_lead_to_one_of_your_own_entries(client, account, expense_
     try:
         as_user(OTHER)
         roots = {x["name"]: x["aid"] for x in client.get("/api/accounts/").json() if x["parent_id"] is None}
-        bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": roots["Assets"]}).json()
-        food = client.post("/api/accounts/", json={"name": "Food", "parent_id": roots["Expenses"]}).json()
+        bank = post_account(client, {"name": "Bank", "parent_id": roots["Assets"]}).json()
+        food = post_account(client, {"name": "Food", "parent_id": roots["Expenses"]}).json()
         theirs = {
             "postings": [
                 {"account": food["aid"], "side": "debit", "amount": "5"},

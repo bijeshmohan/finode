@@ -11,6 +11,8 @@ from app.dependencies import get_db_session
 from app.main import app
 from app.web_auth import web_login_required
 
+from .books import category
+
 TEST_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
 
 
@@ -134,23 +136,13 @@ def other_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
 
 
 @pytest.fixture
-def expense_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
-    response = client.post(
-        "/api/accounts/",
-        json={"name": "groceries", "details": None, "parent_id": root_accounts["Expenses"]},
-    )
-    assert response.status_code == 201
-    return response.json()
+def expense_account(client: TestClient) -> dict:
+    return category(client, "groceries")
 
 
 @pytest.fixture
-def income_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
-    response = client.post(
-        "/api/accounts/",
-        json={"name": "salary", "details": None, "parent_id": root_accounts["Income"]},
-    )
-    assert response.status_code == 201
-    return response.json()
+def income_account(client: TestClient) -> dict:
+    return category(client, "salary", "earning")
 
 
 @pytest.fixture

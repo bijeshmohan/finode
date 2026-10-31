@@ -40,11 +40,11 @@ def test_every_group_is_open_under_its_heading_and_nothing_folds(page: Page, api
     assert "equity › opening balances" not in shown, "Equity is not listed on the other chips"
 
 
-def test_the_chips_switch_between_rows_and_the_chosen_one_leads_to_the_other_row(page: Page, api, books):
+def test_the_chips_switch_between_assets_and_liabilities_and_equity_is_neither(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
     chips = page.locator(".cat-chips .chip")
-    assert chips.all_inner_texts() == ["Asset", "Liability"]
+    assert chips.all_inner_texts() == ["Asset", "Liability"], "Equity has no chip"
     expect(chips.nth(0)).to_have_attribute("aria-pressed", "true")
     page.get_by_role("link", name="Liability").click()
     page.wait_for_url("**/accounts?tab=liabilities")
@@ -53,17 +53,12 @@ def test_the_chips_switch_between_rows_and_the_chosen_one_leads_to_the_other_row
     expect(page.locator(".cat-chips .chip").nth(1)).to_have_attribute("aria-pressed", "true")
     page.get_by_role(
         "link", name="Liability"
-    ).click()  # tapping the chosen chip again swaps the row: Expense, Equity (chosen) and Income
+    ).click()  # tapping the chosen chip again leaves neither chosen: that is Equity
     page.wait_for_url("**/accounts?tab=equity")
     assert visible(page) == ["equity › opening balances"]
-    assert page.locator(".cat-chips .chip").all_inner_texts() == ["Expense", "Equity", "Income"]
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Equity")
-    page.get_by_role("link", name="Income").click()
-    page.wait_for_url("**/accounts?tab=income")
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Income")
-    page.get_by_role("link", name="Income").click()  # the chosen chip again goes back to Asset and Liability
+    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_count(0)
+    page.get_by_role("link", name="Asset", exact=True).click()
     page.wait_for_url("**/accounts?tab=assets")
-    assert chips.all_inner_texts() == ["Asset", "Liability"]
 
 
 def test_a_groups_heading_goes_to_its_page(page: Page, api, books):

@@ -20,10 +20,10 @@ The decisions that look odd until you know the reason. Each entry says what was 
 **Why (inferred).** Deep trees make every list, picker and budget screen harder to read, especially on a phone. Templates and the budget only ever nest a group once, which keeps the UI simple. (An earlier version had a per-person depth limit; it was removed.)
 **Cost.** People who want finer detail use notes or more categories.
 
-## Categories are accounts
+## Categories are labels, not accounts (2026-10-31)
 
-**Decision.** A category is an Expenses or Income account. The web app shows them on a separate page, but nothing else treats them differently.
-**Why.** Double entry already says what spending is: a debit to an expense account. One tree and one posting rule cover accounts and categories, and reports are just sums over postings.
+**Decision.** The books are pure: an expense debits the root `Expenses` account and an income credits `Income`; the line carries a budget category (`postings.category_id`). Nothing is made under Expenses or Income, and there is no "books accounts" feature. This replaced "a category is an Expenses or Income account" (and the interim pairing of each category with an account of the same id).
+**Why.** The pairing left ghost accounts (`Expenses:EMI:Loans`) with a zero balance next to transactions, and two trees to keep in step. The budget layer already stood on its own; the books only need one place for spending to land. Category ids equal the old account ids, so links, API clients and exports keep working, and the journal export still writes `Expenses:Food:Groceries`.
 
 ## Postings have positive amounts and a side
 
@@ -126,4 +126,4 @@ The owner froze new features on 2026-10-14 and defined the MVP on 2026-10-18: co
 
 **Decision.** The budget plans against `budget_categories` (spending or earning, two levels), not against Expenses accounts. A category is a label on each line of a transaction (`postings.category_id`), so one entry can be split over several categories and a payment into a loan can carry "EMI" without any expense account being made up for it. An Income or Expenses account stands for a category (`accounts.category_id`; by default its own, with the same id), and extra books accounts may feed a category (Interest under EMI).
 **Why.** The old design made "ghost" accounts such as `Expenses:EMI:Loans` just to hang a plan on, repeated the loan-payment rule in five places, and mixed what money was for with what the books record. The owner asked for a budgeting layer on top of the books (2026-10-28), flexible for a person who only wants to budget an EMI and for one who wants interest as a real expense.
-**Cost.** Two things that used to be one (a category and its account) are kept in step by `AccountRepository` for the accounts that stand for a category. A category's own account cannot be re-pointed, and a line that names only a category relies on the books account having the category's id (documented in `PostingCreate`). Reports speak two languages (by category, by account) and say so.
+**Cost.** The books lose the per-account expense view (the journal export recreates it from the labels). A line may name a category in place of an account (`PostingCreate`), which keeps old API clients working.

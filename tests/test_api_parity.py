@@ -4,6 +4,8 @@ from datetime import date, timedelta
 
 import pytest
 
+from .books import post_account
+
 TODAY = date.today()
 THIS_MONTH = TODAY.replace(day=1).isoformat()
 MISSING = "00000000-0000-4000-8000-0000000000aa"
@@ -12,7 +14,7 @@ MISSING = "00000000-0000-4000-8000-0000000000aa"
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, root, **extra):
-        response = client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra})
+        response = post_account(client, {"name": name, "parent_id": root_accounts[root], **extra})
         assert response.status_code == 201, response.text
         return response.json()
 
@@ -192,17 +194,15 @@ def test_move_and_copy_budget_money(client, books):
 
 
 def test_include_an_account_in_the_budget(client, books):
-    out = client.post(
-        "/api/accounts/", json={"name": "Outside", "parent_id": books["bank"]["parent_id"], "on_budget": False}
-    ).json()
+    out = post_account(client, {"name": "Outside", "parent_id": books["bank"]["parent_id"], "on_budget": False}).json()
     done = client.post(f"/api/budget/accounts/{out['aid']}/include")
     assert done.status_code == 200 and client.get(f"/api/accounts/{out['aid']}").json()["on_budget"] is True
     assert client.post(f"/api/budget/accounts/{MISSING}/include").status_code == 404
 
 
 def test_a_group_budget(client, books, root_accounts):
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": root_accounts["Expenses"]}).json()
-    cafe = client.post("/api/accounts/", json={"name": "Cafe", "parent_id": dining["aid"]}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": root_accounts["Expenses"]}).json()
+    cafe = post_account(client, {"name": "Cafe", "parent_id": dining["aid"]}).json()
     client.put(f"/api/budget/categories/{cafe['aid']}", json={"amount": "40"})
     assert client.put(f"/api/budget/groups/{dining['aid']}", json={"total": "10"}).status_code == 400, (
         "below its categories"

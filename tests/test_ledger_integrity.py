@@ -110,22 +110,19 @@ def test_entries_dated_in_the_future_do_not_count_yet(client, root_accounts, acc
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
     post(client, account, expense_account, "10", on=date.today().isoformat())
     post(client, account, expense_account, "25", on=tomorrow)
-    assert client.get(f"/api/accounts/{expense_account['aid']}").json()["balance"] == "10.00"
-    assert (
-        client.get(f"/api/accounts/{expense_account['aid']}", params={"as_of": tomorrow}).json()["balance"] == "35.00"
-    )
+    expenses = root_accounts["Expenses"]
+    assert client.get(f"/api/accounts/{expenses}").json()["balance"] == "10.00"
+    assert client.get(f"/api/accounts/{expenses}", params={"as_of": tomorrow}).json()["balance"] == "35.00"
     listed = {a["name"]: a for a in client.get("/api/accounts/", params={"as_of": tomorrow}).json()}
     assert listed["Expenses"]["balance"] == "35.00"
     assert {a["name"]: a for a in client.get("/api/accounts/").json()}["Expenses"]["balance"] == "10.00"
 
 
-def test_a_balance_as_of_a_past_day(client, account, expense_account):
+def test_a_balance_as_of_a_past_day(client, root_accounts, account, expense_account):
     post(client, account, expense_account, "10", on="2026-01-05")
     post(client, account, expense_account, "20", on="2026-03-05")
-    assert (
-        client.get(f"/api/accounts/{expense_account['aid']}", params={"as_of": "2026-02-01"}).json()["balance"]
-        == "10.00"
-    )
+    expenses = root_accounts["Expenses"]
+    assert client.get(f"/api/accounts/{expenses}", params={"as_of": "2026-02-01"}).json()["balance"] == "10.00"
 
 
 # ---- stable postings -----------------------------------------------------------------------------
@@ -152,7 +149,9 @@ def test_correcting_an_amount_keeps_the_postings(client, account, expense_accoun
     assert client.get(f"/api/transactions/{made['tid']}").json()["postings"][0]["amount"] in ("12.00", "12")
 
 
-def test_moving_a_side_to_another_account_replaces_only_that_posting(client, account, other_account, expense_account):
+def test_moving_a_side_to_another_account_replaces_only_that_posting(
+    client, root_accounts, account, other_account, expense_account
+):
     made = post(client, account, expense_account, "10")
     before = ids(client, made["tid"])
     client.patch(
@@ -165,7 +164,8 @@ def test_moving_a_side_to_another_account_replaces_only_that_posting(client, acc
         },
     )
     after = ids(client, made["tid"])
-    assert after[(expense_account["aid"], "debit")] == before[(expense_account["aid"], "debit")]
+    expenses = root_accounts["Expenses"]
+    assert after[(expenses, "debit")] == before[(expenses, "debit")]
     assert (account["aid"], "credit") not in after and (other_account["aid"], "credit") in after
 
 

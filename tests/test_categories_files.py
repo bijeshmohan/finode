@@ -68,13 +68,14 @@ def test_a_rule_can_name_the_category_of_what_it_pays(client, books):
 
 
 def test_a_rule_with_a_category_that_does_not_fit_is_refused(client, books):
+    salary = client.post("/api/categories/", json={"name": "Salary", "kind": "earning"}).json()
     response = client.post(
         "/api/recurring/",
         json={
             "from_account": books["bank"]["aid"],
-            "to_account": books["food"]["aid"],
+            "to_account": books["loan"]["aid"],
             "amount": "10",
-            "category": books["emi"]["aid"],
+            "category": salary["bcid"],
         },
     )
     assert response.status_code == 400
@@ -121,7 +122,7 @@ def test_a_backup_carries_the_category_of_each_line_and_rule_and_restoring_gives
     paid(client, books["bank"], books["food"], "40")
     make_rule(client, books, category=books["emi"]["aid"])
     doc = client.get("/api/backup").json()
-    assert doc["version"] == 4
+    assert doc["version"] == 5 and {c["name"] for c in doc["categories"]} >= {"SIP", "Food", "EMI"}
     labelled = [p for t in doc["transactions"] for p in t["postings"] if p["category"]]
     assert {p["category"] for p in labelled} == {books["sip"]["aid"], books["food"]["aid"], books["emi"]["aid"]}
     assert doc["recurring"][0]["category"] == books["emi"]["aid"]
@@ -129,7 +130,7 @@ def test_a_backup_carries_the_category_of_each_line_and_rule_and_restoring_gives
         as_user(OTHER)
         assert restore(client, doc).status_code == 200
         again = client.get("/api/backup").json()
-        names = {a["id"]: a["name"] for a in again["accounts"]}
+        names = {c["id"]: c["name"] for c in again["categories"]}
         got = {names[p["category"]] for t in again["transactions"] for p in t["postings"] if p["category"]}
         assert got == {"SIP", "Food", "EMI"}
         assert names[again["recurring"][0]["category"]] == "EMI"
@@ -139,18 +140,40 @@ def test_a_backup_carries_the_category_of_each_line_and_rule_and_restoring_gives
         as_user(TEST_USER_ID)
 
 
-def test_an_older_backup_without_categories_still_restores_with_the_accounts_labels(client, books):
-    client.patch(f"/api/accounts/{books['loan']['aid']}", json={"payment_category_id": books["emi"]["aid"]})
-    paid(client, books["bank"], books["loan"], "700")
-    doc = client.get("/api/backup").json()
-    doc["version"] = 3
+def as_old_file(doc, version=3):
+    """A backup as finode wrote it before categories stood alone: every category an Expenses or Income account, a line to
+    one posting to it, and no list of categories."""
+    roots = {a["name"]: a["id"] for a in doc["accounts"] if a["parent_id"] is None}
+    root_of = {"spending": roots["Expenses"], "earning": roots["Income"]}
+    expenses = {v: k for k, v in root_of.items()}
+    for c in doc.pop("categories"):
+        doc["accounts"].append(
+            {
+                "id": c["id"],
+                "parent_id": c["parent_id"] or root_of[c["kind"]],
+                "name": c["name"],
+                "details": c["details"],
+                "closed_on": c["closed_on"],
+            }
+        )
     for t in doc["transactions"]:
         for p in t["postings"]:
-            p.pop("category", None)
+            if p["account"] in expenses:
+                p["account"], p["category"] = p["category"], None
+    doc["version"] = version
+    return doc
+
+
+def test_an_older_backup_with_categories_as_accounts_still_restores(client, books):
+    client.patch(f"/api/accounts/{books['loan']['aid']}", json={"payment_category_id": books["emi"]["aid"]})
+    paid(client, books["bank"], books["loan"], "700")
+    paid(client, books["bank"], books["food"], "40")
+    doc = as_old_file(client.get("/api/backup").json())
     try:
         as_user(OTHER)
         assert restore(client, doc).status_code == 200
         assert line(client.get("/api/budget/").json(), "EMI")["activity"] == "700.00"
+        assert line(client.get("/api/budget/").json(), "Food")["activity"] == "40.00"
     finally:
         as_user(TEST_USER_ID)
 
@@ -160,7 +183,7 @@ def test_a_closed_category_is_still_closed_after_a_restore(client, books, sessio
 
     from app.models.category import BudgetCategory
 
-    client.post(f"/api/accounts/{books['sip']['aid']}/close")
+    client.post(f"/api/categories/{books['sip']['aid']}/close")
     doc = client.get("/api/backup").json()
     try:
         as_user(OTHER)
@@ -174,12 +197,14 @@ def test_a_closed_category_is_still_closed_after_a_restore(client, books, sessio
 def test_a_backup_with_a_category_that_does_not_fit_is_refused(client, books):
     paid(client, books["bank"], books["food"], "40")
     doc = client.get("/api/backup").json()
-    to_food = next(p for t in doc["transactions"] for p in t["postings"] if p["account"] == books["food"]["aid"])
-    to_food["category"] = books["emi"]["aid"]  # a line to Food naming EMI
+    salary = {"id": "00000000-0000-4000-8000-0000000000e1", "name": "Salary", "kind": "earning"}
+    doc["categories"].append(salary)
+    to_food = next(p for t in doc["transactions"] for p in t["postings"] if p["category"] == books["food"]["aid"])
+    to_food["category"] = salary["id"]  # an earning category on a line to Expenses
     try:
         as_user(OTHER)
         refused = restore(client, doc)
-        assert refused.status_code == 400 and "other than its own" in refused.text
+        assert refused.status_code == 400 and "earning category on a line to Expenses" in refused.text
     finally:
         as_user(TEST_USER_ID)
 
@@ -201,8 +226,9 @@ def test_a_payment_into_a_loan_is_exported_with_its_category_and_imported_back(c
         done = client.post("/api/import", files={"file": ("a.ledger", text.encode())})
         assert done.status_code == 200, done.text
         names = {a["aid"]: a["name"] for a in client.get("/api/accounts/").json()}
+        category_names = {c["bcid"]: c["name"] for c in client.get("/api/categories/").json()}
         labelled = {
-            names[p["category"]]
+            category_names[p["category"]]
             for t in client.get("/api/transactions/").json()
             for p in t["postings"]
             if p["category"] and names[p["account"]] == "Home Loan"

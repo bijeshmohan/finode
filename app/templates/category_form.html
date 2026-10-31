@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% set editing = category is not none %}
+{% block title %}{{ "Edit " ~ category.name if editing else "Add category" }} · finode{% endblock %}
+{% block content %}
+<a class="back" href="{{ ('/categories/' ~ category.bcid) if editing else ('/categories?tab=' ~ tab) }}">{{ icon("back") }}{{ category.name if editing else "Categories" }}</a>
+<h1>{{ "Edit category" if editing else "Add category" }}</h1>
+
+<form class="card stack form-narrow" hx-post="{{ '/categories/' ~ category.bcid ~ '/edit' if editing else '/categories' }}">
+  <input type="hidden" name="kind" value="{{ kind }}">
+  <label>Name
+    <input type="text" name="name" maxlength="40" required value="{{ category.name if editing else '' }}"
+           placeholder="{{ 'e.g. Groceries' if kind == 'spending' else 'e.g. Salary' }}" {{ "autofocus" if not editing }}>
+  </label>
+  {% if groups or parent_id %}
+  <label>Under
+    <select name="parent_id">
+      <option value="">None (top level)</option>
+      {% for g in groups %}<option value="{{ g.bcid }}" {{ "selected" if g.bcid == parent_id }}>{{ g.name }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  {% set note = (category.details or '') if editing else '' %}
+  <details class="add-note" {{ "open" if note }}>
+    <summary>{{ "Note" if note else "+ Add a note" }}</summary>
+    <label>
+      <input type="text" name="details" maxlength="200" value="{{ note }}" aria-label="Notes">
+    </label>
+  </details>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions">
+    <button type="submit">{{ "Save changes" if editing else "Add category" }}</button>
+  </div>
+</form>
+
+{% if editing %}
+<section class="danger-zone form-narrow">
+  <p id="page-error" class="error" role="alert"></p>
+  <button type="button" class="danger"
+          hx-post="/categories/{{ category.bcid }}/delete"
+          hx-confirm="Delete category '{{ category.name }}'?">{{ icon("trash") }}Delete category</button>
+  <p class="hint muted">A category that was never used is removed for good. One with entries stays in your history and reports, but leaves your lists and pickers.</p>
+</section>
+{% endif %}
+{% endblock %}

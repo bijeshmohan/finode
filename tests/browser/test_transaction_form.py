@@ -59,7 +59,7 @@ def test_saving_an_expense(page: Page, books, api: Api):
     expect(page.locator("a.tx.tx-new")).to_contain_text("DMart")
     [entry] = [t for t in api.get("/transactions/") if t["payee"] == "DMart"]
     assert {(p["side"], p["amount"]) for p in entry["postings"]} == {("debit", "250.00"), ("credit", "250.00")}
-    assert api.get(f"/accounts/{books['food']['aid']}")["balance"] == "250.00"
+    assert api.get(f"/categories/{books['food']['aid']}/register")[-1]["balance"] == "250.00"
 
 
 def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
@@ -112,11 +112,11 @@ def test_adding_an_account_from_the_picker(page: Page, books, api: Api):
     dialog = page.locator("#quick-account")
     expect(dialog).to_be_visible()
     dialog.locator('input[name="name"]').fill("Coffee")
-    dialog.get_by_role("button", name="Add account").click()
+    dialog.get_by_role("button", name="Add category").click()
     expect(dialog).not_to_be_visible()
     chosen = page.eval_on_selector('[data-rows="debit"] select', "s => s.selectedOptions[0].textContent")
-    assert chosen == "Coffee", "the new account is chosen"
-    assert any(a["name"] == "Coffee" for a in api.get("/accounts/"))
+    assert chosen == "Coffee", "the new category is chosen"
+    assert any(c["name"] == "Coffee" for c in api.get("/categories/"))
 
 
 def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
@@ -166,7 +166,7 @@ def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(p
     page.wait_for_url("**/transactions")
     newest = api.get("/transactions/")[0]
     assert newest["payee"] == "Swiggy" and {p["amount"] for p in newest["postings"]} == {"250.00"}
-    assert {(p["account"], p["side"]) for p in newest["postings"]} == {
+    assert {(p["category"] or p["account"], p["side"]) for p in newest["postings"]} == {
         (books["card"]["aid"], "credit"),
         (books["food"]["aid"], "debit"),
     }

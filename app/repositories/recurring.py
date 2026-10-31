@@ -189,3 +189,82 @@ class RecurringRepository:
             is not None
             or db.exec(select(RecurringPosting.rpid).where(RecurringPosting.account == aid)).first() is not None
         )
+
+    @staticmethod
+    def active_rules_for_category(db: Session, uid: UUID, bcid: UUID) -> builtins.list[RecurringTransaction]:
+        """Rules that still run and record into this category (on the rule or on one of its rows)."""
+        by_rows = set(
+            db.exec(
+                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.category_id == bcid)
+            ).all()
+        )
+        return [
+            rule
+            for rule in db.exec(
+                select(RecurringTransaction).where(
+                    RecurringTransaction.user == uid, col(RecurringTransaction.active).is_(True)
+                )
+            ).all()
+            if rule.category_id == bcid or rule.rid in by_rows
+        ]
+
+    @staticmethod
+    def uses_category(db: Session, uid: UUID, bcid: UUID) -> bool:
+        """Whether any rule (running or not) is labelled with the category."""
+        return (
+            db.exec(
+                select(RecurringTransaction.rid).where(
+                    RecurringTransaction.user == uid, RecurringTransaction.category_id == bcid
+                )
+            ).first()
+            is not None
+            or db.exec(
+                select(RecurringPosting.rpid).where(RecurringPosting.user == uid, RecurringPosting.category_id == bcid)
+            ).first()
+            is not None
+        )
+
+    @staticmethod
+    def rules_for_category(db: Session, uid: UUID, bcid: UUID) -> int:
+        """How many rules (running or not) are labelled with the category."""
+        by_rows = set(
+            db.exec(
+                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.category_id == bcid)
+            ).all()
+        )
+        by_rule = set(
+            db.exec(
+                select(RecurringTransaction.rid).where(
+                    RecurringTransaction.user == uid, RecurringTransaction.category_id == bcid
+                )
+            ).all()
+        )
+        return len(by_rows | by_rule)
+
+    @staticmethod
+    def repoint_category(db: Session, uid: UUID, source: UUID, target: UUID) -> int:
+        """Rules labelled with `source` are labelled with `target` instead (a merge). Returns how many rules changed."""
+        rules = set(
+            db.exec(
+                select(RecurringTransaction.rid).where(
+                    RecurringTransaction.user == uid, RecurringTransaction.category_id == source
+                )
+            ).all()
+        ) | set(
+            db.exec(
+                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.category_id == source)
+            ).all()
+        )
+        db.exec(
+            update(RecurringTransaction)
+            .where(RecurringTransaction.user == uid, RecurringTransaction.category_id == source)
+            .values(category_id=target)
+        )
+        db.exec(
+            update(RecurringPosting)
+            .where(RecurringPosting.user == uid, RecurringPosting.category_id == source)
+            .values(category_id=target)
+        )
+        db.expire_all()
+        db.flush()
+        return len(rules)

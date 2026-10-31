@@ -14,6 +14,7 @@ from app.repositories.api_token import ApiTokenRepository
 from app.schemas.api_token import ApiTokenCreate
 from app.services.api_token import ApiTokenService, hash_secret
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 
@@ -109,7 +110,7 @@ async def test_a_read_only_token_can_see_but_not_use_write_tools(session, root_a
 
 
 async def test_each_token_sees_only_its_own_users_books(session, client, root_accounts):
-    client.post("/api/accounts/", json={"name": "Mine", "parent_id": root_accounts["Assets"], "balance": "500"})
+    post_account(client, {"name": "Mine", "parent_id": root_accounts["Assets"], "balance": "500"})
     theirs = make_token(session, OTHER_USER, name="Theirs")
     async with running_app(session), mcp_client(theirs) as c:
         accounts = payload(await c.call_tool("list_accounts", {}))["accounts"]

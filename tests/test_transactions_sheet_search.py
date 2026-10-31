@@ -5,13 +5,14 @@ from datetime import date
 
 import pytest
 
+from .books import post_account
 from .htmlutil import option_selected
 
 
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, root, **extra):
-        response = client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra})
+        response = post_account(client, {"name": name, "parent_id": root_accounts[root], **extra})
         assert response.status_code == 201, response.text
         return response.json()
 

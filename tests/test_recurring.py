@@ -11,6 +11,7 @@ from app.models.transaction import Transaction
 from app.recurring_runner import run_once
 from app.services.schedule import describe, first_after, first_on_or_after, occurrence
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 
 # ---- the arithmetic of dates -----------------------------------------------------------------------
@@ -58,9 +59,7 @@ def test_describing_a_schedule():
 @pytest.fixture
 def accounts(client, root_accounts):
     def make(name, root, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra}).json()[
-            "aid"
-        ]
+        return post_account(client, {"name": name, "parent_id": root_accounts[root], **extra}).json()["aid"]
 
     return {"bank": make("Bank", "Assets", balance="10000"), "rent": make("Rent", "Expenses")}
 
@@ -107,7 +106,8 @@ def test_recording_moves_the_money_and_is_idempotent(client, accounts, session):
     rows = transactions(session)
     assert [r.date for r in rows][:3] == [date(2026, 1, 31), date(2026, 2, 28), date(2026, 3, 31)]
     assert len({r.date for r in rows}) == len(rows), "each date once, however often it runs"
-    assert client.get(f"/api/accounts/{accounts['rent']}").json()["balance"] == str(Decimal("1500") * len(rows)) + ".00"
+    expenses = next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Expenses")
+    assert client.get(f"/api/accounts/{expenses}").json()["balance"] == str(Decimal("1500") * len(rows)) + ".00"
 
 
 def test_each_occurrence_is_linked_and_marked(client, accounts, session):
@@ -171,10 +171,10 @@ def test_deleting_keeps_what_was_recorded(client, accounts, session):
     assert client.get("/api/recurring/").json() == []
 
 
-def test_an_account_a_rule_uses_cannot_be_deleted(client, accounts):
+def test_a_category_a_rule_uses_cannot_be_deleted(client, accounts):
     rule(client, accounts, start_date="2999-01-01")
-    response = client.delete(f"/api/accounts/{accounts['rent']}")
-    assert response.status_code == 409 or response.status_code == 400
+    response = client.post(f"/api/categories/{accounts['rent']}/delete")
+    assert response.status_code == 400
     assert "recurring" in response.text
 
 
@@ -190,10 +190,10 @@ def test_a_rule_that_cannot_be_recorded_is_refused_or_reported(client, accounts,
         },
     )
     assert bad.status_code == 400 and "differ" in bad.json()["detail"]
-    wallet = client.post("/api/accounts/", json={"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()["aid"]
+    wallet = post_account(client, {"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()["aid"]
     created = rule(client, {"bank": wallet, "rent": accounts["rent"]}, start_date="2999-01-01")
     # the source later gains a sub-account, so it can no longer be posted to
-    assert client.post("/api/accounts/", json={"name": "Sub", "parent_id": wallet}).status_code == 201
+    assert post_account(client, {"name": "Sub", "parent_id": wallet}).status_code == 201
     session.exec(
         RecurringTransaction.__table__.update().values(start_date=date(2026, 1, 1), next_date=date(2026, 1, 1))
     )
@@ -370,7 +370,7 @@ def test_opening_the_dashboard_catches_up(client, accounts, session):
 @pytest.fixture
 def split_accounts(client, accounts, root_accounts):
     extra = {
-        name: client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root]}).json()["aid"]
+        name: post_account(client, {"name": name, "parent_id": root_accounts[root]}).json()["aid"]
         for name, root in (("Water", "Expenses"), ("Savings", "Assets"))
     }
     return {**accounts, **extra}
@@ -446,9 +446,9 @@ def test_a_split_rule_can_be_edited_into_a_plain_one_and_back(client, split_acco
     assert len(again["postings"]) == 3 and again["from_account"] is None
 
 
-def test_an_account_a_split_rule_uses_cannot_be_deleted(client, split_accounts):
+def test_a_category_a_split_rule_uses_cannot_be_deleted(client, split_accounts):
     split_rule(client, split_accounts, start_date="2999-01-01")
-    assert client.delete(f"/api/accounts/{split_accounts['Water']}").status_code == 409
+    assert client.post(f"/api/categories/{split_accounts['Water']}/delete").status_code == 400
 
 
 def test_deleting_a_split_rule_removes_its_rows(client, split_accounts, session):

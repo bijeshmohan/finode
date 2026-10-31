@@ -16,6 +16,7 @@ from app.repositories.oauth_grant import OAuthGrantRepository
 from app.services.oauth_grant import OAuthGrantService
 from tests.htmlutil import element, text_of
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, mcp_client, payload, running_app
 
@@ -142,10 +143,8 @@ async def test_an_ordinary_sign_in_token_does_not_work_on_mcp(session, jwts):
 
 async def test_marks_name_the_app(session, jwts, client, root_accounts):
     allow(session, name="Claude on phone", scope="write")
-    _bank = client.post(
-        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}
-    ).json()
-    client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]})
+    _bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
+    post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(app_token(jwts)) as c:
         recorded = payload(
             await c.call_tool("record_transaction", {"amount": "9", "from_account": "Bank", "to_account": "Food"})

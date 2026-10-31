@@ -23,8 +23,8 @@ def label_simple(accounts: dict[UUID, Account], postings: list[PostingCreate], c
     (the loan or fund being paid), the one place a label says anything. If there is none, it goes on the first line
     and the entry's checks name the problem."""
     for posting in postings:
-        account = accounts.get(posting.account)
-        if account is not None and not account.on_budget and account.category_id is None:
+        account = accounts.get(posting.target)
+        if account is not None and not account.on_budget:
             posting.category = category
             return
     postings[0].category = category

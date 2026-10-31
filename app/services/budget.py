@@ -132,8 +132,7 @@ class BudgetService:
         by_id = {a.aid: a for a in accounts}
         parents = {a.parent_id for a in accounts if a.parent_id is not None}
         categories = self._categories()
-        # Books accounts that stand for a spending category, and loans outside the budget that name one for their payments.
-        spend_accounts = {a.aid for a in accounts if a.category_id in categories}
+        # Loans outside the budget that name a category for their payments.
         payments = {
             a.aid: a.payment_category_id for a in accounts if a.payment_category_id in categories and not a.on_budget
         }
@@ -177,7 +176,6 @@ class BudgetService:
             and p.account not in in_budget
             and first_of_month(p.date) == month
             and p.account in by_id
-            and by_id[p.account].category_id is None
             and AccountService.root_name(by_id[p.account], by_id) in ("Assets", "Liabilities")
         ]
         uncategorised: list[BudgetUncategorised] = []
@@ -200,7 +198,7 @@ class BudgetService:
         for p in postings:
             if p.transaction in touching:
                 continue
-            if p.account in spend_accounts and first_of_month(p.date) == month:
+            if p.category_id in categories and first_of_month(p.date) == month:
                 value = p.amount if p.side == PostingSide.DEBIT else -p.amount
                 outside.setdefault(p.transaction, [ZERO, set()])[0] += value
         for p in postings:

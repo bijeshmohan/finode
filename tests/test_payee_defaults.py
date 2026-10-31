@@ -2,6 +2,7 @@
 
 import pytest
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .mcputil import make_token, mcp_client, payload, running_app
 from .test_transaction_references import body
@@ -13,8 +14,8 @@ def post(client, debit, credit, payee, on, amount="10"):
 
 @pytest.fixture
 def habits(client, account, other_account, expense_account, root_accounts):
-    other_expense = client.post("/api/accounts/", json={"name": "meat", "parent_id": root_accounts["Expenses"]}).json()
-    salary = client.post("/api/accounts/", json={"name": "salary", "parent_id": root_accounts["Income"]}).json()
+    other_expense = post_account(client, {"name": "meat", "parent_id": root_accounts["Expenses"]}).json()
+    salary = post_account(client, {"name": "salary", "parent_id": root_accounts["Income"]}).json()
     post(client, expense_account, account, "Manjunatha", "2026-10-01")
     post(client, other_expense, account, "Manjunatha", "2026-10-05")
     post(client, other_expense, account, "Manjunatha", "2026-10-07")
@@ -46,7 +47,7 @@ def test_kinds_exact_matches_and_order(client, habits):
 
 
 def test_splits_and_opening_balances_are_not_a_payee(client, account, expense_account):
-    client.post("/api/accounts/", json={"name": "bank2", "parent_id": account["parent_id"], "balance": "50"})
+    post_account(client, {"name": "bank2", "parent_id": account["parent_id"], "balance": "50"})
     assert client.get("/api/transactions/payee-defaults").json() == []
 
 

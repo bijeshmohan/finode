@@ -2,6 +2,7 @@
 
 import pytest
 
+from .books import post_account
 from .test_budget import account, assign, budget, line, move
 
 
@@ -79,12 +80,6 @@ def test_the_rules_for_choosing_a_category(client, books, root_accounts):
     assert client.patch(url, json={"payment_category_id": books["bank"]["aid"]}).status_code == 400
     assert (
         client.patch(
-            f"/api/accounts/{books['emi']['aid']}", json={"payment_category_id": books["emi"]["aid"]}
-        ).status_code
-        == 400
-    )
-    assert (
-        client.patch(
             f"/api/accounts/{books['bank']['aid']}", json={"payment_category_id": books["emi"]["aid"]}
         ).status_code
         == 400
@@ -103,7 +98,7 @@ def test_joining_the_budget_drops_the_category_and_it_can_be_cleared(client, boo
 
 def test_deleting_the_category_clears_the_link(client, books):
     point(client, books["loan"], books["emi"])
-    assert client.delete(f"/api/accounts/{books['emi']['aid']}").status_code in (200, 204)
+    assert client.post(f"/api/categories/{books['emi']['aid']}/delete").status_code == 200
     assert client.get(f"/api/accounts/{books['loan']['aid']}").json()["payment_category_id"] is None
 
 
@@ -165,7 +160,7 @@ def test_a_payment_not_from_the_budget_is_not_spending(client, books, root_accou
 
 def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root_accounts):
     debts = account(client, root_accounts, "Debts", "Expenses")
-    sub = client.post("/api/accounts/", json={"name": "Car EMI", "parent_id": debts["aid"]}).json()
+    sub = post_account(client, {"name": "Car EMI", "parent_id": debts["aid"]}).json()
     point(client, books["loan"], sub)
     move(client, books["bank"], books["loan"], "7000")
     assert "7,000.00" in client.get("/categories").text
@@ -191,8 +186,6 @@ def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, b
     assert str(summary.spent) == "15900.00", "what the budget calls spending"
     assert str(summary.expenses) == "900.00" and str(summary.net_income) == "-900.00", "the books: only the interest"
     assert str(breakdown.total) == "15900.00" and [l.account for l in breakdown.lines] == ["EMI", "Interest"]
-    by_account = svc.reports.breakdown("Expenses", by="account")
-    assert str(by_account.total) == "900.00" and [l.account for l in by_account.lines] == ["Interest"]
     categories = " ".join(client.get("/categories").text.split())
     assert "15,000.00" in categories and "900.00" in categories
 

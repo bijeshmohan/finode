@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from .books import post_account
 from .test_budget import account, assign, line, move
 from .test_budget import budget as api_budget
 
@@ -135,7 +136,7 @@ def test_the_inline_amount_also_saves_on_the_return_key(client, setup):
 
 
 def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
     assign(client, setup["rent"], "500")
     assign(client, groceries, "200")
     page = client.get("/budget").text
@@ -151,8 +152,8 @@ def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, roo
 
 
 def test_a_group_page_lists_its_categories_and_its_figure_opens_its_own_budget(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
     assign(client, groceries, "200")
     assign(client, dining, "300")
     page = client.get(f"/budget/group/{setup['food']['aid']}").text
@@ -177,7 +178,7 @@ def test_a_group_page_lists_its_categories_and_its_figure_opens_its_own_budget(c
 
 
 def test_assigning_from_a_group_page_returns_that_page_block(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
     sheet = client.get(f"/budget/category/{groceries['aid']}/sheet?group={setup['food']['aid']}").text
     assert f'name="group" value="{setup["food"]["aid"]}"' in sheet
     response = client.post(
@@ -193,7 +194,7 @@ def test_assigning_from_a_group_page_returns_that_page_block(client, root_accoun
 
 
 def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
     sheet = client.get(f"/budget/category/{setup['food']['aid']}/sheet")
     assert sheet.status_code == 200 and "Food · everything else" in sheet.text, "a group has a sheet of its own"
     assign(client, groceries, "100")
@@ -207,7 +208,7 @@ def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client,
 
 def test_unused_groups_are_tucked_away_once_something_is_in_use_but_plain_categories_stay(client, root_accounts, setup):
     travel = account(client, root_accounts, "Travel", "Expenses")
-    client.post("/api/accounts/", json={"name": "Stay", "parent_id": travel["aid"]})
+    post_account(client, {"name": "Stay", "parent_id": travel["aid"]})
     assert "unused-hidden" not in client.get("/budget").text, "nothing in use yet: everything shows"
     assign(client, setup["food"], "100")
     page = client.get("/budget").text
@@ -308,7 +309,7 @@ def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts
 def test_a_budget_account_with_sub_accounts_is_not_announced_on_the_page(client, setup, root_accounts):
     """It is left out of the sums (only accounts that hold money count) but the page does not say so: nothing to do."""
     deposits = account(client, root_accounts, "Deposits", "Assets")
-    client.post("/api/accounts/", json={"name": "FD", "parent_id": deposits, "balance": "10"})
+    post_account(client, {"name": "FD", "parent_id": deposits["aid"], "balance": "10"})
     page = client.get("/budget").text
     assert "Left out because" not in page and "sub-accounts" not in page
 
@@ -357,8 +358,8 @@ def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
 
 def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_below(client, root_accounts, setup):
     food = setup["food"]["aid"]
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": food}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": food}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": food}).json()
     assign(client, groceries, "200")
     assign(client, dining, "300")
     month = THIS_MONTH.strftime("%Y-%m")

@@ -3,9 +3,11 @@
 import difflib
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
 from ..schemas import AccountRead
+from ..schemas.category import CategoryRead
 from ..services.account import GROUP_POSTING_ROOT_NAMES
 
 SEPARATORS = re.compile(r"\s*(?::|›|>|/)\s*")
@@ -25,6 +27,9 @@ class Entry:
     segments: list[str]  # names from the top-level account down
     root: str
     has_children: bool
+    # A category stands in for the account it used to be (Expenses:Food:Groceries): a line named by it posts to
+    # Expenses with that category. It has an id, a path and can be posted to, but is not an account to manage.
+    is_category: bool = False
 
     @property
     def path(self) -> str:
@@ -32,7 +37,7 @@ class Entry:
 
     @property
     def is_root(self) -> bool:
-        return self.account.parent_id is None
+        return self.account.parent_id is None and not self.is_category
 
     @property
     def postable(self) -> bool:
@@ -40,7 +45,7 @@ class Entry:
 
 
 class AccountIndex:
-    def __init__(self, accounts: list[AccountRead]):
+    def __init__(self, accounts: list[AccountRead], categories: list[CategoryRead] | None = None):
         by_id = {a.aid: a for a in accounts}
         parents = {a.parent_id for a in accounts if a.parent_id is not None}
         self.entries: dict[UUID, Entry] = {}
@@ -51,19 +56,38 @@ class AccountIndex:
                 current = by_id[current.parent_id]
                 segments.insert(0, current.name)
             self.entries[account.aid] = Entry(account, segments, segments[0], account.aid in parents)
+        stamp = datetime.now(UTC)
+        category_parents = {c.parent_id for c in categories or [] if c.parent_id is not None}
+        for c in categories or []:
+            root = "Expenses" if c.kind == "spending" else "Income"
+            stand_in = AccountRead(
+                aid=c.bcid,
+                name=c.name,
+                details=c.details,
+                parent_id=c.parent_id,
+                balance=0,  # type: ignore[arg-type]
+                closed_on=c.closed_on,
+                created=stamp,
+                updated=stamp,
+            )
+            self.entries[c.bcid] = Entry(
+                stand_in, [root, *c.path.split(":")], root, c.bcid in category_parents, is_category=True
+            )
 
     def path(self, aid: UUID) -> str:
         entry = self.entries.get(aid)
         return entry.path if entry else "?"
 
-    def sorted(self) -> list[Entry]:
+    def sorted(self, with_categories: bool = False) -> list[Entry]:
         order = ["Assets", "Liabilities", "Equity", "Income", "Expenses"]
         return sorted(
-            self.entries.values(),
+            (e for e in self.entries.values() if with_categories or not e.is_category),
             key=lambda e: (order.index(e.root) if e.root in order else 9, [s.casefold() for s in e.segments]),
         )
 
-    def find(self, text: str, *, postable: bool = False, allow_root: bool = False) -> Entry:
+    def find(
+        self, text: str, *, postable: bool = False, allow_root: bool = False, accounts_only: bool = False
+    ) -> Entry:
         """The one account `text` names: a full path ("Expenses:Food"), the end of one
         ("Food", "Travel:Food") or an id. Raises ValueError naming the choices when it is not one."""
         text = (text or "").strip()
@@ -73,6 +97,8 @@ class AccountIndex:
             by_id = self.entries.get(UUID(text))
         except ValueError:
             by_id = None
+        if by_id and accounts_only and by_id.is_category:
+            raise ValueError(f"'{by_id.path}' is a category, not an account: use the category tools!")
         if by_id:
             return self._check(by_id, postable, allow_root)
         wanted = [s.casefold() for s in SEPARATORS.split(text) if s]
@@ -83,7 +109,7 @@ class AccountIndex:
             return [s.casefold() for s in entry.segments]
 
         # Top-level accounts can match too, so naming one gets a clear "use a sub-account" message.
-        candidates = list(self.entries.values())
+        candidates = [e for e in self.entries.values() if not (accounts_only and e.is_category)]
         exact = [e for e in candidates if folded(e) == wanted]
         matches = exact or [e for e in candidates if folded(e)[-len(wanted) :] == wanted]
         if len(matches) > 1:

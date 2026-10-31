@@ -12,7 +12,6 @@ from ..models.account_deletion import AccountDeletion
 from ..models.account_history import AccountHistory
 from ..schemas.account import AccountCreate, AccountUpdate
 from .cache import remembered
-from .category import CategoryRepository
 
 
 class AccountRepository:
@@ -28,20 +27,9 @@ class AccountRepository:
         account = Account(**values, on_budget=on_budget, user=self.uid)
         self.db.add(account)
         self.db.flush()
-        self._mirror_create(account)
         if record:
             self._record(account, "created")
         return account
-
-    def _mirror_create(self, account: Account) -> None:
-        """An Income or Expenses account comes with its category (see repositories/category.py)."""
-        CategoryRepository(self.db, self.uid).mirror_create(account, {a.aid: a for a in self.list()})
-
-    def sync_categories(self, accounts: builtins.list[Account]) -> None:
-        categories = CategoryRepository(self.db, self.uid)
-        by_id = {a.aid: a for a in self.list()}
-        for account in accounts:
-            categories.mirror_update(account, by_id)
 
     def _snapshot(self, account: Account) -> dict:
         by_id = {a.aid: a for a in self.list()}
@@ -152,7 +140,6 @@ class AccountRepository:
             account.payment_category_id = payment_category
         self.db.add(account)
         self.db.flush()
-        self.sync_categories([account])
         self._record(account, "updated")
         return account
 
@@ -161,11 +148,8 @@ class AccountRepository:
         if not account:
             return None
         self._record(account, "deleted", **extra)
-        own = account.category_id == account.aid
         self.db.delete(account)
         self.db.flush()
-        if own:
-            CategoryRepository(self.db, self.uid).mirror_delete(aid)
         return account
 
     def record_deletion(self, account_id: UUID, snapshot: dict) -> None:
@@ -188,7 +172,6 @@ class AccountRepository:
         account = Account(aid=aid, user=self.uid, **fields)
         self.db.add(account)
         self.db.flush()
-        self._mirror_create(account)
         self._record(account, "restored")
         return account
 
@@ -197,7 +180,6 @@ class AccountRepository:
             account.closed_on = day
             self.db.add(account)
             self.db.flush()
-            self.sync_categories([account])
             self._record(account, "closed" if day else "reopened")
         self.db.flush()
 
@@ -211,6 +193,14 @@ class AccountRepository:
             self.db.flush()
             self._record(account, "updated")
         self.db.flush()
+
+    def count_payment_links(self, category_id: UUID) -> int:
+        """How many accounts budget their payments under this category."""
+        return len(
+            self.db.exec(
+                select(Account.aid).where(Account.user == self.uid, Account.payment_category_id == category_id)
+            ).all()
+        )
 
     def repoint_payment_category(self, source: UUID, target: UUID) -> int:
         """Accounts whose payments were budgeted under `source` use `target` instead (a merge)."""

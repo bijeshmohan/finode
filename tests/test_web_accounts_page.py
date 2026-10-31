@@ -7,11 +7,13 @@ import pytest
 
 from app.models.account import Account
 
+from .books import post_account
+
 
 @pytest.fixture
 def tree(client, root_accounts, session):
     def make(name, parent, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra}).json()["aid"]
+        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["aid"]
 
     banks = make("Banks", root_accounts["Assets"])
     ids = {
@@ -60,24 +62,6 @@ def test_plain_accounts_under_a_type_share_one_block_under_others(client, tree):
     assert page.count("data-others") == 1 and ">Others</span>" in page, (
         "the plain ones sit under Others, a label and not a link"
     )
-
-
-def test_the_second_row_of_chips_lists_expense_equity_and_income_and_tapping_the_chosen_one_goes_back(client, tree):
-    chip = r'<a class="chip" href="/accounts\?tab=(\w+)" aria-pressed="(\w+)">(\w+)</a>'
-    # Neither Asset nor Liability: Expense, Equity (chosen) and Income; the chosen chip leads back to Assets.
-    equity = client.get("/accounts?tab=equity").text
-    assert re.findall(chip, equity) == [
-        ("expense", "false", "Expense"),
-        ("assets", "true", "Equity"),
-        ("income", "false", "Income"),
-    ]
-    for tab, name, lead in (("expense", "Expense", "Total spent"), ("income", "Income", "Total earned")):
-        page = client.get(f"/accounts?tab={tab}").text
-        found = re.findall(chip, page)
-        assert [n for _, _, n in found] == ["Expense", "Equity", "Income"], tab
-        assert (("assets", "true", name) in found) and lead in page, tab
-        assert f'href="/categories/new?root={tab}"' in page, "adding makes a category, with its books account"
-    assert re.findall(chip, client.get("/accounts?tab=expense").text)[1] == ("equity", "false", "Equity")
 
 
 def test_the_chips_pick_a_type_in_the_order_assets_liabilities_and_equity_has_none(client, tree):
@@ -141,31 +125,9 @@ def test_the_page_has_no_note_under_its_list(client, root_accounts):
 def test_categories_end_with_an_add_row_and_an_empty_page_keeps_its_button(client, root_accounts):
     empty = client.get("/categories").text
     assert "Add a category" in empty and 'class="add-row"' not in empty
-    client.post("/api/accounts/", json={"name": "Dining", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Dining", "parent_id": root_accounts["Expenses"]})
     page = client.get("/categories?tab=expense").text
     assert 'class="add-row" href="/categories/new?root=expense"' in page and "circ-button" not in page
     assert client.get("/categories?tab=income").text.count('class="add-row"') == 0, (
         "nothing in Income yet: its own button"
     )
-
-
-def test_the_expense_chip_shows_what_each_category_took_even_when_the_money_went_into_a_loan(
-    client, tree, root_accounts
-):
-    emi = client.post("/api/accounts/", json={"name": "EMI", "parent_id": root_accounts["Expenses"]}).json()["aid"]
-    loan = client.post("/api/accounts/", json={"name": "Home loan", "parent_id": root_accounts["Liabilities"]}).json()[
-        "aid"
-    ]
-    made = client.post(
-        "/api/transactions/",
-        json={
-            "date": "2026-01-05",
-            "postings": [
-                {"account": tree["hdfc"], "side": "credit", "amount": "700"},
-                {"account": loan, "side": "debit", "amount": "700", "category": emi},
-            ],
-        },
-    )
-    assert made.status_code == 201, made.text
-    page = client.get("/accounts?tab=expense").text
-    assert "700.00" in page

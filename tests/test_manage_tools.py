@@ -2,16 +2,17 @@
 
 import pytest
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 
 
 @pytest.fixture
 def books(client, root_accounts):
-    banks = client.post("/api/accounts/", json={"name": "Banks", "parent_id": root_accounts["Assets"]}).json()
-    hdfc = client.post("/api/accounts/", json={"name": "HDFC", "parent_id": banks["aid"], "balance": "500"}).json()
-    cash = client.post("/api/accounts/", json={"name": "Cash2", "parent_id": root_accounts["Assets"]}).json()
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    banks = post_account(client, {"name": "Banks", "parent_id": root_accounts["Assets"]}).json()
+    hdfc = post_account(client, {"name": "HDFC", "parent_id": banks["aid"], "balance": "500"}).json()
+    cash = post_account(client, {"name": "Cash2", "parent_id": root_accounts["Assets"]}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     return {"banks": banks, "hdfc": hdfc, "cash": cash, "food": food}
 
 
@@ -51,7 +52,7 @@ async def test_move_budget_flag_and_clearing_a_note(session, client, books):
 @pytest.mark.anyio
 async def test_the_rules_still_apply(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="manage")) as c:
-        with pytest.raises(ToolFailed, match="different root"):
+        with pytest.raises(ToolFailed, match="hold categories"):
             await call(c, "update_account", account="HDFC", parent="Expenses")
         with pytest.raises(ToolFailed, match="already|exists"):
             await call(c, "update_account", account="Cash2", name="Banks")

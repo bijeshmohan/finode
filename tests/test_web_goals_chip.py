@@ -185,7 +185,7 @@ def test_the_goal_pages_refuse_what_is_not_a_goal(client, books):
     )
     assert client.post(f"/budget/goal/{food}/delete").status_code == 400
     assert client.post(f"/budget/goal/{food}/assign", data={"amount": "5"}).status_code == 400
-    assert "Food" in {a["name"] for a in client.get("/api/accounts/").json()}
+    assert "Food" in {c["name"] for c in client.get("/api/categories/").json()}
 
 
 def test_copying_last_months_amounts_includes_goals(session, books, client):

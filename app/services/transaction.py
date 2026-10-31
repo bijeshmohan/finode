@@ -80,8 +80,18 @@ def _rows(postings) -> list[tuple[str, str, Decimal]]:
     return sorted((str(p.account), PostingSide(p.side).value, p.amount) for p in postings)
 
 
-def _diff(before: dict, after: dict, paths: dict[UUID, str]) -> dict:
+def _where(p: dict, paths: dict[UUID, str], categories: dict[UUID, str]) -> str:
+    """Where a snapshot's line posted, as a journal would write it: a line on Expenses or Income by its category
+    (Expenses:Food:Groceries), any other line by its account."""
+    path = paths.get(UUID(p["account"]), p["account"])
+    if path in ("Expenses", "Income") and p.get("category") and UUID(p["category"]) in categories:
+        return categories[UUID(p["category"])]
+    return path
+
+
+def _diff(before: dict, after: dict, paths: dict[UUID, str], categories: dict[UUID, str] | None = None) -> dict:
     """What an update changed between two snapshots: fields as {"from", "to"}, rows added, removed or changed."""
+    categories = categories or {}
     before, after = comparable_snapshot(before), comparable_snapshot(after)
     changes: dict = {}
     for key, label in (("date", "date"), ("payee", "payee"), ("comment", "note")):
@@ -97,14 +107,14 @@ def _diff(before: dict, after: dict, paths: dict[UUID, str]) -> dict:
     def rows(snapshot: dict) -> dict[tuple[str, str], Decimal]:
         found: dict[tuple[str, str], Decimal] = {}
         for p in snapshot.get("postings", []):
-            key = (paths.get(UUID(p["account"]), p["account"]), p["side"])
+            key = (_where(p, paths, categories), p["side"])
             found[key] = found.get(key, Decimal(0)) + Decimal(p["amount"])
         return found
 
     def labels(snapshot: dict) -> dict[tuple[str, str], tuple[str | None, ...]]:
         found: dict[tuple[str, str], list[str | None]] = {}
         for p in snapshot.get("postings", []):
-            key = (paths.get(UUID(p["account"]), p["account"]), p["side"])
+            key = (_where(p, paths, categories), p["side"])
             found.setdefault(key, []).append(p.get("category"))
         return {key: tuple(sorted(value, key=str)) for key, value in found.items()}
 
@@ -174,11 +184,30 @@ class TransactionService:
                 raise RuntimeError("the profile names a currency finode does not know")
         return self._currency
 
+    def _fill_accounts(self, postings, accounts: builtins.list[Account]) -> None:
+        """Where a line posts: a line that names only its category posts to Expenses (a spending category) or Income
+        (an earning one), and so does a line whose "account" is a category's id (the ids of the categories that were
+        Expenses and Income accounts are the same, so what posted to them keeps working)."""
+        roots = {a.name: a.aid for a in accounts if a.parent_id is None}
+        known = {a.aid for a in accounts}
+        categories = {c.bcid: c for c in self.cr.list()}
+        for posting in postings:
+            if posting.account is not None and (posting.account in known or posting.account not in categories):
+                continue
+            wanted = posting.category if posting.account is None else posting.account
+            category = categories.get(wanted)
+            if category is None:
+                raise InvalidPostingError(f"category with bcid '{wanted}' not found!")
+            if posting.category is None:
+                posting.category = category.bcid
+            posting.account = roots["Expenses" if category.kind == "spending" else "Income"]
+
     def _check_categories(
         self, postings, accounts_by_id: dict[UUID, Account], keep_categories: Collection[UUID] = frozenset()
     ) -> None:
-        """A category named on a line is the person's own, open (unless the entry already used it), fits the account
-        (an Income or Expenses account stands for one category, and a line to any other account can only be spending)."""
+        """A category named on a line is the person's own, open (unless the entry already used it) and fits the line:
+        a spending category goes on Expenses (or an expense account) or on a payment out of the budget into an account
+        outside it, an earning category on Income, and nothing goes on Equity."""
         named = [p for p in postings if p.category is not None]
         if not named:
             return
@@ -190,21 +219,23 @@ class TransactionService:
             if category.closed_on is not None and category.bcid not in keep_categories:
                 raise InvalidPostingError(f"category '{category.name}' is closed: reopen it to use it!")
             account = accounts_by_id[posting.account]
-            if account.on_budget:
+            root = AccountService.root_name(account, accounts_by_id)
+            if root in GROUP_POSTING_ROOT_NAMES:
+                wanted = "spending" if root == "Expenses" else "earning"
+                if category.kind != wanted:
+                    raise InvalidPostingError(
+                        f"'{category.name}' is a {category.kind} category: it cannot go on a line to {root}!"
+                    )
+            elif root == "Equity":
+                raise InvalidPostingError("a category cannot go on a line to an equity account!")
+            elif account.on_budget:
                 raise InvalidPostingError(
                     f"'{account.name}' is part of the budget: a category goes on the other side of the entry, "
                     "the account the money was spent on!"
                 )
-            if account.category_id is not None:
-                if account.category_id != category.bcid:
-                    own = categories.get(account.category_id)
-                    raise InvalidPostingError(
-                        f"'{account.name}' stands for the category '{own.name if own else account.category_id}', "
-                        f"not '{category.name}': leave the category out, or pick the account that fits!"
-                    )
             elif category.kind != "spending":
                 raise InvalidPostingError(
-                    f"'{category.name}' is an earning category: it can only go on a line to an income account!"
+                    f"'{category.name}' is an earning category: it can only go on a line to Income!"
                 )
 
     def _resolve(
@@ -225,13 +256,15 @@ class TransactionService:
         currency = self.currency()
         # One read of the account list serves every posting (it is remembered for the session), instead of two
         # queries per posting: a split of 20 rows used to cost 40 round trips.
-        accounts_by_id = {a.aid: a for a in self.ar.list()}
+        every_account = self.ar.list()
+        accounts_by_id = {a.aid: a for a in every_account}
+        self._fill_accounts(postings, every_account)
         has_children = {a.parent_id for a in accounts_by_id.values() if a.parent_id is not None}
         for posting in postings:
-            account = accounts_by_id.get(posting.account)
+            account = accounts_by_id.get(posting.target)
             if not account:
                 raise ValueError(f"account with aid '{posting.account}' not found!")
-            if account.parent_id is None:
+            if account.parent_id is None and account.name not in GROUP_POSTING_ROOT_NAMES:
                 raise InvalidPostingAccountError(f"cannot post to root account '{account.name}'!")
             if account.closed_on is not None and account.aid not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
@@ -250,11 +283,19 @@ class TransactionService:
 
         self._check_categories(postings, accounts_by_id, keep_categories)
 
-        both = {p.account for p in postings if p.side == PostingSide.DEBIT} & {
-            p.account for p in postings if p.side == PostingSide.CREDIT
+        # Expenses and Income take many lines (one per category), so on them it is the same category on both sides that
+        # moves money from itself to itself; any other account may not be on both sides at all.
+        def whole(p) -> tuple:
+            books = AccountService.root_name(accounts_by_id[p.account], accounts_by_id) in GROUP_POSTING_ROOT_NAMES
+            return (p.account, p.category if books else None)
+
+        both = {whole(p) for p in postings if p.side == PostingSide.DEBIT} & {
+            whole(p) for p in postings if p.side == PostingSide.CREDIT
         }
         if both:
-            name = accounts_by_id[min(both, key=str)].name
+            account_id, category_id = min(both, key=str)
+            named = {c.bcid: c.name for c in self.cr.list()}
+            name = named.get(category_id) if category_id in named else accounts_by_id[account_id].name
             raise InvalidPostingError(
                 f"'{name}' is on both sides of the entry: money cannot move from an account to itself. "
                 "Leave it out, or enter only the difference!"
@@ -304,9 +345,22 @@ class TransactionService:
             updated=transaction.updated,
         )
 
+    def _category_paths(self) -> dict[UUID, str]:
+        """Each category as the journal account it stands for: Expenses:Food:Groceries, Income:Salary."""
+        found = {c.bcid: c for c in self.cr.list()}
+        paths: dict[UUID, str] = {}
+        for bcid, category in found.items():
+            chain, current = [], category
+            while current is not None:
+                chain.append(current.name)
+                current = found.get(current.parent_id) if current.parent_id else None
+            paths[bcid] = ("Expenses" if category.kind == "spending" else "Income") + ":" + ":".join(reversed(chain))
+        return paths
+
     def _history_read(self, row, paths: dict[UUID, str]) -> HistoryRead:
         snap = row.snapshot
         names = {c.bcid: c.name for c in self.cr.list()}
+        where = self._category_paths()
         return HistoryRead(
             hid=row.hid,
             transaction=row.transaction_id,
@@ -321,7 +375,7 @@ class TransactionService:
             source_url=snap.get("source_url"),
             postings=[
                 HistoryPosting(
-                    account=paths.get(UUID(p["account"]), p["account"]),
+                    account=_where(p, paths, where),
                     side=p["side"],
                     amount=Decimal(p["amount"]),
                     category=names.get(UUID(p["category"])) if p.get("category") else None,
@@ -379,7 +433,7 @@ class TransactionService:
             at=row.at,
             via=row.via,
             entry=self._history_read(row, paths),
-            changes=_diff(before.snapshot, row.snapshot, paths)
+            changes=_diff(before.snapshot, row.snapshot, paths, self._category_paths())
             if before is not None and row.action == "updated"
             else {},
         )
@@ -534,6 +588,7 @@ class TransactionService:
         if data.source and data.external_id:
             found = self.tr.find_by_reference(data.source, data.external_id)
             if found is not None:
+                self._fill_accounts(data.postings, self.ar.list())  # a category's id where an account goes
                 existing = self._to_read(found)
                 if not _same_content(existing, data):
                     raise DuplicateReferenceError(_different_content(data, found.tid))
@@ -664,6 +719,7 @@ class TransactionService:
         if data.source and data.external_id:
             found = self.tr.find_by_reference(data.source, data.external_id)
             if found is not None:
+                self._fill_accounts(data.postings, self.ar.list())  # a category's id where an account goes
                 existing = self._to_read(found)
                 if _same_content(existing, data):
                     return existing, False
@@ -706,9 +762,18 @@ class TransactionService:
                 to_visit.append(child)
         return subtree
 
+    def _category_subtree(self, bcid: UUID) -> builtins.list[UUID]:
+        """A category and the categories inside it."""
+        categories = self.cr.list()
+        if not any(c.bcid == bcid for c in categories):
+            raise ValueError(f"category with bcid '{bcid}' not found!")
+        return [c.bcid for c in categories if c.bcid == bcid or c.parent_id == bcid]
+
     def _args(self, account, kind, also):
+        if account and not any(a.aid == account for a in self.ar.list()) and self.cr.read(account) is not None:
+            account, also = None, account  # a category's id where an account goes: the entries labelled with it
         account_ids = self._account_subtree(account) if account else None
-        also_ids = self._account_subtree(also) if also else None
+        also_ids = self._category_subtree(also) if also else None
         if kind not in (None, "", "expense", "income", "transfer"):
             raise ValueError("the kind must be expense, income or transfer!")
         kind_accounts = None
@@ -855,6 +920,14 @@ class TransactionService:
         starting with, then containing, what was typed (an exact match first)."""
         accounts = {a.aid: a for a in self.ar.list()}
         usable = {aid for aid, a in accounts.items() if a.parent_id is not None and a.closed_on is None}
+        categories = {c.bcid: c for c in self.cr.list()}
+        usable |= {bcid for bcid, c in categories.items() if c.closed_on is None}
+
+        def route_id(p: PostingRead) -> UUID:
+            """What the Add screen picks for a line: the category on a line to Expenses or Income, else the account."""
+            on_books = AccountService.root_name(accounts[p.account], accounts) in GROUP_POSTING_ROOT_NAMES
+            return p.category if on_books and p.category is not None else p.account
+
         wanted = query.strip().lower()
         seen: dict[str, dict] = {}
         for position, t in enumerate(self.list(limit=history)):
@@ -863,12 +936,12 @@ class TransactionService:
             payee = (t.payee or "").strip()
             if not payee or len(credits) != 1 or len(debits) != 1:
                 continue
-            source, target = credits[0].account, debits[0].account
+            source, target = route_id(credits[0]), route_id(debits[0])
             if source not in usable or target not in usable:
                 continue
             if "Equity" in (
-                AccountService.root_name(accounts[source], accounts),
-                AccountService.root_name(accounts[target], accounts),
+                AccountService.root_name(accounts[credits[0].account], accounts),
+                AccountService.root_name(accounts[debits[0].account], accounts),
             ):
                 continue  # opening balances are not a payee
             entry = seen.setdefault(
@@ -902,17 +975,17 @@ class TransactionService:
     def payee_defaults(self, query: str = "", limit: int = 5) -> builtins.list[PayeeDefaultRead]:
         """`payee_routes` with account paths and the kind of entry, for the API and the assistants."""
         paths = self._account_paths()
-        accounts = {a.aid: a for a in self.ar.list()}
+        categories = {c.bcid: c for c in self.cr.list()}
+        paths.update(self._category_paths())  # a category reads like the journal's account: Expenses:Food:Groceries
 
         def side(aid: UUID) -> RouteAccount:
             return RouteAccount(id=aid, path=paths.get(aid, "?"))
 
         found = []
         for r in self.payee_routes(query, limit):
-            source, target = accounts[r.from_id], accounts[r.to_id]
-            if AccountService.root_name(target, accounts) == "Expenses":
+            if r.to_id in categories and categories[r.to_id].kind == "spending":
                 kind = "expense"
-            elif AccountService.root_name(source, accounts) == "Income":
+            elif r.from_id in categories and categories[r.from_id].kind == "earning":
                 kind = "income"
             else:
                 kind = "transfer"
@@ -983,7 +1056,6 @@ class TransactionService:
                 p.side == PostingSide.DEBIT
                 and p.category is None
                 and not account.on_budget
-                and account.category_id is None
                 and AccountService.root_name(account, accounts) in ("Assets", "Liabilities")
             )
             changed = changed or waiting

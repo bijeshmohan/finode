@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from ..config import settings
 from ..currencies import find as find_currency
 from ..limits import LimitReached, ensure_room
+from ..models.category import BudgetCategory
 from ..models.recurring import RecurringTransaction
 from ..models.transaction import PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
@@ -29,6 +30,7 @@ from ..schemas.backup import (
     VERSION,
     BackupAccount,
     BackupAllocation,
+    BackupCategory,
     BackupFile,
     BackupGoal,
     BackupGoalMonth,
@@ -73,7 +75,6 @@ class BackupService:
         for p in sorted(self.tr.all_postings(), key=lambda p: (p.side != PostingSide.DEBIT, p.created)):
             postings.setdefault(p.transaction, []).append(p)
         recurring_rows = self.rr.postings()
-        category_keys = {c.bcid: c.system_key for c in self.cr.list() if c.system_key}
         tags = self.tr.all_tag_map()
         file = BackupFile(
             format=FORMAT,
@@ -94,9 +95,20 @@ class BackupService:
                     closed_on=a.closed_on,
                     payment_category_id=a.payment_category_id,
                     system_key=a.system_key,
-                    category_key=category_keys.get(a.category_id) if a.category_id else None,
                 )
                 for a in accounts
+            ],
+            categories=[
+                BackupCategory(
+                    id=c.bcid,
+                    name=c.name,
+                    kind=c.kind,
+                    parent_id=c.parent_id,
+                    details=c.details,
+                    closed_on=c.closed_on,
+                    system_key=c.system_key,
+                )
+                for c in sorted(self.cr.list(), key=lambda c: (c.parent_id is not None, c.kind, c.name.lower()))
             ],
             transactions=[
                 BackupTransaction(
@@ -149,7 +161,7 @@ class BackupService:
                 for r in self.rr.list()
             ],
             allocations=[
-                BackupAllocation(month=row.month, account_id=row.category_id, amount=row.amount)
+                BackupAllocation(month=row.month, category_id=row.category_id, amount=row.amount)
                 for row in self.br.list()
             ],
             goals=[
@@ -180,6 +192,7 @@ class BackupService:
         ]
         return (
             not own
+            and not self.cr.list()
             and not self.tr.account_ids_with_postings()
             and not self.rr.list()
             and not self.br.list()
@@ -211,9 +224,11 @@ class BackupService:
             for t in file.transactions:
                 if not t.tags:
                     t.comment, t.tags = split_note(t.comment)
+        self._upgrade(file)
         self._check(file, summary)
         for room in (
             lambda: ensure_room(len(file.accounts), settings.max_accounts, "accounts"),
+            lambda: ensure_room(len(file.categories), settings.max_categories, "categories"),
             lambda: ensure_room(len(file.transactions), settings.max_transactions, "transactions"),
             lambda: ensure_room(len({n for t in file.transactions for n in t.tags}), settings.max_tags, "tags"),
         ):
@@ -222,9 +237,10 @@ class BackupService:
             except LimitReached as e:
                 summary.errors.append(f"this backup is bigger than your limits allow: {e}")
         summary.accounts = sum(1 for a in file.accounts if a.parent_id is not None)
+        summary.categories = len(file.categories)
         summary.transactions = len(file.transactions)
         summary.recurring = len(file.recurring)
-        summary.allocations = len(self._expense_plan(file))
+        summary.allocations = len(self._spending_plan(file))
         summary.goals = len(file.goals)
         summary.tags = len({n for t in file.transactions for n in t.tags})
         if file.transactions:
@@ -234,6 +250,60 @@ class BackupService:
             return summary
         self._apply(file)
         return summary
+
+    @staticmethod
+    def _upgrade(file: BackupFile) -> None:
+        """A file from before version 5 kept categories as Income and Expenses accounts (with the same ids). Make them
+        categories: the accounts go, a line on one posts to Expenses or Income with the category on it, and the
+        rules and plan rows (which already named the category by that id) follow."""
+        if file.version >= 5 or file.categories:
+            return
+        by_id = {a.id: a for a in file.accounts}
+
+        def root_of(account: BackupAccount) -> BackupAccount | None:
+            seen: set[UUID] = set()
+            while account.parent_id is not None and account.id not in seen and account.parent_id in by_id:
+                seen.add(account.id)
+                account = by_id[account.parent_id]
+            return account if account.parent_id is None else None
+
+        roots = {a.name: a.id for a in file.accounts if a.parent_id is None}
+        books: dict[UUID, tuple[BackupAccount, str]] = {}
+        for a in file.accounts:
+            top = root_of(a)
+            if a.parent_id is not None and top is not None and top.name in ("Expenses", "Income"):
+                books[a.id] = (a, top.name)
+        file.categories = [
+            BackupCategory(
+                id=a.id,
+                name=a.name,
+                kind="spending" if top == "Expenses" else "earning",
+                parent_id=a.parent_id if a.parent_id in books else None,
+                details=a.details,
+                closed_on=a.closed_on,
+                system_key=a.category_key,
+            )
+            for a, top in books.values()
+        ]
+        file.accounts = [a for a in file.accounts if a.id not in books]
+
+        def place(account: UUID | None, category: UUID | None) -> tuple[UUID | None, UUID | None]:
+            if account in books:
+                return roots[books[account][1]], category or account
+            return account, category
+
+        for t in file.transactions:
+            for p in t.postings:
+                placed = place(p.account, p.category)
+                p.account, p.category = cast(UUID, placed[0]), placed[1]
+        for r in file.recurring:
+            r.from_account, from_category = place(r.from_account, None)
+            r.to_account, to_category = place(r.to_account, None)
+            if from_category or to_category:
+                r.category = r.category or to_category or from_category
+            for p in r.postings:
+                placed = place(p.account, p.category)
+                p.account, p.category = cast(UUID, placed[0]), placed[1]
 
     def _check(self, file: BackupFile, summary: RestoreSummary) -> None:
         errors = summary.errors
@@ -284,11 +354,16 @@ class BackupService:
                 f"but {', '.join(too_deep[:3])}{' and more' if len(too_deep) > 3 else ''} go deeper: flatten them first."
             )
             return
+        category_ids = {c.id for c in file.categories}
         for a in file.accounts:
-            for ref in (a.payment_category_id,):
-                if ref is not None and ref not in accounts:
-                    errors.append(f"account '{a.name}' points to a missing payment category.")
+            if a.payment_category_id is not None and a.payment_category_id not in category_ids:
+                errors.append(f"account '{a.name}' points to a missing payment category.")
+        for a in file.accounts:
+            if a.parent_id is not None and accounts[a.parent_id].name in ("Expenses", "Income"):
+                errors.append(f"'{a.name}' is an account under {accounts[a.parent_id].name}: those hold categories.")
+                return
         postable = {a.id for a in file.accounts if a.parent_id is not None}
+        postable |= {a.id for a in file.accounts if a.parent_id is None and a.name in ("Expenses", "Income")}
         self._check_categories(file, accounts, errors)
         rules = {r.id for r in file.recurring}
         references: set[tuple[str, str]] = set()
@@ -347,13 +422,37 @@ class BackupService:
                     errors.append(f"the goal '{g.name}' would hold less than nothing in {alloc.month:%B %Y}.")
                     break
         for row in file.allocations:
-            if row.account_id not in postable:
-                errors.append("a budget entry refers to an account that is not in the file.")
+            # (plan rows of a fund or an income account, from when the Plan had Build and Earn, are read and dropped)
+            if row.category_id not in category_ids and row.category_id not in accounts:
+                errors.append("a budget entry refers to a category that is not in the file.")
                 break
 
     @staticmethod
     def _check_categories(file: BackupFile, accounts: dict[UUID, BackupAccount], errors: list[str]) -> None:
-        """A category on a line (or a rule) is the id of an Income or Expenses account of the file, and fits the line."""
+        """The categories are sound (two levels, one kind in a group, names unique in a place) and a category on a line
+        (or a rule) is one of the file's and fits the line: spending on Expenses or a payment out of the budget, earning
+        on Income, nothing on Equity."""
+        cats = {c.id: c for c in file.categories}
+        if len(cats) != len(file.categories):
+            errors.append("a category id appears twice.")
+            return
+        names: set[tuple[str, UUID | None, str]] = set()
+        for c in file.categories:
+            parent = cats.get(c.parent_id) if c.parent_id else None
+            if c.kind not in ("spending", "earning"):
+                errors.append(f"category '{c.name}' is neither spending nor earning.")
+            elif c.parent_id is not None and (parent is None or parent.parent_id is not None or parent.kind != c.kind):
+                errors.append(
+                    f"category '{c.name}' is inside a category that is missing, of the other kind, or too deep: "
+                    "categories can be at most 2 levels deep (a category and a subcategory)."
+                )
+            elif not c.name.strip() or len(c.name) > 40:
+                errors.append("a category has no name, or a name that is too long.")
+            elif (c.kind, c.parent_id, c.name.casefold()) in names:
+                errors.append(f"category '{c.name}' appears twice in the same place.")
+            names.add((c.kind, c.parent_id, c.name.casefold()))
+            if errors:
+                return
 
         def root(account: BackupAccount) -> str | None:
             seen: set[UUID] = set()
@@ -362,10 +461,6 @@ class BackupService:
                 account = accounts[account.parent_id]
             return account.name if account.parent_id is None else None
 
-        kind: dict[UUID, str] = {}
-        for a in file.accounts:
-            if a.parent_id is not None and root(a) in ("Expenses", "Income"):
-                kind[a.id] = "spending" if root(a) == "Expenses" else "earning"
         lines: list[tuple[str, UUID | None, UUID | None]] = [
             (f"the transaction of {t.date}", p.account, p.category) for t in file.transactions for p in t.postings
         ]
@@ -376,29 +471,25 @@ class BackupService:
         for label, account, category in lines:
             if category is None:
                 continue
-            if category not in kind:
-                errors.append(f"{label} uses a category that is not an Income or Expenses account of the file.")
-            elif account in kind and account != category:
-                errors.append(f"{label} puts a category on a line to an income or expense account other than its own.")
-            elif account not in kind and kind[category] != "spending":
+            kind = cats[category].kind if category in cats else None
+            where = root(accounts[account]) if account in accounts else None
+            if kind is None:
+                errors.append(f"{label} uses a category that is not in the file.")
+            elif (where == "Expenses" and kind != "spending") or (where == "Income" and kind != "earning"):
+                errors.append(f"{label} puts a {kind} category on a line to {where}.")
+            elif where == "Equity":
+                errors.append(f"{label} puts a category on a line to an equity account.")
+            elif where in ("Assets", "Liabilities") and kind != "spending":
                 errors.append(f"{label} puts an earning category on a line to a balance-sheet account.")
             if len(errors) > 20:
                 return
 
     @staticmethod
-    def _expense_plan(file: BackupFile) -> list:
-        """The plan rows that belong to expense categories: a file from when the Plan had Build and Earn
-        also carries rows for funds, loans and income accounts, which the budget no longer has."""
-        by_id = {a.id: a for a in file.accounts}
-
-        def expense(aid: UUID) -> bool:
-            account, seen = by_id.get(aid), set()
-            while account is not None and account.parent_id is not None and account.id not in seen:
-                seen.add(account.id)
-                account = by_id.get(account.parent_id)
-            return account is not None and account.parent_id is None and account.name == "Expenses"
-
-        return [r for r in file.allocations if expense(r.account_id)]
+    def _spending_plan(file: BackupFile) -> list:
+        """The plan rows that belong to spending categories (a file from when the Plan had Build and Earn also carries
+        rows for funds, loans and income accounts, which the budget no longer has: they are not categories)."""
+        spending = {c.id for c in file.categories if c.kind == "spending"}
+        return [r for r in file.allocations if r.category_id in spending]
 
     @staticmethod
     def _depth(account: BackupAccount, accounts: dict[UUID, BackupAccount]) -> int | None:
@@ -475,12 +566,29 @@ class BackupService:
                 if account is None:
                     continue
                 account.closed_on = a.closed_on
-                account.payment_category_id = ids.get(a.payment_category_id) if a.payment_category_id else None
                 db.add(account)
                 db.flush()
-                self.ar.sync_categories([account])  # its category is closed as well
-                if a.category_key:
-                    self.cr.set_system_key(ids[a.id], a.category_key)
+            # Categories: a group first, then the categories in it.
+            cats: dict[UUID, UUID] = {}
+            for c in sorted(file.categories, key=lambda c: c.parent_id is not None):
+                made_category = self.cr.add(
+                    BudgetCategory(
+                        user=self.cr.uid,
+                        name=c.name,
+                        details=c.details,
+                        kind=c.kind,
+                        parent_id=cats.get(c.parent_id) if c.parent_id else None,
+                        system_key=c.system_key,
+                        closed_on=c.closed_on,
+                    )
+                )
+                cats[c.id] = made_category.bcid
+            for a in file.accounts:
+                if a.payment_category_id and a.id in ids and a.id not in kept:
+                    account = self.ar.read(ids[a.id])
+                    if account is not None:
+                        account.payment_category_id = cats.get(a.payment_category_id)
+                        db.add(account)
             db.flush()
 
             rules: dict[UUID, UUID] = {}
@@ -490,7 +598,7 @@ class BackupService:
                     from_account=ids.get(r.from_account) if r.from_account else None,
                     to_account=ids.get(r.to_account) if r.to_account else None,
                     amount=r.amount,
-                    category_id=ids.get(r.category) if r.category else None,
+                    category_id=cats.get(r.category) if r.category else None,
                     payee=r.payee,
                     comment=r.comment,
                     tags=clean_names(r.tags),
@@ -512,7 +620,7 @@ class BackupService:
                             "account": ids[p.account],
                             "side": p.side.value,
                             "amount": p.amount,
-                            "category_id": ids.get(p.category) if p.category else None,
+                            "category_id": cats.get(p.category) if p.category else None,
                         }
                         for p in r.postings
                     ],
@@ -526,7 +634,7 @@ class BackupService:
                         account=ids[p.account],
                         side=p.side,
                         amount=p.amount,
-                        category=ids.get(p.category) if p.category else None,
+                        category=cats.get(p.category) if p.category else None,
                     )
                     for p in t.postings
                 ]
@@ -557,8 +665,8 @@ class BackupService:
                         continue
                     linked.related_id = made[t.related_id]
                     db.add(linked)
-            for row in self._expense_plan(file):
-                self.br.set(row.month, ids[row.account_id], row.amount)
+            for row in self._spending_plan(file):
+                self.br.set(row.month, cats[row.category_id], row.amount)
             for g in file.goals:
                 goal = self.br.add_goal(g.name, g.amount, g.target_date)
                 for alloc in g.allocations:

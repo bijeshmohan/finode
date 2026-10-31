@@ -2,6 +2,7 @@
 
 from app.templating import amount, symbol
 
+from .books import post_account
 from .test_budget import account, assign
 
 
@@ -44,12 +45,10 @@ def test_what_was_added_automatically_is_blue(client):
 
 
 def test_an_account_page_shows_the_rupee_sign_like_a_category_page(client, root_accounts):
-    bank = client.post(
-        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}
-    ).json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}).json()
     page = client.get(f"/accounts/{bank['aid']}").text
     assert '<p class="hero-balance"><span class="cur">&#8377;</span>12,34,567.00</p>' in page
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     assert '<span class="cur">&#8377;</span>0.00' in client.get(f"/categories/{food['aid']}").text
     client.post(
         "/api/transactions/",
@@ -68,8 +67,6 @@ def test_an_account_page_shows_the_rupee_sign_like_a_category_page(client, root_
 
 def test_another_currency_keeps_its_code_after_the_figure_on_an_account_page(client, root_accounts):
     client.patch("/api/profile/", json={"default_currency": "USD"})
-    bank = client.post(
-        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "40"}
-    ).json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "40"}).json()
     page = client.get(f"/accounts/{bank['aid']}").text
     assert '<p class="hero-balance">40.00<small>USD</small></p>' in page

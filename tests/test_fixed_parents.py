@@ -7,6 +7,7 @@ import pytest
 
 from app.services import account as account_service
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .test_backup import OTHER, as_user, restore_as_other
 
@@ -31,7 +32,7 @@ def group(client, name):
 
 
 def make(client, name, parent, **extra):
-    response = client.post("/api/accounts/", json={"name": name, "parent_id": group(client, parent)["aid"], **extra})
+    response = post_account(client, {"name": name, "parent_id": group(client, parent)["aid"], **extra})
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -50,9 +51,7 @@ def test_a_new_person_starts_with_the_five_groups_in_order(client):
 
 def test_the_groups_come_first_and_everything_else_by_name(client, root_accounts):
     for name in ("Zeta", "Alpha"):
-        assert (
-            client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts["Assets"]}).status_code == 201
-        )
+        assert post_account(client, {"name": name, "parent_id": root_accounts["Assets"]}).status_code == 201
     mine = [a for a in accounts(client) if a["parent_id"] == root_accounts["Assets"]]
     ordered = sorted(mine, key=lambda a: account_service.AccountService.order_key(type("A", (), a)))
     assert [a["name"] for a in ordered] == ["Bank Accounts", "Cash", "Investments", "Alpha", "Zeta"]
@@ -104,9 +103,9 @@ def test_people_with_a_ledger_of_their_own_get_none(client, monkeypatch):
 
 
 def test_an_account_can_be_moved_into_a_group_but_not_the_group_ordered(client):
-    other = client.post(
-        "/api/accounts/",
-        json={
+    other = post_account(
+        client,
+        {
             "name": "Piggy",
             "parent_id": next(a["aid"] for a in accounts(client) if a["name"] == "Assets" and a["parent_id"] is None),
         },
@@ -147,9 +146,7 @@ def test_a_backup_without_groups_brings_its_own_structure(client, monkeypatch):
     try:
         as_user(OTHER)
         roots = {a["name"]: a["aid"] for a in accounts(client) if a["parent_id"] is None}
-        _cash = client.post(
-            "/api/accounts/", json={"name": "Cash", "parent_id": roots["Assets"], "balance": "300"}
-        ).json()
+        _cash = post_account(client, {"name": "Cash", "parent_id": roots["Assets"], "balance": "300"}).json()
         doc = client.get("/api/backup").json()
     finally:
         as_user(TEST_USER_ID)

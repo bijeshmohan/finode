@@ -61,7 +61,9 @@ def test_the_limits_go_and_the_accounts_stay(alembic):
     inspector = sa.inspect(engine)
     assert not [c["name"] for c in inspector.get_columns("profiles") if c["name"].startswith("max_depth")]
     with engine.connect() as c:
-        assert c.execute(sa.text("SELECT count(*) FROM accounts")).scalar() == 3
+        # the Expenses accounts became categories (a later migration), so only the root is left
+        assert c.execute(sa.text("SELECT count(*) FROM accounts")).scalar() == 1
+        assert c.execute(sa.text("SELECT count(*) FROM budget_categories")).scalar() == 2
         assert c.execute(sa.text("SELECT count(*) FROM profiles")).scalar() == 1
 
 
