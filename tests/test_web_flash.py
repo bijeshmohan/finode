@@ -3,6 +3,8 @@ from fastapi.testclient import TestClient
 
 from app.flash import FLASH_COOKIE, MESSAGES, set_flash
 
+from .books import leg
+
 
 def test_saving_a_transaction_sets_a_flash(client: TestClient, account: dict, expense_account: dict):
     response = client.post(
@@ -58,8 +60,8 @@ def test_deletes_set_flash(client: TestClient, account: dict, expense_account: d
             "/api/transactions/",
             json={
                 "postings": [
-                    {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                    {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                    leg(expense_account, "debit", "1.00"),
+                    leg(account, "credit", "1.00"),
                 ]
             },
         ).json()

@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from .books import leg
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .test_transaction_references import body
@@ -17,9 +18,9 @@ def test_each_update_says_what_it_changed(client, account, other_account, expens
     made = make(client, account, expense_account, payee="Cafe")
     client.patch(f"/api/transactions/{made['tid']}", json={"payee": "Bar", "comment": "late"})
     rows = [
-        {"account": other_account["aid"], "side": "credit", "amount": "100"},
-        {"account": expense_account["aid"], "side": "debit", "amount": "120"},
-        {"account": account["aid"], "side": "credit", "amount": "20"},
+        leg(other_account, "credit", "100"),
+        leg(expense_account, "debit", "120"),
+        leg(account, "credit", "20"),
     ]
     client.patch(f"/api/transactions/{made['tid']}", json={"postings": rows})
     client.patch(f"/api/transactions/{made['tid']}", json={"source": "gmail", "external_id": "m1"})

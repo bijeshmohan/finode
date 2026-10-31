@@ -2,6 +2,7 @@
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -59,7 +60,7 @@ def test_saving_an_expense(page: Page, books, api: Api):
     expect(page.locator("a.tx.tx-new")).to_contain_text("DMart")
     [entry] = [t for t in api.get("/transactions/") if t["payee"] == "DMart"]
     assert {(p["side"], p["amount"]) for p in entry["postings"]} == {("debit", "250.00"), ("credit", "250.00")}
-    assert api.get(f"/accounts/{books['food']['aid']}")["balance"] == "250.00"
+    assert api.get(f"/categories/{books['food']['aid']}/register")[-1]["balance"] == "250.00"
 
 
 def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
@@ -94,14 +95,16 @@ def test_removing_a_row_brings_the_remainder_back(page: Page, books):
     assert amounts(page, "debit") == ["100.00"]
 
 
-def test_swapping_from_and_to_offers_every_account(page: Page, books):
+def test_swapping_from_and_to_keeps_a_transfer_and_an_expense_has_no_swap(page: Page, books):
     page.goto("/transactions/new")
+    expect(page.locator("[data-swap-sides]")).to_be_hidden()  # a category is not swapped with an account
+    page.get_by_role("button", name="Transfer", exact=True).click()
     page.select_option('[data-rows="credit"] select', label="Checking")
-    page.select_option('[data-rows="debit"] select', label="Groceries")
+    page.select_option('[data-rows="debit"] select', label="Cash")
     page.click("[data-swap-sides]")
-    assert page.input_value('[data-rows="credit"] select') == books["food"]["aid"]
+    assert page.input_value('[data-rows="credit"] select') == books["cash"]["aid"]
     assert page.input_value('[data-rows="debit"] select') == books["checking"]["aid"]
-    expect(page.locator("[data-kind][aria-pressed=true]")).to_have_count(0)  # nothing selected: every account
+    expect(page.locator('[data-kind="transfer"]')).to_have_attribute("aria-pressed", "true")
 
 
 def test_adding_an_account_from_the_picker(page: Page, books, api: Api):
@@ -110,11 +113,11 @@ def test_adding_an_account_from_the_picker(page: Page, books, api: Api):
     dialog = page.locator("#quick-account")
     expect(dialog).to_be_visible()
     dialog.locator('input[name="name"]').fill("Coffee")
-    dialog.get_by_role("button", name="Add account").click()
+    dialog.get_by_role("button", name="Add category").click()
     expect(dialog).not_to_be_visible()
     chosen = page.eval_on_selector('[data-rows="debit"] select', "s => s.selectedOptions[0].textContent")
-    assert chosen == "Coffee", "the new account is chosen"
-    assert any(a["name"] == "Coffee" for a in api.get("/accounts/"))
+    assert chosen == "Coffee", "the new category is chosen"
+    assert any(c["name"] == "Coffee" for c in api.get("/categories/"))
 
 
 def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
@@ -122,8 +125,8 @@ def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
         "/transactions/",
         payee="Old",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
+            leg(books["food"], "debit", "40"),
+            leg(books["checking"], "credit", "40"),
         ],
     )
     page.goto(f"/transactions/{entry['tid']}/edit")
@@ -142,8 +145,8 @@ def history(api: Api, books, payee="Swiggy", source="card", target="food"):
         "/transactions/",
         payee=payee,
         postings=[
-            {"account": books[target]["aid"], "side": "debit", "amount": "100"},
-            {"account": books[source]["aid"], "side": "credit", "amount": "100"},
+            leg(books[target], "debit", "100"),
+            leg(books[source], "credit", "100"),
         ],
     )
 
@@ -164,7 +167,7 @@ def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(p
     page.wait_for_url("**/transactions")
     newest = api.get("/transactions/")[0]
     assert newest["payee"] == "Swiggy" and {p["amount"] for p in newest["postings"]} == {"250.00"}
-    assert {(p["account"], p["side"]) for p in newest["postings"]} == {
+    assert {(p["category"] or p["account"], p["side"]) for p in newest["postings"]} == {
         (books["card"]["aid"], "credit"),
         (books["food"]["aid"], "debit"),
     }
@@ -290,8 +293,8 @@ def _spend(api: Api, books, payee: str, amount: str, on: str, **extra):
         date=on,
         payee=payee,
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": amount},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
+            leg(books["food"], "debit", amount),
+            leg(books["checking"], "credit", amount),
         ],
         **extra,
     )
@@ -355,6 +358,7 @@ def test_the_picker_relates_an_entry_and_the_chip_removes_it(page: Page, books, 
 
 def test_from_and_to_are_the_same_size_and_the_swap_sits_between_them(page: Page, books):
     page.goto("/transactions/new")
+    page.get_by_role("button", name="Transfer", exact=True).click()
     page.fill("#total", "100")
     heights = page.eval_on_selector_all(
         ".txn-side", "els => els.map(e => Math.round(e.getBoundingClientRect().height))"

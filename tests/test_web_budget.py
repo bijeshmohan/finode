@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from .books import leg, post_account
 from .test_budget import account, assign, line, move
 from .test_budget import budget as api_budget
 
@@ -135,7 +136,7 @@ def test_the_inline_amount_also_saves_on_the_return_key(client, setup):
 
 
 def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
     assign(client, setup["rent"], "500")
     assign(client, groceries, "200")
     page = client.get("/budget").text
@@ -151,8 +152,8 @@ def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, roo
 
 
 def test_a_group_page_lists_its_categories_and_its_figure_opens_its_own_budget(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
     assign(client, groceries, "200")
     assign(client, dining, "300")
     page = client.get(f"/budget/group/{setup['food']['aid']}").text
@@ -177,7 +178,7 @@ def test_a_group_page_lists_its_categories_and_its_figure_opens_its_own_budget(c
 
 
 def test_assigning_from_a_group_page_returns_that_page_block(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
     sheet = client.get(f"/budget/category/{groceries['aid']}/sheet?group={setup['food']['aid']}").text
     assert f'name="group" value="{setup["food"]["aid"]}"' in sheet
     response = client.post(
@@ -193,7 +194,7 @@ def test_assigning_from_a_group_page_returns_that_page_block(client, root_accoun
 
 
 def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
     sheet = client.get(f"/budget/category/{setup['food']['aid']}/sheet")
     assert sheet.status_code == 200 and "Food · everything else" in sheet.text, "a group has a sheet of its own"
     assign(client, groceries, "100")
@@ -207,7 +208,7 @@ def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client,
 
 def test_unused_groups_are_tucked_away_once_something_is_in_use_but_plain_categories_stay(client, root_accounts, setup):
     travel = account(client, root_accounts, "Travel", "Expenses")
-    client.post("/api/accounts/", json={"name": "Stay", "parent_id": travel["aid"]})
+    post_account(client, {"name": "Stay", "parent_id": travel["aid"]})
     assert "unused-hidden" not in client.get("/budget").text, "nothing in use yet: everything shows"
     assign(client, setup["food"], "100")
     page = client.get("/budget").text
@@ -217,12 +218,12 @@ def test_unused_groups_are_tucked_away_once_something_is_in_use_but_plain_catego
     )
 
 
-def test_what_needs_you_is_a_slim_line_that_opens_a_panel(client, setup):
+def test_copying_last_month_is_a_quiet_link_and_nothing_else_needs_you_here(client, setup):
     last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
     assign(client, setup["food"], "300", last)
     page = client.get("/budget").text
-    assert "data-toggle-attn" in page and "1 thing needs you" in page and "Copy last month's amounts" in page
-    assert 'aria-expanded="false"' in page and "Show" in page, "closed until asked"
+    assert "Copy last month's amounts" in page and 'class="quiet-link"' in page
+    assert "data-toggle-attn" not in page and "needs you" not in page and "need you" not in page
 
 
 def test_the_sheet_of_a_plain_account_is_not_offered(client, root_accounts, setup):
@@ -246,7 +247,8 @@ def test_the_page_explains_last_months_overspending(client, root_accounts):
     assign(client, food, "10", last)
     move(client, bank, food, "30", on=last.replace(day=5).isoformat())
     page = client.get("/budget").text
-    assert "was overspent last month" in page and "20.00 overspent last month" in page
+    assert "20.00 overspent last month" in page, "the category's own line says it"
+    assert "was overspent last month" not in page, "the long note is gone: the sum behind the i covers it"
     assert "overspent last month" not in client.get(f"/budget?month={last:%Y-%m}").text
 
 
@@ -255,12 +257,12 @@ def test_the_page_offers_to_add_a_card_and_adding_it_counts_its_spending(client,
     card = account(client, root_accounts, "Card", "Liabilities")
     food = account(client, root_accounts, "Food", "Expenses")
     move(client, card, food, "75")
-    page = client.get("/budget").text
-    assert "not part of the budget" in page and "Liabilities:Card" in page and "Add to budget" in page
-    response = client.post(f"/budget/accounts/{card['aid']}/include", data={"month": THIS_MONTH.strftime("%Y-%m")})
-    assert response.status_code == 200 and 'id="budget"' in response.text
-    assert "Add to budget" not in response.text and "\u221275.00" in response.text
-    assert client.post(f"/budget/accounts/{food['aid']}/include", data={}).status_code == 400
+    sheet = client.get("/todo/sheet").text
+    assert "Liabilities:Card is not in the budget" in sheet and "Add to budget" in sheet
+    response = client.post(f"/todo/accounts/{card['aid']}/include")
+    assert response.status_code == 200 and "Nothing needs you" in response.text
+    assert "\u221275.00" in client.get("/budget").text
+    assert client.post(f"/todo/accounts/{food['aid']}/include", data={}).status_code == 400
 
 
 def test_the_page_offers_to_copy_last_month_and_does_it(client, setup):
@@ -307,7 +309,7 @@ def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts
 def test_a_budget_account_with_sub_accounts_is_not_announced_on_the_page(client, setup, root_accounts):
     """It is left out of the sums (only accounts that hold money count) but the page does not say so: nothing to do."""
     deposits = account(client, root_accounts, "Deposits", "Assets")
-    client.post("/api/accounts/", json={"name": "FD", "parent_id": deposits, "balance": "10"})
+    post_account(client, {"name": "FD", "parent_id": deposits["aid"], "balance": "10"})
     page = client.get("/budget").text
     assert "Left out because" not in page and "sub-accounts" not in page
 
@@ -356,8 +358,8 @@ def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
 
 def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_below(client, root_accounts, setup):
     food = setup["food"]["aid"]
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": food}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": food}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": food}).json()
     assign(client, groceries, "200")
     assign(client, dining, "300")
     month = THIS_MONTH.strftime("%Y-%m")
@@ -387,7 +389,7 @@ def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_
     )
 
 
-def test_the_month_pill_is_in_the_title_row_and_needs_you_is_a_slim_line_under_the_head(client, root_accounts, setup):
+def test_the_month_pill_is_in_the_title_row_and_what_needs_you_is_under_the_bell(client, root_accounts, setup):
     page = client.get("/budget").text
     head = page.split('<div class="page-head tall">', 1)[1].split('<div id="budget">', 1)[0]
     assert "<h1>Budgets</h1>" in head and 'class="month-pill"' in head and 'href="/budget?tab=spend&amp;month=' in head
@@ -400,13 +402,12 @@ def test_the_month_pill_is_in_the_title_row_and_needs_you_is_a_slim_line_under_t
         "/api/transactions/",
         json={
             "postings": [
-                {"account": setup["food"]["aid"], "side": "debit", "amount": "5"},
-                {"account": card["aid"], "side": "credit", "amount": "5"},
+                leg(setup["food"], "debit", "5"),
+                leg(card, "credit", "5"),
             ]
         },
     )
     page = client.get("/budget").text
-    assert page.index("data-budget-head") < page.index("data-toggle-attn") < page.index('id="attn-panel"'), (
-        "the line is under the head, its panel right below"
-    )
-    assert "1 thing needs you" in page
+    assert "data-toggle-attn" not in page and "attn-panel" not in page, "no line on the page any more"
+    assert client.get("/api/todo/").json()["count"] == 1 and "is not in the budget" in client.get("/todo/sheet").text
+    assert 'hx-get="/todo/badge"' in page and 'id="todo-sheet"' in page, "the bell and its sheet are on every page"

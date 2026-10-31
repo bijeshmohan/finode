@@ -7,7 +7,9 @@ from .conftest import Api
 
 def test_the_description_opens_from_the_i_and_gives_way_to_the_menu(page: Page, api: Api, books):
     food = books["food"]
-    response = page.request.patch(f"/api/accounts/{food['aid']}", data={"details": "Weekly shop and the corner store"})
+    response = page.request.patch(
+        f"/api/categories/{food['aid']}", data={"details": "Weekly shop and the corner store"}
+    )
     assert response.ok, response.text()
     page.goto(f"/categories/{food['aid']}")
 

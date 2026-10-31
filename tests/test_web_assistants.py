@@ -4,6 +4,7 @@ import pytest
 
 from tests.htmlutil import element, text_of
 
+from .books import leg, post_account
 from .conftest import TEST_USER_ID
 from .mcputil import make_token
 from .svc import plain
@@ -59,14 +60,14 @@ def test_revoking_hides_the_token(client, session):
 
 
 def test_origin_is_recorded_for_web_api_and_import(client, root_accounts):
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     api = client.post(
         "/api/transactions/",
         json={
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "5"},
-                {"account": bank["aid"], "side": "credit", "amount": "5"},
+                leg(food, "debit", "5"),
+                leg(bank, "credit", "5"),
             ]
         },
     ).json()
@@ -89,8 +90,8 @@ def test_imports_are_marked(client):
 
 
 def test_the_spending_breakdown_adds_up_what_was_recorded(client, root_accounts, svc):
-    bank = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     client.post(
         "/transactions/split",
         data={"account": [food["aid"], bank["aid"]], "side": ["debit", "credit"], "amount": ["70", "70"]},

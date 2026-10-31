@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 
+from .books import leg, post_account
 from .svc import plain
 
 
@@ -28,10 +29,7 @@ def test_dashboard_shows_summary_and_recent_transactions(
     expense_account: dict,
     svc,
 ):
-    bank = client.post(
-        "/api/accounts/",
-        json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"},
-    ).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
     today = date.today().isoformat()
     for debit, credit, amount, payee in (
         (bank, income_account, "2500.00", "Employer"),
@@ -43,8 +41,8 @@ def test_dashboard_shows_summary_and_recent_transactions(
                 "date": today,
                 "payee": payee,
                 "postings": [
-                    {"account": debit["aid"], "side": "debit", "amount": amount},
-                    {"account": credit["aid"], "side": "credit", "amount": amount},
+                    leg(debit, "debit", amount),
+                    leg(credit, "credit", amount),
                 ],
             },
         )
@@ -61,17 +59,15 @@ def test_dashboard_shows_summary_and_recent_transactions(
 def test_dashboard_shows_what_is_left_to_spend_once_there_is_a_budget(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict
 ):
-    bank = client.post(
-        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
-    ).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
     client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "400"})
     client.post(
         "/api/transactions/",
         json={
             "payee": "Shop",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "100"},
-                {"account": bank["aid"], "side": "credit", "amount": "100"},
+                leg(expense_account, "debit", "100"),
+                leg(bank, "credit", "100"),
             ],
         },
     )
@@ -84,17 +80,15 @@ def test_dashboard_shows_what_is_left_to_spend_once_there_is_a_budget(
 def test_dashboard_says_over_budget_when_a_category_is_overspent(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict
 ):
-    bank = client.post(
-        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
-    ).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
     client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "50"})
     client.post(
         "/api/transactions/",
         json={
             "payee": "Shop",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "80"},
-                {"account": bank["aid"], "side": "credit", "amount": "80"},
+                leg(expense_account, "debit", "80"),
+                leg(bank, "credit", "80"),
             ],
         },
     )
@@ -113,8 +107,8 @@ def _spend(client, expense_account, account, payee, day):
             "payee": payee,
             "date": day,
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                leg(expense_account, "debit", "1.00"),
+                leg(account, "credit", "1.00"),
             ],
         },
     )
@@ -168,21 +162,18 @@ def test_onboarding_checklist_for_new_users(client: TestClient, root_accounts: d
 
 
 def test_onboarding_ticks_off_steps_and_ignores_opening_balances(client: TestClient, root_accounts: dict[str, str]):
-    bank = client.post(
-        "/api/accounts/",
-        json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"},
-    ).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"}).json()
     text = client.get("/").text
     assert '<li class="done">' in text
     assert "Record your first spend</a>" in text  # opening balance is not a recorded transaction
 
-    food = client.post("/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}).json()
+    food = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
     client.post(
         "/api/transactions/",
         json={
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "5.00"},
-                {"account": bank["aid"], "side": "credit", "amount": "5.00"},
+                leg(food, "debit", "5.00"),
+                leg(bank, "credit", "5.00"),
             ]
         },
     )
@@ -207,8 +198,8 @@ def test_the_latest_entries_on_home_sit_under_a_transactions_heading(
         json={
             "payee": "Shop",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "5"},
-                {"account": account["aid"], "side": "credit", "amount": "5"},
+                leg(expense_account, "debit", "5"),
+                leg(account, "credit", "5"),
             ],
         },
     )
@@ -220,17 +211,15 @@ def test_the_latest_entries_on_home_sit_under_a_transactions_heading(
 def test_the_i_on_home_shows_the_sum_with_the_persons_own_numbers(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict
 ):
-    bank = client.post(
-        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
-    ).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
     client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "400"})
     client.post(
         "/api/transactions/",
         json={
             "payee": "Shop",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "100"},
-                {"account": bank["aid"], "side": "credit", "amount": "100"},
+                leg(expense_account, "debit", "100"),
+                leg(bank, "credit", "100"),
             ],
         },
     )
@@ -248,9 +237,7 @@ def test_the_i_on_home_shows_the_sum_with_the_persons_own_numbers(
 def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_overspent_category(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict, income_account: dict
 ):
-    bank = client.post(
-        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
-    ).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
     client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "50"})
     for debit, credit, amount in ((expense_account, bank, "80"), (bank, income_account, "500")):
         client.post(
@@ -258,8 +245,8 @@ def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_
             json={
                 "payee": "x",
                 "postings": [
-                    {"account": debit["aid"], "side": "debit", "amount": amount},
-                    {"account": credit["aid"], "side": "credit", "amount": amount},
+                    leg(debit, "debit", amount),
+                    leg(credit, "credit", amount),
                 ],
             },
         )
@@ -275,9 +262,7 @@ def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_
 def test_the_month_pill_in_the_box_shows_another_month_and_never_a_future_one(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict
 ):
-    bank = client.post(
-        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}
-    ).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
     today = date.today()
     last = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     for when, amount in ((last, "300"), (today, "100")):
@@ -287,8 +272,8 @@ def test_the_month_pill_in_the_box_shows_another_month_and_never_a_future_one(
                 "date": when.isoformat(),
                 "payee": "x",
                 "postings": [
-                    {"account": expense_account["aid"], "side": "debit", "amount": amount},
-                    {"account": bank["aid"], "side": "credit", "amount": amount},
+                    leg(expense_account, "debit", amount),
+                    leg(bank, "credit", amount),
                 ],
             },
         )
@@ -315,16 +300,14 @@ def test_the_checklist_stays_on_home_after_the_first_entry_until_the_plan_is_use
 ):
     """Everybody keeps seeing the card until all three steps are done."""
 
-    bank = client.post(
-        "/api/accounts/", json={"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100"}
-    ).json()
-    food = client.post("/api/accounts/", json={"name": "food", "parent_id": root_accounts["Expenses"]}).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
+    food = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
     client.post(
         "/api/transactions/",
         json={
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "5"},
-                {"account": bank["aid"], "side": "credit", "amount": "5"},
+                leg(food, "debit", "5"),
+                leg(bank, "credit", "5"),
             ]
         },
     )

@@ -5,15 +5,16 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from ..models.transaction import PostingSide
 from .day import Day
 
 FORMAT = "finode-backup"
-VERSION = 3
+VERSION = 5
 # Files of version 1 (before finode kept one currency) are still read; what they carry beyond that is below.
-READS = (1, 2, 3)
+# Before version 5 a category was an Income or Expenses account: a restore turns those accounts into categories.
+READS = (1, 2, 3, 4, 5)
 
 
 class BackupProfile(BaseModel):
@@ -35,12 +36,30 @@ class BackupAccount(BaseModel):
     # Older backups: accounts could be pinned. Read, never written.
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); a restore maps them onto the person's own.
     system_key: str | None = None
+    # Version 4 only: the built-in key of the category this Income or Expenses account stood for.
+    category_key: str | None = Field(default=None, exclude=True)
+
+
+class BackupCategory(BaseModel):
+    """Version 5: what money was for (Groceries, EMI, Salary). A group has no parent; the categories in it name it."""
+
+    id: UUID
+    name: str
+    kind: str
+    parent_id: UUID | None = None
+    details: str | None = None
+    closed_on: Day | None = None
+    # "uncategorised.spending" / "uncategorised.earning" on the built-in ones.
+    system_key: str | None = None
 
 
 class BackupPosting(BaseModel):
     account: UUID
     side: PostingSide
     amount: Decimal
+    # What the line was for: a category of the file. Before version 5 this was the id of an Income or Expenses
+    # account (the same id the category got), and a line to one of those had none: a restore sorts it out.
+    category: UUID | None = None
     # Version 1 only: the worth in the transaction's currency; must equal the amount.
     value: Decimal | None = Field(default=None, exclude=True)
 
@@ -69,6 +88,7 @@ class BackupRecurringPosting(BaseModel):
     account: UUID
     side: PostingSide
     amount: Decimal
+    category: UUID | None = None
     value: Decimal | None = Field(default=None, exclude=True)
 
 
@@ -77,6 +97,7 @@ class BackupRecurring(BaseModel):
     from_account: UUID | None = None
     to_account: UUID | None = None
     amount: Decimal | None = None
+    category: UUID | None = None
     received_amount: Decimal | None = Field(default=None, exclude=True)
     currency: str | None = Field(default=None, exclude=True)
     postings: list[BackupRecurringPosting] = []
@@ -97,7 +118,8 @@ class BackupRecurring(BaseModel):
 
 class BackupAllocation(BaseModel):
     month: Day
-    account_id: UUID
+    # The category the money was assigned to (called `account_id` before version 5).
+    category_id: UUID = Field(validation_alias=AliasChoices("category_id", "account_id"))
     amount: Decimal
 
 
@@ -123,6 +145,7 @@ class BackupFile(BaseModel):
     commodities: list[dict] = Field(default=[], exclude=True)
     prices: list[dict] = Field(default=[], exclude=True)
     accounts: list[BackupAccount]
+    categories: list[BackupCategory] = []
     transactions: list[BackupTransaction] = []
     recurring: list[BackupRecurring] = []
     allocations: list[BackupAllocation] = []
@@ -135,6 +158,7 @@ class RestoreSummary(BaseModel):
 
     errors: list[str] = Field(default_factory=list)
     accounts: int = 0
+    categories: int = 0
     transactions: int = 0
     recurring: int = 0
     allocations: int = 0

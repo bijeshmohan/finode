@@ -6,6 +6,7 @@ from datetime import date
 
 import pytest
 
+from .books import leg, post_account
 from .htmlutil import text_of
 
 TODAY = date.today()
@@ -15,7 +16,7 @@ MONTH = TODAY.strftime("%Y-%m")
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, root, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra}).json()
+        return post_account(client, {"name": name, "parent_id": root_accounts[root], **extra}).json()
 
     return {
         "bank": make("Bank", "Assets", balance="100000"),
@@ -32,8 +33,8 @@ def spend(client, books, amount, note=None, payee=None, to="travel", on=None, ta
         "comment": note,
         "tags": tags or [],
         "postings": [
-            {"account": books[to]["aid"], "side": "debit", "amount": amount},
-            {"account": books["bank"]["aid"], "side": "credit", "amount": amount},
+            leg(books[to], "debit", amount),
+            leg(books["bank"], "credit", amount),
         ],
     }
     made = client.post("/api/transactions/", json=body)
@@ -48,8 +49,8 @@ def earn(client, books, amount, tags):
             "date": str(TODAY),
             "tags": tags,
             "postings": [
-                {"account": books["bank"]["aid"], "side": "debit", "amount": amount},
-                {"account": books["salary"]["aid"], "side": "credit", "amount": amount},
+                leg(books["bank"], "debit", amount),
+                leg(books["salary"], "credit", amount),
             ],
         },
     )

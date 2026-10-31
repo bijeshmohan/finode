@@ -43,6 +43,7 @@ class _Entry:
     commodity: str | None
     assertion: Decimal | None = None
     assertion_commodity: str | None = None
+    category: str | None = None
 
 
 class _State:
@@ -81,7 +82,7 @@ def _split_comment(text: str) -> tuple[str, str | None]:
 
 
 def _parse_entry(number: int, raw: str, state: _State) -> _Entry | None:
-    body, _ = _split_comment(raw.strip())
+    body, comment = _split_comment(raw.strip())
     body = re.sub(r"^[*!]\s+", "", body.strip())
     if body.startswith(("(", "[")):
         state.error(number, "virtual postings are not supported")
@@ -98,6 +99,9 @@ def _parse_entry(number: int, raw: str, state: _State) -> _Entry | None:
         return None
 
     entry = _Entry(number, account, None, None)
+    found = re.search(r"(?:^|\s)category:\s*([^,;]+)", comment or "", re.IGNORECASE)
+    if found:
+        entry.category = found.group(1).strip() or None
     if amount_text.strip():
         parsed = _parse_amount(amount_text, state, number)
         if parsed is None:
@@ -177,6 +181,7 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
                 amount=amount,
                 line=entry.number,
                 commodity=entry.commodity,
+                category=entry.category,
             )
         )
     state.balances = running

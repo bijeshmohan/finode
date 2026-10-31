@@ -5,11 +5,14 @@ from datetime import date
 
 import pytest
 
+from .books import leg, post_account
+from .htmlutil import option_selected
+
 
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, root, **extra):
-        response = client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra})
+        response = post_account(client, {"name": name, "parent_id": root_accounts[root], **extra})
         assert response.status_code == 201, response.text
         return response.json()
 
@@ -29,8 +32,8 @@ def post(client, payee, debit, credit, amount="10", **extra):
         json={
             "payee": payee,
             "postings": [
-                {"account": debit["aid"], "side": "debit", "amount": amount},
-                {"account": credit["aid"], "side": "credit", "amount": amount},
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
             ],
             **extra,
         },
@@ -133,7 +136,8 @@ def test_each_filter_shows_its_value_with_a_way_to_remove_it(client, books, ledg
 
 def test_the_sheet_lists_the_choices(client, books, ledger):
     html = page(client)
-    sheet = html[html.index('id="tx-filter"') : html.index("</dialog>")]
+    start = html.index('id="tx-filter"')
+    sheet = html[start : html.index("</dialog>", start)]
     assert 'data-filter-list="account"' in sheet and "HDFC" in sheet and "Regalia Gold" in sheet
     assert 'data-filter-list="category"' in sheet and "Groceries" in sheet and "Salary" in sheet
     assert 'data-filter-list="merchant"' in sheet and "Swiggy" in sheet and "DMart" in sheet
@@ -191,9 +195,9 @@ def test_a_split_lists_every_account_with_its_amount(client, books):
         json={
             "payee": "Big shop",
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "600"},
-                {"account": books["delivery"]["aid"], "side": "debit", "amount": "300"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "900"},
+                leg(books["groceries"], "debit", "600"),
+                leg(books["delivery"], "debit", "300"),
+                leg(books["hdfc"], "credit", "900"),
             ],
         },
     ).json()
@@ -229,8 +233,8 @@ def test_add_again_copies_the_entry_for_today(client, books, ledger):
     html = client.get("/transactions/new", params={"repeat": ledger["dmart"]["tid"]}).text
     assert 'value="1286.00"' in html and 'value="DMart"' in html and 'value="weekly shop"' in html
     assert f'name="date" value="{date.today().isoformat()}"' in html
-    assert f'<option value="{books["hdfc"]["aid"]}" selected' in html
-    assert f'<option value="{books["groceries"]["aid"]}" selected' in html
+    assert option_selected(html, books["hdfc"]["aid"])
+    assert option_selected(html, books["groceries"]["aid"])
     assert 'name="kind" value="expense"' in html
 
 
@@ -240,9 +244,9 @@ def test_add_again_keeps_every_row_of_a_split(client, books):
         json={
             "payee": "Big shop",
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "600"},
-                {"account": books["delivery"]["aid"], "side": "debit", "amount": "300"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "900"},
+                leg(books["groceries"], "debit", "600"),
+                leg(books["delivery"], "debit", "300"),
+                leg(books["hdfc"], "credit", "900"),
             ],
         },
     ).json()
@@ -284,8 +288,8 @@ def test_the_sheet_leads_like_the_row_and_offers_words_not_glyphs(client, books,
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "70"},
-                {"account": books["cash"]["aid"], "side": "credit", "amount": "70"},
+                leg(books["groceries"], "debit", "70"),
+                leg(books["cash"], "credit", "70"),
             ]
         },
     ).json()

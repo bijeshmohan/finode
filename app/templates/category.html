@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/month_pill.html" import month_pill %}
+{% from "partials/money.html" import figure %}
+{% block title %}{{ category.name }} · finode{% endblock %}
+{% block content %}
+<div class="cat-bar acct-nav">
+  <a class="back" href="{{ "/categories?month=" ~ month_key ~ "&tab=" ~ tab }}">{{ icon("back") }}Categories</a>
+  {{ month_pill("/categories/" ~ category.bcid ~ "?month={month}", month_name, month_key, previous, next, this_month) }}
+</div>
+
+<header class="account-hero">
+  <div class="acct-title">
+    <div class="acct-names">
+      <div class="acct-name-row">
+        <h1>{{ category.name }}{% if category.system_key %} <span class="badge">built in</span>{% endif %}{% if category.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
+        {% if category.details %}
+        <details class="note-info">
+          <summary class="info-button" title="About this category" aria-label="About {{ category.name }}">{{ icon("info") }}</summary>
+          <div class="menu-panel"><p class="menu-note">{{ category.details }}</p></div>
+        </details>
+        {% endif %}
+      </div>
+      <p class="acct-sub">{{ group.name if group else ("Earning" if earning else "Spending") }}</p>
+    </div>
+    <div class="acct-icons">
+      <a class="circ-button" href="/categories/{{ category.bcid }}/edit" title="Edit" aria-label="Edit {{ category.name }}">{{ icon("edit") }}</a>
+      <details class="menu">
+      <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
+      <div class="menu-panel">
+        {% if not earning %}<a href="/budget">{{ icon("budget") }}See in Budgets</a>{% endif %}
+        {% if can_add_child %}<a href="/categories/new?parent={{ category.bcid }}">{{ icon("plus") }}Add subcategory</a>{% endif %}
+        {% if category.closed_on %}
+        <p class="menu-note">{{ category.name }} was deleted: it is out of your lists and pickers, and its history stays in the reports.</p>
+        <button type="button" hx-post="/categories/{{ category.bcid }}/reopen">Restore category</button>
+        {% elif not category.system_key %}
+        <button type="button" class="danger-text" hx-post="/categories/{{ category.bcid }}/delete"
+                hx-confirm="Delete {{ category.name }}{% if subs %} and the subcategories in it{% endif %}? If there are entries, they stay in your history and reports, but {{ 'these categories leave' if subs else 'it leaves' }} your lists and pickers.">{{ icon("trash") }}Delete category</button>
+        {% endif %}
+      </div>
+      </details>
+    </div>
+  </div>
+  {% if category.closed_on %}<p class="muted">Closed on {{ category.closed_on.strftime("%d %b %Y") }}. Its history stays; nothing can be added to it until you restore it.</p>{% endif %}
+  <p class="hero-balance">{{ figure(total, currency) }}</p>
+  <p id="page-error" class="error" role="alert"></p>
+</header>
+
+{% if subs or own_here %}
+<div class="section-head">
+  <h2>Subcategories</h2>
+  {% if can_add_child %}<a class="circ-button" href="/categories/new?parent={{ category.bcid }}" title="Add subcategory" aria-label="Add subcategory">{{ icon("plus") }}</a>{% endif %}
+</div>
+<div class="tile sub-tile">
+  {% for c, amount in subs %}
+  <a class="r crow" href="/categories/{{ c.category.bcid }}?month={{ month_key }}">
+    <span class="crow-main"><span class="crow-name">{{ c.category.name }}</span></span>
+    <span class="crow-amt"><span class="{{ 'income' if earning and amount > 0 }}">{{ amount|money }}</span></span>
+  </a>
+  {% endfor %}
+  {% if own_here %}
+  <div class="r crow">
+    <span class="crow-main"><span class="crow-name">Everything else</span><span class="crow-sub">posted to {{ category.name }} itself</span></span>
+    <span class="crow-amt"><span class="{{ 'income' if earning and own_here > 0 }}">{{ own_here|money }}</span></span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="section-head">
+  <h2>Transactions</h2>
+  {% if not category.closed_on %}<a class="circ-button" href="/transactions/new?category={{ category.bcid }}&back=/categories/{{ category.bcid }}" title="Add transaction" aria-label="Add transaction">{{ icon("plus") }}</a>{% endif %}
+</div>
+{% if entries %}
+<div class="tx-list">
+  {% include "partials/category_entries.html" %}
+</div>
+{% else %}
+<div class="card empty-state">
+  <p>Nothing in {{ month_name.split(" ")[0] }}.</p>
+</div>
+{% endif %}
+<dialog id="txn-sheet" class="sheet sheet-bottom" aria-label="Transaction details">
+  <div id="txn-sheet-body" class="sheet-body"></div>
+</dialog>
+{% endblock %}

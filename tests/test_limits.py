@@ -10,6 +10,7 @@ from app.ratelimit import AttemptLimiter
 from app.routers.web import auth as web_auth_router
 from app.web_auth import InvalidCredentialsError, SessionTokens
 
+from .books import into, leg, post_account
 from .test_web_signup import CODE, FORM, raw_client, signup_on, supabase  # noqa: F401  (fixtures used by name)
 
 # ---- the counter ----------------------------------------------------------------------------------------------
@@ -112,15 +113,15 @@ def test_sign_up_attempts_are_limited_even_with_the_right_code(raw_client, signu
 def test_accounts_are_limited(client, root_accounts, monkeypatch):
     count = len(client.get("/api/accounts/").json())
     monkeypatch.setattr(settings, "max_accounts", count + 1)
-    assert client.post("/api/accounts/", json={"name": "One", "parent_id": root_accounts["Assets"]}).status_code == 201
-    refused = client.post("/api/accounts/", json={"name": "Two", "parent_id": root_accounts["Assets"]})
+    assert post_account(client, {"name": "One", "parent_id": root_accounts["Assets"]}).status_code == 201
+    refused = post_account(client, {"name": "Two", "parent_id": root_accounts["Assets"]})
     assert refused.status_code == 400 and f"limit of {count + 1} accounts" in refused.json()["detail"]
     form = client.post("/accounts", data={"name": "Three", "parent_id": root_accounts["Assets"]})
     assert "limit of" in form.text
     monkeypatch.setattr(settings, "max_accounts", 0)
-    assert (
-        client.post("/api/accounts/", json={"name": "Two", "parent_id": root_accounts["Assets"]}).status_code == 201
-    ), "0 = no limit"
+    assert post_account(client, {"name": "Two", "parent_id": root_accounts["Assets"]}).status_code == 201, (
+        "0 = no limit"
+    )
 
 
 def make_tx(client, a, b, amount="1"):
@@ -128,8 +129,8 @@ def make_tx(client, a, b, amount="1"):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": a["aid"], "side": "debit", "amount": amount},
-                {"account": b["aid"], "side": "credit", "amount": amount},
+                leg(a, "debit", amount),
+                leg(b, "credit", amount),
             ]
         },
     )
@@ -137,8 +138,8 @@ def make_tx(client, a, b, amount="1"):
 
 @pytest.fixture
 def two_accounts(client, root_accounts):
-    a = client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
-    b = client.post("/api/accounts/", json={"name": "Shop", "parent_id": root_accounts["Expenses"]}).json()
+    a = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
+    b = post_account(client, {"name": "Shop", "parent_id": root_accounts["Expenses"]}).json()
     return a, b
 
 
@@ -160,7 +161,7 @@ def test_new_transactions_a_day_are_limited_but_not_recurring_ones(client, two_a
         "/api/recurring/",
         json={
             "from_account": a["aid"],
-            "to_account": b["aid"],
+            **into(client, b),
             "amount": "1",
             "frequency": "daily",
             "start_date": "2026-09-01",
@@ -174,16 +175,14 @@ def test_new_transactions_a_day_are_limited_but_not_recurring_ones(client, two_a
 def test_a_transaction_cannot_have_endless_rows(client, two_accounts, monkeypatch):
     a, b = two_accounts
     monkeypatch.setattr(settings, "max_postings_per_transaction", 3)
-    rows = [{"account": b["aid"], "side": "debit", "amount": "1"} for _ in range(3)] + [
-        {"account": a["aid"], "side": "credit", "amount": "3"}
-    ]
+    rows = [leg(b, "debit", "1") for _ in range(3)] + [leg(a, "credit", "3")]
     refused = client.post("/api/transactions/", json={"postings": rows})
     assert refused.status_code == 400 and "at most 3 postings" in refused.json()["detail"]
 
 
 def test_an_import_that_would_pass_the_limits_is_refused_with_a_reason(client, root_accounts, monkeypatch):
     journal = "2026-01-01 Shop\n    Expenses:Food    5\n    Assets:Bank\n"
-    monkeypatch.setattr(settings, "max_accounts", 6)
+    monkeypatch.setattr(settings, "max_accounts", 5)
     preview = client.post("/api/import", params={"dry_run": True}, files={"file": ("j.ledger", journal, "text/plain")})
     assert preview.status_code == 200 and any("too big for your limits" in e for e in preview.json()["errors"])
     refused = client.post("/api/import", files={"file": ("j.ledger", journal, "text/plain")})

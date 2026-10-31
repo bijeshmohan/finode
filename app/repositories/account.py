@@ -194,6 +194,14 @@ class AccountRepository:
             self._record(account, "updated")
         self.db.flush()
 
+    def count_payment_links(self, category_id: UUID) -> int:
+        """How many accounts budget their payments under this category."""
+        return len(
+            self.db.exec(
+                select(Account.aid).where(Account.user == self.uid, Account.payment_category_id == category_id)
+            ).all()
+        )
+
     def repoint_payment_category(self, source: UUID, target: UUID) -> int:
         """Accounts whose payments were budgeted under `source` use `target` instead (a merge)."""
         moved = 0

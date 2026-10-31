@@ -7,11 +7,13 @@ import pytest
 
 from app.models.account import Account
 
+from .books import post_account
+
 
 @pytest.fixture
 def tree(client, root_accounts, session):
     def make(name, parent, **extra):
-        return client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra}).json()["aid"]
+        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["aid"]
 
     banks = make("Banks", root_accounts["Assets"])
     ids = {
@@ -123,7 +125,7 @@ def test_the_page_has_no_note_under_its_list(client, root_accounts):
 def test_categories_end_with_an_add_row_and_an_empty_page_keeps_its_button(client, root_accounts):
     empty = client.get("/categories").text
     assert "Add a category" in empty and 'class="add-row"' not in empty
-    client.post("/api/accounts/", json={"name": "Dining", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Dining", "parent_id": root_accounts["Expenses"]})
     page = client.get("/categories?tab=expense").text
     assert 'class="add-row" href="/categories/new?root=expense"' in page and "circ-button" not in page
     assert client.get("/categories?tab=income").text.count('class="add-row"') == 0, (

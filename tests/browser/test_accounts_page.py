@@ -7,6 +7,7 @@ from playwright.sync_api import Page, expect
 
 from app.models.account import Account
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -129,8 +130,8 @@ def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api)
             payee=f"Shop {i:02d}",
             date=str(date.today() - timedelta(days=1 + i)),
             postings=[
-                {"account": books["food"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["checking"]["aid"], "side": "credit", "amount": "5"},
+                leg(books["food"], "debit", "5"),
+                leg(books["checking"], "credit", "5"),
             ],
         )
     page.goto(f"/accounts/{books['checking']['aid']}")

@@ -5,12 +5,14 @@ from decimal import Decimal
 
 import pytest
 
+from .books import leg, post_account
+
 THIS_MONTH = date.today().replace(day=1)
 LAST_MONTH = (THIS_MONTH - timedelta(days=1)).replace(day=1)
 
 
 def account(client, root, name, parent, **extra):
-    response = client.post("/api/accounts/", json={"name": name, "parent_id": root[parent], **extra})
+    response = post_account(client, {"name": name, "parent_id": root[parent], **extra})
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -18,8 +20,8 @@ def account(client, root, name, parent, **extra):
 def move(client, source, target, amount, on=None):
     body = {
         "postings": [
-            {"account": target["aid"], "side": "debit", "amount": amount},
-            {"account": source["aid"], "side": "credit", "amount": amount},
+            leg(target, "debit", amount),
+            leg(source, "credit", amount),
         ]
     }
     if on:
@@ -94,10 +96,8 @@ def test_the_flag_can_be_changed_but_only_where_it_makes_sense(client, root_acco
     ok = client.patch(f"/api/accounts/{card['aid']}", json={"on_budget": True})
     assert ok.status_code == 200 and ok.json()["on_budget"] is True
     assert client.patch(f"/api/accounts/{card['aid']}", json={"on_budget": False}).json()["on_budget"] is False
-    food = account(client, root_accounts, "Food", "Expenses")
-    assert client.patch(f"/api/accounts/{food['aid']}", json={"on_budget": True}).status_code == 400
     group = account(client, root_accounts, "Banks", "Assets", on_budget=False)
-    account_child = client.post("/api/accounts/", json={"name": "Child", "parent_id": group["aid"]}).json()
+    account_child = post_account(client, {"name": "Child", "parent_id": group["aid"]}).json()
     assert client.patch(f"/api/accounts/{group['aid']}", json={"on_budget": True}).status_code == 400
     assert account_child["on_budget"] is True
 
@@ -234,8 +234,8 @@ def test_any_day_in_the_month_names_it(client, setup):
 
 
 def test_sub_categories_roll_up_into_their_group(client, root_accounts, setup):
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
     assign(client, groceries, "200")
     assign(client, dining, "100")
     move(client, setup["bank"], groceries, "50")
@@ -251,7 +251,7 @@ def test_sub_categories_roll_up_into_their_group(client, root_accounts, setup):
 
 
 def test_a_group_posted_to_directly_gets_its_own_row(client, root_accounts, setup):
-    client.post("/api/accounts/", json={"name": "Groceries", "parent_id": setup["food"]["aid"]})
+    post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]})
     move(client, setup["bank"], setup["food"], "30")
     data = budget(client)
     other = line(data, "Food (other)")
@@ -299,7 +299,7 @@ def test_amounts_follow_the_currencys_decimals(client, setup):
 
 def test_deleting_a_category_removes_its_plan(client, setup):
     assign(client, setup["rent"], "100")
-    assert client.delete(f"/api/accounts/{setup['rent']['aid']}").status_code == 204
+    assert client.post(f"/api/categories/{setup['rent']['aid']}/delete").status_code == 200
     data = budget(client)
     assert data["ready_to_assign"] == "1000.00" and {l["name"] for l in data["lines"]} == {"Food"}
 
@@ -385,8 +385,8 @@ def test_groups_add_up_the_overspending_of_their_categories(client, root_account
     bank = account(client, root_accounts, "Bank", "Assets")
     salary = account(client, root_accounts, "Salary", "Income")
     food = account(client, root_accounts, "Food", "Expenses")
-    groceries = client.post("/api/accounts/", json={"name": "Groceries", "parent_id": food["aid"]}).json()
-    dining = client.post("/api/accounts/", json={"name": "Dining", "parent_id": food["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": food["aid"]}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": food["aid"]}).json()
     move(client, salary, bank, "1000", on=LAST_MONTH.replace(day=2).isoformat())
     assign(client, groceries, "10", LAST_MONTH)
     move(client, bank, groceries, "30", on=LAST_MONTH.replace(day=5).isoformat())
@@ -499,7 +499,7 @@ def test_copying_into_another_month_uses_the_month_before_it(client, setup):
 def test_copying_skips_closed_categories(client, setup):
     assign(client, setup["food"], "300", LAST_MONTH)
     assign(client, setup["rent"], "500", LAST_MONTH)
-    assert client.post(f"/api/accounts/{setup['rent']['aid']}/close").status_code == 200
+    assert client.post(f"/api/categories/{setup['rent']['aid']}/close").status_code == 200
     data = press(client, "copy").json()
     assert line(data, "Food")["assigned"] == "300.00"
     assert line(data, "Rent")["assigned"] == "0.00", (
@@ -598,21 +598,23 @@ def test_a_negative_assignment_can_only_take_back_what_the_category_has_left(cli
     from app.services.budget import BudgetError
 
     svc.accounts.create(AccountCreate(name="Bank", parent_id=root_accounts["Assets"], balance=Decimal(1000)))
-    food = svc.accounts.create(AccountCreate(name="Food", parent_id=root_accounts["Expenses"]))
+    from app.schemas.category import CategoryCreate
+
+    food = svc.categories.create(CategoryCreate(name="Food", kind="spending"))
     this_month = local_today().replace(day=1)
     last_month = (this_month - timedelta(days=1)).replace(day=1)
 
     with pytest.raises(BudgetError, match="only 0.00 is available in 'Food'"):
-        svc.budget.assign(this_month, food.aid, Decimal(-300))  # nothing there to take back
+        svc.budget.assign(this_month, food.bcid, Decimal(-300))  # nothing there to take back
     assert svc.budget.view(this_month).ready_to_assign == Decimal(1000), (
         "Ready to assign never exceeds the money there is"
     )
 
-    svc.budget.assign(last_month, food.aid, Decimal(100))
-    taken = svc.budget.assign(this_month, food.aid, Decimal(-60))  # last month left 100 in Food: 60 of it goes back
+    svc.budget.assign(last_month, food.bcid, Decimal(100))
+    taken = svc.budget.assign(this_month, food.bcid, Decimal(-60))  # last month left 100 in Food: 60 of it goes back
     assert [l.available for l in taken.lines if l.name == "Food"] == [Decimal(40)]
     with pytest.raises(BudgetError, match="only 40.00 is available"):
-        svc.budget.assign(this_month, food.aid, Decimal(-150))
+        svc.budget.assign(this_month, food.bcid, Decimal(-150))
 
-    api = client.put(f"/api/budget/categories/{food.aid}", json={"amount": "-500"})
+    api = client.put(f"/api/budget/categories/{food.bcid}", json={"amount": "-500"})
     assert api.status_code == 400 and "is available in 'Food'" in api.json()["detail"]

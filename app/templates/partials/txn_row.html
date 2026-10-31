@@ -1,9 +1,13 @@
 {#- One side of a transaction: an account and what it gets. `side` is credit (From) or debit (To). -#}
-{% from "partials/account_options.html" import account_options %}
+{% from "partials/account_options.html" import account_options, category_options %}
 <div class="txn-row" data-row {{ "data-touched" if posting }}>
   <input type="hidden" name="side" value="{{ side }}">
   <select name="account" aria-label="Account" data-account-select>
-    {{ account_options(groups, (posting.account if posting else selected), allow_new=True) }}
+    {{ account_options(groups, selected, allow_new=True) }}
+  </select>
+  {#- What a payment into a loan or fund was for. Shown by app.js only when money leaves the budget into an account outside it. -#}
+  <select name="category" class="row-category" aria-label="Category" data-category-select hidden>
+    {{ category_options(groups, posting.category if posting else none) }}
   </select>
   <input type="text" name="amount" class="row-amount" inputmode="decimal" data-group placeholder="0.00" autocomplete="off"
          aria-label="Amount" value="{{ posting.amount if posting else '' }}">

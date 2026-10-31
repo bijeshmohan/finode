@@ -8,13 +8,14 @@ import pytest
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
 
+from .books import into, leg, post_account
 from .conftest import TEST_USER_ID
 
 OTHER = UUID("00000000-0000-4000-8000-0000000000bb")
 
 
 def acct(client, name, parent, **extra):
-    response = client.post("/api/accounts/", json={"name": name, "parent_id": parent, **extra})
+    response = post_account(client, {"name": name, "parent_id": parent, **extra})
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -26,7 +27,7 @@ def tx(client, postings, **extra):
 
 
 def line(account, side, amount, **extra):
-    return {"account": account["aid"], "side": side, "amount": amount, **extra}
+    return leg(account, side, amount, **extra)
 
 
 @pytest.fixture
@@ -75,7 +76,7 @@ def rich(client, root_accounts):
         "/api/recurring/",
         json={
             "from_account": bank["aid"],
-            "to_account": groceries["aid"],
+            **into(client, groceries),
             "amount": "500",
             "frequency": "monthly",
             "start_date": "2026-07-01",
@@ -125,6 +126,15 @@ def canonical(doc: dict) -> dict:
         return ":".join(reversed(names))
 
     paths = {aid: path(aid) for aid in by_id}
+    cats = {c["id"]: c for c in doc["categories"]}
+    for bcid, c in cats.items():
+        group = cats.get(c["parent_id"])
+        paths[bcid] = (
+            ("Expenses" if c["kind"] == "spending" else "Income")
+            + ":"
+            + (f"{group['name']}:" if group else "")
+            + c["name"]
+        )
     rules = {r["id"]: (r["payee"], r["frequency"]) for r in doc["recurring"]}
     entries = {t["id"]: (t["date"], t["payee"], t["comment"]) for t in doc["transactions"]}
     return {
@@ -138,6 +148,9 @@ def canonical(doc: dict) -> dict:
                 paths.get(a["payment_category_id"]),
             )
             for a in doc["accounts"]
+        )
+        + sorted(
+            (paths[c["id"]], c["details"], c["closed_on"] is not None, c["system_key"]) for c in doc["categories"]
         ),
         "transactions": [
             (
@@ -150,7 +163,7 @@ def canonical(doc: dict) -> dict:
                 entries.get(t["related_id"]),
                 (t["source"], t["external_id"], t["source_url"]),
                 tuple(t["tags"]),
-                sorted((paths[p["account"]], p["side"], p["amount"]) for p in t["postings"]),
+                sorted((paths[p["account"]], p["side"], p["amount"], paths.get(p["category"])) for p in t["postings"]),
             )
             for t in doc["transactions"]
         ],
@@ -160,7 +173,7 @@ def canonical(doc: dict) -> dict:
                 paths.get(r["from_account"]),
                 paths.get(r["to_account"]),
                 r["amount"],
-                sorted((paths[p["account"]], p["side"], p["amount"]) for p in r["postings"]),
+                sorted((paths[p["account"]], p["side"], p["amount"], paths.get(p["category"])) for p in r["postings"]),
                 tuple(r["tags"]),
                 r["frequency"],
                 r["start_date"],
@@ -171,7 +184,7 @@ def canonical(doc: dict) -> dict:
             )
             for r in doc["recurring"]
         ),
-        "allocations": sorted((a["month"], paths[a["account_id"]], a["amount"]) for a in doc["allocations"]),
+        "allocations": sorted((a["month"], paths[a["category_id"]], a["amount"]) for a in doc["allocations"]),
         "goals": sorted(
             (g["name"], g["amount"], g["target_date"], sorted((r["month"], r["amount"]) for r in g["allocations"]))
             for g in doc["goals"]
@@ -186,7 +199,7 @@ def test_the_backup_has_everything(client, rich):
         and 'attachment; filename="finode-backup-' in response.headers["content-disposition"]
     )
     doc = response.json()
-    assert doc["format"] == "finode-backup" and doc["version"] == 3
+    assert doc["format"] == "finode-backup" and doc["version"] == 5
     assert doc["profile"]["first_name"] == "Ada" and doc["profile"]["default_currency"] == "INR"
     names = {a["name"] for a in doc["accounts"]}
     assert {
@@ -195,11 +208,10 @@ def test_the_backup_has_everything(client, rich):
         "Old Savings",
         "Visa",
         "Home Loan",
-        "Groceries",
-        "EMI",
         "Opening Balances",
         "Assets",
     } <= names
+    assert {"Groceries", "EMI"} <= {c["name"] for c in doc["categories"]} and "Groceries" not in names
     assert any(a["closed_on"] for a in doc["accounts"]) and any(a["payment_category_id"] for a in doc["accounts"])
     assert any(a["on_budget"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
@@ -214,6 +226,7 @@ def test_the_backup_has_everything(client, rich):
         "exported_at",
         "profile",
         "accounts",
+        "categories",
         "transactions",
         "recurring",
         "allocations",
@@ -281,11 +294,11 @@ def test_an_older_backup_with_build_and_earn_rows_restores_without_them(client, 
     only the expense categories' rows, and the flags the file carries are ignored."""
     doc = client.get("/api/backup").json()
     fund = next(a for a in doc["accounts"] if a["name"] == "Home Loan")
-    salary = next(a for a in doc["accounts"] if a["name"] == "Salary")
+    salary = next(a for a in doc["accounts"] if a["name"] == "Assets" and a["parent_id"] is None)
     fund["saving"] = True
     doc["profile"].update(plan_build=True, plan_earn=True)
     for account in (fund, salary):
-        doc["allocations"].append({"month": "2026-09-01", "account_id": account["id"], "amount": "700"})
+        doc["allocations"].append({"month": "2026-09-01", "category_id": account["id"], "amount": "700"})
     doc["targets"] = [
         {"account_id": fund["id"], "kind": "monthly", "amount": "700", "target_date": None, "weekday": None}
     ]  # a file from before targets were removed

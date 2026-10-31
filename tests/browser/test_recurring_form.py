@@ -40,7 +40,8 @@ def test_skipping_the_next_occurrence_from_the_edit_page(page: Page, books, api:
     rule = api.post(
         "/recurring/",
         from_account=books["checking"]["aid"],
-        to_account=books["rent"]["aid"],
+        to_account=books["roots"]["Expenses"],
+        category=books["rent"]["aid"],
         amount="900",
         frequency="monthly",
         start_date="2999-01-01",
@@ -98,7 +99,8 @@ def test_the_recurring_list_is_flat_rows_in_a_tile(touch_page: Page, books, api:
     api.post(
         "/recurring/",
         from_account=books["checking"]["aid"],
-        to_account=books["rent"]["aid"],
+        to_account=books["roots"]["Expenses"],
+        category=books["rent"]["aid"],
         amount="900",
         frequency="monthly",
         start_date="2999-01-01",

@@ -37,7 +37,8 @@ def get_breakdown(
     date_to: date | None = None,
     depth: int = Query(default=1, ge=1, le=2),
 ):
-    """Where the money went (or came from) in a period, per account `depth` levels below the top-level account."""
+    """Where the money went (or came from) in a period, `depth` levels down: what it was for, as the Budget counts it
+    (paying into a loan is spending in its category)."""
     try:
         return reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
     except ValueError as e:

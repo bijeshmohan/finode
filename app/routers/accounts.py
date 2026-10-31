@@ -31,7 +31,7 @@ router = APIRouter(
 
 @router.post("/", response_model=AccountRead, status_code=201)
 def create_account(account: AccountCreate, accounts: Accounts):
-    """Create an account or category (an Expenses/Income account); `balance` sets an opening balance on an asset or liability."""
+    """Create an account under Assets, Liabilities or Equity (Expenses and Income hold categories: see /categories); `balance` sets an opening balance on an asset or liability."""
     try:
         return accounts.create(account)
     except ValueError as e:

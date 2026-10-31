@@ -4,6 +4,8 @@ import pytest
 
 from app.templating import group_digits, grouping_for, money
 
+from .books import post_account
+
 
 @pytest.mark.parametrize(
     ("value", "indian", "western"),
@@ -30,10 +32,8 @@ def test_only_the_rupee_is_grouped_in_lakhs():
 
 @pytest.fixture
 def lakhs(client, root_accounts):
-    bank = client.post(
-        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}
-    ).json()
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     return bank, food
 
 

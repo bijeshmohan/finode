@@ -27,8 +27,10 @@ from .services import (
 )
 from .services.api_token import ApiTokenService
 from .services.backup import BackupService
+from .services.category import CategoryService
 from .services.erase import EraseService
 from .services.oauth_grant import OAuthGrantService
+from .services.todo import TodoService
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
 
@@ -76,6 +78,10 @@ def get_account_service(
     pr: ProfileRepository = Depends(get_profile_repository),
 ) -> AccountService:
     return AccountService(ar, tr, pr)
+
+
+def get_category_service(accounts: AccountService = Depends(get_account_service)) -> CategoryService:
+    return CategoryService(accounts)
 
 
 def get_profile_service(
@@ -152,6 +158,13 @@ def get_budget_service(
     return BudgetService(accounts, tr, BudgetRepository(db, user.id))
 
 
+def get_todo_service(
+    budget: BudgetService = Depends(get_budget_service),
+    recurring: RecurringService = Depends(get_recurring_service),
+) -> TodoService:
+    return TodoService(budget, recurring)
+
+
 def get_api_token_service(
     db: Session = Depends(get_db_session),
     user: CurrentUser = Depends(require_authenticated_user),
@@ -170,6 +183,7 @@ DB = Annotated[Session, Depends(get_db_session)]
 AR = Annotated[AccountRepository, Depends(get_account_repository)]
 TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
+Categories = Annotated[CategoryService, Depends(get_category_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]
 Backup = Annotated[BackupService, Depends(get_backup_service)]
@@ -178,5 +192,6 @@ Profiles = Annotated[ProfileService, Depends(get_profile_service)]
 Recurring = Annotated[RecurringService, Depends(get_recurring_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]
 Budget = Annotated[BudgetService, Depends(get_budget_service)]
+Todo = Annotated[TodoService, Depends(get_todo_service)]
 ApiTokens = Annotated[ApiTokenService, Depends(get_api_token_service)]
 OAuthGrants = Annotated[OAuthGrantService, Depends(get_oauth_grant_service)]

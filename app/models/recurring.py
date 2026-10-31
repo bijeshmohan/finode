@@ -38,6 +38,8 @@ class RecurringTransaction(TimestampMixin, table=True):
     from_account: UUID | None = Field(default=None, foreign_key="accounts.aid")
     to_account: UUID | None = Field(default=None, foreign_key="accounts.aid")
     amount: Decimal | None = Field(default=None, sa_type=Amount())
+    # What a simple rule's entries are for (a split rule's rows carry their own).
+    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.bcid", nullable=True)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
     # The tags every entry this rule records gets (names in their one form, lower case).
@@ -74,4 +76,5 @@ class RecurringPosting(TimestampMixin, table=True):
     account: UUID = Field(foreign_key="accounts.aid")
     side: str = Field(max_length=6)
     amount: Decimal = Field(sa_type=Amount())
+    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.bcid", nullable=True)
     position: int = Field(default=0)

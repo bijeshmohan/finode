@@ -10,14 +10,14 @@
   <p><strong>Ready to import</strong></p>
   <ul class="plain-list">
     <li>{{ summary.transactions }} transaction{{ "" if summary.transactions == 1 else "s" }}, {{ summary.date_from.strftime("%-d %b %Y") }} to {{ summary.date_to.strftime("%-d %b %Y") }}</li>
-    <li>{{ summary.new_accounts|length }} new account{{ "" if summary.new_accounts|length == 1 else "s" }}{% if summary.accounts_reused %}, {{ summary.accounts_reused }} existing reused{% endif %}</li>
+    <li>{{ summary.new_accounts|length }} new account{{ "" if summary.new_accounts|length == 1 else "s" }}{% if summary.accounts_reused %}, {{ summary.accounts_reused }} existing reused{% endif %}{% if summary.new_categories %}, {{ summary.new_categories|length }} new categor{{ "y" if summary.new_categories|length == 1 else "ies" }}{% endif %}</li>
     <li>Assets {{ summary.assets|money }} · Liabilities {{ summary.liabilities|money }}</li>
     {% if summary.skipped_empty %}<li class="muted">{{ summary.skipped_empty }} zero-amount transaction{{ "" if summary.skipped_empty == 1 else "s" }} skipped</li>{% endif %}
   </ul>
-  {% if summary.new_accounts %}
+  {% if summary.new_accounts or summary.new_categories %}
   <details>
-    <summary>New accounts</summary>
-    <ul class="plain-list">{% for path in summary.new_accounts %}<li>{{ path.replace(":", " › ") }}</li>{% endfor %}</ul>
+    <summary>New accounts and categories</summary>
+    <ul class="plain-list">{% for path in summary.new_accounts %}<li>{{ path.replace(":", " › ") }}</li>{% endfor %}{% for path in summary.new_categories %}<li>{{ path.replace(":", " › ") }}</li>{% endfor %}</ul>
   </details>
   {% endif %}
   <div class="actions">

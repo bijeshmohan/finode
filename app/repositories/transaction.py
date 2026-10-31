@@ -2,6 +2,7 @@
 
 import builtins
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from sqlalchemy.orm import aliased
 from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
+from ..models.category import BudgetCategory
 from ..models.recurring import RecurringTransaction
 from ..models.tag import Tag, TransactionTag
 from ..models.transaction import Posting, PostingSide, Transaction
@@ -18,6 +20,7 @@ from ..models.utils import without_nul
 from ..schemas.transaction import TransactionCreate, TransactionUpdate
 from ..tags import clean_tag
 from .cache import remembered
+from .category import ROOT_KINDS, CategoryRepository
 
 
 def comparable_snapshot(snapshot: dict) -> dict:
@@ -78,7 +81,12 @@ class TransactionRepository:
             "related_id": str(transaction.related_id) if transaction.related_id else None,
             "tags": sorted(tags),
             "postings": [
-                {"account": str(p.account), "side": p.side.value, "amount": str(p.amount)}
+                {
+                    "account": str(p.account),
+                    "side": p.side.value,
+                    "amount": str(p.amount),
+                    "category": str(p.category_id) if p.category_id else None,
+                }
                 for p in sorted(postings, key=lambda p: (p.created, str(p.pid)))
             ],
         }
@@ -91,8 +99,18 @@ class TransactionRepository:
             snapshot["related_from"] = [str(other.tid) for other in self.related_to(transaction.tid)]
         if action == "updated":
             previous = self.history(transaction.tid)
-            if previous and comparable_snapshot(previous[-1].snapshot) == snapshot:
-                return  # saved without changing anything
+            if previous:
+                before = comparable_snapshot(previous[-1].snapshot)
+                if any("category" not in p for p in previous[-1].snapshot.get("postings", [])):
+                    # Written before lines carried a category: compare without it, so a save that changed nothing adds nothing.
+                    after = {
+                        **snapshot,
+                        "postings": [{k: v for k, v in p.items() if k != "category"} for p in snapshot["postings"]],
+                    }
+                else:
+                    after = snapshot
+                if before == after:
+                    return  # saved without changing anything
         self.db.add(
             TransactionHistory(
                 user=self.uid, transaction_id=transaction.tid, action=action, via=origin, snapshot=snapshot
@@ -150,9 +168,46 @@ class TransactionRepository:
             )
         ).first()
 
+    def _line_categories(self, postings) -> builtins.list[UUID | None]:
+        """The category of each line: the one given, else the default of its books account, else (on Expenses or
+        Income) Uncategorised or, for a payment into a loan or fund outside the budget that has a payment category,
+        that category (only in an entry that touches the budget, which is when the budget counts it as spending)."""
+        ids = {p.account for p in postings}
+        accounts: dict[UUID, Account] = {
+            a.aid: a for a in self.db.exec(select(Account).where(Account.user == self.uid, col(Account.aid).in_(ids)))
+        }
+        touches_budget = any(a.on_budget for a in accounts.values())
+        every: dict[UUID, Account] | None = None
+        found: builtins.list[UUID | None] = []
+        for p in postings:
+            account = accounts.get(p.account)
+            category = p.category
+            if category is None and account is not None:
+                if (
+                    touches_budget
+                    and not account.on_budget
+                    and account.payment_category_id is not None
+                    and p.side == PostingSide.DEBIT
+                ):
+                    category = account.payment_category_id
+                else:
+                    if every is None:
+                        every = {a.aid: a for a in self.db.exec(select(Account).where(Account.user == self.uid))}
+                    root = account
+                    while root.parent_id is not None and root.parent_id in every:
+                        root = every[root.parent_id]
+                    if root.name in ROOT_KINDS and root.parent_id is None:
+                        category = (
+                            CategoryRepository(self.db, self.uid).ensure_uncategorised(ROOT_KINDS[root.name]).bcid
+                        )
+            found.append(category)
+        return found
+
     def _add_postings(self, transaction: Transaction, postings) -> None:
-        for posting_data in postings:
-            self.db.add(Posting(**posting_data.model_dump(), transaction=transaction.tid, user=self.uid))
+        postings = builtins.list(postings)
+        for posting_data, category in zip(postings, self._line_categories(postings), strict=True):
+            values = posting_data.model_dump(exclude={"category"})
+            self.db.add(Posting(**values, category_id=category, transaction=transaction.tid, user=self.uid))
 
     def read(self, tid: UUID) -> Transaction | None:
         statement = select(Transaction).where(
@@ -202,11 +257,17 @@ class TransactionRepository:
                 .join(Account, Account.aid == Posting.account)
                 .where(Posting.user == self.uid, col(Account.name).icontains(text, autoescape=True))
             )
+            labelled = (
+                select(Posting.transaction)
+                .join(BudgetCategory, BudgetCategory.bcid == Posting.category_id)
+                .where(Posting.user == self.uid, col(BudgetCategory.name).icontains(text, autoescape=True))
+            )
             statement = statement.where(
                 or_(
                     col(Transaction.payee).icontains(text, autoescape=True),
                     col(Transaction.comment).icontains(text, autoescape=True),
                     col(Transaction.tid).in_(named),
+                    col(Transaction.tid).in_(labelled),
                 )
             )
         if kind and kind_accounts is not None:
@@ -238,10 +299,10 @@ class TransactionRepository:
                     )
                 )
             )
-        if also_ids is not None:  # a second account the entry must touch as well (the web filter's category)
+        if also_ids is not None:  # the entry must have a line labelled with one of these categories
             statement = statement.where(
                 col(Transaction.tid).in_(
-                    select(Posting.transaction).where(col(Posting.account).in_(also_ids), Posting.user == self.uid)
+                    select(Posting.transaction).where(col(Posting.category_id).in_(also_ids), Posting.user == self.uid)
                 )
             )
         if payee:  # exactly this payee, capitals aside
@@ -479,7 +540,14 @@ class TransactionRepository:
         """Every posting of transactions dated up to a day, as (transaction, account, side, amount, date) rows: what the
         budget is worked out from, without payees, notes or timestamps. One query, remembered for the request."""
         statement = (
-            select(Posting.transaction, Posting.account, Posting.side, Posting.amount, Transaction.date)
+            select(
+                Posting.transaction,
+                Posting.account,
+                Posting.side,
+                Posting.amount,
+                Transaction.date,
+                Posting.category_id,
+            )
             .join(Transaction, Transaction.tid == Posting.transaction)
             .where(Posting.user == self.uid, Transaction.user == self.uid, Transaction.date <= date_to)
         )
@@ -523,18 +591,121 @@ class TransactionRepository:
             )
         ).one()
 
-    def repoint_account(self, source: UUID, target: UUID, origin: str | None) -> builtins.list[UUID]:
-        """Move every posting from one account to another (a merge). Each entry it touches gets an "updated" history
-        row saying who did it. Returns the entries that moved. Nothing is committed."""
+    def category_sums(
+        self, kind: str, date_from: date, date_to: date
+    ) -> builtins.list[tuple[UUID, PostingSide, Decimal]]:
+        """What the lines labelled with a category of one kind add up to in a period: (category, side, total). One query."""
+        statement = (
+            select(Posting.category_id, Posting.side, func.sum(Posting.amount))
+            .join(Transaction, Transaction.tid == Posting.transaction)
+            .join(BudgetCategory, BudgetCategory.bcid == Posting.category_id)
+            .where(
+                Posting.user == self.uid,
+                Transaction.date >= date_from,
+                Transaction.date <= date_to,
+                BudgetCategory.kind == kind,
+            )
+            .group_by(col(Posting.category_id), col(Posting.side))
+        )
+        return [(c, s, Decimal(total)) for c, s, total in self.db.exec(statement).all()]
+
+    def postings_for_categories(self, bcids: builtins.list[UUID] | set[UUID]) -> builtins.list[Posting]:
+        """The lines labelled with any of these categories."""
+        if not bcids:
+            return []
+        return builtins.list(
+            self.db.exec(
+                select(Posting).where(Posting.user == self.uid, col(Posting.category_id).in_(builtins.list(bcids)))
+            ).all()
+        )
+
+    def refresh_payment_labels(self, account_id: UUID, previous: UUID | None) -> None:
+        """A loan's payment category (or the budget an account is in) changed: payments into loans outside the budget
+        that name a category carry it again. The loan's own lines that carried the old one (or none) take the new
+        one; lines the person labelled otherwise are left alone. Nothing is committed."""
+        touching = (
+            select(Posting.transaction)
+            .join(Account, Account.aid == Posting.account)
+            .where(Posting.user == self.uid, col(Account.on_budget).is_(True))
+        )
+        loan = self.db.get(Account, account_id)
+        if loan is not None and loan.user == self.uid:
+            new = loan.payment_category_id if not loan.on_budget else None
+            stale = Posting.category_id.is_(None) if previous is None else col(Posting.category_id).in_([previous])
+            self.db.exec(
+                update(Posting)
+                .where(
+                    Posting.user == self.uid,
+                    Posting.account == account_id,
+                    Posting.side == PostingSide.DEBIT,
+                    or_(Posting.category_id.is_(None), stale),
+                    col(Posting.transaction).in_(touching),
+                )
+                .values(category_id=new)
+            )
+        # Any other loan with a payment category: its unlabelled payments in entries that touch the budget.
+        for other in self.db.exec(
+            select(Account).where(
+                Account.user == self.uid,
+                col(Account.payment_category_id).is_not(None),
+                col(Account.on_budget).is_(False),
+                Account.aid != account_id,
+            )
+        ).all():
+            category = other.payment_category_id
+            self.db.exec(
+                update(Posting)
+                .where(
+                    Posting.user == self.uid,
+                    Posting.account == other.aid,
+                    Posting.side == PostingSide.DEBIT,
+                    Posting.category_id.is_(None),
+                    col(Posting.transaction).in_(touching),
+                )
+                .values(category_id=category)
+            )
+        self.db.expire_all()
+
+    def labelled(self, category: UUID) -> builtins.list[UUID]:
+        """The entries that have a line labelled with a category."""
+        return builtins.list(
+            self.db.exec(
+                select(Posting.transaction).where(Posting.user == self.uid, Posting.category_id == category).distinct()
+            ).all()
+        )
+
+    def repoint_account(
+        self,
+        source: UUID,
+        target: UUID,
+        origin: str | None,
+        categories: tuple[UUID, UUID] | None = None,
+    ) -> builtins.list[UUID]:
+        """Move every posting from one account to another (a merge). With `categories` (source's, target's) every
+        line labelled with the first takes the second. Each entry it touches gets an "updated" history row saying
+        who did it. Returns the entries that moved. Nothing is committed."""
         tids = self.transactions_touching(source)
+        if categories is not None:
+            tids = builtins.list(dict.fromkeys([*tids, *self.labelled(categories[0])]))
         if not tids:
             return []
         self.db.exec(update(Posting).where(Posting.user == self.uid, Posting.account == source).values(account=target))
+        if categories is not None:
+            self.db.exec(
+                update(Posting)
+                .where(Posting.user == self.uid, Posting.category_id == categories[0])
+                .values(category_id=categories[1])
+            )
         self.db.exec(
             update(Transaction)
             .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
             .values(updated_via=origin)
         )
+        self._record_updated(tids, origin)
+        return tids
+
+    def _record_updated(self, tids: builtins.list[UUID], origin: str | None) -> None:
+        """An "updated" history row for each entry that was changed in bulk (a merge, a relabelling)."""
         self.db.expire_all()
         moved = self.read_many(tids)
         postings = self.postings_for_transactions(tids)
@@ -550,6 +721,46 @@ class TransactionRepository:
                 )
             )
         self.db.flush()
+
+    def relabel_account(self, account_id: UUID, old: UUID | None, new: UUID | None, origin: str | None) -> None:
+        """The lines on one account that carried a category take another (the account was moved to a new category).
+        Each entry gets an "updated" history row. Nothing is committed."""
+        tids = builtins.list(
+            self.db.exec(
+                select(Posting.transaction)
+                .where(Posting.user == self.uid, Posting.account == account_id, Posting.category_id == old)
+                .distinct()
+            ).all()
+        )
+        if not tids:
+            return
+        self.db.exec(
+            update(Posting)
+            .where(Posting.user == self.uid, Posting.account == account_id, Posting.category_id == old)
+            .values(category_id=new)
+        )
+        self.db.exec(
+            update(Transaction)
+            .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
+            .values(updated_via=origin)
+        )
+        self._record_updated(tids, origin)
+
+    def relabel_category(self, old: UUID, new: UUID, origin: str | None) -> builtins.list[UUID]:
+        """Every line labelled with one category takes another (a merge). Each entry gets an "updated" history row.
+        Returns the entries that changed. Nothing is committed."""
+        tids = self.labelled(old)
+        if not tids:
+            return []
+        self.db.exec(
+            update(Posting).where(Posting.user == self.uid, Posting.category_id == old).values(category_id=new)
+        )
+        self.db.exec(
+            update(Transaction)
+            .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
+            .values(updated_via=origin)
+        )
+        self._record_updated(tids, origin)
         return tids
 
     def last_change(self) -> datetime | None:
@@ -648,6 +859,8 @@ class TransactionRepository:
         A new posting takes over an existing one on the same account and side (then on the same
         account); what is left over is added or removed. So correcting an amount never replaces the posting.
         """
+        postings = builtins.list(postings)
+        categories = self._line_categories(postings)
         remaining = list(self.postings(transaction.tid))
         taken: builtins.list[Posting | None] = [None] * len(postings)
         for exact in (True, False):
@@ -661,11 +874,12 @@ class TransactionRepository:
                         break
         for posting in remaining:
             self.db.delete(posting)
-        for data, old in zip(postings, taken, strict=False):
+        for data, old, category in zip(postings, taken, categories, strict=True):
             if old is None:
-                self.db.add(Posting(**data.model_dump(), transaction=transaction.tid, user=self.uid))
+                values = data.model_dump(exclude={"category"})
+                self.db.add(Posting(**values, category_id=category, transaction=transaction.tid, user=self.uid))
             else:
-                old.account, old.side, old.amount = data.account, data.side, data.amount
+                old.account, old.side, old.amount, old.category_id = data.account, data.side, data.amount, category
                 self.db.add(old)
         self.db.flush()
 

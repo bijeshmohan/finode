@@ -2,6 +2,7 @@
 
 import pytest
 
+from .books import leg, post_account
 from .test_budget import account, assign, budget, line, move
 
 
@@ -61,9 +62,9 @@ def test_a_split_emi_counts_both_parts(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["loan"]["aid"], "side": "debit", "amount": "8000"},
-                {"account": books["interest"]["aid"], "side": "debit", "amount": "2000"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "10000"},
+                leg(books["loan"], "debit", "8000"),
+                leg(books["interest"], "debit", "2000"),
+                leg(books["bank"], "credit", "10000"),
             ]
         },
     )
@@ -77,12 +78,6 @@ def test_a_split_emi_counts_both_parts(client, books):
 def test_the_rules_for_choosing_a_category(client, books, root_accounts):
     url = f"/api/accounts/{books['loan']['aid']}"
     assert client.patch(url, json={"payment_category_id": books["bank"]["aid"]}).status_code == 400
-    assert (
-        client.patch(
-            f"/api/accounts/{books['emi']['aid']}", json={"payment_category_id": books["emi"]["aid"]}
-        ).status_code
-        == 400
-    )
     assert (
         client.patch(
             f"/api/accounts/{books['bank']['aid']}", json={"payment_category_id": books["emi"]["aid"]}
@@ -103,13 +98,13 @@ def test_joining_the_budget_drops_the_category_and_it_can_be_cleared(client, boo
 
 def test_deleting_the_category_clears_the_link(client, books):
     point(client, books["loan"], books["emi"])
-    assert client.delete(f"/api/accounts/{books['emi']['aid']}").status_code in (200, 204)
+    assert client.post(f"/api/categories/{books['emi']['aid']}/delete").status_code == 200
     assert client.get(f"/api/accounts/{books['loan']['aid']}").json()["payment_category_id"] is None
 
 
 def test_the_edit_page_offers_and_saves_it(client, books):
     page = client.get(f"/accounts/{books['loan']['aid']}/edit").text
-    assert "Payments budgeted under" in page and ">EMI</option>" in page
+    assert "Usual category for payments" in page and ">EMI</option>" in page
     saved = client.post(
         f"/accounts/{books['loan']['aid']}/edit",
         data={
@@ -165,7 +160,7 @@ def test_a_payment_not_from_the_budget_is_not_spending(client, books, root_accou
 
 def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root_accounts):
     debts = account(client, root_accounts, "Debts", "Expenses")
-    sub = client.post("/api/accounts/", json={"name": "Car EMI", "parent_id": debts["aid"]}).json()
+    sub = post_account(client, {"name": "Car EMI", "parent_id": debts["aid"]}).json()
     point(client, books["loan"], sub)
     move(client, books["bank"], books["loan"], "7000")
     assert "7,000.00" in client.get("/categories").text
@@ -174,8 +169,9 @@ def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root
 
 
 def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, books, svc):
-    """The Categories page, the Month summary, the breakdown and the overview all count the EMI once, as spending in
-    the loan's payment category, and the interest the lender charges as the expense it is; borrowing is not spending.
+    """The Categories page, the breakdown by category and the overview's `spent` count the EMI once, as spending in the
+    loan's payment category, and the interest the lender charges as the spending it is; borrowing is not spending. The
+    books' own view (`expenses`, the breakdown by account) has only the interest: paying into a loan is no expense.
     (The Budget counts only what budget money paid, so interest, which no budget account paid, is not in it.)"""
     point(client, books["loan"], books["emi"])
     assign(client, books["emi"], "15000")
@@ -187,7 +183,8 @@ def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, b
     assert line(data, "EMI")["activity"] == "15000.00" and line(data, "Interest")["activity"] == "0.00"
     summary = svc.reports.summary()
     breakdown = svc.reports.breakdown("Expenses")
-    assert str(summary.expenses) == "15900.00" and str(summary.net_income) == "-15900.00"
+    assert str(summary.spent) == "15900.00", "what the budget calls spending"
+    assert str(summary.expenses) == "900.00" and str(summary.net_income) == "-900.00", "the books: only the interest"
     assert str(breakdown.total) == "15900.00" and [l.account for l in breakdown.lines] == ["EMI", "Interest"]
     categories = " ".join(client.get("/categories").text.split())
     assert "15,000.00" in categories and "900.00" in categories
@@ -195,5 +192,5 @@ def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, b
 
 def test_without_a_payment_category_no_report_counts_the_emi(client, books, svc):
     move(client, books["bank"], books["loan"], "15000")
-    assert str(svc.reports.summary().expenses) == "0.00"
+    assert str(svc.reports.summary().expenses) == "0.00" and str(svc.reports.summary().spent) == "0.00"
     assert str(svc.reports.breakdown("Expenses").total) == "0.00"

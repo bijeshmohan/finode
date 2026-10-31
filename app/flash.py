@@ -35,6 +35,8 @@ MESSAGES = {
     "account-created": "Account added",
     "account-updated": "Account updated",
     "account-deleted": "Account deleted",
+    "category-created": "Category added",
+    "category-updated": "Category updated",
     "category-deleted": "Category deleted",
     "category-restored": "Category restored",
     "profile-updated": "Profile saved",

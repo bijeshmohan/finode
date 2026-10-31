@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from ..clock import local_today
 from ..models.transaction import PostingSide
-from ..repositories import TransactionRepository
+from ..repositories import CategoryRepository, TransactionRepository
 from ..schemas.report import (
     BreakdownLine,
     BreakdownRead,
@@ -20,6 +20,7 @@ class ReportService:
     def __init__(self, accounts: AccountService, tr: TransactionRepository):
         self.accounts = accounts
         self.tr = tr
+        self.cr = CategoryRepository(tr.db, tr.uid)
 
     def summary(
         self,
@@ -42,11 +43,7 @@ class ReportService:
         liabilities = roots["Liabilities"].balance
 
         income, expenses = self._period_totals(roots, period_start, period_end)
-        # Paying into a loan budgeted under a category spends that category: as on the Budget and the Categories page.
-        expenses += sum(
-            (p.amount for _, p in self.accounts.payments_into_loans(accounts, period_start, period_end)),
-            Decimal("0.00"),
-        )
+        spent = sum(self.category_totals("spending", period_start, period_end).values(), Decimal("0.00"))
 
         return SummaryRead(
             currency=self.accounts.currency().code,
@@ -57,6 +54,7 @@ class ReportService:
             net_worth=assets - liabilities,
             income=income,
             expenses=expenses,
+            spent=spent,
             net_income=income - expenses,
         )
 
@@ -72,24 +70,16 @@ class ReportService:
                 expenses += posting.amount if posting.side == PostingSide.DEBIT else -posting.amount
         return income, expenses
 
-    def account_totals(self, root_name: str, period_start: date, period_end: date) -> dict:
-        """What each account under Income or Expenses took in a period (what was posted to the account itself:
-        a group's own postings, not its sub-accounts')."""
-        if root_name not in ("Income", "Expenses"):
-            raise ValueError("a breakdown is of Income or Expenses!")
-        accounts = {a.aid: a for a in self.accounts.list()}
-        root = next(a for a in accounts.values() if a.parent_id is None and a.name == root_name)
-        normal_side = PostingSide.CREDIT if root_name == "Income" else PostingSide.DEBIT
+    def category_totals(self, kind: str, period_start: date, period_end: date) -> dict:
+        """What each category took in a period, by what its lines say they were for (a payment into a loan counts for
+        the category it was labelled with). It is what the Budget and the Categories page show. A group's own figure is
+        what was labelled with the group itself, not its sub-categories'."""
+        if kind not in ("spending", "earning"):
+            raise ValueError("categories are spending or earning!")
+        normal_side = PostingSide.DEBIT if kind == "spending" else PostingSide.CREDIT
         totals: dict = {}
-        for posting in self.tr.postings_for_accounts(self.accounts.subtree_ids(root.aid), period_start, period_end):
-            value = posting.amount if posting.side == normal_side else -posting.amount
-            totals[posting.account] = totals.get(posting.account, Decimal("0.00")) + value
-        if root_name == "Expenses":
-            # Paying into a loan budgeted under a category spends that category (as on the Budget).
-            for category, posting in self.accounts.payments_into_loans(
-                list(accounts.values()), period_start, period_end
-            ):
-                totals[category] = totals.get(category, Decimal("0.00")) + posting.amount
+        for category, side, amount in self.tr.category_sums(kind, period_start, period_end):
+            totals[category] = totals.get(category, Decimal("0.00")) + (amount if side == normal_side else -amount)
         return totals
 
     def breakdown(
@@ -99,9 +89,9 @@ class ReportService:
         period_end: date | None = None,
         depth: int = 1,
     ) -> BreakdownRead:
-        """Income or expenses for a period per account, `depth` levels below the top-level account.
-
-        Postings to deeper accounts count towards their ancestor at `depth`.
+        """Income or expenses for a period, `depth` levels down: what the money was for, as the Budget and Categories
+        count it (a payment into a loan is spending in its category). Money on deeper levels counts towards its
+        ancestor at `depth`.
         """
         if root_name not in ("Income", "Expenses"):
             raise ValueError("a breakdown is of Income or Expenses!")
@@ -113,18 +103,20 @@ class ReportService:
         if period_start > period_end:
             raise ValueError("period start must not be after period end!")
 
-        accounts = {a.aid: a for a in self.accounts.list()}
+        by_id = {c.bcid: c for c in self.accounts_categories()}
 
-        def group_of(aid) -> str:
+        def group_of(bcid) -> str:
             chain = []
-            current = accounts[aid]
-            while current.parent_id is not None:
+            current = by_id[bcid]
+            while True:
                 chain.append(current.name)
-                current = accounts[current.parent_id]
+                if current.parent_id is None or current.parent_id not in by_id:
+                    break
+                current = by_id[current.parent_id]
             chain.reverse()
             return " › ".join(chain[:depth])
 
-        own = self.account_totals(root_name, period_start, period_end)
+        own = self.category_totals("spending" if root_name == "Expenses" else "earning", period_start, period_end)
         totals: dict[str, Decimal] = {}
         for aid, value in own.items():
             key = group_of(aid)
@@ -140,6 +132,10 @@ class ReportService:
             total=sum((line.amount for line in lines), Decimal("0.00")),
             lines=lines,
         )
+
+    def accounts_categories(self):
+        """Every category of the person (one read, remembered for the request)."""
+        return self.cr.list()
 
     def trial_balance(self, as_of: date | None = None) -> TrialBalanceRead:
         """Every account's debits and credits up to a day, and a check that the books are sound.
@@ -183,11 +179,15 @@ class ReportService:
                 if account is None:
                     problems.append(f"{label} posts to an account that does not exist or is not yours")
                     continue
-                if account.parent_id is None:
+                on_books = account.parent_id is None and account.name in ("Expenses", "Income")
+                if account.parent_id is None and not on_books:
                     problems.append(f"{label} posts to the root account '{account.name}'")
                 if posting.amount <= 0:
                     problems.append(f"{label} has a posting that is not positive")
-                line = lines.setdefault(account.aid, [Decimal(0), Decimal(0)])
+                # A line on Expenses or Income is told apart by what it was for, as a journal would by its account.
+                line = lines.setdefault(
+                    (account.aid, posting.category_id if on_books else None), [Decimal(0), Decimal(0)]
+                )
                 if posting.side == PostingSide.DEBIT:
                     debit += posting.amount
                     line[0] += posting.amount
@@ -199,8 +199,23 @@ class ReportService:
             total_debit += debit
             total_credit += credit
 
+        categories = {c.bcid: c for c in self.cr.list()}
+
+        def category_path(bcid) -> str:
+            names, current, seen = [], categories.get(bcid), set()
+            while current is not None and current.bcid not in seen:
+                seen.add(current.bcid)
+                names.append(current.name)
+                current = categories.get(current.parent_id) if current.parent_id else None
+            return ":".join(reversed(names))
+
         result_lines = [
-            TrialBalanceLine(account=path_of(aid), debit=debit, credit=credit) for aid, (debit, credit) in lines.items()
+            TrialBalanceLine(
+                account=f"{path_of(aid)}:{category_path(category)}" if category in categories else path_of(aid),
+                debit=debit,
+                credit=credit,
+            )
+            for (aid, category), (debit, credit) in lines.items()
         ]
         result_lines.sort(key=lambda line: line.account)
         return TrialBalanceRead(

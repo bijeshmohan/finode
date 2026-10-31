@@ -4,11 +4,14 @@ import re
 
 import pytest
 
+from .books import leg, post_account
+from .htmlutil import option_selected
+
 
 @pytest.fixture
 def books(client, root_accounts):
     def make(name, root, **extra):
-        response = client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[root], **extra})
+        response = post_account(client, {"name": name, "parent_id": root_accounts[root], **extra})
         assert response.status_code == 201, response.text
         return response.json()
 
@@ -27,8 +30,8 @@ def pay(client, payee, source, target, amount="10"):
         json={
             "payee": payee,
             "postings": [
-                {"account": target["aid"], "side": "debit", "amount": amount},
-                {"account": source["aid"], "side": "credit", "amount": amount},
+                leg(target, "debit", amount),
+                leg(source, "credit", amount),
             ],
         },
     )
@@ -93,18 +96,19 @@ def test_splits_entries_without_a_payee_and_closed_accounts_are_left_out(client,
         json={
             "payee": "Big shop",
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "6"},
-                {"account": books["delivery"]["aid"], "side": "debit", "amount": "4"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "10"},
+                leg(books["groceries"], "debit", "6"),
+                leg(books["delivery"], "debit", "4"),
+                leg(books["hdfc"], "credit", "10"),
             ],
         },
     )
     pay(client, "", books["hdfc"], books["groceries"])
-    extra = client.post("/api/accounts/", json={"name": "Gone", "parent_id": books["delivery"]["parent_id"]}).json()
+    extra = client.post("/api/categories/", json={"name": "Gone", "kind": "spending"}).json() | {}
+    extra["aid"] = extra["bcid"]
     pay(client, "Old place", books["hdfc"], extra)
     pay(client, "Refund", extra, books["hdfc"])  # back to zero, so it can be closed
     assert {c[0] for c in chips(client)} == {"Old place", "Refund"}
-    assert client.post(f"/api/accounts/{extra['aid']}/close").status_code == 200
+    assert client.post(f"/api/categories/{extra['aid']}/close").status_code == 200
     assert chips(client) == [], (
         "a closed account is never suggested, and splits and entries without a payee are not either"
     )
@@ -133,13 +137,13 @@ def test_the_form_starts_with_no_account_chosen_however_often_you_pay_from_one(c
         pay(client, "A", books["card"], books["delivery"])
     pay(client, "B", books["hdfc"], books["groceries"])
     page = client.get("/transactions/new").text
-    assert f'<option value="{books["card"]["aid"]}" selected' not in page
-    assert f'<option value="{books["hdfc"]["aid"]}" selected' not in page
-    assert f'<option value="{books["delivery"]["aid"]}" selected' not in page
+    assert not option_selected(page, books["card"]["aid"])
+    assert not option_selected(page, books["hdfc"]["aid"])
+    assert not option_selected(page, books["delivery"]["aid"])
 
 
 def test_opening_the_form_from_an_account_keeps_that_account(client, books):
     pay(client, "A", books["card"], books["delivery"])
     page = client.get("/transactions/new", params={"account": books["hdfc"]["aid"]}).text
-    assert f'<option value="{books["hdfc"]["aid"]}" selected' in page
-    assert f'<option value="{books["card"]["aid"]}" selected' not in page
+    assert option_selected(page, books["hdfc"]["aid"])
+    assert not option_selected(page, books["card"]["aid"])

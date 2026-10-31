@@ -1,10 +1,19 @@
-{#- <option>s for an account picker, grouped by account type. `groups` comes from posting_groups(). -#}
+{#- <option>s for an account picker, grouped by type (and, for the sides that take a category, Income and Expenses).
+    `groups` comes from posting_groups() and category_groups(). -#}
 {% macro account_options(groups, selected=None, allow_new=False) -%}
   <option value="">Choose account…</option>
   {% if allow_new %}<option value="__new__">+ New account…</option>{% endif %}
-  {% for root, nodes in groups %}
+  {% for root, options in groups %}
   <optgroup label="{{ root }}">
-    {% for n in nodes %}<option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == selected }}>{{ n.path.split(" › ", 1)[1] if " › " in n.path else n.path }}</option>{% endfor %}
+    {% for o in options %}<option value="{{ o.id }}" data-budget="{{ 1 if o.budget else 0 }}"{% if root in ("Assets", "Liabilities") %} data-balance="{{ o.balance|money }}"{% endif %}{% if o.usual %} data-usual="{{ o.usual }}"{% endif %} {{ "selected" if o.id == selected }}>{{ o.label }}</option>{% endfor %}
   </optgroup>
+  {% endfor %}
+{%- endmacro %}
+
+{#- <option>s for the category a payment into a loan or fund is labelled with: the spending categories (the Expenses part of `groups`). -#}
+{% macro category_options(groups, selected=None) -%}
+  <option value="">No category</option>
+  {% for root, options in groups if root == "Expenses" %}
+    {% for o in options %}<option value="{{ o.id }}" {{ "selected" if o.id == selected }}>{{ o.label }}</option>{% endfor %}
   {% endfor %}
 {%- endmacro %}

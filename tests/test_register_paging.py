@@ -9,16 +9,17 @@ from sqlalchemy import event
 from app.clock import local_today
 from app.services.account import REGISTER_PAGE
 
+from .books import post_account
 from .svc import plain, services
 
 
 @pytest.fixture
 def busy(client, root_accounts):
     """A bank account with many entries over many days (three on some days), and what it was spent on."""
-    bank = client.post(
-        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10000"}
-    ).json()["aid"]
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()["aid"]
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10000"}).json()[
+        "aid"
+    ]
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()["aid"]
     made = []
     for i in range(80):
         day = local_today() - timedelta(days=1 + i // 3)  # three entries a day
@@ -28,7 +29,7 @@ def busy(client, root_accounts):
                 "date": str(day),
                 "payee": f"Shop {i:02d}",
                 "postings": [
-                    {"account": food, "side": "debit", "amount": "10"},
+                    {"category": food, "side": "debit", "amount": "10"},
                     {"account": bank, "side": "credit", "amount": "10"},
                 ],
             },
@@ -98,7 +99,7 @@ def test_entries_dated_ahead_still_all_show_in_their_card(client, busy):
                 "date": str(local_today() + timedelta(days=5 + i)),
                 "payee": f"Later {i}",
                 "postings": [
-                    {"account": food, "side": "debit", "amount": "5"},
+                    {"category": food, "side": "debit", "amount": "5"},
                     {"account": bank, "side": "credit", "amount": "5"},
                 ],
             },
@@ -108,9 +109,7 @@ def test_entries_dated_ahead_still_all_show_in_their_card(client, busy):
 
 
 def test_a_small_account_has_no_button(client, root_accounts):
-    bank = client.post(
-        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}
-    ).json()["aid"]
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}).json()["aid"]
     assert "Load more" not in client.get(f"/accounts/{bank}").text
 
 

@@ -12,11 +12,14 @@ from ..tags import clean_names
 from .day import Day
 
 
-class PostingBase(BaseModel):
-    account: UUID
+class _PostingFields(BaseModel):
     side: PostingSide
     # How many decimals it may have is checked against the currency.
     amount: Decimal = Field(decimal_places=8, max_digits=24)
+    # What the line was for (a budget category). Leave it out and the account decides: a books account that has a
+    # default category uses it, a payment into a loan or fund that has a payment category is that category's, and a line
+    # on Expenses or Income with none is Uncategorised.
+    category: UUID | None = None
 
     @field_validator("amount")
     @classmethod
@@ -26,7 +29,30 @@ class PostingBase(BaseModel):
         return v
 
 
-class PostingCreate(PostingBase): ...
+class PostingBase(_PostingFields):
+    account: UUID
+
+    @property
+    def target(self) -> UUID:
+        return self.account
+
+
+class PostingCreate(_PostingFields):
+    # Leave it out and name the category: the line posts to Expenses (a spending category) or Income (an earning one).
+    account: UUID | None = None
+
+    @model_validator(mode="after")
+    def _names_an_account_or_a_category(self) -> PostingCreate:
+        if self.account is None and self.category is None:
+            raise ValueError("a line names an account or a category!")
+        return self
+
+    @property
+    def target(self) -> UUID:
+        """The account the line posts to (always set once the entry has been checked)."""
+        if self.account is None:
+            raise ValueError("the line has no account yet!")
+        return self.account
 
 
 class PostingRead(PostingBase):
@@ -233,6 +259,8 @@ class HistoryPosting(BaseModel):
     account: str
     side: PostingSide
     amount: Decimal
+    # The name of the category the line was for, when it had one.
+    category: str | None = None
 
 
 class HistoryRead(BaseModel):

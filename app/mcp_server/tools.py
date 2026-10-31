@@ -20,6 +20,7 @@ from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate, AccountUpdate
 from ..schemas.account import AccountChangeRead
+from ..schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import (
     MAX_BATCH,
@@ -30,19 +31,21 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
-from ..services.simple import simple_postings
+from ..services.simple import label_simple
 from ..tags import clean_name, clean_names, tags_in
 from ..version import VERSION
-from .accounts import AccountIndex
+from .accounts import AccountIndex, Place, Places
+from .categories import CategoryIndex
 from .context import Services, services
 
 INSTRUCTIONS = """\
 finode is the user's personal double-entry ledger.
 
-- Accounts form a tree under five top-level accounts: Assets, Liabilities, Equity, Income and
-  Expenses. Refer to an account by its path with ':' between names (Assets:Bank:HDFC,
-  Expenses:Food) or by the end of the path when that is unique (HDFC, Food). Call list_accounts
-  when unsure; never invent an account: ask the user, or create it with create_account if they agree.
+- Accounts form a tree under Assets, Liabilities and Equity; spending and income post to the single
+  Expenses and Income accounts and are told apart by a budget category (Food, Food:Groceries, Salary:
+  call list_categories). Refer to an account by its path with ':' between names (Assets:Bank:HDFC) or by
+  the end of the path when that is unique (HDFC); a category path (Expenses:Food, or just Food) works
+  wherever an account goes. Call list_accounts when unsure; never invent an account: ask the user, or create it with create_account if they agree.
   New users start with built-in groups under Assets (Bank Accounts, Cash, Investments) and Liabilities
   (Credit Cards, Loans); they cannot be changed or removed. Put a bank under Bank Accounts and a card under
   Credit Cards (they start as part of the budget), a fund under Investments and a loan under Loans (they
@@ -56,6 +59,12 @@ finode is the user's personal double-entry ledger.
   A # in a note is just text and is not read as a tag. list_tags shows the tags in use and search_transactions(tag=)
   finds the entries. Reuse an existing tag instead of inventing a near-duplicate. Renaming, merging and deleting tags
   need access to manage accounts.
+- Categories say what money was for (Groceries, EMI, Salary), apart from the accounts. list_categories shows them
+  with their paths; spending ones are what the budget plans against, earning ones label income. Spending on an
+  expense account already has its category. When money goes into a loan or fund, pass category (EMI, SIP) to
+  record_transaction, or on a row of record_split: that is what the budget counts. A row may name only a category
+  instead of an account. create_category makes one; renaming, moving, closing and merging categories need access to
+  manage accounts.
 - check_balance sets a statement's balance against the books and points at the entries that could explain a gap.
 - payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
 - get_account_history shows what happened to one account and who did it (renames, moves, closings); recent_changes(what='accounts') lists the latest across all of them.
@@ -129,6 +138,14 @@ ExternalId = Annotated[
     ),
 ]
 SourceUrl = Annotated[str | None, Field(max_length=500, description="A web link back to the source")]
+CategoryParam = Annotated[
+    str | None,
+    Field(
+        description="What the money was for, a spending category such as EMI or Food:Groceries (see list_categories). "
+        "Only needed when the account does not say it: a payment into a loan or fund is labelled EMI or SIP, "
+        "while an expense account already stands for its own category"
+    ),
+]
 DryRun = Annotated[
     bool,
     Field(
@@ -164,6 +181,7 @@ def _tool_errors(fn: Callable) -> Callable:
 
 
 def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[str, Any]:
+    names = _categories(s) if any(p.category for p in t.postings) else CategoryIndex([])
     total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
     return {
         "id": str(t.tid),
@@ -174,10 +192,11 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
         "total": text(total),
         "postings": [
             {
-                "account": index.path(p.account),
-                "account_id": str(p.account),
+                "account": index.where(p.target, p.category)[0],
+                "account_id": str(index.where(p.target, p.category)[1]),
                 "side": p.side.value,
                 "amount": text(p.amount),
+                **({"category": names.path(p.category), "category_id": str(p.category)} if p.category else {}),
             }
             for p in t.postings
         ],
@@ -197,7 +216,39 @@ def _via(origin: str | None) -> str | None:
 
 
 def _index(s: Services) -> AccountIndex:
-    return AccountIndex(s.accounts.list())
+    return AccountIndex(s.accounts.list(), s.categories.list(include_closed=True))
+
+
+def _places(s: Services) -> Places:
+    return Places(_index(s), _categories(s))
+
+
+def _sides(amount: Decimal, payer: Place, target: Place) -> list[PostingCreate]:
+    """The two lines of money moving from one place to another; a category place posts to Expenses or Income."""
+    if (payer.account, payer.category) == (target.account, target.category):
+        raise ValueError("the from and to places must differ!")
+    return [
+        PostingCreate(account=target.account, side=PostingSide.DEBIT, amount=amount, category=target.category),
+        PostingCreate(account=payer.account, side=PostingSide.CREDIT, amount=amount, category=payer.category),
+    ]
+
+
+def _categories(s: Services) -> CategoryIndex:
+    return CategoryIndex(s.categories.list(include_closed=True))
+
+
+def _category_id(s: Services, text: str | None) -> UUID | None:
+    """The spending category a tool call names, or None when it names none."""
+    if text is None or not text.strip():
+        return None
+    return _categories(s).find(text, kind="spending", open_only=True).bcid
+
+
+def _label_simple(s: Services, postings: list[PostingCreate], text: str | None) -> list[PostingCreate]:
+    category = _category_id(s, text)
+    if category is not None:
+        label_simple({a.aid: a for a in s.accounts.ar.list()}, postings, category)
+    return postings
 
 
 def _related_id(value: str | None) -> UUID | None:
@@ -230,6 +281,7 @@ def get_overview() -> dict[str, Any]:
                 "to": summary.period_end.isoformat(),
                 "income": text(summary.income),
                 "expenses": text(summary.expenses),
+                "spent": text(summary.spent),
                 "net": text(summary.net_income),
             },
         }
@@ -276,7 +328,7 @@ def _budget_facts(e, index: AccountIndex) -> dict[str, Any]:
     """Whether an asset or liability is part of the budget, and where its payments are budgeted when it is not."""
     facts: dict[str, Any] = {"on_budget": e.account.on_budget}
     if e.account.payment_category_id:
-        facts["payment_category"] = index.path(e.account.payment_category_id)
+        facts["payment_category"] = index.category_paths.get(e.account.payment_category_id, "?")
     return facts
 
 
@@ -340,11 +392,21 @@ def search_transactions(
     need to page through everything to total it."""
     with services() as s:
         index = _index(s)
-        entry = index.find(account, allow_root=True) if account else None
+        entry = None
+        category_id = None
+        if account:
+            try:
+                entry = index.find(account, allow_root=True)
+            except ValueError as no_account:
+                try:  # a category filters the entries labelled with it
+                    category_id = _categories(s).find(Places._category_text(account)[1]).bcid
+                except ValueError:
+                    raise no_account from None
         needle = (text_contains or "").casefold().strip()
         matches: list[tuple[TransactionRead, Decimal]] = []
         for t in s.transactions.list(
             account=entry.account.aid if entry else None,
+            also=category_id,
             date_from=date_from,
             date_to=date_to,
             kind=kind,
@@ -639,7 +701,8 @@ def spending_breakdown(
     date_to: Annotated[date | None, Field(description="Last day; today when left out")] = None,
     depth: Annotated[int, Field(ge=1, le=2, description="1 = Food, Rent...; 2 = Food:Groceries...")] = 1,
 ) -> dict[str, Any]:
-    """Expenses (or income) for a period per account, largest first."""
+    """Expenses (or income) for a period per category, largest first: what the money was for, as the budget counts
+    it, so paying into a loan is spending in its category."""
     with services() as s:
         report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
         return {
@@ -648,8 +711,8 @@ def spending_breakdown(
             "from": report.period_start.isoformat(),
             "to": report.period_end.isoformat(),
             "total": text(report.total),
-            "by_account": [
-                {"account": line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines
+            "by_category": [
+                {"category": line.account.replace(" › ", ":"), "amount": text(line.amount)} for line in report.lines
             ],
         }
 
@@ -668,14 +731,18 @@ def list_recurring() -> dict[str, Any]:
                     **(
                         {
                             "postings": [
-                                {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)}
+                                {
+                                    "account": index.where(p.target, p.category)[0],
+                                    "side": p.side.value,
+                                    "amount": text(p.amount),
+                                }
                                 for p in r.postings
                             ],
                         }
                         if r.postings
                         else {
-                            "from": index.path(cast(UUID, r.from_account)),
-                            "to": index.path(cast(UUID, r.to_account)),
+                            "from": index.where(cast(UUID, r.from_account), r.category)[0],
+                            "to": index.where(cast(UUID, r.to_account), r.category)[0],
                             "amount": text(r.amount),
                         }
                     ),
@@ -707,6 +774,7 @@ def record_transaction(
     date: OptionalDate = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
+    category: CategoryParam = None,
     related_to: Annotated[
         str | None,
         Field(
@@ -724,9 +792,8 @@ def record_transaction(
     again is safe, it answers with the entry already recorded (`already_recorded`) and makes no copy."""
     with services() as s:
         index = _index(s)
-        payer = index.find(from_account, postable=True)
-        target = index.find(to_account, postable=True)
-        postings = simple_postings(amount, payer.account.aid, target.account.aid)
+        places = _places(s)
+        postings = _label_simple(s, _sides(amount, places.find(from_account), places.find(to_account)), category)
         data = TransactionCreate(
             date=date or _today(),
             payee=(payee or "").strip() or None,
@@ -772,8 +839,8 @@ def _dry_run(key: str, preview: TransactionPreview, index: AccountIndex) -> dict
         "total": text(debits),
         "postings": [
             {
-                "account": index.path(p.account),
-                "account_id": str(p.account),
+                "account": index.where(p.target, p.category)[0],
+                "account_id": str(index.where(p.target, p.category)[1]),
                 "side": p.side.value,
                 "amount": text(p.amount),
             }
@@ -791,22 +858,37 @@ def _dry_run(key: str, preview: TransactionPreview, index: AccountIndex) -> dict
 
 
 class PostingIn(BaseModel):
-    account: AccountRef
+    account: AccountRef | None = Field(
+        default=None, description="The account; leave it out and name only the category (an expense or income one)"
+    )
+    category: str | None = Field(
+        default=None,
+        description="What the row was for (see list_categories). Needed when there is no account; otherwise only for "
+        "a payment into a loan or fund",
+    )
     side: Literal["debit", "credit"] = Field(
         description="debit: money into an asset or expense (or paying down a liability); credit: the other way"
     )
     amount: Amount
 
 
-def _postings(index: AccountIndex, rows: list[PostingIn]) -> list[PostingCreate]:
-    return [
-        PostingCreate(
-            account=index.find(row.account, postable=True).account.aid,
-            side=PostingSide(row.side),
-            amount=row.amount,
+def _postings(rows: list[PostingIn], s: Services) -> list[PostingCreate]:
+    found = []
+    places = _places(s)
+    for row in rows:
+        if not row.account and not row.category:
+            raise ValueError("each row needs an account or a category!")
+        category = _category_id(s, row.category)
+        place = places.find(row.account) if row.account else None
+        found.append(
+            PostingCreate(
+                account=place.account if place else None,
+                side=PostingSide(row.side),
+                amount=row.amount,
+                category=category or (place.category if place else None),
+            )
         )
-        for row in rows
-    ]
+    return found
 
 
 @_tool_errors
@@ -835,7 +917,7 @@ def record_split(
             date=date or _today(),
             payee=(payee or "").strip() or None,
             comment=(note or "").strip() or None,
-            postings=_postings(index, postings),
+            postings=_postings(postings, s),
             related_id=_related_id(related_to),
             tags=tags or [],
             source=source,
@@ -859,6 +941,7 @@ class BatchItem(BaseModel):
     payee: Annotated[str | None, Field(max_length=40)] = None
     note: Annotated[str | None, Field(max_length=200)] = None
     related_to: str | None = Field(default=None, description="Id of an earlier transaction this one is related to")
+    category: CategoryParam = None
     tags: TagsParam = None
     source: Source = None
     external_id: ExternalId = None
@@ -883,7 +966,7 @@ def record_transactions(
         problems: list[str] = []
         for number, e in enumerate(entries, start=1):
             try:
-                data.append(_batch_entry(e, index))
+                data.append(_batch_entry(e, s))
             except (ValueError, LookupError, ValidationError) as err:
                 message = validation_message(err) if isinstance(err, ValidationError) else str(err)
                 problems.append(f"entry {number}: {message}")
@@ -906,18 +989,23 @@ def record_transactions(
         }
 
 
-def _batch_entry(e: BatchItem, index: AccountIndex) -> TransactionCreate:
+def _batch_entry(e: BatchItem, s: Services) -> TransactionCreate:
     simple = (e.amount, e.from_account, e.to_account)
     if e.postings is not None:
         if any(v is not None for v in simple):
             raise ValueError("give either amount, from_account and to_account, or postings, not both!")
-        postings = _postings(index, e.postings)
+        postings = _postings(e.postings, s)
     else:
         if any(v is None for v in simple):
             raise ValueError("give amount, from_account and to_account, or postings!")
-        payer = index.find(cast(str, e.from_account), postable=True)
-        target = index.find(cast(str, e.to_account), postable=True)
-        postings = simple_postings(cast(Decimal, e.amount), payer.account.aid, target.account.aid)
+        places = _places(s)
+        postings = _label_simple(
+            s,
+            _sides(
+                cast(Decimal, e.amount), places.find(cast(str, e.from_account)), places.find(cast(str, e.to_account))
+            ),
+            e.category,
+        )
     return TransactionCreate(
         date=e.date or _today(),
         payee=(e.payee or "").strip() or None,
@@ -974,7 +1062,7 @@ def update_transaction(
         if note is not None:
             changes["comment"] = note.strip() or None
         if postings is not None:
-            changes["postings"] = _postings(index, postings)
+            changes["postings"] = _postings(postings, s)
         if related_to is not None:
             changes["related_id"] = _related_id(related_to)
         if tags is not None or add_tags or remove_tags:
@@ -1055,7 +1143,7 @@ def create_account(
                 parent_id=parent_entry.account.aid,
                 balance=opening_balance or Decimal("0.00"),
                 on_budget=on_budget,
-                payment_category_id=_category(index, payment_category).account.aid if payment_category else None,
+                payment_category_id=_spending(s, payment_category).bcid if payment_category else None,
             )
         )
         return {
@@ -1099,9 +1187,7 @@ def update_account(
         if on_budget is not None:
             changes["on_budget"] = on_budget
         if payment_category is not None:
-            changes["payment_category_id"] = (
-                _category(index, payment_category).account.aid if payment_category.strip() else None
-            )
+            changes["payment_category_id"] = _spending(s, payment_category).bcid if payment_category.strip() else None
         if not changes:
             raise ToolError("nothing to change: pass a name, details, parent, on_budget or payment_category!")
         before = entry.path
@@ -1182,6 +1268,7 @@ def create_recurring(
     end_date: Annotated[date | None, Field(description="Last possible occurrence; none when left out")] = None,
     payee: Annotated[str | None, Field(max_length=40)] = None,
     note: Annotated[str | None, Field(max_length=200)] = None,
+    category: CategoryParam = None,
     tags: TagsParam = None,
     postings: Annotated[
         list[PostingIn] | None,
@@ -1200,17 +1287,25 @@ def create_recurring(
             if any(v is not None for v in (amount, from_account, to_account)):
                 raise ToolError("give either from_account, to_account and amount, or postings, not both!")
             source = target = None
+            if category:
+                raise ToolError("with postings, name the category on each row, not on the rule!")
+            rows = _postings(postings, s)
             shape: dict[str, Any] = {
                 "postings": [
-                    p.model_dump() | {"account": index.find(p.account, postable=True).account.aid} for p in postings
+                    {"account": r.account, "side": r.side, "amount": r.amount, "category": r.category} for r in rows
                 ]
             }
         else:
             if amount is None or from_account is None or to_account is None:
                 raise ToolError("give from_account, to_account and amount, or postings!")
-            source = index.find(from_account, postable=True)
-            target = index.find(to_account, postable=True)
-            shape = {"from_account": source.account.aid, "to_account": target.account.aid, "amount": amount}
+            places = _places(s)
+            source, target = places.find(from_account), places.find(to_account)
+            shape = {
+                "from_account": source.account,
+                "to_account": target.account,
+                "amount": amount,
+                "category": _category_id(s, category) or target.category or source.category,
+            }
         created = s.recurring.create(
             RecurringCreate(
                 **shape,
@@ -1232,7 +1327,7 @@ def create_recurring(
             if source is not None and target is not None
             else {
                 "postings": [
-                    {"account": index.path(p.account), "side": p.side.value, "amount": text(p.amount)}
+                    {"account": index.where(p.target, p.category)[0], "side": p.side.value, "amount": text(p.amount)}
                     for p in rule.postings
                 ]
             }
@@ -1318,11 +1413,10 @@ def _month(value: str | None) -> date | None:
         raise ToolError(f"'{value}' is not a month: use YYYY-MM!") from None
 
 
-def _category(index: AccountIndex, text: str):
-    entry = index.find(text)
-    if entry.root != "Expenses" or entry.account.parent_id is None:
-        raise ToolError(f"'{entry.path}' is not an expense account: budget categories are expense accounts!")
-    return entry
+def _spending(s: Services, text: str) -> CategoryRead:
+    """The open spending category a budget tool names (its path, with or without the journal's Expenses: in front)."""
+    _kind, name = Places._category_text(text)
+    return _categories(s).find(name, kind="spending", open_only=True)
 
 
 def _budget(data) -> dict[str, Any]:
@@ -1426,8 +1520,8 @@ def assign_to_category(
     """Give money a job: set how much of a month is assigned to a category. This is a plan only; no transaction
     is recorded. Check get_budget first so you don't assign more than is ready to assign."""
     with services() as s:
-        entry = _category(_index(s), category)
-        return _budget(s.budget.assign(_month(month), entry.account.aid, amount))
+        entry = _spending(s, category)
+        return _budget(s.budget.assign(_month(month), entry.bcid, amount))
 
 
 def _goal(s, name: str):
@@ -1466,8 +1560,8 @@ def use_goal(
     """Hand money a goal saved to a category, so spending recorded there is covered. It does not change what is
     ready to assign."""
     with services() as s:
-        entry = _category(_index(s), category)
-        return _budget(s.budget.use_goal(_month(month), _goal(s, goal).gid, entry.account.aid, amount))
+        entry = _spending(s, category)
+        return _budget(s.budget.use_goal(_month(month), _goal(s, goal).gid, entry.bcid, amount))
 
 
 @_tool_errors
@@ -1489,9 +1583,8 @@ def move_budget_money(
 ) -> dict[str, Any]:
     """Move assigned money from one category to another. It does not change what is ready to assign."""
     with services() as s:
-        index = _index(s)
-        source, target = _category(index, from_category), _category(index, to_category)
-        return _budget(s.budget.move(_month(month), source.account.aid, target.account.aid, amount))
+        source, target = _spending(s, from_category), _spending(s, to_category)
+        return _budget(s.budget.move(_month(month), source.bcid, target.bcid, amount))
 
 
 @_tool_errors
@@ -1697,7 +1790,118 @@ def delete_tag(tag: Annotated[str, Field(description="The tag to remove")]) -> d
         return {"deleted": clean_name(tag), "entries_it_was_on": s.transactions.delete_tag(tag)}
 
 
+# ---- categories ------------------------------------------------------------------------------------
+
+
+def _category_row(c) -> dict[str, Any]:
+    return {
+        "id": str(c.bcid),
+        "path": c.path,
+        "kind": c.kind,
+        "group": c.parent_id is None,
+        **({"closed": c.closed_on.isoformat()} if c.closed_on else {}),
+        **({"details": c.details} if c.details else {}),
+    }
+
+
+@_tool_errors
+def list_categories(
+    kind: Annotated[
+        Literal["spending", "earning"] | None, Field(description="Only spending categories, or only earning ones")
+    ] = None,
+    include_closed: Annotated[bool, Field(description="Also list categories the user has closed")] = False,
+) -> dict[str, Any]:
+    """The user's categories: what money was for. Spending categories (Food, Rent, EMI) are what the budget plans
+    against; earning ones (Salary, Interest) label income. Each has an id and a path (Food:Groceries); a group has no
+    parent. Give a path to the category parameter of record_transaction and the other tools."""
+    with services() as s:
+        return {"categories": [_category_row(c) for c in s.categories.list(kind, include_closed)]}
+
+
+@_tool_errors
+def create_category(
+    name: Annotated[str, Field(max_length=40, description="The new category's name")],
+    kind: Annotated[Literal["spending", "earning"], Field(description="Spending (budgeted) or earning (income)")],
+    group: Annotated[
+        str | None, Field(description="A group to put it in, by its path; leave out to make a group or a lone category")
+    ] = None,
+    details: Annotated[str | None, Field(max_length=200, description="What it is for")] = None,
+) -> dict[str, Any]:
+    """Make a category (two levels at most: a group and the categories in it). Check list_categories first."""
+    with services() as s:
+        parent = _categories(s).find(group, kind=kind, open_only=True).bcid if group else None
+        made = s.categories.create(CategoryCreate(name=name, kind=kind, parent_id=parent, details=details))
+        return {"created": _category_row(made)}
+
+
+@_tool_errors
+def update_category(
+    category: Annotated[str, Field(description="The category's path or id")],
+    name: Annotated[str | None, Field(max_length=40, description="New name")] = None,
+    details: Annotated[str | None, Field(max_length=200, description="New note; an empty string clears it")] = None,
+    group: Annotated[
+        str | None, Field(description="Move it into this group (a path); an empty string takes it out of its group")
+    ] = None,
+) -> dict[str, Any]:
+    """Rename a category, change its note or move it into another group. Its id never changes."""
+    with services() as s:
+        found = _categories(s).find(category)
+        fields: dict[str, Any] = {}
+        if name is not None:
+            fields["name"] = name
+        if details is not None:
+            fields["details"] = details.strip() or None
+        if group is not None:
+            fields["parent_id"] = (
+                _categories(s).find(group, kind=found.kind, open_only=True).bcid if group.strip() else None
+            )
+        if not fields:
+            raise ToolError("nothing to change: give name, details or group!")
+        return {"updated": _category_row(s.categories.update(found.bcid, CategoryUpdate(**fields)))}
+
+
+@_tool_errors
+def close_category(category: Annotated[str, Field(description="The category's path or id")]) -> dict[str, Any]:
+    """Close a category: it stays in the history but can no longer be used. The user can reopen it."""
+    with services() as s:
+        return {"closed": _category_row(s.categories.close(_categories(s).find(category).bcid))}
+
+
+@_tool_errors
+def reopen_category(category: Annotated[str, Field(description="The category's path or id")]) -> dict[str, Any]:
+    with services() as s:
+        return {"reopened": _category_row(s.categories.reopen(_categories(s).find(category).bcid))}
+
+
+@_tool_errors
+def merge_categories(
+    category: Annotated[str, Field(description="The category to fold away (path or id)")],
+    into: Annotated[str, Field(description="The category that takes its entries, plan and rules (path or id)")],
+    dry_run: DryRun = False,
+) -> dict[str, Any]:
+    """Make one category part of another of the same kind: its entries, labelled lines, planned amounts and recurring
+    rules become the other's and it goes. With dry_run=true nothing changes and the answer says what would move."""
+    with services() as s:
+        index = _categories(s)
+        source = index.find(category)
+        target = index.find(into, kind=source.kind)
+        result = s.categories.merge(source.bcid, target.bcid, dry_run)
+        return {
+            "dry_run": dry_run,
+            "merged": result.merged,
+            "from": source.path,
+            "into": target.path,
+            "entries_moved": result.entries_moved,
+            "plan_months_moved": result.plan_months_moved,
+            "recurring_rules_moved": result.recurring_rules_moved,
+        }
+
+
 MANAGE_TOOLS: list[tuple[Callable, ToolAnnotations]] = [
+    (update_category, IDEMPOTENT_WRITE),
+    (close_category, IDEMPOTENT_WRITE),
+    (reopen_category, IDEMPOTENT_WRITE),
+    (merge_categories, DESTRUCTIVE),
     (rename_tag, IDEMPOTENT_WRITE),
     (merge_tags, DESTRUCTIVE),
     (delete_tag, DESTRUCTIVE),
@@ -1718,6 +1922,7 @@ READ_TOOLS = [
     get_account_history,
     recent_changes,
     list_tags,
+    list_categories,
     payee_defaults,
     check_balance,
     spending_breakdown,
@@ -1733,6 +1938,7 @@ WRITE_TOOLS = [
     (update_transaction, IDEMPOTENT_WRITE),
     (delete_transaction, DESTRUCTIVE),
     (create_account, WRITE),
+    (create_category, WRITE),
     (create_recurring, WRITE),
     (stop_recurring, IDEMPOTENT_WRITE),
     (skip_recurring_occurrence, WRITE),
@@ -1754,7 +1960,7 @@ READ_ONLY_MESSAGE = (
     "Profile > AI assistants (Change access), and then you can try again."
 )
 NO_MANAGE_MESSAGE = (
-    "This connection may record and change transactions but not manage accounts or tags, so nothing was changed. The user "
+    "This connection may record and change transactions but not manage accounts, categories or tags, so nothing was changed. The user "
     "can allow it in finode under Profile > AI assistants (Change access, read, write & manage accounts), and then "
     "you can try again."
 )

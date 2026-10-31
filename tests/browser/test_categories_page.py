@@ -5,6 +5,7 @@ from datetime import date
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -21,8 +22,8 @@ def spend(api: Api, books, category, amount="300"):
         "/transactions/",
         date=date.today().isoformat(),
         postings=[
-            {"account": category["aid"], "side": "debit", "amount": amount},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
+            leg(category, "debit", amount),
+            leg(books["checking"], "credit", amount),
         ],
     )
 
@@ -37,7 +38,8 @@ def test_the_tab_bar_has_categories_and_no_transactions_(page: Page, books):
 
 def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside(page: Page, books, api: Api):
     food = tree(api, books)
-    delivery = next(a for a in api.get("/accounts/") if a["name"] == "Delivery")
+    delivery = next(c for c in api.get("/categories/") if c["name"] == "Delivery") | {}
+    delivery["aid"] = delivery["bcid"]
     spend(api, books, delivery, "120")
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
@@ -63,13 +65,13 @@ def test_the_month_total_and_the_income_tab(page: Page, books, api: Api):
         "/transactions/",
         date=date.today().isoformat(),
         postings=[
-            {"account": books["checking"]["aid"], "side": "debit", "amount": "5000"},
-            {"account": books["salary"]["aid"], "side": "credit", "amount": "5000"},
+            leg(books["checking"], "debit", "5000"),
+            leg(books["salary"], "credit", "5000"),
         ],
     )
     page.goto("/categories")
     expect(page.locator(".cat-hero .figure")).to_have_text("₹900.00")
-    page.get_by_role("link", name="Income").click()
+    page.get_by_role("link", name="Earning").click()
     expect(page.locator(".cat-hero .figure")).to_have_text("₹5,000.00")
     expect(page.locator("a.crow", has_text="Salary")).to_be_visible()
 
@@ -88,7 +90,7 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(pag
     page.wait_for_url(f"**/categories/{books['rent']['aid']}**")
     expect(page.locator(".hero-balance")).to_have_text("₹900.00")
     expect(page.get_by_role("link", name="Add transaction")).to_have_attribute(
-        "href", f"/transactions/new?account={books['rent']['aid']}&back=/categories/{books['rent']['aid']}"
+        "href", f"/transactions/new?category={books['rent']['aid']}&back=/categories/{books['rent']['aid']}"
     )
     page.get_by_label("More actions").click()
     expect(page.get_by_role("link", name="See in Budgets")).to_be_visible()

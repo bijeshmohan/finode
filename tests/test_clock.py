@@ -8,6 +8,8 @@ import pytest
 from app import clock
 from app.config import Settings, settings
 
+from .books import leg
+
 
 @pytest.fixture
 def kolkata_after_midnight(monkeypatch: pytest.MonkeyPatch):
@@ -48,8 +50,8 @@ def test_new_entries_and_the_pages_use_that_day(client, account, expense_account
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "5"},
-                {"account": account["aid"], "side": "credit", "amount": "5"},
+                leg(expense_account, "debit", "5"),
+                leg(account, "credit", "5"),
             ]
         },
     )

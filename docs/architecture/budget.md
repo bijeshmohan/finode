@@ -10,7 +10,7 @@ Only these things are stored:
 
 | Stored | Where |
 |---|---|
-| The plan: how much each expense category is *assigned* in each month | `budget_allocations` (user, month = first day, expense account, amount; unique per month and account) |
+| The plan: how much each expense category is *assigned* in each month | `budget_allocations` (user, month = first day, category, amount; unique per month and category) |
 | Which asset or liability accounts are part of the budget | the flag `accounts.on_budget` |
 
 Everything else is **derived on demand** from postings and the plan, so editing a transaction can never leave the budget stale.
@@ -61,9 +61,9 @@ The Budgets page (then Plans) was once three sections, Spend, Build (money moved
 | Asset (bank, cash, wallet) flagged `on_budget` | Yes (default for new asset accounts holding a currency) | Its balance is the cash you can assign. |
 | Asset **not** flagged | Tracking only | Appears in net worth, not in the budget. |
 | Credit card (liability) flagged `on_budget` | Yes, opted in | Purchases count as category spending; the debt is subtracted from cash and shown under **Cards to pay**. |
-| Loan or other liability **not** in the budget | Tracking | Can name a **payment category**: debits to it in a transaction touching a budget account count as spending in that category (credits, such as the loan paying out, do not). |
+| Loan or other liability **not** in the budget | Tracking | A payment into it carries a **category** on its line (EMI, SIP): in a transaction touching a budget account it counts as spending in that category. The account can name a *usual category* that fills the line in; credits, such as the loan paying out, carry none. |
 
-Reports agree: Categories, the breakdown and the overview count the same payment into a loan as spending in its payment category (interest the lender adds touches no budget account, so only the reports, which count every posting to an expense account, show it).
+Reports: the breakdown, the Categories page and the overview's `spent` are **by category** (a payment into a loan is spending in its category, as the Budget does); the overview's `expenses` is the books' view, where paying into a loan is no expense and only the interest the lender charges is.
 
 Spending on an unflagged card is not counted in a category; it is reported as `left_out` and the page offers "Add to budget" for that account.
 
@@ -89,3 +89,7 @@ Budget targets (monthly, weekly, refill, by-date and yearly wishes per category,
 - **MCP:** `get_budget`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`.
 
 Next: [The web UI](web-ui.md).
+
+## Categories apart from the books (2026-10-29)
+
+The plan is kept against **budget categories** (`budget_categories`: spending or earning, two levels), not against Expenses accounts. A category is a label on the lines of a transaction (`postings.category_id`); the budget's activity is the lines that carry a spending category in entries that touch a budget account, where the line's own account is not part of the budget. An Income or Expenses account has a category (`accounts.category_id`; for most accounts a category of its own, with the same id), so an expense still needs no extra step. A payment into a loan or fund carries the category it was labelled with, which is how an EMI or a SIP is budgeted without an account made up for it. Several books accounts may feed one category (Interest under EMI): the Budget counts them together and the books keep them apart. A payment saved without a category is listed in the bell's To do sheet. The identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − Σ goal available − assigned to later months` is unchanged.

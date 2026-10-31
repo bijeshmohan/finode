@@ -23,7 +23,7 @@ Everything the web app and the assistants can do with your books can be done thr
 
 | Method | Path | What it does |
 |---|---|---|
-| `POST` | `/accounts/` | Create an account or category (an Expenses/Income account); `balance` sets an opening balance on an asset or liability. |
+| `POST` | `/accounts/` | Create an account (under Assets, Liabilities or Equity; Expenses and Income hold categories: use `/categories/`); `balance` sets an opening balance on an asset or liability. |
 | `GET` | `/accounts/closed` | Accounts that were closed (and categories "deleted" while they had a history): the outermost of each closed |
 | `GET` | `/accounts/deleted` | Accounts and categories deleted for good that can still be restored, newest first. |
 | `POST` | `/accounts/deleted/{did}/restore` | Bring back a deleted account or category (with its old id, plan and payment links). |
@@ -38,6 +38,24 @@ Everything the web app and the assistants can do with your books can be done thr
 | `GET` | `/accounts/{aid}/changes` | What happened to an account or category, oldest first, each step with what it changed and who did it (works for a deleted one too). |
 | `GET` | `/accounts/{aid}/check-balance` | Set a statement's balance (`statement_balance`) against the books on the same day (`as_of`, today by default): the books' balance, the difference and the entries of the last `days` days, with those exactly as large as the difference. Nothing is changed. A card's or loan's balance is what is owed, as the app shows it. |
 | `GET` | `/accounts/{aid}/register` | The account's entries, oldest first, each with what it changed and the running balance. `own_only` leaves out |
+
+## Categories
+
+A category is what money was for (Groceries, EMI, Salary), apart from the accounts. **Spending** categories are what the budget plans against; **earning** ones label income. A group has no parent; a category inside it names it as `parent_id`; two levels at most. An Income or Expenses account has a category of the same id (`category_id` on the account), so existing ids keep working. A category's `bcid` is also the id of its books account.
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/categories/` | Your categories with their `path` ("Food:Groceries") and kind. `kind` narrows to `spending` or `earning`; `include_closed` adds closed ones. |
+| `POST` | `/categories/` | Make a category (or a group: leave out `parent_id`). Names are unique inside a group, capitals aside; a group holds categories of its own kind only. |
+| `GET` | `/categories/{bcid}` | One category. |
+| `PATCH` | `/categories/{bcid}` | Rename it, change its note or move it into another group (`parent_id`; null takes it out of its group). |
+| `POST` | `/categories/{bcid}/close` | Close it (and what is inside a group): history stays, nothing more can be labelled with it. |
+| `POST` | `/categories/{bcid}/reopen` | Reopen it. |
+| `POST` | `/categories/{bcid}/delete` | Remove an unused category for good. One with history is closed instead; the answer's `outcome` says `deleted` or `closed`. |
+| `GET` | `/categories/{bcid}/register` | The entries that have a line labelled with the category (and its subcategories, unless `own_only=true`), oldest first, with what each changed and the running total. |
+| `POST` | `/categories/{bcid}/merge` | Fold it into another category (`into`): entries, labelled lines, planned amounts and recurring rules become the other's. `dry_run=true` only says what would move. |
+
+**On a transaction line** (`postings[]` of `/transactions/`, and the rows of a recurring split) `category` says what the line was for. Leave it out and the account decides: an Income or Expenses account stands for its category, and a payment into a loan or fund that has a payment category takes that one. A line may carry **only** its category (no `account`): it then posts to that category's books account. A category on a line to an Income or Expenses account must be that account's own; on any other account it must be a spending category, and not on an account that is part of the budget (the category goes on the other side). A simple recurring rule takes one `category`.
 
 ## Transactions
 
@@ -84,6 +102,7 @@ Everything the web app and the assistants can do with your books can be done thr
 | Method | Path | What it does |
 |---|---|---|
 | `GET` | `/budget/` | The month's budget (the current month by default): what is left to assign and each category's figures. |
+| `GET` | `/todo/` | What needs a decision now: payments no category took, accounts left out of the budget, failing recurring rules, and a count. |
 | `PUT` | `/budget/categories/{aid}` | Set how much of the month a category gets (an expense account); 0 removes it. |
 | `POST` | `/budget/move` | Move assigned money from one category to another (at most what is available); Ready to assign does not change. |
 | `POST` | `/budget/copy` | Assign a month what each category got the month before, where nothing is assigned yet (nothing is overwritten). |
@@ -100,8 +119,8 @@ Everything the web app and the assistants can do with your books can be done thr
 | Method | Path | What it does |
 |---|---|---|
 | `GET` | `/reports/trial-balance` | Every account's debits and credits, plus a check that the books are sound. |
-| `GET` | `/reports/summary` | Net worth now, plus income and expenses for a period (the current month so far by default). |
-| `GET` | `/reports/breakdown` | Where the money went (or came from) in a period, per account `depth` levels below the top-level account. |
+| `GET` | `/reports/summary` | Net worth now, plus for a period (the current month so far by default) `income` and `expenses` as the books see them (paying into a loan is no expense) and `spent`, what the budget calls spending (everything labelled with a spending category, a payment into a loan included). |
+| `GET` | `/reports/breakdown` | Where the money went (or came from) in a period, `depth` levels down. It is what the money was for, as the budget counts it (by category). |
 
 ## Profile
 

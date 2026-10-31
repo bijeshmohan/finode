@@ -16,7 +16,7 @@ from ..schemas.recurring import RecurringCreate, RecurringPostingData, Recurring
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from . import schedule
 from .account import AccountService
-from .simple import simple_postings
+from .simple import label_simple, simple_postings
 from .transaction import TransactionService
 from .validation import validation_message
 
@@ -35,8 +35,9 @@ class RecurringService:
     def _to_read(self, rule: RecurringTransaction, rows: dict | None = None) -> RecurringRead:
         rows = self.repo.postings() if rows is None else rows
         read = RecurringRead.model_validate(rule, from_attributes=True)
+        read.category = rule.category_id
         read.postings = [
-            RecurringPostingData(account=p.account, side=PostingSide(p.side), amount=p.amount)
+            RecurringPostingData(account=p.account, side=PostingSide(p.side), amount=p.amount, category=p.category_id)
             for p in rows.get(rule.rid, [])
         ]
         return read
@@ -56,16 +57,70 @@ class RecurringService:
                 payee=rule_like.payee,
                 comment=rule_like.comment,
                 tags=list(rule_like.tags),
-                postings=[PostingCreate(account=p.account, side=p.side, amount=p.amount) for p in rule_like.postings],
+                postings=[
+                    PostingCreate(account=p.account, side=p.side, amount=p.amount, category=p.category)
+                    for p in rule_like.postings
+                ],
             )
         postings = simple_postings(rule_like.amount, rule_like.from_account, rule_like.to_account)
+        if rule_like.category is not None:
+            label_simple({a.aid: a for a in self.accounts.ar.list()}, postings, rule_like.category)
         return TransactionCreate(
             date=day, payee=rule_like.payee, comment=rule_like.comment, tags=list(rule_like.tags), postings=postings
         )
 
+    def _rows_on_roots[T: RecurringCreate | RecurringUpdate](self, data: T) -> T:
+        """A row that names only its category records on Expenses (a spending category) or Income (an earning one)."""
+        if not any(p.account is None for p in data.postings):
+            return data
+        categories = {c.bcid: c for c in self.transactions.cr.list()}
+        roots = {a.name: a.aid for a in self.accounts.ar.list() if a.parent_id is None}
+        rows = []
+        for p in data.postings:
+            if p.account is None:
+                category = categories.get(p.category) if p.category else None
+                if category is None:
+                    raise ValueError(f"category with bcid '{p.category}' not found!")
+                p = p.model_copy(update={"account": roots["Expenses" if category.kind == "spending" else "Income"]})
+            rows.append(p)
+        return data.model_copy(update={"postings": rows})
+
     @staticmethod
     def _rows(data) -> builtins.list[dict]:
-        return [{"account": p.account, "side": p.side.value, "amount": p.amount} for p in data.postings]
+        return [
+            {"account": p.account, "side": p.side.value, "amount": p.amount, "category_id": p.category}
+            for p in data.postings
+        ]
+
+    def _keep_labels[T: RecurringCreate | RecurringUpdate](self, rule: RecurringTransaction, data: T) -> T:
+        """A change that does not mention categories (the web form has no field for them yet) keeps the ones the rule
+        had, as long as the account they were on is still in the rule. Sending null takes a category off."""
+        update: dict = {}
+        if "category" not in data.model_fields_set and rule.category_id is not None:
+            same = (rule.from_account, rule.to_account) == (data.from_account, data.to_account)
+            if same and not data.postings:
+                update["category"] = rule.category_id
+        if data.postings:
+            old = {
+                (row.account, row.side): row.category_id
+                for row in self.repo.postings().get(rule.rid, [])
+                if row.category_id is not None
+            }
+            rows = [
+                p.model_copy(update={"category": old.get((p.target, p.side.value))})
+                if "category" not in p.model_fields_set and old.get((p.target, p.side.value))
+                else p
+                for p in data.postings
+            ]
+            update["postings"] = rows
+        return data.model_copy(update=update) if update else data
+
+    @staticmethod
+    def _fields(data) -> dict:
+        """A rule's own columns from what the client sent (the category is stored as `category_id`)."""
+        fields = data.model_dump(exclude={"postings", "category"})
+        fields["category_id"] = data.category
+        return fields
 
     def as_transaction(self, rule: RecurringRead) -> TransactionCreate:
         """The transaction a rule records (on its start date), for showing it."""
@@ -78,10 +133,9 @@ class RecurringService:
     def create(self, data: RecurringCreate) -> RecurringRead:
         if len(self.repo.list()) >= MAX_RULES:
             raise ValueError(f"you can have at most {MAX_RULES} recurring transactions!")
+        data = self._rows_on_roots(data)
         self._check(data)
-        rule = RecurringTransaction(
-            **data.model_dump(exclude={"postings"}), user=self.repo.uid, next_date=data.start_date
-        )
+        rule = RecurringTransaction(**self._fields(data), user=self.repo.uid, next_date=data.start_date)
         self.repo.add(rule)
         self.repo.set_postings(rule.rid, self._rows(data))
         self.repo.db.commit()
@@ -92,8 +146,9 @@ class RecurringService:
         rule = self.repo.read(rid)
         if rule is None:
             return None
+        data = self._keep_labels(rule, self._rows_on_roots(data))
         self._check(data)
-        for field, value in data.model_dump(exclude={"postings"}).items():
+        for field, value in self._fields(data).items():
             setattr(rule, field, value)
         self.repo.set_postings(rule.rid, self._rows(data))
         # Carry on after the last occurrence that was recorded (or from the start if none was yet).

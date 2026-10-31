@@ -47,14 +47,14 @@ You have ₹50,000 in your bank account, and no budget yet.
 <img src="img/budget-sheet.png" alt="The category sheet: Assigned this month, Spent, Save, Move money" width="300">
 - Budgets looks at the **whole month**, so an entry dated later this month already counts as spent in its category, while Home's Transactions list, account balances count up to today.
 - **Move money** never changes Ready to assign; it limits you to what the source category has left. Typing a smaller (even negative) amount in a category's *Assign* field takes money back to Ready to assign, but never more than the category has left.
-- Behind the slim **"N things need you"** line under the figure (tap to open it) are the things that need a decision: accounts left out of the budget, last month's overspending, and *Copy last month's amounts*.
+- What needs a decision is under the **bell** at the top of every page (a number beside it when something is waiting): payments no category took, accounts left out of the budget, and recurring transactions that could not be recorded. Each item has its fix on the spot. On a month with nothing assigned yet, a quiet **Copy last month's amounts** link sits under the figure.
 - **Copy last month's amounts** assigns each category what it got last month, but only where nothing is assigned yet.
 
 ### Credit cards, loans and EMIs
 
 - Purchases on a **budget credit card** count in their category as you buy. Paying the card is a transfer and is not "spending" again.
 - A card that is *not* part of the budget: purchases on it are not counted; Budgets offers *Add to budget* for it.
-- A **loan** outside the budget can name a **payment category** (on its edit page). A payment to the loan from a budget account then counts as spending in that category, so an EMI uses the category instead of silently lowering Ready to assign. Interest the lender charges is not part of the budget.
+- A **loan** outside the budget needs no account made up for it. When you pay it from a budget account, the Add screen shows a **Category** line: pick *EMI* and the payment counts as spending in that category. The loan can name a *usual category* on its edit page so the line fills itself in. A payment saved without a category is listed under *Needs you* on Budgets, where you can pick one. Interest the lender charges is not part of the budget.
 
 ## Home vs Budgets
 
@@ -62,7 +62,7 @@ Home shows one number, *Left to spend in <month>*, with a thin bar: the total le
 
 ## If numbers disagree
 
-**Budgets**, the **Categories** page and the overview all count a loan payment the same way: as spending in the loan's payment category. They differ only in what the Budget leaves out on purpose: it counts what your budget accounts paid, so interest a lender adds to a loan (which no budget account paid) shows up as an expense in the reports but not in the Budget.
+**Budgets** and the **Categories** page count a loan payment the same way: as spending in the category you gave it. The overview's *expenses* are the books' view, where paying into a loan is not an expense (only the interest the lender charges is), and its *spent* matches Budgets. The Budget leaves out on purpose what no budget account paid, so interest a lender adds to a loan shows up as an expense in the books but not in the Budget.
 
 ## Saving for a goal and paying a fund or a loan
 
@@ -72,4 +72,4 @@ Each goal is a row with what is saved of what you need, a bar, and what this mon
 
 A goal is not a category, and you never record spending on it. When the time comes, pay as usual and record the spending on an ordinary category (the hospital bill on *Health › Hospital*, the laptop on *Shopping › Gadgets*). Then open the goal and tap **Use it for…**: pick that category and an amount, and the goal hands that much of its saved money to the category, so the spending is covered and the category is no longer over. Ready to assign does not change. Deleting a goal gives what is saved in it back to Ready to assign.
 
-Money you put into a mutual fund each month, or an EMI you pay on a loan, is not an expense in the ledger, but you can still plan it. Open the fund or loan (outside the budget) and choose, under *Budget options*, **Payments budgeted under** a category such as *Investing* or *EMI*. A payment into that account then counts as spending in the category, so Ready to assign falls when you plan it and the category shows what you have paid.
+Money you put into a mutual fund each month, or an EMI you pay on a loan, is not an expense in the ledger, but you can still plan it. Make a category such as *Investing* or *EMI* and plan it like any other. When you pay the fund or loan from a budget account, pick that category on the **Category** line; open the fund or loan (outside the budget) and set a *usual category for payments* under *Budget options* to have it filled in. The payment then counts as spending in the category, so Ready to assign falls when you plan it and the category shows what you have paid.

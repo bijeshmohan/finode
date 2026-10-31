@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.transaction import Posting, PostingSide
 
+from .books import into, leg
 from .svc import plain
 
 
@@ -16,8 +17,8 @@ def post(client, source, target, amount, on=None, **extra):
     debit, credit = target, source
     body = {
         "postings": [
-            {"account": debit["aid"], "side": "debit", "amount": amount},
-            {"account": credit["aid"], "side": "credit", "amount": amount},
+            leg(debit, "debit", amount),
+            leg(credit, "credit", amount),
         ],
         **extra,
     }
@@ -58,8 +59,8 @@ def test_the_books_balance_through_every_kind_of_change(
         f"/api/transactions/{first['tid']}",
         json={
             "postings": [
-                {"account": other_account["aid"], "side": "debit", "amount": "55"},
-                {"account": account["aid"], "side": "credit", "amount": "55"},
+                leg(other_account, "debit", "55"),
+                leg(account, "credit", "55"),
             ]
         },
     )
@@ -110,22 +111,19 @@ def test_entries_dated_in_the_future_do_not_count_yet(client, root_accounts, acc
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
     post(client, account, expense_account, "10", on=date.today().isoformat())
     post(client, account, expense_account, "25", on=tomorrow)
-    assert client.get(f"/api/accounts/{expense_account['aid']}").json()["balance"] == "10.00"
-    assert (
-        client.get(f"/api/accounts/{expense_account['aid']}", params={"as_of": tomorrow}).json()["balance"] == "35.00"
-    )
+    expenses = root_accounts["Expenses"]
+    assert client.get(f"/api/accounts/{expenses}").json()["balance"] == "10.00"
+    assert client.get(f"/api/accounts/{expenses}", params={"as_of": tomorrow}).json()["balance"] == "35.00"
     listed = {a["name"]: a for a in client.get("/api/accounts/", params={"as_of": tomorrow}).json()}
     assert listed["Expenses"]["balance"] == "35.00"
     assert {a["name"]: a for a in client.get("/api/accounts/").json()}["Expenses"]["balance"] == "10.00"
 
 
-def test_a_balance_as_of_a_past_day(client, account, expense_account):
+def test_a_balance_as_of_a_past_day(client, root_accounts, account, expense_account):
     post(client, account, expense_account, "10", on="2026-01-05")
     post(client, account, expense_account, "20", on="2026-03-05")
-    assert (
-        client.get(f"/api/accounts/{expense_account['aid']}", params={"as_of": "2026-02-01"}).json()["balance"]
-        == "10.00"
-    )
+    expenses = root_accounts["Expenses"]
+    assert client.get(f"/api/accounts/{expenses}", params={"as_of": "2026-02-01"}).json()["balance"] == "10.00"
 
 
 # ---- stable postings -----------------------------------------------------------------------------
@@ -142,8 +140,8 @@ def test_correcting_an_amount_keeps_the_postings(client, account, expense_accoun
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "12"},
-                {"account": account["aid"], "side": "credit", "amount": "12"},
+                leg(expense_account, "debit", "12"),
+                leg(account, "credit", "12"),
             ]
         },
     )
@@ -152,20 +150,23 @@ def test_correcting_an_amount_keeps_the_postings(client, account, expense_accoun
     assert client.get(f"/api/transactions/{made['tid']}").json()["postings"][0]["amount"] in ("12.00", "12")
 
 
-def test_moving_a_side_to_another_account_replaces_only_that_posting(client, account, other_account, expense_account):
+def test_moving_a_side_to_another_account_replaces_only_that_posting(
+    client, root_accounts, account, other_account, expense_account
+):
     made = post(client, account, expense_account, "10")
     before = ids(client, made["tid"])
     client.patch(
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10"},
-                {"account": other_account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "10"),
+                leg(other_account, "credit", "10"),
             ]
         },
     )
     after = ids(client, made["tid"])
-    assert after[(expense_account["aid"], "debit")] == before[(expense_account["aid"], "debit")]
+    expenses = root_accounts["Expenses"]
+    assert after[(expenses, "debit")] == before[(expenses, "debit")]
     assert (account["aid"], "credit") not in after and (other_account["aid"], "credit") in after
 
 
@@ -176,8 +177,8 @@ def test_swapping_the_sides_keeps_the_accounts_postings(client, account, expense
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": account["aid"], "side": "debit", "amount": "10"},
-                {"account": expense_account["aid"], "side": "credit", "amount": "10"},
+                leg(account, "debit", "10"),
+                leg(expense_account, "credit", "10"),
             ]
         },
     )
@@ -193,9 +194,9 @@ def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expen
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "6"},
-                {"account": other_account["aid"], "side": "debit", "amount": "4"},
-                {"account": account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "6"),
+                leg(other_account, "debit", "4"),
+                leg(account, "credit", "10"),
             ]
         },
     )
@@ -205,8 +206,8 @@ def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expen
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10"},
-                {"account": account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "10"),
+                leg(account, "credit", "10"),
             ]
         },
     )
@@ -224,8 +225,8 @@ def test_history_follows_a_transaction_from_creation_to_deletion(client, account
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "12"},
-                {"account": account["aid"], "side": "credit", "amount": "12"},
+                leg(expense_account, "debit", "12"),
+                leg(account, "credit", "12"),
             ]
         },
     )
@@ -315,7 +316,7 @@ def test_recurring_occurrences_balance(client, root_accounts, account, expense_a
         "/api/recurring/",
         json={
             "from_account": account["aid"],
-            "to_account": expense_account["aid"],
+            **into(client, expense_account),
             "amount": "9",
             "frequency": "monthly",
             "start_date": (date.today() - timedelta(days=70)).isoformat(),

@@ -68,6 +68,9 @@ class Posting(TimestampMixin, table=True):
     account: UUID = Field(index=True, foreign_key="accounts.aid")
     side: PostingSide
     amount: Decimal = Field(sa_type=Amount())
+    # What this line was for (a budget category). Any line may carry one; the budget counts it when the entry touches
+    # a budget account and the line's own account is not part of the budget.
+    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.bcid", nullable=True, index=True)
 
     @field_validator("amount")
     @classmethod

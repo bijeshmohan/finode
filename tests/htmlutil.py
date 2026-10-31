@@ -86,3 +86,23 @@ def text_of(html: str) -> str:
     parser = _Text()
     parser.feed(html)
     return " ".join(" ".join(parser.parts).split())
+
+
+def option_selected(html: str, value: str) -> int:
+    """How many <option value=...> elements with that value are selected (attributes such as data-budget may sit between)."""
+    import re
+
+    return len(re.findall(rf'<option value="{re.escape(value)}"[^>]*?\sselected[\s>]', html))
+
+
+def option_offset(html: str, value: str, selected: bool = True) -> int:
+    """Where the <option> for a value starts in the page (the selected one by default)."""
+    import re
+
+    pattern = (
+        rf'<option value="{re.escape(value)}"[^>]*?\sselected[\s>]'
+        if selected
+        else rf'<option value="{re.escape(value)}"'
+    )
+    found = re.search(pattern, html)
+    return found.start() if found else -1

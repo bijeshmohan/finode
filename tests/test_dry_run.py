@@ -2,6 +2,7 @@
 
 import pytest
 
+from .books import leg
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .test_transaction_references import PAY, body
@@ -76,8 +77,8 @@ async def test_assistants_can_check_before_they_write(session, client, account, 
         gone = payload(await c.call_tool("delete_transaction", {"transaction_id": made, "dry_run": True}))
         assert gone["would_delete"]["id"] == made and count(client) == 1
         rows = [
-            {"account": account["aid"], "side": "credit", "amount": "9"},
-            {"account": expense_account["aid"], "side": "debit", "amount": "9"},
+            leg(account, "credit", "9"),
+            leg(expense_account, "debit", "9"),
         ]
         split = payload(await c.call_tool("record_split", {"postings": rows, "dry_run": True}))
         assert split["would_record"]["total"] == "9.00" and count(client) == 1

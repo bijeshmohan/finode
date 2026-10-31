@@ -23,6 +23,7 @@ from app.services.erase import EraseService
 from app.services.oauth_grant import OAuthGrantService
 from app.web_auth import ACCESS_COOKIE, AuthUnavailableError
 
+from .books import post_account
 from .conftest import TEST_USER_ID
 from .test_backup import rich  # noqa: F401
 from .test_isolation import B_USER, books_of, signed_in_as
@@ -40,9 +41,7 @@ def both(client, session, rich):
     client.patch("/api/profile/", json={"first_name": "Ada", "last_name": "L"})
     with signed_in_as(B_USER):
         roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
-        mine = client.post(
-            "/api/accounts/", json={"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}
-        ).json()
+        mine = post_account(client, {"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}).json()
         client.patch("/api/profile/", json={"first_name": "Bea"})
         ApiTokenService(ApiTokenRepository(session, B_USER)).create(ApiTokenCreate(name="B-Phone"))
     return mine
@@ -50,9 +49,9 @@ def both(client, session, rich):
 
 def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, both):
     before_b = books_of(client, B_USER)
-    shelf = client.post(
-        "/api/accounts/",
-        json={
+    shelf = post_account(
+        client,
+        {
             "name": "Shelf",
             "parent_id": next(
                 a["aid"]

@@ -13,7 +13,10 @@ class SummaryRead(BaseModel):
     liabilities: Decimal
     net_worth: Decimal
     income: Decimal
+    # What the books call expenses: money that went out on the Expenses accounts (paying into a loan is not one).
     expenses: Decimal
+    # What the budget calls spending: everything labelled with a spending category, a payment into a loan included.
+    spent: Decimal
     net_income: Decimal
 
 

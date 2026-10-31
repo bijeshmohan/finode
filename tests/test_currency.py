@@ -10,6 +10,7 @@ from app import currencies
 from app.models.transaction_history import TransactionHistory
 from app.models.utils import normalize_amount
 
+from .books import leg, post_account
 from .svc import plain, services
 
 
@@ -90,7 +91,7 @@ def test_the_settings_page_changes_the_currency(client):
 
 
 def test_amounts_wear_the_chosen_currency(client, root_accounts):
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "250"})
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "250"})
     assert '<span class="cur">&#8377;</span>' in client.get("/budget").text
     client.patch("/api/profile/", json={"default_currency": "USD"})
     page = client.get("/budget").text
@@ -105,8 +106,8 @@ def post(client, a, b, amount):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": a["aid"], "side": "debit", "amount": amount},
-                {"account": b["aid"], "side": "credit", "amount": amount},
+                leg(a, "debit", amount),
+                leg(b, "credit", amount),
             ]
         },
     )
@@ -128,21 +129,17 @@ def test_yen_have_none_and_the_dinar_has_three(client, account, expense_account)
 
 
 def test_opening_balances_follow_the_same_rule(client, root_accounts):
-    refused = client.post(
-        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1.234"}
-    )
+    refused = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1.234"})
     assert refused.status_code == 400 and "at most 2 decimal places" in refused.json()["detail"]
     client.patch("/api/profile/", json={"default_currency": "JPY"})
     assert (
-        client.post(
-            "/api/accounts/", json={"name": "Wallet", "parent_id": root_accounts["Assets"], "balance": "1500"}
-        ).status_code
+        post_account(client, {"name": "Wallet", "parent_id": root_accounts["Assets"], "balance": "1500"}).status_code
         == 201
     )
 
 
 def test_the_budget_follows_it_too(client, root_accounts, expense_account):
-    client.post("/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "500"})
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "500"})
     refused = client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "1.234"})
     assert refused.status_code == 400 and "decimal places" in refused.json()["detail"]
 
@@ -176,15 +173,13 @@ def test_extra_fields_from_older_clients_are_ignored(client, root_accounts, acco
         json={
             "currency": "USD",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10", "value": "3"},
+                {"category": expense_account["aid"], "side": "debit", "amount": "10", "value": "3"},
                 {"account": account["aid"], "side": "credit", "amount": "10", "value": "3"},
             ],
         },
     )
     assert made.status_code == 201
-    created = client.post(
-        "/api/accounts/", json={"name": "Old", "parent_id": root_accounts["Assets"], "commodity": "USD"}
-    )
+    created = post_account(client, {"name": "Old", "parent_id": root_accounts["Assets"], "commodity": "USD"})
     assert created.status_code == 201
 
 
@@ -216,8 +211,8 @@ def test_old_history_rows_still_read_and_do_not_count_as_a_change(client, sessio
         json={
             "payee": made["payee"],
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10"},
-                {"account": account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "10"),
+                leg(account, "credit", "10"),
             ],
         },
     )

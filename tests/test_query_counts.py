@@ -13,14 +13,16 @@ PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/ca
 # Home asks 13 since goals became their own table: the budget reads them (with what is set aside) in one more query.
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
 CEILING = {
-    "/transactions/new": 3,
-    "/transactions": 11,  # + the tags of the rows shown (one query, whatever the number of rows)
-    "/": 13,
+    "/transactions/new": 4,  # + the categories
+    "/transactions": 12,  # + the categories (their names for the rows) + the tags of the rows shown (one query, whatever the number of rows)
+    "/": 15,  # + the categories (their own table) and what the month spent by category
     "/accounts": 3,
-    "/budget": 5,
+    "/budget": 6,  # + the categories
     "/categories": 4,
     "/categories?tab=income": 4,
 }
+
+from .books import post_account  # noqa: E402
 
 
 @pytest.fixture
@@ -44,18 +46,16 @@ def count_queries(session):
 
 
 def grow(client, root_accounts, accounts: int, transactions: int, start: int = 0):
-    made = []
+    assets, expenses = [], []
     for i in range(start, start + accounts):
         parent = root_accounts["Assets" if i % 2 else "Expenses"]
-        made.append(client.post("/api/accounts/", json={"name": f"Acct{i}", "parent_id": parent}).json())
-    assets = [a for a in made if a["parent_id"] == root_accounts["Assets"]]
-    expenses = [a for a in made if a["parent_id"] == root_accounts["Expenses"]]
+        (assets if i % 2 else expenses).append(post_account(client, {"name": f"Acct{i}", "parent_id": parent}).json())
     for i in range(transactions):
         response = client.post(
             "/api/transactions/",
             json={
                 "postings": [
-                    {"account": expenses[i % len(expenses)]["aid"], "side": "debit", "amount": "5"},
+                    {"category": expenses[i % len(expenses)]["aid"], "side": "debit", "amount": "5"},
                     {"account": assets[i % len(assets)]["aid"], "side": "credit", "amount": "5"},
                 ]
             },
@@ -94,9 +94,8 @@ def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_account
     """Checking each posting's account used to cost two queries per row."""
     grow(client, root_accounts, accounts=14, transactions=0)
     accounts = client.get("/api/accounts/").json()
-    leaves = [a for a in accounts if a["parent_id"] in (root_accounts["Assets"], root_accounts["Expenses"])]
-    assets = [a["aid"] for a in leaves if a["parent_id"] == root_accounts["Assets"]]
-    expenses = [a["aid"] for a in leaves if a["parent_id"] == root_accounts["Expenses"]]
+    assets = [a["aid"] for a in accounts if a["parent_id"] == root_accounts["Assets"]]
+    expenses = [c["bcid"] for c in client.get("/api/categories/").json()]
 
     def save(rows: int):
         data = {

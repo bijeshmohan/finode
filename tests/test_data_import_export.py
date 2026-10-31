@@ -8,6 +8,8 @@ from app.repositories import AccountRepository, ProfileRepository, TransactionRe
 from app.services import AccountService, DataService, TransactionService
 from app.services.data import ImportRejected
 
+from .books import leg, post_account
+
 JOURNAL = """\
 account Assets:Bank:HDFC
     note Salary account
@@ -22,6 +24,9 @@ account Assets:Bank:HDFC
     Assets:Bank:HDFC        5000.00
     Income:Salary
 """
+
+
+PERIOD = {"date_from": "2026-09-01", "date_to": "2026-09-30"}
 
 
 def _import(client: TestClient, text: str, **params):
@@ -47,8 +52,15 @@ def test_import_creates_accounts_and_transactions(client: TestClient):
     assert response.status_code == 200
     balances = _balances(client)
     assert balances["HDFC"] == "13749.50"
-    assert balances["Food"] == "1250.50"
-    assert balances["Salary"] == "5000.00"
+    assert "Food" not in balances and "Salary" not in balances, "Expenses and Income paths become categories"
+    spent = {
+        line["account"]: line["amount"] for line in client.get("/api/reports/breakdown", params=PERIOD).json()["lines"]
+    }
+    earned = {
+        line["account"]: line["amount"]
+        for line in client.get("/api/reports/breakdown", params={**PERIOD, "kind": "income"}).json()["lines"]
+    }
+    assert spent == {"Food": "1250.50"} and earned == {"Salary": "5000.00"}
     accounts = {a["name"]: a for a in client.get("/api/accounts/").json()}
     assert accounts["HDFC"]["details"] == "Salary account"
     transactions = client.get("/api/transactions/").json()
@@ -68,8 +80,8 @@ def test_import_rejected_when_transactions_exist(client: TestClient, account, ex
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                leg(expense_account, "debit", "1.00"),
+                leg(account, "credit", "1.00"),
             ]
         },
     )
@@ -134,8 +146,8 @@ def test_export_formats_and_headers(client: TestClient):
     csv_response = client.get("/api/export", params={"format": "csv"})
     assert csv_response.headers["content-disposition"].endswith('.csv"')
     lines = csv_response.content.decode("utf-8-sig").splitlines()
-    assert lines[0] == "date,payee,note,tags,account,debit,credit"
-    assert "2026-09-03,DMart,weekly groceries,,Expenses:Food,1250.50," in lines
+    assert lines[0] == "date,payee,note,tags,account,category,debit,credit"
+    assert "2026-09-03,DMart,weekly groceries,,Expenses:Food,Food,1250.50," in lines
     assert client.get("/api/export", params={"format": "xml"}).status_code == 422
 
 
@@ -146,21 +158,21 @@ def test_csv_neutralises_spreadsheet_formulas(client: TestClient):
 
 
 def test_export_sanitises_colons_and_spaces_in_names(client: TestClient, root_accounts):
-    client.post("/api/accounts/", json={"name": "Rent  Flat", "parent_id": root_accounts["Expenses"]})
+    post_account(client, {"name": "Rent  Flat", "parent_id": root_accounts["Expenses"]})
     text = client.get("/api/export").text
     assert "account Expenses:Rent Flat" in text
 
 
 def test_colon_in_account_name_rejected(client: TestClient, root_accounts):
-    response = client.post("/api/accounts/", json={"name": "a:b", "parent_id": root_accounts["Assets"]})
+    response = post_account(client, {"name": "a:b", "parent_id": root_accounts["Assets"]})
     assert response.status_code == 422
 
 
 def test_export_then_import_round_trips_for_another_user(client: TestClient, session: Session):
     _import(client, JOURNAL)
-    client.post(
-        "/api/accounts/",
-        json={
+    post_account(
+        client,
+        {
             "name": "Empty",
             "parent_id": next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Assets"),
         },
@@ -182,10 +194,8 @@ def test_export_then_import_round_trips_for_another_user(client: TestClient, ses
 
 
 def test_tags_survive_an_export_and_an_import(client: TestClient, session: Session, root_accounts):
-    bank = client.post(
-        "/api/accounts/", json={"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}
-    ).json()
-    food = client.post("/api/accounts/", json={"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     client.post(
         "/api/transactions/",
         json={
@@ -194,15 +204,15 @@ def test_tags_survive_an_export_and_an_import(client: TestClient, session: Sessi
             "comment": "weekly groceries",
             "tags": ["weekly-shop", "Food"],
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "20"},
-                {"account": bank["aid"], "side": "credit", "amount": "20"},
+                leg(food, "debit", "20"),
+                leg(bank, "credit", "20"),
             ],
         },
     )
     exported = client.get("/api/export").text
     assert "; weekly groceries" in exported and "; tags: food, weekly-shop" in exported
     csv_lines = client.get("/api/export", params={"format": "csv"}).content.decode("utf-8-sig").splitlines()
-    assert '2026-09-03,DMart,weekly groceries,"food, weekly-shop",Expenses:Food,20.00,' in csv_lines
+    assert '2026-09-03,DMart,weekly groceries,"food, weekly-shop",Expenses:Food,Food,20.00,' in csv_lines
     other = UUID("00000000-0000-4000-8000-000000000002")
     ar, tr, pr = (
         AccountRepository(session, other),

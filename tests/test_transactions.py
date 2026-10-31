@@ -2,6 +2,8 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from .books import leg, post_account
+
 
 def test_create_transaction(
     client: TestClient,
@@ -12,16 +14,8 @@ def test_create_transaction(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "25.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "25.00",
-                },
+                leg(expense_account, "debit", "25.00"),
+                leg(account, "credit", "25.00"),
             ],
         },
     )
@@ -32,8 +26,8 @@ def test_create_transaction(
 
     account_response = client.get(f"/api/accounts/{account['aid']}")
     assert account_response.json()["balance"] == "-25.00"
-    expense_response = client.get(f"/api/accounts/{expense_account['aid']}")
-    assert expense_response.json()["balance"] == "25.00"
+    spent = client.get("/api/reports/breakdown", params={"kind": "expenses"}).json()
+    assert spent["total"] == "25.00" and spent["lines"][0]["account"] == "groceries"
 
 
 def test_create_transaction_must_balance(
@@ -45,16 +39,8 @@ def test_create_transaction_must_balance(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "25.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "24.00",
-                },
+                leg(expense_account, "debit", "25.00"),
+                leg(account, "credit", "24.00"),
             ],
         },
     )
@@ -69,11 +55,7 @@ def test_create_transaction_requires_two_postings(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": account["aid"],
-                    "side": "debit",
-                    "amount": "25.00",
-                },
+                leg(account, "debit", "25.00"),
             ],
         },
     )
@@ -89,16 +71,8 @@ def test_create_transaction_rejects_zero_amount(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "0.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "0.00",
-                },
+                leg(expense_account, "debit", "0.00"),
+                leg(account, "credit", "0.00"),
             ],
         },
     )
@@ -118,11 +92,7 @@ def test_create_transaction_unknown_account(
                     "side": "debit",
                     "amount": "25.00",
                 },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "25.00",
-                },
+                leg(account, "credit", "25.00"),
             ],
         },
     )
@@ -138,16 +108,8 @@ def test_get_transaction(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "10.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "10.00",
-                },
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     )
@@ -173,16 +135,8 @@ def test_list_transactions(
             "/api/transactions/",
             json={
                 "postings": [
-                    {
-                        "account": other_account["aid"],
-                        "side": "debit",
-                        "amount": amount,
-                    },
-                    {
-                        "account": account["aid"],
-                        "side": "credit",
-                        "amount": amount,
-                    },
+                    leg(other_account, "debit", amount),
+                    leg(account, "credit", amount),
                 ],
             },
         )
@@ -201,16 +155,8 @@ def test_update_transaction(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "10.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "10.00",
-                },
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     )
@@ -222,16 +168,8 @@ def test_update_transaction(
             "payee": "updated payee",
             "comment": "updated comment",
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "15.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "15.00",
-                },
+                leg(expense_account, "debit", "15.00"),
+                leg(account, "credit", "15.00"),
             ],
         },
     )
@@ -252,16 +190,8 @@ def test_update_transaction_null_date(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "10.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "10.00",
-                },
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     )
@@ -283,16 +213,8 @@ def test_delete_transaction(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "10.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "10.00",
-                },
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     )
@@ -307,55 +229,59 @@ def test_delete_transaction(
     assert account_response.json()["balance"] == "0.00"
 
 
-def _two_postings(debit: str, credit: str) -> dict:
-    return {
-        "postings": [
-            {"account": debit, "side": "debit", "amount": "10.00"},
-            {"account": credit, "side": "credit", "amount": "10.00"},
-        ]
-    }
+def _two_postings(debit, credit) -> dict:
+    """Two lines; each side is an account id, or the dict of an account or category from a fixture."""
+
+    def side(place, which):
+        return (
+            {"account": place, "side": which, "amount": "10.00"}
+            if isinstance(place, str)
+            else leg(place, which, "10.00")
+        )
+
+    return {"postings": [side(debit, "debit"), side(credit, "credit")]}
 
 
 def test_create_transaction_rejects_root_account(client: TestClient, account: dict, root_accounts: dict[str, str]):
-    response = client.post("/api/transactions/", json=_two_postings(root_accounts["Expenses"], account["aid"]))
+    response = client.post("/api/transactions/", json=_two_postings(account["aid"], root_accounts["Assets"]))
     assert response.status_code == 400
-    assert response.json()["detail"] == "cannot post to root account 'Expenses'!"
+    assert response.json()["detail"] == "cannot post to root account 'Assets'!"
     assert client.get("/api/transactions/").json() == []
 
 
 def test_create_transaction_rejects_asset_with_sub_accounts(client: TestClient, account: dict, expense_account: dict):
-    client.post("/api/accounts/", json={"name": "child", "parent_id": account["aid"]})
-    response = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"]))
+    post_account(client, {"name": "child", "parent_id": account["aid"]})
+    response = client.post("/api/transactions/", json=_two_postings(expense_account, account))
     assert response.status_code == 400
     assert response.json()["detail"] == ("cannot post to account 'checking' because it has sub-accounts!")
 
 
 def test_create_transaction_to_expense_group(client: TestClient, account: dict, expense_account: dict):
-    client.post("/api/accounts/", json={"name": "child", "parent_id": expense_account["aid"]})
-    response = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"]))
+    post_account(client, {"name": "child", "parent_id": expense_account["aid"]})
+    response = client.post("/api/transactions/", json=_two_postings(expense_account, account))
     assert response.status_code == 201
-    group = client.get(f"/api/accounts/{expense_account['aid']}").json()
-    assert group["balance"] == "10.00"
+    spent = client.get("/api/reports/breakdown", params={"kind": "expenses"}).json()
+    assert spent["total"] == "10.00"
 
 
 def test_create_transaction_to_leaf_sub_account(client: TestClient, account: dict, expense_account: dict):
-    child = client.post("/api/accounts/", json={"name": "child", "parent_id": expense_account["aid"]}).json()
-    response = client.post("/api/transactions/", json=_two_postings(child["aid"], account["aid"]))
+    child = post_account(client, {"name": "child", "parent_id": expense_account["aid"]}).json()
+    response = client.post("/api/transactions/", json=_two_postings(child, account))
     assert response.status_code == 201
-    parent = client.get(f"/api/accounts/{expense_account['aid']}").json()
-    assert parent["balance"] == "10.00"
+    spent = client.get("/api/reports/breakdown", params={"kind": "expenses"}).json()
+    assert spent["total"] == "10.00" and spent["lines"][0]["account"] == "groceries"
 
 
 def test_update_transaction_rejects_root_account(
     client: TestClient, account: dict, expense_account: dict, root_accounts: dict[str, str]
 ):
-    created = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"])).json()
+    created = client.post("/api/transactions/", json=_two_postings(expense_account, account)).json()
     response = client.patch(
         f"/api/transactions/{created['tid']}",
-        json=_two_postings(root_accounts["Expenses"], account["aid"]),
+        json=_two_postings(account["aid"], root_accounts["Assets"]),
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "cannot post to root account 'Expenses'!"
+    assert response.json()["detail"] == "cannot post to root account 'Assets'!"
 
 
 def _post(client: TestClient, debit: dict, credit: dict, amount: str, date: str, payee: str):
@@ -365,8 +291,8 @@ def _post(client: TestClient, debit: dict, credit: dict, amount: str, date: str,
             "date": date,
             "payee": payee,
             "postings": [
-                {"account": debit["aid"], "side": "debit", "amount": amount},
-                {"account": credit["aid"], "side": "credit", "amount": amount},
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
             ],
         },
     )
@@ -399,11 +325,11 @@ def test_list_transactions_filter_by_account_includes_sub_accounts(
     other_account: dict,
     expense_account: dict,
 ):
-    child = client.post("/api/accounts/", json={"name": "food", "parent_id": expense_account["aid"]}).json()
+    child = post_account(client, {"name": "food", "parent_id": expense_account["aid"]}).json()
     _post(client, child, account, "5.00", "2026-01-05", "food")
     _post(client, other_account, account, "9.00", "2026-01-06", "transfer")
 
-    by_parent = client.get("/api/transactions/", params={"account": expense_account["aid"]})
+    by_parent = client.get("/api/transactions/", params={"category": expense_account["aid"]})
     assert [t["payee"] for t in by_parent.json()] == ["food"]
 
     by_other = client.get("/api/transactions/", params={"account": other_account["aid"]})

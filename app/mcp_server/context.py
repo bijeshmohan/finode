@@ -16,6 +16,7 @@ from ..repositories import (
 )
 from ..services import AccountService, BudgetService, RecurringService, ReportService, TransactionService
 from ..services.api_token import TokenOwner
+from ..services.category import CategoryService
 
 # Who is calling: set by the transport for each request after checking the token.
 current_owner: ContextVar[TokenOwner | None] = ContextVar("finode_mcp_owner", default=None)
@@ -39,6 +40,7 @@ class Services:
     reports: ReportService
     recurring: RecurringService
     budget: BudgetService
+    categories: CategoryService
 
 
 @contextmanager
@@ -58,6 +60,7 @@ def services() -> Iterator[Services]:
             transactions=TransactionService(tr, ar, pr, origin=f"mcp:{owner.name}"),
             reports=ReportService(accounts, tr),
             budget=BudgetService(accounts, tr, BudgetRepository(db, uid)),
+            categories=CategoryService(accounts),
             recurring=RecurringService(
                 RecurringRepository(db, uid), accounts, TransactionService(tr, ar, pr, origin="recurring")
             ),

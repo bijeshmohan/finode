@@ -4,7 +4,7 @@
 
 Money is always *somewhere* and always *for something*. finode keeps both as accounts in one tree:
 
-- **Accounts** are where money is: Assets (bank, cash, wallet, investments) and Liabilities (credit cards, loans). Equity holds the system's *Opening Balances*; it has no chip, because almost nobody needs it (tap the chosen chip again, so that neither is chosen, to see it).
+- **Accounts** are where money is: Assets (bank, cash, wallet, investments) and Liabilities (credit cards, loans). Equity holds the system's *Opening Balances*; tap the chosen chip again to reach it, together with Expense and Income, the books' side of your categories.
 - **Categories** are what money is for: Expenses (Food, Rent) and Income (Salary).
 
 Every transaction moves an amount *from* one place *to* another, and the books stay balanced because both sides are recorded. You never have to think about debits and credits to use it.
@@ -17,7 +17,7 @@ The group tells finode what an account is, so you do not have to answer the budg
 
 ## Accounts page
 
-**Accounts** has two chips, **Asset** and **Liability**, in that order, like Expense and Income on Categories. **Equity** has no chip: tap the chosen chip again, so that neither is chosen, and the page lists Equity. The chosen one shows a small label ("What you own"), its total as a large figure and a quiet count ("9 accounts"), then its accounts: each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts (the ones not in any group) share one tile at the end, after all the groups, under the heading **Others** with their total (shown when the page also has a group). Things to know:
+**Accounts** has two chips, **Asset** and **Liability**, in that order, like Spending and Earning on Categories. Tap the chosen chip again and neither is chosen: that is **Equity**. The chosen one shows a small label ("What you own"), its total as a large figure and a quiet count ("9 accounts"), then its accounts: each group (for example *Bank*) has a heading with its subtotal and its accounts under it; plain accounts (the ones not in any group) share one tile at the end, after all the groups, under the heading **Others** with their total (shown when the page also has a group). Things to know:
 
 - Every open account is listed, used or not. Closed ones are tucked behind one **Load more** button at the bottom (they carry a *closed* badge).
 - Accounts go **two levels** deep, at most: a group and the accounts in it.
@@ -49,9 +49,9 @@ An account that holds a balance cannot be closed. A closed account keeps its his
 
 ## Categories page
 
-**Categories** shows one month at a time (never a future one; the month pill sits at the right of the title, as on Budgets: the arrows go back or forward, and tapping the month lets you pick any past month and year). Pick **Expense** or **Income** (**Add category** is the dashed row at the end of the list; deleted categories are under Settings › Recently deleted). The big figure is the month's total up to today (the whole month for a past one); it has no label, the Expense and Income chips say which it is. Below it is a ranked list, biggest first, each row with its three biggest subcategories and its share of the month (0% for one with nothing in it; every row is the same height). Tap a row to see the category's page: its subcategories and the month's transactions that were posted to that category itself (a subcategory's transactions are on its own page; the big figure still counts everything inside). On a category's page the month pill sits beside the back link; the round **+** on the *Subcategories* heading adds a subcategory and the one on *Transactions* adds a transaction in this category (a category with no subcategories has no such heading: use **…** › *Add subcategory*). Use the arrows on the month pill to move between months.
+**Categories** shows one month at a time (never a future one; the month pill sits at the right of the title, as on Budgets: the arrows go back or forward, and tapping the month lets you pick any past month and year). Pick **Spending** or **Earning** (**Add category** is the dashed row at the end of the list; deleted categories are under Settings › Recently deleted). The big figure is the month's total up to today (the whole month for a past one); it has no label, the Spending and Earning chips say which it is. Below it is a ranked list, biggest first, each row with its three biggest subcategories and its share of the month (0% for one with nothing in it; every row is the same height). Tap a row to see the category's page: its subcategories and the month's transactions that were posted to that category itself (a subcategory's transactions are on its own page; the big figure still counts everything inside). On a category's page the month pill sits beside the back link; the round **+** on the *Subcategories* heading adds a subcategory and the one on *Transactions* adds a transaction in this category (a category with no subcategories has no such heading: use **…** › *Add subcategory*). Use the arrows on the month pill to move between months.
 
-<img src="img/categories.png" alt="The Categories page: the month, Expense and Income, ranked categories" width="300">
+<img src="img/categories.png" alt="The Categories page: the month, Spending and Earning, ranked categories" width="300">
 
 Every category is listed, biggest first, including the ones with nothing in the month. To add one, tap **+ Add category** at the end of the list. A category can have subcategories one level down (Food › Groceries), no further.
 

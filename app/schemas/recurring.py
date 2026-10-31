@@ -17,9 +17,25 @@ FrequencyName = Literal["daily", "weekly", "monthly", "yearly"]
 class RecurringPostingData(BaseModel):
     """One row of a split rule, like a transaction's posting."""
 
-    account: UUID
+    # Leave it out and name the category: the row records on Expenses (a spending category) or Income (an earning one).
+    account: UUID | None = None
     side: PostingSide
     amount: Decimal = Field(gt=Decimal(0), decimal_places=8, max_digits=24)
+    # What the row is for (a budget category), as on a transaction's posting; leave it out and the account decides.
+    category: UUID | None = None
+
+    @model_validator(mode="after")
+    def _names_an_account_or_a_category(self) -> RecurringPostingData:
+        if self.account is None and self.category is None:
+            raise ValueError("a row names an account or a category!")
+        return self
+
+    @property
+    def target(self) -> UUID:
+        """The account the row records on (always set once the rule has been through the service)."""
+        if self.account is None:
+            raise ValueError("the row has no account yet!")
+        return self.account
 
 
 class RecurringBase(BaseModel):
@@ -27,6 +43,8 @@ class RecurringBase(BaseModel):
     from_account: UUID | None = None
     to_account: UUID | None = None
     amount: Decimal | None = Field(default=None, decimal_places=8, max_digits=24)
+    # What a simple rule is for (a payment into a loan or fund, say: EMI). Leave it out and the accounts decide.
+    category: UUID | None = None
     # ... or a split across several accounts instead.
     postings: list[RecurringPostingData] = []
     payee: str | None = Field(default=None, max_length=40)

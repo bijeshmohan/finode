@@ -214,6 +214,7 @@ document.body.addEventListener("account-added", async (event) => {
       }
     }
     if (target) target.dataset.previous = target.value;
+    syncRowPickers(txnForm);
   }
   document.querySelectorAll("select[data-account-select]").forEach((select) => {
     if (txnForm && txnForm.contains(select)) return;
@@ -339,20 +340,20 @@ function money(value) {
 // What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
 const KINDS = {
   expense: {
-    credit: { roots: ["Assets", "Liabilities"], hint: "the account you paid with" },
-    debit: { roots: ["Expenses"], hint: "what it was for" },
+    credit: { roots: ["Assets", "Liabilities"], title: "Paid from", hint: "the account you paid with" },
+    debit: { roots: ["Expenses"], title: "Category", hint: "what it was for" },
   },
   income: {
-    credit: { roots: ["Income"], hint: "who paid you" },
-    debit: { roots: ["Assets", "Liabilities"], hint: "where it landed" },
+    credit: { roots: ["Income"], title: "Category", hint: "who paid you" },
+    debit: { roots: ["Assets", "Liabilities"], title: "Received in", hint: "where it landed" },
   },
   transfer: {
-    credit: { roots: ["Assets", "Liabilities"], hint: "the account the money leaves" },
-    debit: { roots: ["Assets", "Liabilities"], hint: "the account it goes to" },
+    credit: { roots: ["Assets", "Liabilities"], title: "From", hint: "the account the money leaves" },
+    debit: { roots: ["Assets", "Liabilities"], title: "To", hint: "the account it goes to" },
   },
   other: {
-    credit: { roots: null, hint: "where the money comes from" },
-    debit: { roots: null, hint: "where the money goes" },
+    credit: { roots: null, title: "From", hint: "where the money comes from" },
+    debit: { roots: null, title: "To", hint: "where the money goes" },
   },
 };
 
@@ -364,6 +365,9 @@ function withoutSelection(html) {
 }
 
 // The account list for one side of a kind: the placeholder entries and the groups whose type it offers.
+const CATEGORY_ROOTS = ["Expenses", "Income"];
+const isCategorySide = (roots) => Boolean(roots) && roots.every((root) => CATEGORY_ROOTS.includes(root));
+
 function optionsFor(all, roots) {
   if (!roots) return all;
   const holder = document.createElement("select");
@@ -371,6 +375,12 @@ function optionsFor(all, roots) {
   holder.querySelectorAll("optgroup").forEach((group) => {
     if (!roots.includes(group.label)) group.remove();
   });
+  if (isCategorySide(roots)) {  // an Income or Expenses account is what the person calls a category
+    const empty = holder.querySelector('option[value=""]');
+    if (empty) empty.textContent = "Choose category…";
+    const fresh = holder.querySelector('option[value="__new__"]');
+    if (fresh) fresh.textContent = "+ New category…";
+  }
   return holder.innerHTML;
 }
 
@@ -393,17 +403,30 @@ function applyKind(form, kind) {
   ["credit", "debit"].forEach((side) => {
     const hint = form.querySelector(`[data-side-section="${side}"] [data-side-hint]`);
     if (hint) hint.textContent = KINDS[kind][side].hint;
+    const title = form.querySelector(`[data-side-section="${side}"] [data-side-title]`);
+    if (title) title.textContent = KINDS[kind][side].title;
   });
+  // The category side comes after the accounts (Income lists it first in the data, not on the screen), and a
+  // category is not swapped with an account, so the swap button goes.
+  const credit = form.querySelector('[data-side-section="credit"]');
+  const debit = form.querySelector('[data-side-section="debit"]');
+  const swap = form.querySelector(".txn-swap");
+  const categoryFirst = isCategorySide(KINDS[kind].credit.roots);
+  if (categoryFirst) debit.after(credit);
+  else if (swap) { credit.after(swap); swap.after(debit); }
+  if (swap) swap.hidden = categoryFirst || isCategorySide(KINDS[kind].debit.roots);
   recomputeTxn(form);
 }
 
 // A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
 // if it never does (an error, no connection) the sheet closes again.
-const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body"];
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "todo-sheet-body"];
 const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
 document.body.addEventListener("htmx:beforeRequest", (event) => {
   const body = event.detail && event.detail.target;
   if (!body || !SHEET_BODIES.includes(body.id)) return;
+  // Only opening a sheet shows the placeholders: a form inside it (the to-do list's) must stay until its answer comes.
+  if (event.detail.requestConfig && event.detail.requestConfig.verb !== "get") return;
   const dialog = document.getElementById(body.id.replace("-body", ""));
   if (!dialog) return;
   body.innerHTML = SHEET_SKELETON;
@@ -588,6 +611,220 @@ function setSuggestion(row, text) {
   field.classList.toggle("suggested", text !== "");
 }
 
+// A payment from the budget into an account outside it (a loan, a fund) can say what it was for: the Category
+// row of that line appears, filled with the account's usual category until the person picks another (or none).
+const OUTSIDE_ROOTS = ["Assets", "Liabilities"];
+function syncRowCategories(form) {
+  const rows = [...form.querySelectorAll("[data-row]")];
+  const chosen = rows.map((row) => rowAccount(row).selectedOptions[0]);
+  const root = (option) => (option && option.parentElement ? option.parentElement.label : "");
+  const inBudget = chosen.some((o) => o && o.value && o.dataset.budget === "1" && OUTSIDE_ROOTS.includes(root(o)));
+  rows.forEach((row, index) => {
+    const select = row.querySelector("[data-category-select]");
+    if (!select) return;
+    const option = chosen[index];
+    const outside = option && option.value && option.dataset.budget === "0" && OUTSIDE_ROOTS.includes(root(option));
+    const show = Boolean(inBudget && outside);
+    if (show && select.hidden && !select.value && option.dataset.usual && !select.dataset.chosen) {
+      select.value = option.dataset.usual;
+    }
+    select.hidden = !show;
+    if (!show) {
+      select.value = "";
+      delete select.dataset.chosen;
+    }
+  });
+}
+
+document.body.addEventListener("change", (event) => {
+  if (event.target.matches && event.target.matches("[data-category-select]")) event.target.dataset.chosen = "1";
+});
+
+// ---- Choosing an account or a category: a sheet instead of the browser's list, on every row of the form ----
+// The <select> stays (hidden) so everything that sets or reads the account keeps working; the button shows its choice.
+function ensurePick(select) {
+  let button = select.nextElementSibling;
+  if (button && button.matches("[data-pick]")) return button;
+  button = document.createElement("button");
+  button.type = "button";
+  button.className = "row-pick";
+  button.dataset.pick = "";
+  button.setAttribute("aria-haspopup", "dialog");
+  button.append(document.createElement("span"));
+  select.after(button);
+  select.classList.add("is-picked");
+  return button;
+}
+
+// What a chosen account or category reads as on its chip: its own name, without the group's ("Food › Dining" is
+// Dining). Only when two options share a name does the group stay, in brackets.
+function leafLabel(select, option) {
+  const [group, leaf] = option.textContent.split(" › ");
+  if (leaf === undefined) return option.textContent;
+  const twins = [...select.options].filter((o) => o.textContent.split(" › ").pop() === leaf).length;
+  return twins > 1 ? `${leaf} (${group})` : leaf;
+}
+
+function syncRowPickers(form) {
+  const kind = KINDS[form.dataset.txnKind] || KINDS.other;
+  form.querySelectorAll("[data-row]").forEach((row) => {
+    const side = row.querySelector('[name="side"]').value;
+    const onCategories = isCategorySide(kind[side].roots);
+    // The row's account (a category, for an expense or income) and, on a payment into a loan, its category.
+    [[rowAccount(row), onCategories], [row.querySelector("[data-category-select]"), true]].forEach(([select, category]) => {
+      if (!select) return;
+      const button = ensurePick(select);
+      button.hidden = select.hidden;
+      button.classList.add("pill");
+      button.classList.toggle("account", !category);
+      const option = select.selectedOptions[0];
+      const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
+      const empty = select.matches("[data-category-select]") ? "No category" : (category ? "Category…" : "Account…");
+      // Only when it changed: replacing the text between a press and its release makes Safari drop the click.
+      const label = chosen ? leafLabel(select, option) : empty;
+      if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
+      button.classList.toggle("empty", !chosen);
+      const noun = category ? "Category" : "Account";
+      button.setAttribute("aria-label", chosen ? `${noun}: ${option.textContent.replace(" › ", ", ")}` : `Choose ${category ? "a category" : "an account"}`);
+    });
+  });
+}
+
+(() => {
+  const dialog = document.getElementById("row-picker");
+  if (!dialog) return;
+  const list = dialog.querySelector("[data-pick-list]");
+  const search = dialog.querySelector("[data-pick-search]");
+  const title = dialog.querySelector(".filter-title");
+  let noun = "category";
+  let target = null;
+  let clearable = false; // a payment's category can be none
+  let taken = new Set(); // what the other side of the entry already uses: an account cannot be on both
+  const choices = () => [...target.options].filter((o) => o.value && o.value !== NEW_ACCOUNT);
+  const row = (option, group) => {
+    const li = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.pickOption = option.value;
+    button.setAttribute("aria-pressed", String(option.value === target.value));
+    const name = group ? option.textContent.slice(group.length + 3) || option.textContent : option.textContent;
+    const label = document.createElement("span");
+    const [outer, inner] = !group ? option.textContent.split(" › ") : [];
+    if (inner) {  // a tile outside its group's heading names the group too, so two "Dining" can be told apart
+      label.textContent = inner;
+      const small = document.createElement("small");
+      small.className = "muted";
+      small.textContent = outer;
+      label.append(small);
+    } else label.textContent = name;
+    button.append(label);
+    if (option.dataset.balance) {
+      const balance = document.createElement("span");
+      balance.className = "pick-balance muted";
+      balance.textContent = `${option.parentElement.label === "Liabilities" ? "owed " : ""}${option.dataset.balance}`;
+      button.append(balance);
+    }
+    if (taken.has(option.value) && option.value !== target.value) {
+      button.disabled = true;
+      button.title = "Already on the other side";
+    }
+    li.append(button);
+    return li;
+  };
+  const heading = (text) => {
+    const li = document.createElement("li");
+    li.className = "filter-group muted";
+    li.textContent = text;
+    return li;
+  };
+  const draw = () => {
+    const text = search.value.trim().toLowerCase();
+    const all = choices();
+    list.replaceChildren();
+    if (text) {
+      all.filter((o) => o.textContent.toLowerCase().includes(text)).forEach((o) => list.append(row(o, "")));
+      if (!list.children.length) {
+        const li = document.createElement("li");
+        li.className = "filter-empty muted";
+        li.textContent = `No ${noun} matches.`;
+        list.append(li);
+      }
+    } else {
+      let current = null;
+      all.forEach((o) => {
+        const [group] = o.textContent.split(" › ");
+        const inGroup = o.textContent.includes(" › ");
+        const label = inGroup ? group : "";
+        if (label !== current) {
+          current = label;
+          if (label) list.append(heading(label));
+          else if (list.children.length) list.append(heading("Others"));
+        }
+        list.append(row(o, inGroup ? group : ""));
+      });
+    }
+    if (clearable && !text) {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.pickOption = "";
+      button.setAttribute("aria-pressed", String(!target.value));
+      button.textContent = "No category";
+      li.append(button);
+      list.prepend(li);
+    }
+    if (target.querySelector(`option[value="${NEW_ACCOUNT}"]`)) {
+      const li = document.createElement("li");
+      li.className = "pick-new-li";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.pickNew = "";
+      button.textContent = `＋ New ${noun}`;
+      li.append(button);
+      list.append(li);
+    }
+  };
+  document.body.addEventListener("click", (event) => {
+    const open = event.target.closest && event.target.closest("[data-pick]");
+    if (open) {
+      const rowEl = open.closest("[data-row]");
+      const form = open.closest("form[data-txn-form]");
+      const side = rowEl.querySelector('[name="side"]').value;
+      const kind = KINDS[form.dataset.txnKind] || KINDS.other;
+      target = open.previousElementSibling; // the hidden select this button stands for
+      clearable = target.matches("[data-category-select]");
+      noun = clearable || isCategorySide(kind[side].roots) ? "category" : "account";
+      title.textContent = noun === "category" ? "Category" : "Account";
+      dialog.setAttribute("aria-label", title.textContent);
+      search.placeholder = `Search ${noun === "category" ? "categories" : "accounts"}`;
+      search.setAttribute("aria-label", search.placeholder);
+      list.classList.toggle("grid", noun === "category");
+      taken = clearable
+        ? new Set()
+        : new Set(
+            [...form.querySelectorAll("[data-row]")]
+              .filter((r) => r.querySelector('[name="side"]').value !== side)
+              .map((r) => rowAccount(r).value)
+              .filter(Boolean),
+          );
+      search.value = "";
+      draw();
+      dialog.showModal();
+      return;
+    }
+    if (!target || !dialog.contains(event.target)) return;
+    const option = event.target.closest("[data-pick-option]");
+    const fresh = event.target.closest("[data-pick-new]");
+    if (!option && !fresh) return;
+    const select = target;
+    target = null;
+    dialog.close();
+    select.value = option ? option.dataset.pickOption : NEW_ACCOUNT;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  search.addEventListener("input", draw);
+})();
+
 function recomputeTxn(form) {
   const field = form.querySelector("#total");
   field.style.setProperty("--n", Math.max(field.value.length - 0.55 * (field.value.split(",").length - 1), 4)); // the amount is as wide as what is typed, so the rupee sign sits against the digits
@@ -596,6 +833,9 @@ function recomputeTxn(form) {
 
   ["credit", "debit"].forEach((side) => {
     const list = form.querySelector(`[data-rows="${side}"]`);
+    const section = form.querySelector(`[data-side-section="${side}"]`);
+    const onCategories = isCategorySide((KINDS[form.dataset.txnKind] || KINDS.other)[side].roots);
+    section.classList.toggle("cat-side", onCategories);
     let rows = [...list.querySelectorAll("[data-row]")];
     let touched = rows.filter((r) => r.hasAttribute("data-touched"));
     let sum = touched.reduce((acc, r) => acc + rowShare(r), 0n);
@@ -637,6 +877,8 @@ function recomputeTxn(form) {
       : left > 0n ? `${money(left)} ${currency} left to allocate`
       : `${money(-left)} ${currency} over`;
   });
+  syncRowCategories(form);
+  syncRowPickers(form);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -711,12 +953,16 @@ document.body.addEventListener("click", (event) => {
   if (remove) {
     const row = remove.closest("[data-row]");
     const list = row.parentElement;
+    const section = row.closest("[data-side-section]");
     if (list.querySelectorAll("[data-row]").length > 1) row.remove();
     else {
       rowAccount(row).value = "";
       row.querySelectorAll('[name="amount"]').forEach((f) => { f.value = ""; });
       row.removeAttribute("data-touched");
     }
+    const left = list.querySelectorAll("[data-row]");
+    // One category left is the whole amount again, not what was typed before the split.
+    if (left.length === 1 && section.classList.contains("cat-side")) left[0].removeAttribute("data-touched");
     recomputeTxn(form);
     return;
   }
@@ -757,7 +1003,7 @@ document.body.addEventListener("click", (event) => {
     if (now) {
       const choice = payment && payment.querySelector("select");
       now.textContent = !out ? "Part of the budget"
-        : choice && choice.value ? "Outside the budget · payments are spending"
+        : choice && choice.value ? "Outside the budget · payments have a usual category"
         : "Outside the budget";
     }
     if (payment) payment.hidden = !out;
@@ -866,20 +1112,6 @@ document.body.addEventListener("click", (event) => {
 })();
 
 // ---- Budget: unused groups can be shown ----
-// The "N things need you" line on the budget page opens and closes the list of what needs a decision.
-(() => {
-  document.body.addEventListener("click", (event) => {
-    const badge = event.target.closest && event.target.closest("[data-toggle-attn]");
-    if (!badge) return;
-    const panel = document.getElementById(badge.getAttribute("aria-controls"));
-    if (!panel) return;
-    panel.hidden = !panel.hidden;
-    badge.setAttribute("aria-expanded", String(!panel.hidden));
-    const more = badge.querySelector(".need-more");
-    if (more) more.textContent = panel.hidden ? "Show ▾" : "Hide ▴";
-  });
-})();
-
 (() => {
   document.body.addEventListener("click", (event) => {
     const button = event.target.closest && event.target.closest("[data-toggle-budget-unused]");
