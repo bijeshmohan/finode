@@ -17,11 +17,11 @@ class OAuthGrant(TimestampMixin, table=True):
     __tablename__ = "oauth_grants"
     __table_args__ = (
         CheckConstraint("scope IN ('read', 'write', 'manage')", name="ck_oauth_grants_scope"),
-        Index("uq_oauth_grants_user_client", "user", "client_id", unique=True),
+        Index("uq_oauth_grants_user_client", "user_id", "client_id", unique=True),
     )
 
-    gid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     # Supabase's id for the registered app.
     client_id: str = Field(max_length=100)
     client_name: str = Field(max_length=80)

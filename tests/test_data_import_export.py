@@ -174,7 +174,7 @@ def test_export_then_import_round_trips_for_another_user(client: TestClient, ses
         client,
         {
             "name": "Empty",
-            "parent_id": next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Assets"),
+            "parent_id": next(a["id"] for a in client.get("/api/accounts/").json() if a["name"] == "Assets"),
         },
     )
     exported = client.get("/api/export").text

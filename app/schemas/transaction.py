@@ -18,7 +18,7 @@ class _PostingFields(BaseModel):
     amount: Decimal = Field(decimal_places=8, max_digits=24)
     # What the line was for (a budget category). Leave it out and a payment into a loan or fund that has a payment
     # category takes that one, and a line on Expenses or Income with none is Uncategorised.
-    category: UUID | None = None
+    category_id: UUID | None = None
 
     @field_validator("amount")
     @classmethod
@@ -29,34 +29,34 @@ class _PostingFields(BaseModel):
 
 
 class PostingBase(_PostingFields):
-    account: UUID
+    account_id: UUID
 
     @property
     def target(self) -> UUID:
-        return self.account
+        return self.account_id
 
 
 class PostingCreate(_PostingFields):
     # Leave it out and name the category: the line posts to Expenses (a spending category) or Income (an earning one).
-    account: UUID | None = None
+    account_id: UUID | None = None
 
     @model_validator(mode="after")
     def _names_an_account_or_a_category(self) -> PostingCreate:
-        if self.account is None and self.category is None:
+        if self.account_id is None and self.category_id is None:
             raise ValueError("a line names an account or a category!")
         return self
 
     @property
     def target(self) -> UUID:
         """The account the line posts to (always set once the entry has been checked)."""
-        if self.account is None:
+        if self.account_id is None:
             raise ValueError("the line has no account yet!")
-        return self.account
+        return self.account_id
 
 
 class PostingRead(PostingBase):
-    pid: UUID
-    transaction: UUID
+    id: UUID
+    transaction_id: UUID
     created: datetime
     updated: datetime
 
@@ -150,7 +150,7 @@ class TransactionCreate(TransactionBase, ReferenceFields):
 
 
 class TransactionRead(TransactionBase, ReferenceFields):
-    tid: UUID
+    id: UUID
     # Where it was entered and last changed: "web", "api", "import" or "mcp:<token name>"; None if unknown.
     created_via: str | None = None
     updated_via: str | None = None
@@ -170,7 +170,7 @@ class TransactionPreview(ReferenceFields):
 
     dry_run: Literal[True] = True
     # The entry being changed or deleted; None for one that would be made.
-    tid: UUID | None = None
+    id: UUID | None = None
     date: Day
     payee: str | None = None
     comment: str | None = None
@@ -265,8 +265,8 @@ class HistoryPosting(BaseModel):
 class HistoryRead(BaseModel):
     """The transaction as it stood after one change (as it stood when deleted, for a deletion)."""
 
-    hid: UUID
-    transaction: UUID
+    id: UUID
+    transaction_id: UUID
     action: Literal["created", "updated", "deleted"]
     at: datetime
     # "web", "api", "import", "recurring" or "mcp:<token name>"; None if unknown.
@@ -283,8 +283,8 @@ class HistoryRead(BaseModel):
 class ChangeRead(BaseModel):
     """One step in an entry's life, with what it changed compared with the step before."""
 
-    hid: UUID
-    transaction: UUID
+    id: UUID
+    transaction_id: UUID
     action: Literal["created", "updated", "deleted"]
     at: datetime
     # "web", "api", "import", "recurring" or "mcp:<token name>"; None if unknown.

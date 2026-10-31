@@ -31,15 +31,15 @@ class RecurringTransaction(TimestampMixin, table=True):
         CheckConstraint("every >= 1", name="ck_recurring_every"),
     )
 
-    rid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     # A simple rule has from_account, to_account and amount; a split rule has none of them but
     # `recurring_postings` instead.
-    from_account: UUID | None = Field(default=None, foreign_key="accounts.aid")
-    to_account: UUID | None = Field(default=None, foreign_key="accounts.aid")
+    from_account_id: UUID | None = Field(default=None, foreign_key="accounts.id")
+    to_account_id: UUID | None = Field(default=None, foreign_key="accounts.id")
     amount: Decimal | None = Field(default=None, sa_type=Amount())
     # What a simple rule's entries are for (a split rule's rows carry their own).
-    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.bcid", nullable=True)
+    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.id", nullable=True)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
     # The tags every entry this rule records gets (names in their one form, lower case).
@@ -70,11 +70,11 @@ class RecurringPosting(TimestampMixin, table=True):
         CheckConstraint("amount > 0", name="ck_recurring_postings_amount"),
     )
 
-    rpid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
-    rid: UUID = Field(index=True, foreign_key="recurring_transactions.rid")
-    account: UUID = Field(foreign_key="accounts.aid")
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
+    recurring_id: UUID = Field(index=True, foreign_key="recurring_transactions.id")
+    account_id: UUID = Field(foreign_key="accounts.id")
     side: str = Field(max_length=6)
     amount: Decimal = Field(sa_type=Amount())
-    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.bcid", nullable=True)
+    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.id", nullable=True)
     position: int = Field(default=0)

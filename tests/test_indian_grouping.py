@@ -56,7 +56,7 @@ def test_budget_hints_follow_the_grouping(client, lakhs):
     from datetime import date
 
     month = date.today().replace(day=1).isoformat()
-    client.put(f"/api/budget/categories/{food['aid']}", json={"month": month, "amount": "250000"})
+    client.put(f"/api/budget/categories/{food['id']}", json={"month": month, "amount": "250000"})
     page = client.get("/budget").text
     assert "of 2,50,000.00" in page
 

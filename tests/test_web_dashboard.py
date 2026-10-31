@@ -60,7 +60,7 @@ def test_dashboard_shows_what_is_left_to_spend_once_there_is_a_budget(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict
 ):
     bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
-    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "400"})
+    client.put(f"/api/budget/categories/{expense_account['id']}", json={"amount": "400"})
     client.post(
         "/api/transactions/",
         json={
@@ -81,7 +81,7 @@ def test_dashboard_says_over_budget_when_a_category_is_overspent(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict
 ):
     bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
-    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "50"})
+    client.put(f"/api/budget/categories/{expense_account['id']}", json={"amount": "50"})
     client.post(
         "/api/transactions/",
         json={
@@ -212,7 +212,7 @@ def test_the_i_on_home_shows_the_sum_with_the_persons_own_numbers(
     client: TestClient, root_accounts: dict[str, str], expense_account: dict
 ):
     bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
-    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "400"})
+    client.put(f"/api/budget/categories/{expense_account['id']}", json={"amount": "400"})
     client.post(
         "/api/transactions/",
         json={
@@ -238,7 +238,7 @@ def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_
     client: TestClient, root_accounts: dict[str, str], expense_account: dict, income_account: dict
 ):
     bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
-    client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "50"})
+    client.put(f"/api/budget/categories/{expense_account['id']}", json={"amount": "50"})
     for debit, credit, amount in ((expense_account, bank, "80"), (bank, income_account, "500")):
         client.post(
             "/api/transactions/",
@@ -315,6 +315,6 @@ def test_the_checklist_stays_on_home_after_the_first_entry_until_the_plan_is_use
     assert "Get started · 2 of 3" in text and "Give your money a job</a>" in text
     assert "Open Budgets and set aside rent and food" in text
     client.put(
-        f"/api/budget/categories/{food['aid']}", json={"month": date.today().replace(day=1).isoformat(), "amount": "50"}
+        f"/api/budget/categories/{food['id']}", json={"month": date.today().replace(day=1).isoformat(), "amount": "50"}
     )
     assert "Get started" not in client.get("/").text

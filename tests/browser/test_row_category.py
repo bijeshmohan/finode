@@ -29,19 +29,21 @@ def test_the_category_line_shows_only_when_money_leaves_the_budget(page: Page, b
     page.select_option('[data-rows="debit"] [data-category-select]', label="EMI")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
-    [entry] = [t for t in api.get("/transactions/") if any(p["account"] == more["loan"]["aid"] for p in t["postings"])]
-    labels = {p["account"]: p["category"] for p in entry["postings"]}
-    assert labels[more["loan"]["aid"]] == more["emi"]["aid"] and labels[books["checking"]["aid"]] is None
+    [entry] = [
+        t for t in api.get("/transactions/") if any(p["account_id"] == more["loan"]["id"] for p in t["postings"])
+    ]
+    labels = {p["account_id"]: p["category_id"] for p in entry["postings"]}
+    assert labels[more["loan"]["id"]] == more["emi"]["id"] and labels[books["checking"]["id"]] is None
 
 
 def test_the_usual_category_of_a_loan_fills_the_line_in(page: Page, books, api: Api):
     more = loan_books(api, books)
-    api.request.patch(f"/api/accounts/{more['loan']['aid']}", data={"payment_category_id": more["emi"]["aid"]})
+    api.request.patch(f"/api/accounts/{more['loan']['id']}", data={"payment_category_id": more["emi"]["id"]})
     page.goto("/transactions/new")
     page.get_by_role("button", name="Transfer", exact=True).click()
     page.select_option('[data-rows="credit"] select', label="Checking")
     page.select_option('[data-rows="debit"] select', label="Home loan")
-    assert page.input_value('[data-rows="debit"] [data-category-select]') == more["emi"]["aid"]
+    assert page.input_value('[data-rows="debit"] [data-category-select]') == more["emi"]["id"]
     page.select_option('[data-rows="debit"] [data-category-select]', value="")  # the person says none
     page.select_option('[data-rows="credit"] select', label="Cash")
     page.select_option('[data-rows="credit"] select', label="Checking")
@@ -53,17 +55,17 @@ def test_an_edit_keeps_the_category_it_had(page: Page, books, api: Api):
     made = api.post(
         "/transactions/",
         postings=[
-            {"account": more["loan"]["aid"], "side": "debit", "amount": "500", "category": more["sip"]["aid"]},
+            {"account_id": more["loan"]["id"], "side": "debit", "amount": "500", "category_id": more["sip"]["id"]},
             leg(books["checking"], "credit", "500"),
         ],
     )
-    page.goto(f"/transactions/{made['tid']}/edit")
-    assert page.input_value('[data-rows="debit"] [data-category-select]') == more["sip"]["aid"]
+    page.goto(f"/transactions/{made['id']}/edit")
+    assert page.input_value('[data-rows="debit"] [data-category-select]') == more["sip"]["id"]
     page.fill('input[name="payee"]', "SIP top-up")
     page.get_by_role("button", name="Save changes", exact=True).click()
     page.wait_for_url("**/transactions")
-    entry = api.get(f"/transactions/{made['tid']}")
-    assert {p["category"] for p in entry["postings"]} == {more["sip"]["aid"], None}
+    entry = api.get(f"/transactions/{made['id']}")
+    assert {p["category_id"] for p in entry["postings"]} == {more["sip"]["id"], None}
 
 
 # ---- the category sheet ------------------------------------------------------------------------
@@ -91,8 +93,8 @@ def test_a_category_is_chosen_in_a_sheet(page: Page, books, api: Api):
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     [entry] = api.get("/transactions/")[:1]
-    dining = next(c["bcid"] for c in api.get("/categories/") if c["name"] == "Dining")
-    assert {p["category"] for p in entry["postings"]} == {None, dining}
+    dining = next(c["id"] for c in api.get("/categories/") if c["name"] == "Dining")
+    assert {p["category_id"] for p in entry["postings"]} == {None, dining}
 
 
 def test_a_new_category_can_be_made_from_the_sheet(page: Page, books, api: Api):

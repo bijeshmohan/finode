@@ -32,10 +32,10 @@ RATE_WINDOW_SECONDS = 60.0
 _calls: dict[UUID, deque[float]] = {}
 
 
-def _allow(tkid: UUID, now: float | None = None) -> bool:
+def _allow(token_id: UUID, now: float | None = None) -> bool:
     """A sliding one-minute window per token (per process: approximate with several workers)."""
     now = time.monotonic() if now is None else now
-    calls = _calls.setdefault(tkid, deque())
+    calls = _calls.setdefault(token_id, deque())
     while calls and now - calls[0] >= RATE_WINDOW_SECONDS:
         calls.popleft()
     if len(calls) >= settings.mcp_rate_limit:
@@ -119,7 +119,7 @@ class MCPEndpoint:
                 },
             )
             return
-        if not _allow(owner.tkid):
+        if not _allow(owner.token_id):
             await _reply(send, 429, "too many requests: slow down", {"Retry-After": str(int(RATE_WINDOW_SECONDS))})
             return
         reset = context.current_owner.set(owner)

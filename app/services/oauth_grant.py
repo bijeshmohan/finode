@@ -30,27 +30,27 @@ class OAuthGrantService:
         self.repo.db.refresh(grant)
         return grant
 
-    def revoke(self, gid: UUID) -> OAuthGrant:
-        grant = self.repo.revoke(gid, utc_now())
+    def revoke(self, grant_id: UUID) -> OAuthGrant:
+        grant = self.repo.revoke(grant_id, utc_now())
         if grant is None:
             raise LookupError("app not found")
         self.repo.db.commit()
         return grant
 
-    def set_scope(self, gid: UUID, scope: str) -> OAuthGrant:
+    def set_scope(self, grant_id: UUID, scope: str) -> OAuthGrant:
         if scope not in TokenScope.ALL:
             raise ValueError("access must be 'read', 'write' or 'manage'!")
-        grant = self.repo.set_scope(gid, scope)
+        grant = self.repo.set_scope(grant_id, scope)
         if grant is None:
             raise LookupError("app not found")
         self.repo.db.commit()
         return grant
 
     @staticmethod
-    def authenticate(db: Session, user: UUID, client_id: str) -> TokenOwner | None:
+    def authenticate(db: Session, user_id: UUID, client_id: str) -> TokenOwner | None:
         """Who a verified OAuth token acts as and what it may do; None if the user never allowed that app,
         or took the permission back."""
-        grant = OAuthGrantRepository.for_token(db, user, client_id)
+        grant = OAuthGrantRepository.for_token(db, user_id, client_id)
         if grant is None or grant.revoked is not None:
             return None
         now = utc_now()
@@ -61,4 +61,4 @@ class OAuthGrantService:
             grant.last_used = now
             db.add(grant)
             db.commit()
-        return TokenOwner(user=grant.user, tkid=grant.gid, name=grant.client_name, scope=grant.scope)
+        return TokenOwner(user_id=grant.user_id, token_id=grant.id, name=grant.client_name, scope=grant.scope)

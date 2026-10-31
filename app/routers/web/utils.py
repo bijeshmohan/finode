@@ -16,7 +16,7 @@ from ...services.validation import validation_message  # noqa: F401  (shared wit
 class UpcomingItem:
     """One entry dated ahead, as the "upcoming" card shows it (see partials/upcoming.html)."""
 
-    tid: UUID
+    transaction_id: UUID
     date: Date
     title: str
     sub: str

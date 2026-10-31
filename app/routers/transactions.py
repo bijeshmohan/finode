@@ -87,7 +87,7 @@ def payee_defaults(transactions: Transactions, payee: str = "", limit: int = Que
 
 @router.get("/deleted", response_model=list[HistoryRead])
 def deleted_transactions(transactions: Transactions):
-    """Entries that were deleted and are not back, newest deletion first; `hid` is what to restore."""
+    """Entries that were deleted and are not back, newest deletion first; `id` is what to restore."""
     return transactions.restorable()
 
 
@@ -103,21 +103,21 @@ def recent_changes(
     return transactions.recent_changes(local_start_utc(since) if since else None, (by or "").strip() or None, limit)
 
 
-@router.post("/deleted/{hid}/restore", response_model=TransactionRead)
-def restore_transaction(hid: UUID, transactions: Transactions):
+@router.post("/deleted/{history_id}/restore", response_model=TransactionRead)
+def restore_transaction(history_id: UUID, transactions: Transactions):
     """Bring a deleted entry back as it was, with its old id (checked again like any new entry)."""
     try:
-        return transactions.restore(hid)
+        return transactions.restore(history_id)
     except LookupError:
         raise HTTPException(status_code=404, detail="deleted transaction not found") from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
 
 
-@router.get("/{tid}", response_model=TransactionRead, status_code=200)
-def get_transaction(tid: UUID, transactions: Transactions):
+@router.get("/{transaction_id}", response_model=TransactionRead, status_code=200)
+def get_transaction(transaction_id: UUID, transactions: Transactions):
     """One transaction with its postings."""
-    transaction = transactions.read(tid)
+    transaction = transactions.read(transaction_id)
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return transaction
@@ -126,34 +126,34 @@ def get_transaction(tid: UUID, transactions: Transactions):
 @router.get("/", response_model=list[TransactionRead], status_code=200)
 def get_transactions(
     transactions: Transactions,
-    account: UUID | None = None,
+    account_id: UUID | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
     limit: int | None = Query(default=None, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     text: str | None = None,
     kind: Literal["expense", "income", "transfer"] | None = None,
-    category: UUID | None = None,
+    category_id: UUID | None = None,
     payee: str | None = None,
     source: str | None = None,
     external_id: str | None = None,
     tag: str | None = None,
 ):
     """Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts
-    used (spending, income or a transfer); `category` is an Expenses or Income account the entry must also touch;
+    used (spending, income or a transfer); `category_id` is a category the entry must also touch;
     `payee` is exact, capitals aside; `source` and `external_id` find the entry a source's reference stands for; `tag` finds
     entries whose note has that #hashtag."""
     try:
         return transactions.list(
-            account, date_from, date_to, limit, offset, text, kind, category, payee, source, external_id, tag
+            account_id, date_from, date_to, limit, offset, text, kind, category_id, payee, source, external_id, tag
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from None
 
 
-@router.patch("/{tid}", response_model=TransactionRead | TransactionPreview, status_code=200)
+@router.patch("/{transaction_id}", response_model=TransactionRead | TransactionPreview, status_code=200)
 def update_transaction(
-    tid: UUID,
+    transaction_id: UUID,
     data: TransactionUpdate,
     transactions: Transactions,
     dry_run: bool = False,
@@ -162,8 +162,8 @@ def update_transaction(
     With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards."""
     try:
         if dry_run:
-            return transactions.preview_update(tid, data)
-        transaction = transactions.update(tid, data)
+            return transactions.preview_update(transaction_id, data)
+        transaction = transactions.update(transaction_id, data)
     except InvalidPostingError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError as e:
@@ -173,15 +173,15 @@ def update_transaction(
     return transaction
 
 
-@router.delete("/{tid}", status_code=204, response_model=None)
-def delete_transaction(tid: UUID, transactions: Transactions, response: Response, dry_run: bool = False):
+@router.delete("/{transaction_id}", status_code=204, response_model=None)
+def delete_transaction(transaction_id: UUID, transactions: Transactions, response: Response, dry_run: bool = False):
     """Delete a transaction; it waits in /transactions/deleted and can be restored.
     With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go."""
     try:
         if dry_run:
             response.status_code = 200
-            return transactions.preview_delete(tid)
-        transaction = transactions.delete(tid)
+            return transactions.preview_delete(transaction_id)
+        transaction = transactions.delete(transaction_id)
     except InvalidPostingError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError:
@@ -191,27 +191,27 @@ def delete_transaction(tid: UUID, transactions: Transactions, response: Response
     return {"message": "transaction deleted successfully"}
 
 
-@router.get("/{tid}/changes", response_model=list[ChangeRead])
-def transaction_changes(tid: UUID, transactions: Transactions):
+@router.get("/{transaction_id}/changes", response_model=list[ChangeRead])
+def transaction_changes(transaction_id: UUID, transactions: Transactions):
     """What happened to an entry, oldest first, each step with what it changed (works for a deleted one too)."""
-    steps = transactions.changes(tid)
+    steps = transactions.changes(transaction_id)
     if not steps:
         raise HTTPException(status_code=404, detail="transaction not found")
     return steps
 
 
-@router.get("/{tid}/history", response_model=list[HistoryRead])
-def transaction_history(tid: UUID, transactions: Transactions):
+@router.get("/{transaction_id}/history", response_model=list[HistoryRead])
+def transaction_history(transaction_id: UUID, transactions: Transactions):
     """What happened to an entry, oldest first (works for a deleted one too)."""
-    history = transactions.history(tid)
+    history = transactions.history(transaction_id)
     if not history:
         raise HTTPException(status_code=404, detail="transaction not found")
     return history
 
 
-@router.get("/{tid}/related", response_model=list[TransactionRead])
-def related_transactions(tid: UUID, transactions: Transactions):
+@router.get("/{transaction_id}/related", response_model=list[TransactionRead])
+def related_transactions(transaction_id: UUID, transactions: Transactions):
     """The entries that are related to this one (refunds, reversals), oldest first."""
-    if transactions.read(tid) is None:
+    if transactions.read(transaction_id) is None:
         raise HTTPException(status_code=404, detail="transaction not found")
-    return transactions.related(tid)
+    return transactions.related(transaction_id)

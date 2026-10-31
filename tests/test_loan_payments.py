@@ -17,7 +17,7 @@ def books(client, root_accounts):
 
 def point(client, loan, category):
     response = client.patch(
-        f"/api/accounts/{loan['aid']}", json={"payment_category_id": category["aid"] if category else None}
+        f"/api/accounts/{loan['id']}", json={"payment_category_id": category["id"] if category else None}
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -76,11 +76,11 @@ def test_a_split_emi_counts_both_parts(client, books):
 
 
 def test_the_rules_for_choosing_a_category(client, books, root_accounts):
-    url = f"/api/accounts/{books['loan']['aid']}"
-    assert client.patch(url, json={"payment_category_id": books["bank"]["aid"]}).status_code == 400
+    url = f"/api/accounts/{books['loan']['id']}"
+    assert client.patch(url, json={"payment_category_id": books["bank"]["id"]}).status_code == 400
     assert (
         client.patch(
-            f"/api/accounts/{books['bank']['aid']}", json={"payment_category_id": books["emi"]["aid"]}
+            f"/api/accounts/{books['bank']['id']}", json={"payment_category_id": books["emi"]["id"]}
         ).status_code
         == 400
     ), "already part of the budget"
@@ -89,45 +89,45 @@ def test_the_rules_for_choosing_a_category(client, books, root_accounts):
 
 def test_joining_the_budget_drops_the_category_and_it_can_be_cleared(client, books):
     point(client, books["loan"], books["emi"])
-    assert client.get(f"/api/accounts/{books['loan']['aid']}").json()["payment_category_id"] == books["emi"]["aid"]
+    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] == books["emi"]["id"]
     assert point(client, books["loan"], None)["payment_category_id"] is None
     point(client, books["loan"], books["emi"])
-    joined = client.patch(f"/api/accounts/{books['loan']['aid']}", json={"on_budget": True}).json()
+    joined = client.patch(f"/api/accounts/{books['loan']['id']}", json={"on_budget": True}).json()
     assert joined["on_budget"] and joined["payment_category_id"] is None
 
 
 def test_deleting_the_category_clears_the_link(client, books):
     point(client, books["loan"], books["emi"])
-    assert client.post(f"/api/categories/{books['emi']['aid']}/delete").status_code == 200
-    assert client.get(f"/api/accounts/{books['loan']['aid']}").json()["payment_category_id"] is None
+    assert client.post(f"/api/categories/{books['emi']['id']}/delete").status_code == 200
+    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] is None
 
 
 def test_the_edit_page_offers_and_saves_it(client, books):
-    page = client.get(f"/accounts/{books['loan']['aid']}/edit").text
+    page = client.get(f"/accounts/{books['loan']['id']}/edit").text
     assert "Usual category for payments" in page and ">EMI</option>" in page
     saved = client.post(
-        f"/accounts/{books['loan']['aid']}/edit",
+        f"/accounts/{books['loan']['id']}/edit",
         data={
             "name": "Home Loan",
             "budget_choice": "1",
-            "payment_category": books["emi"]["aid"],
+            "payment_category": books["emi"]["id"],
         },
     )
     assert saved.status_code == 200 and saved.headers["HX-Redirect"].startswith("/accounts/")
-    assert client.get(f"/api/accounts/{books['loan']['aid']}").json()["payment_category_id"] == books["emi"]["aid"]
-    assert f'value="{books["emi"]["aid"]}" selected' in client.get(f"/accounts/{books['loan']['aid']}/edit").text
+    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] == books["emi"]["id"]
+    assert f'value="{books["emi"]["id"]}" selected' in client.get(f"/accounts/{books['loan']['id']}/edit").text
     client.post(
-        f"/accounts/{books['loan']['aid']}/edit",
+        f"/accounts/{books['loan']['id']}/edit",
         data={"name": "Home Loan", "budget_choice": "1", "payment_category": ""},
     )
-    assert client.get(f"/api/accounts/{books['loan']['aid']}").json()["payment_category_id"] is None
+    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] is None
     assert (
         client.post(
-            f"/accounts/{books['loan']['aid']}/edit",
+            f"/accounts/{books['loan']['id']}/edit",
             data={
                 "name": "Home Loan",
                 "budget_choice": "1",
-                "payment_category": books["bank"]["aid"],
+                "payment_category": books["bank"]["id"],
             },
         ).status_code
         == 400
@@ -145,7 +145,7 @@ def test_the_categories_page_and_the_category_page_count_payments_into_the_loan(
     )  # interest charged by the lender: spending on Interest, not a payment
     page = client.get("/categories").text
     assert "15,000.00" in page and "15,900.00" in page, "EMI 15,000 and Interest 900 make 15,900"
-    emi = client.get(f"/categories/{books['emi']['aid']}").text
+    emi = client.get(f"/categories/{books['emi']['id']}").text
     assert "15,000.00" in emi and emi.count('class="tx"') == 1, "the payment is listed under the category"
     assert "Home Loan" in emi
 
@@ -155,17 +155,17 @@ def test_a_payment_not_from_the_budget_is_not_spending(client, books, root_accou
     income = account(client, root_accounts, "Discount", "Income")
     move(client, income, books["loan"], "20")  # money that never touched a budget account
     assert "20.00" not in client.get("/categories").text
-    assert client.get(f"/categories/{books['emi']['aid']}").text.count('class="tx"') == 0
+    assert client.get(f"/categories/{books['emi']['id']}").text.count('class="tx"') == 0
 
 
 def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root_accounts):
     debts = account(client, root_accounts, "Debts", "Expenses")
-    sub = post_account(client, {"name": "Car EMI", "parent_id": debts["aid"]}).json()
+    sub = post_account(client, {"name": "Car EMI", "parent_id": debts["id"]}).json()
     point(client, books["loan"], sub)
     move(client, books["bank"], books["loan"], "7000")
     assert "7,000.00" in client.get("/categories").text
-    assert "7,000.00" in client.get(f"/categories/{debts['aid']}").text, "the group's figure"
-    assert client.get(f"/categories/{sub['aid']}").text.count('class="tx"') == 1, "listed on the category itself"
+    assert "7,000.00" in client.get(f"/categories/{debts['id']}").text, "the group's figure"
+    assert client.get(f"/categories/{sub['id']}").text.count('class="tx"') == 1, "listed on the category itself"
 
 
 def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, books, svc):

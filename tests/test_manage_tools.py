@@ -10,7 +10,7 @@ from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 @pytest.fixture
 def books(client, root_accounts):
     banks = post_account(client, {"name": "Banks", "parent_id": root_accounts["Assets"]}).json()
-    hdfc = post_account(client, {"name": "HDFC", "parent_id": banks["aid"], "balance": "500"}).json()
+    hdfc = post_account(client, {"name": "HDFC", "parent_id": banks["id"], "balance": "500"}).json()
     cash = post_account(client, {"name": "Cash2", "parent_id": root_accounts["Assets"]}).json()
     food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     return {"banks": banks, "hdfc": hdfc, "cash": cash, "food": food}
@@ -25,10 +25,10 @@ async def test_a_rename_keeps_the_id_and_the_history(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name="Claude", scope="manage")) as c:
         done = await call(c, "update_account", account="Banks", name="Bank Accounts", details="where salary lands")
         assert done["was"] == "Assets:Banks" and done["updated"]["path"] == "Assets:Bank Accounts"
-        assert done["updated"]["id"] == books["banks"]["aid"] and done["updated"]["details"] == "where salary lands"
-        by_old_id = await call(c, "get_account", account=books["hdfc"]["aid"])
+        assert done["updated"]["id"] == books["banks"]["id"] and done["updated"]["details"] == "where salary lands"
+        by_old_id = await call(c, "get_account", account=books["hdfc"]["id"])
         assert by_old_id["path"] == "Assets:Bank Accounts:HDFC" and by_old_id["balance"] == "500.00"
-        history = await call(c, "get_account_history", account=books["banks"]["aid"])
+        history = await call(c, "get_account_history", account=books["banks"]["id"])
         assert history["history"][-1]["by"] == "assistant (Claude)"
         assert history["history"][-1]["changes"]["name"] == {"from": "Banks", "to": "Bank Accounts"}
 
@@ -83,4 +83,4 @@ async def test_lower_levels_see_the_tools_but_they_refuse(session, client, books
                 await call(c, "update_account", account="Cash2", name="Wallet")
             with pytest.raises(ToolFailed, match=message):
                 await call(c, "close_account", account="Cash2")
-    assert client.get(f"/api/accounts/{books['cash']['aid']}").json()["name"] == "Cash2"
+    assert client.get(f"/api/accounts/{books['cash']['id']}").json()["name"] == "Cash2"

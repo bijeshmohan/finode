@@ -13,7 +13,7 @@
     <select name="parent_id" required>
       {% if not parent_id %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
-      <option value="{{ n.account.aid }}" data-root="{{ roots_by_id[n.account.aid] }}" {{ "selected" if n.account.aid == parent_id }}>{{ "   " * n.depth }}{{ n.account.name }}</option>
+      <option value="{{ n.account.id }}" data-root="{{ roots_by_id[n.account.id] }}" {{ "selected" if n.account.id == parent_id }}>{{ "   " * n.depth }}{{ n.account.name }}</option>
       {% endfor %}
     </select>
   </label>

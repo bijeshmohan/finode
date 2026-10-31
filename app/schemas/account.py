@@ -45,7 +45,7 @@ class AccountCreate(AccountBase):
 
 
 class AccountRead(AccountBase):
-    aid: UUID
+    id: UUID
     balance: Decimal  # a sum: no digit limits, see schemas/budget.py
     # True when the account's money is part of the budget.
     on_budget: bool = False
@@ -79,7 +79,7 @@ class AccountUpdate(BaseModel):
 
 
 class RegisterEntry(BaseModel):
-    tid: UUID
+    transaction_id: UUID
     date: Date
     payee: str | None
     comment: str | None
@@ -91,8 +91,8 @@ class RegisterEntry(BaseModel):
 class AccountChangeRead(BaseModel):
     """One step in an account's life, with what it changed compared with the step before."""
 
-    hid: UUID
-    account: UUID
+    id: UUID
+    account_id: UUID
     action: Literal["created", "updated", "closed", "reopened", "restored", "deleted"]
     at: datetime
     # "web", "api" or "mcp:<token name>"; None if unknown.
@@ -126,7 +126,7 @@ class MergeResult(BaseModel):
 class BalanceCheck(BaseModel):
     """A statement's balance set against the books on the same day (nothing is changed)."""
 
-    aid: UUID
+    account_id: UUID
     path: str
     as_of: Date
     # What the books say on that day (what is owed, for a card or loan), and what the statement says.
@@ -144,7 +144,7 @@ class BalanceCheck(BaseModel):
 class ClosedAccount(BaseModel):
     """An account (or deleted-with-history category) that was closed: the outermost of its closed branch."""
 
-    aid: UUID
+    id: UUID
     name: str
     path: str
     root: str
@@ -154,7 +154,7 @@ class ClosedAccount(BaseModel):
 class DeletedAccount(BaseModel):
     """An account or category deleted for good that can still be restored."""
 
-    did: UUID
+    id: UUID
     account_id: UUID
     at: datetime
     name: str | None = None

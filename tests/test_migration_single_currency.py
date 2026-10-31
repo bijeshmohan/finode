@@ -99,7 +99,7 @@ def _ledger(engine, user, code="INR", amount="1234.56", worth=None, profile=True
 def _currency(engine, user):
     with engine.connect() as c:
         return c.execute(
-            sa.text('SELECT currency FROM profiles WHERE "user" = :u').bindparams(
+            sa.text("SELECT currency FROM profiles WHERE user_id = :u").bindparams(
                 sa.bindparam("u", user, type_=sa.Uuid())
             )
         ).scalar()

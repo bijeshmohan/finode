@@ -40,7 +40,7 @@
         {% if key == "tag" %}<li class="filter-empty muted" hx-get="/transactions/tag-options" hx-trigger="tags-open once" hx-swap="outerHTML">Loading…</li>{% endif %}
         {% for it in items %}
         {% if key == "merchant" %}<li><button type="button" data-value="{{ it }}" data-label="{{ it }}">{{ it }}</button></li>
-        {% else %}<li><button type="button" data-value="{{ it.aid }}" data-label="{{ it.name }}">{{ it.name }}{% if it.sub %}<small class="muted">{{ it.sub }}</small>{% endif %}</button></li>{% endif %}
+        {% else %}<li><button type="button" data-value="{{ it.id }}" data-label="{{ it.name }}">{{ it.name }}{% if it.sub %}<small class="muted">{{ it.sub }}</small>{% endif %}</button></li>{% endif %}
         {% endfor %}
       </ul>
     </div>

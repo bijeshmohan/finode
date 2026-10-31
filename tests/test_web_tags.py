@@ -86,15 +86,15 @@ def test_a_hash_in_a_note_is_only_text_on_a_row(client, books):
 
 def test_the_sheet_has_a_tags_row_that_filters_and_the_note_whole(client, books):
     made = spend(client, books, "840", note="Airport drop", payee="Cab", tags=["goa-trip", "reimbursable"])
-    sheet = client.get(f"/transactions/{made['tid']}/sheet").text
+    sheet = client.get(f"/transactions/{made['id']}/sheet").text
     assert f'href="/transactions?month={MONTH}&amp;tag=goa-trip">#goa-trip</a>' in sheet
     assert "#reimbursable</a>" in sheet
     note = re.search(r"<dt>Note</dt><dd>([^<]*)</dd>", sheet)
     assert note and note.group(1) == "Airport drop"
     only = spend(client, books, "5", payee="Tag only", tags=["goa-trip"])
-    assert "<dt>Note</dt>" not in client.get(f"/transactions/{only['tid']}/sheet").text, "no empty note row"
+    assert "<dt>Note</dt>" not in client.get(f"/transactions/{only['id']}/sheet").text, "no empty note row"
     none = spend(client, books, "5", note="just words", payee="No tags")
-    assert "<dt>Tags</dt>" not in client.get(f"/transactions/{none['tid']}/sheet").text
+    assert "<dt>Tags</dt>" not in client.get(f"/transactions/{none['id']}/sheet").text
 
 
 # ---- finding the entries --------------------------------------------------------------------------------------------
@@ -132,7 +132,7 @@ def test_the_tag_filter_combines_with_the_others_and_travels_with_show_more(clie
     more = re.search(r'hx-get="(/transactions/more\?[^"]+)"', first).group(1).replace("&amp;", "&")
     assert "tag=bulk" in more
     assert len(titles(client.get(more).text)) == 5
-    both = client.get("/transactions", params={**window, "category": books["food"]["aid"]}).text
+    both = client.get("/transactions", params={**window, "category": books["food"]["id"]}).text
     assert len(titles(both)) == 15
 
 
@@ -189,7 +189,7 @@ def test_saving_an_entry_sends_its_tags_and_the_edit_screen_shows_them(client, b
     made = client.post(
         "/transactions/split",
         data=form_fields(
-            account=[books["travel"]["aid"], books["bank"]["aid"]],
+            account=[books["travel"]["id"], books["bank"]["id"]],
             side=["debit", "credit"],
             amount=["50", "50"],
             comment="Taxi from the airport",
@@ -199,34 +199,34 @@ def test_saving_an_entry_sends_its_tags_and_the_edit_screen_shows_them(client, b
     assert made.status_code == 200, made.text
     entry = client.get("/api/transactions/").json()[0]
     assert entry["tags"] == ["goa-trip", "reimbursable"] and entry["comment"] == "Taxi from the airport"
-    edit = client.get(f"/transactions/{entry['tid']}/edit").text
+    edit = client.get(f"/transactions/{entry['id']}/edit").text
     assert edit.count('<input type="hidden" name="tags"') == 2
     assert 'data-tag="goa-trip"' in edit and 'data-tag="reimbursable"' in edit
     changed = client.post(
-        f"/transactions/{entry['tid']}/edit",
+        f"/transactions/{entry['id']}/edit",
         data=form_fields(
-            account=[books["travel"]["aid"], books["bank"]["aid"]],
+            account=[books["travel"]["id"], books["bank"]["id"]],
             side=["debit", "credit"],
             amount=["50", "50"],
             tags=["reimbursable"],
         ),
     )
     assert changed.status_code == 200
-    assert client.get(f"/api/transactions/{entry['tid']}").json()["tags"] == ["reimbursable"]
+    assert client.get(f"/api/transactions/{entry['id']}").json()["tags"] == ["reimbursable"]
     cleared = client.post(
-        f"/transactions/{entry['tid']}/edit",
+        f"/transactions/{entry['id']}/edit",
         data=form_fields(
-            account=[books["travel"]["aid"], books["bank"]["aid"]], side=["debit", "credit"], amount=["50", "50"]
+            account=[books["travel"]["id"], books["bank"]["id"]], side=["debit", "credit"], amount=["50", "50"]
         ),
     )
-    assert cleared.status_code == 200 and client.get(f"/api/transactions/{entry['tid']}").json()["tags"] == []
+    assert cleared.status_code == 200 and client.get(f"/api/transactions/{entry['id']}").json()["tags"] == []
 
 
 def test_a_bad_tag_on_the_form_says_why(client, books):
     refused = client.post(
         "/transactions/split",
         data=form_fields(
-            account=[books["travel"]["aid"], books["bank"]["aid"]],
+            account=[books["travel"]["id"], books["bank"]["id"]],
             side=["debit", "credit"],
             amount=["5", "5"],
             tags=["not valid"],
@@ -241,7 +241,7 @@ def test_a_bad_tag_on_the_form_says_why(client, books):
 
 def test_repeating_an_entry_copies_its_tags(client, books):
     made = spend(client, books, "30", payee="Cab", tags=["work"])
-    page = client.get("/transactions/new", params={"repeat": made["tid"]}).text
+    page = client.get("/transactions/new", params={"repeat": made["id"]}).text
     assert 'data-tag="work"' in page and 'name="tags" value="work"' in page
 
 
@@ -311,5 +311,5 @@ def test_tags_are_case_insensitive_everywhere(client, books):
 
 def test_an_entry_you_made_yourself_has_no_added_by_line_on_the_edit_page(client, books):
     made = spend(client, books, "10", payee="Own")
-    page = client.get(f"/transactions/{made['tid']}/edit").text
+    page = client.get(f"/transactions/{made['id']}/edit").text
     assert "origin-foot" not in page and "Added by" not in page

@@ -4,7 +4,7 @@ import pytest
 
 from app.config import settings
 
-from .books import leg
+from .books import tool_leg
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .test_transaction_references import body
@@ -114,14 +114,14 @@ def test_a_failure_while_saving_leaves_nothing_behind(client, account, expense_a
 @pytest.mark.anyio
 async def test_assistants_record_a_batch_in_one_call(session, client, account, expense_account):
     rows = [
-        leg(account, "credit", "30"),
-        leg(expense_account, "debit", "30"),
+        tool_leg(account, "credit", "30"),
+        tool_leg(expense_account, "debit", "30"),
     ]
     entries = [
         {
             "amount": "10",
-            "from_account": account["aid"],
-            "to_account": expense_account["aid"],
+            "from_account": account["id"],
+            "to_account": expense_account["id"],
             "payee": "A",
             "external_id": "e1",
             "source": "emi",
@@ -137,7 +137,7 @@ async def test_assistants_record_a_batch_in_one_call(session, client, account, e
         assert again["recorded"] == 0 and again["already_recorded"] == 2 and count(client) == 2
         bad = [
             entries[0],
-            {"amount": "5", "from_account": "Nowhere", "to_account": expense_account["aid"]},
+            {"amount": "5", "from_account": "Nowhere", "to_account": expense_account["id"]},
             {"payee": "x"},
         ]
         with pytest.raises(ToolFailed, match=r"nothing was saved\. entry 2: .*entry 3: "):
@@ -147,7 +147,7 @@ async def test_assistants_record_a_batch_in_one_call(session, client, account, e
 
 @pytest.mark.anyio
 async def test_a_read_only_connection_may_only_check_a_batch(session, client, account, expense_account):
-    entries = [{"amount": "10", "from_account": account["aid"], "to_account": expense_account["aid"]}]
+    entries = [{"amount": "10", "from_account": account["id"], "to_account": expense_account["id"]}]
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
         assert (
             payload(await c.call_tool("record_transactions", {"entries": entries, "dry_run": True}))["saved"] is False

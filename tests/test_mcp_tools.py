@@ -24,12 +24,12 @@ def make(client, name, parent, **extra):
 def books(client, root_accounts):
     """A small set of books: a bank with money, a card, food under two parents, salary."""
     bank_group = make(client, "Bank", root_accounts["Assets"])
-    hdfc = make(client, "HDFC", bank_group["aid"], balance="10000")
+    hdfc = make(client, "HDFC", bank_group["id"], balance="10000")
     card = make(client, "Card", root_accounts["Liabilities"])
     food = make(client, "Food", root_accounts["Expenses"])
-    groceries = make(client, "Groceries", food["aid"])
+    groceries = make(client, "Groceries", food["id"])
     travel = make(client, "Travel", root_accounts["Expenses"])
-    travel_food = make(client, "Food", travel["aid"])
+    travel_food = make(client, "Food", travel["id"])
     salary = make(client, "Salary", root_accounts["Income"])
     return {
         "hdfc": hdfc,
@@ -190,20 +190,20 @@ async def test_editing_a_web_entry_marks_who_changed_it(session, client, books, 
     created = client.post(
         "/transactions/split",
         data={
-            "account": [books["groceries"]["aid"], books["hdfc"]["aid"]],
+            "account": [books["groceries"]["id"], books["hdfc"]["id"]],
             "side": ["debit", "credit"],
             "amount": ["120", "120"],
             "payee": "Shop",
         },
     )
     assert created.status_code == 200
-    tid = client.get("/api/transactions/").json()[0]["tid"]
+    transaction_id = client.get("/api/transactions/").json()[0]["id"]
     async with running_app(session), mcp_client(secret) as c:
-        updated = (await call(c, "update_transaction", transaction_id=tid, note="eggs"))["updated"]
+        updated = (await call(c, "update_transaction", transaction_id=transaction_id, note="eggs"))["updated"]
     assert updated["created_via"] == "web" and updated["updated_via"] == "assistant (Claude)"
-    page = client.get(f"/transactions/{tid}/edit").text
+    page = client.get(f"/transactions/{transaction_id}/edit").text
     assert "Added by" not in page and "last changed by" not in page  # not on the edit page: it is in the details sheet
-    sheet = client.get(f"/transactions/{tid}/sheet").text
+    sheet = client.get(f"/transactions/{transaction_id}/sheet").text
     assert "Added by the app · last changed by Claude</span>" in " ".join(sheet.split())
     listing = client.get("/transactions").text
     assert "Changed by Claude" in listing
@@ -393,7 +393,7 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
                 ],
             },
         )
-    client.put(f"/api/budget/categories/{food['aid']}", json={"month": last.isoformat(), "amount": "10"})
+    client.put(f"/api/budget/categories/{food['id']}", json={"month": last.isoformat(), "amount": "10"})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         data = payload(await c.call_tool("get_budget", {}))
         assert data["overspent_last_month"] == "20.00" and data["ready_to_assign"] == "970.00"
@@ -431,7 +431,7 @@ async def test_assistants_can_copy_last_months_budget(session, root_accounts, cl
     last = (this - timedelta(days=1)).replace(day=1)
     post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
     food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
-    client.put(f"/api/budget/categories/{food['aid']}", json={"month": last.isoformat(), "amount": "200"})
+    client.put(f"/api/budget/categories/{food['id']}", json={"month": last.isoformat(), "amount": "200"})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         data = payload(await c.call_tool("copy_budget_from_previous_month", {}))
         assert data["categories"][0]["assigned"] == "200.00" and data["ready_to_assign"] == "600.00"
@@ -659,12 +659,12 @@ async def test_ids_and_account_facts_are_listed(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         accounts = {a["path"]: a for a in (await call(c, "list_accounts"))["accounts"]}
         hdfc = accounts["Assets:Bank:HDFC"]
-        assert hdfc["id"] == books["hdfc"]["aid"] and hdfc["type"] == "Assets" and hdfc["on_budget"] is True
+        assert hdfc["id"] == books["hdfc"]["id"] and hdfc["type"] == "Assets" and hdfc["on_budget"] is True
         assert "details" in hdfc and "Expenses:Food" not in accounts
         by_id = await call(c, "get_account", account=hdfc["id"])
         assert by_id["id"] == hdfc["id"] and by_id["path"] == "Assets:Bank:HDFC"
         made = await call(c, "record_transaction", amount="10", from_account=hdfc["id"], to_account="Groceries")
-        assert made["recorded"]["postings"][0]["account_id"] in {hdfc["id"], books["groceries"]["aid"]}
+        assert made["recorded"]["postings"][0]["account_id"] in {hdfc["id"], books["groceries"]["id"]}
         created = await call(c, "create_account", name="Loan X", parent="Liabilities", on_budget=False)
         assert created["created"]["id"]
 

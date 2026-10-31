@@ -22,16 +22,16 @@ def test_an_account_is_chosen_in_a_sheet(page: Page, books, api: Api):
     checking.click()
     expect(dialog).to_be_hidden()
     expect(button).to_have_text("Checking")
-    assert page.input_value('[data-rows="credit"] select') == books["checking"]["aid"]
+    assert page.input_value('[data-rows="credit"] select') == books["checking"]["id"]
     page.fill("#total", "40")
     page.locator('[data-rows="debit"] [data-pick]:visible').click()
     page.locator("#row-picker [data-pick-option]", has_text="Groceries").click()
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     [entry] = api.get("/transactions/")[:1]
-    assert {p["category"] or p["account"] for p in entry["postings"]} == {
-        books["checking"]["aid"],
-        books["food"]["aid"],
+    assert {p["category_id"] or p["account_id"] for p in entry["postings"]} == {
+        books["checking"]["id"],
+        books["food"]["id"],
     }
 
 
@@ -78,9 +78,9 @@ def test_the_chosen_account_is_bold_and_the_scroll_bar_stays_clear_of_the_balanc
 
 def test_chips_and_search_results_show_the_name_and_the_group_under_it_without_an_arrow(page: Page, books, api: Api):
     banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
-    api.post("/accounts/", name="Kotak", parent_id=banks["aid"])
+    api.post("/accounts/", name="Kotak", parent_id=banks["id"])
     food = api.post("/accounts/", name="Food", parent_id=books["roots"]["Expenses"])
-    api.post("/accounts/", name="Dining", parent_id=food["aid"])
+    api.post("/accounts/", name="Dining", parent_id=food["id"])
     page.goto("/transactions/new")
     account = page.locator('[data-rows="credit"] [data-pick]:visible')
     account.click()

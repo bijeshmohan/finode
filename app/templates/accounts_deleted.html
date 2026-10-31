@@ -23,9 +23,9 @@
     </span>
     <span class="del-side">
       {% if e.kind == "closed" %}
-      <button type="button" class="secondary" hx-post="/{{ area }}/{{ e.aid }}/reopen" hx-target="#page-error" hx-swap="innerHTML">Restore</button>
+      <button type="button" class="secondary" hx-post="/{{ area }}/{{ e.id }}/reopen" hx-target="#page-error" hx-swap="innerHTML">Restore</button>
       {% else %}
-      <button type="button" class="secondary" hx-post="/accounts/deleted/{{ e.did }}/restore" hx-target="#restore-error" hx-swap="innerHTML">Restore</button>
+      <button type="button" class="secondary" hx-post="/accounts/deleted/{{ e.id }}/restore" hx-target="#restore-error" hx-swap="innerHTML">Restore</button>
       {% endif %}
     </span>
   </li>

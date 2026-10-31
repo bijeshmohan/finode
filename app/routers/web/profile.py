@@ -148,10 +148,10 @@ def create_token(
     )
 
 
-@router.post("/assistants/{tkid}/access")
-def change_token_access(tkid: UUID, tokens: ApiTokens, scope: Annotated[str, Form()] = ""):
+@router.post("/assistants/{token_id}/access")
+def change_token_access(token_id: UUID, tokens: ApiTokens, scope: Annotated[str, Form()] = ""):
     try:
-        tokens.set_scope(tkid, scope)
+        tokens.set_scope(token_id, scope)
     except LookupError:
         raise HTTPException(status_code=404, detail="token not found") from None
     except ValueError as e:
@@ -159,10 +159,10 @@ def change_token_access(tkid: UUID, tokens: ApiTokens, scope: Annotated[str, For
     return htmx_redirect("/profile/assistants", flash="access-changed")
 
 
-@router.post("/assistants/{tkid}/revoke")
-def revoke_token(tkid: UUID, tokens: ApiTokens):
+@router.post("/assistants/{token_id}/revoke")
+def revoke_token(token_id: UUID, tokens: ApiTokens):
     try:
-        tokens.revoke(tkid)
+        tokens.revoke(token_id)
     except LookupError:
         raise HTTPException(status_code=404, detail="token not found") from None
     return htmx_redirect("/profile/assistants", flash="token-revoked")

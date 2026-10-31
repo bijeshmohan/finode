@@ -75,4 +75,4 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | add a page | a module in `routers/web/`, a template in `templates/`, register it in `routers/web/__init__.py`, classify the route in `tests/test_isolation.py` |
 | add an MCP tool | `mcp_server/tools.py` (add to `READ_TOOLS` or `WRITE_TOOLS`), update `INSTRUCTIONS` if a rule changed |
 | add a setting for people | a column on `profiles`, a migration, a field on `ProfileUpdate`, a form on `routers/web/settings.py` |
-| add a table | model, migration, backup + `tests/test_backup.py`; it has a `user` column so erasing finds it |
+| add a table | model, migration, backup + `tests/test_backup.py`; it has a `user_id` column so erasing finds it |

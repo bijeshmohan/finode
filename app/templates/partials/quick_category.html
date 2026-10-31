@@ -13,7 +13,7 @@
   <label>Under
     <select name="parent_id">
       <option value="">None (top level)</option>
-      {% for g in groups %}<option value="{{ g.bcid }}">{{ g.name }}</option>{% endfor %}
+      {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
     </select>
   </label>
 

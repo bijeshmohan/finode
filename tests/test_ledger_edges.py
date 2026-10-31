@@ -29,7 +29,7 @@ def test_sums_longer_than_one_amount_can_be_still_show_up(client, root_accounts,
         "/accounts",
         "/categories",
         "/budget",
-        f"/accounts/{account['aid']}",
+        f"/accounts/{account['id']}",
         "/api/accounts/",
         "/api/reports/trial-balance",
         "/api/budget/",
@@ -63,7 +63,7 @@ def test_the_first_and_last_day_work_everywhere(client, account, expense_account
 
 @pytest.mark.parametrize("month", ["0001-01", "9999-12", "1899-12", "2200-01", "1900-01", "2999-12"])
 def test_odd_months_in_the_address_never_break_a_page(client, expense_account, month):
-    for page in ("/budget", "/categories", f"/budget/group/{expense_account['aid']}"):
+    for page in ("/budget", "/categories", f"/budget/group/{expense_account['id']}"):
         assert client.get(f"{page}?month={month}").status_code in (200, 404), (page, month)
 
 
@@ -106,16 +106,16 @@ def test_account_names_are_trimmed_and_unique_where_they_sit(client, root_accoun
     clash = make("food", root_accounts["Expenses"])
     assert clash.status_code == 400 and "a category called 'Food'" in clash.json()["detail"]
     assert make("Food", root_accounts["Income"]).status_code == 201, "the same name elsewhere is fine"
-    sub = make("Food", food.json()["aid"])
+    sub = make("Food", food.json()["id"])
     assert sub.status_code == 201, "a subcategory may share its parent's name"
 
     fun = make("Fun", root_accounts["Expenses"]).json()
-    assert client.patch(f"/api/categories/{fun['aid']}", json={"name": "FOOD"}).status_code == 400
-    assert client.patch(f"/api/categories/{fun['aid']}", json={"name": "FUN"}).status_code == 200, (
+    assert client.patch(f"/api/categories/{fun['id']}", json={"name": "FOOD"}).status_code == 400
+    assert client.patch(f"/api/categories/{fun['id']}", json={"name": "FUN"}).status_code == 200, (
         "its own name, new capitals"
     )
-    assert client.patch(f"/api/categories/{food.json()['aid']}", json={"name": "Fun"}).status_code == 400
-    moved = client.patch(f"/api/categories/{sub.json()['aid']}", json={"parent_id": None})
+    assert client.patch(f"/api/categories/{food.json()['id']}", json={"name": "Fun"}).status_code == 400
+    moved = client.patch(f"/api/categories/{sub.json()['id']}", json={"parent_id": None})
     assert moved.status_code == 400 and "a category called" in moved.json()["detail"], (
         "moving it out would clash with Food"
     )
@@ -166,9 +166,9 @@ def test_an_account_cannot_be_on_both_sides_of_one_entry(client, account, expens
     assert split.status_code == 201
 
     # editing only the payee of an entry does not look at the postings again
-    assert client.patch(f"/api/transactions/{split.json()['tid']}", json={"payee": "Shop"}).status_code == 200
+    assert client.patch(f"/api/transactions/{split.json()['id']}", json={"payee": "Shop"}).status_code == 200
     bad_edit = client.patch(
-        f"/api/transactions/{split.json()['tid']}",
+        f"/api/transactions/{split.json()['id']}",
         json={
             "postings": [
                 leg(account, "debit", "5"),
@@ -180,6 +180,6 @@ def test_an_account_cannot_be_on_both_sides_of_one_entry(client, account, expens
 
     web = client.post(
         "/transactions/split",
-        data={"account": [account["aid"], account["aid"]], "side": ["credit", "debit"], "amount": ["10", "10"]},
+        data={"account": [account["id"], account["id"]], "side": ["credit", "debit"], "amount": ["10", "10"]},
     )
     assert web.status_code == 400 and "on both sides" in web.text

@@ -74,7 +74,7 @@ def test_a_payments_category_is_a_chip_with_a_no_category_choice(page: Page, boo
     page.goto("/transactions/new")
     page.get_by_role("button", name="Transfer", exact=True).click()
     page.select_option('[data-rows="credit"] select', label="Checking")
-    page.select_option('[data-rows="debit"] select', value=loan["aid"])
+    page.select_option('[data-rows="debit"] select', value=loan["id"])
     chip = page.locator('[data-rows="debit"] [data-category-select] + [data-pick]')
     expect(chip).to_be_visible()
     expect(chip).to_have_text("No category")

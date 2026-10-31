@@ -121,7 +121,7 @@ async def test_a_disconnected_app_is_refused_and_can_come_back_with_a_new_level(
     token = app_token(jwts)
     async with running_app(session):
         assert (await raw_post(token)).status_code == 200
-        OAuthGrantService(OAuthGrantRepository(session, TEST_USER_ID)).revoke(grant.gid)
+        OAuthGrantService(OAuthGrantRepository(session, TEST_USER_ID)).revoke(grant.id)
         assert (await raw_post(token)).status_code == 401
         allow(session, scope="read")
         assert (await raw_post(token)).status_code == 200
@@ -315,12 +315,12 @@ def test_connected_apps_are_listed_and_can_be_disconnected(consent_client, fake,
     page = consent_client.get("/profile/assistants").text
     apps = text_of(element(page, "token-list"))
     assert "Claude on phone" in apps and "read only" in apps
-    response = consent_client.post(f"/oauth/apps/{grant.gid}/disconnect")
+    response = consent_client.post(f"/oauth/apps/{grant.id}/disconnect")
     assert (
         response.headers["HX-Redirect"] == "/profile/assistants"
         and "app-disconnected" in response.headers["set-cookie"]
     )
-    assert OAuthGrantRepository(session, TEST_USER_ID).read(grant.gid).revoked is not None
+    assert OAuthGrantRepository(session, TEST_USER_ID).read(grant.id).revoked is not None
     assert any(
         (m == "DELETE" and "client_id=client-1" in str(e["params"])) or e.get("params") == {"client_id": "client-1"}
         for m, u, e in fake.calls
@@ -331,8 +331,8 @@ def test_connected_apps_are_listed_and_can_be_disconnected(consent_client, fake,
 
 def test_one_user_cannot_disconnect_anothers_app(consent_client, fake, session):
     theirs = allow(session, user=OTHER_USER, name="Theirs")
-    assert consent_client.post(f"/oauth/apps/{theirs.gid}/disconnect").status_code == 404
-    assert OAuthGrantRepository(session, OTHER_USER).read(theirs.gid).revoked is None
+    assert consent_client.post(f"/oauth/apps/{theirs.id}/disconnect").status_code == 404
+    assert OAuthGrantRepository(session, OTHER_USER).read(theirs.id).revoked is None
 
 
 def test_each_consent_button_records_its_own_level(consent_client, fake, session):

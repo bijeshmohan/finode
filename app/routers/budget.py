@@ -34,11 +34,11 @@ def get_budget(budget: Budget, month: date | None = None):
         raise HTTPException(status_code=400, detail=str(e)) from None
 
 
-@router.put("/categories/{aid}", response_model=BudgetRead, status_code=200)
-def assign(aid: UUID, data: BudgetAssign, budget: Budget):
+@router.put("/categories/{category_id}", response_model=BudgetRead, status_code=200)
+def assign(category_id: UUID, data: BudgetAssign, budget: Budget):
     """Set how much of the month a category gets (an expense account); 0 removes it."""
     try:
-        return budget.assign(data.month, aid, data.amount)
+        return budget.assign(data.month, category_id, data.amount)
     except BudgetError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
 
@@ -64,16 +64,16 @@ def copy_previous_month(data: BudgetCopy, budget: Budget):
     return _run(budget.copy_previous, data.month)
 
 
-@router.put("/groups/{aid}", response_model=BudgetRead)
-def assign_group(aid: UUID, data: GroupAssign, budget: Budget):
+@router.put("/groups/{category_id}", response_model=BudgetRead)
+def assign_group(category_id: UUID, data: GroupAssign, budget: Budget):
     """Set a group's budget for a month: at least what its subcategories add up to; the rest is the group's own money."""
-    return _run(budget.assign_group, data.month, aid, data.total)
+    return _run(budget.assign_group, data.month, category_id, data.total)
 
 
-@router.post("/accounts/{aid}/include", response_model=BudgetRead)
-def include_account(aid: UUID, budget: Budget, month: date | None = None):
+@router.post("/accounts/{account_id}/include", response_model=BudgetRead)
+def include_account(account_id: UUID, budget: Budget, month: date | None = None):
     """Make an account part of the budget (its money and its spending count from now on)."""
-    _run(budget.include_account, aid)
+    _run(budget.include_account, account_id)
     return _run(budget.view, month)
 
 
@@ -104,4 +104,4 @@ def assign_goal(goal_id: UUID, data: GoalAssign, budget: Budget):
 @router.post("/goals/{goal_id}/use", response_model=BudgetRead)
 def use_goal(goal_id: UUID, data: GoalUse, budget: Budget):
     """Hand money a goal saved to the category that paid for something; Ready to assign does not change."""
-    return _run(budget.use_goal, data.month, goal_id, data.category, data.amount)
+    return _run(budget.use_goal, data.month, goal_id, data.category_id, data.amount)

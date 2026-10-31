@@ -25,10 +25,10 @@ def open_options(page: Page) -> None:
 
 def nested(api: Api, books):
     banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
-    api.post("/accounts/", name="HDFC", parent_id=banks["aid"], balance="100")
-    api.post("/accounts/", name="SBI", parent_id=banks["aid"], balance="50")
+    api.post("/accounts/", name="HDFC", parent_id=banks["id"], balance="100")
+    api.post("/accounts/", name="SBI", parent_id=banks["id"], balance="50")
     food = api.post("/accounts/", name="Savings", parent_id=books["roots"]["Assets"])
-    api.post("/accounts/", name="Rainy", parent_id=food["aid"])
+    api.post("/accounts/", name="Rainy", parent_id=food["id"])
     return banks, food
 
 
@@ -65,18 +65,18 @@ def test_the_chips_switch_between_assets_and_liabilities_and_equity_is_neither(p
 def test_a_groups_heading_goes_to_its_page(page: Page, api, books):
     banks, _ = nested(api, books)
     page.goto("/accounts")
-    page.locator(f'a.acc-gh[href="/accounts/{banks["aid"]}"]').click()
-    page.wait_for_url(f"**/accounts/{banks['aid']}")
+    page.locator(f'a.acc-gh[href="/accounts/{banks["id"]}"]').click()
+    page.wait_for_url(f"**/accounts/{banks['id']}")
     expect(page.get_by_role("heading", name="Banks")).to_be_visible()
 
 
 def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(page: Page, api, books, session):
     old = api.post("/accounts/", name="Old Wallet", parent_id=books["roots"]["Assets"])
     closed = api.post("/accounts/", name="Old Card", parent_id=books["roots"]["Liabilities"])
-    api.request.post(f"/api/accounts/{closed['aid']}/close")
+    api.request.post(f"/api/accounts/{closed['id']}/close")
     table = Account.__table__
     session.exec(
-        table.update().where(table.c.aid == UUID(old["aid"])).values(created=datetime.now(UTC) - timedelta(days=30))
+        table.update().where(table.c.id == UUID(old["id"])).values(created=datetime.now(UTC) - timedelta(days=30))
     )
     session.commit()
     page.goto("/accounts")
@@ -90,7 +90,7 @@ def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(page: Pag
 
 
 def test_closing_an_account_from_its_page(page: Page, api, books):
-    page.goto(f"/accounts/{books['cash']['aid']}")
+    page.goto(f"/accounts/{books['cash']['id']}")
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_label("More actions").click()
     page.get_by_role("button", name="Close account").click()
@@ -116,9 +116,9 @@ def test_names_and_amounts_line_up_in_every_row(page: Page, api, books):
 
 
 def test_the_edit_button_on_an_account_is_one_tap_away(page: Page, books):
-    page.goto(f"/accounts/{books['checking']['aid']}")
+    page.goto(f"/accounts/{books['checking']['id']}")
     page.get_by_role("link", name="Edit Checking").click()
-    page.wait_for_url(f"**/accounts/{books['checking']['aid']}/edit")
+    page.wait_for_url(f"**/accounts/{books['checking']['id']}/edit")
 
 
 def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api):
@@ -134,7 +134,7 @@ def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api)
                 leg(books["checking"], "credit", "5"),
             ],
         )
-    page.goto(f"/accounts/{books['checking']['aid']}")
+    page.goto(f"/accounts/{books['checking']['id']}")
     rows = page.locator("a.tx")
     first = rows.count()
     assert 25 <= first <= 35, first
@@ -173,11 +173,11 @@ def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Pa
     page.get_by_role("button", name="Add account").click()
     page.wait_for_url("**/accounts/*")
     loan = next(a for a in api.get("/accounts/") if a["name"] == "Car loan")
-    assert loan["on_budget"] is False and loan["payment_category_id"] == books["rent"]["aid"]
+    assert loan["on_budget"] is False and loan["payment_category_id"] == books["rent"]["id"]
 
 
 def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Page, api, books):
-    for url in ("/accounts/new?root=assets", f"/accounts/new?parent={books['checking']['aid']}"):
+    for url in ("/accounts/new?root=assets", f"/accounts/new?parent={books['checking']['id']}"):
         page.goto(url)
         open_options(page)
         box = page.locator('input[name="on_budget"]')
@@ -205,12 +205,12 @@ def test_the_payment_category_shows_only_for_an_account_outside_the_budget(page:
 
 def test_going_back_from_an_account_keeps_the_chip(page: Page, api, books):
     cards = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
-    api.post("/accounts/", name="Visa", parent_id=cards["aid"], balance="50")
+    api.post("/accounts/", name="Visa", parent_id=cards["id"], balance="50")
     page.goto("/accounts")
     page.locator(".cat-chips .chip", has_text="Liability").click()
     page.wait_for_url("**/accounts?tab=liabilities")
     page.get_by_role("link", name="Cards").first.click()
-    page.wait_for_url(f"**/accounts/{cards['aid']}")
+    page.wait_for_url(f"**/accounts/{cards['id']}")
     page.locator("a.back").click()
     page.wait_for_url("**/accounts?tab=liabilities")
     expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Liability")

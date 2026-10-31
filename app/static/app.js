@@ -196,7 +196,7 @@ document.addEventListener(
 );
 
 document.body.addEventListener("account-added", async (event) => {
-  const { aid, name } = event.detail;
+  const { id: addedId, name } = event.detail;
   const response = await fetch("/accounts/options", { headers: { "HX-Request": "true" } });
   if (!response.ok) return;
   const options = await response.text();
@@ -206,11 +206,11 @@ document.body.addEventListener("account-added", async (event) => {
     txnForm._all = withoutSelection(options);
     const target = quickTarget;
     applyKind(txnForm, txnForm.dataset.txnKind);
-    if (target && target.value !== aid) {
-      target.value = aid;
-      if (target.value !== aid) {
+    if (target && target.value !== addedId) {
+      target.value = addedId;
+      if (target.value !== addedId) {
         applyKind(txnForm, "other");
-        target.value = aid;
+        target.value = addedId;
       }
     }
     if (target) target.dataset.previous = target.value;
@@ -218,7 +218,7 @@ document.body.addEventListener("account-added", async (event) => {
   }
   document.querySelectorAll("select[data-account-select]").forEach((select) => {
     if (txnForm && txnForm.contains(select)) return;
-    const wanted = select === quickTarget ? aid : select.value;
+    const wanted = select === quickTarget ? addedId : select.value;
     select.innerHTML = options;
     select.value = wanted;
     // A parent that just gained a sub-account can no longer be posted to.
@@ -1185,10 +1185,10 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
 // After saving an entry the toast carries Undo for it; the saved entry's row, when the page lists it, settles in with a short tint.
 (() => {
   const undo = document.querySelector('.toast [hx-post^="/transactions/"][hx-post$="/delete"]');
-  const tid = undo && undo.getAttribute("hx-post").split("/")[2];
-  if (!tid) return;
+  const transactionId = undo && undo.getAttribute("hx-post").split("/")[2];
+  if (!transactionId) return;
   document.querySelectorAll("a.tx").forEach((row) => {
-    if ((row.getAttribute("href") || "").startsWith(`/transactions/${tid}/`)) row.classList.add("tx-new");
+    if ((row.getAttribute("href") || "").startsWith(`/transactions/${transactionId}/`)) row.classList.add("tx-new");
   });
 })();
 
@@ -1388,11 +1388,11 @@ setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
 
 // ---- Relating an entry to an earlier one: the chip, the dashed row and the picker sheet ----
 (() => {
-  const set = (box, tid, label) => {
-    box.querySelector("[data-related-value]").value = tid;
+  const set = (box, transactionId, label) => {
+    box.querySelector("[data-related-value]").value = transactionId;
     box.querySelector("[data-related-label]").textContent = label;
-    box.querySelector("[data-related-chip]").hidden = !tid;
-    box.querySelector("[data-related-add]").hidden = !!tid;
+    box.querySelector("[data-related-chip]").hidden = !transactionId;
+    box.querySelector("[data-related-add]").hidden = !!transactionId;
   };
   document.addEventListener("click", (event) => {
     const pick = event.target.closest("[data-related-pick]");

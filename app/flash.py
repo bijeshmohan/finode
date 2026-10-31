@@ -55,7 +55,7 @@ UNDO_KINDS = {"restore": "/transactions/deleted/{}/restore", "delete": "/transac
 
 
 def set_flash(response: Response, key: str, undo: tuple[str, UUID] | None = None) -> None:
-    """`undo` is ("restore", hid) or ("delete", tid): the toast then carries an Undo button for that one action."""
+    """`undo` is ("restore", history_id) or ("delete", transaction_id): the toast then carries an Undo button for that one action."""
     if key not in MESSAGES:
         raise ValueError(f"unknown flash message '{key}'")
     value = key if undo is None else f"{key}|{undo[0]}|{undo[1]}"

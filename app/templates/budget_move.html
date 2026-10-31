@@ -14,7 +14,7 @@
     <select name="from_category" required>
       {% if not source %}<option value="">Choose…</option>{% endif %}
       {% for line in lines %}
-      <option value="{{ line.aid }}" {{ "selected" if line.aid == source }}>{{ line.path }} · {{ line.available|money }} available</option>
+      <option value="{{ line.category_id }}" {{ "selected" if line.category_id == source }}>{{ line.path }} · {{ line.available|money }} available</option>
       {% endfor %}
     </select>
   </label>
@@ -22,7 +22,7 @@
     <select name="to_category" required>
       <option value="">Choose…</option>
       {% for line in lines %}
-      <option value="{{ line.aid }}">{{ line.path }} · {{ line.available|money }} available</option>
+      <option value="{{ line.category_id }}">{{ line.path }} · {{ line.available|money }} available</option>
       {% endfor %}
     </select>
   </label>

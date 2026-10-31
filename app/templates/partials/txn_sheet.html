@@ -33,7 +33,7 @@
 <div class="sheet-related">
   <p class="sheet-related-head">{{ "Related to" if related_to else "Related · " ~ related|length }}</p>
   {% for r in ([related_to] if related_to else related) %}
-  <button type="button" class="sheet-related-row" hx-get="/transactions/{{ r.transaction.tid }}/sheet{{ bq }}" hx-target="#txn-sheet-body" hx-swap="innerHTML">
+  <button type="button" class="sheet-related-row" hx-get="/transactions/{{ r.transaction.id }}/sheet{{ bq }}" hx-target="#txn-sheet-body" hx-swap="innerHTML">
     <span>{{ r.transaction.payee or (r.credits|join(", ") if r.kind == "income" else r.debits|join(", ")) }}<small class="muted">{{ r.transaction.date|friendly_date }}</small></span>
     <span class="tx-amount {{ r.kind }}">{{ "+" if r.kind == "income" }}{{ r.amount|money }}</span>
   </button>
@@ -56,11 +56,11 @@
 
 <p id="sheet-error" class="error" role="alert"></p>
 <div class="sheet-actions">
-  <a class="button" href="/transactions/{{ t.tid }}/edit{{ bq }}">Edit</a>
+  <a class="button" href="/transactions/{{ t.id }}/edit{{ bq }}">Edit</a>
 </div>
 <div class="sheet-links">
-  <a href="/transactions/new?repeat={{ t.tid }}{{ bx }}">Repeat</a>
-  <a href="/transactions/new?related={{ t.tid }}{{ bx }}">Related</a>
+  <a href="/transactions/new?repeat={{ t.id }}{{ bx }}">Repeat</a>
+  <a href="/transactions/new?related={{ t.id }}{{ bx }}">Related</a>
   <button type="button" class="sheet-delete"
-          hx-post="/transactions/{{ t.tid }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>
+          hx-post="/transactions/{{ t.id }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>
 </div>

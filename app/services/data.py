@@ -141,11 +141,11 @@ class DataService:
 
     def _snapshot(self):
         accounts = self.accounts.ensure_roots()
-        by_id = {a.aid: a for a in accounts}
+        by_id = {a.id: a for a in accounts}
 
-        def path(aid: UUID) -> str:
+        def path(account_id: UUID) -> str:
             names = []
-            current = by_id[aid]
+            current = by_id[account_id]
             while True:
                 names.append(_segment(current.name))
                 if current.parent_id is None:
@@ -153,38 +153,38 @@ class DataService:
                 current = by_id[current.parent_id]
             return ":".join(reversed(names))
 
-        paths = {aid: path(aid) for aid in by_id}
+        paths = {account_id: path(account_id) for account_id in by_id}
         postings: dict[UUID, list] = {}
         for posting in sorted(self.tr.all_postings(), key=lambda p: (p.side != PostingSide.DEBIT, p.created)):
-            postings.setdefault(posting.transaction, []).append(posting)
+            postings.setdefault(posting.transaction_id, []).append(posting)
         transactions = sorted(self.tr.list(), key=lambda t: (t.date, t.created))
         return accounts, paths, postings, transactions, self.tr.all_tag_map()
 
     def _category_paths(self) -> dict[UUID, str]:
         """Each category as the path a ledger line names it by: its group and its name ("Food:Groceries")."""
-        by_id = {c.bcid: c for c in CategoryRepository(self.ar.db, self.ar.uid).list()}
+        by_id = {c.id: c for c in CategoryRepository(self.ar.db, self.ar.uid).list()}
         found: dict[UUID, str] = {}
-        for bcid, category in by_id.items():
+        for category_id, category in by_id.items():
             names, seen, current = [], set(), category
-            while current.bcid not in seen:
-                seen.add(current.bcid)
+            while current.id not in seen:
+                seen.add(current.id)
                 names.append(current.name)
                 if current.parent_id is None or current.parent_id not in by_id:
                     break
                 current = by_id[current.parent_id]
-            found[bcid] = ":".join(reversed(names))
+            found[category_id] = ":".join(reversed(names))
         return found
 
     def _line_paths(self, accounts, paths: dict[UUID, str]):
         """How a line is named in a journal: a line on Expenses or Income is written as the account of its category
         (`Expenses:Food:Groceries`, which is what other ledger tools expect); any other line by its account."""
-        roots = {a.aid for a in accounts if a.parent_id is None and a.name in CATEGORY_ROOTS}
+        roots = {a.id for a in accounts if a.parent_id is None and a.name in CATEGORY_ROOTS}
         names = self._category_paths()
 
         def path_of(p) -> str:
-            if p.account in roots and p.category_id in names:
-                return f"{paths[p.account]}:{':'.join(_segment(n) for n in names[p.category_id].split(':'))}"
-            return paths[p.account]
+            if p.account_id in roots and p.category_id in names:
+                return f"{paths[p.account_id]}:{':'.join(_segment(n) for n in names[p.category_id].split(':'))}"
+            return paths[p.account_id]
 
         return path_of, roots
 
@@ -194,17 +194,17 @@ class DataService:
         categories = CategoryRepository(self.ar.db, self.ar.uid).list()
         names = self._category_paths()
         decls = [
-            AccountDecl(paths[a.aid], a.details)
-            for a in sorted(accounts, key=lambda a: paths[a.aid])
+            AccountDecl(paths[a.id], a.details)
+            for a in sorted(accounts, key=lambda a: paths[a.id])
             if a.parent_id is not None
         ] + [
             AccountDecl(
                 ("Expenses" if c.kind == "spending" else "Income")
                 + ":"
-                + ":".join(_segment(n) for n in names[c.bcid].split(":")),
+                + ":".join(_segment(n) for n in names[c.id].split(":")),
                 c.details,
             )
-            for c in sorted(categories, key=lambda c: (c.kind, names[c.bcid]))
+            for c in sorted(categories, key=lambda c: (c.kind, names[c.id]))
         ]
         entries = []
         for t in transactions:
@@ -213,14 +213,14 @@ class DataService:
                     path_of(p),
                     p.amount if p.side == PostingSide.DEBIT else -p.amount,
                     # Only a label the account does not say itself (a payment into a loan: EMI) is written.
-                    category=names.get(p.category_id) if p.account not in roots and p.category_id else None,
+                    category=names.get(p.category_id) if p.account_id not in roots and p.category_id else None,
                 )
-                for p in postings.get(t.tid, [])
+                for p in postings.get(t.id, [])
             ]
             if len(lines) >= 2:
                 notes = [t.comment] if t.comment else []
-                if tags.get(t.tid):
-                    notes.append(f"tags: {', '.join(tags[t.tid])}")  # read back by an import
+                if tags.get(t.id):
+                    notes.append(f"tags: {', '.join(tags[t.id])}")  # read back by an import
                 entries.append(LedgerTransaction(t.date, t.payee or "", notes, lines))
         return write(decls, entries, local_today())
 
@@ -232,7 +232,7 @@ class DataService:
         writer.writerow(["date", "payee", "note", "tags", "account", "category", "debit", "credit"])
         names = self._category_paths()
         for t in transactions:
-            for p in postings.get(t.tid, []):
+            for p in postings.get(t.id, []):
                 shown = f"{p.amount:.2f}"
                 debit = shown if p.side == PostingSide.DEBIT else ""
                 credit = shown if p.side == PostingSide.CREDIT else ""
@@ -241,7 +241,7 @@ class DataService:
                         t.date.isoformat(),
                         _formula_safe(t.payee),
                         _formula_safe(t.comment),
-                        ", ".join(tags.get(t.tid, [])),
+                        ", ".join(tags.get(t.id, [])),
                         path_of(p),
                         names.get(p.category_id, "") if p.category_id else "",
                         debit,
@@ -255,9 +255,9 @@ class DataService:
     def _category_keys(self) -> dict[Key, UUID]:
         """The categories as the journal paths that name them (`Expenses:Food:Groceries`)."""
         found: dict[Key, UUID] = {}
-        for bcid, path in self._category_paths().items():
-            category = next(c for c in CategoryRepository(self.ar.db, self.ar.uid).list() if c.bcid == bcid)
-            found[(("Expenses" if category.kind == "spending" else "Income"), *path.split(":"))] = bcid
+        for category_id, path in self._category_paths().items():
+            category = next(c for c in CategoryRepository(self.ar.db, self.ar.uid).list() if c.id == category_id)
+            found[(("Expenses" if category.kind == "spending" else "Income"), *path.split(":"))] = category_id
         return found
 
     def can_import(self) -> bool:
@@ -265,7 +265,7 @@ class DataService:
 
     def _existing_keys(self) -> dict[Key, UUID]:
         accounts = self.accounts.ensure_roots()
-        by_id = {a.aid: a for a in accounts}
+        by_id = {a.id: a for a in accounts}
         keys: dict[Key, UUID] = {}
         for account in accounts:
             names = []
@@ -275,7 +275,7 @@ class DataService:
                 if current.parent_id is None:
                     break
                 current = by_id[current.parent_id]
-            keys[tuple(reversed(names))] = account.aid
+            keys[tuple(reversed(names))] = account.id
         return keys
 
     def _plan(self, text: str) -> _Plan:
@@ -291,7 +291,7 @@ class DataService:
         errors.extend(journal.errors)
         existing = self._existing_keys()
         currency = self.accounts.currency()
-        by_aid = {a.aid: a for a in self.accounts.ensure_roots()}
+        by_aid = {a.id: a for a in self.accounts.ensure_roots()}
 
         def label_ok(label: str | None) -> bool:
             """Amounts may be written bare, or with the code or sign of the person's own currency."""
@@ -348,10 +348,12 @@ class DataService:
         # it builds on ("Assets:Bank Accounts:HDFC") and the ones it does not mention stay.
         parents_wanted = {key[:depth] for key in (*declared, *used) for depth in range(2, len(key))}
         for account in self.accounts.empty_fixed_parents():
-            found: tuple[str, ...] | None = next((k for k, aid in existing.items() if aid == account.aid), None)
+            found: tuple[str, ...] | None = next(
+                (k for k, account_id in existing.items() if account_id == account.id), None
+            )
             if found is not None and found in {*declared, *used} and found not in parents_wanted:
                 existing.pop(found)
-                plan.release.append(account.aid)
+                plan.release.append(account.id)
 
         known: set[Key] = set(existing) | set(declared) | set(used)
         for key in list(known):
@@ -508,7 +510,7 @@ class DataService:
                 date=transaction.date,
                 payee=payee,
                 comment=comment,
-                postings=[PostingCreate(account=PLACEHOLDER, side=s, amount=a) for _, s, a in postings],
+                postings=[PostingCreate(account_id=PLACEHOLDER, side=s, amount=a) for _, s, a in postings],
                 tags=tags or [],
             )
         except ValidationError as e:
@@ -552,26 +554,26 @@ class DataService:
             ids = {k: v for k, v in ids.items() if v not in plan.release}
             for key, note in plan.new_accounts:
                 created = self.ar.create(AccountCreate(name=key[-1], details=note, parent_id=ids[key[:-1]]))
-                ids[key] = created.aid
+                ids[key] = created.id
             categories = self._category_keys()
             repository = CategoryRepository(self.ar.db, self.ar.uid)
             for key, note in plan.new_categories:
                 made = repository.add(
                     BudgetCategory(
-                        user=self.ar.uid,
+                        user_id=self.ar.uid,
                         name=key[-1],
                         details=note,
                         kind=CATEGORY_ROOTS[key[0]],
                         parent_id=categories[key[:2]] if len(key) == 3 else None,
                     )
                 )
-                categories[key] = made.bcid
+                categories[key] = made.id
 
             def line(key: Key, side: PostingSide, amount: Decimal, label: Key | None) -> PostingCreate:
                 if _is_category(key):  # an expense or an income: the root account, labelled with the category
-                    return PostingCreate(account=ids[key[:1]], side=side, amount=amount, category=categories[key])
+                    return PostingCreate(account_id=ids[key[:1]], side=side, amount=amount, category_id=categories[key])
                 return PostingCreate(
-                    account=ids[key], side=side, amount=amount, category=categories[label] if label else None
+                    account_id=ids[key], side=side, amount=amount, category_id=categories[label] if label else None
                 )
 
             for planned in plan.transactions:

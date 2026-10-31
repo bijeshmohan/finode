@@ -23,7 +23,7 @@ def _sheet(request: Request, budget: Budget, todo: Todo, status_code: int = 200)
         {
             "todo": items,
             "currency": budget.accounts.currency().code,
-            "category_choices": [(c.bcid, " › ".join(budget.category_path(c))) for c in budget.spending_categories()],
+            "category_choices": [(c.id, " › ".join(budget.category_path(c))) for c in budget.spending_categories()],
         },
         status_code=status_code,
     )
@@ -46,20 +46,20 @@ def sheet(request: Request, budget: Budget, todo: Todo):
     return _sheet(request, budget, todo)
 
 
-@router.post("/payments/{tid}/category")
+@router.post("/payments/{transaction_id}/category")
 def label_payment(
     request: Request,
     budget: Budget,
     todo: Todo,
     transactions: Transactions,
-    tid: UUID,
+    transaction_id: UUID,
     category: Annotated[str, Form()] = "",
 ):
     try:
-        transactions.read(tid) or _missing()
-        transactions.label_payment(tid, UUID(category))
+        transactions.read(transaction_id) or _missing()
+        transactions.label_payment(transaction_id, UUID(category))
     except ValueError as e:
-        if "not found" in str(e) and f"'{tid}'" in str(e):
+        if "not found" in str(e) and f"'{transaction_id}'" in str(e):
             raise HTTPException(status_code=404, detail="transaction not found") from None
         return htmx_error(str(e), "#todo-error")
     return _sheet(request, budget, todo)
@@ -69,10 +69,10 @@ def _missing():
     raise HTTPException(status_code=404, detail="transaction not found")
 
 
-@router.post("/accounts/{aid}/include")
-def include_account(request: Request, budget: Budget, todo: Todo, aid: UUID):
+@router.post("/accounts/{account_id}/include")
+def include_account(request: Request, budget: Budget, todo: Todo, account_id: UUID):
     try:
-        budget.include_account(aid)
+        budget.include_account(account_id)
     except BudgetError as e:
         return htmx_error(str(e), "#todo-error")
     return _sheet(request, budget, todo)

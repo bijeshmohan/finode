@@ -34,7 +34,7 @@ def test_edit_page_offers_it_too(client: TestClient, account: dict, expense_acco
             ]
         },
     ).json()
-    assert "__new__" in client.get(f"/transactions/{tx['tid']}/edit").text
+    assert "__new__" in client.get(f"/transactions/{tx['id']}/edit").text
 
 
 def test_other_pages_do_not_offer_it(client: TestClient, account: dict):
@@ -79,8 +79,8 @@ def test_sheet_lists_sub_groups_but_not_the_system_account_or_categories(
 def test_options_list_reflects_new_accounts_and_categories(client: TestClient, account: dict, expense_account: dict):
     text = client.get("/accounts/options").text
     assert '<option value="__new__">+ New account…</option>' in text
-    assert f'<option value="{account["aid"]}" data-budget="1" data-balance="0.00" >checking</option>' in text
-    assert f'value="{expense_account["aid"]}"' in text
+    assert f'<option value="{account["id"]}" data-budget="1" data-balance="0.00" >checking</option>' in text
+    assert f'value="{expense_account["id"]}"' in text
 
 
 # --- creating ---------------------------------------------------------------
@@ -94,7 +94,7 @@ def test_creates_a_category_and_announces_it(client: TestClient):
     response = _quick_category(client, name="  Pharmacy ", kind="spending")
     assert response.status_code == 200
     created = next(c for c in client.get("/api/categories/").json() if c["name"] == "Pharmacy")
-    assert json.loads(response.headers["HX-Trigger"]) == {"account-added": {"aid": created["bcid"], "name": "Pharmacy"}}
+    assert json.loads(response.headers["HX-Trigger"]) == {"account-added": {"id": created["id"], "name": "Pharmacy"}}
     assert "set-cookie" not in response.headers
 
 
@@ -112,9 +112,9 @@ def test_non_ascii_names_survive_the_header(client: TestClient):
 
 def test_can_create_a_category_inside_another(client: TestClient):
     group = client.post("/api/categories/", json={"name": "Eating", "kind": "spending"}).json()
-    assert _quick_category(client, name="Dining", kind="spending", parent_id=group["bcid"]).status_code == 200
+    assert _quick_category(client, name="Dining", kind="spending", parent_id=group["id"]).status_code == 200
     dining = next(c for c in client.get("/api/categories/").json() if c["name"] == "Dining")
-    assert dining["parent_id"] == group["bcid"]
+    assert dining["parent_id"] == group["id"]
 
 
 # --- rejecting --------------------------------------------------------------
@@ -160,7 +160,7 @@ def test_rejects_a_parent_that_already_has_transactions(client: TestClient, acco
             ]
         },
     )
-    _assert_error(_quick(client, name="sub", parent_id=account["aid"]), "has postings")
+    _assert_error(_quick(client, name="sub", parent_id=account["id"]), "has postings")
 
 
 def test_a_category_with_transactions_can_gain_a_subcategory(client: TestClient, account: dict, expense_account: dict):
@@ -173,7 +173,7 @@ def test_a_category_with_transactions_can_gain_a_subcategory(client: TestClient,
             ]
         },
     )
-    assert _quick_category(client, name="sub", kind="spending", parent_id=expense_account["aid"]).status_code == 200
+    assert _quick_category(client, name="sub", kind="spending", parent_id=expense_account["id"]).status_code == 200
 
 
 def test_rejects_an_invalid_amount(client: TestClient, root_accounts: dict[str, str]):

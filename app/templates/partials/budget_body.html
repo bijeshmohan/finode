@@ -72,7 +72,7 @@
   {% elif tree %}
   <div class="budget-list tile" data-budget-tree>
     {% for item in rows %}
-    <div class="top {{ 'unused-hidden' if item.node.line.aid in unused_ids }}">{{ row(item, month_key, pace) }}</div>
+    <div class="top {{ 'unused-hidden' if item.node.line.category_id in unused_ids }}">{{ row(item, month_key, pace) }}</div>
     {% endfor %}
   </div>
   {% if unused_count %}

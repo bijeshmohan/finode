@@ -112,7 +112,7 @@ def root_accounts(client: TestClient) -> dict[str, str]:
     response = client.get("/api/accounts/")
     assert response.status_code == 200
     accounts = response.json()
-    return {a["name"]: a["aid"] for a in accounts if a["parent_id"] is None}
+    return {a["name"]: a["id"] for a in accounts if a["parent_id"] is None}
 
 
 @pytest.fixture

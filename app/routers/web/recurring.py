@@ -41,9 +41,9 @@ def _status(rule: RecurringRead) -> str:
 
 def _paths(accounts: Accounts, categories: Categories) -> dict[UUID, str]:
     """A name for every account and every category, by id (a category's path reads "Expenses › Food › Groceries")."""
-    names = {n.account.aid: n.path for root in build_tree(accounts.list()) for n in root.walk()}
+    names = {n.account.id: n.path for root in build_tree(accounts.list()) for n in root.walk()}
     for c in categories.list(include_closed=True):
-        names[c.bcid] = ("Expenses" if c.kind == "spending" else "Income") + " › " + c.path.replace(":", " › ")
+        names[c.id] = ("Expenses" if c.kind == "spending" else "Income") + " › " + c.path.replace(":", " › ")
     return names
 
 
@@ -60,7 +60,9 @@ def _name(paths: dict[UUID, str], account: UUID | None, category: UUID | None) -
 def _row(rule: RecurringRead, paths: dict[UUID, str]) -> RuleRow:
     if rule.postings:
         names = lambda side: ", ".join(  # noqa: E731
-            dict.fromkeys(_name(paths, p.account, p.category).split(" › ")[-1] for p in rule.postings if p.side == side)
+            dict.fromkeys(
+                _name(paths, p.account_id, p.category_id).split(" › ")[-1] for p in rule.postings if p.side == side
+            )
         )
         total = sum((p.amount for p in rule.postings if p.side == PostingSide.DEBIT), Decimal(0))
         return RuleRow(
@@ -73,8 +75,8 @@ def _row(rule: RecurringRead, paths: dict[UUID, str]) -> RuleRow:
         )
     return RuleRow(
         rule=rule,
-        from_name=_name(paths, rule.from_account, rule.category),
-        to_name=_name(paths, rule.to_account, rule.category),
+        from_name=_name(paths, rule.from_account_id, rule.category_id),
+        to_name=_name(paths, rule.to_account_id, rule.category_id),
         amount=rule.amount or Decimal(0),
         schedule=describe(rule.frequency, rule.every),
         status=_status(rule),
@@ -121,7 +123,7 @@ def _form_page(
         transaction = None
         total = sum((p.amount for p in recorded.postings if p.side == PostingSide.DEBIT), Decimal(0))
         kind = infer_kind(
-            recorded.postings, {n.account.aid: r.account.name for r in build_tree(accounts.list()) for n in r.walk()}
+            recorded.postings, {n.account.id: r.account.name for r in build_tree(accounts.list()) for n in r.walk()}
         )
         roots = roots_by_id(accounts)
         from_rows = form_rows(recorded.postings, PostingSide.CREDIT, roots=roots)
@@ -195,15 +197,16 @@ def _parse(
     if len(rows) == 2 and len(debit) == 1 and len(credit) == 1 and debit[0].amount == credit[0].amount:
         # One account on each side is a plain rule.
         return {
-            "from_account": credit[0].account,
-            "to_account": debit[0].account,
+            "from_account_id": credit[0].account_id,
+            "to_account_id": debit[0].account_id,
             "amount": credit[0].amount,
-            "category": debit[0].category or credit[0].category,
+            "category_id": debit[0].category_id or credit[0].category_id,
             **common,
         }
     return {
         "postings": [
-            RecurringPostingData(account=p.target, side=p.side, amount=p.amount, category=p.category) for p in rows
+            RecurringPostingData(account_id=p.target, side=p.side, amount=p.amount, category_id=p.category_id)
+            for p in rows
         ],
         **common,
     }
@@ -253,9 +256,11 @@ def create_recurring(
     return htmx_redirect("/recurring", flash="recurring-saved")
 
 
-@router.get("/{rid}/edit")
-def edit_recurring_page(request: Request, rid: UUID, accounts: Accounts, categories: Categories, recurring: Recurring):
-    rule = recurring.read(rid)
+@router.get("/{recurring_id}/edit")
+def edit_recurring_page(
+    request: Request, recurring_id: UUID, accounts: Accounts, categories: Categories, recurring: Recurring
+):
+    rule = recurring.read(recurring_id)
     if rule is None:
         raise HTTPException(status_code=404, detail="recurring transaction not found")
     return templates.TemplateResponse(
@@ -267,9 +272,9 @@ def edit_recurring_page(request: Request, rid: UUID, accounts: Accounts, categor
     )
 
 
-@router.post("/{rid}/edit")
+@router.post("/{recurring_id}/edit")
 def update_recurring(
-    rid: UUID,
+    recurring_id: UUID,
     accounts: Accounts,
     categories: Categories,
     recurring: Recurring,
@@ -303,7 +308,7 @@ def update_recurring(
                 category_places(accounts, categories),
             )
         )
-        rule = recurring.update(rid, data)
+        rule = recurring.update(recurring_id, data)
         if rule is not None:
             recurring.process_due()
     except ValidationError as e:
@@ -315,17 +320,17 @@ def update_recurring(
     return htmx_redirect("/recurring", flash="recurring-saved")
 
 
-@router.post("/{rid}/pause")
-def pause_recurring(rid: UUID, recurring: Recurring):
-    if recurring.set_active(rid, False) is None:
+@router.post("/{recurring_id}/pause")
+def pause_recurring(recurring_id: UUID, recurring: Recurring):
+    if recurring.set_active(recurring_id, False) is None:
         raise HTTPException(status_code=404, detail="recurring transaction not found")
     return htmx_redirect("/recurring", flash="recurring-paused")
 
 
-@router.post("/{rid}/skip")
-def skip_recurring(rid: UUID, recurring: Recurring):
+@router.post("/{recurring_id}/skip")
+def skip_recurring(recurring_id: UUID, recurring: Recurring):
     try:
-        rule = recurring.skip_next(rid)
+        rule = recurring.skip_next(recurring_id)
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
     if rule is None:
@@ -333,10 +338,10 @@ def skip_recurring(rid: UUID, recurring: Recurring):
     return htmx_redirect("/recurring", flash="recurring-skipped")
 
 
-@router.post("/{rid}/resume")
-def resume_recurring(rid: UUID, recurring: Recurring):
+@router.post("/{recurring_id}/resume")
+def resume_recurring(recurring_id: UUID, recurring: Recurring):
     try:
-        rule = recurring.set_active(rid, True)
+        rule = recurring.set_active(recurring_id, True)
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
     if rule is None:
@@ -344,8 +349,8 @@ def resume_recurring(rid: UUID, recurring: Recurring):
     return htmx_redirect("/recurring", flash="recurring-resumed")
 
 
-@router.post("/{rid}/delete")
-def delete_recurring(rid: UUID, recurring: Recurring):
-    if not recurring.delete(rid):
+@router.post("/{recurring_id}/delete")
+def delete_recurring(recurring_id: UUID, recurring: Recurring):
+    if not recurring.delete(recurring_id):
         raise HTTPException(status_code=404, detail="recurring transaction not found")
     return htmx_redirect("/recurring", flash="recurring-deleted")

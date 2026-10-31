@@ -7,16 +7,16 @@ from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 
 
-def steps(client, aid):
-    return client.get(f"/api/accounts/{aid}/changes").json()
+def steps(client, account_id):
+    return client.get(f"/api/accounts/{account_id}/changes").json()
 
 
 def test_an_account_has_a_history_from_the_start(client, root_accounts):
     made = post_account(client, {"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()
-    client.patch(f"/api/accounts/{made['aid']}", json={"name": "Purse", "details": "daily cash"})
-    client.post(f"/api/accounts/{made['aid']}/close")
-    client.post(f"/api/accounts/{made['aid']}/reopen")
-    got = steps(client, made["aid"])
+    client.patch(f"/api/accounts/{made['id']}", json={"name": "Purse", "details": "daily cash"})
+    client.post(f"/api/accounts/{made['id']}/close")
+    client.post(f"/api/accounts/{made['id']}/reopen")
+    got = steps(client, made["id"])
     assert [s["action"] for s in got] == ["created", "updated", "closed", "reopened"]
     assert got[0]["entry"]["path"] == "Assets:Wallet" and got[0]["via"] == "api"
     assert got[1]["changes"] == {
@@ -30,27 +30,27 @@ def test_an_account_has_a_history_from_the_start(client, root_accounts):
 def test_moving_and_budget_changes_are_told(client, root_accounts):
     a = post_account(client, {"name": "Banks", "parent_id": root_accounts["Assets"]}).json()
     b = post_account(client, {"name": "Cash", "parent_id": root_accounts["Assets"]}).json()
-    kid = post_account(client, {"name": "Purse", "parent_id": a["aid"]}).json()
-    client.patch(f"/api/accounts/{kid['aid']}", json={"parent_id": b["aid"], "on_budget": False})
-    change = steps(client, kid["aid"])[-1]["changes"]
+    kid = post_account(client, {"name": "Purse", "parent_id": a["id"]}).json()
+    client.patch(f"/api/accounts/{kid['id']}", json={"parent_id": b["id"], "on_budget": False})
+    change = steps(client, kid["id"])[-1]["changes"]
     assert change["path"] == {"from": "Assets:Banks:Purse", "to": "Assets:Cash:Purse"}
     assert change["on_budget"]["to"] is False
 
 
 def test_a_save_that_changes_nothing_adds_no_step(client, root_accounts):
     made = post_account(client, {"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()
-    client.patch(f"/api/accounts/{made['aid']}", json={"name": "Wallet"})
-    assert len(steps(client, made["aid"])) == 1
+    client.patch(f"/api/accounts/{made['id']}", json={"name": "Wallet"})
+    assert len(steps(client, made["id"])) == 1
 
 
 def test_a_deleted_account_keeps_its_history(client, root_accounts):
     made = post_account(client, {"name": "Temp", "parent_id": root_accounts["Assets"]}).json()
-    assert client.delete(f"/api/accounts/{made['aid']}").status_code == 204
-    got = steps(client, made["aid"])
+    assert client.delete(f"/api/accounts/{made['id']}").status_code == 204
+    got = steps(client, made["id"])
     assert [s["action"] for s in got] == ["created", "deleted"] and got[1]["entry"]["name"] == "Temp"
-    did = client.get("/api/accounts/deleted").json()[0]["did"]
-    client.post(f"/api/accounts/deleted/{did}/restore")
-    assert [s["action"] for s in steps(client, made["aid"])] == ["created", "deleted", "restored"]
+    deletion_id = client.get("/api/accounts/deleted").json()[0]["id"]
+    client.post(f"/api/accounts/deleted/{deletion_id}/restore")
+    assert [s["action"] for s in steps(client, made["id"])] == ["created", "deleted", "restored"]
 
 
 def test_what_finode_makes_itself_is_not_logged(client, root_accounts, account):

@@ -181,10 +181,10 @@ def _tool_errors(fn: Callable) -> Callable:
 
 
 def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[str, Any]:
-    names = _categories(s) if any(p.category for p in t.postings) else CategoryIndex([])
+    names = _categories(s) if any(p.category_id for p in t.postings) else CategoryIndex([])
     total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
     return {
-        "id": str(t.tid),
+        "id": str(t.id),
         "date": t.date.isoformat(),
         "payee": t.payee,
         "note": t.comment,
@@ -192,11 +192,11 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
         "total": text(total),
         "postings": [
             {
-                "account": index.where(p.target, p.category)[0],
-                "account_id": str(index.where(p.target, p.category)[1]),
+                "account": index.where(p.target, p.category_id)[0],
+                "account_id": str(index.where(p.target, p.category_id)[1]),
                 "side": p.side.value,
                 "amount": text(p.amount),
-                **({"category": names.path(p.category), "category_id": str(p.category)} if p.category else {}),
+                **({"category": names.path(p.category_id), "category_id": str(p.category_id)} if p.category_id else {}),
             }
             for p in t.postings
         ],
@@ -228,8 +228,8 @@ def _sides(amount: Decimal, payer: Place, target: Place) -> list[PostingCreate]:
     if (payer.account, payer.category) == (target.account, target.category):
         raise ValueError("the from and to places must differ!")
     return [
-        PostingCreate(account=target.account, side=PostingSide.DEBIT, amount=amount, category=target.category),
-        PostingCreate(account=payer.account, side=PostingSide.CREDIT, amount=amount, category=payer.category),
+        PostingCreate(account_id=target.account, side=PostingSide.DEBIT, amount=amount, category_id=target.category),
+        PostingCreate(account_id=payer.account, side=PostingSide.CREDIT, amount=amount, category_id=payer.category),
     ]
 
 
@@ -241,13 +241,13 @@ def _category_id(s: Services, text: str | None) -> UUID | None:
     """The spending category a tool call names, or None when it names none."""
     if text is None or not text.strip():
         return None
-    return _categories(s).find(text, kind="spending", open_only=True).bcid
+    return _categories(s).find(text, kind="spending", open_only=True).id
 
 
 def _label_simple(s: Services, postings: list[PostingCreate], text: str | None) -> list[PostingCreate]:
     category = _category_id(s, text)
     if category is not None:
-        label_simple({a.aid: a for a in s.accounts.ar.list()}, postings, category)
+        label_simple({a.id: a for a in s.accounts.ar.list()}, postings, category)
     return postings
 
 
@@ -312,7 +312,7 @@ def list_accounts(
 def _account_row(e, index: AccountIndex) -> dict[str, Any]:
     """One account as list_accounts and the account tools show it."""
     return {
-        "id": str(e.account.aid),
+        "id": str(e.account.id),
         "path": e.path,
         "type": e.root,
         "balance": text(e.account.balance),
@@ -341,17 +341,17 @@ def get_account(
     with services() as s:
         index = _index(s)
         entry = index.find(account, allow_root=True)
-        aid = entry.account.aid
-        register = s.accounts.register(aid) or []
+        account_id = entry.account.id
+        register = s.accounts.register(account_id) or []
         result: dict[str, Any] = {
-            "id": str(aid),
+            "id": str(account_id),
             "path": entry.path,
             "balance": text(entry.account.balance),
             "can_post": entry.postable,
-            "sub_accounts": [e.path for e in index.sorted() if e.account.parent_id == aid],
+            "sub_accounts": [e.path for e in index.sorted() if e.account.parent_id == account_id],
             "recent": [
                 {
-                    "transaction_id": str(r.tid),
+                    "transaction_id": str(r.transaction_id),
                     "date": r.date.isoformat(),
                     "payee": r.payee,
                     "note": r.comment,
@@ -399,13 +399,13 @@ def search_transactions(
                 entry = index.find(account, allow_root=True)
             except ValueError as no_account:
                 try:  # a category filters the entries labelled with it
-                    category_id = _categories(s).find(Places._category_text(account)[1]).bcid
+                    category_id = _categories(s).find(Places._category_text(account)[1]).id
                 except ValueError:
                     raise no_account from None
         needle = (text_contains or "").casefold().strip()
         matches: list[tuple[TransactionRead, Decimal]] = []
         for t in s.transactions.list(
-            account=entry.account.aid if entry else None,
+            account=entry.account.id if entry else None,
             also=category_id,
             date_from=date_from,
             date_to=date_to,
@@ -443,7 +443,7 @@ def search_transactions(
 
 def _kind(t: TransactionRead, index: AccountIndex) -> str:
     """Told apart as the Transactions page does: a debit to Expenses is spending, else a credit to Income is income."""
-    roots = [(p.side, index.entries[p.account].root if p.account in index.entries else "") for p in t.postings]
+    roots = [(p.side, index.entries[p.account_id].root if p.account_id in index.entries else "") for p in t.postings]
     if any(side == PostingSide.DEBIT and root == "Expenses" for side, root in roots):
         return "expense"
     if any(side == PostingSide.CREDIT and root == "Income" for side, root in roots):
@@ -453,12 +453,12 @@ def _kind(t: TransactionRead, index: AccountIndex) -> str:
 
 def _net_change(matches: list[tuple[TransactionRead, Decimal]], entry, index: AccountIndex) -> Decimal:
     """What the matches did to the account and everything inside it: up for its own kind of side, down for the other."""
-    inside = {e.account.aid for e in index.entries.values() if e.segments[: len(entry.segments)] == entry.segments}
+    inside = {e.account.id for e in index.entries.values() if e.segments[: len(entry.segments)] == entry.segments}
     debit_normal = entry.root in ("Assets", "Expenses")
     change = Decimal(0)
     for t, _ in matches:
         for p in t.postings:
-            if p.account in inside:
+            if p.account_id in inside:
                 up = (p.side == PostingSide.DEBIT) == debit_normal
                 change += p.amount if up else -p.amount
     return change
@@ -474,7 +474,7 @@ def get_transaction(transaction_id: Annotated[str, Field(description="Id from se
         index = _index(s)
         found = _transaction(t, index, s)
         found["related"] = [
-            {"id": str(r.tid), "date": r.date.isoformat(), "payee": r.payee} for r in s.transactions.related(t.tid)
+            {"id": str(r.id), "date": r.date.isoformat(), "payee": r.payee} for r in s.transactions.related(t.id)
         ]
         return found
 
@@ -499,7 +499,7 @@ def _step(c: ChangeRead, full: bool) -> dict[str, Any]:
         "at": c.at.isoformat(),
         "action": c.action,
         "by": _via(c.via),
-        "transaction_id": str(c.transaction),
+        "transaction_id": str(c.transaction_id),
     }
     if full or c.action != "updated":
         step["entry"] = _plain(
@@ -536,13 +536,13 @@ def check_balance(
     with services() as s:
         index = _index(s)
         entry = index.find(account, allow_root=True)
-        check = s.accounts.check_balance(entry.account.aid, statement_balance, as_of, days)
+        check = s.accounts.check_balance(entry.account.id, statement_balance, as_of, days)
         if check is None:
             raise ToolError("account not found")
 
         def row(e) -> dict[str, Any]:
             return {
-                "transaction_id": str(e.tid),
+                "transaction_id": str(e.transaction_id),
                 "date": e.date.isoformat(),
                 "payee": e.payee,
                 "with": e.counter_accounts,
@@ -551,7 +551,7 @@ def check_balance(
 
         return {
             "account": check.path,
-            "account_id": str(check.aid),
+            "account_id": str(check.account_id),
             "as_of": check.as_of.isoformat(),
             "matches": check.matches,
             "book_balance": text(check.book_balance),
@@ -613,14 +613,14 @@ def get_transaction_history(
     """Everything that happened to one transaction, oldest first: when it was made, each edit with exactly what
     changed (date, payee, note, reference, rows added, removed or changed) and who did it (web, api, import,
     recurring or an assistant), and its deletion. Works for a deleted transaction too."""
-    tid = _transaction_id(transaction_id)
+    tx_id = _transaction_id(transaction_id)
     with services() as s:
-        steps = s.transactions.changes(tid)
+        steps = s.transactions.changes(tx_id)
         if not steps:
             raise ToolError("no history for that transaction: check the id")
         return {
-            "transaction_id": str(tid),
-            "exists": s.transactions.read(tid) is not None,
+            "transaction_id": str(tx_id),
+            "exists": s.transactions.read(tx_id) is not None,
             "history": [_step(c, full=True) for c in steps],
         }
 
@@ -630,7 +630,7 @@ def _account_step(c: AccountChangeRead) -> dict[str, Any]:
         "at": c.at.isoformat(),
         "action": c.action,
         "by": _via(c.via),
-        "account_id": str(c.account),
+        "account_id": str(c.account_id),
         "entry": _plain(c.entry),
     }
     if c.changes:
@@ -648,20 +648,20 @@ def get_account_history(
     with services() as s:
         index = _index(s)
         try:
-            aid = index.find(account, allow_root=True).account.aid
+            account_id = index.find(account, allow_root=True).account.id
         except ValueError:
             try:
-                aid = UUID(account.strip())
+                account_id = UUID(account.strip())
             except ValueError:
                 raise ToolError(
                     f"no account matches '{account}': use list_accounts, or the id of a deleted one!"
                 ) from None
-        steps = s.accounts.changes(aid)
+        steps = s.accounts.changes(account_id)
         if not steps:
             raise ToolError("no history for that account: changes before finode kept one are not listed")
         return {
-            "account_id": str(aid),
-            "exists": aid in index.entries,
+            "account_id": str(account_id),
+            "exists": account_id in index.entries,
             "history": [_account_step(c) for c in steps],
         }
 
@@ -727,12 +727,12 @@ def list_recurring() -> dict[str, Any]:
         return {
             "recurring": [
                 {
-                    "id": str(r.rid),
+                    "id": str(r.id),
                     **(
                         {
                             "postings": [
                                 {
-                                    "account": index.where(p.target, p.category)[0],
+                                    "account": index.where(p.target, p.category_id)[0],
                                     "side": p.side.value,
                                     "amount": text(p.amount),
                                 }
@@ -741,8 +741,8 @@ def list_recurring() -> dict[str, Any]:
                         }
                         if r.postings
                         else {
-                            "from": index.where(cast(UUID, r.from_account), r.category)[0],
-                            "to": index.where(cast(UUID, r.to_account), r.category)[0],
+                            "from": index.where(cast(UUID, r.from_account_id), r.category_id)[0],
+                            "to": index.where(cast(UUID, r.to_account_id), r.category_id)[0],
                             "amount": text(r.amount),
                         }
                     ),
@@ -832,15 +832,15 @@ def _dry_run(key: str, preview: TransactionPreview, index: AccountIndex) -> dict
     """What a dry run answers: the entry as it would be (or is) saved, marked as not saved."""
     debits = sum((p.amount for p in preview.postings if p.side == PostingSide.DEBIT), Decimal(0))
     entry: dict[str, Any] = {
-        "id": str(preview.tid) if preview.tid else None,
+        "id": str(preview.id) if preview.id else None,
         "date": preview.date.isoformat(),
         "payee": preview.payee,
         "note": preview.comment,
         "total": text(debits),
         "postings": [
             {
-                "account": index.where(p.target, p.category)[0],
-                "account_id": str(index.where(p.target, p.category)[1]),
+                "account": index.where(p.target, p.category_id)[0],
+                "account_id": str(index.where(p.target, p.category_id)[1]),
                 "side": p.side.value,
                 "amount": text(p.amount),
             }
@@ -882,10 +882,10 @@ def _postings(rows: list[PostingIn], s: Services) -> list[PostingCreate]:
         place = places.find(row.account) if row.account else None
         found.append(
             PostingCreate(
-                account=place.account if place else None,
+                account_id=place.account if place else None,
                 side=PostingSide(row.side),
                 amount=row.amount,
-                category=category or (place.category if place else None),
+                category_id=category or (place.category if place else None),
             )
         )
     return found
@@ -1048,10 +1048,10 @@ def update_transaction(
     dry_run: DryRun = False,
 ) -> dict[str, Any]:
     """Change a transaction. Only what you pass changes."""
-    tid = _transaction_id(transaction_id)
+    tx_id = _transaction_id(transaction_id)
     with services() as s:
         index = _index(s)
-        existing = s.transactions.read(tid)
+        existing = s.transactions.read(tx_id)
         if existing is None:
             raise ToolError("transaction not found")
         changes: dict[str, Any] = {}
@@ -1082,9 +1082,10 @@ def update_transaction(
             )
         if dry_run:
             return _noticed(
-                _dry_run("would_become", s.transactions.preview_update(tid, TransactionUpdate(**changes)), index), note
+                _dry_run("would_become", s.transactions.preview_update(tx_id, TransactionUpdate(**changes)), index),
+                note,
             )
-        saved = s.transactions.update(tid, TransactionUpdate(**changes))
+        saved = s.transactions.update(tx_id, TransactionUpdate(**changes))
         if saved is None:
             raise ToolError("transaction not found")
         return _noticed({"updated": _transaction(saved, index, s)}, note)
@@ -1096,15 +1097,15 @@ def delete_transaction(
     dry_run: DryRun = False,
 ) -> dict[str, Any]:
     """Delete a transaction (it waits in the user's recently deleted list and can be restored). Ask the user to confirm first."""
-    tid = _transaction_id(transaction_id)
+    tx_id = _transaction_id(transaction_id)
     with services() as s:
         index = _index(s)
         if dry_run:
-            return _dry_run("would_delete", s.transactions.preview_delete(tid), index)
-        existing = s.transactions.read(tid)
+            return _dry_run("would_delete", s.transactions.preview_delete(tx_id), index)
+        existing = s.transactions.read(tx_id)
         if existing is None:
             raise ToolError("transaction not found")
-        s.transactions.delete(tid)
+        s.transactions.delete(tx_id)
         return {"deleted": _transaction(existing, index, s)}
 
 
@@ -1128,7 +1129,7 @@ def create_account(
         index = _index(s)
         parent_entry = index.find(parent, allow_root=True)
         name = name.strip()
-        siblings = [e for e in index.entries.values() if e.account.parent_id == parent_entry.account.aid]
+        siblings = [e for e in index.entries.values() if e.account.parent_id == parent_entry.account.id]
         twin = next((e for e in siblings if e.account.name.casefold() == name.casefold()), None)
         if twin:
             raise ToolError(
@@ -1140,15 +1141,15 @@ def create_account(
             AccountCreate(
                 name=name,
                 details=(details or "").strip() or None,
-                parent_id=parent_entry.account.aid,
+                parent_id=parent_entry.account.id,
                 balance=opening_balance or Decimal("0.00"),
                 on_budget=on_budget,
-                payment_category_id=_spending(s, payment_category).bcid if payment_category else None,
+                payment_category_id=_spending(s, payment_category).id if payment_category else None,
             )
         )
         return {
             "created": {
-                "id": str(created.aid),
+                "id": str(created.id),
                 "path": f"{parent_entry.path}:{created.name}",
                 "balance": text(created.balance),
             }
@@ -1183,17 +1184,17 @@ def update_account(
         if details is not None:
             changes["details"] = details.strip() or None
         if parent is not None:
-            changes["parent_id"] = index.find(parent, allow_root=True).account.aid
+            changes["parent_id"] = index.find(parent, allow_root=True).account.id
         if on_budget is not None:
             changes["on_budget"] = on_budget
         if payment_category is not None:
-            changes["payment_category_id"] = _spending(s, payment_category).bcid if payment_category.strip() else None
+            changes["payment_category_id"] = _spending(s, payment_category).id if payment_category.strip() else None
         if not changes:
             raise ToolError("nothing to change: pass a name, details, parent, on_budget or payment_category!")
         before = entry.path
-        s.accounts.update(entry.account.aid, AccountUpdate(**changes))
+        s.accounts.update(entry.account.id, AccountUpdate(**changes))
         fresh = _index(s)
-        return {"updated": _account_row(fresh.entries[entry.account.aid], fresh), "was": before}
+        return {"updated": _account_row(fresh.entries[entry.account.id], fresh), "was": before}
 
 
 @_tool_errors
@@ -1203,9 +1204,9 @@ def close_account(account: AccountRef) -> dict[str, Any]:
     a recurring transaction still uses it."""
     with services() as s:
         entry = _index(s).find(account)
-        s.accounts.close(entry.account.aid)
+        s.accounts.close(entry.account.id)
         fresh = _index(s)
-        return {"closed": _account_row(fresh.entries[entry.account.aid], fresh)}
+        return {"closed": _account_row(fresh.entries[entry.account.id], fresh)}
 
 
 @_tool_errors
@@ -1213,9 +1214,9 @@ def reopen_account(account: AccountRef) -> dict[str, Any]:
     """Reopen a closed account with everything inside it, and the groups above it."""
     with services() as s:
         entry = _index(s).find(account)
-        s.accounts.reopen(entry.account.aid)
+        s.accounts.reopen(entry.account.id)
         fresh = _index(s)
-        return {"reopened": _account_row(fresh.entries[entry.account.aid], fresh)}
+        return {"reopened": _account_row(fresh.entries[entry.account.id], fresh)}
 
 
 @_tool_errors
@@ -1232,7 +1233,7 @@ def merge_accounts(
         index = _index(s)
         source = index.find(from_account)
         target = index.find(into_account)
-        done = s.accounts.merge(source.account.aid, target.account.aid, dry_run)
+        done = s.accounts.merge(source.account.id, target.account.id, dry_run)
         out = {
             "dry_run": done.dry_run,
             "merged": done.merged,
@@ -1245,7 +1246,7 @@ def merge_accounts(
             "payment_links_moved": done.payment_links_moved,
         }
         if done.merged:
-            out["into_id"] = str(target.account.aid)
+            out["into_id"] = str(target.account.id)
         return out
 
 
@@ -1292,7 +1293,8 @@ def create_recurring(
             rows = _postings(postings, s)
             shape: dict[str, Any] = {
                 "postings": [
-                    {"account": r.account, "side": r.side, "amount": r.amount, "category": r.category} for r in rows
+                    {"account_id": r.account_id, "side": r.side, "amount": r.amount, "category_id": r.category_id}
+                    for r in rows
                 ]
             }
         else:
@@ -1301,10 +1303,10 @@ def create_recurring(
             places = _places(s)
             source, target = places.find(from_account), places.find(to_account)
             shape = {
-                "from_account": source.account,
-                "to_account": target.account,
+                "from_account_id": source.account,
+                "to_account_id": target.account,
                 "amount": amount,
-                "category": _category_id(s, category) or target.category or source.category,
+                "category_id": _category_id(s, category) or target.category or source.category,
             }
         created = s.recurring.create(
             RecurringCreate(
@@ -1319,7 +1321,7 @@ def create_recurring(
             )
         )
         s.recurring.process_due()
-        rule = s.recurring.read(created.rid)
+        rule = s.recurring.read(created.id)
         if rule is None:
             raise ToolError("the recurring transaction was not saved")
         what = (
@@ -1327,14 +1329,14 @@ def create_recurring(
             if source is not None and target is not None
             else {
                 "postings": [
-                    {"account": index.where(p.target, p.category)[0], "side": p.side.value, "amount": text(p.amount)}
+                    {"account": index.where(p.target, p.category_id)[0], "side": p.side.value, "amount": text(p.amount)}
                     for p in rule.postings
                 ]
             }
         )
         return {
             "created": {
-                "id": str(rule.rid),
+                "id": str(rule.id),
                 **what,
                 **({"tags": rule.tags} if rule.tags else {}),
                 "every": f"{rule.every} {rule.frequency}" if rule.every != 1 else rule.frequency,
@@ -1351,15 +1353,15 @@ def stop_recurring(
     What it already recorded is kept."""
     with services() as s:
         try:
-            rid = UUID(recurring_id.strip())
+            rule_id = UUID(recurring_id.strip())
         except ValueError:
             raise ToolError(
                 f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
             ) from None
-        rule = s.recurring.set_active(rid, False)
+        rule = s.recurring.set_active(rule_id, False)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
-        return {"paused": str(rule.rid)}
+        return {"paused": str(rule.id)}
 
 
 @_tool_errors
@@ -1370,15 +1372,15 @@ def skip_recurring_occurrence(
     nothing is recorded for it and the rule carries on with the one after. Only when the user asks."""
     with services() as s:
         try:
-            rid = UUID(recurring_id.strip())
+            rule_id = UUID(recurring_id.strip())
         except ValueError:
             raise ToolError(
                 f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
             ) from None
-        before = s.recurring.read(rid)
+        before = s.recurring.read(rule_id)
         if before is None:
             raise ToolError("no recurring transaction has that id!")
-        rule = s.recurring.skip_next(rid)
+        rule = s.recurring.skip_next(rule_id)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
         return {
@@ -1434,7 +1436,7 @@ def _budget(data) -> dict[str, Any]:
                 "reserved_for_card_bills": text(data.reserved_for_cards),
                 "credit_cards": [
                     {
-                        "card_id": str(c.aid),
+                        "card_id": str(c.id),
                         "card": c.path,
                         "to_pay": text(c.owed),
                         "charged_this_month": text(c.charged),
@@ -1453,7 +1455,7 @@ def _budget(data) -> dict[str, Any]:
                 "saved_for_goals": text(data.goal_available),
                 "goals": [
                     {
-                        "goal_id": str(g.gid),
+                        "goal_id": str(g.id),
                         "goal": g.name,
                         "saved": text(g.available),
                         "target": text(g.amount),
@@ -1469,7 +1471,7 @@ def _budget(data) -> dict[str, Any]:
         ),
         "categories": [
             {
-                "category_id": str(line.aid),
+                "category_id": str(line.category_id),
                 "category": line.path,
                 "is_group": line.group,
                 "assigned": text(line.assigned),
@@ -1521,7 +1523,7 @@ def assign_to_category(
     is recorded. Check get_budget first so you don't assign more than is ready to assign."""
     with services() as s:
         entry = _spending(s, category)
-        return _budget(s.budget.assign(_month(month), entry.bcid, amount))
+        return _budget(s.budget.assign(_month(month), entry.id, amount))
 
 
 def _goal(s, name: str):
@@ -1547,7 +1549,7 @@ def assign_to_goal(
     """Set money aside for a goal in a month. This is a plan only; no transaction is recorded. It lowers what is
     ready to assign, so check get_budget first."""
     with services() as s:
-        return _budget(s.budget.assign_goal(_month(month), _goal(s, goal).gid, amount))
+        return _budget(s.budget.assign_goal(_month(month), _goal(s, goal).id, amount))
 
 
 @_tool_errors
@@ -1561,7 +1563,7 @@ def use_goal(
     ready to assign."""
     with services() as s:
         entry = _spending(s, category)
-        return _budget(s.budget.use_goal(_month(month), _goal(s, goal).gid, entry.bcid, amount))
+        return _budget(s.budget.use_goal(_month(month), _goal(s, goal).id, entry.id, amount))
 
 
 @_tool_errors
@@ -1584,7 +1586,7 @@ def move_budget_money(
     """Move assigned money from one category to another. It does not change what is ready to assign."""
     with services() as s:
         source, target = _spending(s, from_category), _spending(s, to_category)
-        return _budget(s.budget.move(_month(month), source.bcid, target.bcid, amount))
+        return _budget(s.budget.move(_month(month), source.id, target.id, amount))
 
 
 @_tool_errors
@@ -1656,8 +1658,8 @@ def list_deleted_transactions() -> dict[str, Any]:
             total = sum((p.amount for p in h.postings if p.side == PostingSide.DEBIT), Decimal(0))
             rows.append(
                 {
-                    "deleted_id": str(h.hid),
-                    "transaction_id": str(h.transaction),
+                    "deleted_id": str(h.id),
+                    "transaction_id": str(h.transaction_id),
                     "deleted_at": h.at.isoformat(),
                     "date": h.date.isoformat(),
                     "payee": h.payee,
@@ -1675,14 +1677,14 @@ def restore_transaction(
     """Bring a deleted transaction back as it was. It returns as an ordinary entry (a link to a recurring rule is not
     restored; its related links are, where the other entry is still there)."""
     try:
-        hid = UUID(deleted_id.strip())
+        history_id = UUID(deleted_id.strip())
     except ValueError:
         raise ToolError(
             f"'{deleted_id}' is not a deleted-transaction id: use the deleted_id from list_deleted_transactions!"
         ) from None
     with services() as s:
         try:
-            restored = s.transactions.restore(hid)
+            restored = s.transactions.restore(history_id)
         except LookupError:
             raise ToolError("no deleted transaction has that id!") from None
         return {"restored": _transaction(restored, _index(s), s)}
@@ -1696,15 +1698,15 @@ def resume_recurring(
     from the next occurrence."""
     with services() as s:
         try:
-            rid = UUID(recurring_id.strip())
+            rule_id = UUID(recurring_id.strip())
         except ValueError:
             raise ToolError(
                 f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
             ) from None
-        rule = s.recurring.set_active(rid, True)
+        rule = s.recurring.set_active(rule_id, True)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
-        return {"resumed": str(rule.rid), "next_due": rule.next_date.isoformat() if rule.active else None}
+        return {"resumed": str(rule.id), "next_due": rule.next_date.isoformat() if rule.active else None}
 
 
 def _goal_month(value: str) -> date:
@@ -1742,7 +1744,7 @@ def update_goal(
             raise ToolError("nothing to change: pass a name, amount or by!")
         return _budget(
             s.budget.update_goal(
-                current.gid,
+                current.id,
                 name if name is not None else current.name,
                 amount if amount is not None else current.amount,
                 _goal_month(by) if by else current.target_date,
@@ -1755,7 +1757,7 @@ def delete_goal(goal: Annotated[str, Field(description="The goal's name")]) -> d
     """Delete a goal for good: what was saved in it goes back to ready to assign. Ask the user to confirm first."""
     with services() as s:
         found = _goal(s, goal)
-        s.budget.delete_goal(found.gid)
+        s.budget.delete_goal(found.id)
         return {"deleted": found.name, "returned_to_ready_to_assign": text(found.available)}
 
 
@@ -1795,7 +1797,7 @@ def delete_tag(tag: Annotated[str, Field(description="The tag to remove")]) -> d
 
 def _category_row(c) -> dict[str, Any]:
     return {
-        "id": str(c.bcid),
+        "id": str(c.id),
         "path": c.path,
         "kind": c.kind,
         "group": c.parent_id is None,
@@ -1829,7 +1831,7 @@ def create_category(
 ) -> dict[str, Any]:
     """Make a category (two levels at most: a group and the categories in it). Check list_categories first."""
     with services() as s:
-        parent = _categories(s).find(group, kind=kind, open_only=True).bcid if group else None
+        parent = _categories(s).find(group, kind=kind, open_only=True).id if group else None
         made = s.categories.create(CategoryCreate(name=name, kind=kind, parent_id=parent, details=details))
         return {"created": _category_row(made)}
 
@@ -1853,24 +1855,24 @@ def update_category(
             fields["details"] = details.strip() or None
         if group is not None:
             fields["parent_id"] = (
-                _categories(s).find(group, kind=found.kind, open_only=True).bcid if group.strip() else None
+                _categories(s).find(group, kind=found.kind, open_only=True).id if group.strip() else None
             )
         if not fields:
             raise ToolError("nothing to change: give name, details or group!")
-        return {"updated": _category_row(s.categories.update(found.bcid, CategoryUpdate(**fields)))}
+        return {"updated": _category_row(s.categories.update(found.id, CategoryUpdate(**fields)))}
 
 
 @_tool_errors
 def close_category(category: Annotated[str, Field(description="The category's path or id")]) -> dict[str, Any]:
     """Close a category: it stays in the history but can no longer be used. The user can reopen it."""
     with services() as s:
-        return {"closed": _category_row(s.categories.close(_categories(s).find(category).bcid))}
+        return {"closed": _category_row(s.categories.close(_categories(s).find(category).id))}
 
 
 @_tool_errors
 def reopen_category(category: Annotated[str, Field(description="The category's path or id")]) -> dict[str, Any]:
     with services() as s:
-        return {"reopened": _category_row(s.categories.reopen(_categories(s).find(category).bcid))}
+        return {"reopened": _category_row(s.categories.reopen(_categories(s).find(category).id))}
 
 
 @_tool_errors
@@ -1885,7 +1887,7 @@ def merge_categories(
         index = _categories(s)
         source = index.find(category)
         target = index.find(into, kind=source.kind)
-        result = s.categories.merge(source.bcid, target.bcid, dry_run)
+        result = s.categories.merge(source.id, target.id, dry_run)
         return {
             "dry_run": dry_run,
             "merged": result.merged,

@@ -32,7 +32,7 @@ def group(client, name):
 
 
 def make(client, name, parent, **extra):
-    response = post_account(client, {"name": name, "parent_id": group(client, parent)["aid"], **extra})
+    response = post_account(client, {"name": name, "parent_id": group(client, parent)["id"], **extra})
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -40,7 +40,7 @@ def make(client, name, parent, **extra):
 def test_a_new_person_starts_with_the_five_groups_in_order(client):
     found = {a["system_key"]: a for a in accounts(client) if a["system_key"]}
     assert set(found) == {"assets.bank", "assets.cash", "assets.investments", "liabilities.cards", "liabilities.loans"}
-    roots = {a["aid"]: a["name"] for a in accounts(client) if a["parent_id"] is None}
+    roots = {a["id"]: a["name"] for a in accounts(client) if a["parent_id"] is None}
     for root, names in NAMES.items():
         mine = sorted(
             (a for a in found.values() if roots[a["parent_id"]] == root),
@@ -61,15 +61,15 @@ def test_the_groups_cannot_be_renamed_moved_closed_or_deleted(client, root_accou
     bank = group(client, "Bank Accounts")
     for change in (
         {"name": "Banks"},
-        {"parent_id": group(client, "Cash")["aid"]},
+        {"parent_id": group(client, "Cash")["id"]},
         {"details": "x"},
         {"on_budget": False},
     ):
-        refused = client.patch(f"/api/accounts/{bank['aid']}", json=change)
+        refused = client.patch(f"/api/accounts/{bank['id']}", json=change)
         assert refused.status_code == 400 and "built in" in refused.json()["detail"], change
-    assert client.delete(f"/api/accounts/{bank['aid']}").status_code == 400
-    assert "built in" in client.delete(f"/api/accounts/{bank['aid']}").json()["detail"]
-    closed = client.post(f"/api/accounts/{bank['aid']}/close")
+    assert client.delete(f"/api/accounts/{bank['id']}").status_code == 400
+    assert "built in" in client.delete(f"/api/accounts/{bank['id']}").json()["detail"]
+    closed = client.post(f"/api/accounts/{bank['id']}/close")
     assert closed.status_code == 400 and "built in" in closed.json()["detail"]
     assert group(client, "Bank Accounts")["name"] == "Bank Accounts"
 
@@ -107,12 +107,12 @@ def test_an_account_can_be_moved_into_a_group_but_not_the_group_ordered(client):
         client,
         {
             "name": "Piggy",
-            "parent_id": next(a["aid"] for a in accounts(client) if a["name"] == "Assets" and a["parent_id"] is None),
+            "parent_id": next(a["id"] for a in accounts(client) if a["name"] == "Assets" and a["parent_id"] is None),
         },
     ).json()
-    moved = client.patch(f"/api/accounts/{other['aid']}", json={"parent_id": group(client, "Cash")["aid"]})
+    moved = client.patch(f"/api/accounts/{other['id']}", json={"parent_id": group(client, "Cash")["id"]})
     assert moved.status_code == 200, moved.text
-    page = client.post(f"/accounts/{group(client, 'Cash')['aid']}/move", data={"direction": "up"})
+    page = client.post(f"/accounts/{group(client, 'Cash')['id']}/move", data={"direction": "up"})
     assert page.status_code in (400, 404, 422) or "built in" in page.text
 
 
@@ -135,7 +135,7 @@ def test_a_backup_round_trips_the_groups_by_key(client):
         assert sorted(keys) == sorted(set(keys)) and len(keys) == 5, "mapped onto the person's own, none twice"
         hdfc = next(a for a in again if a["name"] == "HDFC")
         bank = next(a for a in again if a["system_key"] == "assets.bank")
-        assert hdfc["parent_id"] == bank["aid"] and hdfc["balance"] == "500.00"
+        assert hdfc["parent_id"] == bank["id"] and hdfc["balance"] == "500.00"
     finally:
         as_user(TEST_USER_ID)
 
@@ -145,7 +145,7 @@ def test_a_backup_without_groups_brings_its_own_structure(client, monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", False)
     try:
         as_user(OTHER)
-        roots = {a["name"]: a["aid"] for a in accounts(client) if a["parent_id"] is None}
+        roots = {a["name"]: a["id"] for a in accounts(client) if a["parent_id"] is None}
         _cash = post_account(client, {"name": "Cash", "parent_id": roots["Assets"], "balance": "300"}).json()
         doc = client.get("/api/backup").json()
     finally:
@@ -173,7 +173,7 @@ def restore_as_other_from_new(client, doc):
         }, "only the colliding Cash stepped aside"
         cash = next(a for a in again if a["name"] == "Cash")
         assert cash["balance"] == "300.00" and cash["parent_id"] == next(
-            a["aid"] for a in again if a["name"] == "Assets" and a["parent_id"] is None
+            a["id"] for a in again if a["name"] == "Assets" and a["parent_id"] is None
         )
         return monkeypatched
     finally:
@@ -191,7 +191,7 @@ def test_an_import_uses_the_groups_it_builds_on_and_sets_aside_the_rest(client):
     assert done.status_code == 200, done.text
     found = accounts(client)
     bank = next(a for a in found if a["system_key"] == "assets.bank")
-    assert next(a for a in found if a["name"] == "HDFC")["parent_id"] == bank["aid"]
+    assert next(a for a in found if a["name"] == "HDFC")["parent_id"] == bank["id"]
     cash = next(a for a in found if a["name"] == "Cash")
     assert cash["system_key"] is None and cash["balance"] == "200.00", "a plain Assets:Cash replaced the empty group"
     assert {a["system_key"] for a in found if a["system_key"]} == {
