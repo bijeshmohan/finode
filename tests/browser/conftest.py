@@ -12,6 +12,7 @@ They need a browser. `uv run pytest` skips them when there is none. To run them:
 import os
 import threading
 import time
+import warnings
 from collections.abc import Generator
 from pathlib import Path
 
@@ -109,7 +110,7 @@ def keep_evidence(item, page: Page) -> None:
         page.screenshot(path=str(FAILURES / f"{name}.png"))
         (FAILURES / f"{name}.html").write_text(page.content())
     except Exception as error:  # the evidence is a convenience: never hide the real failure behind it
-        print(f"could not keep the evidence of {item.name}: {error}")
+        warnings.warn(f"could not keep the evidence of {item.name}: {error}", stacklevel=2)
 
 
 @pytest.fixture
