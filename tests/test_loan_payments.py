@@ -2,7 +2,7 @@
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 from .test_budget import account, assign, budget, line, move
 
 
@@ -62,9 +62,9 @@ def test_a_split_emi_counts_both_parts(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["loan"]["aid"], "side": "debit", "amount": "8000"},
-                {"account": books["interest"]["aid"], "side": "debit", "amount": "2000"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "10000"},
+                leg(books["loan"], "debit", "8000"),
+                leg(books["interest"], "debit", "2000"),
+                leg(books["bank"], "credit", "10000"),
             ]
         },
     )

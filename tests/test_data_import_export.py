@@ -8,7 +8,7 @@ from app.repositories import AccountRepository, ProfileRepository, TransactionRe
 from app.services import AccountService, DataService, TransactionService
 from app.services.data import ImportRejected
 
-from .books import post_account
+from .books import leg, post_account
 
 JOURNAL = """\
 account Assets:Bank:HDFC
@@ -80,8 +80,8 @@ def test_import_rejected_when_transactions_exist(client: TestClient, account, ex
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                leg(expense_account, "debit", "1.00"),
+                leg(account, "credit", "1.00"),
             ]
         },
     )
@@ -204,8 +204,8 @@ def test_tags_survive_an_export_and_an_import(client: TestClient, session: Sessi
             "comment": "weekly groceries",
             "tags": ["weekly-shop", "Food"],
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "20"},
-                {"account": bank["aid"], "side": "credit", "amount": "20"},
+                leg(food, "debit", "20"),
+                leg(bank, "credit", "20"),
             ],
         },
     )

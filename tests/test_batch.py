@@ -4,6 +4,7 @@ import pytest
 
 from app.config import settings
 
+from .books import leg
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .test_transaction_references import body
@@ -113,8 +114,8 @@ def test_a_failure_while_saving_leaves_nothing_behind(client, account, expense_a
 @pytest.mark.anyio
 async def test_assistants_record_a_batch_in_one_call(session, client, account, expense_account):
     rows = [
-        {"account": account["aid"], "side": "credit", "amount": "30"},
-        {"account": expense_account["aid"], "side": "debit", "amount": "30"},
+        leg(account, "credit", "30"),
+        leg(expense_account, "debit", "30"),
     ]
     entries = [
         {

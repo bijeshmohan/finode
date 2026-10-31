@@ -2,7 +2,7 @@
 
 from app.templating import amount, symbol
 
-from .books import post_account
+from .books import leg, post_account
 from .test_budget import account, assign
 
 
@@ -54,8 +54,8 @@ def test_an_account_page_shows_the_rupee_sign_like_a_category_page(client, root_
         "/api/transactions/",
         json={
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "75"},
-                {"account": bank["aid"], "side": "credit", "amount": "75"},
+                leg(food, "debit", "75"),
+                leg(bank, "credit", "75"),
             ]
         },
     )

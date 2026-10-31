@@ -2,7 +2,7 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
-from .books import post_account
+from .books import leg, post_account
 
 MISSING = "00000000-0000-4000-8000-0000000000ff"
 
@@ -54,8 +54,8 @@ def test_account_page_shows_balance_activity_and_actions(
             "date": date.today().isoformat(),
             "payee": "lunch",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "30.00"},
-                {"account": bank["aid"], "side": "credit", "amount": "30.00"},
+                leg(expense_account, "debit", "30.00"),
+                leg(bank, "credit", "30.00"),
             ],
         },
     )
@@ -236,8 +236,8 @@ def test_expense_group_page_shows_direct_postings(client: TestClient, account: d
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "30.00"},
-                {"account": account["aid"], "side": "credit", "amount": "30.00"},
+                leg(expense_account, "debit", "30.00"),
+                leg(account, "credit", "30.00"),
             ]
         },
     )
@@ -307,8 +307,8 @@ def test_green_and_plus_mean_money_in_on_a_bank_and_a_payment_into_a_card(client
         json={
             "payee": "Dinner",
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "300"},
-                {"account": card["aid"], "side": "credit", "amount": "300"},
+                leg(food, "debit", "300"),
+                leg(card, "credit", "300"),
             ],
         },
     )
@@ -317,8 +317,8 @@ def test_green_and_plus_mean_money_in_on_a_bank_and_a_payment_into_a_card(client
         json={
             "payee": "Pay the card",
             "postings": [
-                {"account": card["aid"], "side": "debit", "amount": "100"},
-                {"account": bank["aid"], "side": "credit", "amount": "100"},
+                leg(card, "debit", "100"),
+                leg(bank, "credit", "100"),
             ],
         },
     )
@@ -343,8 +343,8 @@ def test_upcoming_on_a_card_follows_the_same_rule(client, root_accounts):
             "date": str(local_today() + timedelta(days=9)),
             "payee": "Later",
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "70"},
-                {"account": card["aid"], "side": "credit", "amount": "70"},
+                leg(food, "debit", "70"),
+                leg(card, "credit", "70"),
             ],
         },
     )
@@ -365,8 +365,8 @@ def test_an_upcoming_payment_into_a_card_is_green_and_a_charge_is_not(client, ro
             "date": str(local_today() + timedelta(days=9)),
             "payee": "Pay later",
             "postings": [
-                {"account": card["aid"], "side": "debit", "amount": "200"},
-                {"account": bank["aid"], "side": "credit", "amount": "200"},
+                leg(card, "debit", "200"),
+                leg(bank, "credit", "200"),
             ],
         },
     )
@@ -404,8 +404,8 @@ def test_an_account_with_sub_accounts_lists_them_not_their_transactions(
         json={
             "payee": "Gadget Store",
             "postings": [
-                {"account": shop["aid"], "side": "debit", "amount": "40.00"},
-                {"account": hdfc["aid"], "side": "credit", "amount": "40.00"},
+                leg(shop, "debit", "40.00"),
+                leg(hdfc, "credit", "40.00"),
             ],
         },
     )

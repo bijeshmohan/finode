@@ -186,20 +186,15 @@ class TransactionService:
 
     def _fill_accounts(self, postings, accounts: builtins.list[Account]) -> None:
         """Where a line posts: a line that names only its category posts to Expenses (a spending category) or Income
-        (an earning one), and so does a line whose "account" is a category's id (the ids of the categories that were
-        Expenses and Income accounts are the same, so what posted to them keeps working)."""
+        (an earning one)."""
         roots = {a.name: a.aid for a in accounts if a.parent_id is None}
-        known = {a.aid for a in accounts}
         categories = {c.bcid: c for c in self.cr.list()}
         for posting in postings:
-            if posting.account is not None and (posting.account in known or posting.account not in categories):
+            if posting.account is not None:
                 continue
-            wanted = posting.category if posting.account is None else posting.account
-            category = categories.get(wanted)
+            category = categories.get(posting.category)
             if category is None:
-                raise InvalidPostingError(f"category with bcid '{wanted}' not found!")
-            if posting.category is None:
-                posting.category = category.bcid
+                raise InvalidPostingError(f"category with bcid '{posting.category}' not found!")
             posting.account = roots["Expenses" if category.kind == "spending" else "Income"]
 
     def _check_categories(
@@ -588,7 +583,7 @@ class TransactionService:
         if data.source and data.external_id:
             found = self.tr.find_by_reference(data.source, data.external_id)
             if found is not None:
-                self._fill_accounts(data.postings, self.ar.list())  # a category's id where an account goes
+                self._fill_accounts(data.postings, self.ar.list())
                 existing = self._to_read(found)
                 if not _same_content(existing, data):
                     raise DuplicateReferenceError(_different_content(data, found.tid))
@@ -719,7 +714,7 @@ class TransactionService:
         if data.source and data.external_id:
             found = self.tr.find_by_reference(data.source, data.external_id)
             if found is not None:
-                self._fill_accounts(data.postings, self.ar.list())  # a category's id where an account goes
+                self._fill_accounts(data.postings, self.ar.list())
                 existing = self._to_read(found)
                 if _same_content(existing, data):
                     return existing, False
@@ -770,8 +765,6 @@ class TransactionService:
         return [c.bcid for c in categories if c.bcid == bcid or c.parent_id == bcid]
 
     def _args(self, account, kind, also):
-        if account and not any(a.aid == account for a in self.ar.list()) and self.cr.read(account) is not None:
-            account, also = None, account  # a category's id where an account goes: the entries labelled with it
         account_ids = self._account_subtree(account) if account else None
         also_ids = self._category_subtree(also) if also else None
         if kind not in (None, "", "expense", "income", "transfer"):

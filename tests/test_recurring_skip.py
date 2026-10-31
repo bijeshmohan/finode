@@ -41,7 +41,8 @@ def test_the_skipped_one_stays_skipped_when_the_rule_is_edited(client, accounts)
     skipped = skip(client, created["rid"]).json()
     body = {
         "from_account": accounts["bank"],
-        "to_account": accounts["rent"],
+        "to_account": accounts["expenses"],
+        "category": accounts["rent"],
         "amount": "1600",
         "frequency": "monthly",
         "start_date": str(NEXT_MONTH_START),

@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
-from .books import post_account
+from .books import leg, post_account
 from .svc import plain, services
 
 
@@ -414,8 +414,8 @@ def _transfer(client: TestClient, debit: dict, credit: dict, amount: str, date: 
             "date": date,
             "payee": payee,
             "postings": [
-                {"account": debit["aid"], "side": "debit", "amount": amount},
-                {"account": credit["aid"], "side": "credit", "amount": amount},
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
             ],
         },
     )

@@ -3,16 +3,17 @@ line is on, and a loan's payment category keeps its lines in step."""
 
 import pytest
 
+from .books import leg
 from .test_budget import account, assign, budget, line
 
 
 def paid(client, bank, to, amount, category=None):
-    posting = {"account": to["aid"], "side": "debit", "amount": amount}
+    posting = leg(to, "debit", amount)
     if category:
         posting["category"] = category["aid"]
     response = client.post(
         "/api/transactions/",
-        json={"postings": [posting, {"account": bank["aid"], "side": "credit", "amount": amount}]},
+        json={"postings": [posting, leg(bank, "credit", amount)]},
     )
     assert response.status_code == 201, response.text
     return response.json()

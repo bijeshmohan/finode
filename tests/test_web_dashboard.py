@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 
-from .books import post_account
+from .books import leg, post_account
 from .svc import plain
 
 
@@ -41,8 +41,8 @@ def test_dashboard_shows_summary_and_recent_transactions(
                 "date": today,
                 "payee": payee,
                 "postings": [
-                    {"account": debit["aid"], "side": "debit", "amount": amount},
-                    {"account": credit["aid"], "side": "credit", "amount": amount},
+                    leg(debit, "debit", amount),
+                    leg(credit, "credit", amount),
                 ],
             },
         )
@@ -66,8 +66,8 @@ def test_dashboard_shows_what_is_left_to_spend_once_there_is_a_budget(
         json={
             "payee": "Shop",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "100"},
-                {"account": bank["aid"], "side": "credit", "amount": "100"},
+                leg(expense_account, "debit", "100"),
+                leg(bank, "credit", "100"),
             ],
         },
     )
@@ -87,8 +87,8 @@ def test_dashboard_says_over_budget_when_a_category_is_overspent(
         json={
             "payee": "Shop",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "80"},
-                {"account": bank["aid"], "side": "credit", "amount": "80"},
+                leg(expense_account, "debit", "80"),
+                leg(bank, "credit", "80"),
             ],
         },
     )
@@ -107,8 +107,8 @@ def _spend(client, expense_account, account, payee, day):
             "payee": payee,
             "date": day,
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                leg(expense_account, "debit", "1.00"),
+                leg(account, "credit", "1.00"),
             ],
         },
     )
@@ -172,8 +172,8 @@ def test_onboarding_ticks_off_steps_and_ignores_opening_balances(client: TestCli
         "/api/transactions/",
         json={
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "5.00"},
-                {"account": bank["aid"], "side": "credit", "amount": "5.00"},
+                leg(food, "debit", "5.00"),
+                leg(bank, "credit", "5.00"),
             ]
         },
     )
@@ -198,8 +198,8 @@ def test_the_latest_entries_on_home_sit_under_a_transactions_heading(
         json={
             "payee": "Shop",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "5"},
-                {"account": account["aid"], "side": "credit", "amount": "5"},
+                leg(expense_account, "debit", "5"),
+                leg(account, "credit", "5"),
             ],
         },
     )
@@ -218,8 +218,8 @@ def test_the_i_on_home_shows_the_sum_with_the_persons_own_numbers(
         json={
             "payee": "Shop",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "100"},
-                {"account": bank["aid"], "side": "credit", "amount": "100"},
+                leg(expense_account, "debit", "100"),
+                leg(bank, "credit", "100"),
             ],
         },
     )
@@ -245,8 +245,8 @@ def test_home_shows_one_box_with_earned_assigned_and_spent_and_a_warning_for_an_
             json={
                 "payee": "x",
                 "postings": [
-                    {"account": debit["aid"], "side": "debit", "amount": amount},
-                    {"account": credit["aid"], "side": "credit", "amount": amount},
+                    leg(debit, "debit", amount),
+                    leg(credit, "credit", amount),
                 ],
             },
         )
@@ -272,8 +272,8 @@ def test_the_month_pill_in_the_box_shows_another_month_and_never_a_future_one(
                 "date": when.isoformat(),
                 "payee": "x",
                 "postings": [
-                    {"account": expense_account["aid"], "side": "debit", "amount": amount},
-                    {"account": bank["aid"], "side": "credit", "amount": amount},
+                    leg(expense_account, "debit", amount),
+                    leg(bank, "credit", amount),
                 ],
             },
         )
@@ -306,8 +306,8 @@ def test_the_checklist_stays_on_home_after_the_first_entry_until_the_plan_is_use
         "/api/transactions/",
         json={
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "5"},
-                {"account": bank["aid"], "side": "credit", "amount": "5"},
+                leg(food, "debit", "5"),
+                leg(bank, "credit", "5"),
             ]
         },
     )

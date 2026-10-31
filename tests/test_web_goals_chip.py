@@ -7,6 +7,7 @@ from html import unescape
 
 import pytest
 
+from .books import leg
 from .test_budget import account, identity
 from .test_web_goal import goal, months_ahead
 
@@ -47,8 +48,8 @@ def test_a_goal_is_not_money_to_spend_but_still_has_a_job(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["food"]["aid"], "side": "debit", "amount": "100"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "100"},
+                leg(books["food"], "debit", "100"),
+                leg(books["bank"], "credit", "100"),
             ]
         },
     )
@@ -107,8 +108,8 @@ def test_a_goal_hands_its_money_to_the_category_that_paid(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": hospital["aid"], "side": "debit", "amount": "6000"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "6000"},
+                leg(hospital, "debit", "6000"),
+                leg(books["bank"], "credit", "6000"),
             ]
         },
     )

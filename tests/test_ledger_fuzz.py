@@ -296,7 +296,7 @@ def run_budget(session, seed: int, steps: int) -> int:
                     TransactionCreate(
                         date=day,
                         postings=[
-                            PostingCreate(account=rng.choice(cats).aid, side=PostingSide.DEBIT, amount=amount),
+                            PostingCreate(category=rng.choice(cats).bcid, side=PostingSide.DEBIT, amount=amount),
                             PostingCreate(account=source.aid, side=PostingSide.CREDIT, amount=amount),
                         ],
                     )
@@ -308,7 +308,7 @@ def run_budget(session, seed: int, steps: int) -> int:
                         date=month + timedelta(days=rng.randint(0, 27)),
                         postings=[
                             PostingCreate(account=bank.aid, side=PostingSide.DEBIT, amount=amount),
-                            PostingCreate(account=salary.aid, side=PostingSide.CREDIT, amount=amount),
+                            PostingCreate(category=salary.bcid, side=PostingSide.CREDIT, amount=amount),
                         ],
                     )
                 )

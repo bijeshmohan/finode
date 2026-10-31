@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from .books import post_account
+from .books import into, leg, post_account
 
 TODAY = date.today()
 THIS_MONTH = TODAY.replace(day=1).isoformat()
@@ -32,8 +32,8 @@ def entry(client, books, amount="10", to="food", **extra):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books[to]["aid"], "side": "debit", "amount": amount},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": amount},
+                leg(books[to], "debit", amount),
+                leg(books["bank"], "credit", amount),
             ],
             **extra,
         },
@@ -92,8 +92,8 @@ def test_the_list_filters_like_the_web_page(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["bank"]["aid"], "side": "debit", "amount": "99"},
-                {"account": books["salary"]["aid"], "side": "credit", "amount": "99"},
+                leg(books["bank"], "debit", "99"),
+                leg(books["salary"], "credit", "99"),
             ],
             "payee": "Employer",
         },
@@ -149,7 +149,7 @@ def test_pause_and_resume_a_recurring_rule(client, books):
         "/api/recurring/",
         json={
             "from_account": books["bank"]["aid"],
-            "to_account": books["food"]["aid"],
+            **into(client, books["food"]),
             "amount": "5",
             "frequency": "monthly",
             "start_date": (TODAY + timedelta(days=40)).isoformat(),

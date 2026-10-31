@@ -3,6 +3,7 @@ Filter sheet, and the Tags page."""
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -13,8 +14,8 @@ def add(api: Api, books, payee, note, amount="100", target="food", tags=None):
         comment=note,
         tags=tags or [],
         postings=[
-            {"account": books[target]["aid"], "side": "debit", "amount": amount},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": amount},
+            leg(books[target], "debit", amount),
+            leg(books["checking"], "credit", amount),
         ],
     )
 

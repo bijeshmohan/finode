@@ -4,7 +4,7 @@ import pytest
 
 from tests.htmlutil import element, text_of
 
-from .books import post_account
+from .books import leg, post_account
 from .conftest import TEST_USER_ID
 from .mcputil import make_token
 from .svc import plain
@@ -66,8 +66,8 @@ def test_origin_is_recorded_for_web_api_and_import(client, root_accounts):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "5"},
-                {"account": bank["aid"], "side": "credit", "amount": "5"},
+                leg(food, "debit", "5"),
+                leg(bank, "credit", "5"),
             ]
         },
     ).json()

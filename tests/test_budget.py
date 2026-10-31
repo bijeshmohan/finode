@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 
 THIS_MONTH = date.today().replace(day=1)
 LAST_MONTH = (THIS_MONTH - timedelta(days=1)).replace(day=1)
@@ -20,8 +20,8 @@ def account(client, root, name, parent, **extra):
 def move(client, source, target, amount, on=None):
     body = {
         "postings": [
-            {"account": target["aid"], "side": "debit", "amount": amount},
-            {"account": source["aid"], "side": "credit", "amount": amount},
+            leg(target, "debit", amount),
+            leg(source, "credit", amount),
         ]
     }
     if on:

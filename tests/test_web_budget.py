@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 from .test_budget import account, assign, line, move
 from .test_budget import budget as api_budget
 
@@ -402,8 +402,8 @@ def test_the_month_pill_is_in_the_title_row_and_what_needs_you_is_under_the_bell
         "/api/transactions/",
         json={
             "postings": [
-                {"account": setup["food"]["aid"], "side": "debit", "amount": "5"},
-                {"account": card["aid"], "side": "credit", "amount": "5"},
+                leg(setup["food"], "debit", "5"),
+                leg(card, "credit", "5"),
             ]
         },
     )

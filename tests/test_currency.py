@@ -10,7 +10,7 @@ from app import currencies
 from app.models.transaction_history import TransactionHistory
 from app.models.utils import normalize_amount
 
-from .books import post_account
+from .books import leg, post_account
 from .svc import plain, services
 
 
@@ -106,8 +106,8 @@ def post(client, a, b, amount):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": a["aid"], "side": "debit", "amount": amount},
-                {"account": b["aid"], "side": "credit", "amount": amount},
+                leg(a, "debit", amount),
+                leg(b, "credit", amount),
             ]
         },
     )
@@ -173,7 +173,7 @@ def test_extra_fields_from_older_clients_are_ignored(client, root_accounts, acco
         json={
             "currency": "USD",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10", "value": "3"},
+                {"category": expense_account["aid"], "side": "debit", "amount": "10", "value": "3"},
                 {"account": account["aid"], "side": "credit", "amount": "10", "value": "3"},
             ],
         },
@@ -211,8 +211,8 @@ def test_old_history_rows_still_read_and_do_not_count_as_a_change(client, sessio
         json={
             "payee": made["payee"],
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10"},
-                {"account": account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "10"),
+                leg(account, "credit", "10"),
             ],
         },
     )

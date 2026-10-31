@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from .books import post_account
+from .books import into, leg, post_account
 from .svc import services
 from .test_budget import assign, budget, line
 
@@ -29,8 +29,8 @@ def spend(client, source, target, amount="10"):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": target["aid"], "side": "debit", "amount": amount},
-                {"account": source["aid"], "side": "credit", "amount": amount},
+                leg(target, "debit", amount),
+                leg(source, "credit", amount),
             ]
         },
     )
@@ -46,8 +46,8 @@ def test_an_empty_account_closes_and_keeps_its_history(client, books, session):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+                leg(books["old"], "debit", "5"),
+                leg(books["hdfc"], "credit", "5"),
             ]
         },
     )
@@ -55,8 +55,8 @@ def test_an_empty_account_closes_and_keeps_its_history(client, books, session):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["hdfc"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["old"]["aid"], "side": "credit", "amount": "5"},
+                leg(books["hdfc"], "debit", "5"),
+                leg(books["old"], "credit", "5"),
             ]
         },
     )
@@ -78,8 +78,8 @@ def test_a_future_dated_entry_blocks_closing(client, books):
         json={
             "date": "2999-01-01",
             "postings": [
-                {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+                leg(books["old"], "debit", "5"),
+                leg(books["hdfc"], "credit", "5"),
             ],
         },
     )
@@ -118,8 +118,8 @@ def test_an_old_entry_on_a_closed_account_can_still_be_edited(client, books):
         json={
             "payee": "x",
             "postings": [
-                {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+                leg(books["old"], "debit", "5"),
+                leg(books["hdfc"], "credit", "5"),
             ],
         },
     ).json()
@@ -127,8 +127,8 @@ def test_an_old_entry_on_a_closed_account_can_still_be_edited(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["hdfc"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["old"]["aid"], "side": "credit", "amount": "5"},
+                leg(books["hdfc"], "debit", "5"),
+                leg(books["old"], "credit", "5"),
             ]
         },
     )
@@ -139,8 +139,8 @@ def test_an_old_entry_on_a_closed_account_can_still_be_edited(client, books):
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+                leg(books["groceries"], "debit", "5"),
+                leg(books["hdfc"], "credit", "5"),
             ]
         },
     )
@@ -152,7 +152,7 @@ def test_a_running_recurring_rule_blocks_closing(client, books):
         "/api/recurring/",
         json={
             "from_account": books["old"]["aid"],
-            "to_account": books["groceries"]["aid"],
+            **into(client, books["groceries"]),
             "amount": "1",
             "start_date": "2999-01-01",
             "payee": "Netflix",
@@ -183,8 +183,8 @@ def test_pickers_leave_closed_accounts_out_but_keep_what_an_entry_uses(client, b
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["old"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "5"},
+                leg(books["old"], "debit", "5"),
+                leg(books["hdfc"], "credit", "5"),
             ]
         },
     ).json()
@@ -192,8 +192,8 @@ def test_pickers_leave_closed_accounts_out_but_keep_what_an_entry_uses(client, b
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["hdfc"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["old"]["aid"], "side": "credit", "amount": "5"},
+                leg(books["hdfc"], "debit", "5"),
+                leg(books["old"], "credit", "5"),
             ]
         },
     )

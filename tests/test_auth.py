@@ -11,7 +11,7 @@ from app.config import settings
 from app.dependencies import get_db_session
 from app.main import app
 
-from .books import post_account
+from .books import leg, post_account
 
 USER_A_ID = UUID("00000000-0000-4000-8000-00000000000a")
 USER_B_ID = UUID("00000000-0000-4000-8000-00000000000b")
@@ -86,16 +86,8 @@ def test_users_can_only_access_their_own_data(session: Session):
                 "/api/transactions/",
                 json={
                     "postings": [
-                        {
-                            "account": expense_account["aid"],
-                            "side": "debit",
-                            "amount": "10.00",
-                        },
-                        {
-                            "account": account["aid"],
-                            "side": "credit",
-                            "amount": "10.00",
-                        },
+                        leg(expense_account, "debit", "10.00"),
+                        leg(account, "credit", "10.00"),
                     ],
                 },
             ).json()
@@ -109,19 +101,11 @@ def test_users_can_only_access_their_own_data(session: Session):
                 "/api/transactions/",
                 json={
                     "postings": [
-                        {
-                            "account": expense_account["aid"],
-                            "side": "debit",
-                            "amount": "5.00",
-                        },
-                        {
-                            "account": account["aid"],
-                            "side": "credit",
-                            "amount": "5.00",
-                        },
+                        leg(expense_account, "debit", "5.00"),
+                        leg(account, "credit", "5.00"),
                     ],
                 },
             )
-            assert response.status_code == 404
+            assert response.status_code == 400 and "not found" in response.text
     finally:
         app.dependency_overrides.clear()

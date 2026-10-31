@@ -2,7 +2,7 @@ import json
 
 from fastapi.testclient import TestClient
 
-from .books import post_account
+from .books import leg, post_account
 
 
 def _quick(client: TestClient, **data):
@@ -29,8 +29,8 @@ def test_edit_page_offers_it_too(client: TestClient, account: dict, expense_acco
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                leg(expense_account, "debit", "1.00"),
+                leg(account, "credit", "1.00"),
             ]
         },
     ).json()
@@ -155,8 +155,8 @@ def test_rejects_a_parent_that_already_has_transactions(client: TestClient, acco
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                leg(expense_account, "debit", "1.00"),
+                leg(account, "credit", "1.00"),
             ]
         },
     )
@@ -168,8 +168,8 @@ def test_a_category_with_transactions_can_gain_a_subcategory(client: TestClient,
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                leg(expense_account, "debit", "1.00"),
+                leg(account, "credit", "1.00"),
             ]
         },
     )

@@ -2,7 +2,7 @@
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .test_budget import account, budget, line
@@ -54,7 +54,7 @@ def test_a_category_with_history_is_closed_not_deleted(client, books):
         json={
             "postings": [
                 {"category": books["emi"]["aid"], "side": "debit", "amount": "10"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "10"},
+                leg(books["bank"], "credit", "10"),
             ]
         },
     )
@@ -83,8 +83,8 @@ def test_categories_merge_with_a_dry_run(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "10"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "10"},
+                leg(books["groceries"], "debit", "10"),
+                leg(books["bank"], "credit", "10"),
             ]
         },
     )
@@ -106,7 +106,7 @@ def test_a_line_may_name_only_its_category(client, books):
         json={
             "postings": [
                 {"category": books["groceries"]["aid"], "side": "debit", "amount": "12"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "12"},
+                leg(books["bank"], "credit", "12"),
             ]
         },
     )
@@ -119,7 +119,7 @@ def test_a_line_may_name_only_its_category(client, books):
         json={
             "postings": [
                 {"side": "debit", "amount": "1"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "1"},
+                leg(books["bank"], "credit", "1"),
             ]
         },
     )
@@ -207,3 +207,38 @@ async def test_making_a_category_needs_write_and_changing_one_needs_manage(sessi
         done = await call(c, "merge_categories", category="Food:Eating out", into="Food:Groceries")
         assert done["merged"] is True
         assert "Food:Eating out" not in {x["path"] for x in (await call(c, "list_categories"))["categories"]}
+
+
+def test_a_category_id_is_not_an_account_id(client, books):
+    """A line names an account, or only its category; a category's id where an account goes is refused."""
+    refused = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account": books["groceries"]["aid"], "side": "debit", "amount": "5"},
+                {"account": books["bank"]["aid"], "side": "credit", "amount": "5"},
+            ]
+        },
+    )
+    assert refused.status_code == 404 and "account with aid" in refused.json()["detail"]
+    assert client.get("/api/transactions/", params={"account": books["groceries"]["aid"]}).status_code == 404
+
+
+def test_a_recurring_row_may_name_only_its_category(client, books):
+    expenses = next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Expenses")
+    made = client.post(
+        "/api/recurring/",
+        json={
+            "postings": [
+                {"category": books["groceries"]["aid"], "side": "debit", "amount": "9"},
+                {"account": books["bank"]["aid"], "side": "credit", "amount": "9"},
+            ],
+            "start_date": "2999-01-01",
+        },
+    )
+    assert made.status_code == 201, made.text
+    rows = made.json()["postings"]
+    assert {(r["account"], r["category"]) for r in rows} == {
+        (expenses, books["groceries"]["aid"]),
+        (books["bank"]["aid"], None),
+    }

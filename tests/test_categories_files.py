@@ -8,6 +8,7 @@ import pytest
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
 
+from .books import leg
 from .conftest import TEST_USER_ID
 from .test_budget import account, budget, line
 from .test_budget_categories import paid
@@ -103,7 +104,7 @@ def test_split_rows_of_a_rule_carry_their_categories(client, books):
             "postings": [
                 {"account": books["loan"]["aid"], "side": "debit", "amount": "14120", "category": books["emi"]["aid"]},
                 {"account": books["loan"]["aid"], "side": "debit", "amount": "5157", "category": books["sip"]["aid"]},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "19277"},
+                leg(books["bank"], "credit", "19277"),
             ],
             "start_date": "2026-10-01",
         },

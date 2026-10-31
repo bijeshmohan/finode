@@ -4,6 +4,7 @@ import re
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -22,8 +23,8 @@ def test_a_save_that_cannot_reach_the_server_keeps_the_entry_and_says_so(page: P
         "/transactions/",
         payee="Old",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
+            leg(books["food"], "debit", "40"),
+            leg(books["checking"], "credit", "40"),
         ],
     )
     page.goto(f"/transactions/{entry['tid']}/edit")
@@ -47,8 +48,8 @@ def test_a_server_error_is_explained_without_clearing_the_form(page: Page, books
         "/transactions/",
         payee="Old",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
+            leg(books["food"], "debit", "40"),
+            leg(books["checking"], "credit", "40"),
         ],
     )
     page.goto(f"/transactions/{entry['tid']}/edit")

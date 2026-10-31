@@ -40,3 +40,19 @@ def post_account(client, body):
             send["parent_id"] = parent
         return Made(client.post("/api/categories/", json=send))
     return client.post("/api/accounts/", json=body)
+
+
+def leg(place, side, amount, **extra):
+    """One line of an entry for the API: a category is named as `category` (it posts to Expenses or Income), an account
+    as `account`. `place` is what the fixtures return (a category has `bcid`)."""
+    key = "category" if "bcid" in place else "account"
+    return {key: place["bcid"] if key == "category" else place["aid"], "side": side, "amount": amount, **extra}
+
+
+def into(client, category):
+    """The fields of a simple recurring rule that pays a category: it records on Expenses or Income, with the category."""
+    roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
+    kind = category.get("kind") or next(
+        c["kind"] for c in client.get("/api/categories/").json() if c["bcid"] == category["aid"]
+    )
+    return {"to_account": roots["Expenses" if kind == "spending" else "Income"], "category": category["aid"]}

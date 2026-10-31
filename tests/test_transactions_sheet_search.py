@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 from .htmlutil import option_selected
 
 
@@ -32,8 +32,8 @@ def post(client, payee, debit, credit, amount="10", **extra):
         json={
             "payee": payee,
             "postings": [
-                {"account": debit["aid"], "side": "debit", "amount": amount},
-                {"account": credit["aid"], "side": "credit", "amount": amount},
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
             ],
             **extra,
         },
@@ -195,9 +195,9 @@ def test_a_split_lists_every_account_with_its_amount(client, books):
         json={
             "payee": "Big shop",
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "600"},
-                {"account": books["delivery"]["aid"], "side": "debit", "amount": "300"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "900"},
+                leg(books["groceries"], "debit", "600"),
+                leg(books["delivery"], "debit", "300"),
+                leg(books["hdfc"], "credit", "900"),
             ],
         },
     ).json()
@@ -244,9 +244,9 @@ def test_add_again_keeps_every_row_of_a_split(client, books):
         json={
             "payee": "Big shop",
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "600"},
-                {"account": books["delivery"]["aid"], "side": "debit", "amount": "300"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "900"},
+                leg(books["groceries"], "debit", "600"),
+                leg(books["delivery"], "debit", "300"),
+                leg(books["hdfc"], "credit", "900"),
             ],
         },
     ).json()
@@ -288,8 +288,8 @@ def test_the_sheet_leads_like_the_row_and_offers_words_not_glyphs(client, books,
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "70"},
-                {"account": books["cash"]["aid"], "side": "credit", "amount": "70"},
+                leg(books["groceries"], "debit", "70"),
+                leg(books["cash"], "credit", "70"),
             ]
         },
     ).json()

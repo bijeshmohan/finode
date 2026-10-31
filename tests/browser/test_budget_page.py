@@ -6,6 +6,7 @@ from datetime import date, timedelta
 import pytest
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 THIS_MONTH = date.today().replace(day=1)
@@ -54,8 +55,8 @@ def test_a_card_the_budget_includes_is_in_the_sum(page: Page, books, api: Api):
     api.post(
         "/transactions/",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "120"},
-            {"account": books["card"]["aid"], "side": "credit", "amount": "120"},
+            leg(books["food"], "debit", "120"),
+            leg(books["card"], "credit", "120"),
         ],
     )
     page.goto("/budget")
@@ -325,8 +326,8 @@ def test_the_month_pill_sits_on_the_same_line_on_home_and_the_other_pages(page: 
     api.post(
         "/transactions/",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
+            leg(books["food"], "debit", "40"),
+            leg(books["checking"], "credit", "40"),
         ],
     )
     page.set_viewport_size({"width": width, "height": 800})
@@ -382,8 +383,8 @@ def test_home_is_centred_beside_the_sidebar_and_its_day_label_lines_up(page: Pag
     api.post(
         "/transactions/",
         postings=[
-            {"account": books["food"]["aid"], "side": "debit", "amount": "40"},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "40"},
+            leg(books["food"], "debit", "40"),
+            leg(books["checking"], "credit", "40"),
         ],
     )
     page.set_viewport_size({"width": 1280, "height": 800})

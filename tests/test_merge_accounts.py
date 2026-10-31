@@ -4,7 +4,7 @@ import pytest
 
 from app.repositories.category import CategoryRepository
 
-from .books import post_account
+from .books import into, post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .test_transaction_references import body
@@ -54,7 +54,7 @@ def test_everything_moves_and_the_category_goes(client, books):
         "/api/recurring/",
         json={
             "from_account": books["bank"]["aid"],
-            "to_account": books["swiggy"]["aid"],
+            **into(client, books["swiggy"]),
             "amount": "5",
             "frequency": "monthly",
             "start_date": "2999-01-01",

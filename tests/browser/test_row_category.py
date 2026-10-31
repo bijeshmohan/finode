@@ -3,6 +3,7 @@ account outside it, starts at the account's usual category and is saved on the l
 
 from playwright.sync_api import Page, expect
 
+from ..books import leg
 from .conftest import Api
 
 
@@ -53,7 +54,7 @@ def test_an_edit_keeps_the_category_it_had(page: Page, books, api: Api):
         "/transactions/",
         postings=[
             {"account": more["loan"]["aid"], "side": "debit", "amount": "500", "category": more["sip"]["aid"]},
-            {"account": books["checking"]["aid"], "side": "credit", "amount": "500"},
+            leg(books["checking"], "credit", "500"),
         ],
     )
     page.goto(f"/transactions/{made['tid']}/edit")

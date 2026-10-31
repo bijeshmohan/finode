@@ -78,7 +78,7 @@ def test_the_categories_page_lists_closed_ones_and_restores_them(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["snacks"], "side": "debit", "amount": "10"},
+                {"category": books["snacks"], "side": "debit", "amount": "10"},
                 {"account": books["bank"], "side": "credit", "amount": "10"},
             ]
         },
