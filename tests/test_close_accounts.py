@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from .books import leg, post_account
+from .books import into, leg, post_account
 from .svc import services
 from .test_budget import assign, budget, line
 
@@ -152,7 +152,7 @@ def test_a_running_recurring_rule_blocks_closing(client, books):
         "/api/recurring/",
         json={
             "from_account": books["old"]["aid"],
-            "to_account": books["groceries"]["aid"],
+            **into(client, books["groceries"]),
             "amount": "1",
             "start_date": "2999-01-01",
             "payee": "Netflix",

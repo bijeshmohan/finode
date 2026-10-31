@@ -26,7 +26,7 @@ def record(client, bank, food, payee="Lunch", amount="120", on=None, **extra):
             "payee": payee,
             "comment": "with notes",
             "postings": [
-                {"account": food, "side": "debit", "amount": amount},
+                {"category": food, "side": "debit", "amount": amount},
                 {"account": bank, "side": "credit", "amount": amount},
             ],
             **extra,

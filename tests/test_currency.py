@@ -173,7 +173,7 @@ def test_extra_fields_from_older_clients_are_ignored(client, root_accounts, acco
         json={
             "currency": "USD",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10", "value": "3"},
+                {"category": expense_account["aid"], "side": "debit", "amount": "10", "value": "3"},
                 {"account": account["aid"], "side": "credit", "amount": "10", "value": "3"},
             ],
         },

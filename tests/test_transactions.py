@@ -229,13 +229,17 @@ def test_delete_transaction(
     assert account_response.json()["balance"] == "0.00"
 
 
-def _two_postings(debit: str, credit: str) -> dict:
-    return {
-        "postings": [
-            {"account": debit, "side": "debit", "amount": "10.00"},
-            {"account": credit, "side": "credit", "amount": "10.00"},
-        ]
-    }
+def _two_postings(debit, credit) -> dict:
+    """Two lines; each side is an account id, or the dict of an account or category from a fixture."""
+
+    def side(place, which):
+        return (
+            {"account": place, "side": which, "amount": "10.00"}
+            if isinstance(place, str)
+            else leg(place, which, "10.00")
+        )
+
+    return {"postings": [side(debit, "debit"), side(credit, "credit")]}
 
 
 def test_create_transaction_rejects_root_account(client: TestClient, account: dict, root_accounts: dict[str, str]):
@@ -247,14 +251,14 @@ def test_create_transaction_rejects_root_account(client: TestClient, account: di
 
 def test_create_transaction_rejects_asset_with_sub_accounts(client: TestClient, account: dict, expense_account: dict):
     post_account(client, {"name": "child", "parent_id": account["aid"]})
-    response = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"]))
+    response = client.post("/api/transactions/", json=_two_postings(expense_account, account))
     assert response.status_code == 400
     assert response.json()["detail"] == ("cannot post to account 'checking' because it has sub-accounts!")
 
 
 def test_create_transaction_to_expense_group(client: TestClient, account: dict, expense_account: dict):
     post_account(client, {"name": "child", "parent_id": expense_account["aid"]})
-    response = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"]))
+    response = client.post("/api/transactions/", json=_two_postings(expense_account, account))
     assert response.status_code == 201
     spent = client.get("/api/reports/breakdown", params={"kind": "expenses"}).json()
     assert spent["total"] == "10.00"
@@ -262,7 +266,7 @@ def test_create_transaction_to_expense_group(client: TestClient, account: dict, 
 
 def test_create_transaction_to_leaf_sub_account(client: TestClient, account: dict, expense_account: dict):
     child = post_account(client, {"name": "child", "parent_id": expense_account["aid"]}).json()
-    response = client.post("/api/transactions/", json=_two_postings(child["aid"], account["aid"]))
+    response = client.post("/api/transactions/", json=_two_postings(child, account))
     assert response.status_code == 201
     spent = client.get("/api/reports/breakdown", params={"kind": "expenses"}).json()
     assert spent["total"] == "10.00" and spent["lines"][0]["account"] == "groceries"
@@ -271,7 +275,7 @@ def test_create_transaction_to_leaf_sub_account(client: TestClient, account: dic
 def test_update_transaction_rejects_root_account(
     client: TestClient, account: dict, expense_account: dict, root_accounts: dict[str, str]
 ):
-    created = client.post("/api/transactions/", json=_two_postings(expense_account["aid"], account["aid"])).json()
+    created = client.post("/api/transactions/", json=_two_postings(expense_account, account)).json()
     response = client.patch(
         f"/api/transactions/{created['tid']}",
         json=_two_postings(account["aid"], root_accounts["Assets"]),
@@ -325,7 +329,7 @@ def test_list_transactions_filter_by_account_includes_sub_accounts(
     _post(client, child, account, "5.00", "2026-01-05", "food")
     _post(client, other_account, account, "9.00", "2026-01-06", "transfer")
 
-    by_parent = client.get("/api/transactions/", params={"account": expense_account["aid"]})
+    by_parent = client.get("/api/transactions/", params={"category": expense_account["aid"]})
     assert [t["payee"] for t in by_parent.json()] == ["food"]
 
     by_other = client.get("/api/transactions/", params={"account": other_account["aid"]})

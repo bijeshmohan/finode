@@ -102,7 +102,7 @@ def test_no_total_when_something_coming_in_is_mixed_with_what_goes_out(client, l
             "payee": "Pay",
             "postings": [
                 {"account": bank, "side": "debit", "amount": "900"},
-                {"account": salary, "side": "credit", "amount": "900"},
+                {"category": salary, "side": "credit", "amount": "900"},
             ],
         },
     )
@@ -156,7 +156,7 @@ def test_money_in_and_out_ahead_gives_no_total_on_an_account(client, ledger, roo
             "payee": "Pay",
             "postings": [
                 {"account": bank, "side": "debit", "amount": "900"},
-                {"account": salary, "side": "credit", "amount": "900"},
+                {"category": salary, "side": "credit", "amount": "900"},
             ],
         },
     )
@@ -175,7 +175,7 @@ def test_a_category_page_only_lists_what_has_happened(client, ledger, root_accou
                 "date": (local_today() + timedelta(days=days)).isoformat(),
                 "payee": payee,
                 "postings": [
-                    {"account": food, "side": "debit", "amount": "50"},
+                    {"category": food, "side": "debit", "amount": "50"},
                     {"account": bank, "side": "credit", "amount": "50"},
                 ],
             },

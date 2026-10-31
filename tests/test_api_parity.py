@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from .books import leg, post_account
+from .books import into, leg, post_account
 
 TODAY = date.today()
 THIS_MONTH = TODAY.replace(day=1).isoformat()
@@ -149,7 +149,7 @@ def test_pause_and_resume_a_recurring_rule(client, books):
         "/api/recurring/",
         json={
             "from_account": books["bank"]["aid"],
-            "to_account": books["food"]["aid"],
+            **into(client, books["food"]),
             "amount": "5",
             "frequency": "monthly",
             "start_date": (TODAY + timedelta(days=40)).isoformat(),

@@ -106,6 +106,6 @@ def test_users_can_only_access_their_own_data(session: Session):
                     ],
                 },
             )
-            assert response.status_code == 404
+            assert response.status_code == 400 and "not found" in response.text
     finally:
         app.dependency_overrides.clear()

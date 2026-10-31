@@ -149,6 +149,14 @@ class Place:
     category: UUID | None = None
 
 
+def _is_id(text: str) -> bool:
+    try:
+        UUID(text)
+    except ValueError:
+        return False
+    return True
+
+
 class Places:
     """Finds the account or the category a name (or id) means, for the tools that record money moving."""
 
@@ -168,6 +176,18 @@ class Places:
         try:
             kind, name = self._category_text(text)
             category = self.categories.find(name, kind=kind, open_only=True)
+            if kind is None:  # no Expenses:/Income: in front: the end of a path must name just one category
+                wanted = [s.casefold() for s in SEPARATORS.split(name) if s]
+                ends = [
+                    c
+                    for c in self.categories.categories.values()
+                    if [s.casefold() for s in c.path.split(":")][-len(wanted) :] == wanted and c.closed_on is None
+                ]
+                if len(ends) > 1 and not _is_id(name):
+                    listed = ", ".join(
+                        sorted(("Expenses:" if c.kind == "spending" else "Income:") + c.path for c in ends)
+                    )
+                    raise ValueError(f"'{text}' matches {len(ends)} places: {listed}. Use the full path!")
             root = "Expenses" if category.kind == "spending" else "Income"
             found.append(Place(f"{root}:{category.path}", self.roots[root], category.bcid))
         except ValueError as e:
@@ -181,8 +201,10 @@ class Places:
         informative = [p for p in problems if "no account matches" not in p and "no category matches" not in p]
         if informative:
             raise ValueError(informative[0])
+        hints = [m.group(0) for p in problems if (m := re.search(r"Did you mean [^?]*\?", p))]
+        suggestion = f" {' '.join(hints)}" if hints else ""
         raise ValueError(
-            f"nothing matches '{text}': give an account path (see list_accounts) or a category (see list_categories)!"
+            f"nothing matches '{text}'.{suggestion} Give an account path (list_accounts) or a category (list_categories)!"
         )
 
     @staticmethod

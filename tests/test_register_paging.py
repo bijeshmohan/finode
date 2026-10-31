@@ -29,7 +29,7 @@ def busy(client, root_accounts):
                 "date": str(day),
                 "payee": f"Shop {i:02d}",
                 "postings": [
-                    {"account": food, "side": "debit", "amount": "10"},
+                    {"category": food, "side": "debit", "amount": "10"},
                     {"account": bank, "side": "credit", "amount": "10"},
                 ],
             },
@@ -99,7 +99,7 @@ def test_entries_dated_ahead_still_all_show_in_their_card(client, busy):
                 "date": str(local_today() + timedelta(days=5 + i)),
                 "payee": f"Later {i}",
                 "postings": [
-                    {"account": food, "side": "debit", "amount": "5"},
+                    {"category": food, "side": "debit", "amount": "5"},
                     {"account": bank, "side": "credit", "amount": "5"},
                 ],
             },

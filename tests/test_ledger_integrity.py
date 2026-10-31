@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.transaction import Posting, PostingSide
 
-from .books import leg
+from .books import into, leg
 from .svc import plain
 
 
@@ -316,7 +316,7 @@ def test_recurring_occurrences_balance(client, root_accounts, account, expense_a
         "/api/recurring/",
         json={
             "from_account": account["aid"],
-            "to_account": expense_account["aid"],
+            **into(client, expense_account),
             "amount": "9",
             "frequency": "monthly",
             "start_date": (date.today() - timedelta(days=70)).isoformat(),

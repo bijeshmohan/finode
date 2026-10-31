@@ -438,7 +438,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "/api/transactions/",
             json={
                 "postings": [
-                    {"account": a["Groceries"], "side": "debit", "amount": "5"},
+                    {"category": a["Groceries"], "side": "debit", "amount": "5"},
                     {"account": mine, "side": "credit", "amount": "5"},
                 ]
             },
@@ -450,7 +450,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "/api/transactions/",
             json={
                 "postings": [
-                    {"account": bills, "side": "debit", "amount": "5", "category": a["Groceries"]},
+                    {"account": world.b_roots["Expenses"], "side": "debit", "amount": "5", "category": a["Groceries"]},
                     {"account": mine, "side": "credit", "amount": "5"},
                 ]
             },
@@ -481,13 +481,13 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                 "transactions": [
                     {
                         "postings": [
-                            {"account": bills, "side": "debit", "amount": "5"},
+                            {"category": bills, "side": "debit", "amount": "5"},
                             {"account": mine, "side": "credit", "amount": "5"},
                         ]
                     },
                     {
                         "postings": [
-                            {"account": a["Groceries"], "side": "debit", "amount": "5"},
+                            {"category": a["Groceries"], "side": "debit", "amount": "5"},
                             {"account": mine, "side": "credit", "amount": "5"},
                         ]
                     },
@@ -500,7 +500,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "/api/transactions/",
             json={
                 "postings": [
-                    {"account": a["Groceries"], "side": "debit", "amount": "5"},
+                    {"category": a["Groceries"], "side": "debit", "amount": "5"},
                     {"account": a["HDFC"], "side": "credit", "amount": "5"},
                 ]
             },

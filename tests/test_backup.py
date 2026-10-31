@@ -8,7 +8,7 @@ import pytest
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
 
-from .books import post_account
+from .books import into, leg, post_account
 from .conftest import TEST_USER_ID
 
 OTHER = UUID("00000000-0000-4000-8000-0000000000bb")
@@ -27,7 +27,7 @@ def tx(client, postings, **extra):
 
 
 def line(account, side, amount, **extra):
-    return {"account": account["aid"], "side": side, "amount": amount, **extra}
+    return leg(account, side, amount, **extra)
 
 
 @pytest.fixture
@@ -76,7 +76,7 @@ def rich(client, root_accounts):
         "/api/recurring/",
         json={
             "from_account": bank["aid"],
-            "to_account": groceries["aid"],
+            **into(client, groceries),
             "amount": "500",
             "frequency": "monthly",
             "start_date": "2026-07-01",

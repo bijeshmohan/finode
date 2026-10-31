@@ -21,8 +21,13 @@ from .test_budget import account, assign
 
 
 def entry(client, lines, **extra):
+    known = {c["bcid"] for c in client.get("/api/categories/", params={"include_closed": True}).json()}
     body = {
-        "postings": [{"account": a, "side": s, "amount": x, **({"category": c} if c else {})} for a, s, x, c in lines]
+        "postings": [
+            {("category" if a in known else "account"): a, "side": s, "amount": x}
+            | ({"category": c} if c and a not in known else {})
+            for a, s, x, c in lines
+        ]
     }
     response = client.post("/api/transactions/", json={**body, **extra})
     return response

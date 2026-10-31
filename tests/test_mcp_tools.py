@@ -90,7 +90,7 @@ async def test_record_by_short_names_and_read_it_back(session, client, books, se
 
 async def test_ambiguous_and_unknown_accounts_are_explained(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        with pytest.raises(ToolFailed, match="matches 2 accounts: Expenses:Food, Expenses:Travel:Food"):
+        with pytest.raises(ToolFailed, match="matches 2 places: Expenses:Food, Expenses:Travel:Food"):
             await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Food")
         with pytest.raises(ToolFailed, match="Did you mean .*Groceries"):
             await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Grocries")
@@ -366,7 +366,7 @@ async def test_assistants_can_read_and_plan_the_budget(session, root_accounts, c
                     "move_budget_money", {"from_category": "Food", "to_category": "Rent", "amount": "500"}
                 )
             )
-        with pytest.raises(ToolFailed, match="not an expense account"):
+        with pytest.raises(ToolFailed, match="no category matches"):
             payload(await c.call_tool("assign_to_category", {"category": "Bank", "amount": "5"}))
         with pytest.raises(ToolFailed, match="YYYY-MM"):
             payload(await c.call_tool("get_budget", {"month": "last"}))
@@ -511,7 +511,7 @@ async def test_only_expense_categories_can_be_planned(session, root_accounts, cl
     post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         for name in ("Bank", "Fund", "Salary"):
-            with pytest.raises(ToolFailed, match="not an expense account"):
+            with pytest.raises(ToolFailed, match="no category matches|not a spending one"):
                 payload(await c.call_tool("assign_to_category", {"category": name, "amount": "5"}))
 
 

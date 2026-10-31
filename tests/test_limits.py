@@ -10,7 +10,7 @@ from app.ratelimit import AttemptLimiter
 from app.routers.web import auth as web_auth_router
 from app.web_auth import InvalidCredentialsError, SessionTokens
 
-from .books import leg, post_account
+from .books import into, leg, post_account
 from .test_web_signup import CODE, FORM, raw_client, signup_on, supabase  # noqa: F401  (fixtures used by name)
 
 # ---- the counter ----------------------------------------------------------------------------------------------
@@ -161,7 +161,7 @@ def test_new_transactions_a_day_are_limited_but_not_recurring_ones(client, two_a
         "/api/recurring/",
         json={
             "from_account": a["aid"],
-            "to_account": b["aid"],
+            **into(client, b),
             "amount": "1",
             "frequency": "daily",
             "start_date": "2026-09-01",

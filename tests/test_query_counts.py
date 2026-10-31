@@ -55,7 +55,7 @@ def grow(client, root_accounts, accounts: int, transactions: int, start: int = 0
             "/api/transactions/",
             json={
                 "postings": [
-                    {"account": expenses[i % len(expenses)]["aid"], "side": "debit", "amount": "5"},
+                    {"category": expenses[i % len(expenses)]["aid"], "side": "debit", "amount": "5"},
                     {"account": assets[i % len(assets)]["aid"], "side": "credit", "amount": "5"},
                 ]
             },
