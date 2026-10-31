@@ -99,3 +99,6 @@ secrets/
 .tmp/
 .temp/
 backups/
+
+# What a failed browser test leaves behind (tests/browser/conftest.py)
+tests/browser/failures/
