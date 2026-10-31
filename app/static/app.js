@@ -456,13 +456,14 @@ document.addEventListener("close", (event) => {
   });
 });
 
-// The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
+// The details sheet over a list: it opens when its request starts (with placeholders) and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
   const id = event.target && event.target.id;
   if (!SHEET_BODIES.includes(id)) return;
   const dialog = document.getElementById(id.replace("-body", ""));
+  // The sheet was opened when the request started (above), so an answer only fills it: one that finds it closed (Esc in the
+  // gap between the answer and its being put on the page) must not bring it back.
   if (dialog) { delete dialog.dataset.loading; loadingBy.delete(dialog); }
-  if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
 });

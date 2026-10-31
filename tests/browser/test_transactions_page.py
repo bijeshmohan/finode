@@ -46,6 +46,28 @@ def test_the_sheet_closes_with_escape_and_with_a_tap_outside(page: Page, books, 
     expect(page.locator("#txn-sheet")).to_be_hidden()
 
 
+def test_a_sheet_closed_between_its_answer_and_its_arrival_stays_closed(page: Page, books, api: Api):
+    """Esc in the gap after the answer is in and before it is put on the page (the real cause of an occasional failure under
+    load) must not bring the sheet back: the close happens in `htmx:beforeSwap`, the moment that gap is in."""
+    add(api, books, "Swiggy", "food", "card")
+    page.goto("/transactions")
+    page.evaluate(
+        """() => {
+            const close = (event) => {
+                if (event.detail.target.id !== "txn-sheet-body") return;  // not the to-do badge's own swap
+                document.body.removeEventListener("htmx:beforeSwap", close);
+                document.getElementById("txn-sheet").close();
+            };
+            document.body.addEventListener("htmx:beforeSwap", close);
+        }"""
+    )
+    page.locator("a.tx", has_text="Swiggy").click()
+    page.wait_for_timeout(600)  # the answer arrives and is swapped in
+    expect(page.locator("#txn-sheet")).to_be_hidden()
+    page.locator("a.tx", has_text="Swiggy").click()  # and it opens again as usual
+    expect(page.locator("#txn-sheet")).to_contain_text("Paid from")
+
+
 def test_the_sheet_opens_from_home_too(page: Page, books, api: Api):
     add(api, books, "Swiggy", "food", "card")
     page.goto("/")

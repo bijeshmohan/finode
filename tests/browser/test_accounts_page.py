@@ -1,5 +1,6 @@
 """The accounts page in a browser: the type chips, groups under their headings and closed accounts."""
 
+import re
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -171,7 +172,7 @@ def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Pa
     page.locator('input[name="name"]').fill("Car loan")
     page.locator('select[name="payment_category"]').select_option(label="Rent")
     page.get_by_role("button", name="Add account").click()
-    page.wait_for_url("**/accounts/*")
+    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))  # not /accounts/new, where the form already is
     loan = next(a for a in api.get("/accounts/") if a["name"] == "Car loan")
     assert loan["on_budget"] is False and loan["payment_category_id"] == books["rent"]["id"]
 
