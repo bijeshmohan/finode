@@ -13,6 +13,7 @@ import os
 import threading
 import time
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 import uvicorn
@@ -86,8 +87,33 @@ def live_server(session) -> Generator[str]:
     app.dependency_overrides.clear()
 
 
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    report = yield
+    setattr(item, f"report_{report.when}", report)
+    return report
+
+
+FAILURES = Path(__file__).parent / "failures"
+
+
+def keep_evidence(item, page: Page) -> None:
+    """A failed browser test leaves a screenshot and the page's HTML next to the tests (git ignores them), so a failure
+    that only happens now and then can be read afterwards instead of guessed at."""
+    report = getattr(item, "report_call", None)
+    if report is None or not report.failed:
+        return
+    try:
+        FAILURES.mkdir(exist_ok=True)
+        name = item.name.replace("/", "_")[:120]
+        page.screenshot(path=str(FAILURES / f"{name}.png"))
+        (FAILURES / f"{name}.html").write_text(page.content())
+    except Exception:
+        pass
+
+
 @pytest.fixture
-def page(browser: Browser, live_server: str) -> Generator[Page]:
+def page(request, browser: Browser, live_server: str) -> Generator[Page]:
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, base_url=live_server, reduced_motion="reduce"
     )  # measured positions must not catch a page mid-rise
@@ -101,6 +127,7 @@ def page(browser: Browser, live_server: str) -> Generator[Page]:
         lambda error: errors.append(str(error)) if "due to access control checks" not in str(error) else None,
     )
     yield page
+    keep_evidence(request.node, page)
     context.close()
     assert not errors, f"JavaScript errors in the page: {errors}"
 
