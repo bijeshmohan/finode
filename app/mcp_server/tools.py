@@ -613,14 +613,14 @@ def get_transaction_history(
     """Everything that happened to one transaction, oldest first: when it was made, each edit with exactly what
     changed (date, payee, note, reference, rows added, removed or changed) and who did it (web, api, import,
     recurring or an assistant), and its deletion. Works for a deleted transaction too."""
-    tx_id = _transaction_id(transaction_id)
+    transaction_uuid = _transaction_id(transaction_id)
     with services() as s:
-        steps = s.transactions.changes(tx_id)
+        steps = s.transactions.changes(transaction_uuid)
         if not steps:
             raise ToolError("no history for that transaction: check the id")
         return {
-            "transaction_id": str(tx_id),
-            "exists": s.transactions.read(tx_id) is not None,
+            "transaction_id": str(transaction_uuid),
+            "exists": s.transactions.read(transaction_uuid) is not None,
             "history": [_step(c, full=True) for c in steps],
         }
 
@@ -1048,10 +1048,10 @@ def update_transaction(
     dry_run: DryRun = False,
 ) -> dict[str, Any]:
     """Change a transaction. Only what you pass changes."""
-    tx_id = _transaction_id(transaction_id)
+    transaction_uuid = _transaction_id(transaction_id)
     with services() as s:
         index = _index(s)
-        existing = s.transactions.read(tx_id)
+        existing = s.transactions.read(transaction_uuid)
         if existing is None:
             raise ToolError("transaction not found")
         changes: dict[str, Any] = {}
@@ -1082,10 +1082,12 @@ def update_transaction(
             )
         if dry_run:
             return _noticed(
-                _dry_run("would_become", s.transactions.preview_update(tx_id, TransactionUpdate(**changes)), index),
+                _dry_run(
+                    "would_become", s.transactions.preview_update(transaction_uuid, TransactionUpdate(**changes)), index
+                ),
                 note,
             )
-        saved = s.transactions.update(tx_id, TransactionUpdate(**changes))
+        saved = s.transactions.update(transaction_uuid, TransactionUpdate(**changes))
         if saved is None:
             raise ToolError("transaction not found")
         return _noticed({"updated": _transaction(saved, index, s)}, note)
@@ -1097,15 +1099,15 @@ def delete_transaction(
     dry_run: DryRun = False,
 ) -> dict[str, Any]:
     """Delete a transaction (it waits in the user's recently deleted list and can be restored). Ask the user to confirm first."""
-    tx_id = _transaction_id(transaction_id)
+    transaction_uuid = _transaction_id(transaction_id)
     with services() as s:
         index = _index(s)
         if dry_run:
-            return _dry_run("would_delete", s.transactions.preview_delete(tx_id), index)
-        existing = s.transactions.read(tx_id)
+            return _dry_run("would_delete", s.transactions.preview_delete(transaction_uuid), index)
+        existing = s.transactions.read(transaction_uuid)
         if existing is None:
             raise ToolError("transaction not found")
-        s.transactions.delete(tx_id)
+        s.transactions.delete(transaction_uuid)
         return {"deleted": _transaction(existing, index, s)}
 
 
@@ -1353,12 +1355,12 @@ def stop_recurring(
     What it already recorded is kept."""
     with services() as s:
         try:
-            rule_id = UUID(recurring_id.strip())
+            recurring_uuid = UUID(recurring_id.strip())
         except ValueError:
             raise ToolError(
                 f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
             ) from None
-        rule = s.recurring.set_active(rule_id, False)
+        rule = s.recurring.set_active(recurring_uuid, False)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
         return {"paused": str(rule.id)}
@@ -1372,15 +1374,15 @@ def skip_recurring_occurrence(
     nothing is recorded for it and the rule carries on with the one after. Only when the user asks."""
     with services() as s:
         try:
-            rule_id = UUID(recurring_id.strip())
+            recurring_uuid = UUID(recurring_id.strip())
         except ValueError:
             raise ToolError(
                 f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
             ) from None
-        before = s.recurring.read(rule_id)
+        before = s.recurring.read(recurring_uuid)
         if before is None:
             raise ToolError("no recurring transaction has that id!")
-        rule = s.recurring.skip_next(rule_id)
+        rule = s.recurring.skip_next(recurring_uuid)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
         return {
@@ -1698,12 +1700,12 @@ def resume_recurring(
     from the next occurrence."""
     with services() as s:
         try:
-            rule_id = UUID(recurring_id.strip())
+            recurring_uuid = UUID(recurring_id.strip())
         except ValueError:
             raise ToolError(
                 f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
             ) from None
-        rule = s.recurring.set_active(rule_id, True)
+        rule = s.recurring.set_active(recurring_uuid, True)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
         return {"resumed": str(rule.id), "next_due": rule.next_date.isoformat() if rule.active else None}

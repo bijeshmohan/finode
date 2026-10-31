@@ -252,8 +252,6 @@ def run_budget(session, seed: int, steps: int) -> int:
     card = s.accounts.create(AccountCreate(name="Card", parent_id=roots["Liabilities"], on_budget=True))
     salary = s.categories.create(CategoryCreate(name="Salary", kind="earning"))
     cats = [s.categories.create(CategoryCreate(name=n, kind="spending")) for n in ("Rent", "Food", "Fun", "Bills")]
-    for c in (salary, *cats):
-        c.__dict__["id"] = c.id  # the tests below name a category by `aid`, as they did when it was an account
     done = 0
     for step in range(steps):
         s = services(session)

@@ -239,7 +239,7 @@ def world(client: TestClient, session, rich) -> World:
     )
     shelf = post_account(client, {"name": "Spare shelf", "parent_id": assets}).json()["id"]
     client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
-    w.dids = [str(d["id"]) for d in services(session).accounts.restorable()]
+    w.deletion_ids = [str(d["id"]) for d in services(session).accounts.restorable()]
     client.post("/budget/goal", data={"name": "Isolated holiday", "amount": "5000", "by": "2999-12", "assign_now": "1"})
     w.goal_ids = [g["id"] for g in client.get("/api/budget/").json()["goals"]]
     doc = client.get("/api/backup").json()
@@ -248,15 +248,24 @@ def world(client: TestClient, session, rich) -> World:
     w.accounts = {**{a["name"]: a["id"] for a in doc["accounts"]}, **w.categories}
     w.roots = [a["id"] for a in doc["accounts"] if a["parent_id"] is None]
     w.tags = sorted({name for t in doc["transactions"] for name in t.get("tags", [])})
-    w.tids = [t["id"] for t in doc["transactions"]] + [spare["id"]]
-    w.rids = [r["id"] for r in doc["recurring"]]
-    w.hids = [str(d.id) for d in services(session).transactions.deleted()]
+    w.transaction_ids = [t["id"] for t in doc["transactions"]] + [spare["id"]]
+    w.recurring_ids = [r["id"] for r in doc["recurring"]]
+    w.history_ids = [str(d.id) for d in services(session).transactions.deleted()]
     w.token_id, w.grant_id = str(w.token.id), str(w.grant.id)
     w.markers = (
         A_WORDS
         + [
             str(i)
-            for i in (*w.accounts.values(), *w.tids, *w.rids, *w.hids, *w.dids, w.token_id, w.grant_id, *w.goal_ids)
+            for i in (
+                *w.accounts.values(),
+                *w.transaction_ids,
+                *w.recurring_ids,
+                *w.history_ids,
+                *w.deletion_ids,
+                w.token_id,
+                w.grant_id,
+                *w.goal_ids,
+            )
         ]
         + ["Isolated holiday"]
     )
@@ -307,10 +316,10 @@ def candidates(world: World, name: str) -> list[str]:
     return {
         "account_id": [*world.accounts.values(), *world.roots],
         "category_id": list(world.categories.values()),
-        "transaction_id": world.tids,
-        "history_id": world.hids,
-        "deletion_id": world.dids,
-        "recurring_id": world.rids,
+        "transaction_id": world.transaction_ids,
+        "history_id": world.history_ids,
+        "deletion_id": world.deletion_ids,
+        "recurring_id": world.recurring_ids,
         "token_id": [world.token_id],
         "grant_id": [world.grant_id],
         "goal_id": world.goal_ids,
@@ -703,14 +712,14 @@ async def test_b_s_assistant_cannot_reach_a(client: TestClient, session, world: 
         assert not leaked(world, json.dumps(payload(await c.call_tool("search_transactions", {}))))
         await fails("get_account", account="HDFC")
         await fails("get_account", account=a["HDFC"])
-        await fails("get_transaction", transaction_id=world.tids[0])
-        await fails("update_transaction", transaction_id=world.tids[0], payee="hacked")
-        await fails("delete_transaction", transaction_id=world.tids[0])
+        await fails("get_transaction", transaction_id=world.transaction_ids[0])
+        await fails("update_transaction", transaction_id=world.transaction_ids[0], payee="hacked")
+        await fails("delete_transaction", transaction_id=world.transaction_ids[0])
         await fails("record_transaction", amount="1", from_account=a["HDFC"], to_account="Bills")
         await fails("record_transaction", amount="1", from_account="Mine", to_account=a["Groceries"])
         await fails("assign_to_category", category=a["Groceries"], amount="5")
         await fails("assign_to_category", category="Groceries", amount="5")
-        await fails("stop_recurring", recurring_id=world.rids[0])
+        await fails("stop_recurring", recurring_id=world.recurring_ids[0])
         await fails("create_account", name="x", parent=a["Banks"])
     assert books_of(client, TEST_USER_ID) == before_a, "A's books were changed through an assistant"
 
@@ -754,7 +763,7 @@ def test_nothing_answers_without_a_sign_in(session, world: World):
                     "goal_id",
                     "name",
                 ):
-                    url = url.replace("{" + name + "}", str(world.tids[0]))
+                    url = url.replace("{" + name + "}", str(world.transaction_ids[0]))
                 response = anonymous.request(
                     method,
                     url,
