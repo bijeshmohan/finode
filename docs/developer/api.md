@@ -41,7 +41,7 @@ Everything the web app and the assistants can do with your books can be done thr
 
 ## Categories
 
-A category is what money was for (Groceries, EMI, Salary), apart from the accounts. **Spending** categories are what the budget plans against; **earning** ones label income. A group has no parent; a category inside it names it as `parent_id`; two levels at most. An Income or Expenses account has a category of the same id (`category_id` on the account), so existing ids keep working. A category's `bcid` is also the id of its books account.
+A category is what money was for (Groceries, EMI, Salary), apart from the accounts. **Spending** categories are what the budget plans against; **earning** ones label income. A group has no parent; a category inside it names it as `parent_id`; two levels at most. A category is not an account: nothing is made under Expenses or Income, and a category's id is never accepted where an account id goes.
 
 | Method | Path | What it does |
 |---|---|---|
@@ -55,7 +55,7 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 | `GET` | `/categories/{bcid}/register` | The entries that have a line labelled with the category (and its subcategories, unless `own_only=true`), oldest first, with what each changed and the running total. |
 | `POST` | `/categories/{bcid}/merge` | Fold it into another category (`into`): entries, labelled lines, planned amounts and recurring rules become the other's. `dry_run=true` only says what would move. |
 
-**On a transaction line** (`postings[]` of `/transactions/`, and the rows of a recurring split) `category` says what the line was for. Leave it out and the account decides: an Income or Expenses account stands for its category, and a payment into a loan or fund that has a payment category takes that one. A line may carry **only** its category (no `account`): it then posts to that category's books account. A category on a line to an Income or Expenses account must be that account's own; on any other account it must be a spending category, and not on an account that is part of the budget (the category goes on the other side). A simple recurring rule takes one `category`.
+**On a transaction line** (`postings[]` of `/transactions/`, and the rows of a recurring split) `category` says what the line was for. Leave it out and a payment into a loan or fund that has a payment category takes that one; a line on Expenses or Income with none is Uncategorised. A line may carry **only** its category (no `account`): it then posts to the root Expenses account (a spending category) or Income (an earning one). A category on a line to Expenses or Income must be a spending or earning one to match; on any other account it must be a spending category, and not on an account that is part of the budget (the category goes on the other side). A simple recurring rule takes one `category`.
 
 ## Transactions
 

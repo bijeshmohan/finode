@@ -3,7 +3,7 @@ move the #words of older notes and backups into tags."""
 
 import pytest
 
-from app.tags import clean_name, clean_names, clean_tag, split_note, tags_in, without_tags
+from app.tags import clean_name, clean_names, clean_tag, split_note, tags_in
 
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
@@ -55,7 +55,6 @@ def test_old_notes_split_into_words_and_tags():
     assert split_note("Issue #1") == ("Issue #1", [])
     many = " ".join(f"#t{n}" for n in range(11))
     assert split_note(many) == (many, []), "too many tags: the note is left as it is"
-    assert without_tags("a #b c") == "a c"
 
 
 def make(client, account, expense, note=None, tags=None, on="2026-10-10", amount="10"):
