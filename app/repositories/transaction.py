@@ -169,7 +169,7 @@ class TransactionRepository:
         ).first()
 
     def _line_categories(self, postings) -> builtins.list[UUID | None]:
-        """The category of each line: the one given, else the default of its books account, else (on Expenses or
+        """The category of each line: the one given, else (on Expenses or
         Income) Uncategorised or, for a payment into a loan or fund outside the budget that has a payment category,
         that category (only in an entry that touches the budget, which is when the budget counts it as spending)."""
         ids = {p.account for p in postings}
@@ -721,30 +721,6 @@ class TransactionRepository:
                 )
             )
         self.db.flush()
-
-    def relabel_account(self, account_id: UUID, old: UUID | None, new: UUID | None, origin: str | None) -> None:
-        """The lines on one account that carried a category take another (the account was moved to a new category).
-        Each entry gets an "updated" history row. Nothing is committed."""
-        tids = builtins.list(
-            self.db.exec(
-                select(Posting.transaction)
-                .where(Posting.user == self.uid, Posting.account == account_id, Posting.category_id == old)
-                .distinct()
-            ).all()
-        )
-        if not tids:
-            return
-        self.db.exec(
-            update(Posting)
-            .where(Posting.user == self.uid, Posting.account == account_id, Posting.category_id == old)
-            .values(category_id=new)
-        )
-        self.db.exec(
-            update(Transaction)
-            .where(Transaction.user == self.uid, col(Transaction.tid).in_(tids))
-            .values(updated_via=origin)
-        )
-        self._record_updated(tids, origin)
 
     def relabel_category(self, old: UUID, new: UUID, origin: str | None) -> builtins.list[UUID]:
         """Every line labelled with one category takes another (a merge). Each entry gets an "updated" history row.

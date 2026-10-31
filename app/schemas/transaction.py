@@ -16,9 +16,8 @@ class _PostingFields(BaseModel):
     side: PostingSide
     # How many decimals it may have is checked against the currency.
     amount: Decimal = Field(decimal_places=8, max_digits=24)
-    # What the line was for (a budget category). Leave it out and the account decides: a books account that has a
-    # default category uses it, a payment into a loan or fund that has a payment category is that category's, and a line
-    # on Expenses or Income with none is Uncategorised.
+    # What the line was for (a budget category). Leave it out and a payment into a loan or fund that has a payment
+    # category takes that one, and a line on Expenses or Income with none is Uncategorised.
     category: UUID | None = None
 
     @field_validator("amount")

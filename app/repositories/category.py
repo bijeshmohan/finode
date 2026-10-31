@@ -7,7 +7,7 @@ import builtins
 from datetime import date
 from uuid import UUID
 
-from sqlmodel import Session, col, select
+from sqlmodel import Session, select
 
 from ..models.category import BudgetCategory
 from .cache import remembered
@@ -79,17 +79,3 @@ class CategoryRepository:
         taken = {c.name.casefold() for c in self.list() if c.parent_id is None and c.kind == kind}
         name = UNCATEGORISED if UNCATEGORISED.casefold() not in taken else f"{UNCATEGORISED} (built-in)"
         return self.add(BudgetCategory(user=self.uid, name=name, kind=kind, system_key=key))
-
-    def set_system_key(self, bcid: UUID, key: str) -> None:
-        category = self.db.get(BudgetCategory, bcid)
-        if category is not None:
-            category.system_key = key
-            self.db.add(category)
-            self.db.flush()
-
-    def children_of(self, bcid: UUID) -> builtins.list[BudgetCategory]:
-        return builtins.list(
-            self.db.exec(
-                select(BudgetCategory).where(BudgetCategory.user == self.uid, col(BudgetCategory.parent_id) == bcid)
-            ).all()
-        )

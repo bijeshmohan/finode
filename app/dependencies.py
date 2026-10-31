@@ -179,9 +179,6 @@ def get_oauth_grant_service(
     return OAuthGrantService(OAuthGrantRepository(db, user.id))
 
 
-DB = Annotated[Session, Depends(get_db_session)]
-AR = Annotated[AccountRepository, Depends(get_account_repository)]
-TR = Annotated[TransactionRepository, Depends(get_transaction_repository)]
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Categories = Annotated[CategoryService, Depends(get_category_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
