@@ -2,6 +2,7 @@
 
 import pytest
 
+from .books import leg
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 
@@ -13,8 +14,8 @@ def body(debit, credit, amount="100", on="2026-10-10", **extra):
         "date": on,
         "payee": "Shop",
         "postings": [
-            {"account": debit["aid"], "side": "debit", "amount": amount},
-            {"account": credit["aid"], "side": "credit", "amount": amount},
+            leg(debit, "debit", amount),
+            leg(credit, "credit", amount),
         ],
         **extra,
     }

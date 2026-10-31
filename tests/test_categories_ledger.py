@@ -14,7 +14,7 @@ from app.models.transaction import Posting
 from app.models.transaction_history import TransactionHistory
 from app.schemas.category import CategoryCreate, CategoryUpdate
 
-from .books import post_account
+from .books import leg, post_account
 from .conftest import TEST_USER_ID
 from .svc import services
 from .test_budget import account, assign
@@ -193,7 +193,7 @@ def test_a_closed_category_cannot_be_used_but_an_entry_that_already_has_it_can_b
         json={
             "postings": [
                 {"account": books["loan"]["aid"], "side": "debit", "amount": "12", "category": books["emi"]["aid"]},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "12"},
+                leg(books["bank"], "credit", "12"),
             ]
         },
     )
@@ -255,7 +255,7 @@ def test_a_changed_category_is_told_in_the_changes(client, books):
         json={
             "postings": [
                 {"account": books["loan"]["aid"], "side": "debit", "amount": "10", "category": books["food"]["aid"]},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "10"},
+                leg(books["bank"], "credit", "10"),
             ]
         },
     )

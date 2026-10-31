@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 from .htmlutil import option_selected
 
 
@@ -30,8 +30,8 @@ def pay(client, payee, source, target, amount="10"):
         json={
             "payee": payee,
             "postings": [
-                {"account": target["aid"], "side": "debit", "amount": amount},
-                {"account": source["aid"], "side": "credit", "amount": amount},
+                leg(target, "debit", amount),
+                leg(source, "credit", amount),
             ],
         },
     )
@@ -96,9 +96,9 @@ def test_splits_entries_without_a_payee_and_closed_accounts_are_left_out(client,
         json={
             "payee": "Big shop",
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "6"},
-                {"account": books["delivery"]["aid"], "side": "debit", "amount": "4"},
-                {"account": books["hdfc"]["aid"], "side": "credit", "amount": "10"},
+                leg(books["groceries"], "debit", "6"),
+                leg(books["delivery"], "debit", "4"),
+                leg(books["hdfc"], "credit", "10"),
             ],
         },
     )

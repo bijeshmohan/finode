@@ -2,7 +2,7 @@
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .test_budget import account, budget, line
@@ -54,7 +54,7 @@ def test_a_category_with_history_is_closed_not_deleted(client, books):
         json={
             "postings": [
                 {"category": books["emi"]["aid"], "side": "debit", "amount": "10"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "10"},
+                leg(books["bank"], "credit", "10"),
             ]
         },
     )
@@ -83,8 +83,8 @@ def test_categories_merge_with_a_dry_run(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "10"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "10"},
+                leg(books["groceries"], "debit", "10"),
+                leg(books["bank"], "credit", "10"),
             ]
         },
     )
@@ -106,7 +106,7 @@ def test_a_line_may_name_only_its_category(client, books):
         json={
             "postings": [
                 {"category": books["groceries"]["aid"], "side": "debit", "amount": "12"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "12"},
+                leg(books["bank"], "credit", "12"),
             ]
         },
     )
@@ -119,7 +119,7 @@ def test_a_line_may_name_only_its_category(client, books):
         json={
             "postings": [
                 {"side": "debit", "amount": "1"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "1"},
+                leg(books["bank"], "credit", "1"),
             ]
         },
     )

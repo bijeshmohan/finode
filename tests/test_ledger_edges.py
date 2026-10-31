@@ -2,7 +2,7 @@
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 
 
 def post(client, debit, credit, amount, **extra):
@@ -10,8 +10,8 @@ def post(client, debit, credit, amount, **extra):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": debit["aid"], "side": "debit", "amount": amount},
-                {"account": credit["aid"], "side": "credit", "amount": amount},
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
             ],
             **extra,
         },
@@ -133,8 +133,8 @@ def test_an_account_cannot_be_on_both_sides_of_one_entry(client, account, expens
         "/api/transactions/",
         json={
             "postings": [
-                {"account": account["aid"], "side": "debit", "amount": "10"},
-                {"account": account["aid"], "side": "credit", "amount": "10"},
+                leg(account, "debit", "10"),
+                leg(account, "credit", "10"),
             ]
         },
     )
@@ -144,9 +144,9 @@ def test_an_account_cannot_be_on_both_sides_of_one_entry(client, account, expens
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "100"},
-                {"account": account["aid"], "side": "credit", "amount": "80"},
-                {"account": expense_account["aid"], "side": "credit", "amount": "20"},
+                leg(expense_account, "debit", "100"),
+                leg(account, "credit", "80"),
+                leg(expense_account, "credit", "20"),
             ]
         },
     )
@@ -157,9 +157,9 @@ def test_an_account_cannot_be_on_both_sides_of_one_entry(client, account, expens
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "60"},
-                {"account": expense_account["aid"], "side": "debit", "amount": "40"},
-                {"account": account["aid"], "side": "credit", "amount": "100"},
+                leg(expense_account, "debit", "60"),
+                leg(expense_account, "debit", "40"),
+                leg(account, "credit", "100"),
             ]
         },
     )
@@ -171,8 +171,8 @@ def test_an_account_cannot_be_on_both_sides_of_one_entry(client, account, expens
         f"/api/transactions/{split.json()['tid']}",
         json={
             "postings": [
-                {"account": account["aid"], "side": "debit", "amount": "5"},
-                {"account": account["aid"], "side": "credit", "amount": "5"},
+                leg(account, "debit", "5"),
+                leg(account, "credit", "5"),
             ]
         },
     )

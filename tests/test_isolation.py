@@ -26,7 +26,7 @@ from app.services.api_token import ApiTokenService
 from app.services.oauth_grant import OAuthGrantService
 from app.web_auth import web_login_required
 
-from .books import post_account
+from .books import leg, post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 from .svc import plain, services
@@ -268,8 +268,8 @@ def world(client: TestClient, session, rich) -> World:
             json={
                 "payee": "Power",
                 "postings": [
-                    {"account": w.b_bills["aid"], "side": "debit", "amount": "40"},
-                    {"account": w.b_mine["aid"], "side": "credit", "amount": "40"},
+                    leg(w.b_bills, "debit", "40"),
+                    leg(w.b_mine, "credit", "40"),
                 ],
             },
         )

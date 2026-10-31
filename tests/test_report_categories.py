@@ -3,6 +3,7 @@ books' expenses, where paying into a loan is no expense."""
 
 import pytest
 
+from .books import leg
 from .test_budget import account
 from .test_budget_categories import paid
 
@@ -36,8 +37,8 @@ def test_income_is_by_category_too(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["bank"]["aid"], "side": "debit", "amount": "900"},
-                {"account": books["salary"]["aid"], "side": "credit", "amount": "900"},
+                leg(books["bank"], "debit", "900"),
+                leg(books["salary"], "credit", "900"),
             ]
         },
     )
@@ -63,7 +64,7 @@ def test_a_category_cannot_be_put_on_a_line_to_a_budget_account(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["food"]["aid"], "side": "debit", "amount": "5"},
+                leg(books["food"], "debit", "5"),
                 {"account": books["bank"]["aid"], "side": "credit", "amount": "5", "category": books["food"]["aid"]},
             ]
         },

@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 from .test_budget import account
 
 THIS_MONTH = date.today().replace(day=1)
@@ -37,8 +37,8 @@ def entry(client, debit, credit, amount, when):
         json={
             "date": when.isoformat(),
             "postings": [
-                {"account": debit["aid"], "side": "debit", "amount": amount},
-                {"account": credit["aid"], "side": "credit", "amount": amount},
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
             ],
         },
     )

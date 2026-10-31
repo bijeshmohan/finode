@@ -2,7 +2,7 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
-from .books import post_account
+from .books import leg, post_account
 from .htmlutil import option_offset, option_selected
 
 
@@ -156,8 +156,8 @@ def test_edit_page_prefills_existing_postings(client: TestClient, account: dict,
             "date": "2026-05-04",
             "payee": "Corner shop",
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "9.99"},
-                {"account": account["aid"], "side": "credit", "amount": "9.99"},
+                leg(expense_account, "debit", "9.99"),
+                leg(account, "credit", "9.99"),
             ],
         },
     ).json()
@@ -182,8 +182,8 @@ def test_update_transaction_from_form(client: TestClient, account: dict, expense
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10.00"},
-                {"account": account["aid"], "side": "credit", "amount": "10.00"},
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     ).json()
@@ -211,8 +211,8 @@ def test_update_transaction_validation_error(client: TestClient, account: dict, 
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10.00"},
-                {"account": account["aid"], "side": "credit", "amount": "10.00"},
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     ).json()
@@ -248,8 +248,8 @@ def test_transactions_page_links_to_form(client: TestClient, account: dict, expe
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                leg(expense_account, "debit", "1.00"),
+                leg(account, "credit", "1.00"),
             ],
         },
     ).json()
@@ -263,8 +263,8 @@ def test_edit_page_offers_delete(client: TestClient, account: dict, expense_acco
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "1.00"},
-                {"account": account["aid"], "side": "credit", "amount": "1.00"},
+                leg(expense_account, "debit", "1.00"),
+                leg(account, "credit", "1.00"),
             ],
         },
     ).json()
@@ -278,8 +278,8 @@ def _tx(client: TestClient, debit: dict, credit: dict, amount: str = "10.00") ->
         "/api/transactions/",
         json={
             "postings": [
-                {"account": debit["aid"], "side": "debit", "amount": amount},
-                {"account": credit["aid"], "side": "credit", "amount": amount},
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
             ],
         },
     ).json()
@@ -369,9 +369,9 @@ def test_multi_posting_transactions_edit_in_split_mode_only(
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "30.00"},
-                {"account": account["aid"], "side": "credit", "amount": "20.00"},
-                {"account": other_account["aid"], "side": "credit", "amount": "10.00"},
+                leg(expense_account, "debit", "30.00"),
+                leg(account, "credit", "20.00"),
+                leg(other_account, "credit", "10.00"),
             ],
         },
     ).json()
@@ -422,9 +422,9 @@ def test_a_transaction_with_several_rows_shows_them_all(
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "6"},
-                {"account": other["aid"], "side": "debit", "amount": "4"},
-                {"account": account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "6"),
+                leg(other, "debit", "4"),
+                leg(account, "credit", "10"),
             ]
         },
     ).json()
@@ -464,8 +464,8 @@ def test_an_entry_that_fits_no_kind_has_nothing_selected(
         "/api/transactions/",
         json={
             "postings": [
-                {"account": account["aid"], "side": "debit", "amount": "5"},
-                {"account": capital["aid"], "side": "credit", "amount": "5"},
+                leg(account, "debit", "5"),
+                leg(capital, "credit", "5"),
             ]
         },
     ).json()["tid"]
@@ -496,8 +496,8 @@ def test_editing_shows_what_the_entry_is(
             "/api/transactions/",
             json={
                 "postings": [
-                    {"account": debit["aid"], "side": "debit", "amount": "5"},
-                    {"account": credit["aid"], "side": "credit", "amount": "5"},
+                    leg(debit, "debit", "5"),
+                    leg(credit, "credit", "5"),
                 ]
             },
         ).json()["tid"]
@@ -523,9 +523,9 @@ def test_a_split_across_expenses_is_still_an_expense(
         "/api/transactions/",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "6"},
-                {"account": other["aid"], "side": "debit", "amount": "4"},
-                {"account": account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "6"),
+                leg(other, "debit", "4"),
+                leg(account, "credit", "10"),
             ]
         },
     ).json()["tid"]

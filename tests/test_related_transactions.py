@@ -5,7 +5,7 @@ from uuid import UUID
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
 
-from .books import post_account
+from .books import leg, post_account
 from .conftest import TEST_USER_ID
 from .svc import services
 
@@ -23,8 +23,8 @@ def make(client, debit, credit, amount, payee, on="2026-10-10", **extra):
         "date": on,
         "payee": payee,
         "postings": [
-            {"account": debit["aid"], "side": "debit", "amount": amount},
-            {"account": credit["aid"], "side": "credit", "amount": amount},
+            leg(debit, "debit", amount),
+            leg(credit, "credit", amount),
         ],
         **extra,
     }
@@ -44,8 +44,8 @@ def test_a_new_entry_can_name_the_one_it_is_related_to(client, account, expense_
 def test_the_link_must_lead_to_one_of_your_own_entries(client, account, expense_account):
     body = {
         "postings": [
-            {"account": expense_account["aid"], "side": "debit", "amount": "5"},
-            {"account": account["aid"], "side": "credit", "amount": "5"},
+            leg(expense_account, "debit", "5"),
+            leg(account, "credit", "5"),
         ],
     }
     missing = client.post("/api/transactions/", json={**body, "related_id": "00000000-0000-4000-8000-0000000000aa"})
@@ -59,8 +59,8 @@ def test_the_link_must_lead_to_one_of_your_own_entries(client, account, expense_
         food = post_account(client, {"name": "Food", "parent_id": roots["Expenses"]}).json()
         theirs = {
             "postings": [
-                {"account": food["aid"], "side": "debit", "amount": "5"},
-                {"account": bank["aid"], "side": "credit", "amount": "5"},
+                leg(food, "debit", "5"),
+                leg(bank, "credit", "5"),
             ]
         }
         stranger = client.post("/api/transactions/", json={**theirs, "related_id": mine["tid"]})

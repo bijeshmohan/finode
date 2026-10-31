@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.transaction import Posting, PostingSide
 
+from .books import leg
 from .svc import plain
 
 
@@ -16,8 +17,8 @@ def post(client, source, target, amount, on=None, **extra):
     debit, credit = target, source
     body = {
         "postings": [
-            {"account": debit["aid"], "side": "debit", "amount": amount},
-            {"account": credit["aid"], "side": "credit", "amount": amount},
+            leg(debit, "debit", amount),
+            leg(credit, "credit", amount),
         ],
         **extra,
     }
@@ -58,8 +59,8 @@ def test_the_books_balance_through_every_kind_of_change(
         f"/api/transactions/{first['tid']}",
         json={
             "postings": [
-                {"account": other_account["aid"], "side": "debit", "amount": "55"},
-                {"account": account["aid"], "side": "credit", "amount": "55"},
+                leg(other_account, "debit", "55"),
+                leg(account, "credit", "55"),
             ]
         },
     )
@@ -139,8 +140,8 @@ def test_correcting_an_amount_keeps_the_postings(client, account, expense_accoun
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "12"},
-                {"account": account["aid"], "side": "credit", "amount": "12"},
+                leg(expense_account, "debit", "12"),
+                leg(account, "credit", "12"),
             ]
         },
     )
@@ -158,8 +159,8 @@ def test_moving_a_side_to_another_account_replaces_only_that_posting(
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10"},
-                {"account": other_account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "10"),
+                leg(other_account, "credit", "10"),
             ]
         },
     )
@@ -176,8 +177,8 @@ def test_swapping_the_sides_keeps_the_accounts_postings(client, account, expense
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": account["aid"], "side": "debit", "amount": "10"},
-                {"account": expense_account["aid"], "side": "credit", "amount": "10"},
+                leg(account, "debit", "10"),
+                leg(expense_account, "credit", "10"),
             ]
         },
     )
@@ -193,9 +194,9 @@ def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expen
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "6"},
-                {"account": other_account["aid"], "side": "debit", "amount": "4"},
-                {"account": account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "6"),
+                leg(other_account, "debit", "4"),
+                leg(account, "credit", "10"),
             ]
         },
     )
@@ -205,8 +206,8 @@ def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expen
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "10"},
-                {"account": account["aid"], "side": "credit", "amount": "10"},
+                leg(expense_account, "debit", "10"),
+                leg(account, "credit", "10"),
             ]
         },
     )
@@ -224,8 +225,8 @@ def test_history_follows_a_transaction_from_creation_to_deletion(client, account
         f"/api/transactions/{made['tid']}",
         json={
             "postings": [
-                {"account": expense_account["aid"], "side": "debit", "amount": "12"},
-                {"account": account["aid"], "side": "credit", "amount": "12"},
+                leg(expense_account, "debit", "12"),
+                leg(account, "credit", "12"),
             ]
         },
     )

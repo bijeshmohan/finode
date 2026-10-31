@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from .books import post_account
+from .books import leg, post_account
 
 
 def test_create_transaction(
@@ -14,16 +14,8 @@ def test_create_transaction(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "25.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "25.00",
-                },
+                leg(expense_account, "debit", "25.00"),
+                leg(account, "credit", "25.00"),
             ],
         },
     )
@@ -47,16 +39,8 @@ def test_create_transaction_must_balance(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "25.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "24.00",
-                },
+                leg(expense_account, "debit", "25.00"),
+                leg(account, "credit", "24.00"),
             ],
         },
     )
@@ -71,11 +55,7 @@ def test_create_transaction_requires_two_postings(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": account["aid"],
-                    "side": "debit",
-                    "amount": "25.00",
-                },
+                leg(account, "debit", "25.00"),
             ],
         },
     )
@@ -91,16 +71,8 @@ def test_create_transaction_rejects_zero_amount(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "0.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "0.00",
-                },
+                leg(expense_account, "debit", "0.00"),
+                leg(account, "credit", "0.00"),
             ],
         },
     )
@@ -120,11 +92,7 @@ def test_create_transaction_unknown_account(
                     "side": "debit",
                     "amount": "25.00",
                 },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "25.00",
-                },
+                leg(account, "credit", "25.00"),
             ],
         },
     )
@@ -140,16 +108,8 @@ def test_get_transaction(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "10.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "10.00",
-                },
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     )
@@ -175,16 +135,8 @@ def test_list_transactions(
             "/api/transactions/",
             json={
                 "postings": [
-                    {
-                        "account": other_account["aid"],
-                        "side": "debit",
-                        "amount": amount,
-                    },
-                    {
-                        "account": account["aid"],
-                        "side": "credit",
-                        "amount": amount,
-                    },
+                    leg(other_account, "debit", amount),
+                    leg(account, "credit", amount),
                 ],
             },
         )
@@ -203,16 +155,8 @@ def test_update_transaction(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "10.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "10.00",
-                },
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     )
@@ -224,16 +168,8 @@ def test_update_transaction(
             "payee": "updated payee",
             "comment": "updated comment",
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "15.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "15.00",
-                },
+                leg(expense_account, "debit", "15.00"),
+                leg(account, "credit", "15.00"),
             ],
         },
     )
@@ -254,16 +190,8 @@ def test_update_transaction_null_date(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "10.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "10.00",
-                },
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     )
@@ -285,16 +213,8 @@ def test_delete_transaction(
         "/api/transactions/",
         json={
             "postings": [
-                {
-                    "account": expense_account["aid"],
-                    "side": "debit",
-                    "amount": "10.00",
-                },
-                {
-                    "account": account["aid"],
-                    "side": "credit",
-                    "amount": "10.00",
-                },
+                leg(expense_account, "debit", "10.00"),
+                leg(account, "credit", "10.00"),
             ],
         },
     )
@@ -367,8 +287,8 @@ def _post(client: TestClient, debit: dict, credit: dict, amount: str, date: str,
             "date": date,
             "payee": payee,
             "postings": [
-                {"account": debit["aid"], "side": "debit", "amount": amount},
-                {"account": credit["aid"], "side": "credit", "amount": amount},
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
             ],
         },
     )

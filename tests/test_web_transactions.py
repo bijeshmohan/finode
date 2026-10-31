@@ -3,6 +3,8 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
+from .books import leg
+
 
 def _post(client: TestClient, debit: dict, credit: dict, amount: str, on: str, payee: str):
     response = client.post(
@@ -11,8 +13,8 @@ def _post(client: TestClient, debit: dict, credit: dict, amount: str, on: str, p
             "date": on,
             "payee": payee,
             "postings": [
-                {"account": debit["aid"], "side": "debit", "amount": amount},
-                {"account": credit["aid"], "side": "credit", "amount": amount},
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
             ],
         },
     )

@@ -10,7 +10,7 @@ from app.ratelimit import AttemptLimiter
 from app.routers.web import auth as web_auth_router
 from app.web_auth import InvalidCredentialsError, SessionTokens
 
-from .books import post_account
+from .books import leg, post_account
 from .test_web_signup import CODE, FORM, raw_client, signup_on, supabase  # noqa: F401  (fixtures used by name)
 
 # ---- the counter ----------------------------------------------------------------------------------------------
@@ -129,8 +129,8 @@ def make_tx(client, a, b, amount="1"):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": a["aid"], "side": "debit", "amount": amount},
-                {"account": b["aid"], "side": "credit", "amount": amount},
+                leg(a, "debit", amount),
+                leg(b, "credit", amount),
             ]
         },
     )
@@ -175,9 +175,7 @@ def test_new_transactions_a_day_are_limited_but_not_recurring_ones(client, two_a
 def test_a_transaction_cannot_have_endless_rows(client, two_accounts, monkeypatch):
     a, b = two_accounts
     monkeypatch.setattr(settings, "max_postings_per_transaction", 3)
-    rows = [{"account": b["aid"], "side": "debit", "amount": "1"} for _ in range(3)] + [
-        {"account": a["aid"], "side": "credit", "amount": "3"}
-    ]
+    rows = [leg(b, "debit", "1") for _ in range(3)] + [leg(a, "credit", "3")]
     refused = client.post("/api/transactions/", json={"postings": rows})
     assert refused.status_code == 400 and "at most 3 postings" in refused.json()["detail"]
 

@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from .books import post_account
+from .books import leg, post_account
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 
@@ -388,8 +388,8 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
             json={
                 "date": last.replace(day=on).isoformat(),
                 "postings": [
-                    {"account": debit["aid"], "side": "debit", "amount": amount},
-                    {"account": credit["aid"], "side": "credit", "amount": amount},
+                    leg(debit, "debit", amount),
+                    leg(credit, "credit", amount),
                 ],
             },
         )
