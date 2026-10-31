@@ -33,7 +33,7 @@ def spend(client, books, amount, note=None, payee=None, to="travel", on=None, ta
         "comment": note,
         "tags": tags or [],
         "postings": [
-            {"account": books[to]["aid"], "side": "debit", "amount": amount},
+            leg(books[to], "debit", amount),
             leg(books["bank"], "credit", amount),
         ],
     }

@@ -61,13 +61,18 @@ def accounts(client, root_accounts):
     def make(name, root, **extra):
         return post_account(client, {"name": name, "parent_id": root_accounts[root], **extra}).json()["aid"]
 
-    return {"bank": make("Bank", "Assets", balance="10000"), "rent": make("Rent", "Expenses")}
+    return {
+        "bank": make("Bank", "Assets", balance="10000"),
+        "rent": make("Rent", "Expenses"),
+        "expenses": root_accounts["Expenses"],
+    }
 
 
 def rule(client, accounts, **fields):
     body = {
         "from_account": accounts["bank"],
-        "to_account": accounts["rent"],
+        "to_account": accounts["expenses"],
+        "category": accounts["rent"],
         "amount": "1500",
         "frequency": "monthly",
         "start_date": "2026-01-01",
@@ -191,7 +196,7 @@ def test_a_rule_that_cannot_be_recorded_is_refused_or_reported(client, accounts,
     )
     assert bad.status_code == 400 and "differ" in bad.json()["detail"]
     wallet = post_account(client, {"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()["aid"]
-    created = rule(client, {"bank": wallet, "rent": accounts["rent"]}, start_date="2999-01-01")
+    created = rule(client, {**accounts, "bank": wallet}, start_date="2999-01-01")
     # the source later gains a sub-account, so it can no longer be posted to
     assert post_account(client, {"name": "Sub", "parent_id": wallet}).status_code == 201
     session.exec(
@@ -379,8 +384,8 @@ def split_accounts(client, accounts, root_accounts):
 def split_rule(client, a, **fields):
     body = {
         "postings": [
-            {"account": a["rent"], "side": "debit", "amount": "1000"},
-            {"account": a["Water"], "side": "debit", "amount": "200"},
+            {"category": a["rent"], "side": "debit", "amount": "1000"},
+            {"category": a["Water"], "side": "debit", "amount": "200"},
             {"account": a["bank"], "side": "credit", "amount": "1200"},
         ],
         "frequency": "monthly",
@@ -413,7 +418,7 @@ def test_a_split_rule_must_balance_and_not_mix_shapes(client, split_accounts):
     a = split_accounts
     unbalanced = {
         "postings": [
-            {"account": a["rent"], "side": "debit", "amount": "1000"},
+            {"category": a["rent"], "side": "debit", "amount": "1000"},
             {"account": a["bank"], "side": "credit", "amount": "900"},
         ],
         "start_date": "2999-01-01",
@@ -429,15 +434,21 @@ def test_a_split_rule_must_balance_and_not_mix_shapes(client, split_accounts):
 def test_a_split_rule_can_be_edited_into_a_plain_one_and_back(client, split_accounts):
     a = split_accounts
     rid = split_rule(client, a, start_date="2999-01-01")["rid"]
-    plain = {"from_account": a["bank"], "to_account": a["rent"], "amount": "1500", "start_date": "2999-01-01"}
+    plain = {
+        "from_account": a["bank"],
+        "to_account": a["expenses"],
+        "category": a["rent"],
+        "amount": "1500",
+        "start_date": "2999-01-01",
+    }
     updated = client.put(f"/api/recurring/{rid}", json=plain).json()
     assert updated["postings"] == [] and updated["amount"] == "1500.00"
     again = client.put(
         f"/api/recurring/{rid}",
         json={
             "postings": [
-                {"account": a["rent"], "side": "debit", "amount": "1"},
-                {"account": a["Water"], "side": "debit", "amount": "2"},
+                {"category": a["rent"], "side": "debit", "amount": "1"},
+                {"category": a["Water"], "side": "debit", "amount": "2"},
                 {"account": a["bank"], "side": "credit", "amount": "3"},
             ],
             "start_date": "2999-01-01",

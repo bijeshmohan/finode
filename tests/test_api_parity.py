@@ -32,7 +32,7 @@ def entry(client, books, amount="10", to="food", **extra):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books[to]["aid"], "side": "debit", "amount": amount},
+                leg(books[to], "debit", amount),
                 leg(books["bank"], "credit", amount),
             ],
             **extra,
