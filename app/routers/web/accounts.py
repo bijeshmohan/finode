@@ -1,6 +1,5 @@
 from collections.abc import Collection
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -81,53 +80,66 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
     return roots
 
 
-def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> list[tuple[str, list[Node]]]:
+@dataclass
+class PickOption:
+    """One choice in an account or category picker: what it is called (below its type: "Banks › HDFC",
+    "Food › Groceries"), and for an account its budget flag, balance and usual category for payments."""
+
+    id: UUID
+    label: str
+    budget: bool = False
+    balance: Decimal | None = None
+    usual: UUID | None = None
+
+
+PickGroups = list[tuple[str, list[PickOption]]]
+
+
+def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> PickGroups:
     """Accounts that transactions may post to, grouped by root. Closed accounts are left out, except those in
     `keep` (what an entry being edited already uses)."""
-    groups = []
+    groups: PickGroups = []
     for root in roots:
-        postable = [n for n in root.walk() if n.postable and (n.account.closed_on is None or n.account.aid in keep)]
-        if postable:
-            groups.append((root.account.name, postable))
+        options = [
+            PickOption(
+                n.account.aid,
+                n.path.split(" › ", 1)[1] if " › " in n.path else n.path,
+                budget=n.account.on_budget,
+                balance=n.account.balance,
+                usual=n.account.payment_category_id,
+            )
+            for n in root.walk()
+            if n.postable and (n.account.closed_on is None or n.account.aid in keep)
+        ]
+        if options:
+            groups.append((root.account.name, options))
     return groups
 
 
-def _category_nodes(
-    category: CategoryRead, by_parent: dict[UUID | None, list[CategoryRead]], depth: int, path: str, stamp: datetime
-) -> list[Node]:
-    account = AccountRead(
-        aid=category.bcid,
-        name=category.name,
-        details=category.details,
-        parent_id=category.parent_id,
-        balance=Decimal("0.00"),
-        created=stamp,
-        updated=stamp,
-    )
-    nodes = [Node(account, depth=depth, kind="user", path=path, postable=True)]
+def _category_options(
+    category: CategoryRead, by_parent: dict[UUID | None, list[CategoryRead]], label: str
+) -> list[PickOption]:
+    options = [PickOption(category.bcid, label)]
     for child in by_parent.get(category.bcid, []):
-        nodes += _category_nodes(child, by_parent, depth + 1, f"{path} › {child.name}", stamp)
-    return nodes
+        options += _category_options(child, by_parent, f"{label} › {child.name}")
+    return options
 
 
-def category_groups(
-    categories: list[CategoryRead], keep: Collection[UUID] = frozenset()
-) -> list[tuple[str, list[Node]]]:
-    """The categories an entry's lines may be labelled with, shaped like the accounts of `posting_groups` so the same
-    pickers list them: Income and Expenses, each with its groups and the categories in them. Closed categories are
-    left out, except those in `keep` (what an entry being edited already uses)."""
-    stamp = datetime.now(UTC)
-    found = []
+def category_groups(categories: list[CategoryRead], keep: Collection[UUID] = frozenset()) -> PickGroups:
+    """The categories an entry's lines may be labelled with, grouped as Income and Expenses (each with its categories
+    and subcategories), for the same pickers as the accounts. Closed categories are left out, except those in `keep`
+    (what an entry being edited already uses)."""
+    found: PickGroups = []
     for root, kind in (("Income", "earning"), ("Expenses", "spending")):
         mine = [c for c in categories if c.kind == kind and (c.closed_on is None or c.bcid in keep)]
         by_parent: dict[UUID | None, list[CategoryRead]] = {}
         for c in sorted(mine, key=lambda c: c.name.lower()):
             by_parent.setdefault(c.parent_id, []).append(c)
-        nodes: list[Node] = []
+        options: list[PickOption] = []
         for top in by_parent.get(None, []):
-            nodes += _category_nodes(top, by_parent, 1, f"{root} › {top.name}", stamp)
-        if nodes:
-            found.append((root, nodes))
+            options += _category_options(top, by_parent, top.name)
+        if options:
+            found.append((root, options))
     return found
 
 
