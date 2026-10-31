@@ -12,7 +12,7 @@ from .conftest import Api
 def tree(api: Api, books):
     food = books["food"]
     api.post(
-        "/accounts/", name="Delivery", parent_id=food["aid"]
+        "/accounts/", name="Delivery", parent_id=food["id"]
     )  # a category inside a category: Groceries is a group now
     return food
 
@@ -39,7 +39,7 @@ def test_the_tab_bar_has_categories_and_no_transactions_(page: Page, books):
 def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside(page: Page, books, api: Api):
     food = tree(api, books)
     delivery = next(c for c in api.get("/categories/") if c["name"] == "Delivery") | {}
-    delivery["aid"] = delivery["bcid"]
+    delivery["id"] = delivery["id"]
     spend(api, books, delivery, "120")
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
@@ -51,7 +51,7 @@ def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside
         "amounts at the right edge"
     )
     page.locator("a.crow", has_text="Groceries").click()
-    page.wait_for_url(f"**/categories/{food['aid']}**")
+    page.wait_for_url(f"**/categories/{food['id']}**")
     expect(page.locator(".hero-balance")).to_have_text("₹120.00")
     expect(page.locator("a.crow", has_text="Delivery")).to_be_visible()
     page.locator("a.crow", has_text="Delivery").click()
@@ -87,10 +87,10 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(pag
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
     page.locator("a.crow", has_text="Rent").click()
-    page.wait_for_url(f"**/categories/{books['rent']['aid']}**")
+    page.wait_for_url(f"**/categories/{books['rent']['id']}**")
     expect(page.locator(".hero-balance")).to_have_text("₹900.00")
     expect(page.get_by_role("link", name="Add transaction")).to_have_attribute(
-        "href", f"/transactions/new?category={books['rent']['aid']}&back=/categories/{books['rent']['aid']}"
+        "href", f"/transactions/new?category={books['rent']['id']}&back=/categories/{books['rent']['id']}"
     )
     page.get_by_label("More actions").click()
     expect(page.get_by_role("link", name="See in Budgets")).to_be_visible()

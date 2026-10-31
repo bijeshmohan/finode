@@ -60,11 +60,11 @@ class ReportService:
 
     def _period_totals(self, roots, period_start, period_end) -> tuple[Decimal, Decimal]:
         """(income, expenses) for a period from one query: what came in on the Income accounts and went out on the Expenses ones."""
-        income_ids = set(self.accounts.subtree_ids(roots["Income"].aid))
-        expense_ids = set(self.accounts.subtree_ids(roots["Expenses"].aid))
+        income_ids = set(self.accounts.subtree_ids(roots["Income"].id))
+        expense_ids = set(self.accounts.subtree_ids(roots["Expenses"].id))
         income = expenses = Decimal("0.00")
         for posting in self.tr.postings_for_accounts(list(income_ids | expense_ids), period_start, period_end):
-            if posting.account in income_ids:
+            if posting.account_id in income_ids:
                 income += posting.amount if posting.side == PostingSide.CREDIT else -posting.amount
             else:
                 expenses += posting.amount if posting.side == PostingSide.DEBIT else -posting.amount
@@ -103,11 +103,11 @@ class ReportService:
         if period_start > period_end:
             raise ValueError("period start must not be after period end!")
 
-        by_id = {c.bcid: c for c in self.accounts_categories()}
+        by_id = {c.id: c for c in self.accounts_categories()}
 
-        def group_of(bcid) -> str:
+        def group_of(category_id) -> str:
             chain = []
-            current = by_id[bcid]
+            current = by_id[category_id]
             while True:
                 chain.append(current.name)
                 if current.parent_id is None or current.parent_id not in by_id:
@@ -118,8 +118,8 @@ class ReportService:
 
         own = self.category_totals("spending" if root_name == "Expenses" else "earning", period_start, period_end)
         totals: dict[str, Decimal] = {}
-        for aid, value in own.items():
-            key = group_of(aid)
+        for account_id, value in own.items():
+            key = group_of(account_id)
             totals[key] = totals.get(key, Decimal("0.00")) + value
 
         lines = [BreakdownLine(account=k, amount=v) for k, v in totals.items() if v != 0]
@@ -143,39 +143,39 @@ class ReportService:
         The check looks at each transaction on its own, so a problem is named rather than hidden in a total.
         """
         as_of = as_of or local_today()
-        accounts = {a.aid: a for a in self.accounts.ar.list()}
+        accounts = {a.id: a for a in self.accounts.ar.list()}
         paths: dict = {}
 
-        def path_of(aid) -> str:
-            if aid not in paths:
-                account = accounts.get(aid)
+        def path_of(account_id) -> str:
+            if account_id not in paths:
+                account = accounts.get(account_id)
                 chain, seen = [], set()
-                while account is not None and account.aid not in seen:
-                    seen.add(account.aid)
+                while account is not None and account.id not in seen:
+                    seen.add(account.id)
                     chain.append(account.name)
                     account = accounts.get(account.parent_id) if account.parent_id else None
-                paths[aid] = ":".join(reversed(chain)) if chain else str(aid)
-            return paths[aid]
+                paths[account_id] = ":".join(reversed(chain)) if chain else str(account_id)
+            return paths[account_id]
 
-        transactions = {t.tid: t for t in self.tr.list(date_to=as_of)}
+        transactions = {t.id: t for t in self.tr.list(date_to=as_of)}
         by_transaction: dict = {}
         for posting in self.tr.all_postings():
-            if posting.transaction in transactions:
-                by_transaction.setdefault(posting.transaction, []).append(posting)
+            if posting.transaction_id in transactions:
+                by_transaction.setdefault(posting.transaction_id, []).append(posting)
 
         problems: list[str] = []
         lines: dict = {}
         total_debit = total_credit = Decimal("0.00")
-        for tid, transaction in transactions.items():
-            postings = by_transaction.get(tid, [])
-            label = f"transaction {tid} ({transaction.date})"
+        for transaction_id, transaction in transactions.items():
+            postings = by_transaction.get(transaction_id, [])
+            label = f"transaction {transaction_id} ({transaction.date})"
             if len(postings) < 2:
                 problems.append(
                     f"{label} has {len(postings)} posting{'' if len(postings) == 1 else 's'}, at least two are needed"
                 )
             debit = credit = Decimal(0)
             for posting in postings:
-                account = accounts.get(posting.account)
+                account = accounts.get(posting.account_id)
                 if account is None:
                     problems.append(f"{label} posts to an account that does not exist or is not yours")
                     continue
@@ -186,7 +186,7 @@ class ReportService:
                     problems.append(f"{label} has a posting that is not positive")
                 # A line on Expenses or Income is told apart by what it was for, as a journal would by its account.
                 line = lines.setdefault(
-                    (account.aid, posting.category_id if on_books else None), [Decimal(0), Decimal(0)]
+                    (account.id, posting.category_id if on_books else None), [Decimal(0), Decimal(0)]
                 )
                 if posting.side == PostingSide.DEBIT:
                     debit += posting.amount
@@ -199,23 +199,25 @@ class ReportService:
             total_debit += debit
             total_credit += credit
 
-        categories = {c.bcid: c for c in self.cr.list()}
+        categories = {c.id: c for c in self.cr.list()}
 
-        def category_path(bcid) -> str:
-            names, current, seen = [], categories.get(bcid), set()
-            while current is not None and current.bcid not in seen:
-                seen.add(current.bcid)
+        def category_path(category_id) -> str:
+            names, current, seen = [], categories.get(category_id), set()
+            while current is not None and current.id not in seen:
+                seen.add(current.id)
                 names.append(current.name)
                 current = categories.get(current.parent_id) if current.parent_id else None
             return ":".join(reversed(names))
 
         result_lines = [
             TrialBalanceLine(
-                account=f"{path_of(aid)}:{category_path(category)}" if category in categories else path_of(aid),
+                account=f"{path_of(account_id)}:{category_path(category)}"
+                if category in categories
+                else path_of(account_id),
                 debit=debit,
                 credit=credit,
             )
-            for (aid, category), (debit, credit) in lines.items()
+            for (account_id, category), (debit, credit) in lines.items()
         ]
         result_lines.sort(key=lambda line: line.account)
         return TrialBalanceRead(

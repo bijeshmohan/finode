@@ -51,8 +51,8 @@ def test_revoking_hides_the_token(client, session):
     page = client.get("/profile/assistants").text
     import re
 
-    tkid = re.search(r"/profile/assistants/([0-9a-f-]+)/revoke", page).group(1)
-    response = client.post(f"/profile/assistants/{tkid}/revoke")
+    token_id = re.search(r"/profile/assistants/([0-9a-f-]+)/revoke", page).group(1)
+    response = client.post(f"/profile/assistants/{token_id}/revoke")
     assert response.headers["HX-Redirect"] == "/profile/assistants"
     assert "token-revoked" in response.headers["set-cookie"]
     assert "Old laptop" not in client.get("/profile/assistants").text
@@ -74,9 +74,9 @@ def test_origin_is_recorded_for_web_api_and_import(client, root_accounts):
     assert api["created_via"] == "api" and api["updated_via"] == "api"
     client.post(
         "/transactions/split",
-        data={"account": [food["aid"], bank["aid"]], "side": ["debit", "credit"], "amount": ["7", "7"]},
+        data={"account": [food["id"], bank["id"]], "side": ["debit", "credit"], "amount": ["7", "7"]},
     )
-    web = next(t for t in client.get("/api/transactions/").json() if t["tid"] != api["tid"])
+    web = next(t for t in client.get("/api/transactions/").json() if t["id"] != api["id"])
     assert web["created_via"] == "web"
     listing = client.get("/transactions").text
     assert "Added by" not in listing and "Changed by" not in listing, "only assistants are marked in the list"
@@ -94,7 +94,7 @@ def test_the_spending_breakdown_adds_up_what_was_recorded(client, root_accounts,
     food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     client.post(
         "/transactions/split",
-        data={"account": [food["aid"], bank["aid"]], "side": ["debit", "credit"], "amount": ["70", "70"]},
+        data={"account": [food["id"], bank["id"]], "side": ["debit", "credit"], "amount": ["70", "70"]},
     )
     report = plain(svc.reports.breakdown("Expenses"))
     assert report["root"] == "Expenses" and report["total"] == "70.00"
@@ -117,9 +117,9 @@ def test_a_tokens_access_can_be_changed_without_a_new_token(client, session):
     import re
 
     page = client.get("/profile/assistants").text
-    tkid = re.search(r"/profile/assistants/([0-9a-f-]+)/access", page).group(1)
+    token_id = re.search(r"/profile/assistants/([0-9a-f-]+)/access", page).group(1)
     assert "Allow changes" in page
-    response = client.post(f"/profile/assistants/{tkid}/access", data={"scope": "write"})
+    response = client.post(f"/profile/assistants/{token_id}/access", data={"scope": "write"})
     assert (
         response.headers["HX-Redirect"] == "/profile/assistants" and "access-changed" in response.headers["set-cookie"]
     )
@@ -128,7 +128,7 @@ def test_a_tokens_access_can_be_changed_without_a_new_token(client, session):
     from app.services.api_token import ApiTokenService
 
     assert ApiTokenService.authenticate(session, secret).scope == "write", "the same secret now writes"
-    assert client.post(f"/profile/assistants/{tkid}/access", data={"scope": "root"}).status_code == 400
+    assert client.post(f"/profile/assistants/{token_id}/access", data={"scope": "root"}).status_code == 400
     assert (
         client.post(
             "/profile/assistants/00000000-0000-4000-8000-0000000000aa/access", data={"scope": "read"}
@@ -145,10 +145,10 @@ def test_connected_apps_and_tokens_share_one_list_and_apps_can_change_access(cli
     grant = OAuthGrantService(OAuthGrantRepository(session, TEST_USER_ID)).allow("c1", "Claude", "read")
     page = client.get("/profile/assistants").text
     assert "Claude" in page and "Laptop" in page and "Signed in" in page
-    assert client.post(f"/oauth/apps/{grant.gid}/access", data={"scope": "write"}).headers["HX-Redirect"]
+    assert client.post(f"/oauth/apps/{grant.id}/access", data={"scope": "write"}).headers["HX-Redirect"]
     session.refresh(grant)
     assert grant.scope == "write"
-    assert client.post(f"/oauth/apps/{grant.gid}/access", data={"scope": "x"}).status_code == 400
+    assert client.post(f"/oauth/apps/{grant.id}/access", data={"scope": "x"}).status_code == 400
     assert (
         client.post("/oauth/apps/00000000-0000-4000-8000-0000000000aa/access", data={"scope": "read"}).status_code
         == 404

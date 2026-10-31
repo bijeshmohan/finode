@@ -7,13 +7,13 @@
   </div>
 </div>
 <p class="muted">Moves the goal's money to the category that paid for it.</p>
-<form class="stack" hx-post="/budget/goal/{{ line.gid }}/use" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
+<form class="stack" hx-post="/budget/goal/{{ line.id }}/use" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
   <input type="hidden" name="month" value="{{ month_key }}">
   <label>Category
     <select name="category" required>
       {% if not picked %}<option value="">Choose…</option>{% endif %}
       {% for c in categories %}
-      <option value="{{ c.aid }}" {{ "selected" if c.aid == picked }}>{{ c.path }}{% if c.available < 0 %} · {{ (-c.available)|money }} over{% endif %}</option>
+      <option value="{{ c.category_id }}" {{ "selected" if c.category_id == picked }}>{{ c.path }}{% if c.available < 0 %} · {{ (-c.available)|money }} over{% endif %}</option>
       {% endfor %}
     </select>
   </label>
@@ -23,6 +23,6 @@
   <p id="cat-sheet-error" class="error" role="alert"></p>
   <div class="sheet-actions">
     <button type="submit">Use it</button>
-    <button type="button" class="button secondary" hx-get="/budget/goal/{{ line.gid }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">Back</button>
+    <button type="button" class="button secondary" hx-get="/budget/goal/{{ line.id }}/sheet?month={{ month_key }}" hx-target="#cat-sheet-body" hx-swap="innerHTML" hx-push-url="false">Back</button>
   </div>
 </form>

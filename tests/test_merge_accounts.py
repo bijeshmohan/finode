@@ -33,15 +33,15 @@ def spend(client, books, to, amount, on="2026-10-10"):
 
 
 def merge(client, source, target, **params):
-    return client.post(f"/api/accounts/{source['aid']}/merge", json={"into": target["aid"]}, params=params)
+    return client.post(f"/api/accounts/{source['id']}/merge", json={"into": target["id"]}, params=params)
 
 
 def merge_category(client, source, target, **params):
-    return client.post(f"/api/categories/{source['aid']}/merge", json={"into": target["aid"]}, params=params)
+    return client.post(f"/api/categories/{source['id']}/merge", json={"into": target["id"]}, params=params)
 
 
 def balance(client, a):
-    return client.get(f"/api/accounts/{a['aid']}").json()["balance"]
+    return client.get(f"/api/accounts/{a['id']}").json()["balance"]
 
 
 # ---- categories --------------------------------------------------------------------------------
@@ -53,7 +53,7 @@ def test_everything_moves_and_the_category_goes(client, books):
     rule = client.post(
         "/api/recurring/",
         json={
-            "from_account": books["bank"]["aid"],
+            "from_account_id": books["bank"]["id"],
             **into(client, books["swiggy"]),
             "amount": "5",
             "frequency": "monthly",
@@ -62,8 +62,8 @@ def test_everything_moves_and_the_category_goes(client, books):
         },
     ).json()
     for category, amount in ((books["swiggy"], "100"), (books["zomato"], "50")):
-        client.put(f"/api/budget/categories/{category['aid']}", json={"month": "2026-10-01", "amount": amount})
-    client.patch(f"/api/accounts/{books['loan']['aid']}", json={"payment_category_id": books["swiggy"]["aid"]})
+        client.put(f"/api/budget/categories/{category['id']}", json={"month": "2026-10-01", "amount": amount})
+    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["swiggy"]["id"]})
     ready_before = client.get("/api/budget/", params={"month": "2026-10-01"}).json()["ready_to_assign"]
 
     done = merge_category(client, books["swiggy"], books["zomato"])
@@ -73,18 +73,18 @@ def test_everything_moves_and_the_category_goes(client, books):
     assert (result["entries_moved"], result["plan_months_moved"], result["recurring_rules_moved"]) == (1, 1, 1)
     assert result["payment_links_moved"] == 1 and result["balance_moved"] == "30.00" and result["merged"] is True
 
-    assert client.get(f"/api/categories/{books['swiggy']['aid']}").status_code == 404
-    moved = client.get(f"/api/transactions/{one['tid']}").json()
-    assert books["zomato"]["aid"] in {p["category"] for p in moved["postings"]}
-    assert client.get(f"/api/recurring/{rule['rid']}").json()["category"] == books["zomato"]["aid"]
-    assert client.get(f"/api/accounts/{books['loan']['aid']}").json()["payment_category_id"] == books["zomato"]["aid"]
+    assert client.get(f"/api/categories/{books['swiggy']['id']}").status_code == 404
+    moved = client.get(f"/api/transactions/{one['id']}").json()
+    assert books["zomato"]["id"] in {p["category_id"] for p in moved["postings"]}
+    assert client.get(f"/api/recurring/{rule['id']}").json()["category_id"] == books["zomato"]["id"]
+    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] == books["zomato"]["id"]
     assert client.get("/api/budget/", params={"month": "2026-10-01"}).json()["ready_to_assign"] == ready_before
     assert client.get("/api/reports/trial-balance").json()["balanced"] is True
 
 
 def test_the_plan_of_both_is_added(client, books):
     for category, amount in ((books["swiggy"], "100"), (books["zomato"], "50")):
-        client.put(f"/api/budget/categories/{category['aid']}", json={"month": "2026-10-01", "amount": amount})
+        client.put(f"/api/budget/categories/{category['id']}", json={"month": "2026-10-01", "amount": amount})
     merge_category(client, books["swiggy"], books["zomato"])
     lines = client.get("/api/budget/", params={"month": "2026-10-01"}).json()["lines"]
     zomato = next(line for line in lines if line["name"] == "Zomato")
@@ -94,7 +94,7 @@ def test_the_plan_of_both_is_added(client, books):
 def test_the_entries_history_remembers_the_merge(client, books):
     one = spend(client, books, books["swiggy"], "30")
     merge_category(client, books["swiggy"], books["zomato"])
-    entry = client.get(f"/api/transactions/{one['tid']}/changes").json()
+    entry = client.get(f"/api/transactions/{one['id']}/changes").json()
     assert [s["action"] for s in entry] == ["created", "updated"] and entry[-1]["via"] == "api"
     assert {p["account"] for p in entry[-1]["entry"]["postings"]} == {"Assets:Bank", "Expenses:Zomato"}
 
@@ -103,7 +103,7 @@ def test_a_dry_run_changes_nothing(client, books):
     spend(client, books, books["swiggy"], "30")
     seen = merge_category(client, books["swiggy"], books["zomato"], dry_run="true").json()
     assert seen["dry_run"] is True and seen["merged"] is False and seen["entries_moved"] == 1
-    assert client.get(f"/api/categories/{books['swiggy']['aid']}").status_code == 200
+    assert client.get(f"/api/categories/{books['swiggy']['id']}").status_code == 200
 
 
 def test_unsafe_category_merges_are_refused(client, books):
@@ -111,7 +111,7 @@ def test_unsafe_category_merges_are_refused(client, books):
         "itself": merge_category(client, books["swiggy"], books["swiggy"]),
         "other kind": merge_category(client, books["swiggy"], books["salary"]),
     }
-    kid = account(client, "Kid", books["zomato"]["aid"])
+    kid = account(client, "Kid", books["zomato"]["id"])
     refused["source with subcategories"] = merge_category(client, books["zomato"], books["swiggy"])
     assert all(r.status_code == 400 for r in refused.values()), {k: r.text for k, r in refused.items()}
     assert merge_category(client, books["swiggy"], kid).status_code == 200, "a subcategory can take it"
@@ -119,12 +119,12 @@ def test_unsafe_category_merges_are_refused(client, books):
 
 def test_closed_targets_are_refused(client, books):
     spare = account(client, "Spare", books["roots"]["Expenses"])
-    client.post(f"/api/categories/{spare['aid']}/close")
+    client.post(f"/api/categories/{spare['id']}/close")
     assert "closed" in merge_category(client, books["swiggy"], spare).json()["detail"]
 
 
 def test_unknown_categories(client, books):
-    missing = {"aid": "00000000-0000-4000-8000-000000000000"}
+    missing = {"id": "00000000-0000-4000-8000-000000000000"}
     assert merge_category(client, missing, books["zomato"]).status_code == 404
     assert merge_category(client, books["swiggy"], missing).status_code == 404
 
@@ -139,7 +139,7 @@ def test_a_failure_part_way_leaves_everything_as_it_was(client, books, monkeypat
     with pytest.raises(RuntimeError):
         merge_category(client, books["swiggy"], books["zomato"])
     monkeypatch.undo()
-    assert client.get(f"/api/categories/{books['swiggy']['aid']}").status_code == 200
+    assert client.get(f"/api/categories/{books['swiggy']['id']}").status_code == 200
     spent = {line["account"]: line["amount"] for line in client.get("/api/reports/breakdown").json()["lines"]}
     assert spent == {"Swiggy": "30.00"}
     assert client.get("/api/reports/trial-balance").json()["balanced"] is True
@@ -154,7 +154,7 @@ def test_accounts_merge_with_their_entries(client, books, root_accounts):
     done = merge(client, other, books["bank"])
     assert done.status_code == 200, done.text
     assert done.json()["balance_moved"] == "200.00"
-    assert client.get(f"/api/accounts/{other['aid']}").status_code == 404
+    assert client.get(f"/api/accounts/{other['id']}").status_code == 404
     assert balance(client, books["bank"]) == "1170.00"
     assert client.get("/api/reports/trial-balance").json()["balanced"] is True
 
@@ -164,8 +164,8 @@ def test_unsafe_account_merges_are_refused(client, books):
     refused = {
         "itself": merge(client, books["bank"], books["bank"]),
         "other kind": merge(client, books["bank"], books["loan"]),
-        "a root": merge(client, {"aid": roots["Assets"]}, books["bank"]),
-        "into a root": merge(client, books["bank"], {"aid": roots["Assets"]}),
+        "a root": merge(client, {"id": roots["Assets"]}, books["bank"]),
+        "into a root": merge(client, books["bank"], {"id": roots["Assets"]}),
     }
     assert all(r.status_code == 400 for r in refused.values()), {k: r.text for k, r in refused.items()}
 
@@ -189,8 +189,8 @@ async def test_assistants_merge_only_when_allowed(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name="Claude", scope="write")) as c:
         with pytest.raises(ToolFailed, match="not manage accounts, categories or tags"):
             payload(await c.call_tool("merge_categories", args))
-    assert client.get(f"/api/categories/{books['swiggy']['aid']}").status_code == 200
+    assert client.get(f"/api/categories/{books['swiggy']['id']}").status_code == 200
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name="Boss", scope="manage")) as c:
         done = payload(await c.call_tool("merge_categories", args))
         assert done["merged"] is True
-    assert client.get(f"/api/categories/{books['swiggy']['aid']}").status_code == 404
+    assert client.get(f"/api/categories/{books['swiggy']['id']}").status_code == 404

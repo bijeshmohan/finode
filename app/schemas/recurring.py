@@ -18,33 +18,33 @@ class RecurringPostingData(BaseModel):
     """One row of a split rule, like a transaction's posting."""
 
     # Leave it out and name the category: the row records on Expenses (a spending category) or Income (an earning one).
-    account: UUID | None = None
+    account_id: UUID | None = None
     side: PostingSide
     amount: Decimal = Field(gt=Decimal(0), decimal_places=8, max_digits=24)
     # What the row is for (a budget category), as on a transaction's posting; leave it out and the account decides.
-    category: UUID | None = None
+    category_id: UUID | None = None
 
     @model_validator(mode="after")
     def _names_an_account_or_a_category(self) -> RecurringPostingData:
-        if self.account is None and self.category is None:
+        if self.account_id is None and self.category_id is None:
             raise ValueError("a row names an account or a category!")
         return self
 
     @property
     def target(self) -> UUID:
         """The account the row records on (always set once the rule has been through the service)."""
-        if self.account is None:
+        if self.account_id is None:
             raise ValueError("the row has no account yet!")
-        return self.account
+        return self.account_id
 
 
 class RecurringBase(BaseModel):
     # A simple rule: `amount` leaves `from_account` and arrives in `to_account` ...
-    from_account: UUID | None = None
-    to_account: UUID | None = None
+    from_account_id: UUID | None = None
+    to_account_id: UUID | None = None
     amount: Decimal | None = Field(default=None, decimal_places=8, max_digits=24)
     # What a simple rule is for (a payment into a loan or fund, say: EMI). Leave it out and the accounts decide.
-    category: UUID | None = None
+    category_id: UUID | None = None
     # ... or a split across several accounts instead.
     postings: list[RecurringPostingData] = []
     payee: str | None = Field(default=None, max_length=40)
@@ -85,13 +85,13 @@ class RecurringInput(RecurringBase):
 
     @model_validator(mode="after")
     def simple_or_split(self):
-        simple = (self.from_account, self.to_account, self.amount)
+        simple = (self.from_account_id, self.to_account_id, self.amount)
         if self.postings:
             if len(self.postings) < 2:
                 raise ValueError("a split needs at least two postings!")
             if any(v is not None for v in simple):
                 raise ValueError("give either from, to and amount, or postings, not both!")
-        elif None in (self.from_account, self.to_account, self.amount):
+        elif None in (self.from_account_id, self.to_account_id, self.amount):
             raise ValueError("a recurring transaction needs from, to and an amount, or postings!")
         return self
 
@@ -105,7 +105,7 @@ class RecurringUpdate(RecurringInput):
 
 
 class RecurringRead(RecurringBase):
-    rid: UUID
+    id: UUID
     next_date: Date
     last_date: Date | None = None
     # The occurrence skipped most recently (nothing was recorded for it).

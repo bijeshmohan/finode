@@ -55,7 +55,7 @@ def test_the_summary_has_the_books_expenses_and_the_budgets_spending(client, boo
 
 def test_a_category_page_lists_the_loan_payments_labelled_for_it(client, books):
     paid(client, books["bank"], books["loan"], "1000", books["emi"])
-    entries = client.get(f"/api/categories/{books['emi']['aid']}/register").json()
+    entries = client.get(f"/api/categories/{books['emi']['id']}/register").json()
     assert [e["change"] for e in entries] == ["1000.00"] and entries[0]["counter_accounts"][0] in ("Home Loan", "Bank")
 
 
@@ -65,7 +65,12 @@ def test_a_category_cannot_be_put_on_a_line_to_a_budget_account(client, books):
         json={
             "postings": [
                 leg(books["food"], "debit", "5"),
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "5", "category": books["food"]["aid"]},
+                {
+                    "account_id": books["bank"]["id"],
+                    "side": "credit",
+                    "amount": "5",
+                    "category_id": books["food"]["id"],
+                },
             ]
         },
     )

@@ -7,11 +7,9 @@ from .conftest import Api
 
 def test_the_description_opens_from_the_i_and_gives_way_to_the_menu(page: Page, api: Api, books):
     food = books["food"]
-    response = page.request.patch(
-        f"/api/categories/{food['aid']}", data={"details": "Weekly shop and the corner store"}
-    )
+    response = page.request.patch(f"/api/categories/{food['id']}", data={"details": "Weekly shop and the corner store"})
     assert response.ok, response.text()
-    page.goto(f"/categories/{food['aid']}")
+    page.goto(f"/categories/{food['id']}")
 
     note = page.get_by_text("Weekly shop and the corner store")
     expect(note).to_be_hidden()  # nothing under the name: the page starts with the title and the figure
@@ -28,6 +26,6 @@ def test_the_description_opens_from_the_i_and_gives_way_to_the_menu(page: Page, 
 
 
 def test_no_description_means_no_i(page: Page, api: Api, books):
-    page.goto(f"/accounts/{books['cash']['aid']}")
+    page.goto(f"/accounts/{books['cash']['id']}")
     expect(page.get_by_role("heading", name="Cash")).to_be_visible()
     expect(page.get_by_label("About Cash")).to_have_count(0)

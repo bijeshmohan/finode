@@ -19,10 +19,10 @@ class BudgetAllocation(TimestampMixin, table=True):
     __tablename__ = "budget_allocations"
     __table_args__ = (Index("uq_budget_allocations_category", "user_id", "month", "category_id", unique=True),)
 
-    bid: UUID = Field(default_factory=uuid4, primary_key=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     month: Date
-    category_id: UUID = Field(foreign_key="budget_categories.bcid", index=True)
+    category_id: UUID = Field(foreign_key="budget_categories.id", index=True)
     amount: Decimal = Field(sa_type=Amount())
 
 
@@ -36,7 +36,7 @@ class Goal(TimestampMixin, table=True):
 
     __tablename__ = "goals"
 
-    gid: UUID = Field(default_factory=uuid4, primary_key=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     name: str = Field(max_length=80)
     amount: Decimal = Field(sa_type=Amount())
@@ -49,8 +49,8 @@ class GoalAllocation(TimestampMixin, table=True):
     __tablename__ = "goal_allocations"
     __table_args__ = (Index("uq_goal_allocations", "user_id", "month", "goal_id", unique=True),)
 
-    gaid: UUID = Field(default_factory=uuid4, primary_key=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     month: Date
-    goal_id: UUID = Field(foreign_key="goals.gid", index=True)
+    goal_id: UUID = Field(foreign_key="goals.id", index=True)
     amount: Decimal = Field(sa_type=Amount())

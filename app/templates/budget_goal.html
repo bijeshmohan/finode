@@ -5,7 +5,7 @@
 <a class="back" href="/budget?tab=save">{{ icon("back") }}Budgets</a>
 <h1>{{ "Change goal" if goal else "New goal" }}</h1>
 <p class="muted">{% if goal %}Its name, how much you need and the month. What is saved stays as it is.{% else %}Money to put aside for something, by a month.{% endif %}</p>
-<form class="card stack form-narrow" hx-post="{{ '/budget/goal/' ~ goal.gid if goal else '/budget/goal' }}">
+<form class="card stack form-narrow" hx-post="{{ '/budget/goal/' ~ goal.id if goal else '/budget/goal' }}">
   {#- The monthly share is worked out by the server as the fields change (its own request, so the form's Create stays a plain post). -#}
   <div class="stack" hx-get="/budget/goal/preview" hx-trigger="input delay:300ms, change" hx-target="#goal-calc" hx-swap="outerHTML" hx-include="closest form">
   <label>What is it for?

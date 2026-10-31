@@ -51,12 +51,12 @@ def test_an_empty_ledger_is_balanced(client, root_accounts):
 def test_the_books_balance_through_every_kind_of_change(
     client, root_accounts, account, other_account, expense_account, income_account
 ):
-    client.patch(f"/api/accounts/{account['aid']}", json={"balance": "500"})  # opening balance adjustment
+    client.patch(f"/api/accounts/{account['id']}", json={"balance": "500"})  # opening balance adjustment
     first = post(client, account, expense_account, "40")
     post(client, account, other_account, "100")
     post(client, income_account, account, "900")
     client.patch(
-        f"/api/transactions/{first['tid']}",
+        f"/api/transactions/{first['id']}",
         json={
             "postings": [
                 leg(other_account, "debit", "55"),
@@ -65,7 +65,7 @@ def test_the_books_balance_through_every_kind_of_change(
         },
     )
     gone = post(client, account, expense_account, "7")
-    client.delete(f"/api/transactions/{gone['tid']}")
+    client.delete(f"/api/transactions/{gone['id']}")
 
     result = trial(client)
     assert result["balanced"], result["problems"]
@@ -79,19 +79,21 @@ def test_the_trial_balance_names_a_transaction_that_does_not_balance(client, ses
     made = post(client, account, expense_account, "10")
     # Bypass the service, the way a bug or manual SQL could.
     posting = (
-        session.query(Posting).filter(Posting.transaction == UUID(made["tid"]), Posting.side == PostingSide.DEBIT).one()
+        session.query(Posting)
+        .filter(Posting.transaction_id == UUID(made["id"]), Posting.side == PostingSide.DEBIT)
+        .one()
     )
     posting.amount = 11
     session.add(posting)
     session.commit()
     result = trial(client)
     assert not result["balanced"]
-    assert any("does not balance" in p and made["tid"] in p for p in result["problems"])
+    assert any("does not balance" in p and made["id"] in p for p in result["problems"])
 
 
 def test_a_transaction_with_one_posting_is_reported(client, session, account, expense_account):
     made = post(client, account, expense_account, "10")
-    session.delete(session.query(Posting).filter(Posting.transaction == UUID(made["tid"])).first())
+    session.delete(session.query(Posting).filter(Posting.transaction_id == UUID(made["id"])).first())
     session.commit()
     problems = trial(client)["problems"]
     assert any("at least two are needed" in p for p in problems)
@@ -129,15 +131,18 @@ def test_a_balance_as_of_a_past_day(client, root_accounts, account, expense_acco
 # ---- stable postings -----------------------------------------------------------------------------
 
 
-def ids(client, tid):
-    return {(p["account"], p["side"]): p["pid"] for p in client.get(f"/api/transactions/{tid}").json()["postings"]}
+def ids(client, transaction_id):
+    return {
+        (p["account_id"], p["side"]): p["id"]
+        for p in client.get(f"/api/transactions/{transaction_id}").json()["postings"]
+    }
 
 
 def test_correcting_an_amount_keeps_the_postings(client, account, expense_account):
     made = post(client, account, expense_account, "10")
-    before = ids(client, made["tid"])
+    before = ids(client, made["id"])
     client.patch(
-        f"/api/transactions/{made['tid']}",
+        f"/api/transactions/{made['id']}",
         json={
             "postings": [
                 leg(expense_account, "debit", "12"),
@@ -145,18 +150,18 @@ def test_correcting_an_amount_keeps_the_postings(client, account, expense_accoun
             ]
         },
     )
-    after = ids(client, made["tid"])
+    after = ids(client, made["id"])
     assert after == before
-    assert client.get(f"/api/transactions/{made['tid']}").json()["postings"][0]["amount"] in ("12.00", "12")
+    assert client.get(f"/api/transactions/{made['id']}").json()["postings"][0]["amount"] in ("12.00", "12")
 
 
 def test_moving_a_side_to_another_account_replaces_only_that_posting(
     client, root_accounts, account, other_account, expense_account
 ):
     made = post(client, account, expense_account, "10")
-    before = ids(client, made["tid"])
+    before = ids(client, made["id"])
     client.patch(
-        f"/api/transactions/{made['tid']}",
+        f"/api/transactions/{made['id']}",
         json={
             "postings": [
                 leg(expense_account, "debit", "10"),
@@ -164,17 +169,17 @@ def test_moving_a_side_to_another_account_replaces_only_that_posting(
             ]
         },
     )
-    after = ids(client, made["tid"])
+    after = ids(client, made["id"])
     expenses = root_accounts["Expenses"]
     assert after[(expenses, "debit")] == before[(expenses, "debit")]
-    assert (account["aid"], "credit") not in after and (other_account["aid"], "credit") in after
+    assert (account["id"], "credit") not in after and (other_account["id"], "credit") in after
 
 
 def test_swapping_the_sides_keeps_the_accounts_postings(client, account, expense_account):
     made = post(client, account, expense_account, "10")
-    before = ids(client, made["tid"])
+    before = ids(client, made["id"])
     client.patch(
-        f"/api/transactions/{made['tid']}",
+        f"/api/transactions/{made['id']}",
         json={
             "postings": [
                 leg(account, "debit", "10"),
@@ -182,16 +187,16 @@ def test_swapping_the_sides_keeps_the_accounts_postings(client, account, expense
             ]
         },
     )
-    after = ids(client, made["tid"])
+    after = ids(client, made["id"])
     assert set(after.values()) == set(before.values())
     assert trial(client)["balanced"]
 
 
 def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expense_account, other_account):
     made = post(client, account, expense_account, "10")
-    before = ids(client, made["tid"])
+    before = ids(client, made["id"])
     client.patch(
-        f"/api/transactions/{made['tid']}",
+        f"/api/transactions/{made['id']}",
         json={
             "postings": [
                 leg(expense_account, "debit", "6"),
@@ -200,10 +205,10 @@ def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expen
             ]
         },
     )
-    split = ids(client, made["tid"])
+    split = ids(client, made["id"])
     assert len(split) == 3 and set(before.values()) <= set(split.values())
     client.patch(
-        f"/api/transactions/{made['tid']}",
+        f"/api/transactions/{made['id']}",
         json={
             "postings": [
                 leg(expense_account, "debit", "10"),
@@ -211,7 +216,7 @@ def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expen
             ]
         },
     )
-    assert ids(client, made["tid"]) == before
+    assert ids(client, made["id"]) == before
     assert trial(client)["balanced"]
 
 
@@ -220,9 +225,9 @@ def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expen
 
 def test_history_follows_a_transaction_from_creation_to_deletion(client, account, expense_account, svc):
     made = post(client, account, expense_account, "10", payee="Shop")
-    client.patch(f"/api/transactions/{made['tid']}", json={"payee": "Market"})
+    client.patch(f"/api/transactions/{made['id']}", json={"payee": "Market"})
     client.patch(
-        f"/api/transactions/{made['tid']}",
+        f"/api/transactions/{made['id']}",
         json={
             "postings": [
                 leg(expense_account, "debit", "12"),
@@ -230,10 +235,10 @@ def test_history_follows_a_transaction_from_creation_to_deletion(client, account
             ]
         },
     )
-    client.delete(f"/api/transactions/{made['tid']}")
+    client.delete(f"/api/transactions/{made['id']}")
 
-    assert client.get(f"/api/transactions/{made['tid']}").status_code == 404
-    history = plain(svc.transactions.history(UUID(made["tid"])))
+    assert client.get(f"/api/transactions/{made['id']}").status_code == 404
+    history = plain(svc.transactions.history(UUID(made["id"])))
     assert [h["action"] for h in history] == ["created", "updated", "updated", "deleted"]
     assert [h["payee"] for h in history] == ["Shop", "Market", "Market", "Market"]
     assert [h["via"] for h in history] == ["api"] * 4
@@ -242,13 +247,13 @@ def test_history_follows_a_transaction_from_creation_to_deletion(client, account
     assert {p["amount"] for p in history[3]["postings"]} == {"12.00"}
 
     deleted = plain(svc.transactions.deleted())
-    assert [d["transaction"] for d in deleted] == [made["tid"]]
+    assert [d["transaction_id"] for d in deleted] == [made["id"]]
 
 
 def test_saving_without_changes_adds_nothing(client, account, expense_account, svc):
     made = post(client, account, expense_account, "10", payee="Shop")
-    client.patch(f"/api/transactions/{made['tid']}", json={"payee": "Shop"})
-    assert len(svc.transactions.history(UUID(made["tid"]))) == 1
+    client.patch(f"/api/transactions/{made['id']}", json={"payee": "Shop"})
+    assert len(svc.transactions.history(UUID(made["id"]))) == 1
 
 
 def test_an_unknown_transaction_has_no_history(svc):
@@ -271,7 +276,7 @@ def test_history_belongs_to_one_user(client, session, account, expense_account, 
 
 
 def test_balance_adjustments_are_in_the_history_too(client, session, account):
-    client.patch(f"/api/accounts/{account['aid']}", json={"balance": "50"})
+    client.patch(f"/api/accounts/{account['id']}", json={"balance": "50"})
     from app.models.transaction_history import TransactionHistory
 
     rows = session.query(TransactionHistory).all()
@@ -284,7 +289,7 @@ def test_balance_adjustments_are_in_the_history_too(client, session, account):
 @pytest.mark.parametrize(("column", "value"), [("amount", 0), ("amount", -1)])
 def test_the_database_refuses_a_posting_that_is_not_positive(client, session, account, expense_account, column, value):
     made = post(client, account, expense_account, "10")
-    posting = session.query(Posting).filter(Posting.transaction == UUID(made["tid"])).first()
+    posting = session.query(Posting).filter(Posting.transaction_id == UUID(made["id"])).first()
     setattr(posting, column, value)
     session.add(posting)
     with pytest.raises(IntegrityError):
@@ -318,7 +323,7 @@ def test_recurring_occurrences_balance(client, root_accounts, account, expense_a
     response = client.post(
         "/api/recurring/",
         json={
-            "from_account": account["aid"],
+            "from_account_id": account["id"],
             **into(client, expense_account),
             "amount": "9",
             "frequency": "monthly",
@@ -333,6 +338,6 @@ def test_recurring_occurrences_balance(client, root_accounts, account, expense_a
 
 def test_the_edit_page_shows_no_history(client, account, expense_account):
     made = post(client, account, expense_account, "10", payee="Shop")
-    client.patch(f"/api/transactions/{made['tid']}", json={"payee": "Market"})
-    page = client.get(f"/transactions/{made['tid']}/edit").text
+    client.patch(f"/api/transactions/{made['id']}", json={"payee": "Market"})
+    page = client.get(f"/transactions/{made['id']}/edit").text
     assert "History" not in page and "history" not in page

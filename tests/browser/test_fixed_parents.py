@@ -29,7 +29,7 @@ def test_an_empty_page_offers_an_add_account_pill_and_shows_no_groups(page: Page
 
 def test_a_groups_own_page_adds_inside_it(page: Page, api):
     group = next(a for a in api.get("/accounts/") if a["name"] == "Investments")
-    page.goto(f"/accounts/{group['aid']}")
+    page.goto(f"/accounts/{group['id']}")
     page.locator(".section-head .circ-button").click()
     page.wait_for_url("**/accounts/new?parent=*")
     expect(page.locator('select[name="parent_id"] option:checked')).to_have_text(re.compile("Investments"))

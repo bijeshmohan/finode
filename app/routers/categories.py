@@ -40,28 +40,28 @@ def create_category(data: CategoryCreate, categories: Categories):
         raise _refused(e) from None
 
 
-@router.get("/{bcid}", response_model=CategoryRead)
-def get_category(bcid: UUID, categories: Categories):
-    category = categories.read(bcid)
+@router.get("/{category_id}", response_model=CategoryRead)
+def get_category(category_id: UUID, categories: Categories):
+    category = categories.read(category_id)
     if category is None:
         raise HTTPException(status_code=404, detail="category not found")
     return category
 
 
-@router.patch("/{bcid}", response_model=CategoryRead)
-def update_category(bcid: UUID, data: CategoryUpdate, categories: Categories):
+@router.patch("/{category_id}", response_model=CategoryRead)
+def update_category(category_id: UUID, data: CategoryUpdate, categories: Categories):
     """Rename a category, change its note or move it into another group (`parent_id`; null takes it out of its group)."""
     try:
-        return categories.update(bcid, data)
+        return categories.update(category_id, data)
     except SystemAccountError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError as e:
         raise _refused(e) from None
 
 
-@router.get("/{bcid}/register", response_model=list[RegisterEntry])
+@router.get("/{category_id}/register", response_model=list[RegisterEntry])
 def category_register(
-    bcid: UUID,
+    category_id: UUID,
     categories: Categories,
     own_only: bool = False,
     limit: int | None = Query(default=None, ge=1, le=1000),
@@ -69,47 +69,47 @@ def category_register(
 ):
     """The entries that have a line labelled with the category (and with the categories in it, unless `own_only`),
     oldest first, each with what it changed and the running total."""
-    if categories.read(bcid) is None:
+    if categories.read(category_id) is None:
         raise HTTPException(status_code=404, detail="category not found")
-    entries = categories.register(bcid, own_only=own_only)
+    entries = categories.register(category_id, own_only=own_only)
     return entries[offset : offset + limit] if limit else entries[offset:]
 
 
-@router.post("/{bcid}/close", response_model=CategoryRead)
-def close_category(bcid: UUID, categories: Categories):
+@router.post("/{category_id}/close", response_model=CategoryRead)
+def close_category(category_id: UUID, categories: Categories):
     """Close a category (and what is inside a group): its history stays, nothing more can be labelled with it."""
     try:
-        return categories.close(bcid)
+        return categories.close(category_id)
     except ValueError as e:
         raise _refused(e) from None
 
 
-@router.post("/{bcid}/reopen", response_model=CategoryRead)
-def reopen_category(bcid: UUID, categories: Categories):
+@router.post("/{category_id}/reopen", response_model=CategoryRead)
+def reopen_category(category_id: UUID, categories: Categories):
     try:
-        return categories.reopen(bcid)
+        return categories.reopen(category_id)
     except ValueError as e:
         raise _refused(e) from None
 
 
-@router.post("/{bcid}/delete", response_model=CategoryDeleteResult)
-def delete_category(bcid: UUID, categories: Categories):
+@router.post("/{category_id}/delete", response_model=CategoryDeleteResult)
+def delete_category(category_id: UUID, categories: Categories):
     """Remove an unused category for good. One with history (entries, labelled lines, sub-categories or a recurring
     rule) is closed instead, and the answer says which happened."""
     try:
-        return categories.delete(bcid)
+        return categories.delete(category_id)
     except SystemAccountError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError as e:
         raise _refused(e) from None
 
 
-@router.post("/{bcid}/merge", response_model=MergeResult)
-def merge_category(bcid: UUID, data: MergeRequest, categories: Categories, dry_run: bool = False):
+@router.post("/{category_id}/merge", response_model=MergeResult)
+def merge_category(category_id: UUID, data: MergeRequest, categories: Categories, dry_run: bool = False):
     """Fold this category into another (`into`, a category id): its entries, labelled lines, planned amounts and
     recurring rules become the other's, and this one goes. Same rules as merging accounts; `dry_run=true` only tells
     what would move."""
     try:
-        return categories.merge(bcid, data.into, dry_run)
+        return categories.merge(category_id, data.into, dry_run)
     except ValueError as e:
         raise _refused(e) from None

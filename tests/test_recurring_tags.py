@@ -30,16 +30,18 @@ def test_changing_a_rules_tags_applies_to_the_next_entries_only(client, accounts
     start = str(date.today().replace(day=1))
     made = rule(client, accounts, start_date=start, frequency="monthly", tags=["rent"])
     before = recorded(client)
-    body = {k: made[k] for k in ("from_account", "to_account", "amount", "frequency", "every", "start_date", "payee")}
-    changed = client.put(f"/api/recurring/{made['rid']}", json=body | {"tags": ["housing"]})
+    body = {
+        k: made[k] for k in ("from_account_id", "to_account_id", "amount", "frequency", "every", "start_date", "payee")
+    }
+    changed = client.put(f"/api/recurring/{made['id']}", json=body | {"tags": ["housing"]})
     assert changed.status_code == 200 and changed.json()["tags"] == ["housing"]
     assert [t["tags"] for t in recorded(client)] == [t["tags"] for t in before], "what was recorded keeps its tags"
 
 
 def test_too_many_tags_or_a_bad_one_are_refused(client, accounts):
     body = {
-        "from_account": accounts["bank"],
-        "to_account": accounts["rent"],
+        "from_account_id": accounts["bank"],
+        "to_account_id": accounts["rent"],
         "amount": "10",
         "start_date": "2999-01-01",
     }
@@ -87,7 +89,7 @@ def test_the_new_form_saves_tags_and_the_edit_form_shows_them(client, accounts):
     assert posted.status_code == 200, posted.text
     [made] = client.get("/api/recurring/").json()
     assert made["tags"] == ["rent", "home"] and made["every"] == 2 and made["comment"] == "Rent"
-    page = client.get(f"/recurring/{made['rid']}/edit").text
+    page = client.get(f"/recurring/{made['id']}/edit").text
     assert 'name="tags" value="rent"' in page and 'name="tags" value="home"' in page
     assert "#rent" in page and 'value="Landlord"' in page and "Every" in page
     assert client.get("/recurring/new").text.count('class="hash-btn"') == 1

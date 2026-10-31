@@ -48,7 +48,7 @@ def test_transactions_page_filters(client: TestClient, account: dict, other_acco
     _post(client, expense_account, account, "1.00", "2026-01-01", "from-checking")
     _post(client, expense_account, other_account, "1.00", "2026-03-01", "from-savings")
 
-    by_account = client.get("/transactions", params={"account": account["aid"], "date_from": "2026-01-01"}).text
+    by_account = client.get("/transactions", params={"account": account["id"], "date_from": "2026-01-01"}).text
     by_account = listed(by_account)
     assert "from-checking" in by_account and "from-savings" not in by_account
 
@@ -80,7 +80,7 @@ def test_more_keeps_the_filters_and_the_month(
     for i in range(30):
         _post(client, expense_account, account, "1.00", f"2026-01-{i % 28 + 1:02d}", f"a-{i:02d}")
     _post(client, expense_account, other_account, "1.00", "2026-01-03", "elsewhere")
-    first = client.get("/transactions", params={"month": "2026-01", "account": account["aid"]}).text
+    first = client.get("/transactions", params={"month": "2026-01", "account": account["id"]}).text
     url = re.search(r'hx-get="(/transactions/more[^"]*)"', first).group(1).replace("&amp;", "&")
     assert "account=" in url and "month=2026-01" in url
     more = client.get(url).text
@@ -89,7 +89,7 @@ def test_more_keeps_the_filters_and_the_month(
 
 def test_delete_transaction_from_ui(client: TestClient, account: dict, expense_account: dict):
     tx = _post(client, expense_account, account, "5.00", "2026-01-01", "oops")
-    response = client.post(f"/transactions/{tx['tid']}/delete")
+    response = client.post(f"/transactions/{tx['id']}/delete")
     assert response.status_code == 200
     assert response.headers["HX-Redirect"] == "/transactions"
     assert client.get("/api/transactions/").json() == []
@@ -111,7 +111,7 @@ def test_transactions_are_grouped_by_friendly_day_and_link_to_edit(
     text = client.get("/transactions", params={"date_from": "2020-01-01"}).text
     assert ">Today<" in text
     assert ">3 Feb 2020<" in text
-    assert f'href="/transactions/{tx["tid"]}/edit"' in text
+    assert f'href="/transactions/{tx["id"]}/edit"' in text
 
 
 def test_a_day_with_several_entries_shows_what_was_spent_that_day(
@@ -143,7 +143,7 @@ def test_transaction_amounts_use_colour_not_a_minus_sign(
 def test_the_filter_word_counts_what_is_set(client: TestClient, account: dict):
     closed = client.get("/transactions").text
     assert "data-open-filter" in closed and "All transactions" not in closed and 'class="tx-applied"' not in closed
-    opened = client.get("/transactions", params={"account": account["aid"], "date_from": "2026-01-01"}).text
+    opened = client.get("/transactions", params={"account": account["id"], "date_from": "2026-01-01"}).text
     assert "Filter · 1" in opened and 'class="tx-applied"' in opened
     assert "Nothing matches." in listed(opened)
 

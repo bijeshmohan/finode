@@ -18,8 +18,8 @@
         <span class="muted block">Signed in · connected {{ g.created.date()|friendly_date }} · {% if g.last_used %}last used {{ g.last_used.date()|friendly_date }}{% else %}never used{% endif %}</span>
       </span>
       <span class="row-actions">
-        {{ access_buttons("/oauth/apps/" ~ g.gid ~ "/access", g.scope, g.client_name) }}
-        <button type="button" class="secondary small" hx-post="/oauth/apps/{{ g.gid }}/disconnect"
+        {{ access_buttons("/oauth/apps/" ~ g.id ~ "/access", g.scope, g.client_name) }}
+        <button type="button" class="secondary small" hx-post="/oauth/apps/{{ g.id }}/disconnect"
                 hx-confirm="Disconnect {{ g.client_name }}? It stops working at once.">Disconnect</button>
       </span>
     </li>
@@ -32,8 +32,8 @@
         <span class="muted block">Token {{ t.prefix }}… · created {{ t.created.date()|friendly_date }} · {% if t.last_used %}last used {{ t.last_used.date()|friendly_date }}{% else %}never used{% endif %}</span>
       </span>
       <span class="row-actions">
-        {{ access_buttons("/profile/assistants/" ~ t.tkid ~ "/access", t.scope, "assistants using '" ~ t.name ~ "'") }}
-        <button type="button" class="secondary small" hx-post="/profile/assistants/{{ t.tkid }}/revoke"
+        {{ access_buttons("/profile/assistants/" ~ t.id ~ "/access", t.scope, "assistants using '" ~ t.name ~ "'") }}
+        <button type="button" class="secondary small" hx-post="/profile/assistants/{{ t.id }}/revoke"
                 hx-confirm="Revoke '{{ t.name }}'? Assistants using it stop working at once.">Revoke</button>
       </span>
     </li>

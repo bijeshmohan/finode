@@ -27,7 +27,7 @@ class ApiTokenCreate(BaseModel):
 
 
 class ApiTokenRead(BaseModel):
-    tkid: UUID
+    id: UUID
     name: str
     scope: str
     prefix: str

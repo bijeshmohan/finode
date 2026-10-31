@@ -57,7 +57,7 @@ Habits the linter enforces: `raise ... from None` (or `from e`) inside `except`,
 
 ## How to add a route to the JSON API
 
-The API covers everything the web app and the assistants can do (see [The JSON API](api.md) for the list and what is left out on purpose), so a new feature gets its route too: a handler in `app/routers/`, a schema in `app/schemas/`, a test (`tests/test_api_parity.py` is the pattern), the classification in the isolation audit (a route with an id is swept automatically; name the id `goal_id`, `hid`, `did`… so the audit knows it), and a row in `docs/developer/api.md`.
+The API covers everything the web app and the assistants can do (see [The JSON API](api.md) for the list and what is left out on purpose), so a new feature gets its route too: a handler in `app/routers/`, a schema in `app/schemas/`, a test (`tests/test_api_parity.py` is the pattern), the classification in the isolation audit (a route with an id is swept automatically; name the id for what it is (`goal_id`, `history_id`, `deletion_id`…) so the audit knows it), and a row in `docs/developer/api.md`.
 
 ## How to add an MCP tool
 

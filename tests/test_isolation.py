@@ -233,33 +233,36 @@ def world(client: TestClient, session, rich) -> World:
             "postings": [line(rich["groceries"], "debit", "7"), line(rich["bank"], "credit", "7")],
         },
     ).json()
-    client.delete(f"/api/transactions/{spare['tid']}")
+    client.delete(f"/api/transactions/{spare['id']}")
     assets = next(
-        a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets"
+        a["id"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets"
     )
-    shelf = post_account(client, {"name": "Spare shelf", "parent_id": assets}).json()["aid"]
+    shelf = post_account(client, {"name": "Spare shelf", "parent_id": assets}).json()["id"]
     client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
-    w.dids = [str(d["did"]) for d in services(session).accounts.restorable()]
+    w.dids = [str(d["id"]) for d in services(session).accounts.restorable()]
     client.post("/budget/goal", data={"name": "Isolated holiday", "amount": "5000", "by": "2999-12", "assign_now": "1"})
-    w.goal_ids = [g["gid"] for g in client.get("/api/budget/").json()["goals"]]
+    w.goal_ids = [g["id"] for g in client.get("/api/budget/").json()["goals"]]
     doc = client.get("/api/backup").json()
     w.backup = doc
     w.categories = {c["name"]: c["id"] for c in doc["categories"]}
     w.accounts = {**{a["name"]: a["id"] for a in doc["accounts"]}, **w.categories}
     w.roots = [a["id"] for a in doc["accounts"] if a["parent_id"] is None]
     w.tags = sorted({name for t in doc["transactions"] for name in t.get("tags", [])})
-    w.tids = [t["id"] for t in doc["transactions"]] + [spare["tid"]]
+    w.tids = [t["id"] for t in doc["transactions"]] + [spare["id"]]
     w.rids = [r["id"] for r in doc["recurring"]]
-    w.hids = [str(d.hid) for d in services(session).transactions.deleted()]
-    w.tkid, w.gid = str(w.token.tkid), str(w.grant.gid)
+    w.hids = [str(d.id) for d in services(session).transactions.deleted()]
+    w.token_id, w.grant_id = str(w.token.id), str(w.grant.id)
     w.markers = (
         A_WORDS
-        + [str(i) for i in (*w.accounts.values(), *w.tids, *w.rids, *w.hids, *w.dids, w.tkid, w.gid, *w.goal_ids)]
+        + [
+            str(i)
+            for i in (*w.accounts.values(), *w.tids, *w.rids, *w.hids, *w.dids, w.token_id, w.grant_id, *w.goal_ids)
+        ]
         + ["Isolated holiday"]
     )
     # B has a small ledger of their own (and none of A's names).
     with signed_in_as(B_USER):
-        roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
+        roots = {a["name"]: a["id"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
         w.b_roots = roots
         w.b_mine = post_account(client, {"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}).json()
         w.b_bills = post_account(client, {"name": "Bills", "parent_id": roots["Expenses"]}).json()
@@ -302,14 +305,14 @@ def id_routes() -> list[tuple[str, str]]:
 
 def candidates(world: World, name: str) -> list[str]:
     return {
-        "aid": [*world.accounts.values(), *world.roots],
-        "bcid": list(world.categories.values()),
-        "tid": world.tids,
-        "hid": world.hids,
-        "did": world.dids,
-        "rid": world.rids,
-        "tkid": [world.tkid],
-        "gid": [world.gid],
+        "account_id": [*world.accounts.values(), *world.roots],
+        "category_id": list(world.categories.values()),
+        "transaction_id": world.tids,
+        "history_id": world.hids,
+        "deletion_id": world.dids,
+        "recurring_id": world.rids,
+        "token_id": [world.token_id],
+        "grant_id": [world.grant_id],
         "goal_id": world.goal_ids,
         "name": world.tags,
     }[name]
@@ -317,29 +320,29 @@ def candidates(world: World, name: str) -> list[str]:
 
 def body_for(world: World, method: str, path: str) -> dict:
     """A valid-looking request, so a refusal comes from the ownership check and not from validation."""
-    mine, bills = world.b_mine["aid"], world.b_bills["aid"]
-    rows = {"date": "2026-10-01", "account": [bills, mine], "side": ["debit", "credit"], "amount": ["5", "5"]}
+    mine, bills = world.b_mine["id"], world.b_bills["id"]
+    rows = {"date": "2026-10-01", "account_id": [bills, mine], "side": ["debit", "credit"], "amount": ["5", "5"]}
     api = path.startswith("/api/")
     bodies = {
-        ("PATCH", "/api/accounts/{aid}"): {"json": {"name": "hacked", "details": "hacked"}},
-        ("PATCH", "/api/transactions/{tid}"): {"json": {"payee": "hacked"}},
-        ("PUT", "/api/budget/categories/{aid}"): {"json": {"amount": "5"}},
-        ("PUT", "/api/recurring/{rid}"): {
-            "json": {"from_account": mine, "to_account": bills, "amount": "1", "start_date": "2999-01-01"}
+        ("PATCH", "/api/accounts/{account_id}"): {"json": {"name": "hacked", "details": "hacked"}},
+        ("PATCH", "/api/transactions/{transaction_id}"): {"json": {"payee": "hacked"}},
+        ("PUT", "/api/budget/categories/{category_id}"): {"json": {"amount": "5"}},
+        ("PUT", "/api/recurring/{recurring_id}"): {
+            "json": {"from_account_id": mine, "to_account_id": bills, "amount": "1", "start_date": "2999-01-01"}
         },
-        ("POST", "/accounts/{aid}/edit"): {"data": {"name": "hacked"}},
-        ("POST", "/transactions/{tid}/edit"): {"data": rows},
-        ("POST", "/recurring/{rid}/edit"): {
+        ("POST", "/accounts/{account_id}/edit"): {"data": {"name": "hacked"}},
+        ("POST", "/transactions/{transaction_id}/edit"): {"data": rows},
+        ("POST", "/recurring/{recurring_id}/edit"): {
             "data": {**rows, "frequency": "monthly", "every": "1", "start": "2999-01-01"}
         },
         ("POST", "/budget/goal/{goal_id}"): {"data": {"name": "hacked", "amount": "5", "by": "2999-12"}},
         ("POST", "/budget/goal/{goal_id}/use"): {"data": {"category": bills, "amount": "1"}},
         ("POST", "/budget/goal/{goal_id}/assign"): {"data": {"amount": "5"}},
-        ("POST", "/api/accounts/{aid}/merge"): {"json": {"into": bills}},
-        ("POST", "/api/categories/{bcid}/merge"): {"json": {"into": bills}},
-        ("PATCH", "/api/categories/{bcid}"): {"json": {"name": "hacked"}},
-        ("POST", "/oauth/apps/{gid}/access"): {"data": {"scope": "read"}},
-        ("POST", "/profile/assistants/{tkid}/access"): {"data": {"scope": "read"}},
+        ("POST", "/api/accounts/{account_id}/merge"): {"json": {"into": bills}},
+        ("POST", "/api/categories/{category_id}/merge"): {"json": {"into": bills}},
+        ("PATCH", "/api/categories/{category_id}"): {"json": {"name": "hacked"}},
+        ("POST", "/oauth/apps/{grant_id}/access"): {"data": {"scope": "read"}},
+        ("POST", "/profile/assistants/{token_id}/access"): {"data": {"scope": "read"}},
     }
     return bodies.get((method, path), {"json": {}} if api else {"data": {}})
 
@@ -414,7 +417,7 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
 
 def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
     a = world.accounts
-    mine, bills = world.b_mine["aid"], world.b_bills["aid"]
+    mine, bills = world.b_mine["id"], world.b_bills["id"]
     before_a = books_of(client, TEST_USER_ID)
     before_b = books_of(client, B_USER)
     refusals = []
@@ -438,8 +441,8 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "/api/transactions/",
             json={
                 "postings": [
-                    {"category": a["Groceries"], "side": "debit", "amount": "5"},
-                    {"account": mine, "side": "credit", "amount": "5"},
+                    {"category_id": a["Groceries"], "side": "debit", "amount": "5"},
+                    {"account_id": mine, "side": "credit", "amount": "5"},
                 ]
             },
         )
@@ -450,8 +453,13 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "/api/transactions/",
             json={
                 "postings": [
-                    {"account": world.b_roots["Expenses"], "side": "debit", "amount": "5", "category": a["Groceries"]},
-                    {"account": mine, "side": "credit", "amount": "5"},
+                    {
+                        "account_id": world.b_roots["Expenses"],
+                        "side": "debit",
+                        "amount": "5",
+                        "category_id": a["Groceries"],
+                    },
+                    {"account_id": mine, "side": "credit", "amount": "5"},
                 ]
             },
         )
@@ -461,8 +469,8 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "/api/transactions/",
             json={
                 "postings": [
-                    {"category": a["Groceries"], "side": "debit", "amount": "5"},
-                    {"account": mine, "side": "credit", "amount": "5"},
+                    {"category_id": a["Groceries"], "side": "debit", "amount": "5"},
+                    {"account_id": mine, "side": "credit", "amount": "5"},
                 ]
             },
         )
@@ -481,14 +489,14 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                 "transactions": [
                     {
                         "postings": [
-                            {"category": bills, "side": "debit", "amount": "5"},
-                            {"account": mine, "side": "credit", "amount": "5"},
+                            {"category_id": bills, "side": "debit", "amount": "5"},
+                            {"account_id": mine, "side": "credit", "amount": "5"},
                         ]
                     },
                     {
                         "postings": [
-                            {"category": a["Groceries"], "side": "debit", "amount": "5"},
-                            {"account": mine, "side": "credit", "amount": "5"},
+                            {"category_id": a["Groceries"], "side": "debit", "amount": "5"},
+                            {"account_id": mine, "side": "credit", "amount": "5"},
                         ]
                     },
                 ]
@@ -500,8 +508,8 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "/api/transactions/",
             json={
                 "postings": [
-                    {"category": a["Groceries"], "side": "debit", "amount": "5"},
-                    {"account": a["HDFC"], "side": "credit", "amount": "5"},
+                    {"category_id": a["Groceries"], "side": "debit", "amount": "5"},
+                    {"account_id": a["HDFC"], "side": "credit", "amount": "5"},
                 ]
             },
         )
@@ -515,7 +523,12 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "recurring on A's accounts",
             "POST",
             "/api/recurring/",
-            json={"from_account": a["HDFC"], "to_account": a["Groceries"], "amount": "1", "start_date": "2999-01-01"},
+            json={
+                "from_account_id": a["HDFC"],
+                "to_account_id": a["Groceries"],
+                "amount": "1",
+                "start_date": "2999-01-01",
+            },
         )
         refused(
             "recurring split with A's",
@@ -523,7 +536,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "/api/recurring/",
             json={
                 "start_date": "2999-01-01",
-                "postings": [line({"aid": a["Groceries"]}, "debit", "5"), line({"aid": mine}, "credit", "5")],
+                "postings": [line({"id": a["Groceries"]}, "debit", "5"), line({"id": mine}, "credit", "5")],
             },
         )
         refused("budget A's category", "PUT", f"/api/budget/categories/{a['Groceries']}", json={"amount": "5"})
@@ -537,7 +550,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         refused("API include A's account", "POST", f"/api/budget/accounts/{a['HDFC']}/include")
         refused("API reopen A's account", "POST", f"/api/accounts/{a['HDFC']}/reopen")
         refused("API register of A's account", "GET", f"/api/accounts/{a['HDFC']}/register")
-        refused("API filter by A's category", "GET", "/api/transactions/", params={"category": a["Groceries"]})
+        refused("API filter by A's category", "GET", "/api/transactions/", params={"category_id": a["Groceries"]})
         refused(
             "budget move A's",
             "POST",
@@ -629,7 +642,7 @@ def test_a_goal_is_made_in_the_callers_own_books(client: TestClient, world: Worl
         )
         assert done.status_code == 200, done.text
         mine = client.get("/api/budget/").json()["goals"]
-        assert [g["name"] for g in mine] == ["Isolated holiday"] and mine[0]["gid"] not in world.goal_ids
+        assert [g["name"] for g in mine] == ["Isolated holiday"] and mine[0]["id"] not in world.goal_ids
     assert books_of(client, TEST_USER_ID) == before
 
 
@@ -729,7 +742,18 @@ def test_nothing_answers_without_a_sign_in(session, world: World):
                 if (method, template) in PUBLIC or method == "HEAD":
                     continue
                 url = template
-                for name in ("aid", "tid", "rid", "hid", "did", "tkid", "gid", "goal_id", "name"):
+                for name in (
+                    "account_id",
+                    "transaction_id",
+                    "recurring_id",
+                    "history_id",
+                    "deletion_id",
+                    "token_id",
+                    "grant_id",
+                    "category_id",
+                    "goal_id",
+                    "name",
+                ):
                     url = url.replace("{" + name + "}", str(world.tids[0]))
                 response = anonymous.request(
                     method,

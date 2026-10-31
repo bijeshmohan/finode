@@ -19,7 +19,7 @@ class AccountDeletion(SQLModel, table=True):
     __tablename__ = "account_deletions"
     __table_args__ = (Index("ix_account_deletions_user_account", "user_id", "account_id"),)
 
-    did: UUID = Field(default_factory=uuid4, primary_key=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     account_id: UUID
     at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))

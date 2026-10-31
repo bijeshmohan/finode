@@ -14,7 +14,7 @@ class TodoService:
     def read(self) -> TodoRead:
         view = self.budget.view()
         rules = [
-            TodoRule(rid=r.rid, name=r.payee or "A recurring transaction", error=r.last_error)
+            TodoRule(recurring_id=r.id, name=r.payee or "A recurring transaction", error=r.last_error)
             for r in self.recurring.list()
             if r.active and r.last_error
         ]

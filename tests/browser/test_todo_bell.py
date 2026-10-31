@@ -49,10 +49,10 @@ def test_a_payment_with_no_category_is_fixed_from_the_sheet_and_the_count_follow
     page.locator(".topbar .todo-open").click()
     sheet = page.locator("#todo-sheet-body")
     expect(sheet).to_contain_text("1 payment has no category")
-    choose_until_done(sheet.locator("select"), sheet, emi["aid"])
+    choose_until_done(sheet.locator("select"), sheet, emi["id"])
     expect(page.locator("#todo-count-bar")).to_be_hidden()
     entry = next(t for t in api.get("/transactions/") if t["payee"] == "EMI payment")
-    assert emi["aid"] in {p["category"] for p in entry["postings"]}
+    assert emi["id"] in {p["category_id"] for p in entry["postings"]}
 
 
 def test_the_budgets_page_has_no_needs_you_line_any_more(page: Page, books, api: Api):

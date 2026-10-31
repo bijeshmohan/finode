@@ -6,7 +6,7 @@
 {#- One account: its name and its balance. -#}
 {% macro entry(node) %}
 <li data-path="{{ node.path|lower }}" class="{{ 'closed-hidden' if node.closed }}">
-  <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.aid }}">
+  <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.id }}">
     <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}</span>
     <span class="account-balance">{{ node.account.balance|money }}</span>
   </a>
@@ -19,7 +19,7 @@
   {#- A block with nothing left to show (a closed group, or plain accounts that all are closed) hides whole, so no empty tile is left. -#}
   <div class="acc-block{{ ' closed-hidden' if (head and head.closed) or (not head and items|selectattr("closed")|list|length == items|length) }}">
     {% if head %}
-    <a class="acc-gh" href="/accounts/{{ head.account.aid }}" title="Open {{ head.account.name }}"><span>{{ head.account.name }}</span><span>{{ head.account.balance|money }}</span></a>
+    <a class="acc-gh" href="/accounts/{{ head.account.id }}" title="Open {{ head.account.name }}"><span>{{ head.account.name }}</span><span>{{ head.account.balance|money }}</span></a>
     {% elif blocks|length > 1 %}
     {#- The accounts that sit directly under the type, with no group of their own: a label with their total, not a page. -#}
     <div class="acc-gh" data-others><span>Others</span><span>{{ items|sum(attribute="account.balance")|money }}</span></div>

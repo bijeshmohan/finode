@@ -73,10 +73,10 @@ def decide(
     return RedirectResponse(redirect, status_code=303)
 
 
-@router.post("/apps/{gid}/access")
-def change_access(gid: UUID, grants: OAuthGrants, scope: Annotated[str, Form()] = ""):
+@router.post("/apps/{grant_id}/access")
+def change_access(grant_id: UUID, grants: OAuthGrants, scope: Annotated[str, Form()] = ""):
     try:
-        grants.set_scope(gid, scope)
+        grants.set_scope(grant_id, scope)
     except LookupError:
         raise HTTPException(status_code=404, detail="app not found") from None
     except ValueError as e:
@@ -84,10 +84,10 @@ def change_access(gid: UUID, grants: OAuthGrants, scope: Annotated[str, Form()] 
     return htmx_redirect("/profile/assistants", flash="access-changed")
 
 
-@router.post("/apps/{gid}/disconnect")
-def disconnect(request: Request, gid: UUID, grants: OAuthGrants):
+@router.post("/apps/{grant_id}/disconnect")
+def disconnect(request: Request, grant_id: UUID, grants: OAuthGrants):
     try:
-        grant = grants.revoke(gid)
+        grant = grants.revoke(grant_id)
     except LookupError:
         raise HTTPException(status_code=404, detail="app not found") from None
     oauth.revoke_grant(grant.client_id, request.state.access_token)

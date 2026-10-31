@@ -117,34 +117,34 @@ class AccountService:
     def is_opening_balances(account: Account | AccountRead, all_accounts: Sequence[Account | AccountRead]) -> bool:
         if account.name != OPENING_BALANCES_ACCOUNT_NAME or account.parent_id is None:
             return False
-        parent = next((a for a in all_accounts if a.aid == account.parent_id), None)
+        parent = next((a for a in all_accounts if a.id == account.parent_id), None)
         return parent is not None and parent.name == "Equity" and parent.parent_id is None
 
     def _validate_parent(self, parent: Account, all_accounts: list[Account]) -> None:
         if self.is_opening_balances(parent, all_accounts):
             raise SystemAccountError(f"cannot add sub-accounts to system account '{parent.name}'!")
-        accounts_by_id = {a.aid: a for a in all_accounts}
+        accounts_by_id = {a.id: a for a in all_accounts}
         if self._get_root_name(parent, accounts_by_id) in GROUP_POSTING_ROOT_NAMES:
             raise ValueError("Expenses and Income hold categories, not accounts: add a category instead!")
-        if self.tr.postings_for_account(parent.aid):
+        if self.tr.postings_for_account(parent.id):
             raise ValueError(f"cannot add sub-accounts to '{parent.name}' because it has postings!")
 
     @staticmethod
     def _depth(account: Account, accounts_by_id: dict[UUID, Account]) -> int:
         """Levels below the top-level account (a top-level account is 0)."""
         depth = 0
-        seen = {account.aid}
+        seen = {account.id}
         while account.parent_id is not None and account.parent_id in accounts_by_id:
             account = accounts_by_id[account.parent_id]
-            if account.aid in seen:
+            if account.id in seen:
                 break
-            seen.add(account.aid)
+            seen.add(account.id)
             depth += 1
         return depth
 
     def _check_depth(self, parent: Account, levels_below_parent: int, all_accounts: list[Account]) -> None:
         """Refuse a new or moved subtree that would go deeper than two levels below the top-level account."""
-        resulting = self._depth(parent, {a.aid: a for a in all_accounts}) + levels_below_parent
+        resulting = self._depth(parent, {a.id: a for a in all_accounts}) + levels_below_parent
         if resulting > MAX_ACCOUNT_DEPTH:
             raise AccountDepthError(
                 "accounts can be at most two levels deep (a group and an account, like Assets › Banks › HDFC)!"
@@ -159,14 +159,14 @@ class AccountService:
         """The built-in groups nothing has been made under yet (what a restore or an import may replace with its own)."""
         all_accounts = self._ensure_roots()
         used = {a.parent_id for a in all_accounts}
-        return [a for a in all_accounts if a.system_key is not None and a.aid not in used]
+        return [a for a in all_accounts if a.system_key is not None and a.id not in used]
 
     def release_fixed_parents(self, aids: list[UUID]) -> None:
         """Remove empty built-in groups so a restore or an import can bring its own structure (the caller commits)."""
-        empty = {a.aid for a in self.empty_fixed_parents()}
-        for aid in aids:
-            if aid in empty:
-                self.ar.delete(aid)
+        empty = {a.id for a in self.empty_fixed_parents()}
+        for account_id in aids:
+            if account_id in empty:
+                self.ar.delete(account_id)
 
     def ensure_roots(self) -> list[Account]:
         return self._ensure_roots()
@@ -196,7 +196,7 @@ class AccountService:
         if len(missing) == len(ROOT_ACCOUNT_NAMES) and NEW_PROFILE_FIXED_PARENTS:
             # A brand-new person: the built-in groups come with the roots (same transaction, so a lost race makes none twice).
             for root, name, key, _ in FIXED_PARENTS:
-                self.ar.db.add(Account(name=name, parent_id=new_roots[root].aid, user_id=self.ar.uid, system_key=key))
+                self.ar.db.add(Account(name=name, parent_id=new_roots[root].id, user_id=self.ar.uid, system_key=key))
         try:
             self.ar.db.commit()
         except IntegrityError:
@@ -211,9 +211,9 @@ class AccountService:
         current = account
         visited = set()
         while current.parent_id is not None:
-            if current.aid in visited:
+            if current.id in visited:
                 break
-            visited.add(current.aid)
+            visited.add(current.id)
             parent = accounts_by_id.get(current.parent_id)
             if not parent:
                 break
@@ -231,13 +231,13 @@ class AccountService:
             return PostingSide.CREDIT
         return PostingSide.DEBIT
 
-    def _height(self, aid: UUID, all_accounts: list[Account]) -> int:
+    def _height(self, account_id: UUID, all_accounts: list[Account]) -> int:
         """Levels of sub-accounts below an account (0 for a leaf)."""
         children: dict[UUID, list[UUID]] = {}
         for a in all_accounts:
             if a.parent_id is not None:
-                children.setdefault(a.parent_id, []).append(a.aid)
-        height, level, seen = 0, [aid], {aid}
+                children.setdefault(a.parent_id, []).append(a.id)
+        height, level, seen = 0, [account_id], {account_id}
         while True:
             level = [c for p in level for c in children.get(p, []) if c not in seen]
             if not level:
@@ -256,8 +256,8 @@ class AccountService:
             current = to_visit.pop()
             children = accounts_by_parent.get(current, [])
             for child in children:
-                descendants.append(child.aid)
-                to_visit.append(child.aid)
+                descendants.append(child.id)
+                to_visit.append(child.id)
         return descendants
 
     def subtree_ids(
@@ -276,8 +276,8 @@ class AccountService:
     def _postings_by_account(self, all_accounts: list[Account], as_of: date | None) -> dict[UUID, list[Posting]]:
         """Every posting up to `as_of`, grouped by account, in one query: what a list of balances is computed from."""
         grouped: dict[UUID, list[Posting]] = {}
-        for posting in self.tr.postings_for_accounts([a.aid for a in all_accounts], date_to=as_of or local_today()):
-            grouped.setdefault(posting.account, []).append(posting)
+        for posting in self.tr.postings_for_accounts([a.id for a in all_accounts], date_to=as_of or local_today()):
+            grouped.setdefault(posting.account_id, []).append(posting)
         return grouped
 
     def _balance_for(
@@ -293,18 +293,18 @@ class AccountService:
             all_accounts = self._ensure_roots()
         as_of = as_of or local_today()
 
-        accounts_by_id = {acc.aid: acc for acc in all_accounts}
+        accounts_by_id = {acc.id: acc for acc in all_accounts}
         accounts_by_parent: dict[UUID, list[Account]] = {}
         for acc in all_accounts:
             if acc.parent_id is not None:
                 accounts_by_parent.setdefault(acc.parent_id, []).append(acc)
 
-        target_ids = [account.aid, *self._get_descendants(account.aid, accounts_by_parent)]
+        target_ids = [account.id, *self._get_descendants(account.id, accounts_by_parent)]
         normal_side = self._normal_side(account, accounts_by_id)
         rows = (
             self.tr.postings_for_accounts(target_ids, date_to=as_of)
             if postings is None
-            else (p for aid in target_ids for p in postings.get(aid, ()))
+            else (p for account_id in target_ids for p in postings.get(account_id, ()))
         )
         balance = Decimal("0.00")
         for posting in rows:
@@ -320,7 +320,7 @@ class AccountService:
     ) -> AccountRead:
         balance = self._balance_for(account, all_accounts, as_of, postings)
         return AccountRead(
-            aid=account.aid,
+            id=account.id,
             name=account.name,
             details=account.details,
             parent_id=account.parent_id,
@@ -339,14 +339,14 @@ class AccountService:
     def _opening_balances_account(self) -> Account:
         all_accounts = self._ensure_roots()
         equity_root = next(a for a in all_accounts if a.name == "Equity" and a.parent_id is None)
-        account = self.ar.read_by_name(OPENING_BALANCES_ACCOUNT_NAME, equity_root.aid)
+        account = self.ar.read_by_name(OPENING_BALANCES_ACCOUNT_NAME, equity_root.id)
         if account:
             return account
         return self.ar.create(
             AccountCreate(
                 name=OPENING_BALANCES_ACCOUNT_NAME,
                 details="System account for opening balance adjustments",
-                parent_id=equity_root.aid,
+                parent_id=equity_root.id,
             ),
             record=False,  # finode's own account: not part of anyone's history
         )
@@ -364,8 +364,8 @@ class AccountService:
             return
 
         opening_account = self._opening_balances_account()
-        accounts_by_id = {acc.aid: acc for acc in all_accounts}
-        accounts_by_id[opening_account.aid] = opening_account
+        accounts_by_id = {acc.id: acc for acc in all_accounts}
+        accounts_by_id[opening_account.id] = opening_account
 
         account_side = self._normal_side(account, accounts_by_id)
         opening_side = self._opposite_side(account_side)
@@ -380,33 +380,33 @@ class AccountService:
                 payee=payee,
                 comment=comment,
                 postings=[
-                    PostingCreate(account=account.aid, side=account_side, amount=adjustment),
-                    PostingCreate(account=opening_account.aid, side=opening_side, amount=adjustment),
+                    PostingCreate(account_id=account.id, side=account_side, amount=adjustment),
+                    PostingCreate(account_id=opening_account.id, side=opening_side, amount=adjustment),
                 ],
             ),
         )
 
     # ---- closing ---------------------------------------------------------------------------------
 
-    def _subtree(self, aid: UUID, all_accounts: list[Account]) -> list[Account]:
+    def _subtree(self, account_id: UUID, all_accounts: list[Account]) -> list[Account]:
         children: dict[UUID, list[Account]] = {}
         for a in all_accounts:
             if a.parent_id is not None:
                 children.setdefault(a.parent_id, []).append(a)
-        found, queue = [], [next(a for a in all_accounts if a.aid == aid)]
+        found, queue = [], [next(a for a in all_accounts if a.id == account_id)]
         while queue:
             current = queue.pop()
             found.append(current)
-            queue.extend(children.get(current.aid, []))
+            queue.extend(children.get(current.id, []))
         return found
 
-    def close(self, aid: UUID, today: date | None = None) -> AccountRead:
+    def close(self, account_id: UUID, today: date | None = None) -> AccountRead:
         """Close an account, and everything inside it: nothing more can be posted to it and it leaves the
         pickers and the accounts list, but its history stays. Refused while anything inside still holds a
         balance (now or in a future-dated entry) or a recurring transaction still uses it."""
         today = today or local_today()
         all_accounts = self._ensure_roots()
-        account = next((a for a in all_accounts if a.aid == aid), None)
+        account = next((a for a in all_accounts if a.id == account_id), None)
         if account is None:
             raise ValueError("account not found!")
         if self._is_root(account):
@@ -414,8 +414,8 @@ class AccountService:
         if self.is_opening_balances(account, all_accounts):
             raise SystemAccountError(f"cannot close system account '{account.name}'!")
         self._refuse_fixed(account, "closed")
-        subtree = self._subtree(aid, all_accounts)
-        by_id = {a.aid: a for a in all_accounts}
+        subtree = self._subtree(account_id, all_accounts)
+        by_id = {a.id: a for a in all_accounts}
         if self._get_root_name(account, by_id) in GROUP_POSTING_ROOT_NAMES:
             subtree_money = []  # a category's "balance" is what was spent or earned in it, not money to move out first
         else:
@@ -426,37 +426,37 @@ class AccountService:
                 if balance != 0:
                     raise ValueError(
                         f"'{member.name}' still holds {balance:f}: move or spend it first, then close "
-                        f"{'it' if member.aid == aid else account.name}!"
+                        f"{'it' if member.id == account_id else account.name}!"
                     )
-        rules = RecurringRepository.active_rules_using(self.ar.db, self.ar.uid, {m.aid for m in subtree})
+        rules = RecurringRepository.active_rules_using(self.ar.db, self.ar.uid, {m.id for m in subtree})
         if rules:
             label = rules[0].payee or "a recurring transaction"
             raise AccountInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
         for member in subtree:
-            self.ar.clear_payment_category(member.aid)
-        self.ar.set_closed([m.aid for m in subtree if m.closed_on is None], today)
+            self.ar.clear_payment_category(member.id)
+        self.ar.set_closed([m.id for m in subtree if m.closed_on is None], today)
         self.ar.db.commit()
-        return self._to_read(self._read(aid), self._ensure_roots())
+        return self._to_read(self._read(account_id), self._ensure_roots())
 
     @staticmethod
     def order_key(account: Account | AccountRead) -> tuple:
         """How siblings are listed: the built-in groups first, in their fixed order, then the rest by name."""
         return (FIXED_ORDER.get(account.system_key or "", len(FIXED_ORDER)), account.name.lower())
 
-    def reopen(self, aid: UUID) -> AccountRead:
+    def reopen(self, account_id: UUID) -> AccountRead:
         """Reopen an account with everything inside it, and the groups above it (an open account sits in open groups)."""
         all_accounts = self._ensure_roots()
-        by_id = {a.aid: a for a in all_accounts}
-        if aid not in by_id:
+        by_id = {a.id: a for a in all_accounts}
+        if account_id not in by_id:
             raise ValueError("account not found!")
-        ids = [m.aid for m in self._subtree(aid, all_accounts)]
-        current = by_id[aid]
+        ids = [m.id for m in self._subtree(account_id, all_accounts)]
+        current = by_id[account_id]
         while current.parent_id is not None:
             current = by_id[current.parent_id]
-            ids.append(current.aid)
+            ids.append(current.id)
         self.ar.set_closed([i for i in ids if by_id[i].closed_on is not None], None)
         self.ar.db.commit()
-        return self._to_read(self._read(aid), self._ensure_roots())
+        return self._to_read(self._read(account_id), self._ensure_roots())
 
     def _check_budgetable(self, parent: Account | None, accounts_by_id: dict) -> None:
         """Only an asset or liability account can be part of the budget."""
@@ -484,15 +484,15 @@ class AccountService:
         account in the journal files and for the assistants, so they must tell accounts apart."""
         wanted = name.casefold()
         for other in all_accounts:
-            if other.parent_id == parent_id and other.aid != exclude and other.name.casefold() == wanted:
-                parent = next((a.name for a in all_accounts if a.aid == parent_id), None)
+            if other.parent_id == parent_id and other.id != exclude and other.name.casefold() == wanted:
+                parent = next((a.name for a in all_accounts if a.id == parent_id), None)
                 raise ValueError(
                     f"{'there' if parent is None else repr(parent)} already has an account called '{other.name}'!"
                 )
 
-    def _check_payment_category(self, bcid: UUID) -> None:
+    def _check_payment_category(self, category_id: UUID) -> None:
         """The category a loan's or fund's payments are budgeted under is an open spending category."""
-        category = CategoryRepository(self.ar.db, self.ar.uid).read(bcid)
+        category = CategoryRepository(self.ar.db, self.ar.uid).read(category_id)
         if category is None or category.kind != "spending":
             raise ValueError("payments can only be budgeted under a spending category!")
         if category.closed_on is not None:
@@ -504,7 +504,7 @@ class AccountService:
         if account.parent_id is None:
             raise ValueError("parent_id is required for all user-created accounts!")
 
-        parent = next((a for a in all_accounts if a.aid == account.parent_id), None)
+        parent = next((a for a in all_accounts if a.id == account.parent_id), None)
         if not parent:
             raise ValueError("parent account not found!")
 
@@ -520,7 +520,7 @@ class AccountService:
             raise ValueError(f"system account '{account.name}' already exists!")
 
         self._check_name_free(account.name, account.parent_id, all_accounts)
-        accounts_by_id = {a.aid: a for a in all_accounts}
+        accounts_by_id = {a.id: a for a in all_accounts}
         start = FIXED_DEFAULTS.get(parent.system_key or "")
         if start and account.on_budget is None and account.payment_category_id is None:
             # Made under a built-in group without saying how: it starts as the group says (a bank in the budget, a loan outside it).
@@ -556,16 +556,16 @@ class AccountService:
         self.ar.db.refresh(created)
         return self._to_read(created, all_accounts_with_created)
 
-    def read(self, aid: UUID, as_of: date | None = None) -> AccountRead | None:
+    def read(self, account_id: UUID, as_of: date | None = None) -> AccountRead | None:
         all_accounts = self._ensure_roots()
-        account = next((a for a in all_accounts if a.aid == aid), None)
+        account = next((a for a in all_accounts if a.id == account_id), None)
         if not account:
             return None
         return self._to_read(account, all_accounts, as_of)
 
     def list(self, root_name: str | None = None, as_of: date | None = None) -> builtins.list[AccountRead]:
         all_accounts = self._ensure_roots()
-        accounts_by_id = {acc.aid: acc for acc in all_accounts}
+        accounts_by_id = {acc.id: acc for acc in all_accounts}
 
         filtered = all_accounts
         if root_name is not None:
@@ -573,7 +573,7 @@ class AccountService:
         postings = self._postings_by_account(all_accounts, as_of)  # one query for every balance
         return [self._to_read(account, all_accounts, as_of, postings) for account in filtered]
 
-    def register(self, aid: UUID, own_only: bool = False) -> builtins.list[RegisterEntry] | None:
+    def register(self, account_id: UUID, own_only: bool = False) -> builtins.list[RegisterEntry] | None:
         """Return the account's activity oldest first with a running balance.
 
         Postings on sub-accounts count towards the account, matching how its
@@ -581,44 +581,44 @@ class AccountService:
         normal side, so it adds up to the account balance.
         """
         all_accounts = self._ensure_roots()
-        account = next((a for a in all_accounts if a.aid == aid), None)
+        account = next((a for a in all_accounts if a.id == account_id), None)
         if not account:
             return None
 
-        accounts_by_id = {acc.aid: acc for acc in all_accounts}
-        target_ids = {aid} if own_only else self.subtree_ids(aid, all_accounts)
+        accounts_by_id = {acc.id: acc for acc in all_accounts}
+        target_ids = {account_id} if own_only else self.subtree_ids(account_id, all_accounts)
         normal_side = self._normal_side(account, accounts_by_id)
 
         changes: dict[UUID, Decimal] = {}
         rows = self.tr.postings_for_accounts(list(target_ids))
-        loaded = self.tr.read_many(list({p.transaction for p in rows}))  # one query for every transaction it needs
+        loaded = self.tr.read_many(list({p.transaction_id for p in rows}))  # one query for every transaction it needs
         for posting in rows:
             signed = posting.amount if posting.side == normal_side else -posting.amount
-            changes[posting.transaction] = changes.get(posting.transaction, Decimal("0.00")) + signed
+            changes[posting.transaction_id] = changes.get(posting.transaction_id, Decimal("0.00")) + signed
 
-        transactions = [loaded[tid] for tid in changes if tid in loaded]
+        transactions = [loaded[transaction_id] for transaction_id in changes if transaction_id in loaded]
         transactions.sort(key=lambda t: (t.date, t.created))
         postings_of = self.tr.postings_for_transactions(list(changes))
 
         entries = []
         balance = Decimal("0.00")
         for transaction in transactions:
-            balance += changes[transaction.tid]
+            balance += changes[transaction.id]
             counter_accounts = []
-            for posting in postings_of.get(transaction.tid, []):
-                if posting.account in target_ids:
+            for posting in postings_of.get(transaction.id, []):
+                if posting.account_id in target_ids:
                     continue
                 name = self._counter_name(posting, accounts_by_id)
                 if name not in counter_accounts:
                     counter_accounts.append(name)
             entries.append(
                 RegisterEntry(
-                    tid=transaction.tid,
+                    transaction_id=transaction.id,
                     date=transaction.date,
                     payee=transaction.payee,
                     comment=transaction.comment,
                     counter_accounts=counter_accounts,
-                    change=changes[transaction.tid],
+                    change=changes[transaction.id],
                     balance=balance,
                 )
             )
@@ -627,10 +627,10 @@ class AccountService:
     def _counter_name(self, posting, accounts_by_id: dict[UUID, Account]) -> str:
         """What the other side of an entry is called in an account's list: a line on Expenses or Income is named for
         its category (Groceries), not for the account every expense and income is posted to."""
-        account = accounts_by_id[posting.account]
+        account = accounts_by_id[posting.account_id]
         if account.parent_id is None and account.name in GROUP_POSTING_ROOT_NAMES:
             category = next(
-                (c for c in CategoryRepository(self.ar.db, self.ar.uid).list() if c.bcid == posting.category_id), None
+                (c for c in CategoryRepository(self.ar.db, self.ar.uid).list() if c.id == posting.category_id), None
             )
             return category.name if category is not None else "Uncategorised"
         return account.name
@@ -642,7 +642,7 @@ class AccountService:
         postings. Refused when an entry or rule has both accounts on opposite sides (it would pay an account from
         itself) or when only one of them is part of the budget (that would change Ready to assign)."""
         all_accounts = self._ensure_roots()
-        by_id = {a.aid: a for a in all_accounts}
+        by_id = {a.id: a for a in all_accounts}
         source, target = by_id.get(source_id), by_id.get(target_id)
         if source is None or target is None:
             raise ValueError("account not found!")
@@ -704,9 +704,9 @@ class AccountService:
             raise
         return result
 
-    def changes(self, aid: UUID) -> builtins.list[AccountChangeRead]:
+    def changes(self, account_id: UUID) -> builtins.list[AccountChangeRead]:
         """An account's history, oldest first, each step with what it changed (works for a deleted account too)."""
-        rows = self.ar.history(aid)
+        rows = self.ar.history(account_id)
         paths = self._paths_by_id()
         return [self._change(row, rows[i - 1] if i else None, paths) for i, row in enumerate(rows)]
 
@@ -722,13 +722,13 @@ class AccountService:
         result = []
         for row in newest:
             steps = by_account[row.account_id]
-            position = next(i for i, step in enumerate(steps) if step.hid == row.hid)
+            position = next(i for i, step in enumerate(steps) if step.id == row.id)
             result.append(self._change(row, steps[position - 1] if position else None, paths))
         return result
 
     def _paths_by_id(self) -> dict[UUID, str]:
-        by_id = {a.aid: a for a in self.ar.list()}
-        return {aid: self._path(a, by_id) for aid, a in by_id.items()}
+        by_id = {a.id: a for a in self.ar.list()}
+        return {account_id: self._path(a, by_id) for account_id, a in by_id.items()}
 
     @staticmethod
     def _change(row, before, paths: dict[UUID, str]) -> AccountChangeRead:
@@ -759,8 +759,8 @@ class AccountService:
                 UUID(row.snapshot["payment_category_id"]), row.snapshot["payment_category_id"]
             )
         return AccountChangeRead(
-            hid=row.hid,
-            account=row.account_id,
+            id=row.id,
+            account_id=row.account_id,
             action=row.action,
             at=row.at,
             via=row.via,
@@ -772,21 +772,21 @@ class AccountService:
         )
 
     def check_balance(
-        self, aid: UUID, statement_balance: Decimal, as_of: date | None = None, days: int = 14
+        self, account_id: UUID, statement_balance: Decimal, as_of: date | None = None, days: int = 14
     ) -> BalanceCheck | None:
         """Set a statement's balance against the books on the same day and list the entries that could explain a
         difference. Nothing is changed. Balances read as the app shows them (a card's is what is owed)."""
         day = as_of or local_today()
-        account = self.read(aid, day)
+        account = self.read(account_id, day)
         if account is None:
             return None
-        by_id = {a.aid: a for a in self._ensure_roots()}
+        by_id = {a.id: a for a in self._ensure_roots()}
         window = day - timedelta(days=days)
-        entries = [e for e in (self.register(aid) or []) if window <= e.date <= day]
+        entries = [e for e in (self.register(account_id) or []) if window <= e.date <= day]
         difference = statement_balance - account.balance
         return BalanceCheck(
-            aid=aid,
-            path=self._path(by_id[aid], by_id),
+            account_id=account_id,
+            path=self._path(by_id[account_id], by_id),
             as_of=day,
             book_balance=account.balance,
             statement_balance=statement_balance,
@@ -796,17 +796,19 @@ class AccountService:
             same_size_as_difference=[e for e in entries if difference != 0 and abs(e.change) == abs(difference)],
         )
 
-    def register_page(self, aid: UUID, today: date, offset: int = 0, limit: int = REGISTER_PAGE) -> RegisterPage | None:
+    def register_page(
+        self, account_id: UUID, today: date, offset: int = 0, limit: int = REGISTER_PAGE
+    ) -> RegisterPage | None:
         """An account's activity for its page without reading all of it: the newest `limit` entries up to today (then
         whatever finishes the last day, so a day is never split between two chunks), starting `offset` entries in, plus
         everything dated after today. Only what is shown has its payee and other accounts read; the running balance
         comes from the postings alone. Entries are the same as `register` gives."""
         all_accounts = self._ensure_roots()
-        account = next((a for a in all_accounts if a.aid == aid), None)
+        account = next((a for a in all_accounts if a.id == account_id), None)
         if not account:
             return None
-        accounts_by_id = {acc.aid: acc for acc in all_accounts}
-        target_ids = self.subtree_ids(aid, all_accounts)
+        accounts_by_id = {acc.id: acc for acc in all_accounts}
+        target_ids = self.subtree_ids(account_id, all_accounts)
         normal_side = self._normal_side(account, accounts_by_id)
         changes: dict[UUID, Decimal] = {}
         when: dict[UUID, tuple] = {}
@@ -814,14 +816,14 @@ class AccountService:
             signed = amount if side == normal_side else -amount
             changes[transaction] = changes.get(transaction, Decimal("0.00")) + signed
             when[transaction] = (day, created)
-        ordered = sorted(changes, key=lambda tid: when[tid])
+        ordered = sorted(changes, key=lambda transaction_id: when[transaction_id])
         balances: dict[UUID, Decimal] = {}
         running = Decimal("0.00")
-        for tid in ordered:
-            running += changes[tid]
-            balances[tid] = running
-        history = [tid for tid in reversed(ordered) if when[tid][0] <= today]
-        ahead = [tid for tid in ordered if when[tid][0] > today]
+        for transaction_id in ordered:
+            running += changes[transaction_id]
+            balances[transaction_id] = running
+        history = [transaction_id for transaction_id in reversed(ordered) if when[transaction_id][0] <= today]
+        ahead = [transaction_id for transaction_id in ordered if when[transaction_id][0] > today]
         chunk = history[offset : offset + limit]
         while (
             chunk and offset + len(chunk) < len(history) and when[history[offset + len(chunk)]][0] == when[chunk[-1]][0]
@@ -831,23 +833,23 @@ class AccountService:
         loaded = self.tr.read_many(wanted)
         postings_of = self.tr.postings_for_transactions(wanted)
 
-        def entry(tid: UUID) -> RegisterEntry:
-            transaction = loaded[tid]
+        def entry(transaction_id: UUID) -> RegisterEntry:
+            transaction = loaded[transaction_id]
             counter: builtins.list[str] = []
-            for posting in postings_of.get(tid, []):
-                if posting.account in target_ids:
+            for posting in postings_of.get(transaction_id, []):
+                if posting.account_id in target_ids:
                     continue
                 name = self._counter_name(posting, accounts_by_id)
                 if name not in counter:
                     counter.append(name)
             return RegisterEntry(
-                tid=tid,
+                transaction_id=transaction_id,
                 date=transaction.date,
                 payee=transaction.payee,
                 comment=transaction.comment,
                 counter_accounts=counter,
-                change=changes[tid],
-                balance=balances[tid],
+                change=changes[transaction_id],
+                balance=balances[transaction_id],
             )
 
         return RegisterPage(
@@ -859,11 +861,11 @@ class AccountService:
             has_any=bool(changes),
         )
 
-    def update(self, aid: UUID, data: AccountUpdate) -> AccountRead | None:
+    def update(self, account_id: UUID, data: AccountUpdate) -> AccountRead | None:
         all_accounts = self._ensure_roots()
-        account = next((a for a in all_accounts if a.aid == aid), None)
+        account = next((a for a in all_accounts if a.id == account_id), None)
         if not account:
-            raise ValueError(f"account with aid '{aid}' not found!")
+            raise ValueError(f"account '{account_id}' not found!")
 
         is_system_root = self._is_root(account)
         is_opening = self.is_opening_balances(account, all_accounts)
@@ -887,20 +889,20 @@ class AccountService:
         if "parent_id" in data.model_fields_set:
             parent_id = data.parent_id
             if parent_id is not None:
-                if parent_id == aid:
+                if parent_id == account_id:
                     raise ValueError("an account cannot be its own parent!")
-                parent = next((a for a in all_accounts if a.aid == parent_id), None)
+                parent = next((a for a in all_accounts if a.id == parent_id), None)
                 if not parent:
                     raise ValueError("parent account not found!")
 
-                if self._detect_cycle(aid, parent_id):
+                if self._detect_cycle(account_id, parent_id):
                     raise ValueError("cyclic parent relationship detected!")
 
                 if parent_id != account.parent_id:
                     self._validate_parent(parent, all_accounts)
-                    self._check_depth(parent, 1 + self._height(aid, all_accounts), all_accounts)
+                    self._check_depth(parent, 1 + self._height(account_id, all_accounts), all_accounts)
 
-                accounts_by_id = {a.aid: a for a in all_accounts}
+                accounts_by_id = {a.id: a for a in all_accounts}
                 if self._get_root_name(parent, accounts_by_id) != self._get_root_name(account, accounts_by_id):
                     raise ValueError("cannot move account under a different root account!")
             else:
@@ -917,30 +919,30 @@ class AccountService:
                 candidate.name, candidate.parent_id
             ):
                 raise ValueError(f"system account '{candidate.name}' already exists!")
-            self._check_name_free(candidate.name, candidate.parent_id, all_accounts, exclude=aid)
+            self._check_name_free(candidate.name, candidate.parent_id, all_accounts, exclude=account_id)
 
         if "balance" in data.model_fields_set and data.balance is not None:
             if is_system_root:
                 raise RootAccountError("cannot set balance of a root account!")
-            if self.ar.has_children(aid):
+            if self.ar.has_children(account_id):
                 raise ValueError("cannot set balance of an account with sub-accounts!")
 
         on_budget = None
         if data.on_budget is not None:
-            accounts_by_id = {a.aid: a for a in all_accounts}
+            accounts_by_id = {a.id: a for a in all_accounts}
             if data.on_budget:
                 if is_system_root or account.parent_id is None:
                     raise ValueError("only asset and liability accounts can be part of the budget!")
-                if self.ar.has_children(aid):
+                if self.ar.has_children(account_id):
                     raise ValueError("an account with sub-accounts cannot be part of the budget: use its sub-accounts!")
-                new_parent = next((a for a in all_accounts if a.aid == (data.parent_id or account.parent_id)), None)
+                new_parent = next((a for a in all_accounts if a.id == (data.parent_id or account.parent_id)), None)
                 self._check_budgetable(new_parent, accounts_by_id)
             on_budget = data.on_budget
 
         if account.closed_on is not None and "balance" in data.model_fields_set and data.balance is not None:
             raise ValueError(f"'{account.name}' is closed: reopen it to change its balance!")
         if data.parent_id and data.parent_id != account.parent_id:
-            new_home = next((a for a in all_accounts if a.aid == data.parent_id), None)
+            new_home = next((a for a in all_accounts if a.id == data.parent_id), None)
             if new_home is not None and new_home.closed_on is not None:
                 raise ValueError(f"'{new_home.name}' is closed: reopen it to move accounts into it!")
 
@@ -948,7 +950,7 @@ class AccountService:
         if "payment_category_id" in data.model_fields_set:
             payment_category = data.payment_category_id
             if payment_category is not None:
-                accounts_by_id = {a.aid: a for a in all_accounts}
+                accounts_by_id = {a.id: a for a in all_accounts}
                 self._check_payment_category(payment_category)
                 if (
                     is_system_root
@@ -956,7 +958,7 @@ class AccountService:
                     or self._get_root_name(account, accounts_by_id) not in ("Assets", "Liabilities")
                 ):
                     raise ValueError("only asset and liability accounts can have a payment category!")
-                if self.ar.has_children(aid):
+                if self.ar.has_children(account_id):
                     raise ValueError("an account with sub-accounts cannot have one: use its sub-accounts!")
                 if on_budget if on_budget is not None else account.on_budget:
                     raise ValueError(
@@ -966,13 +968,13 @@ class AccountService:
             payment_category = None  # now part of the budget itself
 
         previous_payment = account.payment_category_id
-        updated = self.ar.update(aid, data, on_budget, payment_category)
+        updated = self.ar.update(account_id, data, on_budget, payment_category)
         if not updated:
-            raise RuntimeError(f"failed to update account with aid '{aid}'!")
+            raise RuntimeError(f"failed to update account '{account_id}'!")
         if payment_category is not ... or on_budget is not None:
-            self.tr.refresh_payment_labels(aid, previous_payment)
+            self.tr.refresh_payment_labels(account_id, previous_payment)
 
-        all_accounts = [a if a.aid != aid else updated for a in all_accounts]
+        all_accounts = [a if a.id != account_id else updated for a in all_accounts]
 
         if "balance" in data.model_fields_set and data.balance is not None:
             current_balance = self._balance_for(updated, all_accounts)
@@ -992,9 +994,9 @@ class AccountService:
         self.ar.db.refresh(updated)
         return self._to_read(updated, all_accounts)
 
-    def _read(self, aid: UUID) -> Account:
+    def _read(self, account_id: UUID) -> Account:
         """The account, which must exist (it was just found or changed)."""
-        account = self.ar.read(aid)
+        account = self.ar.read(account_id)
         if account is None:
             raise ValueError("account not found!")
         return account
@@ -1003,15 +1005,15 @@ class AccountService:
         names: builtins.list[str] = []
         seen: set[UUID] = set()
         current: Account | None = account
-        while current is not None and current.aid not in seen:
-            seen.add(current.aid)
+        while current is not None and current.id not in seen:
+            seen.add(current.id)
             names.append(current.name)
             current = by_id.get(current.parent_id) if current.parent_id else None
         return ":".join(reversed(names))
 
     def _deletion_snapshot(self, account: Account, all_accounts: builtins.list[Account]) -> dict:
         """What is needed to bring an unused account back (see models/account_deletion.py)."""
-        by_id = {a.aid: a for a in all_accounts}
+        by_id = {a.id: a for a in all_accounts}
         return {
             "name": account.name,
             "details": account.details,
@@ -1024,26 +1026,26 @@ class AccountService:
 
     def restorable(self, limit: int = 50) -> builtins.list[dict]:
         """Accounts and categories deleted for good and not back, newest first (one per account, the latest deletion)."""
-        by_id = {a.aid: a for a in self._ensure_roots()}
+        by_id = {a.id: a for a in self._ensure_roots()}
         latest: dict[UUID, AccountDeletion] = {}
         for row in self.ar.deletions():
             latest.setdefault(row.account_id, row)
         return [
             {
-                "did": row.did,
+                "id": row.id,
                 "account_id": row.account_id,
                 "at": row.at,
                 **{k: row.snapshot.get(k) for k in ("name", "path", "root")},
             }
-            for aid, row in latest.items()
-            if aid not in by_id
+            for account_id, row in latest.items()
+            if account_id not in by_id
         ][:limit]
 
     def closed(self) -> builtins.list[dict]:
         """The accounts that were closed (a category that was deleted but had a history is closed): the outermost of
         each closed branch, newest first."""
         all_accounts = self._ensure_roots()
-        by_id = {a.aid: a for a in all_accounts}
+        by_id = {a.id: a for a in all_accounts}
         top = [
             a
             for a in all_accounts
@@ -1054,7 +1056,7 @@ class AccountService:
         top.sort(key=lambda a: (a.closed_on, a.name), reverse=True)
         return [
             {
-                "aid": a.aid,
+                "id": a.id,
                 "name": a.name,
                 "path": self._path(a, by_id),
                 "root": self._get_root_name(a, by_id),
@@ -1063,17 +1065,17 @@ class AccountService:
             for a in top
         ]
 
-    def restore_deleted(self, did: UUID) -> AccountRead:
+    def restore_deleted(self, deletion_id: UUID) -> AccountRead:
         """Bring back an account or category that was deleted for good: with its old id, note, budget flag, place,
         planned amounts and target, and the payment links that pointed at it."""
-        row = self.ar.deletion(did)
+        row = self.ar.deletion(deletion_id)
         if row is None:
             raise LookupError("deleted account not found!")
         all_accounts = self._ensure_roots()
-        by_id = {a.aid: a for a in all_accounts}
+        by_id = {a.id: a for a in all_accounts}
         if row.account_id in by_id:
             raise ValueError("this account is already back!")
-        if next(r for r in self.ar.deletions() if r.account_id == row.account_id).did != row.did:
+        if next(r for r in self.ar.deletions() if r.account_id == row.account_id).id != row.id:
             raise ValueError("this account was deleted again later; restore the latest deletion!")
         snap = row.snapshot
         parent = by_id.get(UUID(snap["parent_id"])) if snap.get("parent_id") else None
@@ -1084,7 +1086,7 @@ class AccountService:
         self._validate_parent(parent, all_accounts)
         ensure_room(len(all_accounts), settings.max_accounts, "accounts")
         self._check_depth(parent, 1, all_accounts)
-        if any(a.parent_id == parent.aid and a.name == snap["name"] for a in all_accounts):
+        if any(a.parent_id == parent.id and a.name == snap["name"] for a in all_accounts):
             raise ValueError(f"'{parent.name}' already has an account called '{snap['name']}'!")
         payment = UUID(snap["payment_category_id"]) if snap.get("payment_category_id") else None
         restored = self.ar.restore(
@@ -1092,7 +1094,7 @@ class AccountService:
             {
                 "name": snap["name"],
                 "details": snap.get("details"),
-                "parent_id": parent.aid,
+                "parent_id": parent.id,
                 "on_budget": bool(snap.get("on_budget")),
                 "payment_category_id": payment
                 if payment is not None and CategoryRepository(self.ar.db, self.ar.uid).read(payment) is not None
@@ -1103,11 +1105,11 @@ class AccountService:
         self.ar.db.refresh(restored)
         return self._to_read(restored, self._ensure_roots())
 
-    def delete(self, aid: UUID, merged_into: str | None = None) -> AccountRead | None:
+    def delete(self, account_id: UUID, merged_into: str | None = None) -> AccountRead | None:
         all_accounts = self._ensure_roots()
-        account = next((a for a in all_accounts if a.aid == aid), None)
+        account = next((a for a in all_accounts if a.id == account_id), None)
         if not account:
-            raise ValueError(f"account with aid '{aid}' not found!")
+            raise ValueError(f"account '{account_id}' not found!")
 
         is_system_root = self._is_root(account)
         if is_system_root:
@@ -1117,17 +1119,17 @@ class AccountService:
             raise SystemAccountError(f"cannot delete system account '{account.name}'!")
         self._refuse_fixed(account, "deleted")
 
-        if self.ar.has_children(aid):
+        if self.ar.has_children(account_id):
             raise AccountInUseError("account has sub-accounts")
-        if self.tr.postings_for_account(aid):
+        if self.tr.postings_for_account(account_id):
             raise AccountInUseError("account has postings")
-        if RecurringRepository.uses_account(self.ar.db, aid):
+        if RecurringRepository.uses_account(self.ar.db, account_id):
             raise AccountInUseError("account is used by a recurring transaction")
 
         account_read = self._to_read(account, all_accounts)
-        self.ar.record_deletion(aid, self._deletion_snapshot(account, all_accounts))
-        deleted = self.ar.delete(aid, **({"merged_into": merged_into} if merged_into else {}))
+        self.ar.record_deletion(account_id, self._deletion_snapshot(account, all_accounts))
+        deleted = self.ar.delete(account_id, **({"merged_into": merged_into} if merged_into else {}))
         if not deleted:
-            raise ValueError(f"account with aid '{aid}' not found!")
+            raise ValueError(f"account '{account_id}' not found!")
         self.ar.db.commit()
         return account_read

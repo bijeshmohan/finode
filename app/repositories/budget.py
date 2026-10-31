@@ -56,7 +56,7 @@ class BudgetRepository:
     def months_for_category(self, category_id: UUID) -> int:
         return len(
             self.db.exec(
-                select(BudgetAllocation.bid).where(
+                select(BudgetAllocation.id).where(
                     BudgetAllocation.user_id == self.uid, BudgetAllocation.category_id == category_id
                 )
             ).all()
@@ -98,10 +98,10 @@ class BudgetRepository:
         def load():
             rows = self.db.exec(
                 select(Goal, GoalAllocation)
-                .join(GoalAllocation, GoalAllocation.goal_id == Goal.gid, isouter=True)
+                .join(GoalAllocation, GoalAllocation.goal_id == Goal.id, isouter=True)
                 .where(Goal.user_id == self.uid)
             ).all()
-            goals = list({g.gid: g for g, _ in rows}.values())
+            goals = list({g.id: g for g, _ in rows}.values())
             return goals, [a for _, a in rows if a is not None]
 
         return remembered(self.db, ("goal-books", self.uid), load)
@@ -109,8 +109,8 @@ class BudgetRepository:
     def goals(self) -> builtins.list[Goal]:
         return list(self._goal_books()[0])
 
-    def goal(self, gid: UUID) -> Goal | None:
-        return next((g for g in self.goals() if g.gid == gid), None)
+    def goal(self, goal_id: UUID) -> Goal | None:
+        return next((g for g in self.goals() if g.id == goal_id), None)
 
     def add_goal(self, name: str, amount: Decimal, target_date: date) -> Goal:
         goal = Goal(user_id=self.uid, name=name, amount=amount, target_date=target_date)
@@ -154,7 +154,7 @@ class BudgetRepository:
         ).all():
             self.db.delete(row)
         self.db.flush()
-        goal = self.db.exec(select(Goal).where(Goal.user_id == self.uid, Goal.gid == goal_id)).first()
+        goal = self.db.exec(select(Goal).where(Goal.user_id == self.uid, Goal.id == goal_id)).first()
         if goal is not None:
             self.db.delete(goal)
         self.db.flush()

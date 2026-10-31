@@ -28,7 +28,7 @@ def test_a_second_read_in_the_same_session_does_not_ask_the_database(session):
     after_first = n["queries"]
     second = repo.list()
     assert n["queries"] == after_first, "the second read went to the database"
-    assert [a.aid for a in first] == [a.aid for a in second]
+    assert [a.id for a in first] == [a.id for a in second]
     assert first is not second, "callers get their own list"
 
 
@@ -36,7 +36,7 @@ def test_an_account_created_after_a_read_shows_up_in_the_next_one(session):
     s = services(session)
     root = next(a for a in s.accounts.list() if a.name == "Assets")
     before = {a.name for a in AccountRepository(session, TEST_USER_ID).list()}
-    s.accounts.create(AccountCreate(name="Fresh", parent_id=root.aid))
+    s.accounts.create(AccountCreate(name="Fresh", parent_id=root.id))
     after = {a.name for a in AccountRepository(session, TEST_USER_ID).list()}
     assert "Fresh" not in before and "Fresh" in after
 
@@ -46,7 +46,7 @@ def test_an_object_added_but_not_yet_written_is_still_seen(session):
     services(session).accounts.list()
     repo.list()
     root = next(a for a in repo.list() if a.name == "Expenses")
-    session.add(Account(name="Pending", parent_id=root.aid, user_id=TEST_USER_ID))  # not flushed yet
+    session.add(Account(name="Pending", parent_id=root.id, user_id=TEST_USER_ID))  # not flushed yet
     assert "Pending" in {a.name for a in repo.list()}
 
 
@@ -65,7 +65,7 @@ def test_a_rollback_makes_the_session_forget(session):
     s.accounts.list()
     repo = AccountRepository(session, TEST_USER_ID)
     root = next(a for a in repo.list() if a.name == "Assets")
-    session.add(Account(name="Doomed", parent_id=root.aid, user_id=TEST_USER_ID))
+    session.add(Account(name="Doomed", parent_id=root.id, user_id=TEST_USER_ID))
     session.flush()
     assert "Doomed" in {a.name for a in repo.list()}
     session.rollback()

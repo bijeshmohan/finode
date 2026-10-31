@@ -37,11 +37,11 @@ def test_an_empty_budget_says_how_to_start(client, root_accounts):
 def test_assigning_inline_returns_the_updated_block(client, setup):
     response = client.post(
         "/budget/assign",
-        data={"category": setup["food"]["aid"], "month": THIS_MONTH.strftime("%Y-%m"), "amount": "300"},
+        data={"category": setup["food"]["id"], "month": THIS_MONTH.strftime("%Y-%m"), "amount": "300"},
     )
     assert response.status_code == 200 and 'id="budget"' in response.text
     assert "700.00" in response.text
-    assert 'value="300.00"' in client.get(f"/budget/category/{setup['food']['aid']}/sheet").text, (
+    assert 'value="300.00"' in client.get(f"/budget/category/{setup['food']['id']}/sheet").text, (
         "the sheet shows what is assigned"
     )
     assert line(api_budget(client), "Food")["assigned"] == "300.00"
@@ -49,15 +49,15 @@ def test_assigning_inline_returns_the_updated_block(client, setup):
 
 def test_clearing_the_field_removes_the_amount(client, setup):
     assign(client, setup["food"], "300")
-    client.post("/budget/assign", data={"category": setup["food"]["aid"], "month": "", "amount": ""})
+    client.post("/budget/assign", data={"category": setup["food"]["id"], "month": "", "amount": ""})
     assert line(api_budget(client), "Food")["assigned"] == "0.00"
 
 
 def test_a_bad_amount_is_explained_next_to_the_list(client, setup):
-    response = client.post("/budget/assign", data={"category": setup["food"]["aid"], "amount": "lots"})
+    response = client.post("/budget/assign", data={"category": setup["food"]["id"], "amount": "lots"})
     assert response.status_code == 400 and response.headers["HX-Retarget"] == "#budget-error"
     assert "not a valid amount" in response.text
-    response = client.post("/budget/assign", data={"category": setup["bank"]["aid"], "amount": "5"})
+    response = client.post("/budget/assign", data={"category": setup["bank"]["id"], "amount": "5"})
     assert response.status_code == 400 and "expense" in response.text
 
 
@@ -83,11 +83,11 @@ def test_every_unit_with_a_job_is_celebrated(client, setup):
 
 def test_the_move_page_lists_the_categories_and_moves_money(client, setup):
     assign(client, setup["food"], "300")
-    page = client.get(f"/budget/move?source={setup['food']['aid']}").text
-    assert "Move money" in page and f'value="{setup["food"]["aid"]}" selected' in page
+    page = client.get(f"/budget/move?source={setup['food']['id']}").text
+    assert "Move money" in page and f'value="{setup["food"]["id"]}" selected' in page
     done = client.post(
         "/budget/move",
-        data={"from_category": setup["food"]["aid"], "to_category": setup["rent"]["aid"], "amount": "100", "month": ""},
+        data={"from_category": setup["food"]["id"], "to_category": setup["rent"]["id"], "amount": "100", "month": ""},
     )
     assert done.status_code == 200 and done.headers["HX-Redirect"].startswith("/budget")
     data = api_budget(client)
@@ -98,7 +98,7 @@ def test_moving_more_than_available_is_refused_in_the_form(client, setup):
     assign(client, setup["food"], "50")
     bad = client.post(
         "/budget/move",
-        data={"from_category": setup["food"]["aid"], "to_category": setup["rent"]["aid"], "amount": "80"},
+        data={"from_category": setup["food"]["id"], "to_category": setup["rent"]["id"], "amount": "80"},
     )
     assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#form-error" and "only 50.00" in bad.text
 
@@ -108,17 +108,17 @@ def test_an_unknown_source_is_a_404(client, setup):
 
 
 def test_the_account_page_can_switch_the_budget_on_and_off(client, root_accounts, setup):
-    page = client.get(f"/accounts/{setup['bank']['aid']}/edit").text
+    page = client.get(f"/accounts/{setup['bank']['id']}/edit").text
     assert "Part of the budget" in page and "checked" in page
-    off = client.post(f"/accounts/{setup['bank']['aid']}/edit", data={"name": "Bank", "budget_choice": "1"})
+    off = client.post(f"/accounts/{setup['bank']['id']}/edit", data={"name": "Bank", "budget_choice": "1"})
     assert off.status_code == 200
-    assert client.get(f"/api/accounts/{setup['bank']['aid']}").json()["on_budget"] is False
+    assert client.get(f"/api/accounts/{setup['bank']['id']}").json()["on_budget"] is False
     on = client.post(
-        f"/accounts/{setup['bank']['aid']}/edit", data={"name": "Bank", "budget_choice": "1", "on_budget": "1"}
+        f"/accounts/{setup['bank']['id']}/edit", data={"name": "Bank", "budget_choice": "1", "on_budget": "1"}
     )
     assert on.status_code == 200
-    assert client.get(f"/api/accounts/{setup['bank']['aid']}").json()["on_budget"] is True
-    food = client.get(f"/accounts/{setup['food']['aid']}/edit").text
+    assert client.get(f"/api/accounts/{setup['bank']['id']}").json()["on_budget"] is True
+    food = client.get(f"/accounts/{setup['food']['id']}/edit").text
     assert "Part of the budget" not in food
 
 
@@ -130,19 +130,19 @@ def test_the_budget_tab_is_in_the_navigation(client, setup):
 def test_the_inline_amount_also_saves_on_the_return_key(client, setup):
     # iOS shows no decimal-pad return key, but a keyboard's Enter must not reload the page with a GET.
     page = client.get("/budget").text
-    assert f"/budget/category/{setup['food']['aid']}/sheet" in page, "a row opens its sheet"
-    sheet = client.get(f"/budget/category/{setup['food']['aid']}/sheet").text
+    assert f"/budget/category/{setup['food']['id']}/sheet" in page, "a row opens its sheet"
+    sheet = client.get(f"/budget/category/{setup['food']['id']}/sheet").text
     assert 'hx-post="/budget/assign"' in sheet and 'enterkeyhint="done"' in sheet and 'type="submit"' in sheet
 
 
 def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, root_accounts, setup):
-    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["id"]}).json()
     assign(client, setup["rent"], "500")
     assign(client, groceries, "200")
     page = client.get("/budget").text
     assert 'class="grp"' not in page and "gsum" not in page, "nothing folds"
     assert page.index(">Rent<") < page.index(">Food<"), "biggest budget first"
-    assert f'href="/budget/group/{setup["food"]["aid"]}?month=' in page and "Groceries" in page, (
+    assert f'href="/budget/group/{setup["food"]["id"]}?month=' in page and "Groceries" in page, (
         "Food opens its page; its hint names what is inside"
     )
     assert 'class="r crow has-bar catrow"' in page and 'name="amount"' not in page, (
@@ -152,14 +152,14 @@ def test_categories_are_a_ranked_list_and_a_group_opens_its_own_page(client, roo
 
 
 def test_a_group_page_lists_its_categories_and_its_figure_opens_its_own_budget(client, root_accounts, setup):
-    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
-    dining = post_account(client, {"name": "Dining", "parent_id": setup["food"]["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["id"]}).json()
+    dining = post_account(client, {"name": "Dining", "parent_id": setup["food"]["id"]}).json()
     assign(client, groceries, "200")
     assign(client, dining, "300")
-    page = client.get(f"/budget/group/{setup['food']['aid']}").text
+    page = client.get(f"/budget/group/{setup['food']['id']}").text
     assert page.index("Dining") < page.index("Groceries"), "biggest first"
     assert "Everything else" not in page, "no row for what is not in a category: the group's bar covers it"
-    assert f'hx-get="/budget/group/{setup["food"]["aid"]}/sheet?month=' in page and "budget-hero tappable" in page, (
+    assert f'hx-get="/budget/group/{setup["food"]["id"]}/sheet?month=' in page and "budget-hero tappable" in page, (
         "the figure area opens the group's budget"
     )
     assert "circ-button" not in page.split('id="budget"', 1)[1], "no pencil"
@@ -172,18 +172,18 @@ def test_a_group_page_lists_its_categories_and_its_figure_opens_its_own_budget(c
     )
     assert page.index('class="month-pill"') < page.index('class="group-title"'), "the pill is above the name"
     assert "500.00" in page
-    assert f"/budget/category/{groceries['aid']}/sheet?month=" in page and f"group={setup['food']['aid']}" in page
-    assert client.get(f"/budget/group/{setup['rent']['aid']}").status_code == 404, "a plain category has no group page"
+    assert f"/budget/category/{groceries['id']}/sheet?month=" in page and f"group={setup['food']['id']}" in page
+    assert client.get(f"/budget/group/{setup['rent']['id']}").status_code == 404, "a plain category has no group page"
     assert client.get("/budget/group/00000000-0000-4000-8000-0000000000ff").status_code == 404
 
 
 def test_assigning_from_a_group_page_returns_that_page_block(client, root_accounts, setup):
-    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
-    sheet = client.get(f"/budget/category/{groceries['aid']}/sheet?group={setup['food']['aid']}").text
-    assert f'name="group" value="{setup["food"]["aid"]}"' in sheet
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["id"]}).json()
+    sheet = client.get(f"/budget/category/{groceries['id']}/sheet?group={setup['food']['id']}").text
+    assert f'name="group" value="{setup["food"]["id"]}"' in sheet
     response = client.post(
         "/budget/assign",
-        data={"category": groceries["aid"], "amount": "250", "group": setup["food"]["aid"], "sheet": "1"},
+        data={"category": groceries["id"], "amount": "250", "group": setup["food"]["id"], "sheet": "1"},
     )
     assert (
         response.status_code == 200
@@ -194,21 +194,21 @@ def test_assigning_from_a_group_page_returns_that_page_block(client, root_accoun
 
 
 def test_money_can_be_assigned_to_a_group_itself_and_counts_in_its_total(client, root_accounts, setup):
-    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["aid"]}).json()
-    sheet = client.get(f"/budget/category/{setup['food']['aid']}/sheet")
+    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["id"]}).json()
+    sheet = client.get(f"/budget/category/{setup['food']['id']}/sheet")
     assert sheet.status_code == 200 and "Food · everything else" in sheet.text, "a group has a sheet of its own"
     assign(client, groceries, "100")
     client.post(
-        "/budget/assign", data={"category": setup["food"]["aid"], "month": THIS_MONTH.strftime("%Y-%m"), "amount": "40"}
+        "/budget/assign", data={"category": setup["food"]["id"], "month": THIS_MONTH.strftime("%Y-%m"), "amount": "40"}
     )
     food = line(api_budget(client), "Food")
     assert food["assigned"] == "140.00", "the group's total adds up its own and its categories' money"
-    assert 'value="40.00"' in client.get(f"/budget/category/{setup['food']['aid']}/sheet").text
+    assert 'value="40.00"' in client.get(f"/budget/category/{setup['food']['id']}/sheet").text
 
 
 def test_unused_groups_are_tucked_away_once_something_is_in_use_but_plain_categories_stay(client, root_accounts, setup):
     travel = account(client, root_accounts, "Travel", "Expenses")
-    post_account(client, {"name": "Stay", "parent_id": travel["aid"]})
+    post_account(client, {"name": "Stay", "parent_id": travel["id"]})
     assert "unused-hidden" not in client.get("/budget").text, "nothing in use yet: everything shows"
     assign(client, setup["food"], "100")
     page = client.get("/budget").text
@@ -227,12 +227,12 @@ def test_copying_last_month_is_a_quiet_link_and_nothing_else_needs_you_here(clie
 
 
 def test_the_sheet_of_a_plain_account_is_not_offered(client, root_accounts, setup):
-    assert client.get(f"/budget/category/{setup['bank']['aid']}/sheet").status_code == 404
+    assert client.get(f"/budget/category/{setup['bank']['id']}/sheet").status_code == 404
     assert client.get("/budget/category/00000000-0000-4000-8000-0000000000ff/sheet").status_code == 404
 
 
 def test_an_error_in_the_sheet_shows_in_the_sheet(client, setup):
-    response = client.post("/budget/assign", data={"category": setup["food"]["aid"], "amount": "lots", "sheet": "1"})
+    response = client.post("/budget/assign", data={"category": setup["food"]["id"], "amount": "lots", "sheet": "1"})
     assert response.status_code == 400 and response.headers["HX-Retarget"] == "#cat-sheet-error"
 
 
@@ -259,10 +259,10 @@ def test_the_page_offers_to_add_a_card_and_adding_it_counts_its_spending(client,
     move(client, card, food, "75")
     sheet = client.get("/todo/sheet").text
     assert "Liabilities:Card is not in the budget" in sheet and "Add to budget" in sheet
-    response = client.post(f"/todo/accounts/{card['aid']}/include")
+    response = client.post(f"/todo/accounts/{card['id']}/include")
     assert response.status_code == 200 and "Nothing needs you" in response.text
     assert "\u221275.00" in client.get("/budget").text
-    assert client.post(f"/todo/accounts/{food['aid']}/include", data={}).status_code == 400
+    assert client.post(f"/todo/accounts/{food['id']}/include", data={}).status_code == 400
 
 
 def test_the_page_offers_to_copy_last_month_and_does_it(client, setup):
@@ -273,7 +273,7 @@ def test_the_page_offers_to_copy_last_month_and_does_it(client, setup):
     response = client.post("/budget/copy", data={"month": THIS_MONTH.strftime("%Y-%m")})
     assert response.status_code == 200 and 'id="budget"' in response.text
     assert "Copy last month's amounts" not in response.text
-    assert 'value="300.00"' in client.get(f"/budget/category/{setup['food']['aid']}/sheet").text
+    assert 'value="300.00"' in client.get(f"/budget/category/{setup['food']['id']}/sheet").text
     again = client.post("/budget/copy", data={})
     assert again.status_code == 400 and again.headers["HX-Retarget"] == "#budget-error"
 
@@ -309,7 +309,7 @@ def test_the_page_lists_cards_and_explains_ready_to_assign(client, root_accounts
 def test_a_budget_account_with_sub_accounts_is_not_announced_on_the_page(client, setup, root_accounts):
     """It is left out of the sums (only accounts that hold money count) but the page does not say so: nothing to do."""
     deposits = account(client, root_accounts, "Deposits", "Assets")
-    post_account(client, {"name": "FD", "parent_id": deposits["aid"], "balance": "10"})
+    post_account(client, {"name": "FD", "parent_id": deposits["id"], "balance": "10"})
     page = client.get("/budget").text
     assert "Left out because" not in page and "sub-accounts" not in page
 
@@ -357,7 +357,7 @@ def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
 
 
 def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_below(client, root_accounts, setup):
-    food = setup["food"]["aid"]
+    food = setup["food"]["id"]
     groceries = post_account(client, {"name": "Groceries", "parent_id": food}).json()
     dining = post_account(client, {"name": "Dining", "parent_id": food}).json()
     assign(client, groceries, "200")
@@ -384,7 +384,7 @@ def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_
     assert client.post(f"/budget/group/{food}/assign", data={"month": month, "amount": "500"}).status_code == 200, (
         "back to the minimum is fine"
     )
-    assert client.get(f"/budget/group/{setup['rent']['aid']}/sheet").status_code == 404, (
+    assert client.get(f"/budget/group/{setup['rent']['id']}/sheet").status_code == 404, (
         "a plain category has no group budget"
     )
 

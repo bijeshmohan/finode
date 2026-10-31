@@ -40,7 +40,7 @@ def both(client, session, rich):
     OAuthGrantService(OAuthGrantRepository(session, TEST_USER_ID)).allow("client-a", "A-Assistant", "write")
     client.patch("/api/profile/", json={"first_name": "Ada", "last_name": "L"})
     with signed_in_as(B_USER):
-        roots = {a["name"]: a["aid"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
+        roots = {a["name"]: a["id"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
         mine = post_account(client, {"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}).json()
         client.patch("/api/profile/", json={"first_name": "Bea"})
         ApiTokenService(ApiTokenRepository(session, B_USER)).create(ApiTokenCreate(name="B-Phone"))
@@ -54,12 +54,10 @@ def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, bo
         {
             "name": "Shelf",
             "parent_id": next(
-                a["aid"]
-                for a in client.get("/api/accounts/").json()
-                if a["parent_id"] is None and a["name"] == "Assets"
+                a["id"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets"
             ),
         },
-    ).json()["aid"]
+    ).json()["id"]
     client.delete(f"/api/accounts/{shelf}")
     assert rows(session, AccountDeletion), "a deleted account leaves a record"
     removed = EraseService(session, TEST_USER_ID).erase_books()

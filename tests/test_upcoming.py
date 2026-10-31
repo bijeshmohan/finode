@@ -12,7 +12,7 @@ from .books import post_account
 @pytest.fixture
 def ledger(client, root_accounts):
     def make(name, parent, **extra):
-        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["aid"]
+        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["id"]
 
     bank = make("Bank", root_accounts["Assets"], balance="5000")
     loan = make("Bicycle loan", root_accounts["Liabilities"])
@@ -26,8 +26,8 @@ def record(client, bank, loan, payee, on):
             "date": on.isoformat(),
             "payee": payee,
             "postings": [
-                {"account": loan, "side": "debit", "amount": "100"},
-                {"account": bank, "side": "credit", "amount": "100"},
+                {"account_id": loan, "side": "debit", "amount": "100"},
+                {"account_id": bank, "side": "credit", "amount": "100"},
             ],
         },
     )
@@ -93,7 +93,7 @@ def test_the_header_says_what_the_schedule_comes_to(client, ledger):
 
 def test_no_total_when_something_coming_in_is_mixed_with_what_goes_out(client, ledger, root_accounts):
     bank, loan = ledger
-    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()["aid"]
+    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()["id"]
     record(client, bank, loan, "EMI", local_today() + timedelta(days=10))
     client.post(
         "/api/transactions/",
@@ -101,8 +101,8 @@ def test_no_total_when_something_coming_in_is_mixed_with_what_goes_out(client, l
             "date": (local_today() + timedelta(days=12)).isoformat(),
             "payee": "Pay",
             "postings": [
-                {"account": bank, "side": "debit", "amount": "900"},
-                {"category": salary, "side": "credit", "amount": "900"},
+                {"account_id": bank, "side": "debit", "amount": "900"},
+                {"category_id": salary, "side": "credit", "amount": "900"},
             ],
         },
     )
@@ -147,7 +147,7 @@ def test_an_account_page_with_nothing_ahead_has_no_card(client, ledger):
 
 def test_money_in_and_out_ahead_gives_no_total_on_an_account(client, ledger, root_accounts):
     bank, loan = ledger
-    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()["aid"]
+    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()["id"]
     record(client, bank, loan, "EMI", local_today() + timedelta(days=10))
     client.post(
         "/api/transactions/",
@@ -155,8 +155,8 @@ def test_money_in_and_out_ahead_gives_no_total_on_an_account(client, ledger, roo
             "date": (local_today() + timedelta(days=12)).isoformat(),
             "payee": "Pay",
             "postings": [
-                {"account": bank, "side": "debit", "amount": "900"},
-                {"category": salary, "side": "credit", "amount": "900"},
+                {"account_id": bank, "side": "debit", "amount": "900"},
+                {"category_id": salary, "side": "credit", "amount": "900"},
             ],
         },
     )
@@ -167,7 +167,7 @@ def test_money_in_and_out_ahead_gives_no_total_on_an_account(client, ledger, roo
 
 def test_a_category_page_only_lists_what_has_happened(client, ledger, root_accounts):
     bank, _ = ledger
-    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()["aid"]
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()["id"]
     for payee, days in (("Lunch", 0), ("Dinner next week", 7)):
         client.post(
             "/api/transactions/",
@@ -175,8 +175,8 @@ def test_a_category_page_only_lists_what_has_happened(client, ledger, root_accou
                 "date": (local_today() + timedelta(days=days)).isoformat(),
                 "payee": payee,
                 "postings": [
-                    {"category": food, "side": "debit", "amount": "50"},
-                    {"account": bank, "side": "credit", "amount": "50"},
+                    {"category_id": food, "side": "debit", "amount": "50"},
+                    {"account_id": bank, "side": "credit", "amount": "50"},
                 ],
             },
         )

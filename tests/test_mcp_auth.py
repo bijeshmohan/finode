@@ -57,7 +57,7 @@ async def test_a_revoked_token_stops_working(session):
     created = service.create(ApiTokenCreate(name="Laptop", scope="write"))
     async with running_app(session):
         assert (await raw_post({"Authorization": f"Bearer {created.secret}"})).status_code == 200
-        service.revoke(created.tkid)
+        service.revoke(created.id)
         assert (await raw_post({"Authorization": f"Bearer {created.secret}"})).status_code == 401
 
 
@@ -131,13 +131,13 @@ async def test_the_rate_limit_answers_429(session, monkeypatch):
 
 
 def test_the_window_slides():
-    tkid = UUID(int=7)
-    transport._calls.pop(tkid, None)
+    token_id = UUID(int=7)
+    transport._calls.pop(token_id, None)
     limit = settings.mcp_rate_limit
-    assert all(transport._allow(tkid, now=100.0) for _ in range(limit))
-    assert not transport._allow(tkid, now=110.0)
-    assert transport._allow(tkid, now=160.5), "a minute later there is room again"
-    transport._calls.pop(tkid, None)
+    assert all(transport._allow(token_id, now=100.0) for _ in range(limit))
+    assert not transport._allow(token_id, now=110.0)
+    assert transport._allow(token_id, now=160.5), "a minute later there is room again"
+    transport._calls.pop(token_id, None)
 
 
 async def test_using_a_token_notes_when(session):
@@ -150,7 +150,7 @@ async def test_using_a_token_notes_when(session):
 
 def test_only_a_hash_of_the_secret_is_stored(session):
     created = ApiTokenService(ApiTokenRepository(session, TEST_USER_ID)).create(ApiTokenCreate(name="Desk"))
-    stored = session.get(ApiToken, created.tkid)
+    stored = session.get(ApiToken, created.id)
     assert created.secret.startswith("fin_") and len(created.secret) > 40
     assert stored.token_hash == hash_secret(created.secret) and created.secret not in stored.token_hash
     assert stored.prefix == created.secret[:10] and stored.scope == "read"
@@ -173,7 +173,7 @@ def test_token_names_and_limits(session, monkeypatch):
 def test_another_users_token_cannot_be_revoked(session):
     theirs = ApiTokenService(ApiTokenRepository(session, OTHER_USER)).create(ApiTokenCreate(name="Theirs"))
     with pytest.raises(LookupError):
-        ApiTokenService(ApiTokenRepository(session, TEST_USER_ID)).revoke(theirs.tkid)
+        ApiTokenService(ApiTokenRepository(session, TEST_USER_ID)).revoke(theirs.id)
 
 
 def test_tokens_do_not_work_on_the_json_api(session, client):

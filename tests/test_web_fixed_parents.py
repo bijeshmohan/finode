@@ -36,25 +36,25 @@ def test_only_groups_with_accounts_are_shown(client):
 
 def test_the_plus_on_a_type_starts_on_its_first_group(client):
     page = client.get("/accounts/new?root=assets").text
-    bank = group(client, "Bank Accounts")["aid"]
+    bank = group(client, "Bank Accounts")["id"]
     assert re.search(rf'<option value="{bank}"[^>]*selected', page)
     liabilities = client.get("/accounts/new?root=liabilities").text
-    assert re.search(rf'<option value="{group(client, "Credit Cards")["aid"]}"[^>]*selected', liabilities)
+    assert re.search(rf'<option value="{group(client, "Credit Cards")["id"]}"[^>]*selected', liabilities)
 
 
 def test_the_form_starts_as_the_group_says(client):
-    investments = group(client, "Investments")["aid"]
+    investments = group(client, "Investments")["id"]
     page = client.get(f"/accounts/new?parent={investments}").text
     assert 'name="on_budget" value="1" checked' not in page
     assert "Outside the budget" in page, "the folded summary says it"
-    bank = client.get(f"/accounts/new?parent={group(client, 'Bank Accounts')['aid']}").text
+    bank = client.get(f"/accounts/new?parent={group(client, 'Bank Accounts')['id']}").text
     assert 'name="on_budget" value="1" checked' in bank
     assert 'data-start="outside"' in page and 'data-start="budget"' in page, "the choice can follow the group chosen"
-    assert 'data-start="outside"' in client.get(f"/accounts/new?parent={group(client, 'Loans')['aid']}").text
+    assert 'data-start="outside"' in client.get(f"/accounts/new?parent={group(client, 'Loans')['id']}").text
 
 
 def test_creating_a_loan_from_the_form_leaves_it_outside_the_budget(client):
-    loans = group(client, "Loans")["aid"]
+    loans = group(client, "Loans")["id"]
     done = client.post(
         "/accounts", data={"name": "Home Loan", "parent_id": loans, "balance": "1000000", "budget_choice": "1"}
     )
@@ -64,11 +64,11 @@ def test_creating_a_loan_from_the_form_leaves_it_outside_the_budget(client):
 
 
 def test_a_groups_page_has_no_edit_or_menu_but_can_add_an_account(client):
-    page = client.get(f"/accounts/{group(client, 'Cash')['aid']}").text
+    page = client.get(f"/accounts/{group(client, 'Cash')['id']}").text
     assert "/edit" not in page
     assert "Close account" not in page and "Delete" not in page
     assert "Add sub-account" in page
-    assert client.get(f"/accounts/{group(client, 'Cash')['aid']}/edit").status_code == 404
+    assert client.get(f"/accounts/{group(client, 'Cash')['id']}/edit").status_code == 404
 
 
 def test_the_empty_groups_are_not_offered_to_post_to(client):
@@ -79,7 +79,7 @@ def test_the_empty_groups_are_not_offered_to_post_to(client):
 
 
 def test_an_empty_groups_page_is_about_adding_accounts_not_transactions(client):
-    page = client.get(f"/accounts/{group(client, 'Investments')['aid']}").text
+    page = client.get(f"/accounts/{group(client, 'Investments')['id']}").text
     assert "Sub-accounts" in page and "Nothing here yet" in page
     assert "<h2>Transactions</h2>" not in page and "No transactions yet" not in page
-    assert f"/accounts/new?parent={group(client, 'Investments')['aid']}" in page
+    assert f"/accounts/new?parent={group(client, 'Investments')['id']}" in page

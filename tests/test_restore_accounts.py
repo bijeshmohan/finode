@@ -15,7 +15,7 @@ def books(client, root_accounts):
     def make(name, parent, **extra):
         r = post_account(client, {"name": name, "parent_id": parent, **extra})
         assert r.status_code == 201, r.text
-        return r.json()["aid"]
+        return r.json()["id"]
 
     food = make("Food", root_accounts["Expenses"])
     return {
@@ -31,9 +31,9 @@ def deleted(svc):
     return svc.accounts.restorable()
 
 
-def restore(client, did):
+def restore(client, deletion_id):
     """Press Restore on the Recently deleted page."""
-    return client.post(f"/accounts/deleted/{did}/restore")
+    return client.post(f"/accounts/deleted/{deletion_id}/restore")
 
 
 def came_back(response) -> bool:
@@ -44,7 +44,7 @@ def test_a_deleted_account_with_a_budget_flag_comes_back_with_it(client, books, 
     wallet = books["make"]("Wallet", books["roots"]["Assets"], on_budget=False)
     client.delete(f"/api/accounts/{wallet}")
     [gone] = deleted(svc)
-    restore(client, gone["did"])
+    restore(client, gone["id"])
     assert client.get(f"/api/accounts/{wallet}").json()["on_budget"] is False
 
 
@@ -53,13 +53,13 @@ def test_it_cannot_come_back_twice_or_into_a_missing_parent(client, books, svc):
     wallet = books["make"]("Wallet", banks)
     client.delete(f"/api/accounts/{wallet}")
     [gone] = deleted(svc)
-    assert came_back(restore(client, gone["did"]))
-    again = restore(client, gone["did"])
+    assert came_back(restore(client, gone["id"]))
+    again = restore(client, gone["id"])
     assert again.status_code == 400 and "already back" in again.text
     client.delete(f"/api/accounts/{wallet}")
     client.delete(f"/api/accounts/{banks}")  # now the parent goes too
     row = next(d for d in deleted(svc) if d["name"] == "Wallet")
-    refused = restore(client, row["did"])
+    refused = restore(client, row["id"])
     assert refused.status_code == 400 and "no longer exists" in refused.text
     assert restore(client, "00000000-0000-4000-8000-000000000000").status_code == 404
 
@@ -69,7 +69,7 @@ def test_a_name_that_was_taken_since_blocks_the_restore(client, books, svc):
     client.delete(f"/api/accounts/{wallet}")
     books["make"]("Wallet", books["roots"]["Assets"])
     [gone] = deleted(svc)
-    refused = restore(client, gone["did"])
+    refused = restore(client, gone["id"])
     assert refused.status_code == 400 and "already has" in refused.text
 
 
@@ -78,8 +78,8 @@ def test_the_categories_page_lists_closed_ones_and_restores_them(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"category": books["snacks"], "side": "debit", "amount": "10"},
-                {"account": books["bank"], "side": "credit", "amount": "10"},
+                {"category_id": books["snacks"], "side": "debit", "amount": "10"},
+                {"account_id": books["bank"], "side": "credit", "amount": "10"},
             ]
         },
     )

@@ -27,21 +27,21 @@ class CategoryRepository:
         statement = select(BudgetCategory).where(BudgetCategory.user_id == self.uid)
         return list(remembered(self.db, ("categories", self.uid), lambda: self.db.exec(statement).all()))
 
-    def read(self, bcid: UUID) -> BudgetCategory | None:
-        return next((c for c in self.list() if c.bcid == bcid), None)
+    def read(self, category_id: UUID) -> BudgetCategory | None:
+        return next((c for c in self.list() if c.id == category_id), None)
 
     def by_system_key(self, key: str) -> BudgetCategory | None:
         return next((c for c in self.list() if c.system_key == key), None)
 
-    def has_children(self, bcid: UUID) -> bool:
-        return any(c.parent_id == bcid for c in self.list())
+    def has_children(self, category_id: UUID) -> bool:
+        return any(c.parent_id == category_id for c in self.list())
 
-    def used_by_lines(self, bcid: UUID) -> bool:
+    def used_by_lines(self, category_id: UUID) -> bool:
         from ..models.transaction import Posting
 
         return (
             self.db.exec(
-                select(Posting.pid).where(Posting.user_id == self.uid, Posting.category_id == bcid).limit(1)
+                select(Posting.id).where(Posting.user_id == self.uid, Posting.category_id == category_id).limit(1)
             ).first()
             is not None
         )
@@ -62,7 +62,7 @@ class CategoryRepository:
 
     def set_closed(self, bcids: builtins.list[UUID], day: date | None) -> None:
         for category in self.list():
-            if category.bcid in bcids:
+            if category.id in bcids:
                 category.closed_on = day
                 self.db.add(category)
         self.db.flush()

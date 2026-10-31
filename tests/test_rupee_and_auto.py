@@ -46,10 +46,10 @@ def test_what_was_added_automatically_is_blue(client):
 
 def test_an_account_page_shows_the_rupee_sign_like_a_category_page(client, root_accounts):
     bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}).json()
-    page = client.get(f"/accounts/{bank['aid']}").text
+    page = client.get(f"/accounts/{bank['id']}").text
     assert '<p class="hero-balance"><span class="cur">&#8377;</span>12,34,567.00</p>' in page
     food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
-    assert '<span class="cur">&#8377;</span>0.00' in client.get(f"/categories/{food['aid']}").text
+    assert '<span class="cur">&#8377;</span>0.00' in client.get(f"/categories/{food['id']}").text
     client.post(
         "/api/transactions/",
         json={
@@ -59,8 +59,8 @@ def test_an_account_page_shows_the_rupee_sign_like_a_category_page(client, root_
             ]
         },
     )
-    client.patch(f"/api/accounts/{bank['aid']}", json={"balance": "-75"})
-    overdrawn = client.get(f"/accounts/{bank['aid']}").text
+    client.patch(f"/api/accounts/{bank['id']}", json={"balance": "-75"})
+    overdrawn = client.get(f"/accounts/{bank['id']}").text
     assert '<span class="cur">&#8377;</span>\u2212' in overdrawn, "a negative keeps its minus after the sign"
     assert '&minus;<span class="cur">' not in overdrawn
 
@@ -68,5 +68,5 @@ def test_an_account_page_shows_the_rupee_sign_like_a_category_page(client, root_
 def test_another_currency_keeps_its_code_after_the_figure_on_an_account_page(client, root_accounts):
     client.patch("/api/profile/", json={"default_currency": "USD"})
     bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "40"}).json()
-    page = client.get(f"/accounts/{bank['aid']}").text
+    page = client.get(f"/accounts/{bank['id']}").text
     assert '<p class="hero-balance">40.00<small>USD</small></p>' in page

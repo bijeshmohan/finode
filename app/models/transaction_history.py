@@ -21,7 +21,7 @@ class TransactionHistory(SQLModel, table=True):
         Index("ix_transaction_history_user_transaction", "user_id", "transaction_id"),
     )
 
-    hid: UUID = Field(default_factory=uuid4, primary_key=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     transaction_id: UUID
     action: str = Field(max_length=10)

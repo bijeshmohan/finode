@@ -10,7 +10,7 @@
       {% set t = row.transaction %}
       {% set system = "Opening Balances" in row.credits or "Opening Balances" in row.debits %}
       <li>
-        <a class="tx{{ " tx-system" if system }}" href="/transactions/{{ t.tid }}/edit" hx-get="/transactions/{{ t.tid }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+        <a class="tx{{ " tx-system" if system }}" href="/transactions/{{ t.id }}/edit" hx-get="/transactions/{{ t.id }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
           <span class="tx-main">
             {#- No payee: the row leads with where the money went and says where it came from. -#}
             <span class="tx-title">{{ t.payee or row.debits|join(", ") }}</span>

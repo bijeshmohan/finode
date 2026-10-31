@@ -20,7 +20,7 @@ class OAuthGrant(TimestampMixin, table=True):
         Index("uq_oauth_grants_user_client", "user_id", "client_id", unique=True),
     )
 
-    gid: UUID = Field(default_factory=uuid4, primary_key=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     # Supabase's id for the registered app.
     client_id: str = Field(max_length=100)

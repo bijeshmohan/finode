@@ -3,6 +3,16 @@
 Branch `feature/naming-cleanup`. Agreed with the owner 2026-10-31: **everything in one go** (database, code, JSON API, URL
 parameters, assistants' output) and **the industry convention** for keys.
 
+## Status (2026-10-31): built, tested, rehearsed; not yet deployed
+
+All phases are done on `feature/naming-cleanup`. Migration `b4d6f8a0c2e5`: upgrade, downgrade and upgrade again were run
+on SQLite in the suite (`tests/test_migration_names.py`) and on Postgres 17 with a restored production dump: every table's
+rows were identical (an md5 of each table's row values) after the upgrade, after the downgrade and after upgrading again,
+no old column name remained, `alembic check` showed no drift from the models (it only reports `postings.side`, a
+difference that was there before), and the new code's trial balance and budget on the migrated data equal the raw SQL
+totals. The backup file stays at version 5 with its own readable keys (decision for phase 4: it is a versioned file
+format with an upgrade path, so changing its keys later is a version bump, not a debt).
+
 ## Why
 
 The tables grew bespoke key codes (`aid`, `tid`, `pid`, `bcid`, `bid`, `gid`, `gaid`, `rid`, `rpid`, `hid`, `did`, `tkid`,
@@ -57,7 +67,7 @@ must come out empty afterwards). Pure renames, so the migration **can be undone*
 
 1. **`user` -> `user_id`** in the models, repositories, services, the erase walk, the audit. Type-checker guided.
 2. **Primary keys -> `id`, foreign keys -> `<entity>_id`** in the models, repositories, services, MCP, web routers.
-3. **Schemas, URL parameters, forms, templates, `app.js` and the JSON API** (`aid` -> `id` in responses, `{aid}` ->
+3. **Schemas, URL parameters, forms, templates, `app.js` and the JSON API** (`aid` -> `id` in responses, `{account_id}` ->
    `{account_id}`, `gid` -> `grant_id`). `docs/developer/api.md` and the isolation audit's id names follow.
 4. **Assistants' output and the backup keys** (decision above).
 5. **The migration**, written last and proved three ways: autogenerate shows no difference from the models; upgrade then

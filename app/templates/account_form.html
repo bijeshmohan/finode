@@ -5,10 +5,10 @@
 {% set noun = "account" %}
 {% block title %}{{ "Edit " ~ node.account.name if editing else "Add " ~ noun }} · finode{% endblock %}
 {% block content %}
-<a class="back" href="{{ (area ~ '/' ~ node.account.aid) if editing else (back_list or area) }}">{{ icon("back") }}{{ node.account.name if editing else "Accounts" }}</a>
+<a class="back" href="{{ (area ~ '/' ~ node.account.id) if editing else (back_list or area) }}">{{ icon("back") }}{{ node.account.name if editing else "Accounts" }}</a>
 <h1>{{ ("Edit " if editing else "Add ") ~ noun }}</h1>
 
-<form class="card stack form-narrow" hx-post="{{ '/accounts/' ~ node.account.aid ~ '/edit' if editing else '/accounts' }}">
+<form class="card stack form-narrow" hx-post="{{ '/accounts/' ~ node.account.id ~ '/edit' if editing else '/accounts' }}">
   <label>Name
     <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
            placeholder="e.g. HDFC Savings" {{ "autofocus" if not editing }}>
@@ -17,7 +17,7 @@
     <select name="parent_id" required>
       {% if not editing %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
-      <option value="{{ n.account.aid }}" {{ "selected" if n.account.aid == parent_id }}{% if root_of %} data-root="{{ root_of[n.account.aid] }}"{% endif %}{% if starts and n.account.aid in starts %} data-start="{{ starts[n.account.aid] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
+      <option value="{{ n.account.id }}" {{ "selected" if n.account.id == parent_id }}{% if root_of %} data-root="{{ root_of[n.account.id] }}"{% endif %}{% if starts and n.account.id in starts %} data-start="{{ starts[n.account.id] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
       {% endfor %}
     </select>
   </label>
@@ -41,7 +41,7 @@
   <label data-payment-category {{ "hidden" if on_budget }}>Usual category for payments
     <select name="payment_category">
       <option value="">No category</option>
-      {% for aid, path in category_options %}<option value="{{ aid }}" {{ "selected" if aid == payment_category_id }}>{{ path }}</option>{% endfor %}
+      {% for category_id, path in category_options %}<option value="{{ category_id }}" {{ "selected" if category_id == payment_category_id }}>{{ path }}</option>{% endfor %}
     </select>
     <span class="hint">Fills in the Category when you pay into this account (an EMI, a monthly SIP); each payment keeps its own</span>
   </label>
@@ -66,7 +66,7 @@
 <section class="danger-zone form-narrow">
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
-          hx-post="/accounts/{{ node.account.aid }}/delete"
+          hx-post="/accounts/{{ node.account.id }}/delete"
           hx-confirm="Delete {{ noun }} '{{ node.account.name }}'?">{{ icon("trash") }}Delete {{ noun }}</button>
   <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
 </section>

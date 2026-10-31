@@ -41,8 +41,8 @@ def restore(client, doc):
 
 def make_rule(client, books, **extra):
     body = {
-        "from_account": books["bank"]["aid"],
-        "to_account": books["loan"]["aid"],
+        "from_account_id": books["bank"]["id"],
+        "to_account_id": books["loan"]["id"],
         "amount": "15000",
         "frequency": "monthly",
         "start_date": "2026-10-01",
@@ -54,17 +54,17 @@ def make_rule(client, books, **extra):
 
 
 def test_a_rule_can_name_the_category_of_what_it_pays(client, books):
-    rule = make_rule(client, books, category=books["emi"]["aid"])
-    assert rule["category"] == books["emi"]["aid"]
+    rule = make_rule(client, books, category_id=books["emi"]["id"])
+    assert rule["category_id"] == books["emi"]["id"]
     client.get("/api/recurring/")  # lists (and records what is due)
     entry = next(
         t
         for t in client.get("/api/transactions/").json()
-        if any(p["account"] == books["loan"]["aid"] for p in t["postings"])
+        if any(p["account_id"] == books["loan"]["id"] for p in t["postings"])
     )
-    labels = {p["account"]: p["category"] for p in entry["postings"]}
-    assert labels[books["loan"]["aid"]] == books["emi"]["aid"]
-    assert labels[books["bank"]["aid"]] is None
+    labels = {p["account_id"]: p["category_id"] for p in entry["postings"]}
+    assert labels[books["loan"]["id"]] == books["emi"]["id"]
+    assert labels[books["bank"]["id"]] is None
     assert line(budget(client), "EMI")["activity"] == "15000.00"
 
 
@@ -73,28 +73,28 @@ def test_a_rule_with_a_category_that_does_not_fit_is_refused(client, books):
     response = client.post(
         "/api/recurring/",
         json={
-            "from_account": books["bank"]["aid"],
-            "to_account": books["loan"]["aid"],
+            "from_account_id": books["bank"]["id"],
+            "to_account_id": books["loan"]["id"],
             "amount": "10",
-            "category": salary["bcid"],
+            "category_id": salary["id"],
         },
     )
     assert response.status_code == 400
 
 
 def test_a_change_that_does_not_mention_categories_keeps_the_rules(client, books):
-    rule = make_rule(client, books, category=books["emi"]["aid"])
+    rule = make_rule(client, books, category_id=books["emi"]["id"])
     body = {
-        "from_account": books["bank"]["aid"],
-        "to_account": books["loan"]["aid"],
+        "from_account_id": books["bank"]["id"],
+        "to_account_id": books["loan"]["id"],
         "amount": "16000",
         "frequency": "monthly",
         "start_date": "2026-10-01",
     }
-    changed = client.put(f"/api/recurring/{rule['rid']}", json=body).json()
-    assert changed["category"] == books["emi"]["aid"]
-    taken_off = client.put(f"/api/recurring/{rule['rid']}", json={**body, "category": None}).json()
-    assert taken_off["category"] is None
+    changed = client.put(f"/api/recurring/{rule['id']}", json=body).json()
+    assert changed["category_id"] == books["emi"]["id"]
+    taken_off = client.put(f"/api/recurring/{rule['id']}", json={**body, "category_id": None}).json()
+    assert taken_off["category_id"] is None
 
 
 def test_split_rows_of_a_rule_carry_their_categories(client, books):
@@ -102,16 +102,26 @@ def test_split_rows_of_a_rule_carry_their_categories(client, books):
         "/api/recurring/",
         json={
             "postings": [
-                {"account": books["loan"]["aid"], "side": "debit", "amount": "14120", "category": books["emi"]["aid"]},
-                {"account": books["loan"]["aid"], "side": "debit", "amount": "5157", "category": books["sip"]["aid"]},
+                {
+                    "account_id": books["loan"]["id"],
+                    "side": "debit",
+                    "amount": "14120",
+                    "category_id": books["emi"]["id"],
+                },
+                {
+                    "account_id": books["loan"]["id"],
+                    "side": "debit",
+                    "amount": "5157",
+                    "category_id": books["sip"]["id"],
+                },
                 leg(books["bank"], "credit", "19277"),
             ],
             "start_date": "2026-10-01",
         },
     )
     assert rule.status_code == 201, rule.text
-    assert sorted(p["category"] or "" for p in rule.json()["postings"]) == sorted(
-        ["", books["emi"]["aid"], books["sip"]["aid"]]
+    assert sorted(p["category_id"] or "" for p in rule.json()["postings"]) == sorted(
+        ["", books["emi"]["id"], books["sip"]["id"]]
     )
 
 
@@ -121,12 +131,12 @@ def test_split_rows_of_a_rule_carry_their_categories(client, books):
 def test_a_backup_carries_the_category_of_each_line_and_rule_and_restoring_gives_them_back(client, books):
     paid(client, books["bank"], books["loan"], "300", books["sip"])  # said SIP on purpose
     paid(client, books["bank"], books["food"], "40")
-    make_rule(client, books, category=books["emi"]["aid"])
+    make_rule(client, books, category_id=books["emi"]["id"])
     doc = client.get("/api/backup").json()
     assert doc["version"] == 5 and {c["name"] for c in doc["categories"]} >= {"SIP", "Food", "EMI"}
     labelled = [p for t in doc["transactions"] for p in t["postings"] if p["category"]]
-    assert {p["category"] for p in labelled} == {books["sip"]["aid"], books["food"]["aid"], books["emi"]["aid"]}
-    assert doc["recurring"][0]["category"] == books["emi"]["aid"]
+    assert {p["category"] for p in labelled} == {books["sip"]["id"], books["food"]["id"], books["emi"]["id"]}
+    assert doc["recurring"][0]["category"] == books["emi"]["id"]
     try:
         as_user(OTHER)
         assert restore(client, doc).status_code == 200
@@ -166,7 +176,7 @@ def as_old_file(doc, version=3):
 
 
 def test_an_older_backup_with_categories_as_accounts_still_restores(client, books):
-    client.patch(f"/api/accounts/{books['loan']['aid']}", json={"payment_category_id": books["emi"]["aid"]})
+    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["emi"]["id"]})
     paid(client, books["bank"], books["loan"], "700")
     paid(client, books["bank"], books["food"], "40")
     doc = as_old_file(client.get("/api/backup").json())
@@ -184,7 +194,7 @@ def test_a_closed_category_is_still_closed_after_a_restore(client, books, sessio
 
     from app.models.category import BudgetCategory
 
-    client.post(f"/api/categories/{books['sip']['aid']}/close")
+    client.post(f"/api/categories/{books['sip']['id']}/close")
     doc = client.get("/api/backup").json()
     try:
         as_user(OTHER)
@@ -200,7 +210,7 @@ def test_a_backup_with_a_category_that_does_not_fit_is_refused(client, books):
     doc = client.get("/api/backup").json()
     salary = {"id": "00000000-0000-4000-8000-0000000000e1", "name": "Salary", "kind": "earning"}
     doc["categories"].append(salary)
-    to_food = next(p for t in doc["transactions"] for p in t["postings"] if p["category"] == books["food"]["aid"])
+    to_food = next(p for t in doc["transactions"] for p in t["postings"] if p["category"] == books["food"]["id"])
     to_food["category"] = salary["id"]  # an earning category on a line to Expenses
     try:
         as_user(OTHER)
@@ -226,13 +236,13 @@ def test_a_payment_into_a_loan_is_exported_with_its_category_and_imported_back(c
         as_user(OTHER)
         done = client.post("/api/import", files={"file": ("a.ledger", text.encode())})
         assert done.status_code == 200, done.text
-        names = {a["aid"]: a["name"] for a in client.get("/api/accounts/").json()}
-        category_names = {c["bcid"]: c["name"] for c in client.get("/api/categories/").json()}
+        names = {a["id"]: a["name"] for a in client.get("/api/accounts/").json()}
+        category_names = {c["id"]: c["name"] for c in client.get("/api/categories/").json()}
         labelled = {
-            category_names[p["category"]]
+            category_names[p["category_id"]]
             for t in client.get("/api/transactions/").json()
             for p in t["postings"]
-            if p["category"] and names[p["account"]] == "Home Loan"
+            if p["category_id"] and names[p["account_id"]] == "Home Loan"
         }
         assert labelled == {"SIP"}
     finally:

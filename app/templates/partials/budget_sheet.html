@@ -9,7 +9,7 @@
 </div>
 
 <form class="stack" hx-post="/budget/assign" hx-target="#budget" hx-swap="outerHTML" hx-sync="this:replace">
-  <input type="hidden" name="category" value="{{ line.aid }}">
+  <input type="hidden" name="category" value="{{ line.category_id }}">
   <input type="hidden" name="month" value="{{ month_key }}">
   <input type="hidden" name="sheet" value="1">
   {% if group_id %}<input type="hidden" name="group" value="{{ group_id }}">{% endif %}
@@ -24,6 +24,6 @@
   </dl>
   <div class="sheet-actions">
     <button type="submit">Save</button>
-    <a class="button secondary" href="/budget/move?month={{ month_key }}&source={{ line.aid }}">Move money</a>
+    <a class="button secondary" href="/budget/move?month={{ month_key }}&source={{ line.category_id }}">Move money</a>
   </div>
 </form>

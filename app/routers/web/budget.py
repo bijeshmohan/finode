@@ -70,7 +70,7 @@ def other_line(group: BudgetLine) -> BudgetLine:
     """The part of a group that is in none of its subcategories: money can be assigned to it and spent from it."""
     zero = Decimal("0.00")
     return BudgetLine(
-        aid=group.aid,
+        category_id=group.category_id,
         name=f"{group.name} (other)",
         path=group.path,
         depth=group.depth + 1,
@@ -87,7 +87,12 @@ def build_tree(lines: list[BudgetLine]) -> list[Node]:
     roots: list[Node] = []
     stack: list[Node] = []
     for line in lines:
-        if stack and line.aid == stack[-1].line.aid and line.name.endswith("(other)") and not line.group:
+        if (
+            stack
+            and line.category_id == stack[-1].line.category_id
+            and line.name.endswith("(other)")
+            and not line.group
+        ):
             stack[-1].other = line
             continue
         node = Node(line)
@@ -171,7 +176,7 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
     unused = [n for n in tree if n.is_group and not n.used] if any(n.used for n in tree) else []
     return {
         "budget": data,
-        "category_choices": [(c.bcid, " › ".join(budget.category_path(c))) for c in budget.spending_categories()],
+        "category_choices": [(c.id, " › ".join(budget.category_path(c))) for c in budget.spending_categories()],
         "tab": tab if tab in TABS else "spend",
         "tabs": TABS,
         "goal_rows": _goal_rows(data),
@@ -179,7 +184,7 @@ def _context(budget: Budget, month: date, tab: str = "spend") -> dict:
         "show_intro": not budget.br.list(),
         "tree": tree,
         "rows": [{"node": n, "hint": _hint(n, grouping_for(data.currency))} for n in _by_assigned(tree)],
-        "unused_ids": {n.line.aid for n in unused},
+        "unused_ids": {n.line.category_id for n in unused},
         "unused_count": len(unused),
         # More spent than there was to spend in all the categories together (a single overspent category shows on its own bar).
         "overspent": -data.available if data.available < 0 else Decimal("0.00"),
@@ -199,9 +204,9 @@ def budget_page(request: Request, budget: Budget, month: str = "", tab: str = "s
     return templates.TemplateResponse(request, "budget.html", _context(budget, parse_month(month), tab))
 
 
-def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
+def _group_context(budget: Budget, month: date, category_id: UUID) -> dict:
     context = _context(budget, month)
-    node = next((n for n in context["tree"] if n.line.aid == aid and n.is_group), None)
+    node = next((n for n in context["tree"] if n.line.category_id == category_id and n.is_group), None)
     if node is None:
         raise HTTPException(status_code=404, detail="category not found")
     return {
@@ -210,48 +215,56 @@ def _group_context(budget: Budget, month: date, aid: UUID) -> dict:
         "kids": [
             {"node": c, "hint": _hint(c, grouping_for(context["budget"].currency))} for c in _by_assigned(node.children)
         ],
-        "edit_url": f"/budget/group/{aid}/sheet?month={month:%Y-%m}",
+        "edit_url": f"/budget/group/{category_id}/sheet?month={month:%Y-%m}",
         "glance": _glance(node.line),
     }
 
 
-@router.get("/group/{aid}")
-def group_page(request: Request, budget: Budget, aid: UUID, month: str = ""):
+@router.get("/group/{category_id}")
+def group_page(request: Request, budget: Budget, category_id: UUID, month: str = ""):
     """One group: what is left in it, and the categories inside it, each opening the assign sheet."""
-    return templates.TemplateResponse(request, "budget_group.html", _group_context(budget, parse_month(month), aid))
-
-
-@router.get("/group/{aid}/sheet")
-def group_sheet(request: Request, budget: Budget, aid: UUID, month: str = ""):
-    """A group's own budget in the sheet over its page: it starts at what its subcategories add up to."""
-    when = parse_month(month)
-    context = _group_context(budget, when, aid)
     return templates.TemplateResponse(
-        request,
-        "partials/budget_group_sheet.html",
-        {**context, "minimum": budget.group_minimum(when, aid, context["budget"])},
+        request, "budget_group.html", _group_context(budget, parse_month(month), category_id)
     )
 
 
-@router.post("/group/{aid}/assign")
+@router.get("/group/{category_id}/sheet")
+def group_sheet(request: Request, budget: Budget, category_id: UUID, month: str = ""):
+    """A group's own budget in the sheet over its page: it starts at what its subcategories add up to."""
+    when = parse_month(month)
+    context = _group_context(budget, when, category_id)
+    return templates.TemplateResponse(
+        request,
+        "partials/budget_group_sheet.html",
+        {**context, "minimum": budget.group_minimum(when, category_id, context["budget"])},
+    )
+
+
+@router.post("/group/{category_id}/assign")
 def assign_group(
-    request: Request, budget: Budget, aid: UUID, month: Annotated[str, Form()] = "", amount: Annotated[str, Form()] = ""
+    request: Request,
+    budget: Budget,
+    category_id: UUID,
+    month: Annotated[str, Form()] = "",
+    amount: Annotated[str, Form()] = "",
 ):
     when = parse_month(month)
     try:
-        budget.assign_group(when, aid, parse_amount(amount, default=parse_amount("0")))
+        budget.assign_group(when, category_id, parse_amount(amount, default=parse_amount("0")))
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e).capitalize(), "#cat-sheet-error")
-    return templates.TemplateResponse(request, "partials/budget_group_body.html", _group_context(budget, when, aid))
+    return templates.TemplateResponse(
+        request, "partials/budget_group_body.html", _group_context(budget, when, category_id)
+    )
 
 
-@router.get("/category/{aid}/sheet")
-def category_sheet(request: Request, budget: Budget, aid: UUID, month: str = "", group: str = ""):
+@router.get("/category/{category_id}/sheet")
+def category_sheet(request: Request, budget: Budget, category_id: UUID, month: str = "", group: str = ""):
     """One category in the sheet over the budget: assign, what was spent, move money."""
     when = parse_month(month)
     context = _context(budget, when)
     lines = [ln for n in context["tree"] for ln in n.lines()]
-    line = next((ln for ln in lines if ln.aid == aid and not ln.group), None)
+    line = next((ln for ln in lines if ln.category_id == category_id and not ln.group), None)
     if line is None:
         raise HTTPException(status_code=404, detail="category not found")
     return templates.TemplateResponse(
@@ -292,7 +305,7 @@ def move_page(request: Request, budget: Budget, month: str = "", source: UUID | 
     when = parse_month(month)
     data = budget.view(when)
     lines = [line for line in data.lines if not line.group]
-    if source is not None and not any(line.aid == source for line in lines):
+    if source is not None and not any(line.category_id == source for line in lines):
         raise HTTPException(status_code=404, detail="category not found")
     return templates.TemplateResponse(
         request,
@@ -368,7 +381,7 @@ def goal_page(request: Request, budget: Budget):
 
 
 def _the_goal(budget: Budget, goal_id: UUID) -> GoalLine:
-    goal = next((g for g in budget.view(None).goals if g.gid == goal_id), None)
+    goal = next((g for g in budget.view(None).goals if g.id == goal_id), None)
     if goal is None:
         raise HTTPException(status_code=404, detail="goal not found")
     return goal
@@ -410,7 +423,7 @@ def goal_sheet(request: Request, budget: Budget, goal_id: UUID, month: str = "")
     """One goal in the sheet over the Save chip: how far it is, and the things to do with it."""
     when = parse_month(month)
     context = _context(budget, when, "save")
-    row = next((r for r in context["goal_rows"] if r["line"].gid == goal_id), None)
+    row = next((r for r in context["goal_rows"] if r["line"].id == goal_id), None)
     if row is None:
         raise HTTPException(status_code=404, detail="goal not found")
     return templates.TemplateResponse(request, "partials/goal_sheet.html", {**context, **row})
@@ -421,7 +434,7 @@ def goal_use_sheet(request: Request, budget: Budget, goal_id: UUID, month: str =
     """The second step of a goal's sheet: which category the goal's money goes to, and how much."""
     when = parse_month(month)
     context = _context(budget, when, "save")
-    row = next((r for r in context["goal_rows"] if r["line"].gid == goal_id), None)
+    row = next((r for r in context["goal_rows"] if r["line"].id == goal_id), None)
     if row is None:
         raise HTTPException(status_code=404, detail="goal not found")
     saved = row["line"].available
@@ -432,7 +445,7 @@ def goal_use_sheet(request: Request, budget: Budget, goal_id: UUID, month: str =
     return templates.TemplateResponse(
         request,
         "partials/goal_use.html",
-        {**context, **row, "categories": lines, "picked": over.aid if over else None, "amount": amount},
+        {**context, **row, "categories": lines, "picked": over.category_id if over else None, "amount": amount},
     )
 
 

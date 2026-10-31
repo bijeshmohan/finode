@@ -6,7 +6,7 @@
 {% block content %}
 <div class="cat-bar acct-nav">
   <a class="back" href="{{ "/categories?month=" ~ month_key ~ "&tab=" ~ tab }}">{{ icon("back") }}Categories</a>
-  {{ month_pill("/categories/" ~ category.bcid ~ "?month={month}", month_name, month_key, previous, next, this_month) }}
+  {{ month_pill("/categories/" ~ category.id ~ "?month={month}", month_name, month_key, previous, next, this_month) }}
 </div>
 
 <header class="account-hero">
@@ -24,17 +24,17 @@
       <p class="acct-sub">{{ group.name if group else ("Earning" if earning else "Spending") }}</p>
     </div>
     <div class="acct-icons">
-      <a class="circ-button" href="/categories/{{ category.bcid }}/edit" title="Edit" aria-label="Edit {{ category.name }}">{{ icon("edit") }}</a>
+      <a class="circ-button" href="/categories/{{ category.id }}/edit" title="Edit" aria-label="Edit {{ category.name }}">{{ icon("edit") }}</a>
       <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
         {% if not earning %}<a href="/budget">{{ icon("budget") }}See in Budgets</a>{% endif %}
-        {% if can_add_child %}<a href="/categories/new?parent={{ category.bcid }}">{{ icon("plus") }}Add subcategory</a>{% endif %}
+        {% if can_add_child %}<a href="/categories/new?parent={{ category.id }}">{{ icon("plus") }}Add subcategory</a>{% endif %}
         {% if category.closed_on %}
         <p class="menu-note">{{ category.name }} was deleted: it is out of your lists and pickers, and its history stays in the reports.</p>
-        <button type="button" hx-post="/categories/{{ category.bcid }}/reopen">Restore category</button>
+        <button type="button" hx-post="/categories/{{ category.id }}/reopen">Restore category</button>
         {% elif not category.system_key %}
-        <button type="button" class="danger-text" hx-post="/categories/{{ category.bcid }}/delete"
+        <button type="button" class="danger-text" hx-post="/categories/{{ category.id }}/delete"
                 hx-confirm="Delete {{ category.name }}{% if subs %} and the subcategories in it{% endif %}? If there are entries, they stay in your history and reports, but {{ 'these categories leave' if subs else 'it leaves' }} your lists and pickers.">{{ icon("trash") }}Delete category</button>
         {% endif %}
       </div>
@@ -49,11 +49,11 @@
 {% if subs or own_here %}
 <div class="section-head">
   <h2>Subcategories</h2>
-  {% if can_add_child %}<a class="circ-button" href="/categories/new?parent={{ category.bcid }}" title="Add subcategory" aria-label="Add subcategory">{{ icon("plus") }}</a>{% endif %}
+  {% if can_add_child %}<a class="circ-button" href="/categories/new?parent={{ category.id }}" title="Add subcategory" aria-label="Add subcategory">{{ icon("plus") }}</a>{% endif %}
 </div>
 <div class="tile sub-tile">
   {% for c, amount in subs %}
-  <a class="r crow" href="/categories/{{ c.category.bcid }}?month={{ month_key }}">
+  <a class="r crow" href="/categories/{{ c.category.id }}?month={{ month_key }}">
     <span class="crow-main"><span class="crow-name">{{ c.category.name }}</span></span>
     <span class="crow-amt"><span class="{{ 'income' if earning and amount > 0 }}">{{ amount|money }}</span></span>
   </a>
@@ -69,7 +69,7 @@
 
 <div class="section-head">
   <h2>Transactions</h2>
-  {% if not category.closed_on %}<a class="circ-button" href="/transactions/new?category={{ category.bcid }}&back=/categories/{{ category.bcid }}" title="Add transaction" aria-label="Add transaction">{{ icon("plus") }}</a>{% endif %}
+  {% if not category.closed_on %}<a class="circ-button" href="/transactions/new?category={{ category.id }}&back=/categories/{{ category.id }}" title="Add transaction" aria-label="Add transaction">{{ icon("plus") }}</a>{% endif %}
 </div>
 {% if entries %}
 <div class="tx-list">

@@ -26,7 +26,7 @@ class AccountHistory(SQLModel, table=True):
         Index("ix_account_history_user_account", "user_id", "account_id"),
     )
 
-    hid: UUID = Field(default_factory=uuid4, primary_key=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     account_id: UUID
     action: str = Field(max_length=10)

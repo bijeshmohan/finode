@@ -8,7 +8,7 @@ from .budget import BudgetLeftOut, BudgetUncategorised
 class TodoRule(BaseModel):
     """A running recurring rule that could not be recorded (its account can no longer be posted to, say)."""
 
-    rid: UUID
+    recurring_id: UUID
     name: str
     error: str
 
