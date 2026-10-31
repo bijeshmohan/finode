@@ -37,7 +37,8 @@ def test_the_tab_bar_has_categories_and_no_transactions_(page: Page, books):
 
 def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside(page: Page, books, api: Api):
     food = tree(api, books)
-    delivery = next(a for a in api.get("/accounts/") if a["name"] == "Delivery")
+    delivery = next(c for c in api.get("/categories/") if c["name"] == "Delivery") | {}
+    delivery["aid"] = delivery["bcid"]
     spend(api, books, delivery, "120")
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
@@ -88,7 +89,7 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(pag
     page.wait_for_url(f"**/categories/{books['rent']['aid']}**")
     expect(page.locator(".hero-balance")).to_have_text("₹900.00")
     expect(page.get_by_role("link", name="Add transaction")).to_have_attribute(
-        "href", f"/transactions/new?account={books['rent']['aid']}&back=/categories/{books['rent']['aid']}"
+        "href", f"/transactions/new?category={books['rent']['aid']}&back=/categories/{books['rent']['aid']}"
     )
     page.get_by_label("More actions").click()
     expect(page.get_by_role("link", name="See in Budgets")).to_be_visible()

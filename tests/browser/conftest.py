@@ -112,6 +112,15 @@ class Api:
         self.request = page.request
 
     def post(self, path: str, **body):
+        if path == "/accounts/":  # an "account" under Expenses or Income (or inside a category) is a category
+            roots = {a["aid"]: a["name"] for a in self.get("/accounts/") if a["parent_id"] is None}
+            kinds = {c["bcid"]: c["kind"] for c in self.get("/categories/?include_closed=true")}
+            parent = body.get("parent_id")
+            if roots.get(parent) in ("Expenses", "Income") or parent in kinds:
+                kind = ("spending" if roots[parent] == "Expenses" else "earning") if parent in roots else kinds[parent]
+                send = {"name": body["name"], "kind": kind, **({"parent_id": parent} if parent in kinds else {})}
+                made = self.post("/categories/", **send)
+                return {**made, "aid": made["bcid"]}
         response = self.request.post(f"/api{path}", data=body)
         assert response.ok, f"{path}: {response.status} {response.text()}"
         return response.json()

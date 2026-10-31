@@ -29,7 +29,10 @@ def test_an_account_is_chosen_in_a_sheet(page: Page, books, api: Api):
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     [entry] = api.get("/transactions/")[:1]
-    assert {p["account"] for p in entry["postings"]} == {books["checking"]["aid"], books["food"]["aid"]}
+    assert {p["category"] or p["account"] for p in entry["postings"]} == {
+        books["checking"]["aid"],
+        books["food"]["aid"],
+    }
 
 
 def test_the_account_on_the_other_side_is_greyed(page: Page, books):

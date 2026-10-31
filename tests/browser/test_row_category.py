@@ -90,7 +90,7 @@ def test_a_category_is_chosen_in_a_sheet(page: Page, books, api: Api):
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     [entry] = api.get("/transactions/")[:1]
-    dining = next(a["aid"] for a in api.get("/accounts/") if a["name"] == "Dining")
+    dining = next(c["bcid"] for c in api.get("/categories/") if c["name"] == "Dining")
     assert {p["category"] for p in entry["postings"]} == {None, dining}
 
 
