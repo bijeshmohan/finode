@@ -10,7 +10,7 @@ Only these things are stored:
 
 | Stored | Where |
 |---|---|
-| The plan: how much each expense category is *assigned* in each month | `budget_allocations` (user, month = first day, expense account, amount; unique per month and account) |
+| The plan: how much each expense category is *assigned* in each month | `budget_allocations` (user, month = first day, category, amount; unique per month and category) |
 | Which asset or liability accounts are part of the budget | the flag `accounts.on_budget` |
 
 Everything else is **derived on demand** from postings and the plan, so editing a transaction can never leave the budget stale.
@@ -63,7 +63,7 @@ The Budgets page (then Plans) was once three sections, Spend, Build (money moved
 | Credit card (liability) flagged `on_budget` | Yes, opted in | Purchases count as category spending; the debt is subtracted from cash and shown under **Cards to pay**. |
 | Loan or other liability **not** in the budget | Tracking | A payment into it carries a **category** on its line (EMI, SIP): in a transaction touching a budget account it counts as spending in that category. The account can name a *usual category* that fills the line in; credits, such as the loan paying out, carry none. |
 
-Reports speak two languages. **By category** (the Categories page, the breakdown by default, the overview's `spent`) counts a payment into a loan as spending in its category, as the Budget does. **By account** (the breakdown with `by=account`, the overview's `expenses`) is the books' view: paying into a loan is no expense, and only the interest the lender charges is (it touches no budget account, so the Budget does not count it).
+Reports: the breakdown, the Categories page and the overview's `spent` are **by category** (a payment into a loan is spending in its category, as the Budget does); the overview's `expenses` is the books' view, where paying into a loan is no expense and only the interest the lender charges is.
 
 Spending on an unflagged card is not counted in a category; it is reported as `left_out` and the page offers "Add to budget" for that account.
 

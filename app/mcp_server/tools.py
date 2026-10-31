@@ -41,10 +41,11 @@ from .context import Services, services
 INSTRUCTIONS = """\
 finode is the user's personal double-entry ledger.
 
-- Accounts form a tree under five top-level accounts: Assets, Liabilities, Equity, Income and
-  Expenses. Refer to an account by its path with ':' between names (Assets:Bank:HDFC,
-  Expenses:Food) or by the end of the path when that is unique (HDFC, Food). Call list_accounts
-  when unsure; never invent an account: ask the user, or create it with create_account if they agree.
+- Accounts form a tree under Assets, Liabilities and Equity; spending and income post to the single
+  Expenses and Income accounts and are told apart by a budget category (Food, Food:Groceries, Salary:
+  call list_categories). Refer to an account by its path with ':' between names (Assets:Bank:HDFC) or by
+  the end of the path when that is unique (HDFC); a category path (Expenses:Food, or just Food) works
+  wherever an account goes. Call list_accounts when unsure; never invent an account: ask the user, or create it with create_account if they agree.
   New users start with built-in groups under Assets (Bank Accounts, Cash, Investments) and Liabilities
   (Credit Cards, Loans); they cannot be changed or removed. Put a bank under Bank Accounts and a card under
   Credit Cards (they start as part of the budget), a fund under Investments and a loan under Loans (they

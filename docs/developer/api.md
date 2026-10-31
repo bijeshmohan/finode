@@ -23,7 +23,7 @@ Everything the web app and the assistants can do with your books can be done thr
 
 | Method | Path | What it does |
 |---|---|---|
-| `POST` | `/accounts/` | Create an account or category (an Expenses/Income account); `balance` sets an opening balance on an asset or liability. |
+| `POST` | `/accounts/` | Create an account (under Assets, Liabilities or Equity; Expenses and Income hold categories: use `/categories/`); `balance` sets an opening balance on an asset or liability. |
 | `GET` | `/accounts/closed` | Accounts that were closed (and categories "deleted" while they had a history): the outermost of each closed |
 | `GET` | `/accounts/deleted` | Accounts and categories deleted for good that can still be restored, newest first. |
 | `POST` | `/accounts/deleted/{did}/restore` | Bring back a deleted account or category (with its old id, plan and payment links). |
@@ -120,7 +120,7 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 |---|---|---|
 | `GET` | `/reports/trial-balance` | Every account's debits and credits, plus a check that the books are sound. |
 | `GET` | `/reports/summary` | Net worth now, plus for a period (the current month so far by default) `income` and `expenses` as the books see them (paying into a loan is no expense) and `spent`, what the budget calls spending (everything labelled with a spending category, a payment into a loan included). |
-| `GET` | `/reports/breakdown` | Where the money went (or came from) in a period, `depth` levels down. `by=category` (the default) is what it was for, as the budget counts it; `by=account` is the books' view per Income or Expenses account. |
+| `GET` | `/reports/breakdown` | Where the money went (or came from) in a period, `depth` levels down. It is what the money was for, as the budget counts it (by category). |
 
 ## Profile
 
