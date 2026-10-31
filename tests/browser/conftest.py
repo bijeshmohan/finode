@@ -108,7 +108,7 @@ def keep_evidence(item, page: Page) -> None:
         name = item.name.replace("/", "_")[:120]
         page.screenshot(path=str(FAILURES / f"{name}.png"))
         (FAILURES / f"{name}.html").write_text(page.content())
-    except Exception as error:  # noqa: BLE001  (the evidence is a convenience: never hide the real failure behind it)
+    except Exception as error:  # the evidence is a convenience: never hide the real failure behind it
         print(f"could not keep the evidence of {item.name}: {error}")
 
 
