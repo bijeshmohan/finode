@@ -34,7 +34,7 @@ def entry(client, lines, **extra):
 
 
 def categories(session):
-    return {c.name: c for c in session.exec(select(BudgetCategory).where(BudgetCategory.user == TEST_USER_ID)).all()}
+    return {c.name: c for c in session.exec(select(BudgetCategory).where(BudgetCategory.user_id == TEST_USER_ID)).all()}
 
 
 def lines(session, tid):

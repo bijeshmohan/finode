@@ -15,14 +15,14 @@ class ApiTokenRepository:
         self.uid = uid
 
     def list(self) -> builtins.list[ApiToken]:
-        statement = select(ApiToken).where(ApiToken.user == self.uid).order_by(col(ApiToken.created).desc())
+        statement = select(ApiToken).where(ApiToken.user_id == self.uid).order_by(col(ApiToken.created).desc())
         return self.db.exec(statement).all()
 
     def read(self, tkid: UUID) -> ApiToken | None:
-        return self.db.exec(select(ApiToken).where(ApiToken.tkid == tkid, ApiToken.user == self.uid)).first()
+        return self.db.exec(select(ApiToken).where(ApiToken.tkid == tkid, ApiToken.user_id == self.uid)).first()
 
     def create(self, name: str, scope: str, token_hash: str, prefix: str) -> ApiToken:
-        token = ApiToken(user=self.uid, name=name, scope=scope, token_hash=token_hash, prefix=prefix)
+        token = ApiToken(user_id=self.uid, name=name, scope=scope, token_hash=token_hash, prefix=prefix)
         self.db.add(token)
         self.db.flush()
         return token

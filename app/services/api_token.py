@@ -28,7 +28,7 @@ def hash_secret(secret: str) -> str:
 
 @dataclass(frozen=True)
 class TokenOwner:
-    user: UUID
+    user_id: UUID
     tkid: UUID
     name: str
     scope: str
@@ -97,4 +97,4 @@ class ApiTokenService:
             token.last_used = now
             db.add(token)
             db.commit()
-        return TokenOwner(user=token.user, tkid=token.tkid, name=token.name, scope=token.scope)
+        return TokenOwner(user_id=token.user_id, tkid=token.tkid, name=token.name, scope=token.scope)

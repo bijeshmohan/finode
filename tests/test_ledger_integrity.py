@@ -259,7 +259,10 @@ def test_history_belongs_to_one_user(client, session, account, expense_account, 
     from app.models.transaction_history import TransactionHistory
 
     theirs = TransactionHistory(
-        user=UUID(int=99), transaction_id=UUID(int=5), action="created", snapshot={"date": "2026-01-01", "postings": []}
+        user_id=UUID(int=99),
+        transaction_id=UUID(int=5),
+        action="created",
+        snapshot={"date": "2026-01-01", "postings": []},
     )
     session.add(theirs)
     session.commit()

@@ -558,7 +558,7 @@ class DataService:
             for key, note in plan.new_categories:
                 made = repository.add(
                     BudgetCategory(
-                        user=self.ar.uid,
+                        user_id=self.ar.uid,
                         name=key[-1],
                         details=note,
                         kind=CATEGORY_ROOTS[key[0]],

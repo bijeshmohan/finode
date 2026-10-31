@@ -17,7 +17,7 @@ class BudgetRepository:
         self.uid = uid
 
     def list(self, up_to: date | None = None) -> builtins.list[BudgetAllocation]:
-        statement = select(BudgetAllocation).where(BudgetAllocation.user == self.uid)
+        statement = select(BudgetAllocation).where(BudgetAllocation.user_id == self.uid)
         if up_to is not None:
             statement = statement.where(BudgetAllocation.month <= up_to)
         return list(remembered(self.db, ("allocations", self.uid, up_to), lambda: self.db.exec(statement).all()))
@@ -25,7 +25,7 @@ class BudgetRepository:
     def read(self, month: date, category_id: UUID) -> BudgetAllocation | None:
         return self.db.exec(
             select(BudgetAllocation).where(
-                BudgetAllocation.user == self.uid,
+                BudgetAllocation.user_id == self.uid,
                 BudgetAllocation.month == month,
                 BudgetAllocation.category_id == category_id,
             )
@@ -38,7 +38,7 @@ class BudgetRepository:
             if row is not None:
                 self.db.delete(row)
         elif row is None:
-            self.db.add(BudgetAllocation(user=self.uid, month=month, category_id=category_id, amount=amount))
+            self.db.add(BudgetAllocation(user_id=self.uid, month=month, category_id=category_id, amount=amount))
         else:
             row.amount = amount
             self.db.add(row)
@@ -47,7 +47,7 @@ class BudgetRepository:
     def delete_for_category(self, category_id: UUID) -> None:
         for row in self.db.exec(
             select(BudgetAllocation).where(
-                BudgetAllocation.user == self.uid, BudgetAllocation.category_id == category_id
+                BudgetAllocation.user_id == self.uid, BudgetAllocation.category_id == category_id
             )
         ).all():
             self.db.delete(row)
@@ -57,7 +57,7 @@ class BudgetRepository:
         return len(
             self.db.exec(
                 select(BudgetAllocation.bid).where(
-                    BudgetAllocation.user == self.uid, BudgetAllocation.category_id == category_id
+                    BudgetAllocation.user_id == self.uid, BudgetAllocation.category_id == category_id
                 )
             ).all()
         )
@@ -66,7 +66,7 @@ class BudgetRepository:
         """The amounts planned for `source` become the target's (added to a month the target already has one for).
         Returns how many months moved. Nothing is committed."""
         rows = self.db.exec(
-            select(BudgetAllocation).where(BudgetAllocation.user == self.uid, BudgetAllocation.category_id == source)
+            select(BudgetAllocation).where(BudgetAllocation.user_id == self.uid, BudgetAllocation.category_id == source)
         ).all()
         for row in rows:
             existing = self.read(row.month, target)
@@ -84,7 +84,7 @@ class BudgetRepository:
         return (
             self.db.exec(
                 select(BudgetAllocation).where(
-                    BudgetAllocation.user == self.uid, BudgetAllocation.category_id == category_id
+                    BudgetAllocation.user_id == self.uid, BudgetAllocation.category_id == category_id
                 )
             ).first()
             is not None
@@ -99,7 +99,7 @@ class BudgetRepository:
             rows = self.db.exec(
                 select(Goal, GoalAllocation)
                 .join(GoalAllocation, GoalAllocation.goal_id == Goal.gid, isouter=True)
-                .where(Goal.user == self.uid)
+                .where(Goal.user_id == self.uid)
             ).all()
             goals = list({g.gid: g for g, _ in rows}.values())
             return goals, [a for _, a in rows if a is not None]
@@ -113,7 +113,7 @@ class BudgetRepository:
         return next((g for g in self.goals() if g.gid == gid), None)
 
     def add_goal(self, name: str, amount: Decimal, target_date: date) -> Goal:
-        goal = Goal(user=self.uid, name=name, amount=amount, target_date=target_date)
+        goal = Goal(user_id=self.uid, name=name, amount=amount, target_date=target_date)
         self.db.add(goal)
         self.db.flush()
         return goal
@@ -135,14 +135,14 @@ class BudgetRepository:
         """Make the month's amount set aside for a goal exactly `amount` (zero removes it)."""
         row = self.db.exec(
             select(GoalAllocation).where(
-                GoalAllocation.user == self.uid, GoalAllocation.month == month, GoalAllocation.goal_id == goal_id
+                GoalAllocation.user_id == self.uid, GoalAllocation.month == month, GoalAllocation.goal_id == goal_id
             )
         ).first()
         if amount == 0:
             if row is not None:
                 self.db.delete(row)
         elif row is None:
-            self.db.add(GoalAllocation(user=self.uid, month=month, goal_id=goal_id, amount=amount))
+            self.db.add(GoalAllocation(user_id=self.uid, month=month, goal_id=goal_id, amount=amount))
         else:
             row.amount = amount
             self.db.add(row)
@@ -150,11 +150,11 @@ class BudgetRepository:
 
     def delete_goal(self, goal_id: UUID) -> None:
         for row in self.db.exec(
-            select(GoalAllocation).where(GoalAllocation.user == self.uid, GoalAllocation.goal_id == goal_id)
+            select(GoalAllocation).where(GoalAllocation.user_id == self.uid, GoalAllocation.goal_id == goal_id)
         ).all():
             self.db.delete(row)
         self.db.flush()
-        goal = self.db.exec(select(Goal).where(Goal.user == self.uid, Goal.gid == goal_id)).first()
+        goal = self.db.exec(select(Goal).where(Goal.user_id == self.uid, Goal.gid == goal_id)).first()
         if goal is not None:
             self.db.delete(goal)
         self.db.flush()

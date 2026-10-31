@@ -23,7 +23,7 @@ class Transaction(TimestampMixin, table=True):
         Index("uq_transactions_recurring", "recurring_id", "recurring_date", unique=True),
         Index(
             "uq_transactions_reference",
-            "user",
+            "user_id",
             "source",
             "external_id",
             unique=True,
@@ -33,7 +33,7 @@ class Transaction(TimestampMixin, table=True):
     )
 
     tid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     date: Date = Field(default_factory=local_today)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
@@ -63,7 +63,7 @@ class Posting(TimestampMixin, table=True):
     )
 
     pid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     transaction: UUID = Field(index=True, foreign_key="transactions.tid")
     account: UUID = Field(index=True, foreign_key="accounts.aid")
     side: PostingSide

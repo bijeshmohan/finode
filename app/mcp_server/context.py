@@ -50,7 +50,7 @@ def services() -> Iterator[Services]:
     if owner is None:
         raise PermissionError("not authenticated")
     with session_factory() as db:
-        uid = owner.user
+        uid = owner.user_id
         ar = AccountRepository(db, uid, origin=f"mcp:{owner.name}")
         tr, pr = TransactionRepository(db, uid), ProfileRepository(db, uid)
         accounts = AccountService(ar, tr, pr)

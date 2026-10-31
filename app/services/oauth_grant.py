@@ -47,10 +47,10 @@ class OAuthGrantService:
         return grant
 
     @staticmethod
-    def authenticate(db: Session, user: UUID, client_id: str) -> TokenOwner | None:
+    def authenticate(db: Session, user_id: UUID, client_id: str) -> TokenOwner | None:
         """Who a verified OAuth token acts as and what it may do; None if the user never allowed that app,
         or took the permission back."""
-        grant = OAuthGrantRepository.for_token(db, user, client_id)
+        grant = OAuthGrantRepository.for_token(db, user_id, client_id)
         if grant is None or grant.revoked is not None:
             return None
         now = utc_now()
@@ -61,4 +61,4 @@ class OAuthGrantService:
             grant.last_used = now
             db.add(grant)
             db.commit()
-        return TokenOwner(user=grant.user, tkid=grant.gid, name=grant.client_name, scope=grant.scope)
+        return TokenOwner(user_id=grant.user_id, tkid=grant.gid, name=grant.client_name, scope=grant.scope)

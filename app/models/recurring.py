@@ -32,7 +32,7 @@ class RecurringTransaction(TimestampMixin, table=True):
     )
 
     rid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     # A simple rule has from_account, to_account and amount; a split rule has none of them but
     # `recurring_postings` instead.
     from_account: UUID | None = Field(default=None, foreign_key="accounts.aid")
@@ -71,7 +71,7 @@ class RecurringPosting(TimestampMixin, table=True):
     )
 
     rpid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     rid: UUID = Field(index=True, foreign_key="recurring_transactions.rid")
     account: UUID = Field(foreign_key="accounts.aid")
     side: str = Field(max_length=6)

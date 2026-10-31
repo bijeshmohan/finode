@@ -189,7 +189,7 @@ def test_a_closed_category_is_still_closed_after_a_restore(client, books, sessio
     try:
         as_user(OTHER)
         assert restore(client, doc).status_code == 200
-        mine = session.exec(select(BudgetCategory).where(BudgetCategory.user == OTHER)).all()
+        mine = session.exec(select(BudgetCategory).where(BudgetCategory.user_id == OTHER)).all()
         assert {c.name: c.closed_on is not None for c in mine}["SIP"] is True
     finally:
         as_user(TEST_USER_ID)

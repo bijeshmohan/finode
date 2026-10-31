@@ -237,7 +237,7 @@ def test_validation_and_limits(client, accounts, monkeypatch):
 
 def test_another_users_rule_is_invisible(client, accounts, session):
     created = rule(client, accounts, start_date="2999-01-01")
-    session.exec(RecurringTransaction.__table__.update().values(user=UUID("00000000-0000-4000-8000-000000000002")))
+    session.exec(RecurringTransaction.__table__.update().values(user_id=UUID("00000000-0000-4000-8000-000000000002")))
     session.commit()
     assert client.get(f"/api/recurring/{created['rid']}").status_code == 404
     assert client.get("/api/recurring/").json() == []

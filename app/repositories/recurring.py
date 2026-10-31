@@ -19,19 +19,21 @@ class RecurringRepository:
     def list(self) -> builtins.list[RecurringTransaction]:
         statement = (
             select(RecurringTransaction)
-            .where(RecurringTransaction.user == self.uid)
+            .where(RecurringTransaction.user_id == self.uid)
             .order_by(RecurringTransaction.next_date, RecurringTransaction.created)
         )
         return self.db.exec(statement).all()
 
     def read(self, rid: UUID) -> RecurringTransaction | None:
         return self.db.exec(
-            select(RecurringTransaction).where(RecurringTransaction.rid == rid, RecurringTransaction.user == self.uid)
+            select(RecurringTransaction).where(
+                RecurringTransaction.rid == rid, RecurringTransaction.user_id == self.uid
+            )
         ).first()
 
     def due(self, today: date) -> builtins.list[RecurringTransaction]:
         statement = select(RecurringTransaction).where(
-            RecurringTransaction.user == self.uid,
+            RecurringTransaction.user_id == self.uid,
             RecurringTransaction.active == True,  # noqa: E712
             RecurringTransaction.next_date <= today,
         )
@@ -46,7 +48,7 @@ class RecurringRepository:
         """The rows of every split rule, by rule, in the order they were entered."""
         found: dict[UUID, builtins.list[RecurringPosting]] = {}
         statement = (
-            select(RecurringPosting).where(RecurringPosting.user == self.uid).order_by(RecurringPosting.position)
+            select(RecurringPosting).where(RecurringPosting.user_id == self.uid).order_by(RecurringPosting.position)
         )
         for row in self.db.exec(statement).all():
             found.setdefault(row.rid, []).append(row)
@@ -57,7 +59,7 @@ class RecurringRepository:
             self.db.delete(old)
         self.db.flush()
         for position, row in enumerate(rows):
-            self.db.add(RecurringPosting(user=self.uid, rid=rid, position=position, **row))
+            self.db.add(RecurringPosting(user_id=self.uid, rid=rid, position=position, **row))
         self.db.flush()
 
     def delete(self, rule: RecurringTransaction) -> None:
@@ -81,7 +83,7 @@ class RecurringRepository:
     @staticmethod
     def users_with_due(db: Session, today: date) -> builtins.list[UUID]:
         statement = (
-            select(RecurringTransaction.user)
+            select(RecurringTransaction.user_id)
             .where(RecurringTransaction.active == True, RecurringTransaction.next_date <= today)  # noqa: E712
             .distinct()
         )
@@ -93,7 +95,7 @@ class RecurringRepository:
         posting_rules = set(
             db.exec(
                 select(RecurringPosting.rid).where(
-                    RecurringPosting.user == uid, col(RecurringPosting.account).in_(aids)
+                    RecurringPosting.user_id == uid, col(RecurringPosting.account).in_(aids)
                 )
             ).all()
         )
@@ -101,7 +103,7 @@ class RecurringRepository:
             rule
             for rule in db.exec(
                 select(RecurringTransaction).where(
-                    RecurringTransaction.user == uid, col(RecurringTransaction.active).is_(True)
+                    RecurringTransaction.user_id == uid, col(RecurringTransaction.active).is_(True)
                 )
             ).all()
             if rule.from_account in aids or rule.to_account in aids or rule.rid in posting_rules
@@ -111,13 +113,13 @@ class RecurringRepository:
     def merge_conflicts(db: Session, uid: UUID, a: UUID, b: UUID) -> builtins.list[str]:
         """Rules that would end up with an account on both sides if `a` and `b` became one (named by payee)."""
         names = []
-        for rule in db.exec(select(RecurringTransaction).where(RecurringTransaction.user == uid)).all():
+        for rule in db.exec(select(RecurringTransaction).where(RecurringTransaction.user_id == uid)).all():
             label = rule.payee or "a recurring transaction"
             if {rule.from_account, rule.to_account} == {a, b}:
                 names.append(label)
                 continue
             rows = db.exec(
-                select(RecurringPosting).where(RecurringPosting.user == uid, RecurringPosting.rid == rule.rid)
+                select(RecurringPosting).where(RecurringPosting.user_id == uid, RecurringPosting.rid == rule.rid)
             ).all()
             sides_a = {p.side for p in rows if p.account == a}
             sides_b = {p.side for p in rows if p.account == b}
@@ -131,14 +133,14 @@ class RecurringRepository:
         simple = set(
             db.exec(
                 select(RecurringTransaction.rid).where(
-                    RecurringTransaction.user == uid,
+                    RecurringTransaction.user_id == uid,
                     or_(RecurringTransaction.from_account == aid, RecurringTransaction.to_account == aid),
                 )
             ).all()
         )
         split = set(
             db.exec(
-                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.account == aid)
+                select(RecurringPosting.rid).where(RecurringPosting.user_id == uid, RecurringPosting.account == aid)
             ).all()
         )
         return len(simple | split)
@@ -149,28 +151,28 @@ class RecurringRepository:
         rules = set(
             db.exec(
                 select(RecurringTransaction.rid).where(
-                    RecurringTransaction.user == uid,
+                    RecurringTransaction.user_id == uid,
                     or_(RecurringTransaction.from_account == source, RecurringTransaction.to_account == source),
                 )
             ).all()
         ) | set(
             db.exec(
-                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.account == source)
+                select(RecurringPosting.rid).where(RecurringPosting.user_id == uid, RecurringPosting.account == source)
             ).all()
         )
         db.exec(
             update(RecurringTransaction)
-            .where(RecurringTransaction.user == uid, RecurringTransaction.from_account == source)
+            .where(RecurringTransaction.user_id == uid, RecurringTransaction.from_account == source)
             .values(from_account=target)
         )
         db.exec(
             update(RecurringTransaction)
-            .where(RecurringTransaction.user == uid, RecurringTransaction.to_account == source)
+            .where(RecurringTransaction.user_id == uid, RecurringTransaction.to_account == source)
             .values(to_account=target)
         )
         db.exec(
             update(RecurringPosting)
-            .where(RecurringPosting.user == uid, RecurringPosting.account == source)
+            .where(RecurringPosting.user_id == uid, RecurringPosting.account == source)
             .values(account=target)
         )
         db.expire_all()
@@ -195,14 +197,16 @@ class RecurringRepository:
         """Rules that still run and record into this category (on the rule or on one of its rows)."""
         by_rows = set(
             db.exec(
-                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.category_id == bcid)
+                select(RecurringPosting.rid).where(
+                    RecurringPosting.user_id == uid, RecurringPosting.category_id == bcid
+                )
             ).all()
         )
         return [
             rule
             for rule in db.exec(
                 select(RecurringTransaction).where(
-                    RecurringTransaction.user == uid, col(RecurringTransaction.active).is_(True)
+                    RecurringTransaction.user_id == uid, col(RecurringTransaction.active).is_(True)
                 )
             ).all()
             if rule.category_id == bcid or rule.rid in by_rows
@@ -214,12 +218,14 @@ class RecurringRepository:
         return (
             db.exec(
                 select(RecurringTransaction.rid).where(
-                    RecurringTransaction.user == uid, RecurringTransaction.category_id == bcid
+                    RecurringTransaction.user_id == uid, RecurringTransaction.category_id == bcid
                 )
             ).first()
             is not None
             or db.exec(
-                select(RecurringPosting.rpid).where(RecurringPosting.user == uid, RecurringPosting.category_id == bcid)
+                select(RecurringPosting.rpid).where(
+                    RecurringPosting.user_id == uid, RecurringPosting.category_id == bcid
+                )
             ).first()
             is not None
         )
@@ -229,13 +235,15 @@ class RecurringRepository:
         """How many rules (running or not) are labelled with the category."""
         by_rows = set(
             db.exec(
-                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.category_id == bcid)
+                select(RecurringPosting.rid).where(
+                    RecurringPosting.user_id == uid, RecurringPosting.category_id == bcid
+                )
             ).all()
         )
         by_rule = set(
             db.exec(
                 select(RecurringTransaction.rid).where(
-                    RecurringTransaction.user == uid, RecurringTransaction.category_id == bcid
+                    RecurringTransaction.user_id == uid, RecurringTransaction.category_id == bcid
                 )
             ).all()
         )
@@ -247,22 +255,24 @@ class RecurringRepository:
         rules = set(
             db.exec(
                 select(RecurringTransaction.rid).where(
-                    RecurringTransaction.user == uid, RecurringTransaction.category_id == source
+                    RecurringTransaction.user_id == uid, RecurringTransaction.category_id == source
                 )
             ).all()
         ) | set(
             db.exec(
-                select(RecurringPosting.rid).where(RecurringPosting.user == uid, RecurringPosting.category_id == source)
+                select(RecurringPosting.rid).where(
+                    RecurringPosting.user_id == uid, RecurringPosting.category_id == source
+                )
             ).all()
         )
         db.exec(
             update(RecurringTransaction)
-            .where(RecurringTransaction.user == uid, RecurringTransaction.category_id == source)
+            .where(RecurringTransaction.user_id == uid, RecurringTransaction.category_id == source)
             .values(category_id=target)
         )
         db.exec(
             update(RecurringPosting)
-            .where(RecurringPosting.user == uid, RecurringPosting.category_id == source)
+            .where(RecurringPosting.user_id == uid, RecurringPosting.category_id == source)
             .values(category_id=target)
         )
         db.expire_all()

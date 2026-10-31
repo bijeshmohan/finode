@@ -47,8 +47,8 @@ def split(rng: random.Random, total: Decimal, parts: int) -> list[Decimal]:
 
 def recount(session) -> dict[UUID, Decimal]:
     """Every account's balance up to today, from the stored postings only."""
-    accounts = {a.aid: a for a in session.exec(select(Account).where(Account.user == TEST_USER_ID)).all()}
-    dates = {t.tid: t.date for t in session.exec(select(Transaction).where(Transaction.user == TEST_USER_ID)).all()}
+    accounts = {a.aid: a for a in session.exec(select(Account).where(Account.user_id == TEST_USER_ID)).all()}
+    dates = {t.tid: t.date for t in session.exec(select(Transaction).where(Transaction.user_id == TEST_USER_ID)).all()}
 
     def root(account: Account) -> str:
         while account.parent_id is not None:
@@ -56,7 +56,7 @@ def recount(session) -> dict[UUID, Decimal]:
         return account.name
 
     own: dict[UUID, Decimal] = {aid: Decimal(0) for aid in accounts}
-    for p in session.exec(select(Posting).where(Posting.user == TEST_USER_ID)).all():
+    for p in session.exec(select(Posting).where(Posting.user_id == TEST_USER_ID)).all():
         if dates[p.transaction] > local_today():
             continue
         debit_side = root(accounts[p.account]) in NORMAL_DEBIT
@@ -76,7 +76,7 @@ def check(session, s, step: str) -> None:
     expected = recount(session)
     for account in s.accounts.list():
         assert account.balance == expected[account.aid], (step, account.name, account.balance, expected[account.aid])
-    raw = session.exec(select(Posting).where(Posting.user == TEST_USER_ID)).all()
+    raw = session.exec(select(Posting).where(Posting.user_id == TEST_USER_ID)).all()
     assert sum(p.amount for p in raw if p.side == PostingSide.DEBIT) == sum(
         p.amount for p in raw if p.side == PostingSide.CREDIT
     )
@@ -226,8 +226,8 @@ def budget_checks(session, s, label: str) -> None:
     from app.models.budget import BudgetAllocation, GoalAllocation
 
     today = month_of(local_today())
-    rows = list(session.exec(select(BudgetAllocation).where(BudgetAllocation.user == TEST_USER_ID)).all())
-    rows += session.exec(select(GoalAllocation).where(GoalAllocation.user == TEST_USER_ID)).all()
+    rows = list(session.exec(select(BudgetAllocation).where(BudgetAllocation.user_id == TEST_USER_ID)).all())
+    rows += session.exec(select(GoalAllocation).where(GoalAllocation.user_id == TEST_USER_ID)).all()
     for offset in (-2, -1, 0, 1, 2):
         month = month_of(today + timedelta(days=31 * offset))
         view = s.budget.view(month)

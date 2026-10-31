@@ -24,7 +24,7 @@ class CategoryRepository:
 
     def list(self) -> builtins.list[BudgetCategory]:
         """Every category of the person, loaded once per session (see repositories/cache.py)."""
-        statement = select(BudgetCategory).where(BudgetCategory.user == self.uid)
+        statement = select(BudgetCategory).where(BudgetCategory.user_id == self.uid)
         return list(remembered(self.db, ("categories", self.uid), lambda: self.db.exec(statement).all()))
 
     def read(self, bcid: UUID) -> BudgetCategory | None:
@@ -41,7 +41,7 @@ class CategoryRepository:
 
         return (
             self.db.exec(
-                select(Posting.pid).where(Posting.user == self.uid, Posting.category_id == bcid).limit(1)
+                select(Posting.pid).where(Posting.user_id == self.uid, Posting.category_id == bcid).limit(1)
             ).first()
             is not None
         )
@@ -78,4 +78,4 @@ class CategoryRepository:
             return found
         taken = {c.name.casefold() for c in self.list() if c.parent_id is None and c.kind == kind}
         name = UNCATEGORISED if UNCATEGORISED.casefold() not in taken else f"{UNCATEGORISED} (built-in)"
-        return self.add(BudgetCategory(user=self.uid, name=name, kind=kind, system_key=key))
+        return self.add(BudgetCategory(user_id=self.uid, name=name, kind=kind, system_key=key))

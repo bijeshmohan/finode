@@ -30,7 +30,7 @@ from .test_isolation import B_USER, books_of, signed_in_as
 
 
 def rows(session, model, user=TEST_USER_ID):
-    return session.exec(select(model).where(model.user == user)).all()
+    return session.exec(select(model).where(model.user_id == user)).all()
 
 
 @pytest.fixture

@@ -190,13 +190,13 @@ class AccountService:
                 name=name,
                 details=f"System root account for {name}",
                 parent_id=None,
-                user=self.ar.uid,
+                user_id=self.ar.uid,
             )
             self.ar.db.add(new_roots[name])
         if len(missing) == len(ROOT_ACCOUNT_NAMES) and NEW_PROFILE_FIXED_PARENTS:
             # A brand-new person: the built-in groups come with the roots (same transaction, so a lost race makes none twice).
             for root, name, key, _ in FIXED_PARENTS:
-                self.ar.db.add(Account(name=name, parent_id=new_roots[root].aid, user=self.ar.uid, system_key=key))
+                self.ar.db.add(Account(name=name, parent_id=new_roots[root].aid, user_id=self.ar.uid, system_key=key))
         try:
             self.ar.db.commit()
         except IntegrityError:
@@ -514,7 +514,7 @@ class AccountService:
             raise ValueError(f"'{parent.name}' is closed: reopen it to add accounts to it!")
         self._check_depth(parent, 1, all_accounts)
         if self.is_opening_balances(
-            Account(name=account.name, parent_id=account.parent_id, user=self.ar.uid),
+            Account(name=account.name, parent_id=account.parent_id, user_id=self.ar.uid),
             all_accounts,
         ) and self.ar.read_by_name(account.name, account.parent_id):
             raise ValueError(f"system account '{account.name}' already exists!")
@@ -911,7 +911,7 @@ class AccountService:
             candidate = Account(
                 name=data.name if "name" in data.model_fields_set and data.name else account.name,
                 parent_id=data.parent_id if "parent_id" in data.model_fields_set else account.parent_id,
-                user=self.ar.uid,
+                user_id=self.ar.uid,
             )
             if self.is_opening_balances(candidate, all_accounts) and self.ar.read_by_name(
                 candidate.name, candidate.parent_id

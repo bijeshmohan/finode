@@ -135,7 +135,7 @@ class RecurringService:
             raise ValueError(f"you can have at most {MAX_RULES} recurring transactions!")
         data = self._rows_on_roots(data)
         self._check(data)
-        rule = RecurringTransaction(**self._fields(data), user=self.repo.uid, next_date=data.start_date)
+        rule = RecurringTransaction(**self._fields(data), user_id=self.repo.uid, next_date=data.start_date)
         self.repo.add(rule)
         self.repo.set_postings(rule.rid, self._rows(data))
         self.repo.db.commit()

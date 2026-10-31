@@ -23,11 +23,11 @@ class AccountHistory(SQLModel, table=True):
             "action IN ('created', 'updated', 'closed', 'reopened', 'restored', 'deleted')",
             name="ck_account_history_action",
         ),
-        Index("ix_account_history_user_account", "user", "account_id"),
+        Index("ix_account_history_user_account", "user_id", "account_id"),
     )
 
     hid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     account_id: UUID
     action: str = Field(max_length=10)
     at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))

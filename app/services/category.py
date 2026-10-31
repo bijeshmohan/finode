@@ -128,7 +128,7 @@ class CategoryService:
         self._check_name_free(data.name, data.parent_id, data.kind)
         made = self.cr.add(
             BudgetCategory(
-                user=self.uid, name=data.name, details=data.details, kind=data.kind, parent_id=data.parent_id
+                user_id=self.uid, name=data.name, details=data.details, kind=data.kind, parent_id=data.parent_id
             )
         )
         self.db.commit()

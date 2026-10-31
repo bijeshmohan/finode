@@ -28,7 +28,7 @@ class BudgetCategory(TimestampMixin, table=True):
         # The built-in Uncategorised of each kind, one per person.
         Index(
             "uq_budget_categories_user_system_key",
-            "user",
+            "user_id",
             "system_key",
             unique=True,
             sqlite_where=text("system_key IS NOT NULL"),
@@ -37,7 +37,7 @@ class BudgetCategory(TimestampMixin, table=True):
     )
 
     bcid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
     kind: str = Field(max_length=8)

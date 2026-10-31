@@ -573,7 +573,7 @@ class BackupService:
             for c in sorted(file.categories, key=lambda c: c.parent_id is not None):
                 made_category = self.cr.add(
                     BudgetCategory(
-                        user=self.cr.uid,
+                        user_id=self.cr.uid,
                         name=c.name,
                         details=c.details,
                         kind=c.kind,
@@ -594,7 +594,7 @@ class BackupService:
             rules: dict[UUID, UUID] = {}
             for r in file.recurring:
                 rule = RecurringTransaction(
-                    user=self.rr.uid,
+                    user_id=self.rr.uid,
                     from_account=ids.get(r.from_account) if r.from_account else None,
                     to_account=ids.get(r.to_account) if r.to_account else None,
                     amount=r.amount,

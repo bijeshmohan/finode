@@ -13,7 +13,7 @@ class Account(TimestampMixin, table=True):
     __table_args__ = (
         Index(
             "uq_accounts_user_root_name",
-            "user",
+            "user_id",
             "name",
             unique=True,
             sqlite_where=text("parent_id IS NULL"),
@@ -22,7 +22,7 @@ class Account(TimestampMixin, table=True):
         # One built-in group of each kind per person (see services/account.py FIXED_PARENTS).
         Index(
             "uq_accounts_user_system_key",
-            "user",
+            "user_id",
             "system_key",
             unique=True,
             sqlite_where=text("system_key IS NOT NULL"),
@@ -31,7 +31,7 @@ class Account(TimestampMixin, table=True):
     )
 
     aid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
     parent_id: UUID | None = Field(default=None, foreign_key="accounts.aid", nullable=True)
