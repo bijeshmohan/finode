@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -14,7 +15,7 @@ from ...schemas.recurring import RecurringCreate, RecurringPostingData, Recurrin
 from ...services.schedule import describe
 from ...templating import templates
 from .accounts import build_tree
-from .transactions import form_context, form_rows, infer_kind, roots_by_id, split_postings
+from .transactions import category_places, form_context, form_rows, infer_kind, roots_by_id, split_postings
 from .utils import htmx_error, htmx_redirect, validation_message
 
 router = APIRouter(prefix="/recurring")
@@ -168,6 +169,7 @@ def _parse(
     end: str,
     tags: list[str],
     category: list[str] | None = None,
+    places: Mapping[UUID, UUID] | None = None,
 ) -> dict:
     try:
         count = int(every.strip() or "1")
@@ -176,7 +178,7 @@ def _parse(
     started = _parse_date(start, "the start date")
     if started is None:
         raise ValueError("choose a start date!")
-    rows = split_postings(account, side, amount, category)
+    rows = split_postings(account, side, amount, category, places)
     if len(rows) < 2:
         raise ValueError("choose where the money comes from and where it goes!")
     common = {
@@ -210,6 +212,7 @@ def _parse(
 @router.post("")
 def create_recurring(
     accounts: Accounts,
+    categories: Categories,
     recurring: Recurring,
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
@@ -226,7 +229,20 @@ def create_recurring(
     account, side, amount, tags = account or [], side or [], amount or [], tags or []
     try:
         data = RecurringCreate(
-            **_parse(account, side, amount, payee, comment, frequency, every, start, end, tags, category)
+            **_parse(
+                account,
+                side,
+                amount,
+                payee,
+                comment,
+                frequency,
+                every,
+                start,
+                end,
+                tags,
+                category,
+                category_places(accounts, categories),
+            )
         )
         recurring.create(data)
         recurring.process_due()  # a start date in the past is recorded straight away
@@ -255,6 +271,7 @@ def edit_recurring_page(request: Request, rid: UUID, accounts: Accounts, categor
 def update_recurring(
     rid: UUID,
     accounts: Accounts,
+    categories: Categories,
     recurring: Recurring,
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
@@ -271,7 +288,20 @@ def update_recurring(
     account, side, amount, tags = account or [], side or [], amount or [], tags or []
     try:
         data = RecurringUpdate(
-            **_parse(account, side, amount, payee, comment, frequency, every, start, end, tags, category)
+            **_parse(
+                account,
+                side,
+                amount,
+                payee,
+                comment,
+                frequency,
+                every,
+                start,
+                end,
+                tags,
+                category,
+                category_places(accounts, categories),
+            )
         )
         rule = recurring.update(rid, data)
         if rule is not None:

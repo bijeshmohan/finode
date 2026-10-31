@@ -69,33 +69,21 @@ class RecurringService:
             date=day, payee=rule_like.payee, comment=rule_like.comment, tags=list(rule_like.tags), postings=postings
         )
 
-    def _categories_as_lines[T: RecurringCreate | RecurringUpdate](self, data: T) -> T:
-        """Where a rule names a category in place of an account (the id of a category works wherever an account goes),
-        it records on Expenses (a spending category) or Income (an earning one) with that category."""
+    def _rows_on_roots[T: RecurringCreate | RecurringUpdate](self, data: T) -> T:
+        """A row that names only its category records on Expenses (a spending category) or Income (an earning one)."""
+        if not any(p.account is None for p in data.postings):
+            return data
         categories = {c.bcid: c for c in self.transactions.cr.list()}
-        accounts = self.accounts.ar.list()
-        known = {a.aid for a in accounts}
-        roots = {a.name: a.aid for a in accounts if a.parent_id is None}
-
-        def root_of(bcid: UUID) -> UUID:
-            return roots["Expenses" if categories[bcid].kind == "spending" else "Income"]
-
-        update: dict = {}
-        if data.postings:
-            rows = [
-                p.model_copy(update={"account": root_of(p.account), "category": p.category or p.account})
-                if p.account not in known and p.account in categories
-                else p
-                for p in data.postings
-            ]
-            update["postings"] = rows
-        else:
-            for name in ("from_account", "to_account"):
-                value = getattr(data, name)
-                if value is not None and value not in known and value in categories:
-                    update[name] = root_of(value)
-                    update["category"] = data.category or value
-        return data.model_copy(update=update) if update else data
+        roots = {a.name: a.aid for a in self.accounts.ar.list() if a.parent_id is None}
+        rows = []
+        for p in data.postings:
+            if p.account is None:
+                category = categories.get(p.category) if p.category else None
+                if category is None:
+                    raise ValueError(f"category with bcid '{p.category}' not found!")
+                p = p.model_copy(update={"account": roots["Expenses" if category.kind == "spending" else "Income"]})
+            rows.append(p)
+        return data.model_copy(update={"postings": rows})
 
     @staticmethod
     def _rows(data) -> builtins.list[dict]:
@@ -119,8 +107,8 @@ class RecurringService:
                 if row.category_id is not None
             }
             rows = [
-                p.model_copy(update={"category": old.get((p.account, p.side.value))})
-                if "category" not in p.model_fields_set and old.get((p.account, p.side.value))
+                p.model_copy(update={"category": old.get((p.target, p.side.value))})
+                if "category" not in p.model_fields_set and old.get((p.target, p.side.value))
                 else p
                 for p in data.postings
             ]
@@ -145,7 +133,7 @@ class RecurringService:
     def create(self, data: RecurringCreate) -> RecurringRead:
         if len(self.repo.list()) >= MAX_RULES:
             raise ValueError(f"you can have at most {MAX_RULES} recurring transactions!")
-        data = self._categories_as_lines(data)
+        data = self._rows_on_roots(data)
         self._check(data)
         rule = RecurringTransaction(**self._fields(data), user=self.repo.uid, next_date=data.start_date)
         self.repo.add(rule)
@@ -158,7 +146,7 @@ class RecurringService:
         rule = self.repo.read(rid)
         if rule is None:
             return None
-        data = self._keep_labels(rule, self._categories_as_lines(data))
+        data = self._keep_labels(rule, self._rows_on_roots(data))
         self._check(data)
         for field, value in self._fields(data).items():
             setattr(rule, field, value)

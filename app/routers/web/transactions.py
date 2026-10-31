@@ -1,4 +1,5 @@
 import calendar
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -546,9 +547,16 @@ def form_context(accounts: Accounts, categories: Categories, **extra) -> dict:
 
 
 def split_postings(
-    account: list[str], side: list[str], amount: list[str], category: list[str] | None = None
+    account: list[str],
+    side: list[str],
+    amount: list[str],
+    category: list[str] | None = None,
+    places: Mapping[UUID, UUID] | None = None,
 ) -> list[PostingCreate]:
-    """The form's rows as postings. `category` has one entry per row (blank when the row names none)."""
+    """The form's rows as postings. `category` has one entry per row (blank when the row names none). The form picks an
+    expense or an income by its category, so a row whose choice is a key of `places` (category id -> the Expenses or
+    Income account it posts to) is a line on that account labelled with the category."""
+    places = places or {}
     if not (len(account) == len(side) == len(amount)):
         raise ValueError("every posting needs an account, a side and an amount!")
     if category is not None and len(category) != len(account):
@@ -560,15 +568,25 @@ def split_postings(
         if not account_id:
             raise ValueError("every posting needs an account!")
         label = (category[index] if category else "").strip()
+        chosen = UUID(account_id)
+        is_category = chosen in places
         postings.append(
             PostingCreate(
-                account=UUID(account_id),
+                account=places[chosen] if is_category else chosen,
                 side=PostingSide(posting_side),
                 amount=parse_amount(posting_amount),
-                category=UUID(label) if label else None,
+                category=chosen if is_category else (UUID(label) if label else None),
             )
         )
     return postings
+
+
+def category_places(accounts: Accounts, categories: Categories) -> dict[UUID, UUID]:
+    """Where a line labelled with each category posts: the Expenses account for a spending one, Income for an earning one."""
+    roots = {a.name: a.aid for a in accounts.list() if a.parent_id is None}
+    return {
+        c.bcid: roots["Expenses" if c.kind == "spending" else "Income"] for c in categories.list(include_closed=True)
+    }
 
 
 def _after_save(back: str, another: str) -> str:
@@ -803,6 +821,8 @@ def new_transaction_page(
 @router.post("/split")
 def create_split_transaction(
     transactions: Transactions,
+    accounts: Accounts,
+    categories: Categories,
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
     amount: Annotated[list[str] | None, Form()] = None,
@@ -822,7 +842,7 @@ def create_split_transaction(
                 date=date_ or local_today(),
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
-                postings=split_postings(account, side, amount, category),
+                postings=split_postings(account, side, amount, category, category_places(accounts, categories)),
                 related_id=parse_related(related),
                 tags=tags or [],
             )
@@ -910,6 +930,8 @@ def _update(
 def update_transaction(
     tid: UUID,
     transactions: Transactions,
+    accounts: Accounts,
+    categories: Categories,
     date_: Annotated[str, Form(alias="date")] = "",
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
@@ -928,7 +950,7 @@ def update_transaction(
         date_,
         payee,
         comment,
-        lambda: split_postings(account, side, amount, category),
+        lambda: split_postings(account, side, amount, category, category_places(accounts, categories)),
         back,
         related,
         tags,
