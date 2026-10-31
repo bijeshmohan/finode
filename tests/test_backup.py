@@ -35,16 +35,16 @@ def rich(client, root_accounts):
     """A ledger that uses every feature a backup has to carry."""
     client.patch("/api/profile/", json={"first_name": "Ada", "last_name": "L", "default_currency": "INR"})
     banks = acct(client, "Banks", root_accounts["Assets"])
-    bank = acct(client, "HDFC", banks["aid"], balance="50000", details="main account")
-    old = acct(client, "Old Savings", banks["aid"])
+    bank = acct(client, "HDFC", banks["id"], balance="50000", details="main account")
+    old = acct(client, "Old Savings", banks["id"])
     card = acct(client, "Visa", root_accounts["Liabilities"], on_budget=True)
     loan = acct(client, "Home Loan", root_accounts["Liabilities"], on_budget=False)
     food = acct(client, "Food", root_accounts["Expenses"])
-    groceries = acct(client, "Groceries", food["aid"])
+    groceries = acct(client, "Groceries", food["id"])
     emi = acct(client, "EMI", root_accounts["Expenses"])
     salary = acct(client, "Salary", root_accounts["Income"])
-    client.patch(f"/api/accounts/{loan['aid']}", json={"payment_category_id": emi["aid"]})
-    assert client.post(f"/api/accounts/{old['aid']}/close").status_code == 200
+    client.patch(f"/api/accounts/{loan['id']}", json={"payment_category_id": emi["id"]})
+    assert client.post(f"/api/accounts/{old['id']}/close").status_code == 200
 
     dmart = tx(
         client,
@@ -58,7 +58,7 @@ def rich(client, root_accounts):
         [line(card, "debit", "40"), line(groceries, "credit", "40")],
         date="2026-09-04",
         payee="DMart",
-        related_id=dmart["tid"],
+        related_id=dmart["id"],
         source="gmail",
         external_id="msg-9",
         source_url="https://mail.example.com/9",
@@ -75,7 +75,7 @@ def rich(client, root_accounts):
     client.post(
         "/api/recurring/",
         json={
-            "from_account": bank["aid"],
+            "from_account_id": bank["id"],
             **into(client, groceries),
             "amount": "500",
             "frequency": "monthly",
@@ -93,12 +93,12 @@ def rich(client, root_accounts):
             "payee": "Split rule",
         },
     )
-    rid = next(r["rid"] for r in client.get("/api/recurring/").json() if r["payee"] == "Split rule")
+    recurring_id = next(r["id"] for r in client.get("/api/recurring/").json() if r["payee"] == "Split rule")
     assert (
-        client.post(f"/api/recurring/{rid}/skip").status_code == 200
+        client.post(f"/api/recurring/{recurring_id}/skip").status_code == 200
     )  # a skipped occurrence is part of the rule's state
-    client.put(f"/api/budget/categories/{groceries['aid']}", json={"month": "2026-09-01", "amount": "3000"})
-    client.put(f"/api/budget/categories/{emi['aid']}", json={"month": "2026-09-01", "amount": "15000"})
+    client.put(f"/api/budget/categories/{groceries['id']}", json={"month": "2026-09-01", "amount": "3000"})
+    client.put(f"/api/budget/categories/{emi['id']}", json={"month": "2026-09-01", "amount": "15000"})
     assert (
         client.post(
             "/budget/goal", data={"name": "Emergency fund", "amount": "100000", "by": "2999-12", "assign_now": "1"}
@@ -118,18 +118,18 @@ def canonical(doc: dict) -> dict:
     """A backup without ids and timestamps: accounts by path, everything pointing at them by path."""
     by_id = {a["id"]: a for a in doc["accounts"]}
 
-    def path(aid):
+    def path(account_id):
         names = []
-        while aid:
-            names.append(by_id[aid]["name"])
-            aid = by_id[aid]["parent_id"]
+        while account_id:
+            names.append(by_id[account_id]["name"])
+            account_id = by_id[account_id]["parent_id"]
         return ":".join(reversed(names))
 
-    paths = {aid: path(aid) for aid in by_id}
+    paths = {account_id: path(account_id) for account_id in by_id}
     cats = {c["id"]: c for c in doc["categories"]}
-    for bcid, c in cats.items():
+    for category_id, c in cats.items():
         group = cats.get(c["parent_id"])
-        paths[bcid] = (
+        paths[category_id] = (
             ("Expenses" if c["kind"] == "spending" else "Income")
             + ":"
             + (f"{group['name']}:" if group else "")

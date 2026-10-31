@@ -73,7 +73,7 @@ class BackupService:
         accounts = self.accounts.ensure_roots()
         postings: dict[UUID, list] = {}
         for p in sorted(self.tr.all_postings(), key=lambda p: (p.side != PostingSide.DEBIT, p.created)):
-            postings.setdefault(p.transaction, []).append(p)
+            postings.setdefault(p.transaction_id, []).append(p)
         recurring_rows = self.rr.postings()
         tags = self.tr.all_tag_map()
         file = BackupFile(
@@ -87,7 +87,7 @@ class BackupService:
             ),
             accounts=[
                 BackupAccount(
-                    id=a.aid,
+                    id=a.id,
                     parent_id=a.parent_id,
                     name=a.name,
                     details=a.details,
@@ -100,7 +100,7 @@ class BackupService:
             ],
             categories=[
                 BackupCategory(
-                    id=c.bcid,
+                    id=c.id,
                     name=c.name,
                     kind=c.kind,
                     parent_id=c.parent_id,
@@ -112,7 +112,7 @@ class BackupService:
             ],
             transactions=[
                 BackupTransaction(
-                    id=t.tid,
+                    id=t.id,
                     date=t.date,
                     payee=t.payee,
                     comment=t.comment,
@@ -121,29 +121,29 @@ class BackupService:
                     recurring_id=t.recurring_id,
                     recurring_date=t.recurring_date,
                     related_id=t.related_id,
-                    tags=tags.get(t.tid, []),
+                    tags=tags.get(t.id, []),
                     source=t.source,
                     external_id=t.external_id,
                     source_url=t.source_url,
                     postings=[
-                        BackupPosting(account=p.account, side=p.side, amount=p.amount, category=p.category_id)
-                        for p in postings.get(t.tid, [])
+                        BackupPosting(account=p.account_id, side=p.side, amount=p.amount, category=p.category_id)
+                        for p in postings.get(t.id, [])
                     ],
                 )
                 for t in sorted(self.tr.list(), key=lambda t: (t.date, t.created))
             ],
             recurring=[
                 BackupRecurring(
-                    id=r.rid,
-                    from_account=r.from_account,
-                    to_account=r.to_account,
+                    id=r.id,
+                    from_account=r.from_account_id,
+                    to_account=r.to_account_id,
                     amount=r.amount,
                     category=r.category_id,
                     postings=[
                         BackupRecurringPosting(
-                            account=p.account, side=PostingSide(p.side), amount=p.amount, category=p.category_id
+                            account=p.account_id, side=PostingSide(p.side), amount=p.amount, category=p.category_id
                         )
-                        for p in recurring_rows.get(r.rid, [])
+                        for p in recurring_rows.get(r.id, [])
                     ],
                     payee=r.payee,
                     comment=r.comment,
@@ -172,7 +172,7 @@ class BackupService:
                     allocations=[
                         BackupGoalMonth(month=r.month, amount=r.amount)
                         for r in sorted(self.br.goal_allocations(), key=lambda r: r.month)
-                        if r.goal_id == g.gid
+                        if r.goal_id == g.id
                     ],
                 )
                 for g in sorted(self.br.goals(), key=lambda g: (g.target_date, g.name))
@@ -520,15 +520,15 @@ class BackupService:
             ids: dict[UUID, UUID] = {}
             for a in file.accounts:
                 if a.parent_id is None:
-                    ids[a.id] = roots[a.name].aid
+                    ids[a.id] = roots[a.name].id
             # The built-in groups: the ones a file carries (by key) map onto the person's own. An empty built-in group whose
             # name the file uses for an account of its own (a plain "Cash" under Assets) steps aside for it.
             fixed = {a.system_key: a for a in self.accounts.ensure_roots() if a.system_key is not None}
-            by_id_now = {a.aid: a for a in self.accounts.ensure_roots()}
+            by_id_now = {a.id: a for a in self.accounts.ensure_roots()}
             kept: set[UUID] = set()
             for a in file.accounts:
                 if a.system_key in fixed:
-                    ids[a.id] = fixed[a.system_key].aid
+                    ids[a.id] = fixed[a.system_key].id
                     kept.add(a.id)
             taken = {
                 (by_old[a.parent_id].name, a.name)
@@ -537,9 +537,9 @@ class BackupService:
             }
             self.accounts.release_fixed_parents(
                 [
-                    f.aid
+                    f.id
                     for f in fixed.values()
-                    if (by_id_now[cast(UUID, f.parent_id)].name, f.name) in taken and f.aid not in ids.values()
+                    if (by_id_now[cast(UUID, f.parent_id)].name, f.name) in taken and f.id not in ids.values()
                 ]
             )
             opening = None
@@ -552,15 +552,15 @@ class BackupService:
                     and by_old[a.parent_id].parent_id is None
                 ):
                     opening = opening or self.accounts.opening_balances_account()
-                    ids[a.id] = opening.aid
+                    ids[a.id] = opening.id
                     continue
                 created = self.ar.create(
                     AccountCreate(name=a.name, details=a.details, parent_id=ids[a.parent_id]),
                     on_budget=a.on_budget,
                 )
-                ids[a.id] = created.aid
+                ids[a.id] = created.id
             for a in file.accounts:
-                if a.parent_id is None or a.id in kept or ids[a.id] == (opening.aid if opening else None):
+                if a.parent_id is None or a.id in kept or ids[a.id] == (opening.id if opening else None):
                     continue
                 account = self.ar.read(ids[a.id])
                 if account is None:
@@ -573,7 +573,7 @@ class BackupService:
             for c in sorted(file.categories, key=lambda c: c.parent_id is not None):
                 made_category = self.cr.add(
                     BudgetCategory(
-                        user=self.cr.uid,
+                        user_id=self.cr.uid,
                         name=c.name,
                         details=c.details,
                         kind=c.kind,
@@ -582,7 +582,7 @@ class BackupService:
                         closed_on=c.closed_on,
                     )
                 )
-                cats[c.id] = made_category.bcid
+                cats[c.id] = made_category.id
             for a in file.accounts:
                 if a.payment_category_id and a.id in ids and a.id not in kept:
                     account = self.ar.read(ids[a.id])
@@ -594,9 +594,9 @@ class BackupService:
             rules: dict[UUID, UUID] = {}
             for r in file.recurring:
                 rule = RecurringTransaction(
-                    user=self.rr.uid,
-                    from_account=ids.get(r.from_account) if r.from_account else None,
-                    to_account=ids.get(r.to_account) if r.to_account else None,
+                    user_id=self.rr.uid,
+                    from_account_id=ids.get(r.from_account) if r.from_account else None,
+                    to_account_id=ids.get(r.to_account) if r.to_account else None,
                     amount=r.amount,
                     category_id=cats.get(r.category) if r.category else None,
                     payee=r.payee,
@@ -614,10 +614,10 @@ class BackupService:
                 )
                 self.rr.add(rule)
                 self.rr.set_postings(
-                    rule.rid,
+                    rule.id,
                     [
                         {
-                            "account": ids[p.account],
+                            "account_id": ids[p.account],
                             "side": p.side.value,
                             "amount": p.amount,
                             "category_id": cats.get(p.category) if p.category else None,
@@ -625,16 +625,16 @@ class BackupService:
                         for p in r.postings
                     ],
                 )
-                rules[r.id] = rule.rid
+                rules[r.id] = rule.id
 
             made: dict[UUID, UUID] = {}
             for t in file.transactions:
                 postings = [
                     PostingCreate(
-                        account=ids[p.account],
+                        account_id=ids[p.account],
                         side=p.side,
                         amount=p.amount,
-                        category=cats.get(p.category) if p.category else None,
+                        category_id=cats.get(p.category) if p.category else None,
                     )
                     for p in t.postings
                 ]
@@ -654,7 +654,7 @@ class BackupService:
                     if t.recurring_id and t.recurring_date
                     else None,
                 )
-                made[t.id] = entry.tid
+                made[t.id] = entry.id
                 if t.updated_via != t.created_via:
                     entry.updated_via = t.updated_via
                     db.add(entry)
@@ -670,7 +670,7 @@ class BackupService:
             for g in file.goals:
                 goal = self.br.add_goal(g.name, g.amount, g.target_date)
                 for alloc in g.allocations:
-                    self.br.set_goal(alloc.month, goal.gid, alloc.amount)
+                    self.br.set_goal(alloc.month, goal.id, alloc.amount)
             db.commit()
         except Exception:
             db.rollback()

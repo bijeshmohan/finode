@@ -13,7 +13,7 @@ from .books import post_account
 @pytest.fixture
 def tree(client, root_accounts, session):
     def make(name, parent, **extra):
-        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["aid"]
+        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["id"]
 
     banks = make("Banks", root_accounts["Assets"])
     ids = {
@@ -40,10 +40,10 @@ def age(session, *names, days=30):
     session.commit()
 
 
-def item(page: str, aid: str) -> str:
+def item(page: str, account_id: str) -> str:
     """The <li> of one account."""
-    start = page.index('<li data-path="', page.index(f'/accounts/{aid}"') - 400)
-    return page[start : page.index("</li>", page.index(f'/accounts/{aid}"'))]
+    start = page.index('<li data-path="', page.index(f'/accounts/{account_id}"') - 400)
+    return page[start : page.index("</li>", page.index(f'/accounts/{account_id}"'))]
 
 
 def test_a_group_is_a_heading_with_its_accounts_under_it_and_nothing_folds(client, tree):

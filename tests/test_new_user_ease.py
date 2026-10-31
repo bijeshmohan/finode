@@ -17,7 +17,7 @@ def test_the_plan_welcomes_a_new_person_until_something_is_assigned(client, root
     food = account(client, root_accounts, "Food", "Expenses")
     text = client.get("/budget").text
     assert "Give every" in text and "Tap a category below" in text and "Start with your first category" not in text
-    client.put(f"/api/budget/categories/{food['aid']}", json={"amount": "300"})
+    client.put(f"/api/budget/categories/{food['id']}", json={"amount": "300"})
     assert "Give every" not in client.get("/budget").text
 
 

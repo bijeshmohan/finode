@@ -26,7 +26,7 @@ def test_accounts_page_groups_accounts_under_roots_in_order(
     text = response.text
     assert text.index(">Asset<") < text.index(">Liability<") and ">Equity<" not in text, "Equity has no chip"
     assert ">Expenses<" not in text and ">Income<" not in text, "those are on the Categories page"
-    assert f'href="/accounts/{account["aid"]}"' in text
+    assert f'href="/accounts/{account["id"]}"' in text
     assert "checking" in text
 
 
@@ -60,25 +60,25 @@ def test_account_page_shows_balance_activity_and_actions(
         },
     )
 
-    text = client.get(f"/accounts/{bank['aid']}").text
+    text = client.get(f"/accounts/{bank['id']}").text
     assert "70.00" in text
     assert "lunch" in text and "30.00" in text and "−30.00" not in text
-    assert f'href="/transactions/new?account={bank["aid"]}&back=/accounts/{bank["aid"]}"' in text
-    assert f'href="/accounts/{bank["aid"]}/edit"' in text
+    assert f'href="/transactions/new?account={bank["id"]}&back=/accounts/{bank["id"]}"' in text
+    assert f'href="/accounts/{bank["id"]}/edit"' in text
     # it has postings, so it cannot gain sub-accounts
-    assert f"/accounts/new?parent={bank['aid']}" not in text
+    assert f"/accounts/new?parent={bank['id']}" not in text
 
 
 def test_account_page_for_empty_leaf_offers_sub_account(client: TestClient, account: dict):
-    text = client.get(f"/accounts/{account['aid']}").text
-    assert f"/accounts/new?parent={account['aid']}" in text
+    text = client.get(f"/accounts/{account['id']}").text
+    assert f"/accounts/new?parent={account['id']}" in text
     assert "No transactions yet." in text
 
 
 def test_root_and_system_account_pages_are_read_only(client: TestClient, root_accounts: dict[str, str]):
     _bank(client, root_accounts)
-    for aid in (root_accounts["Assets"], _opening_balances(client)["aid"]):
-        assert f"/accounts/{aid}/edit" not in client.get(f"/accounts/{aid}").text
+    for account_id in (root_accounts["Assets"], _opening_balances(client)["id"]):
+        assert f"/accounts/{account_id}/edit" not in client.get(f"/accounts/{account_id}").text
     root_page = client.get(f"/accounts/{root_accounts['Assets']}").text
     assert f"/transactions/new?account={root_accounts['Assets']}" not in root_page
     assert client.get(f"/accounts/{root_accounts['Assets']}/edit").status_code == 404
@@ -116,7 +116,7 @@ def test_create_account_from_form(client: TestClient, root_accounts: dict[str, s
     )
     assert response.status_code == 200
     created = next(a for a in client.get("/api/accounts/").json() if a["name"] == "wallet")
-    assert response.headers["HX-Redirect"] == f"/accounts/{created['aid']}"
+    assert response.headers["HX-Redirect"] == f"/accounts/{created['id']}"
     assert created["balance"] == "1250.50"
     assert created["details"] == "pocket"
 
@@ -129,7 +129,7 @@ def test_create_account_requires_parent(client: TestClient):
 
 def test_create_account_shows_service_errors(client: TestClient, root_accounts: dict[str, str]):
     bank = _bank(client, root_accounts, "5.00")
-    response = client.post("/accounts", data={"name": "child", "parent_id": bank["aid"]})
+    response = client.post("/accounts", data={"name": "child", "parent_id": bank["id"]})
     assert response.status_code == 400
     assert response.headers["HX-Retarget"] == "#form-error"
     assert "has postings" in response.text
@@ -159,19 +159,19 @@ def test_error_messages_are_escaped(client: TestClient, root_accounts: dict[str,
 def test_edit_page_prefills_and_limits_parents_to_same_root(
     client: TestClient, root_accounts: dict[str, str], account: dict
 ):
-    response = client.get(f"/accounts/{account['aid']}/edit")
+    response = client.get(f"/accounts/{account['id']}/edit")
     assert response.status_code == 200
     text = response.text
     assert 'value="checking"' in text
     assert f'value="{root_accounts["Assets"]}" selected' in text
     assert f'value="{root_accounts["Expenses"]}"' not in text
-    assert f'<option value="{account["aid"]}"' not in text
-    assert f'hx-post="/accounts/{account["aid"]}/delete"' in text
+    assert f'<option value="{account["id"]}"' not in text
+    assert f'hx-post="/accounts/{account["id"]}/delete"' in text
 
 
 def test_update_account_from_form(client: TestClient, root_accounts: dict[str, str], account: dict):
     response = client.post(
-        f"/accounts/{account['aid']}/edit",
+        f"/accounts/{account['id']}/edit",
         data={
             "name": "main checking",
             "parent_id": root_accounts["Assets"],
@@ -180,15 +180,15 @@ def test_update_account_from_form(client: TestClient, root_accounts: dict[str, s
         },
     )
     assert response.status_code == 200
-    assert response.headers["HX-Redirect"] == f"/accounts/{account['aid']}"
-    updated = client.get(f"/api/accounts/{account['aid']}").json()
+    assert response.headers["HX-Redirect"] == f"/accounts/{account['id']}"
+    updated = client.get(f"/api/accounts/{account['id']}").json()
     assert updated["name"] == "main checking"
     assert updated["balance"] == "75.00"
 
 
 def test_update_account_unchanged_is_a_noop(client: TestClient, root_accounts: dict[str, str], account: dict):
     response = client.post(
-        f"/accounts/{account['aid']}/edit",
+        f"/accounts/{account['id']}/edit",
         data={"name": "checking", "parent_id": root_accounts["Assets"], "balance": "0.00"},
     )
     assert response.status_code == 200
@@ -197,7 +197,7 @@ def test_update_account_unchanged_is_a_noop(client: TestClient, root_accounts: d
 
 def test_update_account_shows_service_errors(client: TestClient, root_accounts: dict[str, str], account: dict):
     response = client.post(
-        f"/accounts/{account['aid']}/edit",
+        f"/accounts/{account['id']}/edit",
         data={"name": "checking", "parent_id": root_accounts["Liabilities"]},
     )
     assert response.status_code == 400
@@ -217,15 +217,15 @@ def test_update_missing_account_is_404(client: TestClient, root_accounts: dict[s
 
 
 def test_delete_account_from_ui(client: TestClient, account: dict):
-    response = client.post(f"/accounts/{account['aid']}/delete")
+    response = client.post(f"/accounts/{account['id']}/delete")
     assert response.status_code == 200
     assert response.headers["HX-Redirect"] == "/accounts?tab=assets"
-    assert client.get(f"/api/accounts/{account['aid']}").status_code == 404
+    assert client.get(f"/api/accounts/{account['id']}").status_code == 404
 
 
 def test_delete_account_with_postings_shows_error(client: TestClient, root_accounts: dict[str, str]):
     bank = _bank(client, root_accounts, "5.00")
-    response = client.post(f"/accounts/{bank['aid']}/delete")
+    response = client.post(f"/accounts/{bank['id']}/delete")
     assert response.status_code == 400
     assert response.headers["HX-Retarget"] == "#page-error"
     assert "has postings" in response.text
@@ -241,23 +241,23 @@ def test_expense_group_page_shows_direct_postings(client: TestClient, account: d
             ]
         },
     )
-    post_account(client, {"name": "snacks", "parent_id": expense_account["aid"]})
+    post_account(client, {"name": "snacks", "parent_id": expense_account["id"]})
 
-    text = client.get(f"/categories/{expense_account['aid']}").text
+    text = client.get(f"/categories/{expense_account['id']}").text
     assert "posted to groceries itself" in text and "30.00" in text
-    assert f"/transactions/new?category={expense_account['aid']}" in text
-    assert f"/categories/new?parent={expense_account['aid']}" in text
+    assert f"/transactions/new?category={expense_account['id']}" in text
+    assert f"/categories/new?parent={expense_account['id']}" in text
 
 
 def test_the_edit_button_is_beside_the_menu_not_inside_it(client, root_accounts):
     bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}).json()
-    page = client.get(f"/accounts/{bank['aid']}").text
+    page = client.get(f"/accounts/{bank['id']}").text
     head, menu = page.split('<details class="menu">', 1)
-    assert f'class="circ-button" href="/accounts/{bank["aid"]}/edit"' in head and 'title="Edit"' in head
-    assert f"/accounts/{bank['aid']}/edit" not in menu.split("</details>", 1)[0], "it left the menu"
+    assert f'class="circ-button" href="/accounts/{bank["id"]}/edit"' in head and 'title="Edit"' in head
+    assert f"/accounts/{bank['id']}/edit" not in menu.split("</details>", 1)[0], "it left the menu"
     food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
-    cat = client.get(f"/categories/{food['aid']}").text
-    assert f'class="circ-button" href="/categories/{food["aid"]}/edit"' in cat.split('<details class="menu">', 1)[0]
+    cat = client.get(f"/categories/{food['id']}").text
+    assert f'class="circ-button" href="/categories/{food["id"]}/edit"' in cat.split('<details class="menu">', 1)[0]
     roots_page = client.get(f"/accounts/{root_accounts['Assets']}").text
     assert f"/accounts/{root_accounts['Assets']}/edit" not in roots_page, "a top-level account cannot be edited"
 
@@ -266,7 +266,7 @@ def test_the_top_is_a_title_with_its_actions_then_the_figure_and_a_wide_add_butt
     bank = post_account(
         client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10", "details": "main account"}
     ).json()
-    page = client.get(f"/accounts/{bank['aid']}").text
+    page = client.get(f"/accounts/{bank['id']}").text
     head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
     assert (
         head.index("<h1>Bank")
@@ -284,7 +284,7 @@ def test_the_top_is_a_title_with_its_actions_then_the_figure_and_a_wide_add_butt
 
 def test_a_category_has_the_month_pill_in_the_top_row_and_no_label(client, root_accounts):
     food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
-    page = client.get(f"/categories/{food['aid']}").text
+    page = client.get(f"/categories/{food['id']}").text
     nav = page.split('class="cat-bar acct-nav"', 1)[1].split('<header class="account-hero">', 1)[0]
     head = page.split('<header class="account-hero">', 1)[1].split("</header>", 1)[0]
     assert nav.index('class="back"') < nav.index("month-pill"), (
@@ -294,7 +294,7 @@ def test_a_category_has_the_month_pill_in_the_top_row_and_no_label(client, root_
     assert "so far" not in head and "Spent" not in head and "Earned" not in head, "the figure needs no label"
     assert 'title="Previous month"' in nav and 'title="Next month"' not in nav, "nothing after the current month"
     assert "acct-add" not in page, "adding is a + on the Transactions heading"
-    last = client.get(f"/categories/{food['aid']}?month=2026-01").text
+    last = client.get(f"/categories/{food['id']}?month=2026-01").text
     assert 'title="Next month"' in last and "Jan 2026" in last
 
 
@@ -322,10 +322,10 @@ def test_green_and_plus_mean_money_in_on_a_bank_and_a_payment_into_a_card(client
             ],
         },
     )
-    page = client.get(f"/accounts/{card['aid']}").text.split("<h2>Transactions</h2>", 1)[1]
+    page = client.get(f"/accounts/{card['id']}").text.split("<h2>Transactions</h2>", 1)[1]
     assert page.count("tx-amount income") == 1 and "+100.00" in page, "the payment is green with a plus"
     assert "+300.00" not in page and "300.00" in page, "a charge is plain"
-    bank_page = client.get(f"/accounts/{bank['aid']}").text.split("<h2>Transactions</h2>", 1)[1]
+    bank_page = client.get(f"/accounts/{bank['id']}").text.split("<h2>Transactions</h2>", 1)[1]
     assert "+1,000.00" in bank_page and bank_page.count("tx-amount income") == 1, "money into a bank account is green"
     assert "+100.00" not in bank_page, "what leaves the bank is plain"
 
@@ -348,7 +348,7 @@ def test_upcoming_on_a_card_follows_the_same_rule(client, root_accounts):
             ],
         },
     )
-    page = client.get(f"/accounts/{card['aid']}").text
+    page = client.get(f"/accounts/{card['id']}").text
     assert "1 upcoming" in page and "up-amount income" not in page and "+70.00" not in page
 
 
@@ -370,7 +370,7 @@ def test_an_upcoming_payment_into_a_card_is_green_and_a_charge_is_not(client, ro
             ],
         },
     )
-    page = client.get(f"/accounts/{card['aid']}").text
+    page = client.get(f"/accounts/{card['id']}").text
     assert "1 upcoming" in page and "+200.00" in page and "up-amount income" in page
 
 
@@ -379,15 +379,15 @@ def test_a_description_sits_behind_an_i_beside_the_name_not_under_it(client, roo
         client, {"name": "Wallet", "details": "Kept in the bag, for taxis", "parent_id": root_accounts["Assets"]}
     ).json()
     plain = post_account(client, {"name": "Spare", "parent_id": root_accounts["Assets"]}).json()
-    page = client.get(f"/accounts/{made['aid']}").text
+    page = client.get(f"/accounts/{made['id']}").text
     sub = page.split('<p class="acct-sub">', 1)[1].split("</p>", 1)[0]
     assert "Kept in the bag" not in sub and sub.strip() == "Assets", "the line under the name is just the type"
     info = page.split('<details class="note-info">', 1)[1].split("</details>", 1)[0]
     assert "Kept in the bag, for taxis" in info and 'aria-label="About Wallet"' in info
-    assert 'class="note-info"' not in client.get(f"/accounts/{plain['aid']}").text, "no description, no icon"
+    assert 'class="note-info"' not in client.get(f"/accounts/{plain['id']}").text, "no description, no icon"
 
     cat = post_account(client, {"name": "Taxis", "details": "Only cabs", "parent_id": root_accounts["Expenses"]}).json()
-    category_page = client.get(f"/categories/{cat['aid']}").text
+    category_page = client.get(f"/categories/{cat['id']}").text
     assert "Only cabs" in category_page.split('<details class="note-info">', 1)[1].split("</details>", 1)[0]
     assert "Only cabs" not in category_page.split('<p class="acct-sub">', 1)[1].split("</p>", 1)[0]
 
@@ -396,8 +396,8 @@ def test_an_account_with_sub_accounts_lists_them_not_their_transactions(
     client: TestClient, root_accounts: dict[str, str]
 ):
     banks = post_account(client, {"name": "Banks", "parent_id": root_accounts["Assets"]}).json()
-    hdfc = post_account(client, {"name": "HDFC", "parent_id": banks["aid"], "balance": "500.00"}).json()
-    post_account(client, {"name": "ICICI", "parent_id": banks["aid"], "balance": "250.00"})
+    hdfc = post_account(client, {"name": "HDFC", "parent_id": banks["id"], "balance": "500.00"}).json()
+    post_account(client, {"name": "ICICI", "parent_id": banks["id"], "balance": "250.00"})
     shop = post_account(client, {"name": "Shopping", "parent_id": root_accounts["Expenses"]}).json()
     client.post(
         "/api/transactions/",
@@ -410,13 +410,13 @@ def test_an_account_with_sub_accounts_lists_them_not_their_transactions(
         },
     )
 
-    group = client.get(f"/accounts/{banks['aid']}").text
+    group = client.get(f"/accounts/{banks['id']}").text
     assert "Gadget Store" not in group and "Opening balance" not in group, "their entries are on their own pages"
     assert "<h2>Sub-accounts</h2>" in group and "<h2>Transactions</h2>" not in group
-    assert f'href="/accounts/{hdfc["aid"]}"' in group and "HDFC" in group and "ICICI" in group
+    assert f'href="/accounts/{hdfc["id"]}"' in group and "HDFC" in group and "ICICI" in group
     assert "460.00" in group and "250.00" in group, "each sub-account's balance"
-    assert f"/accounts/new?parent={banks['aid']}" in group, "the + adds another"
-    leaf = client.get(f"/accounts/{hdfc['aid']}").text
+    assert f"/accounts/new?parent={banks['id']}" in group, "the + adds another"
+    leaf = client.get(f"/accounts/{hdfc['id']}").text
     assert "Gadget Store" in leaf and "<h2>Sub-accounts</h2>" not in leaf
 
 
@@ -432,7 +432,7 @@ def test_the_new_account_form_asks_whether_it_is_part_of_the_budget(client: Test
     page = client.get(f"/accounts/new?parent={root_accounts['Assets']}").text
     assert "data-budget-fields" in page and 'name="on_budget"' in page and 'name="budget_choice"' in page
     assert 'name="on_budget" value="1" checked' in page, "an asset starts in the budget"
-    assert "Usual category for payments" in page and f'<option value="{expense["aid"]}"' in page
+    assert "Usual category for payments" in page and f'<option value="{expense["id"]}"' in page
     assert 'data-root="Assets"' in page and 'data-root="Liabilities"' in page and 'data-root="Equity"' in page
     liability = client.get(f"/accounts/new?parent={root_accounts['Liabilities']}").text
     assert 'name="on_budget" value="1" checked' not in liability, "a card or loan starts outside it"
@@ -451,10 +451,10 @@ def test_creating_an_account_follows_the_budget_choice(client: TestClient, root_
     assert _made(client, "Fund")["on_budget"] is False, "the box was left off"
     client.post(
         "/accounts",
-        data={**base, "name": "Car loan", "parent_id": root_accounts["Liabilities"], "payment_category": emi["aid"]},
+        data={**base, "name": "Car loan", "parent_id": root_accounts["Liabilities"], "payment_category": emi["id"]},
     )
     loan = _made(client, "Car loan")
-    assert loan["on_budget"] is False and loan["payment_category_id"] == emi["aid"]
+    assert loan["on_budget"] is False and loan["payment_category_id"] == emi["id"]
     client.post("/accounts", data={"name": "Wallet", "parent_id": root_accounts["Assets"]})
     assert _made(client, "Wallet")["on_budget"] is True, "no choice sent: an asset defaults to in"
 
@@ -470,7 +470,7 @@ def test_a_payment_category_only_goes_with_an_account_outside_the_budget(
             "on_budget": "1",
             "name": "A1",
             "parent_id": root_accounts["Assets"],
-            "payment_category": emi["aid"],
+            "payment_category": emi["id"],
         },
     )
     a1 = _made(client, "A1")
@@ -509,19 +509,19 @@ def _under(client, root_accounts, root, name, **extra):
 
 def test_the_back_link_goes_to_the_chip_the_account_is_under(client: TestClient, root_accounts: dict[str, str]):
     card = _under(client, root_accounts, "Liabilities", "Cards")
-    inner = post_account(client, {"name": "Visa", "parent_id": card["aid"]}).json()
+    inner = post_account(client, {"name": "Visa", "parent_id": card["id"]}).json()
     equity = _under(client, root_accounts, "Equity", "Capital")
     bank = _under(client, root_accounts, "Assets", "Bank")
     for account, tab in ((card, "liabilities"), (inner, "liabilities"), (equity, "equity"), (bank, "assets")):
-        text = client.get(f"/accounts/{account['aid']}").text
+        text = client.get(f"/accounts/{account['id']}").text
         assert f'class="back" href="/accounts?tab={tab}"' in text, (account["name"], tab)
 
 
 def test_after_closing_or_deleting_you_land_on_the_chip_it_was_under(client: TestClient, root_accounts: dict[str, str]):
     card = _under(client, root_accounts, "Liabilities", "Visa")
     gone = _under(client, root_accounts, "Liabilities", "Old loan")
-    assert client.post(f"/accounts/{card['aid']}/close").headers["HX-Redirect"] == "/accounts?tab=liabilities"
-    assert client.post(f"/accounts/{gone['aid']}/delete").headers["HX-Redirect"] == "/accounts?tab=liabilities"
+    assert client.post(f"/accounts/{card['id']}/close").headers["HX-Redirect"] == "/accounts?tab=liabilities"
+    assert client.post(f"/accounts/{gone['id']}/delete").headers["HX-Redirect"] == "/accounts?tab=liabilities"
 
 
 def test_the_new_account_page_goes_back_to_its_chip(client: TestClient, root_accounts: dict[str, str]):
@@ -542,10 +542,10 @@ def test_accounts_without_a_group_are_listed_together_after_all_the_groups(
     assets = root_accounts["Assets"]
     make("Apple", assets)
     banks = post_account(client, {"name": "Banks", "parent_id": assets}).json()
-    make("HDFC", banks["aid"])
+    make("HDFC", banks["id"])
     make("Cash", assets)
     zoo = post_account(client, {"name": "Zoo", "parent_id": assets}).json()
-    make("Lion", zoo["aid"])
+    make("Lion", zoo["id"])
     text = client.get("/accounts").text
     order = [text.index(f'data-path="assets › {p}') for p in ("banks › hdfc", "zoo › lion", "apple", "cash")]
     assert order == sorted(order), "the groups come first, then Apple and Cash"

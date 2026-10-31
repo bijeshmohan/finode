@@ -13,8 +13,8 @@ def simple_postings(paid: Decimal, from_id: UUID, to_id: UUID) -> list[PostingCr
     if from_id == to_id:
         raise ValueError("the from and to accounts must differ!")
     return [
-        PostingCreate(account=to_id, side=PostingSide.DEBIT, amount=paid),
-        PostingCreate(account=from_id, side=PostingSide.CREDIT, amount=paid),
+        PostingCreate(account_id=to_id, side=PostingSide.DEBIT, amount=paid),
+        PostingCreate(account_id=from_id, side=PostingSide.CREDIT, amount=paid),
     ]
 
 
@@ -25,6 +25,6 @@ def label_simple(accounts: dict[UUID, Account], postings: list[PostingCreate], c
     for posting in postings:
         account = accounts.get(posting.target)
         if account is not None and not account.on_budget:
-            posting.category = category
+            posting.category_id = category
             return
-    postings[0].category = category
+    postings[0].category_id = category

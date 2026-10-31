@@ -7,7 +7,7 @@
 <a class="back" href="{{ back_url }}">{{ icon("back") }}Back</a>
 <h1 class="sr-only">{{ "Edit transaction" if editing else "New transaction" }}</h1>
 
-{% set post_url = "/transactions/" ~ transaction.tid ~ "/edit" if editing else "/transactions/split" %}
+{% set post_url = "/transactions/" ~ transaction.id ~ "/edit" if editing else "/transactions/split" %}
 <form class="stack txn-form" data-txn-form {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
   <input type="hidden" name="back" value="{{ back }}">
 
@@ -20,13 +20,13 @@
       <input type="date" name="date" value="{{ day }}" required aria-label="Date">
     </label>
     <div class="related" data-related>
-      <input type="hidden" name="related" value="{{ related.transaction.tid if related }}" data-related-value>
+      <input type="hidden" name="related" value="{{ related.transaction.id if related }}" data-related-value>
       <div class="related-chip" data-related-chip{% if not related %} hidden{% endif %}>
         <span><small>Related to</small><b data-related-label>{% if related %}{% include "partials/related_label.html" %}{% endif %}</b></span>
         <button type="button" class="link" data-related-clear aria-label="Remove the link">✕</button>
       </div>
       <button type="button" class="date-chip related-add" data-related-add{% if related %} hidden{% endif %}
-              hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.tid if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">{{ icon("link") }}Transaction</button>
+              hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.id if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">{{ icon("link") }}Transaction</button>
     </div>
   </div>
 
@@ -54,7 +54,7 @@
 <section class="danger-zone quiet">
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
-          hx-post="/transactions/{{ transaction.tid }}/delete{{ '?back=' ~ back|urlencode if back }}">{{ icon("trash") }}Delete transaction</button>
+          hx-post="/transactions/{{ transaction.id }}/delete{{ '?back=' ~ back|urlencode if back }}">{{ icon("trash") }}Delete transaction</button>
 </section>
 {% endif %}
 {% endblock %}

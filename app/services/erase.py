@@ -1,6 +1,6 @@
 """Erase a person's books, or everything of theirs.
 
-Every table that has a `user` column holds somebody's data, so the erasure walks all of them (children before
+Every table that has a `user_id` column holds somebody's data, so the erasure walks all of them (children before
 parents) instead of a list that a new feature could forget. Clearing the books keeps what belongs to the person
 rather than the books: their settings (the profile) and their assistants' tokens and connections.
 """
@@ -24,9 +24,9 @@ class EraseService:
         removed: dict[str, int] = {}
         try:
             for table in reversed(SQLModel.metadata.sorted_tables):
-                if "user" not in table.c or table.name in keep:
+                if "user_id" not in table.c or table.name in keep:
                     continue
-                result = self.db.execute(delete(table).where(table.c.user == self.uid))
+                result = self.db.execute(delete(table).where(table.c.user_id == self.uid))
                 count = cast(CursorResult, result).rowcount  # a DELETE returns a CursorResult
                 if count:
                     removed[table.name] = count

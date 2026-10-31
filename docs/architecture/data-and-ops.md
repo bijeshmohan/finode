@@ -97,4 +97,4 @@ Per person, `settings.max_*` (0 = no limit) bound accounts, transactions in tota
 
 ## Erasing and leaving
 
-Profile › Your data offers **Erase my books** and **Delete my account**. `services/erase.py` walks *every table that has a `user` column*, children first, so a new table is erased without anyone remembering it. Erasing the books keeps `profiles`, `api_tokens` and `oauth_grants`.
+Profile › Your data offers **Erase my books** and **Delete my account**. `services/erase.py` walks *every table that has a `user_id` column*, children first, so a new table is erased without anyone remembering it. Erasing the books keeps `profiles`, `api_tokens` and `oauth_grants`.

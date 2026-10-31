@@ -44,7 +44,7 @@ class Entry:
 
 class AccountIndex:
     def __init__(self, accounts: list[AccountRead], categories: list[CategoryRead] | None = None):
-        by_id = {a.aid: a for a in accounts}
+        by_id = {a.id: a for a in accounts}
         parents = {a.parent_id for a in accounts if a.parent_id is not None}
         self.entries: dict[UUID, Entry] = {}
         for account in accounts:
@@ -53,10 +53,10 @@ class AccountIndex:
             while current.parent_id is not None:
                 current = by_id[current.parent_id]
                 segments.insert(0, current.name)
-            self.entries[account.aid] = Entry(account, segments, segments[0], account.aid in parents)
+            self.entries[account.id] = Entry(account, segments, segments[0], account.id in parents)
         # Categories are not accounts; they are only named here, as the journal would write them (Expenses:Food).
         self.category_paths: dict[UUID, str] = {
-            c.bcid: ("Expenses" if c.kind == "spending" else "Income") + ":" + c.path for c in categories or []
+            c.id: ("Expenses" if c.kind == "spending" else "Income") + ":" + c.path for c in categories or []
         }
 
     def where(self, account: UUID, category: UUID | None) -> tuple[str, UUID]:
@@ -72,8 +72,8 @@ class AccountIndex:
             return self.category_paths[cast(UUID, category)], cast(UUID, category)
         return self.path(account), account
 
-    def path(self, aid: UUID) -> str:
-        entry = self.entries.get(aid)
+    def path(self, account_id: UUID) -> str:
+        entry = self.entries.get(account_id)
         return entry.path if entry else "?"
 
     def sorted(self) -> list[Entry]:
@@ -162,7 +162,7 @@ class Places:
 
     def __init__(self, accounts: AccountIndex, categories: CategoryIndex):
         self.accounts, self.categories = accounts, categories
-        self.roots = {e.account.name: e.account.aid for e in accounts.entries.values() if e.is_root}
+        self.roots = {e.account.name: e.account.id for e in accounts.entries.values() if e.is_root}
 
     def find(self, text: str) -> Place:
         text = (text or "").strip()
@@ -170,7 +170,7 @@ class Places:
         problems: list[str] = []
         try:
             entry = self.accounts.find(text, postable=True)
-            found.append(Place(entry.path, entry.account.aid))
+            found.append(Place(entry.path, entry.account.id))
         except ValueError as e:
             problems.append(str(e))
         try:
@@ -189,7 +189,7 @@ class Places:
                     )
                     raise ValueError(f"'{text}' matches {len(ends)} places: {listed}. Use the full path!")
             root = "Expenses" if category.kind == "spending" else "Income"
-            found.append(Place(f"{root}:{category.path}", self.roots[root], category.bcid))
+            found.append(Place(f"{root}:{category.path}", self.roots[root], category.id))
         except ValueError as e:
             problems.append(str(e))
         if len(found) == 1:

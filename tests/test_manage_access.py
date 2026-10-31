@@ -21,10 +21,10 @@ def test_a_token_can_be_made_with_and_moved_between_every_level(client, session)
 
     token = ApiTokenRepository(session, TEST_USER_ID).list()[0]
     for scope in ("write", "read", "manage"):
-        assert client.post(f"/profile/assistants/{token.tkid}/access", data={"scope": scope}).headers["HX-Redirect"]
+        assert client.post(f"/profile/assistants/{token.id}/access", data={"scope": scope}).headers["HX-Redirect"]
         session.expire_all()
         assert ApiTokenRepository(session, TEST_USER_ID).list()[0].scope == scope
-    assert client.post(f"/profile/assistants/{token.tkid}/access", data={"scope": "root"}).status_code == 400
+    assert client.post(f"/profile/assistants/{token.id}/access", data={"scope": "root"}).status_code == 400
 
 
 def test_each_level_offers_the_other_two(client, session):
@@ -44,7 +44,7 @@ def test_each_level_offers_the_other_two(client, session):
 def _tkid(session, name):
     from app.repositories.api_token import ApiTokenRepository
 
-    return next(t.tkid for t in ApiTokenRepository(session, TEST_USER_ID).list() if t.name == name)
+    return next(t.id for t in ApiTokenRepository(session, TEST_USER_ID).list() if t.name == name)
 
 
 @pytest.mark.anyio

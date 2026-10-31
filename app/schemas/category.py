@@ -35,7 +35,7 @@ class CategoryUpdate(BaseModel):
 
 
 class CategoryRead(BaseModel):
-    bcid: UUID
+    id: UUID
     name: str
     kind: CategoryKindName
     parent_id: UUID | None = None

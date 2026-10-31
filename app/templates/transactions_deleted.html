@@ -21,7 +21,7 @@
     </span>
     <span class="del-side">
       <span class="del-amount">{{ debits|sum(attribute="amount")|money }}</span>
-      <button type="button" class="secondary" hx-post="/transactions/deleted/{{ e.hid }}/restore" hx-target="#restore-error" hx-swap="innerHTML">Restore</button>
+      <button type="button" class="secondary" hx-post="/transactions/deleted/{{ e.id }}/restore" hx-target="#restore-error" hx-swap="innerHTML">Restore</button>
     </span>
   </li>
   {% endfor %}

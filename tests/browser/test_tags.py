@@ -113,7 +113,7 @@ def test_a_note_with_a_hash_stays_a_note(page: Page, books, api: Api):
 
 def test_editing_an_entry_shows_its_tags_and_saves_the_changes(page: Page, books, api: Api):
     made = add(api, books, "Taj", "Hotel", "840", tags=["goa-trip", "work"])
-    page.goto(f"/transactions/{made['tid']}/edit")
+    page.goto(f"/transactions/{made['id']}/edit")
     chips = page.locator("[data-tags-chips] [data-tag]")
     expect(chips).to_have_count(2)
     page.locator(".hash-btn").click()
@@ -122,7 +122,7 @@ def test_editing_an_entry_shows_its_tags_and_saves_the_changes(page: Page, books
     expect(chips).to_have_count(1)
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url("**/transactions")
-    assert api.get(f"/transactions/{made['tid']}")["tags"] == ["goa-trip"]
+    assert api.get(f"/transactions/{made['id']}")["tags"] == ["goa-trip"]
 
 
 def test_tapping_a_tag_with_a_finger(touch_page: Page, books, api: Api):

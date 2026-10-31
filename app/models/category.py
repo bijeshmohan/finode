@@ -28,7 +28,7 @@ class BudgetCategory(TimestampMixin, table=True):
         # The built-in Uncategorised of each kind, one per person.
         Index(
             "uq_budget_categories_user_system_key",
-            "user",
+            "user_id",
             "system_key",
             unique=True,
             sqlite_where=text("system_key IS NOT NULL"),
@@ -36,12 +36,12 @@ class BudgetCategory(TimestampMixin, table=True):
         ),
     )
 
-    bcid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
     kind: str = Field(max_length=8)
-    parent_id: UUID | None = Field(default=None, foreign_key="budget_categories.bcid", nullable=True)
+    parent_id: UUID | None = Field(default=None, foreign_key="budget_categories.id", nullable=True)
     # Set on the built-in Uncategorised categories ("uncategorised.spending", "uncategorised.earning").
     system_key: str | None = Field(default=None, max_length=40)
     # The day it was closed: no longer offered, history kept.

@@ -13,7 +13,7 @@ Money = Field()
 
 class BudgetLeftOut(BaseModel):
     # An account that could be part of the budget but is not, and what it paid for this month.
-    aid: UUID
+    account_id: UUID
     path: str
     entries: int
     spent: Decimal = Money
@@ -23,7 +23,7 @@ class BudgetUncategorised(BaseModel):
     """A payment into an account outside the budget (a loan, a fund) that no category took: the money left the budget
     and no envelope paid for it, so Ready to assign dropped."""
 
-    tid: UUID
+    transaction_id: UUID
     date: Date
     payee: str | None = None
     # The account it went into, as a path.
@@ -34,7 +34,7 @@ class BudgetUncategorised(BaseModel):
 class BudgetCard(BaseModel):
     """A credit card (or other liability that is part of the budget): what is set aside to pay it."""
 
-    aid: UUID
+    account_id: UUID
     path: str
     # What is owed on it at the end of the month; that much of the budget's money is reserved for the bill and
     # is already out of ready_to_assign. Zero for a card in credit.
@@ -45,7 +45,7 @@ class BudgetCard(BaseModel):
 
 
 class BudgetLine(BaseModel):
-    aid: UUID
+    category_id: UUID
     # The category's name, and its path below Expenses, e.g. "Food:Groceries".
     name: str
     path: str
@@ -67,7 +67,7 @@ class GoalLine(BaseModel):
     """A goal: money set aside for something by a month. Not a category; nothing is spent from it directly (it hands its
     money to a category with `use_goal`)."""
 
-    gid: UUID
+    id: UUID
     name: str
     # How much is needed, and the month it is needed by (the first day of it).
     amount: Decimal = Money
@@ -180,5 +180,5 @@ class GoalUse(BaseModel):
     """Hand money a goal saved to the category that paid for something."""
 
     month: Day | None = None
-    category: UUID
+    category_id: UUID
     amount: Decimal = Amount

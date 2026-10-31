@@ -13,7 +13,7 @@ from .books import post_account
 @pytest.fixture
 def ledger(client, root_accounts):
     def make(name, parent, **extra):
-        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["aid"]
+        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["id"]
 
     return make("Bank", root_accounts["Assets"], balance="5000"), make("Food", root_accounts["Expenses"])
 
@@ -26,23 +26,23 @@ def record(client, bank, food, payee="Lunch", amount="120", on=None, **extra):
             "payee": payee,
             "comment": "with notes",
             "postings": [
-                {"category": food, "side": "debit", "amount": amount},
-                {"account": bank, "side": "credit", "amount": amount},
+                {"category_id": food, "side": "debit", "amount": amount},
+                {"account_id": bank, "side": "credit", "amount": amount},
             ],
             **extra,
         },
     )
     assert r.status_code == 201, r.text
-    return r.json()["tid"]
+    return r.json()["id"]
 
 
-def hid_of(svc, tid):
-    return next(d.hid for d in svc.transactions.deleted() if str(d.transaction) == tid)
+def hid_of(svc, transaction_id):
+    return next(d.id for d in svc.transactions.deleted() if str(d.transaction_id) == transaction_id)
 
 
-def restore(client, hid):
+def restore(client, history_id):
     """Press Restore on the Recently deleted page."""
-    return client.post(f"/transactions/deleted/{hid}/restore")
+    return client.post(f"/transactions/deleted/{history_id}/restore")
 
 
 def restored(response) -> bool:
@@ -51,41 +51,41 @@ def restored(response) -> bool:
 
 def test_a_deleted_entry_is_listed_and_restored_as_it_was(client, ledger, svc):
     bank, food = ledger
-    tid = record(client, bank, food, on=local_today() - timedelta(days=3))
-    before = client.get(f"/api/transactions/{tid}").json()
-    assert client.delete(f"/api/transactions/{tid}").status_code in (200, 204)
-    assert client.get(f"/api/transactions/{tid}").status_code == 404
+    transaction_id = record(client, bank, food, on=local_today() - timedelta(days=3))
+    before = client.get(f"/api/transactions/{transaction_id}").json()
+    assert client.delete(f"/api/transactions/{transaction_id}").status_code in (200, 204)
+    assert client.get(f"/api/transactions/{transaction_id}").status_code == 404
     page = client.get("/transactions/deleted").text
     assert "Lunch" in page and "120.00" in page and "Restore" in page
-    assert restored(restore(client, hid_of(svc, tid)))
-    after = client.get(f"/api/transactions/{tid}").json()
-    assert after["tid"] == tid, "the same id"
+    assert restored(restore(client, hid_of(svc, transaction_id)))
+    after = client.get(f"/api/transactions/{transaction_id}").json()
+    assert after["id"] == transaction_id, "the same id"
     for key in ("date", "payee", "comment"):
         assert after[key] == before[key]
-    assert sorted((p["account"], p["side"], p["amount"]) for p in after["postings"]) == sorted(
-        (p["account"], p["side"], p["amount"]) for p in before["postings"]
+    assert sorted((p["account_id"], p["side"], p["amount"]) for p in after["postings"]) == sorted(
+        (p["account_id"], p["side"], p["amount"]) for p in before["postings"]
     )
     assert client.get("/api/reports/trial-balance").json()["balanced"] is True
     assert "Lunch" not in client.get("/transactions/deleted").text, "what is back leaves the list"
-    assert [h.action for h in svc.transactions.history(UUID(tid))] == ["created", "deleted", "created"]
+    assert [h.action for h in svc.transactions.history(UUID(transaction_id))] == ["created", "deleted", "created"]
 
 
 def test_the_web_button_restores_and_says_so(client, ledger, svc):
     bank, food = ledger
-    tid = record(client, bank, food)
-    client.delete(f"/api/transactions/{tid}")
-    done = restore(client, hid_of(svc, tid))
+    transaction_id = record(client, bank, food)
+    client.delete(f"/api/transactions/{transaction_id}")
+    done = restore(client, hid_of(svc, transaction_id))
     assert restored(done) and "transaction-restored" in done.headers["set-cookie"]
-    assert client.get(f"/api/transactions/{tid}").status_code == 200
+    assert client.get(f"/api/transactions/{transaction_id}").status_code == 200
 
 
 def test_restoring_twice_or_something_unknown_is_refused(client, ledger, svc):
     bank, food = ledger
-    tid = record(client, bank, food)
-    client.delete(f"/api/transactions/{tid}")
-    hid = hid_of(svc, tid)
-    assert restored(restore(client, hid))
-    again = restore(client, hid)
+    transaction_id = record(client, bank, food)
+    client.delete(f"/api/transactions/{transaction_id}")
+    history_id = hid_of(svc, transaction_id)
+    assert restored(restore(client, history_id))
+    again = restore(client, history_id)
     assert (
         again.status_code == 400 and "already back" in again.text and again.headers["HX-Retarget"] == "#restore-error"
     )
@@ -95,12 +95,12 @@ def test_restoring_twice_or_something_unknown_is_refused(client, ledger, svc):
 
 def test_only_the_latest_deletion_of_an_entry_can_be_restored(client, ledger, svc):
     bank, food = ledger
-    tid = record(client, bank, food)
-    client.delete(f"/api/transactions/{tid}")
-    first = hid_of(svc, tid)
+    transaction_id = record(client, bank, food)
+    client.delete(f"/api/transactions/{transaction_id}")
+    first = hid_of(svc, transaction_id)
     restore(client, first)
-    client.patch(f"/api/transactions/{tid}", json={"payee": "Changed"})
-    client.delete(f"/api/transactions/{tid}")
+    client.patch(f"/api/transactions/{transaction_id}", json={"payee": "Changed"})
+    client.delete(f"/api/transactions/{transaction_id}")
     old = restore(client, first)
     assert old.status_code == 400
     listed = client.get("/transactions/deleted").text
@@ -110,11 +110,11 @@ def test_only_the_latest_deletion_of_an_entry_can_be_restored(client, ledger, sv
 def test_an_account_that_is_gone_blocks_the_restore_with_a_reason(client, ledger, svc):
     bank, food = ledger
     assets = client.get(f"/api/accounts/{bank}").json()["parent_id"]
-    other = client.post("/api/accounts/", json={"name": "Wallet", "parent_id": assets}).json()["aid"]
-    tid = record(client, other, food)
-    client.delete(f"/api/transactions/{tid}")
+    other = client.post("/api/accounts/", json={"name": "Wallet", "parent_id": assets}).json()["id"]
+    transaction_id = record(client, other, food)
+    client.delete(f"/api/transactions/{transaction_id}")
     assert client.delete(f"/api/accounts/{other}").status_code in (200, 204)
-    refused = restore(client, hid_of(svc, tid))
+    refused = restore(client, hid_of(svc, transaction_id))
     assert refused.status_code == 400 and "no longer exists" in refused.text
 
 
@@ -131,8 +131,8 @@ def test_nothing_deleted_says_so(client):
 # ---- related links -------------------------------------------------------------------------------------------------
 
 
-def related_of(client, tid):
-    return client.get(f"/api/transactions/{tid}").json()["related_id"]
+def related_of(client, transaction_id):
+    return client.get(f"/api/transactions/{transaction_id}").json()["related_id"]
 
 
 def test_a_restored_entry_is_related_to_the_same_earlier_entry_again(client, ledger, svc):
@@ -142,7 +142,7 @@ def test_a_restored_entry_is_related_to_the_same_earlier_entry_again(client, led
     client.delete(f"/api/transactions/{refund}")
     assert restore(client, hid_of(svc, refund)).status_code == 200
     assert related_of(client, refund) == original
-    assert [t["tid"] for t in client.get(f"/api/transactions/{original}/related").json()] == [refund]
+    assert [t["id"] for t in client.get(f"/api/transactions/{original}/related").json()] == [refund]
 
 
 def test_entries_that_pointed_at_a_restored_one_point_at_it_again(client, ledger, svc):

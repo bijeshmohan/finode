@@ -56,5 +56,5 @@ async def test_assistants_can_ask_how_a_payee_is_booked(session, habits):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
         answer = payload(await c.call_tool("payee_defaults", {"payee": "manjunatha"}))
         top = answer["payees"][0]
-        assert top["usually"]["to"] == "Expenses:meat" and top["usually"]["to_id"] == habits["meat"]["aid"]
+        assert top["usually"]["to"] == "Expenses:meat" and top["usually"]["to_id"] == habits["meat"]["id"]
         assert top["uses"] == 3 and top["other_routes"][0]["to"] == "Expenses:groceries"

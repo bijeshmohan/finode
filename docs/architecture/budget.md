@@ -85,11 +85,11 @@ Budget targets (monthly, weekly, refill, by-date and yearly wishes per category,
 
 - **Web:** `/budget` (Ready to assign, categories ranked by size, sheets for assigning), a group's page, `/budget/move`.
 - **Home:** one number, *Left to spend*, taken from the same `view()`.
-- **API:** `GET /api/budget/`, `PUT /api/budget/categories/{aid}`.
+- **API:** `GET /api/budget/`, `PUT /api/budget/categories/{account_id}`.
 - **MCP:** `get_budget`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`.
 
 Next: [The web UI](web-ui.md).
 
 ## Categories apart from the books (2026-10-29)
 
-The plan is kept against **budget categories** (`budget_categories`: spending or earning, two levels), not against Expenses accounts. A category is a label on the lines of a transaction (`postings.category_id`); the budget's activity is the lines that carry a spending category in entries that touch a budget account, where the line's own account is not part of the budget. An Income or Expenses account has a category (`accounts.category_id`; for most accounts a category of its own, with the same id), so an expense still needs no extra step. A payment into a loan or fund carries the category it was labelled with, which is how an EMI or a SIP is budgeted without an account made up for it. Several books accounts may feed one category (Interest under EMI): the Budget counts them together and the books keep them apart. A payment saved without a category is listed in the bell's To do sheet. The identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − Σ goal available − assigned to later months` is unchanged.
+The plan is kept against **budget categories** (`budget_categories`: spending or earning, two levels), not against Expenses accounts. A category is a label on the lines of a transaction (`postings.category_id`); the budget's activity is the lines that carry a spending category in entries that touch a budget account, where the line's own account is not part of the budget. The books are pure: an expense debits the root Expenses account and an income credits Income, and the line itself carries the category, so there is no account behind a category. A payment into a loan or fund carries the category it was labelled with, which is how an EMI or a SIP is budgeted without an account made up for it. A payment saved without a category is listed in the bell's To do sheet. The identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − Σ goal available − assigned to later months` is unchanged.

@@ -186,7 +186,7 @@ def test_sign_up_closes_when_everyone_the_limit_allows_is_in(raw_client, session
     from app.models.profile import Profile
 
     monkeypatch.setattr(settings, "max_users", 2)
-    session.add_all([Profile(user=uuid4()), Profile(user=uuid4())])
+    session.add_all([Profile(user_id=uuid4()), Profile(user_id=uuid4())])
     session.commit()
     response = raw_client.post("/signup", data=FORM)
     assert response.status_code == 403 and "Registration is full" in response.text
@@ -203,7 +203,7 @@ def test_a_wrong_code_is_refused_before_the_limit_is_mentioned(raw_client, sessi
     from app.models.profile import Profile
 
     monkeypatch.setattr(settings, "max_users", 1)
-    session.add(Profile(user=uuid4()))
+    session.add(Profile(user_id=uuid4()))
     session.commit()
     response = raw_client.post("/signup", data={**FORM, "invite_code": "wrong"})
     assert response.status_code == 403 and "Invalid invite code" in response.text

@@ -40,8 +40,8 @@ def test_assigning_changes_ready_to_assign_without_a_reload(page: Page, books):
 
 
 def test_copying_last_months_amounts(page: Page, books, api: Api):
-    api.put(f"/budget/categories/{books['food']['aid']}", month=LAST_MONTH.isoformat(), amount="300")
-    api.put(f"/budget/categories/{books['rent']['aid']}", month=LAST_MONTH.isoformat(), amount="900")
+    api.put(f"/budget/categories/{books['food']['id']}", month=LAST_MONTH.isoformat(), amount="300")
+    api.put(f"/budget/categories/{books['rent']['id']}", month=LAST_MONTH.isoformat(), amount="900")
     page.goto("/budget")
     button = page.get_by_role("button", name="Copy last month's amounts")
     expect(button).to_contain_text("1,200.00")
@@ -72,9 +72,9 @@ def test_a_card_the_budget_includes_is_in_the_sum(page: Page, books, api: Api):
 
 def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(page: Page, books, api: Api):
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
-    delivery = api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
-    api.post("/accounts/", name="Restaurant", parent_id=dining["aid"])
-    api.put(f"/budget/categories/{delivery['aid']}", amount="300")
+    delivery = api.post("/accounts/", name="Delivery", parent_id=dining["id"])
+    api.post("/accounts/", name="Restaurant", parent_id=dining["id"])
+    api.put(f"/budget/categories/{delivery['id']}", amount="300")
     page.goto("/budget")
     expect(page.locator("a.catrow", has_text="Delivery")).to_have_count(0)  # inside the group, on its page
     expect(page.locator("a.grow", has_text="Dining")).to_contain_text("Delivery")  # the hint names what is inside
@@ -103,7 +103,7 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(pa
 
 def test_the_budget_rows_have_no_notch_under_their_bars(page: Page, books, api: Api):
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
-    api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
+    api.post("/accounts/", name="Delivery", parent_id=dining["id"])
     page.goto("/budget")
     expect(page.locator("a.crow .bar").first).to_be_visible()
     expect(page.locator("a.crow .pace")).to_have_count(0)
@@ -112,8 +112,8 @@ def test_the_budget_rows_have_no_notch_under_their_bars(page: Page, books, api: 
 def test_every_bar_runs_the_full_width_of_its_row(page: Page, books, api: Api):
     """A bar shorter than its row reads as "partly full" even when it is complete, so it spans the whole row, at phone and desktop width."""
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
-    api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
-    api.put(f"/budget/categories/{books['rent']['aid']}", amount="900")
+    api.post("/accounts/", name="Delivery", parent_id=dining["id"])
+    api.put(f"/budget/categories/{books['rent']['id']}", amount="900")
     for width in (390, 1100):
         page.set_viewport_size({"width": width, "height": 800})
         page.goto("/budget")
@@ -126,9 +126,9 @@ def test_every_bar_runs_the_full_width_of_its_row(page: Page, books, api: Api):
 
 
 def test_budget_names_and_amounts_line_up(page: Page, books, api: Api):
-    delivery = api.post("/accounts/", name="Delivery", parent_id=books["food"]["aid"])
-    api.put(f"/budget/categories/{books['rent']['aid']}", amount="900")
-    api.put(f"/budget/categories/{delivery['aid']}", amount="100")
+    delivery = api.post("/accounts/", name="Delivery", parent_id=books["food"]["id"])
+    api.put(f"/budget/categories/{books['rent']['id']}", amount="900")
+    api.put(f"/budget/categories/{delivery['id']}", amount="100")
     page.goto("/budget")
     lefts = page.eval_on_selector_all(
         ".crow-name", "els => els.filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().left))"
@@ -213,7 +213,7 @@ def test_save_is_above_the_keyboard_and_tappable_on_a_phone_and_a_small_phone(pa
             "₹3,800.00"
         )  # it saved on the first tap
         page.evaluate("window.__keyboard(0)")
-        api_reset = page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})
+        api_reset = page.request.put(f"/api/budget/categories/{books['food']['id']}", data={"amount": "0"})
         assert api_reset.ok
 
 
@@ -246,7 +246,7 @@ def test_save_works_after_the_keyboard_is_put_away_with_its_own_button(page: Pag
     expect(page.locator("#cat-sheet")).not_to_be_visible()
     assert page.request.get("/api/budget/").ok
     page.evaluate("window.__keyboard(0)")
-    page.request.put(f"/api/budget/categories/{books['food']['aid']}", data={"amount": "0"})
+    page.request.put(f"/api/budget/categories/{books['food']['id']}", data={"amount": "0"})
 
 
 def test_a_new_goal_is_made_from_the_save_chip_and_shows_its_share_as_you_type(page: Page, books):
@@ -311,7 +311,7 @@ def test_a_goal_hands_its_money_to_a_category_from_its_sheet(page: Page, books, 
     expect(sheet).to_be_visible()
     sheet.get_by_role("button", name="Use it for…").click()
     expect(sheet.locator("h2")).to_have_text("Use Bike for…")
-    sheet.locator("select[name=category]").select_option(books["rent"]["aid"])
+    sheet.locator("select[name=category]").select_option(books["rent"]["id"])
     sheet.locator("input[name=amount]").fill("4,000")
     sheet.get_by_role("button", name="Use it").click()
     expect(sheet).not_to_be_visible()
@@ -350,7 +350,7 @@ def test_tapping_the_amount_in_a_sheet_focuses_it_and_does_not_close_the_sheet(
     """On a phone, focusing the amount makes the sheet change shape and the release can land on the dim area, which used to
     close the sheet (a subcategory on a group's page lost the tap far more often than a top-level category)."""
     dining = api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
-    api.post("/accounts/", name="Delivery", parent_id=dining["aid"])
+    api.post("/accounts/", name="Delivery", parent_id=dining["id"])
     phone = page.context.browser.new_context(
         base_url=live_server, has_touch=True, is_mobile=True, viewport={"width": 390, "height": 780}
     )

@@ -52,12 +52,12 @@ def test_a_new_person_is_in_rupees(client, session):
 
 
 def test_the_currency_can_be_changed_and_only_relabels(client, account, session):
-    client.patch(f"/api/accounts/{account['aid']}", json={"balance": "1500.50"})
+    client.patch(f"/api/accounts/{account['id']}", json={"balance": "1500.50"})
     changed = client.patch("/api/profile/", json={"default_currency": "usd"})
     assert changed.status_code == 200 and changed.json()["default_currency"] == "USD"
     assert services(session).reports.summary().currency == "USD"
     assert client.get("/api/budget/").json()["currency"] == "USD"
-    assert client.get(f"/api/accounts/{account['aid']}").json()["balance"] == "1500.50", "nothing is converted"
+    assert client.get(f"/api/accounts/{account['id']}").json()["balance"] == "1500.50", "nothing is converted"
 
 
 def test_other_profile_edits_leave_the_currency_alone(client):
@@ -140,7 +140,7 @@ def test_opening_balances_follow_the_same_rule(client, root_accounts):
 
 def test_the_budget_follows_it_too(client, root_accounts, expense_account):
     post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "500"})
-    refused = client.put(f"/api/budget/categories/{expense_account['aid']}", json={"amount": "1.234"})
+    refused = client.put(f"/api/budget/categories/{expense_account['id']}", json={"amount": "1.234"})
     assert refused.status_code == 400 and "decimal places" in refused.json()["detail"]
 
 
@@ -158,9 +158,9 @@ def test_assets_and_prices_are_gone(client, path):
 def test_the_api_has_no_commodities_values_or_currencies_per_record(client, account, expense_account, session):
     made = post(client, expense_account, account, "10").json()
     assert "currency" not in made and all("value" not in p for p in made["postings"])
-    read = client.get(f"/api/accounts/{account['aid']}").json()
+    read = client.get(f"/api/accounts/{account['id']}").json()
     assert "commodity" not in read and "unpriced" not in read
-    assert client.get(f"/api/accounts/{account['aid']}/holding").status_code in (404, 405)
+    assert client.get(f"/api/accounts/{account['id']}/holding").status_code in (404, 405)
     summary = plain(services(session).reports.summary())
     assert "unpriced" not in summary
     trial = client.get("/api/reports/trial-balance").json()
@@ -173,8 +173,8 @@ def test_extra_fields_from_older_clients_are_ignored(client, root_accounts, acco
         json={
             "currency": "USD",
             "postings": [
-                {"category": expense_account["aid"], "side": "debit", "amount": "10", "value": "3"},
-                {"account": account["aid"], "side": "credit", "amount": "10", "value": "3"},
+                {"category_id": expense_account["id"], "side": "debit", "amount": "10", "value": "3"},
+                {"account_id": account["id"], "side": "credit", "amount": "10", "value": "3"},
             ],
         },
     )
@@ -195,8 +195,8 @@ def test_the_account_form_has_no_commodity_fields(client):
 
 def test_old_history_rows_still_read_and_do_not_count_as_a_change(client, session, account, expense_account):
     made = post(client, expense_account, account, "10").json()
-    tid = UUID(made["tid"])
-    [row] = session.exec(select(TransactionHistory).where(TransactionHistory.transaction_id == tid)).all()
+    transaction_id = UUID(made["id"])
+    [row] = session.exec(select(TransactionHistory).where(TransactionHistory.transaction_id == transaction_id)).all()
     # What an older finode wrote: a currency and a worth in every posting.
     old = dict(row.snapshot)
     old["currency_id"] = "00000000-0000-4000-8000-000000000999"
@@ -204,10 +204,10 @@ def test_old_history_rows_still_read_and_do_not_count_as_a_change(client, sessio
     row.snapshot = old
     session.add(row)
     session.commit()
-    history = plain(services(session).transactions.history(tid))
+    history = plain(services(session).transactions.history(transaction_id))
     assert len(history) == 1 and history[0]["postings"][0]["amount"] == "10.00" and "currency" not in history[0]
     saved = client.patch(
-        f"/api/transactions/{tid}",
+        f"/api/transactions/{transaction_id}",
         json={
             "payee": made["payee"],
             "postings": [
@@ -217,6 +217,6 @@ def test_old_history_rows_still_read_and_do_not_count_as_a_change(client, sessio
         },
     )
     assert saved.status_code == 200
-    assert len(services(session).transactions.history(tid)) == 1, "saving it unchanged adds nothing"
-    client.patch(f"/api/transactions/{tid}", json={"payee": "Changed"})
-    assert len(services(session).transactions.history(tid)) == 2
+    assert len(services(session).transactions.history(transaction_id)) == 1, "saving it unchanged adds nothing"
+    client.patch(f"/api/transactions/{transaction_id}", json={"payee": "Changed"})
+    assert len(services(session).transactions.history(transaction_id)) == 2

@@ -11,7 +11,7 @@
 <ul class="card list">
   {% for row in group %}{% set r = row.rule %}
   <li>
-    <a class="tx{{ ' tx-system' if row.status in ('paused', 'ended') }}" href="/recurring/{{ r.rid }}/edit">
+    <a class="tx{{ ' tx-system' if row.status in ('paused', 'ended') }}" href="/recurring/{{ r.id }}/edit">
       <span class="tx-main">
         <span class="tx-title">{{ r.payee or row.to_name }}</span>
         {% if r.last_error %}<span class="tx-sub error">Couldn't record: {{ r.last_error }}</span>

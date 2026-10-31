@@ -61,8 +61,8 @@ def test_add_again_opens_the_form_filled_in(page: Page, books, api: Api):
     page.get_by_role("link", name="Repeat").click()
     page.wait_for_url("**/transactions/new?repeat=*")
     assert page.input_value("#total") == "1,286.00" and page.input_value("#payee") == "DMart"
-    assert page.input_value('[data-rows="credit"] select') == books["checking"]["aid"]
-    assert page.input_value('[data-rows="debit"] select') == books["food"]["aid"]
+    assert page.input_value('[data-rows="credit"] select') == books["checking"]["id"]
+    assert page.input_value('[data-rows="debit"] select') == books["food"]["id"]
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     assert len([t for t in api.get("/transactions/") if t["payee"] == "DMart"]) == 2
@@ -252,7 +252,7 @@ def test_home_starts_short_and_show_more_finishes_the_month(page: Page, books, a
 
 def test_the_sheet_opens_on_an_account_page_and_a_category_page_and_edit_comes_back(page: Page, books, api: Api):
     add(api, books, "Swiggy", "food", "card")
-    for url in (f"/accounts/{books['card']['aid']}", f"/categories/{books['food']['aid']}"):
+    for url in (f"/accounts/{books['card']['id']}", f"/categories/{books['food']['id']}"):
         page.goto(url)
         page.locator("a.tx", has_text="Swiggy").click()
         expect(page.locator("#txn-sheet")).to_be_visible()
@@ -277,7 +277,7 @@ def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(page: Pag
     api.post(
         "/transactions/",
         payee="Swiggy refund",
-        related_id=first["tid"],
+        related_id=first["id"],
         source="gmail",
         external_id="msg-1042",
         postings=[

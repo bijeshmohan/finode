@@ -38,8 +38,8 @@ class ApiToken(TimestampMixin, table=True):
     __tablename__ = "api_tokens"
     __table_args__ = (CheckConstraint("scope IN ('read', 'write', 'manage')", name="ck_api_tokens_scope"),)
 
-    tkid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     name: str = Field(max_length=40)
     scope: str = Field(max_length=10)
     # sha256 of the secret, hex; the secret itself is shown once and never stored.

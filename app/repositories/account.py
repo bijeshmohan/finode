@@ -24,7 +24,7 @@ class AccountRepository:
     def create(self, data: AccountCreate, on_budget: bool = False, record: bool = True) -> Account:
         """`record=False` is for what finode makes by itself (the Opening Balances account): no history row."""
         values = data.model_dump(exclude={"balance", "on_budget"})
-        account = Account(**values, on_budget=on_budget, user=self.uid)
+        account = Account(**values, on_budget=on_budget, user_id=self.uid)
         self.db.add(account)
         self.db.flush()
         if record:
@@ -32,12 +32,12 @@ class AccountRepository:
         return account
 
     def _snapshot(self, account: Account) -> dict:
-        by_id = {a.aid: a for a in self.list()}
+        by_id = {a.id: a for a in self.list()}
         names: builtins.list[str] = []
         seen: set[UUID] = set()
         current: Account | None = account
-        while current is not None and current.aid not in seen:
-            seen.add(current.aid)
+        while current is not None and current.id not in seen:
+            seen.add(current.id)
             names.append(current.name)
             current = by_id.get(current.parent_id) if current.parent_id else None
         return {
@@ -54,25 +54,25 @@ class AccountRepository:
         """Append what the account looks like now to its history (an unchanged save adds nothing)."""
         snapshot = {**self._snapshot(account), **extra}
         if action == "updated" and not extra:
-            previous = self.history(account.aid)
+            previous = self.history(account.id)
             if previous and {k: v for k, v in previous[-1].snapshot.items() if not k.startswith("merged_")} == snapshot:
                 return
         self.db.add(
-            AccountHistory(user=self.uid, account_id=account.aid, action=action, via=self.origin, snapshot=snapshot)
+            AccountHistory(user_id=self.uid, account_id=account.id, action=action, via=self.origin, snapshot=snapshot)
         )
         self.db.flush()
 
-    def history(self, aid: UUID) -> builtins.list[AccountHistory]:
+    def history(self, account_id: UUID) -> builtins.list[AccountHistory]:
         """What happened to one account, oldest first (works for a deleted one too)."""
         return self.db.exec(
             select(AccountHistory)
-            .where(AccountHistory.user == self.uid, AccountHistory.account_id == aid)
-            .order_by(AccountHistory.at, AccountHistory.hid)
+            .where(AccountHistory.user_id == self.uid, AccountHistory.account_id == account_id)
+            .order_by(AccountHistory.at, AccountHistory.id)
         ).all()
 
     def history_since(self, since, via: str | None, limit: int) -> builtins.list[AccountHistory]:
         """The newest history rows of every account, optionally from a moment on and by one origin ("assistant" is any)."""
-        statement = select(AccountHistory).where(AccountHistory.user == self.uid)
+        statement = select(AccountHistory).where(AccountHistory.user_id == self.uid)
         if since is not None:
             statement = statement.where(AccountHistory.at >= since)
         if via == "assistant":
@@ -80,7 +80,7 @@ class AccountRepository:
         elif via:
             statement = statement.where(AccountHistory.via == via)
         return self.db.exec(
-            statement.order_by(col(AccountHistory.at).desc(), col(AccountHistory.hid)).limit(limit)
+            statement.order_by(col(AccountHistory.at).desc(), col(AccountHistory.id)).limit(limit)
         ).all()
 
     def histories_for(self, aids: builtins.list[UUID]) -> builtins.list[AccountHistory]:
@@ -88,24 +88,24 @@ class AccountRepository:
             return []
         return self.db.exec(
             select(AccountHistory)
-            .where(AccountHistory.user == self.uid, col(AccountHistory.account_id).in_(aids))
-            .order_by(AccountHistory.at, AccountHistory.hid)
+            .where(AccountHistory.user_id == self.uid, col(AccountHistory.account_id).in_(aids))
+            .order_by(AccountHistory.at, AccountHistory.id)
         ).all()
 
     def count(self) -> int:
-        return self.db.exec(select(func.count()).select_from(Account).where(Account.user == self.uid)).one()
+        return self.db.exec(select(func.count()).select_from(Account).where(Account.user_id == self.uid)).one()
 
-    def read(self, aid: UUID) -> Account | None:
+    def read(self, account_id: UUID) -> Account | None:
         statement = select(Account).where(
-            Account.aid == aid,
-            Account.user == self.uid,
+            Account.id == account_id,
+            Account.user_id == self.uid,
         )
         account = self.db.exec(statement).first()
         return account
 
     def list(self) -> builtins.list[Account]:
         """Every account of the person, loaded once per session (see repositories/cache.py)."""
-        statement = select(Account).where(Account.user == self.uid)
+        statement = select(Account).where(Account.user_id == self.uid)
         return list(remembered(self.db, ("accounts", self.uid), lambda: self.db.exec(statement).all()))
 
     def read_by_name(
@@ -115,7 +115,7 @@ class AccountRepository:
     ) -> Account | None:
         statement = select(Account).where(
             Account.name == name,
-            Account.user == self.uid,
+            Account.user_id == self.uid,
             Account.parent_id == parent_id,
         )
         account = self.db.exec(statement).first()
@@ -123,12 +123,12 @@ class AccountRepository:
 
     def update(
         self,
-        aid: UUID,
+        account_id: UUID,
         data: AccountUpdate,
         on_budget: bool | None = None,
         payment_category: UUID | EllipsisType | None = ...,
     ) -> Account | None:
-        account = self.read(aid)
+        account = self.read(account_id)
         if not account:
             return None
         values = data.model_dump(exclude_unset=True, exclude={"balance", "on_budget", "payment_category_id"})
@@ -143,8 +143,8 @@ class AccountRepository:
         self._record(account, "updated")
         return account
 
-    def delete(self, aid: UUID, **extra) -> Account | None:
-        account = self.read(aid)
+    def delete(self, account_id: UUID, **extra) -> Account | None:
+        account = self.read(account_id)
         if not account:
             return None
         self._record(account, "deleted", **extra)
@@ -153,30 +153,32 @@ class AccountRepository:
         return account
 
     def record_deletion(self, account_id: UUID, snapshot: dict) -> None:
-        self.db.add(AccountDeletion(user=self.uid, account_id=account_id, snapshot=snapshot))
+        self.db.add(AccountDeletion(user_id=self.uid, account_id=account_id, snapshot=snapshot))
         self.db.flush()
 
     def deletions(self) -> builtins.list[AccountDeletion]:
         """Every deletion, newest first."""
         return self.db.exec(
-            select(AccountDeletion).where(AccountDeletion.user == self.uid).order_by(col(AccountDeletion.at).desc())
+            select(AccountDeletion).where(AccountDeletion.user_id == self.uid).order_by(col(AccountDeletion.at).desc())
         ).all()
 
-    def deletion(self, did: UUID) -> AccountDeletion | None:
+    def deletion(self, deletion_id: UUID) -> AccountDeletion | None:
         return self.db.exec(
-            select(AccountDeletion).where(AccountDeletion.did == did, AccountDeletion.user == self.uid)
+            select(AccountDeletion).where(AccountDeletion.id == deletion_id, AccountDeletion.user_id == self.uid)
         ).first()
 
-    def restore(self, aid: UUID, fields: dict) -> Account:
+    def restore(self, account_id: UUID, fields: dict) -> Account:
         """Put a deleted account back with its old id."""
-        account = Account(aid=aid, user=self.uid, **fields)
+        account = Account(id=account_id, user_id=self.uid, **fields)
         self.db.add(account)
         self.db.flush()
         self._record(account, "restored")
         return account
 
     def set_closed(self, aids: builtins.list[UUID], day: date | None) -> None:
-        for account in self.db.exec(select(Account).where(Account.user == self.uid, col(Account.aid).in_(aids))).all():
+        for account in self.db.exec(
+            select(Account).where(Account.user_id == self.uid, col(Account.id).in_(aids))
+        ).all():
             account.closed_on = day
             self.db.add(account)
             self.db.flush()
@@ -186,7 +188,7 @@ class AccountRepository:
     def clear_payment_category(self, category_id: UUID) -> None:
         """Accounts whose payments were budgeted under this category (it is being deleted) stop pointing at it."""
         for account in self.db.exec(
-            select(Account).where(Account.user == self.uid, Account.payment_category_id == category_id)
+            select(Account).where(Account.user_id == self.uid, Account.payment_category_id == category_id)
         ).all():
             account.payment_category_id = None
             self.db.add(account)
@@ -198,7 +200,7 @@ class AccountRepository:
         """How many accounts budget their payments under this category."""
         return len(
             self.db.exec(
-                select(Account.aid).where(Account.user == self.uid, Account.payment_category_id == category_id)
+                select(Account.id).where(Account.user_id == self.uid, Account.payment_category_id == category_id)
             ).all()
         )
 
@@ -206,7 +208,7 @@ class AccountRepository:
         """Accounts whose payments were budgeted under `source` use `target` instead (a merge)."""
         moved = 0
         for account in self.db.exec(
-            select(Account).where(Account.user == self.uid, Account.payment_category_id == source)
+            select(Account).where(Account.user_id == self.uid, Account.payment_category_id == source)
         ).all():
             account.payment_category_id = target
             self.db.add(account)
@@ -215,9 +217,9 @@ class AccountRepository:
             moved += 1
         return moved
 
-    def has_children(self, aid: UUID) -> bool:
+    def has_children(self, account_id: UUID) -> bool:
         statement = select(Account).where(
-            Account.parent_id == aid,
-            Account.user == self.uid,
+            Account.parent_id == account_id,
+            Account.user_id == self.uid,
         )
         return self.db.exec(statement).first() is not None

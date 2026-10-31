@@ -10,7 +10,7 @@
 {% endif %}
 
 <form class="stack txn-form" data-txn-form {{ "data-editing" if editing }}
-      hx-post="{{ '/recurring/' ~ rule.rid ~ '/edit' if editing else '/recurring' }}" data-currency="{{ currency }}">
+      hx-post="{{ '/recurring/' ~ rule.id ~ '/edit' if editing else '/recurring' }}" data-currency="{{ currency }}">
   {% set with_payee = true %}
   {% set payee_value = (rule.payee or '') if editing else '' %}
   {% include "partials/txn_rows.html" %}
@@ -56,18 +56,18 @@
   <h2>{{ "Paused" if not rule.active else "Active" }}</h2>
   {% if rule.active %}
   <p class="muted">Pause it to stop recording without losing the rule.</p>
-  <div class="actions"><button type="button" class="secondary" hx-post="/recurring/{{ rule.rid }}/pause">Pause</button></div>
+  <div class="actions"><button type="button" class="secondary" hx-post="/recurring/{{ rule.id }}/pause">Pause</button></div>
   <p class="muted">Just this once? Skip the next one ({{ rule.next_date|friendly_date }}) and carry on after it.</p>
-  <div class="actions"><button type="button" class="secondary" hx-post="/recurring/{{ rule.rid }}/skip"
+  <div class="actions"><button type="button" class="secondary" hx-post="/recurring/{{ rule.id }}/skip"
     hx-confirm="Skip {{ rule.next_date.strftime('%d %b %Y') }}? Nothing will be recorded for it.">Skip {{ rule.next_date|friendly_date }}</button></div>
   {% elif status != "ended" %}
   <p class="muted">Occurrences missed while paused are skipped.</p>
-  <div class="actions"><button type="button" hx-post="/recurring/{{ rule.rid }}/resume">Resume</button></div>
+  <div class="actions"><button type="button" hx-post="/recurring/{{ rule.id }}/resume">Resume</button></div>
   {% else %}
   <p class="muted">It has ended. Move the end date to carry on.</p>
   {% endif %}
   <div class="actions">
-    <button type="button" class="danger" hx-post="/recurring/{{ rule.rid }}/delete"
+    <button type="button" class="danger" hx-post="/recurring/{{ rule.id }}/delete"
             hx-confirm="Delete this recurring transaction? Transactions it already recorded are kept.">{{ icon("trash") }}Delete</button>
   </div>
 </section>

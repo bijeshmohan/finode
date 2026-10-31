@@ -20,7 +20,7 @@ class ProfileRepository:
         return remembered(
             self.db,
             ("profile", self.uid),
-            lambda: self.db.exec(select(Profile).where(Profile.user == self.uid)).first(),
+            lambda: self.db.exec(select(Profile).where(Profile.user_id == self.uid)).first(),
         )
 
     def currency(self) -> str:
@@ -34,7 +34,7 @@ class ProfileRepository:
         if profile:
             return profile
         try:
-            profile = Profile(user=self.uid, currency=DEFAULT_CURRENCY)
+            profile = Profile(user_id=self.uid, currency=DEFAULT_CURRENCY)
             self.db.add(profile)
             self.db.commit()
         except IntegrityError:

@@ -94,7 +94,7 @@ See [Data and operations](data-and-ops.md) for deployment details and [MCP and a
 
 ## Cross-cutting rules worth knowing
 
-- **Isolation.** Every table carries a `user` column and every query filters on it. `tests/test_isolation.py` is the guard: it classifies every route and tries to reach person A's data as person B.
+- **Isolation.** Every table carries a `user_id` column and every query filters on it. `tests/test_isolation.py` is the guard: it classifies every route and tries to reach person A's data as person B.
 - **One currency per person.** Stored amounts are plain numbers; the currency (`profiles.currency`) only decides how they are labelled and how many decimals are allowed.
 - **Derived, not stored.** Balances, the budget's available amounts and Ready to assign are computed from postings and the plan on demand, so editing the ledger cannot leave them stale.
 - **Today.** Code asks `clock.local_today()`, never `date.today()`, so "today" follows `FINODE_TIMEZONE`.

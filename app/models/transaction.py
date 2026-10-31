@@ -23,7 +23,7 @@ class Transaction(TimestampMixin, table=True):
         Index("uq_transactions_recurring", "recurring_id", "recurring_date", unique=True),
         Index(
             "uq_transactions_reference",
-            "user",
+            "user_id",
             "source",
             "external_id",
             unique=True,
@@ -32,8 +32,8 @@ class Transaction(TimestampMixin, table=True):
         ),
     )
 
-    tid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     date: Date = Field(default_factory=local_today)
     payee: str | None = Field(default=None, max_length=40)
     comment: str | None = Field(default=None, max_length=200)
@@ -42,10 +42,10 @@ class Transaction(TimestampMixin, table=True):
     created_via: str | None = Field(default=None, max_length=60)
     updated_via: str | None = Field(default=None, max_length=60)
     # Set when a recurring rule recorded it: the rule and the occurrence it stands for.
-    recurring_id: UUID | None = Field(default=None, foreign_key="recurring_transactions.rid", index=True)
+    recurring_id: UUID | None = Field(default=None, foreign_key="recurring_transactions.id", index=True)
     recurring_date: Date | None = Field(default=None)
     # The earlier entry this one belongs with (a refund, a reversal, a cash-back…): just a link, no meaning yet.
-    related_id: UUID | None = Field(default=None, foreign_key="transactions.tid", index=True)
+    related_id: UUID | None = Field(default=None, foreign_key="transactions.id", index=True)
     # Where the entry came from outside finode (a bank, a mail, a UPI app): a short kind ("gmail", "upi"), the
     # reference that source gave it and a link back. A source's reference is used once per person, so recording the
     # same one again finds the entry instead of making a copy.
@@ -62,15 +62,15 @@ class Posting(TimestampMixin, table=True):
         CheckConstraint("side IN ('DEBIT', 'CREDIT')", name="ck_postings_side"),
     )
 
-    pid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
-    transaction: UUID = Field(index=True, foreign_key="transactions.tid")
-    account: UUID = Field(index=True, foreign_key="accounts.aid")
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
+    transaction_id: UUID = Field(index=True, foreign_key="transactions.id")
+    account_id: UUID = Field(index=True, foreign_key="accounts.id")
     side: PostingSide
     amount: Decimal = Field(sa_type=Amount())
     # What this line was for (a budget category). Any line may carry one; the budget counts it when the entry touches
     # a budget account and the line's own account is not part of the budget.
-    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.bcid", nullable=True, index=True)
+    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.id", nullable=True, index=True)
 
     @field_validator("amount")
     @classmethod

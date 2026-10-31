@@ -41,7 +41,7 @@ def test_a_choice_survives_a_kind_that_still_offers_it(page: Page, books):
     page.goto("/transactions/new")
     page.select_option('[data-rows="credit"] select', label="Checking")
     page.get_by_role("button", name="Transfer", exact=True).click()
-    assert page.input_value('[data-rows="credit"] select') == books["checking"]["aid"]
+    assert page.input_value('[data-rows="credit"] select') == books["checking"]["id"]
     page.get_by_role("button", name="Income", exact=True).click()
     assert page.input_value('[data-rows="credit"] select') == "", "an asset is not an income source"
 
@@ -60,7 +60,7 @@ def test_saving_an_expense(page: Page, books, api: Api):
     expect(page.locator("a.tx.tx-new")).to_contain_text("DMart")
     [entry] = [t for t in api.get("/transactions/") if t["payee"] == "DMart"]
     assert {(p["side"], p["amount"]) for p in entry["postings"]} == {("debit", "250.00"), ("credit", "250.00")}
-    assert api.get(f"/categories/{books['food']['aid']}/register")[-1]["balance"] == "250.00"
+    assert api.get(f"/categories/{books['food']['id']}/register")[-1]["balance"] == "250.00"
 
 
 def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
@@ -102,8 +102,8 @@ def test_swapping_from_and_to_keeps_a_transfer_and_an_expense_has_no_swap(page: 
     page.select_option('[data-rows="credit"] select', label="Checking")
     page.select_option('[data-rows="debit"] select', label="Cash")
     page.click("[data-swap-sides]")
-    assert page.input_value('[data-rows="credit"] select') == books["cash"]["aid"]
-    assert page.input_value('[data-rows="debit"] select') == books["checking"]["aid"]
+    assert page.input_value('[data-rows="credit"] select') == books["cash"]["id"]
+    assert page.input_value('[data-rows="debit"] select') == books["checking"]["id"]
     expect(page.locator('[data-kind="transfer"]')).to_have_attribute("aria-pressed", "true")
 
 
@@ -129,7 +129,7 @@ def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
             leg(books["checking"], "credit", "40"),
         ],
     )
-    page.goto(f"/transactions/{entry['tid']}/edit")
+    page.goto(f"/transactions/{entry['id']}/edit")
     expect(page.locator('[data-kind="expense"]')).to_have_attribute("aria-pressed", "true")
     assert page.input_value("#total") == "40.00" and amounts(page, "credit") == ["40.00"]
     page.fill("#total", "55")
@@ -137,7 +137,7 @@ def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
     page.fill('[data-rows="debit"] [name="amount"]', "55")
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url("**/transactions")
-    assert api.get(f"/transactions/{entry['tid']}")["postings"][0]["amount"] == "55.00"
+    assert api.get(f"/transactions/{entry['id']}")["postings"][0]["amount"] == "55.00"
 
 
 def history(api: Api, books, payee="Swiggy", source="card", target="food"):
@@ -158,8 +158,8 @@ def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(p
     expect(chip).to_be_visible()
     page.fill("#total", "250")  # 1. the amount
     chip.click()  # 2. who
-    assert page.input_value('[data-rows="credit"] select') == books["card"]["aid"]
-    assert page.input_value('[data-rows="debit"] select') == books["food"]["aid"]
+    assert page.input_value('[data-rows="credit"] select') == books["card"]["id"]
+    assert page.input_value('[data-rows="debit"] select') == books["food"]["id"]
     assert page.input_value("#payee") == "Swiggy"
     expect(page.locator('[data-kind="expense"]')).to_have_attribute("aria-pressed", "true")
     expect(page.get_by_role("button", name="Save", exact=True)).to_be_focused()
@@ -167,9 +167,9 @@ def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(p
     page.wait_for_url("**/transactions")
     newest = api.get("/transactions/")[0]
     assert newest["payee"] == "Swiggy" and {p["amount"] for p in newest["postings"]} == {"250.00"}
-    assert {(p["category"] or p["account"], p["side"]) for p in newest["postings"]} == {
-        (books["card"]["aid"], "credit"),
-        (books["food"]["aid"], "debit"),
+    assert {(p["category_id"] or p["account_id"], p["side"]) for p in newest["postings"]} == {
+        (books["card"]["id"], "credit"),
+        (books["food"]["id"], "debit"),
     }
 
 
@@ -190,7 +190,7 @@ def test_typing_a_known_payee_fills_the_accounts_without_taking_the_focus(page: 
     page.click("#payee")
     page.keyboard.type("swiggy")
     expect(page.locator("#payee-chips .chip[data-exact]")).to_be_visible()
-    assert page.input_value('[data-rows="debit"] select') == books["food"]["aid"]
+    assert page.input_value('[data-rows="debit"] select') == books["food"]["id"]
     assert page.evaluate("document.activeElement.id") == "payee", "typing can go on"
     page.keyboard.type(" instamart")
     assert page.input_value("#payee") == "swiggy instamart"
@@ -317,7 +317,7 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books,
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     [new] = [t for t in api.get("/transactions/") if t["payee"] == "Swiggy cash-back"]
-    assert new["related_id"] == first["tid"]
+    assert new["related_id"] == first["id"]
     page.locator(
         "a.tx", has_text="Swiggy"
     ).last.click()  # the original now lists it, and the sheet of one opens the other
@@ -349,7 +349,7 @@ def test_the_picker_relates_an_entry_and_the_chip_removes_it(page: Page, books, 
     page.locator("[data-related-pick]").click()
     expect(page.locator("#related-picker")).not_to_be_visible()
     expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy")
-    assert page.input_value("[data-related-value]") == first["tid"]
+    assert page.input_value("[data-related-value]") == first["id"]
     page.locator("[data-related-clear]").click()
     expect(page.locator("[data-related-chip]")).to_be_hidden()
     expect(page.locator("[data-related-add]")).to_be_visible()
@@ -457,7 +457,7 @@ def test_a_lone_row_has_no_cross_and_a_split_has_one_on_every_row(page: Page, bo
     page.goto("/transactions/new")
     expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
     page.fill("#total", "100")
-    page.locator('[data-rows="debit"] select').first.select_option(books["food"]["aid"])
+    page.locator('[data-rows="debit"] select').first.select_option(books["food"]["id"])
     page.fill('[data-rows="debit"] [name="amount"]', "60")
     expect(page.locator('[data-rows="debit"] [data-remove-row]:visible')).to_have_count(2)
     (

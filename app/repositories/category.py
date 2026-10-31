@@ -7,7 +7,7 @@ import builtins
 from datetime import date
 from uuid import UUID
 
-from sqlmodel import Session, col, select
+from sqlmodel import Session, select
 
 from ..models.category import BudgetCategory
 from .cache import remembered
@@ -24,24 +24,24 @@ class CategoryRepository:
 
     def list(self) -> builtins.list[BudgetCategory]:
         """Every category of the person, loaded once per session (see repositories/cache.py)."""
-        statement = select(BudgetCategory).where(BudgetCategory.user == self.uid)
+        statement = select(BudgetCategory).where(BudgetCategory.user_id == self.uid)
         return list(remembered(self.db, ("categories", self.uid), lambda: self.db.exec(statement).all()))
 
-    def read(self, bcid: UUID) -> BudgetCategory | None:
-        return next((c for c in self.list() if c.bcid == bcid), None)
+    def read(self, category_id: UUID) -> BudgetCategory | None:
+        return next((c for c in self.list() if c.id == category_id), None)
 
     def by_system_key(self, key: str) -> BudgetCategory | None:
         return next((c for c in self.list() if c.system_key == key), None)
 
-    def has_children(self, bcid: UUID) -> bool:
-        return any(c.parent_id == bcid for c in self.list())
+    def has_children(self, category_id: UUID) -> bool:
+        return any(c.parent_id == category_id for c in self.list())
 
-    def used_by_lines(self, bcid: UUID) -> bool:
+    def used_by_lines(self, category_id: UUID) -> bool:
         from ..models.transaction import Posting
 
         return (
             self.db.exec(
-                select(Posting.pid).where(Posting.user == self.uid, Posting.category_id == bcid).limit(1)
+                select(Posting.id).where(Posting.user_id == self.uid, Posting.category_id == category_id).limit(1)
             ).first()
             is not None
         )
@@ -62,7 +62,7 @@ class CategoryRepository:
 
     def set_closed(self, bcids: builtins.list[UUID], day: date | None) -> None:
         for category in self.list():
-            if category.bcid in bcids:
+            if category.id in bcids:
                 category.closed_on = day
                 self.db.add(category)
         self.db.flush()
@@ -78,18 +78,4 @@ class CategoryRepository:
             return found
         taken = {c.name.casefold() for c in self.list() if c.parent_id is None and c.kind == kind}
         name = UNCATEGORISED if UNCATEGORISED.casefold() not in taken else f"{UNCATEGORISED} (built-in)"
-        return self.add(BudgetCategory(user=self.uid, name=name, kind=kind, system_key=key))
-
-    def set_system_key(self, bcid: UUID, key: str) -> None:
-        category = self.db.get(BudgetCategory, bcid)
-        if category is not None:
-            category.system_key = key
-            self.db.add(category)
-            self.db.flush()
-
-    def children_of(self, bcid: UUID) -> builtins.list[BudgetCategory]:
-        return builtins.list(
-            self.db.exec(
-                select(BudgetCategory).where(BudgetCategory.user == self.uid, col(BudgetCategory.parent_id) == bcid)
-            ).all()
-        )
+        return self.add(BudgetCategory(user_id=self.uid, name=name, kind=kind, system_key=key))

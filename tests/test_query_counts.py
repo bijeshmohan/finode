@@ -55,8 +55,8 @@ def grow(client, root_accounts, accounts: int, transactions: int, start: int = 0
             "/api/transactions/",
             json={
                 "postings": [
-                    {"category": expenses[i % len(expenses)]["aid"], "side": "debit", "amount": "5"},
-                    {"account": assets[i % len(assets)]["aid"], "side": "credit", "amount": "5"},
+                    {"category_id": expenses[i % len(expenses)]["id"], "side": "debit", "amount": "5"},
+                    {"account_id": assets[i % len(assets)]["id"], "side": "credit", "amount": "5"},
                 ]
             },
         )
@@ -77,7 +77,7 @@ def test_the_number_of_queries_does_not_grow_with_the_books(client, root_account
 
 def test_an_accounts_own_page_and_its_filtered_list_do_not_grow_either(client, root_accounts, count_queries):
     grow(client, root_accounts, accounts=6, transactions=6)
-    busiest = client.get("/api/accounts/").json()[0]["aid"]
+    busiest = client.get("/api/accounts/").json()[0]["id"]
     first = {
         "page": count_queries(lambda: client.get(f"/accounts/{busiest}")),
         "list": count_queries(lambda: client.get(f"/transactions?account={busiest}")),
@@ -94,8 +94,8 @@ def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_account
     """Checking each posting's account used to cost two queries per row."""
     grow(client, root_accounts, accounts=14, transactions=0)
     accounts = client.get("/api/accounts/").json()
-    assets = [a["aid"] for a in accounts if a["parent_id"] == root_accounts["Assets"]]
-    expenses = [c["bcid"] for c in client.get("/api/categories/").json()]
+    assets = [a["id"] for a in accounts if a["parent_id"] == root_accounts["Assets"]]
+    expenses = [c["id"] for c in client.get("/api/categories/").json()]
 
     def save(rows: int):
         data = {

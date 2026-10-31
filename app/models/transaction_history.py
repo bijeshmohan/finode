@@ -18,11 +18,11 @@ class TransactionHistory(SQLModel, table=True):
     __tablename__ = "transaction_history"
     __table_args__ = (
         CheckConstraint("action IN ('created', 'updated', 'deleted')", name="ck_transaction_history_action"),
-        Index("ix_transaction_history_user_transaction", "user", "transaction_id"),
+        Index("ix_transaction_history_user_transaction", "user_id", "transaction_id"),
     )
 
-    hid: UUID = Field(default_factory=uuid4, primary_key=True)
-    user: UUID = Field(index=True, foreign_key="auth.users.id")
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(index=True, foreign_key="auth.users.id")
     transaction_id: UUID
     action: str = Field(max_length=10)
     at: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))

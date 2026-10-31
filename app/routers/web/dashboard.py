@@ -52,13 +52,13 @@ def dashboard(
     chunk, month_total = transactions.page(0, HOME_FIRST, date_from=when, date_to=min(month_end, local_today()))
     recent = [to_row(t, index) for t in chunk]
     more = _more({"scope": "home", "month": when.strftime("%Y-%m")}, len(recent), month_total, HOME_MORE, HOME_MORE)
-    roots = {a.name: a.aid for a in all_accounts if a.parent_id is None}
-    system_ids = {a.aid for a in all_accounts if AccountService.is_opening_balances(a, all_accounts)}
-    used_roots = {index.roots[a.aid] for a in all_accounts if a.parent_id is not None and a.aid not in system_ids}
+    roots = {a.name: a.id for a in all_accounts if a.parent_id is None}
+    system_ids = {a.id for a in all_accounts if AccountService.is_opening_balances(a, all_accounts)}
+    used_roots = {index.roots[a.id] for a in all_accounts if a.parent_id is not None and a.id not in system_ids}
 
     # Opening balances are bookkeeping, not a transaction the user recorded.
     def recorded(rows):
-        return any(not any(p.account in system_ids for p in row.transaction.postings) for row in rows)
+        return any(not any(p.account_id in system_ids for p in row.transaction.postings) for row in rows)
 
     has_recorded = recorded(recent)
     if (

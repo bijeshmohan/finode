@@ -27,15 +27,6 @@ def clean_tag(value: str) -> str:
     return value.strip().lstrip("#").strip().lower()
 
 
-def without_tags(note: str | None) -> str:
-    """The note with its tags taken out, for places that show the tags apart from the words ("Dinner #goa-trip" -> "Dinner")."""
-    kept = note or ""
-    for match in reversed(list(_TAG.finditer(kept))):
-        if any(c.isalpha() for c in match.group(1)):
-            kept = kept[: match.start()] + kept[match.end() :]
-    return " ".join(kept.split())
-
-
 # What a tag is once it is its own thing (not read out of a note): the same letters as before, kept exactly.
 MAX_TAGS_PER_ENTRY = 10
 _NAME = re.compile(rf"[A-Za-z0-9](?:[A-Za-z0-9_-]{{0,{MAX_TAG - 2}}}[A-Za-z0-9])?")

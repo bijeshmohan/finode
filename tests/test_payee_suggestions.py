@@ -55,7 +55,7 @@ def test_chips_carry_the_accounts_used_the_last_time(client, books):
     pay(client, "Swiggy", books["card"], books["delivery"])  # the newest is the one repeated
     [(payee, kind, from_id, to_id, exact)] = chips(client)  # once, even though it was paid twice
     assert (payee, kind, exact) == ("Swiggy", "expense", "")
-    assert (from_id, to_id) == (books["card"]["aid"], books["delivery"]["aid"])
+    assert (from_id, to_id) == (books["card"]["id"], books["delivery"]["id"])
 
 
 def test_there_is_no_amount_suggestion(client, books):
@@ -104,11 +104,11 @@ def test_splits_entries_without_a_payee_and_closed_accounts_are_left_out(client,
     )
     pay(client, "", books["hdfc"], books["groceries"])
     extra = client.post("/api/categories/", json={"name": "Gone", "kind": "spending"}).json() | {}
-    extra["aid"] = extra["bcid"]
+    extra["id"] = extra["id"]
     pay(client, "Old place", books["hdfc"], extra)
     pay(client, "Refund", extra, books["hdfc"])  # back to zero, so it can be closed
     assert {c[0] for c in chips(client)} == {"Old place", "Refund"}
-    assert client.post(f"/api/categories/{extra['aid']}/close").status_code == 200
+    assert client.post(f"/api/categories/{extra['id']}/close").status_code == 200
     assert chips(client) == [], (
         "a closed account is never suggested, and splits and entries without a payee are not either"
     )
@@ -124,8 +124,8 @@ def test_the_add_page_loads_the_chips_and_keeps_edit_free_of_them(client, books)
     pay(client, "Swiggy", books["hdfc"], books["delivery"])
     page = client.get("/transactions/new").text
     assert 'id="payee-chips"' in page and 'hx-get="/transactions/suggest"' in page
-    tid = client.get("/api/transactions/").json()[0]["tid"]
-    assert 'id="payee-chips"' not in client.get(f"/transactions/{tid}/edit").text
+    transaction_id = client.get("/api/transactions/").json()[0]["id"]
+    assert 'id="payee-chips"' not in client.get(f"/transactions/{transaction_id}/edit").text
 
 
 def field(html, name):
@@ -137,13 +137,13 @@ def test_the_form_starts_with_no_account_chosen_however_often_you_pay_from_one(c
         pay(client, "A", books["card"], books["delivery"])
     pay(client, "B", books["hdfc"], books["groceries"])
     page = client.get("/transactions/new").text
-    assert not option_selected(page, books["card"]["aid"])
-    assert not option_selected(page, books["hdfc"]["aid"])
-    assert not option_selected(page, books["delivery"]["aid"])
+    assert not option_selected(page, books["card"]["id"])
+    assert not option_selected(page, books["hdfc"]["id"])
+    assert not option_selected(page, books["delivery"]["id"])
 
 
 def test_opening_the_form_from_an_account_keeps_that_account(client, books):
     pay(client, "A", books["card"], books["delivery"])
-    page = client.get("/transactions/new", params={"account": books["hdfc"]["aid"]}).text
-    assert option_selected(page, books["hdfc"]["aid"])
-    assert not option_selected(page, books["card"]["aid"])
+    page = client.get("/transactions/new", params={"account": books["hdfc"]["id"]}).text
+    assert option_selected(page, books["hdfc"]["id"])
+    assert not option_selected(page, books["card"]["id"])

@@ -21,7 +21,7 @@ def test_a_split_rule_from_the_form(page: Page, books, api: Api):
     page.wait_for_url("**/recurring")
     expect(page.get_by_text("Landlord")).to_be_visible()
     [rule] = api.get("/recurring/")
-    assert rule["from_account"] is None and len(rule["postings"]) == 3, "more than one account on a side is a split"
+    assert rule["from_account_id"] is None and len(rule["postings"]) == 3, "more than one account on a side is a split"
 
 
 def test_a_plain_rule_stays_plain(page: Page, books, api: Api):
@@ -33,26 +33,26 @@ def test_a_plain_rule_stays_plain(page: Page, books, api: Api):
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/recurring")
     [rule] = api.get("/recurring/")
-    assert rule["from_account"] == books["checking"]["aid"] and rule["postings"] == []
+    assert rule["from_account_id"] == books["checking"]["id"] and rule["postings"] == []
 
 
 def test_skipping_the_next_occurrence_from_the_edit_page(page: Page, books, api: Api):
     rule = api.post(
         "/recurring/",
-        from_account=books["checking"]["aid"],
-        to_account=books["roots"]["Expenses"],
-        category=books["rent"]["aid"],
+        from_account_id=books["checking"]["id"],
+        to_account_id=books["roots"]["Expenses"],
+        category_id=books["rent"]["id"],
         amount="900",
         frequency="monthly",
         start_date="2999-01-01",
         payee="Landlord",
     )
-    page.goto(f"/recurring/{rule['rid']}/edit")
+    page.goto(f"/recurring/{rule['id']}/edit")
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_role("button", name="Skip 1 Jan 2999").click()
     page.wait_for_url("**/recurring")
     expect(page.get_by_text("Nothing was recorded for that one")).to_be_visible()
-    assert api.get(f"/recurring/{rule['rid']}")["next_date"] == "2999-02-01"
+    assert api.get(f"/recurring/{rule['id']}")["next_date"] == "2999-02-01"
 
 
 def test_a_rule_gets_tags_from_the_form_like_a_new_transaction(page: Page, books, api: Api):
@@ -72,7 +72,7 @@ def test_a_rule_gets_tags_from_the_form_like_a_new_transaction(page: Page, books
     page.wait_for_url("**/recurring")
     [rule] = api.get("/recurring/")
     assert rule["tags"] == ["home-rent"]
-    page.goto(f"/recurring/{rule['rid']}/edit")
+    page.goto(f"/recurring/{rule['id']}/edit")
     expect(page.locator("[data-tags-chips] [data-tag]")).to_have_text(["#home-rent"])
 
 
@@ -98,9 +98,9 @@ def test_the_recurring_list_is_flat_rows_in_a_tile(touch_page: Page, books, api:
     """Rows are as tall as the Transactions rows (not padded twice) and the date has no weekday."""
     api.post(
         "/recurring/",
-        from_account=books["checking"]["aid"],
-        to_account=books["roots"]["Expenses"],
-        category=books["rent"]["aid"],
+        from_account_id=books["checking"]["id"],
+        to_account_id=books["roots"]["Expenses"],
+        category_id=books["rent"]["id"],
         amount="900",
         frequency="monthly",
         start_date="2999-01-01",

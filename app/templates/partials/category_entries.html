@@ -5,7 +5,7 @@
   <ul class="card list">
     {% for e in items %}
     <li>
-      <a class="tx" href="/transactions/{{ e.tid }}/edit?back=/categories/{{ category.bcid }}" hx-get="/transactions/{{ e.tid }}/sheet?back={{ ('/categories/' ~ category.bcid)|urlencode }}" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+      <a class="tx" href="/transactions/{{ e.transaction_id }}/edit?back=/categories/{{ category.id }}" hx-get="/transactions/{{ e.transaction_id }}/sheet?back={{ ('/categories/' ~ category.id)|urlencode }}" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
         <span class="tx-main">
           <span class="tx-title">{{ e.payee or e.counter_accounts|join(", ") }}</span>
           <span class="tx-sub">{% if e.payee %}{{ e.counter_accounts|join(", ") }}{% endif %}{% if e.payee and e.comment %} · {% endif %}{{ e.comment or "" }}</span>

@@ -16,10 +16,10 @@
       {% for u in todo.uncategorised %}
       <li>
         <span>{{ u.payee or u.account }} <span class="muted">· {{ u.date|short_date }} · {{ u.amount|money }}</span></span>
-        <form hx-post="/todo/payments/{{ u.tid }}/category" hx-trigger="change" hx-target="#todo-sheet-body" hx-swap="innerHTML">
+        <form hx-post="/todo/payments/{{ u.transaction_id }}/category" hx-trigger="change" hx-target="#todo-sheet-body" hx-swap="innerHTML">
           <select name="category" aria-label="Category for {{ u.payee or u.account }}">
             <option value="">Choose category…</option>
-            {% for bcid, path in category_choices %}<option value="{{ bcid }}">{{ path }}</option>{% endfor %}
+            {% for category_id, path in category_choices %}<option value="{{ category_id }}">{{ path }}</option>{% endfor %}
           </select>
         </form>
       </li>
@@ -31,14 +31,14 @@
   <div class="todo-item">
     <strong>{{ a.path }} is not in the budget</strong>
     <p class="muted">{{ a.spent|money|amount(currency) }} spent this month in {{ a.entries }} {{ "entry" if a.entries == 1 else "entries" }} is in no category.</p>
-    <button type="button" class="secondary" hx-post="/todo/accounts/{{ a.aid }}/include" hx-target="#todo-sheet-body" hx-swap="innerHTML">Add to budget</button>
+    <button type="button" class="secondary" hx-post="/todo/accounts/{{ a.account_id }}/include" hx-target="#todo-sheet-body" hx-swap="innerHTML">Add to budget</button>
   </div>
   {% endfor %}
   {% for r in todo.failing_rules %}
   <div class="todo-item">
     <strong>{{ r.name }} could not be recorded</strong>
     <p class="muted">{{ r.error }}</p>
-    <a class="button secondary" href="/recurring/{{ r.rid }}">Open rule</a>
+    <a class="button secondary" href="/recurring/{{ r.recurring_id }}">Open rule</a>
   </div>
   {% endfor %}
 </div>

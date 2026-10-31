@@ -9,7 +9,7 @@ class Profile(TimestampMixin, table=True):
     """Per-user details and application settings; one row per user, one column per setting."""
 
     __tablename__ = "profiles"
-    user: UUID = Field(primary_key=True, foreign_key="auth.users.id")
+    user_id: UUID = Field(primary_key=True, foreign_key="auth.users.id")
     first_name: str | None = Field(default=None, max_length=40)
     last_name: str | None = Field(default=None, max_length=40)
     # The one currency the whole ledger is kept in (ISO 4217 code, see currencies.py); changing it relabels, it converts nothing.

@@ -47,7 +47,7 @@ class CatNode:
 def category_tree(categories: Categories, kind: str, include_closed: bool = False) -> list[CatNode]:
     """The categories of one kind as groups with their categories inside, A to Z."""
     found = categories.list(kind, include_closed)
-    nodes = {c.bcid: CatNode(c) for c in found}
+    nodes = {c.id: CatNode(c) for c in found}
     top: list[CatNode] = []
     for node in nodes.values():
         parent = nodes.get(node.category.parent_id) if node.category.parent_id else None
@@ -88,13 +88,13 @@ def _figures(categories: Categories, reports: Reports, kind: str, when, end):
     totals: dict[UUID, Decimal] = {}
 
     def walk(node: CatNode) -> Decimal:
-        total = own.get(node.category.bcid, ZERO) + sum((walk(child) for child in node.children), ZERO)
-        totals[node.category.bcid] = total
+        total = own.get(node.category.id, ZERO) + sum((walk(child) for child in node.children), ZERO)
+        totals[node.category.id] = total
         return total
 
     # A deleted (closed) category with nothing in the month is not listed, at either level.
     def shown(n: CatNode) -> bool:
-        return n.category.closed_on is None or any(own.get(m.category.bcid) for m in n.walk())
+        return n.category.closed_on is None or any(own.get(m.category.id) for m in n.walk())
 
     for n in top:
         n.children = [c for c in n.children if shown(c)]
@@ -116,7 +116,7 @@ def _share(total: Decimal, grand: Decimal) -> str:
 
 
 def _by_amount(nodes: list[CatNode], totals: dict[UUID, Decimal]) -> list[CatNode]:
-    return sorted(nodes, key=lambda n: (-abs(totals[n.category.bcid]), n.category.name.lower()))
+    return sorted(nodes, key=lambda n: (-abs(totals[n.category.id]), n.category.name.lower()))
 
 
 @router.get("")
@@ -127,11 +127,11 @@ def categories_page(request: Request, categories: Categories, reports: Reports, 
     tab = {"spending": "expense", "earning": "income"}.get(tab, tab)  # the kinds' own names work too
     tab = tab if tab in TABS else "expense"
     top, _own, totals = _figures(categories, reports, TABS[tab], when, end)
-    grand = sum((totals[n.category.bcid] for n in top), ZERO)
+    grand = sum((totals[n.category.id] for n in top), ZERO)
     rows = []
     for n in _by_amount(top, totals):
-        total = totals[n.category.bcid]
-        inside = [c.category.name for c in _by_amount(n.children, totals) if totals[c.category.bcid]]
+        total = totals[n.category.id]
+        inside = [c.category.name for c in _by_amount(n.children, totals) if totals[c.category.id]]
         hint = " · ".join(inside[:3] + ([f"+{len(inside) - 3}"] if len(inside) > 3 else []))
         rows.append({"node": n, "total": total, "share": _share(total, grand), "hint": hint})
     return templates.TemplateResponse(
@@ -150,9 +150,9 @@ def categories_page(request: Request, categories: Categories, reports: Reports, 
 
 
 def _form(request: Request, categories: Categories, current: CategoryRead | None, kind: str, parent: UUID | None):
-    groups = [n.category for n in category_tree(categories, kind) if n.category.bcid != (current and current.bcid)]
+    groups = [n.category for n in category_tree(categories, kind) if n.category.id != (current and current.id)]
     # A group that holds categories cannot move into another group (two levels at most).
-    if current is not None and any(c.parent_id == current.bcid for c in categories.list(kind, True)):
+    if current is not None and any(c.parent_id == current.id for c in categories.list(kind, True)):
         groups = []
     return templates.TemplateResponse(
         request,
@@ -203,7 +203,7 @@ def create_category(
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/categories/{made.bcid}", flash="category-created")
+    return htmx_redirect(f"/categories/{made.id}", flash="category-created")
 
 
 @router.post("/quick")
@@ -226,17 +226,17 @@ def quick_create_category(
         return htmx_error(validation_message(e), "#quick-error")
     except ValueError as e:
         return htmx_error(str(e), "#quick-error")
-    return htmx_trigger("account-added", {"aid": str(made.bcid), "name": made.name})
+    return htmx_trigger("account-added", {"id": str(made.id), "name": made.name})
 
 
 @router.get("/deleted")
 def deleted_categories_page(request: Request, categories: Categories):
     closed = [c for c in categories.list(include_closed=True) if c.closed_on is not None]
     # Show the outermost of each closed branch: a closed group carries the categories in it.
-    shown = [c for c in closed if not any(p.bcid == c.parent_id and p.closed_on for p in closed)]
+    shown = [c for c in closed if not any(p.id == c.parent_id and p.closed_on for p in closed)]
     entries = sorted(
         (
-            {"aid": c.bcid, "name": c.name, "path": c.path, "kind": "closed", "when": c.closed_on}
+            {"id": c.id, "name": c.name, "path": c.path, "kind": "closed", "when": c.closed_on}
             for c in shown
             if c.closed_on is not None
         ),
@@ -248,31 +248,31 @@ def deleted_categories_page(request: Request, categories: Categories):
     )
 
 
-def _load(categories: Categories, bcid: UUID) -> CategoryRead:
-    category = categories.read(bcid)
+def _load(categories: Categories, category_id: UUID) -> CategoryRead:
+    category = categories.read(category_id)
     if category is None:
         raise HTTPException(status_code=404, detail="category not found")
     return category
 
 
-@router.get("/{bcid}")
-def category_page(request: Request, bcid: UUID, categories: Categories, reports: Reports, month: str = ""):
-    category = _load(categories, bcid)
+@router.get("/{category_id}")
+def category_page(request: Request, category_id: UUID, categories: Categories, reports: Reports, month: str = ""):
+    category = _load(categories, category_id)
     when, end, is_current = _period(month)
     if when is None:
-        return RedirectResponse(f"/categories/{bcid}", status_code=303)
+        return RedirectResponse(f"/categories/{category_id}", status_code=303)
 
     # The figure is the whole category's month; the list is what was labelled with this category itself (each
     # subcategory's entries are on its own page).
     def in_month(rows):
         return [e for e in (rows or []) if when <= e.date <= end]
 
-    everything = in_month(categories.register(bcid))
-    entries = in_month(categories.register(bcid, own_only=True))
+    everything = in_month(categories.register(category_id))
+    entries = in_month(categories.register(category_id, own_only=True))
     top, own, totals = _figures(categories, reports, category.kind, when, end)
-    shown = next((n for t in top for n in t.walk() if n.category.bcid == bcid), None)
-    subs = [(c, totals[c.category.bcid]) for c in _by_amount(shown.children, totals)] if shown is not None else []
-    own_here = own.get(bcid, ZERO) if subs else ZERO
+    shown = next((n for t in top for n in t.walk() if n.category.id == category_id), None)
+    subs = [(c, totals[c.category.id]) for c in _by_amount(shown.children, totals)] if shown is not None else []
+    own_here = own.get(category_id, ZERO) if subs else ZERO
     group = categories.read(category.parent_id) if category.parent_id else None
     return templates.TemplateResponse(
         request,
@@ -294,21 +294,21 @@ def category_page(request: Request, bcid: UUID, categories: Categories, reports:
     )
 
 
-@router.get("/{bcid}/edit")
-def edit_category_page(request: Request, bcid: UUID, categories: Categories):
-    category = _load(categories, bcid)
+@router.get("/{category_id}/edit")
+def edit_category_page(request: Request, category_id: UUID, categories: Categories):
+    category = _load(categories, category_id)
     return _form(request, categories, category, category.kind, category.parent_id)
 
 
-@router.post("/{bcid}/edit")
+@router.post("/{category_id}/edit")
 def update_category(
-    bcid: UUID,
+    category_id: UUID,
     categories: Categories,
     name: Annotated[str, Form()] = "",
     parent_id: Annotated[str, Form()] = "",
     details: Annotated[str, Form()] = "",
 ):
-    current = _load(categories, bcid)
+    current = _load(categories, category_id)
     try:
         changes: dict = {}
         if name.strip() != current.name:
@@ -318,29 +318,29 @@ def update_category(
         if (UUID(parent_id) if parent_id else None) != current.parent_id:
             changes["parent_id"] = UUID(parent_id) if parent_id else None
         if changes:
-            categories.update(bcid, CategoryUpdate(**changes))
+            categories.update(category_id, CategoryUpdate(**changes))
     except ValidationError as e:
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(f"/categories/{bcid}", flash="category-updated")
+    return htmx_redirect(f"/categories/{category_id}", flash="category-updated")
 
 
-@router.post("/{bcid}/delete")
-def delete_category(bcid: UUID, categories: Categories):
-    current = _load(categories, bcid)
+@router.post("/{category_id}/delete")
+def delete_category(category_id: UUID, categories: Categories):
+    current = _load(categories, category_id)
     try:
-        categories.delete(bcid)
+        categories.delete(category_id)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
     return htmx_redirect("/categories" + ("?tab=income" if current.kind == "earning" else ""), flash="category-deleted")
 
 
-@router.post("/{bcid}/reopen")
-def reopen_category(bcid: UUID, categories: Categories):
-    _load(categories, bcid)
+@router.post("/{category_id}/reopen")
+def reopen_category(category_id: UUID, categories: Categories):
+    _load(categories, category_id)
     try:
-        categories.reopen(bcid)
+        categories.reopen(category_id)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect(f"/categories/{bcid}", flash="category-restored")
+    return htmx_redirect(f"/categories/{category_id}", flash="category-restored")

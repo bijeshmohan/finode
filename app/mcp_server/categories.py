@@ -11,10 +11,10 @@ SEPARATORS = re.compile(r"\s*(?::|›|>|/)\s*")
 
 class CategoryIndex:
     def __init__(self, categories: list[CategoryRead]):
-        self.categories = {c.bcid: c for c in categories}
+        self.categories = {c.id: c for c in categories}
 
-    def path(self, bcid: UUID | None) -> str | None:
-        category = self.categories.get(bcid) if bcid else None
+    def path(self, category_id: UUID | None) -> str | None:
+        category = self.categories.get(category_id) if category_id else None
         return category.path if category else None
 
     def find(self, text: str, *, kind: str | None = None, open_only: bool = False) -> CategoryRead:

@@ -27,7 +27,7 @@ def test_a_save_that_cannot_reach_the_server_keeps_the_entry_and_says_so(page: P
             leg(books["checking"], "credit", "40"),
         ],
     )
-    page.goto(f"/transactions/{entry['tid']}/edit")
+    page.goto(f"/transactions/{entry['id']}/edit")
     page.fill("#payee", "Changed")
     failing = {"on": True}
     page.route(
@@ -52,7 +52,7 @@ def test_a_server_error_is_explained_without_clearing_the_form(page: Page, books
             leg(books["checking"], "credit", "40"),
         ],
     )
-    page.goto(f"/transactions/{entry['tid']}/edit")
+    page.goto(f"/transactions/{entry['id']}/edit")
     page.fill("#payee", "Changed")
     page.route(
         re.compile(r".*/edit$"),

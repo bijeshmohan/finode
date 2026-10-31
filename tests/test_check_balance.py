@@ -26,24 +26,24 @@ def books(client, root_accounts, expense_account, income_account):
 
 
 def test_matching_statement(client, books):
-    check = client.get(f"/api/accounts/{books['aid']}/check-balance", params={"statement_balance": "880"}).json()
+    check = client.get(f"/api/accounts/{books['id']}/check-balance", params={"statement_balance": "880"}).json()
     assert check["matches"] is True and check["difference"] == "0.00" and check["book_balance"] == "880.00"
     assert check["path"] == "Assets:HDFC"
     assert [e["change"] for e in check["recent"]] == ["-40.00", "-75.00"], "only the last 14 days"
 
 
 def test_a_difference_points_at_the_entry_of_that_size(client, books):
-    check = client.get(f"/api/accounts/{books['aid']}/check-balance", params={"statement_balance": "920"}).json()
+    check = client.get(f"/api/accounts/{books['id']}/check-balance", params={"statement_balance": "920"}).json()
     assert check["matches"] is False and check["difference"] == "40.00"
     assert [e["payee"] for e in check["same_size_as_difference"]] == ["p40"]
 
 
 def test_as_of_and_days(client, books):
     params = {"statement_balance": "955", "as_of": day(3), "days": 30}
-    check = client.get(f"/api/accounts/{books['aid']}/check-balance", params=params).json()
+    check = client.get(f"/api/accounts/{books['id']}/check-balance", params=params).json()
     assert check["matches"] is True and check["book_balance"] == "955.00"
     assert [e["change"] for e in check["recent"]] == ["-5.00", "-40.00"]
-    assert client.get(f"/api/accounts/{books['aid']}/check-balance").status_code == 422
+    assert client.get(f"/api/accounts/{books['id']}/check-balance").status_code == 422
 
 
 def test_unknown_account(client):
@@ -56,6 +56,6 @@ async def test_assistants_can_check_a_statement(session, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
         ok = payload(await c.call_tool("check_balance", {"account": "HDFC", "statement_balance": "880"}))
         assert ok["matches"] is True and ok["account"] == "Assets:HDFC"
-        off = payload(await c.call_tool("check_balance", {"account": books["aid"], "statement_balance": "805"}))
+        off = payload(await c.call_tool("check_balance", {"account": books["id"], "statement_balance": "805"}))
         assert off["difference"] == "-75.00" and off["same_size_as_difference"][0]["change"] == "-75.00"
         assert off["matches"] is False

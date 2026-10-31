@@ -3,7 +3,7 @@ move the #words of older notes and backups into tags."""
 
 import pytest
 
-from app.tags import clean_name, clean_names, clean_tag, split_note, tags_in, without_tags
+from app.tags import clean_name, clean_names, clean_tag, split_note, tags_in
 
 from .conftest import TEST_USER_ID
 from .mcputil import ToolFailed, make_token, mcp_client, payload, running_app
@@ -55,7 +55,6 @@ def test_old_notes_split_into_words_and_tags():
     assert split_note("Issue #1") == ("Issue #1", [])
     many = " ".join(f"#t{n}" for n in range(11))
     assert split_note(many) == (many, []), "too many tags: the note is left as it is"
-    assert without_tags("a #b c") == "a c"
 
 
 def make(client, account, expense, note=None, tags=None, on="2026-10-10", amount="10"):
@@ -77,7 +76,7 @@ def test_an_entry_reads_back_its_tags_and_can_be_found_by_them(client, account, 
     assert [t["comment"] for t in found] == ["Lunch", "Taxi"]
     assert client.get("/api/transactions/", params={"tag": "goa"}).json() == []
     assert len(client.get("/api/transactions/", params={"tag": "goa-trip"}).json()) == 1
-    assert client.get(f"/api/transactions/{one['tid']}").json()["tags"] == ["reimbursable", "work"]
+    assert client.get(f"/api/transactions/{one['id']}").json()["tags"] == ["reimbursable", "work"]
 
 
 def test_a_hash_in_a_note_is_only_text(client, account, expense_account):
@@ -106,7 +105,7 @@ def test_the_tags_in_use(client, account, expense_account):
 
 def test_updating_tags_replaces_keeps_or_clears_them(client, account, expense_account):
     made = make(client, account, expense_account, "Taxi", ["a", "b"])
-    url = f"/api/transactions/{made['tid']}"
+    url = f"/api/transactions/{made['id']}"
     assert client.patch(url, json={"payee": "Cab"}).json()["tags"] == ["a", "b"], "left out: kept"
     assert client.patch(url, json={"tags": ["b", "C"]}).json()["tags"] == ["b", "c"], "given: replaced"
     assert [t["tag"] for t in client.get("/api/tags/").json()] == ["b", "c"], "a tag nobody has any more is gone"
@@ -116,7 +115,7 @@ def test_updating_tags_replaces_keeps_or_clears_them(client, account, expense_ac
 
 def test_bad_tags_are_refused(client, account, expense_account):
     made = make(client, account, expense_account, "Taxi")
-    assert client.patch(f"/api/transactions/{made['tid']}", json={"tags": ["not valid"]}).status_code == 422
+    assert client.patch(f"/api/transactions/{made['id']}", json={"tags": ["not valid"]}).status_code == 422
     too_many = body(expense_account, account, "5", tags=[f"t{n}" for n in range(11)])
     assert client.post("/api/transactions/", json=too_many).status_code == 422
 
@@ -133,17 +132,17 @@ def test_a_person_has_only_so_many_tags(client, account, expense_account, monkey
 
 def test_deleting_an_entry_and_restoring_it_brings_its_tags_back(client, account, expense_account, svc):
     made = make(client, account, expense_account, "Taxi", ["a", "b"])
-    client.delete(f"/api/transactions/{made['tid']}")
+    client.delete(f"/api/transactions/{made['id']}")
     assert client.get("/api/tags/").json() == [], "no entry carries them now"
     gone = client.get("/api/transactions/deleted").json()
-    restored = client.post(f"/api/transactions/deleted/{gone[0]['hid']}/restore")
+    restored = client.post(f"/api/transactions/deleted/{gone[0]['id']}/restore")
     assert restored.status_code == 200 and restored.json()["tags"] == ["a", "b"]
     assert [t["tag"] for t in client.get("/api/tags/").json()] == ["a", "b"]
 
 
 def test_the_history_notes_a_changed_tag_but_not_an_unchanged_one(client, account, expense_account):
     made = make(client, account, expense_account, "Taxi", ["a"])
-    url = f"/api/transactions/{made['tid']}"
+    url = f"/api/transactions/{made['id']}"
     client.patch(url, json={"tags": ["a"]})
     assert len(client.get(f"{url}/history").json()) == 1
     client.patch(url, json={"tags": ["a", "b"]})
@@ -159,21 +158,21 @@ def test_renaming_merging_and_deleting_tags(client, account, expense_account):
     assert renamed.status_code == 200 and renamed.json()["tag"] == "y"
     merged = client.patch("/api/tags/trip", json={"name": "goa-trip"})
     assert merged.status_code == 200 and merged.json()["tag"] == "goa-trip" and merged.json()["uses"] == 3
-    reads = {t["tid"]: t["tags"] for t in client.get("/api/transactions/").json()}
-    assert reads[first["tid"]] == ["goa-trip", "y"] and reads[second["tid"]] == ["goa-trip"]
-    assert reads[third["tid"]] == ["goa-trip"], "an entry that had both has the one"
+    reads = {t["id"]: t["tags"] for t in client.get("/api/transactions/").json()}
+    assert reads[first["id"]] == ["goa-trip", "y"] and reads[second["id"]] == ["goa-trip"]
+    assert reads[third["id"]] == ["goa-trip"], "an entry that had both has the one"
     assert [t["tag"] for t in client.get("/api/tags/").json()] == ["goa-trip", "y"]
     assert client.patch("/api/tags/nothing", json={"name": "z"}).status_code == 404
     assert client.patch("/api/tags/y", json={"name": "y"}).status_code == 400
     assert client.patch("/api/tags/y", json={"name": "not valid"}).status_code == 400
     assert client.delete("/api/tags/y").status_code == 204
-    assert client.get(f"/api/transactions/{first['tid']}").json()["tags"] == ["goa-trip"]
+    assert client.get(f"/api/transactions/{first['id']}").json()["tags"] == ["goa-trip"]
     assert client.delete("/api/tags/y").status_code == 404
 
 
 def test_deleting_the_entry_that_has_a_tag_drops_the_tag(client, account, expense_account):
     made = make(client, account, expense_account, "1", ["only-here"])
-    client.delete(f"/api/transactions/{made['tid']}")
+    client.delete(f"/api/transactions/{made['id']}")
     assert client.get("/api/tags/").json() == []
 
 
@@ -182,17 +181,17 @@ async def test_assistants_put_tags_on_entries(session, client, account, expense_
     made = make(client, account, expense_account, "Taxi")
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         updated = payload(
-            await c.call_tool("update_transaction", {"transaction_id": made["tid"], "tags": ["Reimbursable"]})
+            await c.call_tool("update_transaction", {"transaction_id": made["id"], "tags": ["Reimbursable"]})
         )
         assert updated["updated"]["tags"] == ["reimbursable"] and updated["updated"]["note"] == "Taxi"
         more = payload(
             await c.call_tool(
-                "update_transaction", {"transaction_id": made["tid"], "add_tags": ["work", "reimbursable"]}
+                "update_transaction", {"transaction_id": made["id"], "add_tags": ["work", "reimbursable"]}
             )
         )
         assert more["updated"]["tags"] == ["reimbursable", "work"]
         less = payload(
-            await c.call_tool("update_transaction", {"transaction_id": made["tid"], "remove_tags": ["reimbursable"]})
+            await c.call_tool("update_transaction", {"transaction_id": made["id"], "remove_tags": ["reimbursable"]})
         )
         assert less["updated"]["tags"] == ["work"]
         listed = payload(await c.call_tool("list_tags", {}))["tags"]

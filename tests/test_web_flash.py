@@ -9,7 +9,7 @@ from .books import leg
 def test_saving_a_transaction_sets_a_flash(client: TestClient, account: dict, expense_account: dict):
     response = client.post(
         "/transactions/split",
-        data={"account": [expense_account["aid"], account["aid"]], "side": ["debit", "credit"], "amount": ["1", "1"]},
+        data={"account": [expense_account["id"], account["id"]], "side": ["debit", "credit"], "amount": ["1", "1"]},
     )
     assert f"{FLASH_COOKIE}=transaction-saved" in response.headers["set-cookie"]
 
@@ -54,7 +54,7 @@ def test_set_flash_only_accepts_known_messages():
 )
 def test_deletes_set_flash(client: TestClient, account: dict, expense_account: dict, path, expected):
     if path == "delete-account":
-        response = client.post(f"/accounts/{account['aid']}/delete")
+        response = client.post(f"/accounts/{account['id']}/delete")
     else:
         tx = client.post(
             "/api/transactions/",
@@ -65,5 +65,5 @@ def test_deletes_set_flash(client: TestClient, account: dict, expense_account: d
                 ]
             },
         ).json()
-        response = client.post(f"/transactions/{tx['tid']}/delete")
+        response = client.post(f"/transactions/{tx['id']}/delete")
     assert f"{FLASH_COOKIE}={expected}" in response.headers["set-cookie"]

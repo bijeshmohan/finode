@@ -28,8 +28,8 @@ def hash_secret(secret: str) -> str:
 
 @dataclass(frozen=True)
 class TokenOwner:
-    user: UUID
-    tkid: UUID
+    user_id: UUID
+    token_id: UUID
     name: str
     scope: str
 
@@ -41,7 +41,7 @@ class ApiTokenService:
     @staticmethod
     def _to_read(token: ApiToken) -> ApiTokenRead:
         return ApiTokenRead(
-            tkid=token.tkid,
+            id=token.id,
             name=token.name,
             scope=token.scope,
             prefix=token.prefix,
@@ -65,17 +65,17 @@ class ApiTokenService:
         self.repo.db.refresh(token)
         return ApiTokenCreated(**self._to_read(token).model_dump(), secret=secret)
 
-    def revoke(self, tkid: UUID) -> ApiTokenRead:
-        token = self.repo.revoke(tkid, utc_now())
+    def revoke(self, token_id: UUID) -> ApiTokenRead:
+        token = self.repo.revoke(token_id, utc_now())
         if token is None:
             raise LookupError("token not found")
         self.repo.db.commit()
         return self._to_read(token)
 
-    def set_scope(self, tkid: UUID, scope: str) -> ApiTokenRead:
+    def set_scope(self, token_id: UUID, scope: str) -> ApiTokenRead:
         if scope not in TokenScope.ALL:
             raise ValueError("access must be 'read', 'write' or 'manage'!")
-        token = self.repo.set_scope(tkid, scope)
+        token = self.repo.set_scope(token_id, scope)
         if token is None:
             raise LookupError("token not found")
         self.repo.db.commit()
@@ -97,4 +97,4 @@ class ApiTokenService:
             token.last_used = now
             db.add(token)
             db.commit()
-        return TokenOwner(user=token.user, tkid=token.tkid, name=token.name, scope=token.scope)
+        return TokenOwner(user_id=token.user_id, token_id=token.id, name=token.name, scope=token.scope)

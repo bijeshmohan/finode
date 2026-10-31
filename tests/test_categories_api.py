@@ -15,7 +15,7 @@ def books(client, root_accounts):
     bank = account(client, root_accounts, "Bank", "Assets", balance="100000")
     loan = account(client, root_accounts, "Home Loan", "Liabilities", on_budget=False)
     food = account(client, root_accounts, "Food", "Expenses")
-    groceries = post_account(client, {"name": "Groceries", "parent_id": food["aid"]}).json()
+    groceries = post_account(client, {"name": "Groceries", "parent_id": food["id"]}).json()
     emi = account(client, root_accounts, "EMI", "Expenses")
     salary = account(client, root_accounts, "Salary", "Income")
     return {"bank": bank, "loan": loan, "food": food, "groceries": groceries, "emi": emi, "salary": salary}
@@ -27,25 +27,27 @@ def books(client, root_accounts):
 def test_the_list_has_every_category_with_its_path_and_kind(client, books):
     got = {c["path"]: c for c in client.get("/api/categories/").json()}
     assert set(got) == {"Food", "Food:Groceries", "EMI", "Salary"}
-    assert got["Food:Groceries"]["parent_id"] == got["Food"]["bcid"] == books["food"]["aid"]
+    assert got["Food:Groceries"]["parent_id"] == got["Food"]["id"] == books["food"]["id"]
     assert (got["Food"]["kind"], got["Salary"]["kind"]) == ("spending", "earning")
     assert [c["path"] for c in client.get("/api/categories/", params={"kind": "earning"}).json()] == ["Salary"]
 
 
 def test_a_category_is_made_changed_closed_and_removed(client, books):
     made = client.post(
-        "/api/categories/", json={"name": "Dining", "kind": "spending", "parent_id": books["food"]["aid"]}
+        "/api/categories/", json={"name": "Dining", "kind": "spending", "parent_id": books["food"]["id"]}
     )
     assert made.status_code == 201 and made.json()["path"] == "Food:Dining"
-    bcid = made.json()["bcid"]
-    assert client.get(f"/api/categories/{bcid}").json()["name"] == "Dining"
-    assert client.patch(f"/api/categories/{bcid}", json={"name": "Eating out"}).json()["path"] == "Food:Eating out"
-    assert client.patch(f"/api/categories/{bcid}", json={"parent_id": None}).json()["path"] == "Eating out"
-    assert client.post(f"/api/categories/{bcid}/close").json()["closed_on"]
-    assert bcid not in [c["bcid"] for c in client.get("/api/categories/").json()]
-    assert client.post(f"/api/categories/{bcid}/reopen").json()["closed_on"] is None
-    gone = client.post(f"/api/categories/{bcid}/delete").json()
-    assert gone["outcome"] == "deleted" and client.get(f"/api/categories/{bcid}").status_code == 404
+    category_id = made.json()["id"]
+    assert client.get(f"/api/categories/{category_id}").json()["name"] == "Dining"
+    assert (
+        client.patch(f"/api/categories/{category_id}", json={"name": "Eating out"}).json()["path"] == "Food:Eating out"
+    )
+    assert client.patch(f"/api/categories/{category_id}", json={"parent_id": None}).json()["path"] == "Eating out"
+    assert client.post(f"/api/categories/{category_id}/close").json()["closed_on"]
+    assert category_id not in [c["id"] for c in client.get("/api/categories/").json()]
+    assert client.post(f"/api/categories/{category_id}/reopen").json()["closed_on"] is None
+    gone = client.post(f"/api/categories/{category_id}/delete").json()
+    assert gone["outcome"] == "deleted" and client.get(f"/api/categories/{category_id}").status_code == 404
 
 
 def test_a_category_with_history_is_closed_not_deleted(client, books):
@@ -53,12 +55,12 @@ def test_a_category_with_history_is_closed_not_deleted(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"category": books["emi"]["aid"], "side": "debit", "amount": "10"},
+                {"category_id": books["emi"]["id"], "side": "debit", "amount": "10"},
                 leg(books["bank"], "credit", "10"),
             ]
         },
     )
-    answer = client.post(f"/api/categories/{books['emi']['aid']}/delete").json()
+    answer = client.post(f"/api/categories/{books['emi']['id']}/delete").json()
     assert answer["outcome"] == "closed" and answer["category"]["closed_on"]
 
 
@@ -66,11 +68,11 @@ def test_the_rules_of_names_and_levels_apply(client, books):
     taken = client.post("/api/categories/", json={"name": "food", "kind": "spending"})
     assert taken.status_code == 400
     deep = client.post(
-        "/api/categories/", json={"name": "Pizza", "kind": "spending", "parent_id": books["groceries"]["aid"]}
+        "/api/categories/", json={"name": "Pizza", "kind": "spending", "parent_id": books["groceries"]["id"]}
     )
     assert deep.status_code == 400
     wrong_kind = client.post(
-        "/api/categories/", json={"name": "Tips", "kind": "earning", "parent_id": books["food"]["aid"]}
+        "/api/categories/", json={"name": "Tips", "kind": "earning", "parent_id": books["food"]["id"]}
     )
     assert wrong_kind.status_code == 400 and "cannot hold" in wrong_kind.text
     assert client.get(f"/api/categories/{MISSING}").status_code == 404
@@ -89,15 +91,15 @@ def test_categories_merge_with_a_dry_run(client, books):
         },
     )
     preview = client.post(
-        f"/api/categories/{books['groceries']['aid']}/merge",
+        f"/api/categories/{books['groceries']['id']}/merge",
         params={"dry_run": True},
-        json={"into": books["emi"]["aid"]},
+        json={"into": books["emi"]["id"]},
     )
     assert preview.status_code == 200 and preview.json()["entries_moved"] == 1 and not preview.json()["merged"]
-    assert client.get(f"/api/categories/{books['groceries']['aid']}").status_code == 200
-    done = client.post(f"/api/categories/{books['groceries']['aid']}/merge", json={"into": books["emi"]["aid"]})
+    assert client.get(f"/api/categories/{books['groceries']['id']}").status_code == 200
+    done = client.post(f"/api/categories/{books['groceries']['id']}/merge", json={"into": books["emi"]["id"]})
     assert done.status_code == 200 and done.json()["merged"]
-    assert client.get(f"/api/categories/{books['groceries']['aid']}").status_code == 404
+    assert client.get(f"/api/categories/{books['groceries']['id']}").status_code == 404
 
 
 def test_a_line_may_name_only_its_category(client, books):
@@ -105,15 +107,15 @@ def test_a_line_may_name_only_its_category(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"category": books["groceries"]["aid"], "side": "debit", "amount": "12"},
+                {"category_id": books["groceries"]["id"], "side": "debit", "amount": "12"},
                 leg(books["bank"], "credit", "12"),
             ]
         },
     )
     assert made.status_code == 201, made.text
     first = made.json()["postings"][0]
-    expenses = next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Expenses")
-    assert first["account"] == expenses and first["category"] == books["groceries"]["aid"]
+    expenses = next(a["id"] for a in client.get("/api/accounts/").json() if a["name"] == "Expenses")
+    assert first["account_id"] == expenses and first["category_id"] == books["groceries"]["id"]
     neither = client.post(
         "/api/transactions/",
         json={
@@ -127,8 +129,8 @@ def test_a_line_may_name_only_its_category(client, books):
 
 
 def test_an_account_has_no_category_of_its_own(client, books):
-    assert "category_id" not in client.get(f"/api/accounts/{books['bank']['aid']}").json()
-    assert client.get(f"/api/accounts/{books['emi']['aid']}").status_code == 404, "a category is not an account"
+    assert "category_id" not in client.get(f"/api/accounts/{books['bank']['id']}").json()
+    assert client.get(f"/api/accounts/{books['emi']['id']}").status_code == 404, "a category is not an account"
 
 
 # ---- the assistants' tools -------------------------------------------------------------------------
@@ -154,7 +156,7 @@ async def test_an_assistant_lists_categories_and_labels_a_payment_into_a_loan(se
             )
         )["recorded"]
         row = next(p for p in saved["postings"] if p["account"].endswith("Home Loan"))
-        assert row["category"] == "EMI" and row["category_id"] == books["emi"]["aid"]
+        assert row["category"] == "EMI" and row["category_id"] == books["emi"]["id"]
         assert line(budget(client), "EMI")["activity"] == "15000.00"
         with pytest.raises(ToolFailed, match="no category matches"):
             await call(
@@ -185,7 +187,7 @@ async def test_a_split_row_may_name_only_a_category_and_a_rule_may_carry_one(ses
             await call(c, "create_recurring", amount="500", from_account="Bank", to_account="Home Loan", category="EMI")
         )["created"]
         assert rule["id"]
-        assert client.get("/api/recurring/").json()[0]["category"] == books["emi"]["aid"]
+        assert client.get("/api/recurring/").json()[0]["category_id"] == books["emi"]["id"]
 
 
 @pytest.mark.anyio
@@ -215,30 +217,30 @@ def test_a_category_id_is_not_an_account_id(client, books):
         "/api/transactions/",
         json={
             "postings": [
-                {"account": books["groceries"]["aid"], "side": "debit", "amount": "5"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "5"},
+                {"account_id": books["groceries"]["id"], "side": "debit", "amount": "5"},
+                {"account_id": books["bank"]["id"], "side": "credit", "amount": "5"},
             ]
         },
     )
-    assert refused.status_code == 404 and "account with aid" in refused.json()["detail"]
-    assert client.get("/api/transactions/", params={"account": books["groceries"]["aid"]}).status_code == 404
+    assert refused.status_code == 404 and "not found" in refused.json()["detail"]
+    assert client.get("/api/transactions/", params={"account_id": books["groceries"]["id"]}).status_code == 404
 
 
 def test_a_recurring_row_may_name_only_its_category(client, books):
-    expenses = next(a["aid"] for a in client.get("/api/accounts/").json() if a["name"] == "Expenses")
+    expenses = next(a["id"] for a in client.get("/api/accounts/").json() if a["name"] == "Expenses")
     made = client.post(
         "/api/recurring/",
         json={
             "postings": [
-                {"category": books["groceries"]["aid"], "side": "debit", "amount": "9"},
-                {"account": books["bank"]["aid"], "side": "credit", "amount": "9"},
+                {"category_id": books["groceries"]["id"], "side": "debit", "amount": "9"},
+                {"account_id": books["bank"]["id"], "side": "credit", "amount": "9"},
             ],
             "start_date": "2999-01-01",
         },
     )
     assert made.status_code == 201, made.text
     rows = made.json()["postings"]
-    assert {(r["account"], r["category"]) for r in rows} == {
-        (expenses, books["groceries"]["aid"]),
-        (books["bank"]["aid"], None),
+    assert {(r["account_id"], r["category_id"]) for r in rows} == {
+        (expenses, books["groceries"]["id"]),
+        (books["bank"]["id"], None),
     }

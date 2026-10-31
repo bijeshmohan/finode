@@ -160,7 +160,7 @@ def test_new_transactions_a_day_are_limited_but_not_recurring_ones(client, two_a
     rule = client.post(
         "/api/recurring/",
         json={
-            "from_account": a["aid"],
+            "from_account_id": a["id"],
             **into(client, b),
             "amount": "1",
             "frequency": "daily",
