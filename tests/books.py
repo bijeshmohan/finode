@@ -40,3 +40,10 @@ def post_account(client, body):
             send["parent_id"] = parent
         return Made(client.post("/api/categories/", json=send))
     return client.post("/api/accounts/", json=body)
+
+
+def leg(place, side, amount, **extra):
+    """One line of an entry for the API: a category is named as `category` (it posts to Expenses or Income), an account
+    as `account`. `place` is what the fixtures return (a category has `bcid`)."""
+    key = "category" if "bcid" in place else "account"
+    return {key: place["bcid"] if key == "category" else place["aid"], "side": side, "amount": amount, **extra}
