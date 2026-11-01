@@ -601,49 +601,19 @@ def _after_save(back: str, another: str) -> str:
     return safe_back(back)
 
 
-@dataclass
-class PayeeHabit:
-    """What the person did the last time they paid someone: who, and which accounts they used."""
-
-    payee: str
-    count: int
-    from_id: UUID
-    to_id: UUID
-    kind: str
-    from_name: str
-    to_name: str
-    exact: bool = False
+SUGGESTED_PAYEES = 6  # how many chips sit under the payee field
 
 
-HABIT_HISTORY = 300  # how many recent transactions the suggestions look at
-
-
-def payee_habits(
-    transactions: Transactions, accounts: Accounts, categories: Categories, query: str = "", limit: int = 6
-) -> list[PayeeHabit]:
-    """Suggestions for the payee field: the people paid most, each with the accounts (or the category) used the last
-    time (see `TransactionService.payee_routes`, which the assistants' `payee_defaults` shares)."""
-    index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
-    kinds = {c.id: c.kind for c in categories.list(include_closed=True)}
-    habits = []
-    for route in transactions.payee_routes(query, limit, HABIT_HISTORY):
-        habits.append(
-            PayeeHabit(
-                payee=route.payee,
-                count=route.count,
-                from_id=route.from_id,
-                to_id=route.to_id,
-                kind="expense"
-                if kinds.get(route.to_id) == "spending"
-                else "income"
-                if kinds.get(route.from_id) == "earning"
-                else "transfer",
-                from_name=index.names.get(route.from_id) or index.categories.get(route.from_id, "?"),
-                to_name=index.names.get(route.to_id) or index.categories.get(route.to_id, "?"),
-                exact=route.exact,
-            )
-        )
-    return habits
+def suggested_payees(names: list[str], query: str = "", limit: int = SUGGESTED_PAYEES) -> list[str]:
+    """The chips under the payee field, from the people paid most (`names` come most used first): what is typed narrows
+    them to those starting with, then containing, it, an exact match first. Only the name is suggested, never accounts."""
+    wanted = query.strip().lower()
+    if not wanted:
+        return names[:limit]
+    exact = [n for n in names if n.lower() == wanted]
+    starting = [n for n in names if n.lower().startswith(wanted) and n.lower() != wanted]
+    containing = [n for n in names if wanted in n.lower() and not n.lower().startswith(wanted)]
+    return (exact + starting + containing)[:limit]
 
 
 @dataclass
@@ -655,12 +625,10 @@ class _P:
 
 
 @router.get("/suggest")
-def suggest_payees(
-    request: Request, accounts: Accounts, categories: Categories, transactions: Transactions, payee: str = ""
-):
-    """The chips under the payee field: people you pay, with the accounts you used the last time."""
-    habits = payee_habits(transactions, accounts, categories, payee)
-    return templates.TemplateResponse(request, "partials/payee_chips.html", {"habits": habits})
+def suggest_payees(request: Request, transactions: Transactions, payee: str = ""):
+    """The chips under the payee field: people you pay, the ones paid most first."""
+    names = suggested_payees([name for name, _ in transactions.payees()], payee)
+    return templates.TemplateResponse(request, "partials/payee_chips.html", {"names": names})
 
 
 @router.get("/tag-options")

@@ -555,36 +555,14 @@ document.body.addEventListener("click", (event) => {
   });
 })();
 
-// A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
-function applySuggestion(form, chip, focus = true) {
+// A suggestion chip fills the payee, nothing else, and moves on to the amount (or Save once it has one).
+function usePayee(form, chip) {
   const payee = form.querySelector("#payee");
-  if (payee && focus) payee.value = chip.dataset.payee; // never rewrite what is being typed
-  applyKind(form, chip.dataset.suggestKind);
-  [["credit", chip.dataset.from], ["debit", chip.dataset.to]].forEach(([side, id]) => {
-    const select = form.querySelector(`[data-rows="${side}"] select[name="account"]`);
-    if (!select) return;
-    select.value = id;
-    select.dataset.previous = select.value;
-  });
+  if (payee) payee.value = chip.dataset.payee;
   form.querySelectorAll("[data-suggest]").forEach((c) => c.setAttribute("aria-pressed", c === chip ? "true" : "false"));
-  recomputeTxn(form);
-  if (!focus) return;
   const total = form.querySelector("#total");
   (total && !total.value.trim() ? total : form.querySelector('button[type="submit"]')).focus();
 }
-
-// Typing a payee you know in full fills the accounts too, once, while nothing is chosen yet; focus stays where it is.
-document.body.addEventListener("htmx:afterSwap", (event) => {
-  if (!event.target || event.target.id !== "payee-chips") return;
-  const form = event.target.closest("form[data-txn-form]");
-  const exact = event.target.querySelector("[data-suggest][data-exact]");
-  if (!form || !exact) return;
-  const nothingChosen = ["credit", "debit"].every((side) => {
-    const select = form.querySelector(`[data-rows="${side}"] select[name="account"]`);
-    return select && !select.value;
-  });
-  if (nothingChosen) applySuggestion(form, exact, false);
-});
 
 function rowAccount(row) {
   return row.querySelector('select[name="account"]');
@@ -980,7 +958,7 @@ document.body.addEventListener("click", (event) => {
   }
   const chip = event.target.closest("[data-suggest]");
   if (chip) {
-    applySuggestion(form, chip);
+    usePayee(form, chip);
     return;
   }
   const kindButton = event.target.closest("[data-kind]");
