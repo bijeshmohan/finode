@@ -106,3 +106,21 @@ def test_chips_and_search_results_show_the_name_and_the_group_under_it_without_a
     page.evaluate("document.getElementById('row-picker').close()")
     category.click()
     assert "›" not in page.locator("#row-picker").inner_text()
+
+
+def test_pressing_an_option_keeps_the_search_focused_so_the_sheet_does_not_move(page: Page, books):
+    """On a phone, a press that takes focus off the search puts the keyboard away and the sheet drops under the finger: the
+    tap then lands elsewhere and nothing is chosen."""
+    page.goto("/transactions/new")
+    page.locator('[data-rows="credit"] [data-pick]:visible').click()
+    dialog = page.locator("#row-picker")
+    search = dialog.locator("[data-pick-search]")
+    search.fill("chec")
+    search.focus()
+    box = dialog.locator("[data-pick-option]", has_text="Checking").bounding_box()
+    assert box
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    expect(search).to_be_focused()
+    page.mouse.up()
+    expect(dialog.locator(".pick-config")).to_be_visible()  # chosen: its amount and date are open under it
