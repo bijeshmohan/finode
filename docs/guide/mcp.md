@@ -11,6 +11,7 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 | `get_status` | what this connection may do, today's date, how much room is left today, when your books last changed |
 | `get_transaction_history`, `get_account_history`, `recent_changes` | what happened to an entry or an account, what each change did and who made it (you, the app, an import or an assistant); what changed lately |
 | `list_tags` | your tags (`reimbursable`, `goa-trip`) and how often they are used; search finds entries by tag |
+| `get_card_bill` | a card's bill from its statement day and due day: what is due, by when, and what was spent since |
 | `check_balance` | compares a bank or card statement's balance with your books on the same day and points at the entry that could explain a gap |
 | `payee_defaults` | which accounts you usually use for a payee, so an assistant books it the way you do |
 | `get_overview` | net worth, your currency, the shape of your books |

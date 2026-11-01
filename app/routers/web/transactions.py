@@ -740,6 +740,9 @@ def new_transaction_page(
     back: str = "",
     repeat: UUID | None = None,  # "add again": a copy of this transaction, dated today
     related: UUID | None = None,  # "related": a blank new entry linked to that transaction
+    pay: UUID
+    | None = None,  # "pay bill": a payment into this card or loan, for `amount`; the account paid from is left to choose
+    amount: str = "",
 ):
     all_accounts = accounts.list()
     if repeat is not None:
@@ -779,6 +782,13 @@ def new_transaction_page(
     kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account, ""), "expense")
     if account is not None and account in roots_of:
         from_id = account  # the money leaves the account the entry is started from
+    total = ""
+    if pay is not None and roots_of.get(pay) == "Liabilities":
+        to_id, kind = pay, "transfer"
+        try:
+            total = str(parse_amount(amount)) if amount.strip() else ""
+        except ValueError:
+            total = ""
     chosen = categories.read(category) if category is not None else None
     if chosen is not None:
         if chosen.kind == "spending":
@@ -797,6 +807,7 @@ def new_transaction_page(
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
             kind=kind,
             related=linked,
+            total=total,
             account=account,
             back=safe_back(back, ""),
             back_url=safe_back(back),

@@ -291,6 +291,7 @@ def new_account_page(
             "root_of": root_of,
             "back_list": _list_for_root(root_of.get(parent)),
             "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
+            "can_bill": root_of.get(parent) == "Liabilities",
             # an asset starts in the budget; a card or loan, outside it; under a built-in group, as that group says
             "on_budget": (starts.get(parent) == "budget") if parent in starts else root_of.get(parent) == "Assets",
         },
@@ -369,6 +370,15 @@ def quick_create_account(
     return htmx_trigger("account-added", {"id": str(created.id), "name": created.name})
 
 
+def _bill_days(statement_day: str, due_day: str) -> dict:
+    """The form's two days as numbers; both empty means none. Anything else that is not a day is refused."""
+    try:
+        days = [int(v) if v.strip() else None for v in (statement_day, due_day)]
+    except ValueError:
+        raise ValueError("the statement day and the due day are numbers from 1 to 31!") from None
+    return {"statement_day": days[0], "due_day": days[1]}
+
+
 @router.post("")
 def create_account(
     accounts: Accounts,
@@ -378,6 +388,9 @@ def create_account(
     balance: Annotated[str, Form()] = "",
     on_budget: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
+    bill_choice: Annotated[str | None, Form()] = None,
+    statement_day: Annotated[str, Form()] = "",
+    due_day: Annotated[str, Form()] = "",
 ):
     try:
         if not parent_id:
@@ -389,6 +402,7 @@ def create_account(
             balance=parse_amount(balance, Decimal("0.00")),
             # The form asked (budget_choice): its box says yes or no. Without it the default applies (an asset: yes).
             on_budget=None if budget_choice is None else on_budget is not None,
+            **(_bill_days(statement_day, due_day) if bill_choice is not None else {}),
         )
         created = accounts.create(data)
     except ValidationError as e:
@@ -444,8 +458,16 @@ def account_context(accounts: AccountService, account_id: UUID, entries=None, of
         and not at_limit
         and (not has_own_postings or root.account.name in GROUP_POSTING_ROOT_NAMES)
     )
+    bill = None
+    can_set_days = False
+    if entries is None and root.account.name == "Liabilities" and node.kind == "user" and node.postable:
+        if not node.account.closed_on and node.account.statement_day is not None:
+            bill = accounts.bill(account_id, today)
+        can_set_days = node.account.statement_day is None and not node.account.closed_on
     return {
         "active": "accounts",
+        "bill": bill,
+        "can_set_days": can_set_days,
         # The "+" in the bar starts an entry for this account and comes back here (a group, a closed account: the usual one).
         "new_transaction_url": f"/transactions/new?account={account_id}&back=/accounts/{account_id}"
         if node.postable and not node.account.closed_on
@@ -556,6 +578,7 @@ def edit_account_page(request: Request, account_id: UUID, accounts: Accounts):
             "currency": accounts.currency().code,
             "root_name": root.account.name,
             "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
+            "can_bill": root.account.name == "Liabilities" and node.is_leaf,
             "on_budget": node.account.on_budget,
             "starts": _starts(roots),
             "parent_options": [
@@ -577,6 +600,9 @@ def update_account(
     balance: Annotated[str | None, Form()] = None,
     on_budget: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
+    bill_choice: Annotated[str | None, Form()] = None,
+    statement_day: Annotated[str, Form()] = "",
+    due_day: Annotated[str, Form()] = "",
 ):
     current = accounts.read(account_id)
     if current is None:
@@ -596,6 +622,10 @@ def update_account(
                 changes["balance"] = new_balance
         if budget_choice is not None and (on_budget is not None) != current.on_budget:
             changes["on_budget"] = on_budget is not None
+        if bill_choice is not None:
+            days = _bill_days(statement_day, due_day)
+            if days != {"statement_day": current.statement_day, "due_day": current.due_day}:
+                changes.update(days)
         if changes:
             accounts.update(account_id, AccountUpdate(**changes))
     except ValidationError as e:
