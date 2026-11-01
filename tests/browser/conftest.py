@@ -168,6 +168,36 @@ class Api:
         return response.json()
 
 
+def row_button(page: Page, side: str, index: int = 0):
+    """The button of a row on the Add screen (its account or category, its date and its amount)."""
+    return page.locator(f'[data-rows="{side}"] [data-row]').nth(index).locator("[data-pick].slim")
+
+
+def set_row(page: Page, side: str, index: int = 0, amount: str | None = None, date: str | None = None) -> None:
+    """Open a row that already has its account, type its amount and/or day in the sheet and tick it."""
+    row_button(page, side, index).click()
+    sheet = page.locator("#row-picker")
+    if amount is not None:
+        sheet.locator("[data-config-amount]").fill(amount)
+    if date is not None:
+        sheet.locator("[data-config-date]").fill(date)
+    sheet.locator("[data-config-ok]").click()
+
+
+def add_row(
+    page: Page, side: str, label: str, index: int = 0, amount: str | None = None, date: str | None = None
+) -> None:
+    """Choose an account or category in the sheet, set its amount and/or day and add it with the tick."""
+    row_button(page, side, index).click()
+    sheet = page.locator("#row-picker")
+    sheet.locator("[data-pick-option]", has_text=label).first.click()
+    if amount is not None:
+        sheet.locator("[data-config-amount]").fill(amount)
+    if date is not None:
+        sheet.locator("[data-config-date]").fill(date)
+    sheet.locator("[data-config-ok]").click()
+
+
 @pytest.fixture
 def api(page: Page) -> Api:
     return Api(page)

@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import AliasChoices, BaseModel, Field
 
 from ..models.transaction import PostingSide
+from .account import BillRounding
 from .day import Day
 
 FORMAT = "finode-backup"
@@ -35,6 +36,7 @@ class BackupAccount(BaseModel):
     # A card's or loan's bill days (files from before have none).
     statement_day: int | None = Field(default=None, ge=1, le=31)
     due_day: int | None = Field(default=None, ge=1, le=31)
+    bill_rounding: BillRounding = "none"
     payment_category_id: UUID | None = Field(
         default=None, exclude=True
     )  # a setting that was removed: read, never written
@@ -65,6 +67,8 @@ class BackupPosting(BaseModel):
     # What the line was for: a category of the file. Before version 5 this was the id of an Income or Expenses
     # account (the same id the category got), and a line to one of those had none: a restore sorts it out.
     category: UUID | None = None
+    # The day the account posts the line, when not the entry's own date (files from before have none).
+    posted_on: Day | None = None
     # Version 1 only: the worth in the transaction's currency; must equal the amount.
     value: Decimal | None = Field(default=None, exclude=True)
 

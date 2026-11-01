@@ -7,6 +7,7 @@ same month, otherwise (a statement on the 22nd, due on the 15th) in the next one
 
 import calendar
 from datetime import date
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 
 # A bill is "due soon" (amber on the card's page, a reminder in the bell) this many days before its due date.
 DUE_SOON_DAYS = 5
@@ -43,3 +44,13 @@ def due_date(statement: date, statement_day: int, due_day: int) -> date:
     months = 0 if due_day > statement_day else 1
     year, month = _shift(statement.year, statement.month, months)
     return _on(year, month, due_day)
+
+
+def round_bill(amount: Decimal, rule: str) -> Decimal:
+    """What a bank bills for `amount`: as it is ("none"), to the nearest whole unit of the currency ("nearest", halves
+    up) or up to the next whole unit ("up")."""
+    if rule == "nearest":
+        return amount.quantize(Decimal(1), rounding=ROUND_HALF_UP) + Decimal("0.00")
+    if rule == "up":
+        return amount.quantize(Decimal(1), rounding=ROUND_CEILING) + Decimal("0.00")
+    return amount

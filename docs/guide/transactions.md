@@ -12,7 +12,7 @@ Tap **+** (phone) or **New transaction** (wide screen).
    - Income: a **Category** (such as Salary), **Received in** an account.
    - Transfer: **From** and **To** your own accounts (including paying a card or a loan).
    - Tap the selected kind again to select *none*: every account is offered. Use this for anything unusual.
-3. **Accounts and category**: pick the accounts: each row opens a sheet (groups with their balances, with a search). The category comes after the accounts as a chip that opens a grid of tiles to choose from (*＋ New category* makes one). The amount sits beside it: type less than the total and the rest moves to a new row, so a split needs no extra step. When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional and starts empty. Several categories on one entry make it a split.
+3. **Accounts and category**: each side shows a **Choose account…** row (a **Category…** row for the category). Tap it and a sheet lists the accounts (groups with their balances, with a search). Tap the one you want and its **Amount** and **Date** open under it, both already filled in (the whole total, and the entry's date); change either if you need to and tap the round **tick** to add it. A row then shows only the account's name; its amount appears beside it only when it is not the whole total, and a date ("Posts 18 Oct") only when it is not the entry's. Tap a row again to change it or to remove it. When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional and starts empty. Several accounts or categories on one entry make it a split.
 4. **Payee**, **note** and **date** (a chip that reads "Today, 24 Oct"; tap it to pick another day).
 5. **Save**, or **Save & add another** to keep entering.
 
@@ -22,7 +22,11 @@ Under the payee field, finode suggests the payees you use most. Tapping one fill
 
 ### Splitting across accounts
 
-When you need more than one account on a side (a bill paid half by cash and half by card, or a shop receipt with Food and Household), add rows. Each side starts with one row; when you type a different amount in a row, a new row appears with the remainder suggested, until the side adds up to the total. Both sides must add up to the same total. The same account cannot be on both sides of one entry (money cannot move from an account to itself); it can appear on several rows of the same side.
+When you need more than one account on a side (a bill paid half by cash and half by card, or a shop receipt with Food and Household), change the amount in a row's sheet: a new **Choose account…** row appears by itself with what is left ("450.00 left"), until the side adds up to the total. Both sides must add up to the same total. The same account cannot be on both sides of one entry (money cannot move from an account to itself); it can appear on several rows of the same side.
+
+### The date a card posts a line
+
+Some cards bill an entry in a later statement than its date (for example a tax line recorded on the 16th that the card posts on the 17th). In that account's sheet set its **Date** to the day the card posts it. The entry keeps its own date everywhere, and only the card's bill counts the line by the posting date (see *A card's bill* under Accounts). The posting date is never before the entry's date, and it goes back to the entry's date if you move the entry past it.
 
 ### Repeat
 

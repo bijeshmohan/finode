@@ -15,6 +15,8 @@ class LedgerPosting:
     # What the line was for, as the path of an expense category ("EMI", "Food:Groceries"), written as a comment on the
     # posting (`; category: EMI`); None when it says nothing (the account's own category applies).
     category: str | None = None
+    # The day the account posts the line when it is not the entry's date (`; posted: 2026-10-18`).
+    posted: Date | None = None
 
 
 @dataclass

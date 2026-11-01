@@ -50,6 +50,15 @@
            value="{{ node.account.due_day or '' if editing else '' }}">
     <span class="hint">The day it must be paid by. 31 means the last day of the month</span>
   </label>
+  <label>Round the bill
+    {% set sign = currency|symbol %}
+    <select name="bill_rounding">
+      {% for value, label in (("none", "Exactly, to the paisa"), ("nearest", "To the nearest " ~ sign ~ "1"), ("up", "Up to the next " ~ sign ~ "1")) %}
+      <option value="{{ value }}" {{ "selected" if editing and node.account.bill_rounding == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <span class="hint">How your bank rounds what you owe</span>
+  </label>
   </div>
   {% endif %}
   {% set note = (node.account.details or '') if editing else '' %}

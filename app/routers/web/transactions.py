@@ -572,6 +572,7 @@ def split_postings(
     amount: list[str],
     category: list[str] | None = None,
     places: Mapping[UUID, UUID] | None = None,
+    posted_on: list[str] | None = None,
 ) -> list[PostingCreate]:
     """The form's rows as postings. `category` has one entry per row (blank when the row names none). The form picks an
     expense or an income by its category, so a row whose choice is a key of `places` (category id -> the Expenses or
@@ -581,6 +582,8 @@ def split_postings(
         raise ValueError("every posting needs an account, a side and an amount!")
     if category is not None and len(category) != len(account):
         category = None  # a form from before the Category column: the accounts decide
+    if posted_on is not None and len(posted_on) != len(account):
+        posted_on = None  # a form from before the posting dates: every line is on the entry's own date
     postings = []
     for index, (account_id, posting_side, posting_amount) in enumerate(zip(account, side, amount, strict=False)):
         if not account_id and not posting_amount.strip():
@@ -588,6 +591,7 @@ def split_postings(
         if not account_id:
             raise ValueError("every posting needs an account!")
         label = (category[index] if category else "").strip()
+        posted = (posted_on[index] if posted_on else "").strip()
         chosen = UUID(account_id)
         is_category = chosen in places
         postings.append(
@@ -596,6 +600,7 @@ def split_postings(
                 side=PostingSide(posting_side),
                 amount=parse_amount(posting_amount),
                 category_id=chosen if is_category else (UUID(label) if label else None),
+                posted_on=date.fromisoformat(posted) if posted else None,
             )
         )
     return postings
@@ -824,6 +829,7 @@ def create_split_transaction(
     side: Annotated[list[str] | None, Form()] = None,
     amount: Annotated[list[str] | None, Form()] = None,
     category: Annotated[list[str] | None, Form()] = None,
+    posted_on: Annotated[list[str] | None, Form()] = None,
     date_: Annotated[str, Form(alias="date")] = "",
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
@@ -839,7 +845,9 @@ def create_split_transaction(
                 date=date_ or local_today(),
                 payee=payee.strip() or None,
                 comment=comment.strip() or None,
-                postings=split_postings(account, side, amount, category, category_places(accounts, categories)),
+                postings=split_postings(
+                    account, side, amount, category, category_places(accounts, categories), posted_on
+                ),
                 related_id=parse_related(related),
                 tags=tags or [],
             )
@@ -934,6 +942,7 @@ def update_transaction(
     side: Annotated[list[str] | None, Form()] = None,
     amount: Annotated[list[str] | None, Form()] = None,
     category: Annotated[list[str] | None, Form()] = None,
+    posted_on: Annotated[list[str] | None, Form()] = None,
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     back: Annotated[str, Form()] = "",
@@ -947,7 +956,7 @@ def update_transaction(
         date_,
         payee,
         comment,
-        lambda: split_postings(account, side, amount, category, category_places(accounts, categories)),
+        lambda: split_postings(account, side, amount, category, category_places(accounts, categories), posted_on),
         back,
         related,
         tags,

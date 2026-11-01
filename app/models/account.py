@@ -32,6 +32,7 @@ class Account(TimestampMixin, table=True):
         CheckConstraint("statement_day IS NULL OR statement_day BETWEEN 1 AND 31", name="ck_accounts_statement_day"),
         CheckConstraint("due_day IS NULL OR due_day BETWEEN 1 AND 31", name="ck_accounts_due_day"),
         CheckConstraint("(statement_day IS NULL) = (due_day IS NULL)", name="ck_accounts_bill_days_together"),
+        CheckConstraint("bill_rounding IN ('none', 'nearest', 'up')", name="ck_accounts_bill_rounding"),
     )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
@@ -46,6 +47,8 @@ class Account(TimestampMixin, table=True):
     # A liability account's (a card's, a loan's) day of the month the bank closes a bill and the day it must be paid by.
     statement_day: int | None = Field(default=None)
     due_day: int | None = Field(default=None)
+    # How the bank rounds the bill: "none" (to the paisa), "nearest" or "up" (to a whole unit of the currency).
+    bill_rounding: str = Field(default="none", max_length=8, sa_column_kwargs={"server_default": "none"})
     # For an asset or liability account outside the budget (a loan): the expense category its payments are
     # budgeted under, so paying the EMI spends that category (see services/budget.py).
     # Set on the built-in groups under Assets and Liabilities (Bank Accounts, Cash, Investments, Credit Cards, Loans):

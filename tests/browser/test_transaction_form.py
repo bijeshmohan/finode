@@ -3,7 +3,7 @@
 from playwright.sync_api import Page, expect
 
 from ..books import leg
-from .conftest import Api
+from .conftest import Api, row_button, set_row
 
 
 def groups(page: Page, side: str) -> list[str]:
@@ -67,9 +67,7 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
     page.goto("/transactions/new")
     page.fill("#total", "100")
     page.select_option('[data-rows="credit"] select', label="Checking")
-    page.click('[data-rows="credit"] [name="amount"]')  # a suggestion is selected on entry: typing replaces it
-    page.keyboard.type("60")
-    page.keyboard.press("Tab")
+    set_row(page, "credit", 0, amount="60")  # the amount is typed in the row's sheet
     assert amounts(page, "credit") == ["60.00", "40.00"]
     assert page.eval_on_selector_all(
         '[data-rows="credit"] [name="amount"]', "e => e.map(x => x.classList.contains('suggested'))"
@@ -89,9 +87,11 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
 def test_removing_a_row_brings_the_remainder_back(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "100")
-    page.fill('[data-rows="debit"] [name="amount"]', "30")
-    assert amounts(page, "debit") == ["30", "70.00"]
-    page.click('[data-rows="debit"] [data-row]:nth-child(1) [data-remove-row]')
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    set_row(page, "debit", 0, amount="30")
+    assert amounts(page, "debit") == ["30.00", "70.00"]
+    row_button(page, "debit", 0).click()
+    page.locator("#row-picker [data-config-remove]").click()  # a row is removed from its own sheet
     assert amounts(page, "debit") == ["100.00"]
 
 
@@ -133,8 +133,8 @@ def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
     expect(page.locator('[data-kind="expense"]')).to_have_attribute("aria-pressed", "true")
     assert page.input_value("#total") == "40.00" and amounts(page, "credit") == ["40.00"]
     page.fill("#total", "55")
-    page.fill('[data-rows="credit"] [name="amount"]', "55")
-    page.fill('[data-rows="debit"] [name="amount"]', "55")
+    set_row(page, "credit", 0, amount="55")
+    set_row(page, "debit", 0, amount="55")
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url("**/transactions")
     assert api.get(f"/transactions/{entry['id']}")["postings"][0]["amount"] == "55.00"
@@ -266,9 +266,10 @@ def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, book
 def test_the_allocation_status_groups_rupees_in_lakhs(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "1500000")
-    page.fill('[data-rows="debit"] [name="amount"]', "2000000")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    set_row(page, "debit", 0, amount="2000000")
     expect(page.locator('[data-status="debit"]')).to_contain_text("5,00,000.00 INR over")
-    page.fill('[data-rows="debit"] [name="amount"]', "1500000")
+    set_row(page, "debit", 0, amount="1500000")
     expect(page.locator('[data-status="debit"]')).to_have_text("")  # balanced: nothing is said
     assert page.evaluate("document.documentElement.dataset.grouping") == "indian"
 
@@ -435,24 +436,30 @@ def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(page: Page, b
     page.keyboard.press("Tab")
     assert total.input_value() == "12,34,567.50"
     assert page.input_value('[data-rows="debit"] [name="amount"]') == "12,34,567.50", "the rows are grouped too"
-    page.fill('[data-rows="debit"] [name="amount"]', "")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    row_button(page, "debit").click()
+    amount = page.locator(
+        "#row-picker [data-config-amount]"
+    )  # the sheet's amount is cleaned and grouped as it is typed
+    amount.fill("")
+    amount.click()
     page.keyboard.type("1000")
-    assert page.input_value('[data-rows="debit"] [name="amount"]') == "1,000"
+    assert amount.input_value() == "1,000"
 
 
-def test_a_lone_row_has_no_cross_and_a_split_has_one_on_every_row(page: Page, books):
+def test_a_row_shows_its_amount_only_when_it_differs_from_the_total(page: Page, books):
     page.goto("/transactions/new")
-    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
     page.fill("#total", "100")
-    page.locator('[data-rows="debit"] select').first.select_option(books["food"]["id"])
-    page.fill('[data-rows="debit"] [name="amount"]', "60")
-    expect(page.locator('[data-rows="debit"] [data-remove-row]:visible')).to_have_count(2)
-    (
-        expect(page.locator('[data-rows="credit"] [data-remove-row]:visible')).to_have_count(0),
-        "the other side is still one row",
-    )
-    page.fill('[data-rows="debit"] [name="amount"]', "100")
-    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    expect(row_button(page, "debit", 0)).to_have_text("Groceries")  # the whole total: nothing beside the name
+    set_row(page, "debit", 0, amount="60")
+    expect(row_button(page, "debit", 0)).to_have_text("Groceries60.00")
+    expect(row_button(page, "debit", 1)).to_contain_text("Category…")
+    expect(row_button(page, "debit", 1)).to_contain_text("40.00 left")  # a row for what is left appears by itself
+    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)  # a row is removed from its sheet
+    set_row(page, "debit", 0, amount="100")
+    expect(page.locator('[data-rows="debit"] [data-row]')).to_have_count(1)
+    expect(row_button(page, "debit", 0)).to_have_text("Groceries")
 
 
 def test_the_date_is_a_chip_that_names_the_day(page: Page, books):
