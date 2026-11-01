@@ -53,7 +53,7 @@ def ledger(client, books):
 
 
 def titles(html):
-    return re.findall(r'<span class="tx-title">([^<]*)</span>', html)
+    return re.findall(r'<span class="tx-title-text">([^<]*)</span>', html)
 
 
 def page(client, **params):

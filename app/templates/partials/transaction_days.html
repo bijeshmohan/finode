@@ -1,3 +1,4 @@
+{% from "partials/tx_title.html" import tx_title %}
 {#- The day sections of a list of rows (TransactionRow, newest first): shared by the list and by "Show more". -#}
 {% from "partials/icons.html" import icon %}
   {% for day, items in rows|groupby("transaction.date")|reverse %}
@@ -13,7 +14,7 @@
         <a class="tx{{ " tx-system" if system }}" href="/transactions/{{ t.id }}/edit" hx-get="/transactions/{{ t.id }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
           <span class="tx-main">
             {#- No payee: the row leads with where the money went and says where it came from. -#}
-            <span class="tx-title">{{ t.payee or row.debits|join(", ") }}</span>
+            {{ tx_title(t.payee or row.debits|join(", "), row.related) }}
             {#- An opening balance or an adjustment names just the account: the system's "Opening Balances" and the stock note say nothing. -#}
             {% set note = "" if system and t.comment == "Initial account balance" else t.comment %}
             <span class="tx-sub">{% if system %}{{ (row.credits + row.debits)|reject("equalto", "Opening Balances")|join(", ") }}{% elif t.payee %}{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% else %}{{ row.credits|join(", ") }}{% endif %}{% if note %} · {{ note }}{% endif %}</span>

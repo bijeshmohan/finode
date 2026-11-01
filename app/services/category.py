@@ -255,6 +255,7 @@ class CategoryService:
         postings_of = self.tr.postings_for_transactions(builtins.list(changes))
         accounts = {a.id: a for a in self.ar.list()}
         transactions = sorted((loaded[t] for t in changes if t in loaded), key=lambda t: (t.date, t.created))
+        related = self.tr.related_refs([t.related_id for t in transactions])
         entries: builtins.list[RegisterEntry] = []
         balance = Decimal("0.00")
         for transaction in transactions:
@@ -275,6 +276,7 @@ class CategoryService:
                     counter_accounts=counters,
                     change=changes[transaction.id],
                     balance=balance,
+                    related=related.get(transaction.related_id) if transaction.related_id else None,
                 )
             )
         return entries

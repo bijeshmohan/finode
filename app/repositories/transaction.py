@@ -17,7 +17,7 @@ from ..models.tag import Tag, TransactionTag
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..models.transaction_history import TransactionHistory
 from ..models.utils import without_nul
-from ..schemas.transaction import TransactionCreate, TransactionUpdate
+from ..schemas.transaction import RelatedRef, TransactionCreate, TransactionUpdate
 from ..tags import clean_tag
 from .cache import remembered
 from .category import ROOT_KINDS, CategoryRepository
@@ -221,6 +221,20 @@ class TransactionRepository:
             select(Transaction).where(col(Transaction.id).in_(list(tids)), Transaction.user_id == self.uid)
         ).all()
         return {t.id: t for t in rows}
+
+    def related_refs(self, ids: builtins.list[UUID | None]) -> dict[UUID, RelatedRef]:
+        """For each earlier entry that others are related to: its date and what it came to (its debits). Two queries
+        however many, none when nothing is related."""
+        found = self.read_many(builtins.list({i for i in ids if i is not None}))
+        postings = self.postings_for_transactions(builtins.list(found))
+        return {
+            tid: RelatedRef(
+                id=tid,
+                date=t.date,
+                amount=sum((p.amount for p in postings.get(tid, []) if p.side == PostingSide.DEBIT), Decimal("0.00")),
+            )
+            for tid, t in found.items()
+        }
 
     def _matching(
         self,

@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from .transaction import RelatedRef
+
 
 def clean_name(value: str) -> str:
     """An account's name as it will be kept: trimmed, with something visible in it, on one line, without ':' (the path
@@ -80,6 +82,8 @@ class RegisterEntry(BaseModel):
     counter_accounts: list[str]
     change: Decimal
     balance: Decimal
+    # The earlier entry this one is related to (a refund, a reversal), if any.
+    related: RelatedRef | None = None
 
 
 class AccountChangeRead(BaseModel):

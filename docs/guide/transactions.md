@@ -38,7 +38,7 @@ Open a transaction and tap **Repeat** (under Edit) to start a new one pre-filled
 
 A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap **Related** (under Edit): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **Transaction** (next to the date) and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
 
-Both entries show the link in their details sheet: the new one says "Related to" the original, the original lists what is related to it, and tapping either opens the other. A link is only a link: it changes no amounts, balances or budget, and deleting the original simply drops it.
+In the lists the linked entry (the refund) carries a small grey pill after its payee with a link glyph and the original's date and amount; tap the pill to open the original, tap the row to open the refund itself. The original has no marker. Both entries show the link in their details sheet: the new one says "Related to" the original, the original lists what is related to it, and tapping either opens the other. A link is only a link: it changes no amounts, balances or budget, and deleting the original simply drops it.
 
 ## The Transactions page
 

@@ -579,6 +579,7 @@ class AccountService:
         transactions = [loaded[transaction_id] for transaction_id in changes if transaction_id in loaded]
         transactions.sort(key=lambda t: (t.date, t.created))
         postings_of = self.tr.postings_for_transactions(list(changes))
+        related = self.tr.related_refs([t.related_id for t in transactions])
 
         entries = []
         balance = Decimal("0.00")
@@ -600,6 +601,7 @@ class AccountService:
                     counter_accounts=counter_accounts,
                     change=changes[transaction.id],
                     balance=balance,
+                    related=related.get(transaction.related_id) if transaction.related_id else None,
                 )
             )
         return entries
@@ -799,6 +801,7 @@ class AccountService:
         wanted = [*chunk, *ahead]
         loaded = self.tr.read_many(wanted)
         postings_of = self.tr.postings_for_transactions(wanted)
+        related = self.tr.related_refs([t.related_id for t in loaded.values()])
 
         def entry(transaction_id: UUID) -> RegisterEntry:
             transaction = loaded[transaction_id]
@@ -817,6 +820,7 @@ class AccountService:
                 counter_accounts=counter,
                 change=changes[transaction_id],
                 balance=balances[transaction_id],
+                related=related.get(transaction.related_id) if transaction.related_id else None,
             )
 
         return RegisterPage(

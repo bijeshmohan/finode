@@ -1,3 +1,4 @@
+{% from "partials/tx_title.html" import tx_title %}
 {#- The days of an account's transactions (newest first) and, when there are more, the button that fetches the next chunk and
     replaces itself with it. Included by account.html and returned by GET /accounts/{account_id}/more. -#}
 {% set account = node.account %}
@@ -9,7 +10,7 @@
     <li>
       <a class="tx" href="/transactions/{{ e.transaction_id }}/edit?back={{ area }}/{{ account.id }}" hx-get="/transactions/{{ e.transaction_id }}/sheet?back={{ (area ~ '/' ~ account.id)|urlencode }}" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
         <span class="tx-main">
-          <span class="tx-title">{{ e.payee or e.counter_accounts|join(", ") }}</span>
+          {{ tx_title(e.payee or e.counter_accounts|join(", "), e.related, "?back=" ~ (area ~ "/" ~ account.id)|urlencode) }}
           <span class="tx-sub">{% if e.payee %}{{ e.counter_accounts|join(", ") }}{% endif %}{% if e.payee and e.comment %} · {% endif %}{{ e.comment or "" }}</span>
         </span>
         {#- Green and "+" mean money coming in: what raises an asset account, and a payment into a card or loan (it lowers what you owe). A charge is plain; the running balance shows which way it went. -#}

@@ -308,7 +308,7 @@ def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(page: Pag
         ],
     )
     page.goto("/transactions")
-    page.locator("a.tx", has_text="Swiggy refund").click()
+    page.locator("a.tx", has_text="Swiggy refund").locator(".tx-title-text").click()  # not the pill
     sheet = page.locator("#txn-sheet")
     more = sheet.locator(".sheet-extra > summary")
     expect(more).to_have_text("More")
@@ -327,3 +327,27 @@ def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(page: Pag
     assert "/edit" not in page.url
     more.click()
     expect(sheet.locator(".sheet-related-row")).to_be_hidden()
+
+
+def test_the_pill_opens_the_original_and_the_row_opens_its_own_sheet(page: Page, books, api: Api):
+    first = add(api, books, "Amazon", "food", "card", "4998")
+    api.post(
+        "/transactions/",
+        payee="Amazon refund",
+        related_id=first["id"],
+        postings=[leg(books["card"], "debit", "1000"), leg(books["food"], "credit", "1000")],
+    )
+    page.goto("/transactions")
+    refund = page.locator("a.tx", has_text="Amazon refund")
+    pill = refund.locator(".tx-pill")
+    expect(pill).to_contain_text("4,998.00")
+    expect(page.locator(".tx-pill")).to_have_count(1)  # the original has none
+    pill.click()
+    sheet = page.locator("#txn-sheet")
+    expect(sheet).to_be_visible()
+    expect(sheet).to_contain_text("4,998.00")
+    expect(sheet.locator("h2")).to_have_text("Amazon")
+    page.keyboard.press("Escape")
+    expect(sheet).to_be_hidden()
+    refund.locator(".tx-title-text").click()
+    expect(sheet.locator("h2")).to_have_text("Amazon refund")
