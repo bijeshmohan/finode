@@ -482,7 +482,7 @@ def test_copying_never_overwrites_what_is_assigned(client, setup):
     assign(client, setup["food"], "300", LAST_MONTH)
     assign(client, setup["rent"], "500", LAST_MONTH)
     assign(client, setup["food"], "50")
-    assert budget(client)["copyable"] == "500.00"
+    assert budget(client)["copyable"] == "0.00", "a started month is not offered a copy"
     data = press(client, "copy").json()
     assert line(data, "Food")["assigned"] == "50.00" and line(data, "Rent")["assigned"] == "500.00"
 

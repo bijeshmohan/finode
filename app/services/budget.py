@@ -212,6 +212,9 @@ class BudgetService:
         later += sum((row.amount for row in every_goal_row if row.month > month), ZERO)
         previous_month = first_of_month(month - timedelta(days=1))
         assigned_here = {row.category_id for row in allocations if row.month == month}
+        goal_here = {row.goal_id for row in every_goal_row if row.month == month}
+        # Once anything is assigned this month the month is started, so there is nothing to offer a copy of.
+        started = bool(assigned_here or goal_here)
         copyable = sum(
             (
                 row.amount
@@ -223,7 +226,6 @@ class BudgetService:
             ),
             ZERO,
         )
-        goal_here = {row.goal_id for row in every_goal_row if row.month == month}
         copyable += sum(
             (
                 row.amount
@@ -232,6 +234,8 @@ class BudgetService:
             ),
             ZERO,
         )
+        if started:
+            copyable = ZERO
         # Budgeting starts with the first month anything was assigned: earlier spending already left the
         # accounts that cash is counted from, and must not show up as overspending.
         start = min(

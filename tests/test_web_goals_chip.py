@@ -196,7 +196,7 @@ def test_copying_last_months_amounts_includes_goals(session, books, client):
     budget.create_goal("Bike", Decimal("12000"), THIS_MONTH.replace(year=THIS_MONTH.year + 1), False)
     last = (THIS_MONTH - timedelta(days=1)).replace(day=1)
     budget.assign_goal(last, budget.view(THIS_MONTH).goals[0].id, Decimal("500"))
-    assert budget.view(THIS_MONTH).copyable == Decimal("500")
+    assert budget.view(THIS_MONTH).copyable == 0, "Food is assigned this month, so the link is not offered"
     budget.copy_previous(THIS_MONTH)
     assert budget.view(THIS_MONTH).goals[0].assigned == 500
 
