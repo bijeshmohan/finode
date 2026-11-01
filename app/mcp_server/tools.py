@@ -323,8 +323,6 @@ def _account_row(e, index: AccountIndex) -> dict[str, Any]:
     }
 
 
-
-
 @_tool_errors
 def get_account(
     account: AccountRef,
