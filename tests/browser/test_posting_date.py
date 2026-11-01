@@ -138,3 +138,14 @@ def test_a_row_is_removed_from_its_own_sheet(page: Page, books, api: Api):
     page.locator("#row-picker [data-config-remove]").click()
     expect(page.locator('[data-rows="credit"] [data-row]')).to_have_count(2)  # the open row for what is left is back
     assert page.input_value('[data-rows="credit"] [data-row]:nth-child(2) select') == ""
+
+
+def test_the_tick_sits_in_the_middle_of_its_circle(page: Page, books):
+    page.goto("/transactions/new")
+    page.fill("#total", "100")
+    row_button(page, "credit").click()
+    page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
+    tick = page.locator("#row-picker [data-config-ok]")
+    circle, mark = tick.bounding_box(), tick.locator("svg").bounding_box()
+    assert abs((circle["x"] + circle["width"] / 2) - (mark["x"] + mark["width"] / 2)) < 1
+    assert abs((circle["y"] + circle["height"] / 2) - (mark["y"] + mark["height"] / 2)) < 1
