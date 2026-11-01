@@ -34,6 +34,13 @@
     <button type="button" class="secondary" hx-post="/todo/accounts/{{ a.account_id }}/include" hx-target="#todo-sheet-body" hx-swap="innerHTML">Add to budget</button>
   </div>
   {% endfor %}
+  {% for b in todo.card_bills %}
+  <div class="todo-item">
+    <strong>{{ b.path.rsplit(":", 1)[-1] }} bill is {% if b.days_to_due < 0 %}overdue by {{ -b.days_to_due }} day{{ "" if b.days_to_due == -1 else "s" }}{% elif b.days_to_due == 0 %}due today{% else %}due in {{ b.days_to_due }} day{{ "" if b.days_to_due == 1 else "s" }}{% endif %}</strong>
+    <p class="muted">{{ b.bill|money|amount(currency) }} · due {{ b.due_date|short_date }}</p>
+    <a class="button secondary" href="/transactions/new?pay={{ b.account_id }}&amount={{ b.bill }}&back=/accounts/{{ b.account_id }}">Pay bill</a>
+  </div>
+  {% endfor %}
   {% for r in todo.failing_rules %}
   <div class="todo-item">
     <strong>{{ r.name }} could not be recorded</strong>

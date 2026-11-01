@@ -823,6 +823,23 @@ class AccountService:
             owed_total=max(total, Decimal("0.00")),
         )
 
+    def bills_due(self, today: date | None = None) -> builtins.list[tuple[str, CardBill]]:
+        """The open liability accounts with something left to pay that is due within `cards.DUE_SOON_DAYS` days or
+        already overdue, as (name, bill), the most overdue first. None are read while no account has its days set."""
+        day = today or local_today()
+        accounts = self._ensure_roots()
+        by_id = {a.id: a for a in accounts}
+        found = []
+        for account in accounts:
+            if account.statement_day is None or account.closed_on is not None:
+                continue
+            if self._get_root_name(account, by_id) != "Liabilities":
+                continue
+            bill = self.bill(account.id, day)
+            if bill is not None and bill.bill > 0 and bill.days_to_due <= cards.DUE_SOON_DAYS:
+                found.append((self._path(account, by_id), bill))
+        return sorted(found, key=lambda pair: (pair[1].days_to_due, pair[0]))
+
     def register_page(
         self, account_id: UUID, today: date, offset: int = 0, limit: int = REGISTER_PAGE
     ) -> RegisterPage | None:

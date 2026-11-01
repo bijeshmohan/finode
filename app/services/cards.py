@@ -8,6 +8,9 @@ same month, otherwise (a statement on the 22nd, due on the 15th) in the next one
 import calendar
 from datetime import date
 
+# A bill is "due soon" (amber on the card's page, a reminder in the bell) this many days before its due date.
+DUE_SOON_DAYS = 5
+
 
 def _on(year: int, month: int, day: int) -> date:
     """The day of a month, or its last day when the month is shorter."""
