@@ -9,7 +9,7 @@ from ...services.account import AccountService
 from ...templating import templates
 from .budget import parse_month
 from .categories import _month_context
-from .transactions import HOME_FIRST, HOME_MORE, AccountIndex, _more, to_row
+from .transactions import HOME_FIRST, HOME_MORE, AccountIndex, _more, list_rows, to_row
 
 router = APIRouter()
 
@@ -50,7 +50,7 @@ def dashboard(
     # The chosen month's own entries, newest first (this month up to today), a few at first and "Show more" for the rest.
     month_end = when.replace(day=calendar.monthrange(when.year, when.month)[1])
     chunk, month_total = transactions.page(0, HOME_FIRST, date_from=when, date_to=min(month_end, local_today()))
-    recent = [to_row(t, index) for t in chunk]
+    recent = list_rows(chunk, index, transactions)
     more = _more({"scope": "home", "month": when.strftime("%Y-%m")}, len(recent), month_total, HOME_MORE, HOME_MORE)
     roots = {a.name: a.id for a in all_accounts if a.parent_id is None}
     system_ids = {a.id for a in all_accounts if AccountService.is_opening_balances(a, all_accounts)}

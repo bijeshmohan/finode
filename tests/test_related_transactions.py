@@ -242,3 +242,16 @@ def test_an_upcoming_entry_on_an_account_page_opens_the_sheet(client, account, e
     ahead = make(client, expense_account, account, "99", "Later", on=(date.today() + timedelta(days=5)).isoformat())
     page = client.get(f"/accounts/{account['id']}").text
     assert f'hx-get="/transactions/{ahead["id"]}/sheet?back=' in page and 'id="txn-sheet-body"' in page
+
+
+def test_only_the_related_entry_carries_a_pill_with_the_originals_date_and_amount(client, account, expense_account):
+    first = make(client, expense_account, account, "1000", "Amazon", on="2026-10-12")
+    second = make(client, account, expense_account, "300", "Amazon refund", on="2026-10-20", related_id=first["id"])
+    for url in ("/transactions?month=2026-10", f"/accounts/{account['id']}"):
+        page = client.get(url).text
+        assert page.count('class="tx-pill"') == 1, url
+        marked = [r for r in page.split("<li>") if "tx-pill" in r]
+        assert len(marked) == 1 and "Amazon refund" in marked[0], url
+        assert "12 Oct" in marked[0] and "1,000.00" in marked[0], url
+        assert f"/transactions/{first['id']}/sheet" in marked[0], "the pill opens the original, the row its own"
+        assert f"/transactions/{second['id']}/sheet" in marked[0]

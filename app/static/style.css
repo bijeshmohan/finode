@@ -1570,3 +1570,9 @@ button.add-row { width: 100%; font: inherit; cursor: pointer; background: transp
 .todo-item button, .todo-item a.button { margin: .25rem 0 0; }
 form.copy-last { margin: .25rem 0 .75rem; }
 .quiet-link { background: none; border: 0; box-shadow: none; padding: .25rem 0; color: var(--muted); font-size: .875rem; text-decoration: underline; font-weight: 500; }
+
+/* A row related to an earlier entry: a grey pill after the payee (link glyph, that entry's date and amount); the payee gives way first. */
+.tx-title.has-link { display: flex; align-items: center; gap: .5rem; }
+.tx-title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tx-pill { display: inline-flex; align-items: center; gap: .25rem; flex: none; padding: .05rem .5rem .05rem .4rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }
+.tx-pill .icon { width: .85em; height: .85em; }

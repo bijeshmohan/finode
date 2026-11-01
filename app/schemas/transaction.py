@@ -85,6 +85,14 @@ def _tidy_url(value: str | None) -> str | None:
     return value
 
 
+class RelatedRef(BaseModel):
+    """The earlier entry another is related to, as a list shows it: which one, when, and what it came to."""
+
+    id: UUID
+    date: Date
+    amount: Decimal
+
+
 class ReferenceFields(BaseModel):
     """Where an entry came from outside finode: a short kind, the reference that source gave it and a link back.
     A person's (source, external_id) is used once, so recording it again finds the entry."""

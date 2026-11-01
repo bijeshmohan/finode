@@ -18,6 +18,7 @@ from ...schemas import AccountRead
 from ...schemas.category import CategoryRead
 from ...schemas.transaction import (
     PostingCreate,
+    RelatedRef,
     TransactionCreate,
     TransactionRead,
     TransactionUpdate,
@@ -108,6 +109,8 @@ class TransactionRow:
     credits: list[str]
     amount: Decimal
     kind: str  # expense | income | transfer
+    # The earlier entry this one is related to, with its date and amount, when a list loaded it (`list_rows`).
+    related: RelatedRef | None = None
 
 
 @dataclass
@@ -160,6 +163,15 @@ def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
         amount=amount,
         kind=kind,
     )
+
+
+def list_rows(chunk: list[TransactionRead], index: AccountIndex, transactions: Transactions) -> list[TransactionRow]:
+    """The rows of a list, each with what it is related to (two more queries when anything is, none otherwise)."""
+    refs = transactions.tr.related_refs([t.related_id for t in chunk])
+    rows = [to_row(t, index) for t in chunk]
+    for row in rows:
+        row.related = refs.get(row.transaction.related_id) if row.transaction.related_id else None
+    return rows
 
 
 def _parse_date(value: str) -> date | None:
@@ -268,7 +280,7 @@ def transactions_page(
         error = f"Invalid filter: {e}"
         chunk, total = [], 0
         everything = None
-    rows = [to_row(t, index) for t in chunk]
+    rows = list_rows(chunk, index, transactions)
 
     filters = {
         "account": account,
@@ -405,7 +417,7 @@ def more_transactions(
         request,
         "partials/transaction_more.html",
         {
-            "rows": [to_row(t, index) for t in chunk],
+            "rows": list_rows(chunk, index, transactions),
             "more": _more(params, offset + len(chunk), total, step, step),
             "end": {"month": when.strftime("%B"), "total": total},
         },
