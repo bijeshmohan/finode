@@ -116,6 +116,9 @@ def test_a_restored_entry_keeps_its_posting_date(client, card, expense_account):
         ("none", "18240.37", "18240.37"),
         ("nearest", "18240.37", "18240.00"),
         ("nearest", "18240.50", "18241.00"),
+        ("nearest", "100.81", "101.00"),
+        ("nearest", "100.49", "100.00"),
+        ("up", "100.81", "101.00"),
         ("up", "18240.01", "18241.00"),
         ("up", "18240.00", "18240.00"),
     ],
@@ -202,3 +205,34 @@ def test_a_journal_carries_posting_dates_out_and_back(client, session, card, exp
 
     posted = [p.posted for t in parse(text).transactions for p in t.postings if p.posted]
     assert posted == [date(2026, 10, 18)]
+
+
+def test_the_paise_a_rounded_bill_leaves_are_in_the_next_statement(client, session, card, account, expense_account):
+    """Rounded to the nearest rupee, 18,240.41 is billed as 18,240: pay that and the 0.41 stays owed, then it is part of
+    the next statement (which is rounded again as a whole)."""
+    client.patch(f"/api/accounts/{card['id']}", json={"bill_rounding": "nearest"})
+    buy(client, expense_account, card, "18240.41", "2026-10-10")
+    first = bill(session, card, date(2026, 10, 25))
+    assert (str(first.statement_balance), str(first.statement_due), str(first.rounded_by)) == (
+        "18240.41",
+        "18240.00",
+        "-0.41",
+    )
+    assert client.post("/api/transactions/", json=body(card, account, "18240", on="2026-10-30")).status_code == 201
+    assert str(bill(session, card, date(2026, 11, 1)).bill) == "0.00", "paying the rounded bill settles it"
+    buy(client, expense_account, card, "100", "2026-11-05")
+    second = bill(session, card, date(2026, 11, 20))
+    assert str(second.statement_balance) == "100.41", "the 0.41 is carried: it is still owed"
+    assert str(second.statement_due) == "100.00" and str(second.rounded_by) == "-0.41"
+    assert str(second.owed_total) == "100.41"
+
+
+def test_an_overpayment_from_rounding_up_is_taken_off_the_next_statement(
+    client, session, card, account, expense_account
+):
+    client.patch(f"/api/accounts/{card['id']}", json={"bill_rounding": "up"})
+    buy(client, expense_account, card, "500.30", "2026-10-10")
+    assert str(bill(session, card, date(2026, 10, 25)).statement_due) == "501.00"
+    assert client.post("/api/transactions/", json=body(card, account, "501", on="2026-10-30")).status_code == 201
+    buy(client, expense_account, card, "100", "2026-11-05")
+    assert str(bill(session, card, date(2026, 11, 20)).statement_balance) == "99.30", "the 0.70 paid over comes off"
