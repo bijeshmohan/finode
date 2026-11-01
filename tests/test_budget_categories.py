@@ -42,23 +42,12 @@ def test_the_same_account_can_spend_different_categories_on_different_days(clien
     assert (line(data, "EMI")["activity"], line(data, "SIP")["activity"]) == ("100.00", "40.00")
 
 
-def test_pointing_a_loan_at_a_category_counts_the_payments_already_made(client, books):
+def test_a_payment_counts_under_the_label_it_was_given_and_no_other(client, books):
     paid(client, books["bank"], books["loan"], "700")
-    assert line(budget(client), "EMI")["activity"] == "0.00"
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["emi"]["id"]})
-    assert line(budget(client), "EMI")["activity"] == "700.00"
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["sip"]["id"]})
+    assert line(budget(client), "EMI")["activity"] == "0.00", "nothing is filled in for a payment without a label"
+    paid(client, books["bank"], books["loan"], "300", books["sip"])
     data = budget(client)
-    assert (line(data, "EMI")["activity"], line(data, "SIP")["activity"]) == ("0.00", "700.00")
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": None})
-    assert line(budget(client), "SIP")["activity"] == "0.00"
-
-
-def test_a_label_the_person_chose_survives_a_change_of_the_loans_category(client, books):
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["emi"]["id"]})
-    paid(client, books["bank"], books["loan"], "300", books["sip"])  # said SIP on purpose
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": None})
-    assert line(budget(client), "SIP")["activity"] == "300.00"
+    assert (line(data, "EMI")["activity"], line(data, "SIP")["activity"]) == ("0.00", "300.00")
 
 
 def test_a_category_with_no_plan_and_no_entries_is_in_the_budget(client, books):

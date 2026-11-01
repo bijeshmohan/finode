@@ -22,7 +22,7 @@ A new Home screen shows **Get started** with three steps:
 
 Steps tick off as you do them, and the card disappears when all are done. It stays on Home after your first entry until the third step is done.
 
-The Budgets page has a short welcome until you assign the first amount. On the new-account form the budget choices are folded into one **Budget options** line that says where the account stands.
+The Budgets page has a short welcome until you assign the first amount. On the new-account form one box, **Part of the budget**, says where the account stands.
 
 ## 4. Find your way around
 
@@ -51,7 +51,7 @@ On a wide screen a sidebar replaces the bar and the **+** (it has a *New transac
 
 <img src="img/new-transaction.png" alt="The new transaction form: amount, payee, Expense, Income and Transfer, Paid from and Category, date" width="300">
 
-After a few entries, tapping a payee chip under the payee field fills in the same accounts as last time.
+After a few entries, tapping a payee chip under the payee field fills in the payee.
 
 ## Where next
 

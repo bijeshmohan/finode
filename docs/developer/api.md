@@ -17,7 +17,7 @@ Everything the web app and the assistants can do with your books can be done thr
 | Signing in, signing up, passwords, the OAuth consent page | Identity belongs to Supabase; these are web pages. |
 | Creating or revoking assistant tokens and connected apps | A token must never be able to manage tokens, and an app's token never acts as a full sign-in. |
 | **Erase my books** and **Delete my account** | They need the person to type their email on the settings pages; a leaked bearer token must not be able to wipe a ledger. |
-| Payee suggestions that carry accounts ("payee chips") | A convenience of the Add screen; `GET /transactions/payee-defaults`, `GET /transactions/payees` and `GET /transactions/?payee=` give the same facts. |
+| The Add screen's payee chips (names only) | A convenience of the Add screen; `GET /transactions/payees` gives the same names, and `GET /transactions/payee-defaults` how a payee is usually booked. |
 
 ## Accounts and categories
 
@@ -29,12 +29,12 @@ Everything the web app and the assistants can do with your books can be done thr
 | `POST` | `/accounts/deleted/{deletion_id}/restore` | Bring back a deleted account or category (with its old id, plan and payment links). |
 | `GET` | `/accounts/{account_id}` | The account with its balance as of a day (today by default: later entries do not count yet). |
 | `GET` | `/accounts/` | Accounts with their balances as of a day (today by default: later entries do not count yet). |
-| `PATCH` | `/accounts/{account_id}` | Change an account: name, note, place (`parent_id`), budget flag or payment category. |
+| `PATCH` | `/accounts/{account_id}` | Change an account: name, note, place (`parent_id`) or budget flag. |
 | `DELETE` | `/accounts/{account_id}` | Delete an account for good; refused when it has entries, sub-accounts or a recurring rule (close it instead). |
 | `POST` | `/accounts/{account_id}/close` | Close an account (and everything inside it): its history stays, nothing more can be posted to it. |
 | `POST` | `/accounts/{account_id}/reopen` | Reopen a closed account with everything inside it, and the groups above it. |
 | `GET` | `/accounts/changes` | The latest steps across all accounts and categories (made, renamed, moved, closed, reopened, deleted), newest first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api` or `mcp:<name>`. |
-| `POST` | `/accounts/{account_id}/merge` | Make this account part of another (`into`): its entries, planned amounts, recurring rules and payment links become the other's and it is deleted, all or nothing. Both must be plain accounts of the same top-level account (this one without sub-accounts, the other open and able to take entries). Refused when an entry or rule has both on opposite sides, or only one is part of the budget. With `dry_run=true` nothing changes and the answer says what would move. |
+| `POST` | `/accounts/{account_id}/merge` | Make this account part of another (`into`): its entries, planned amounts, recurring rules become the other's and it is deleted, all or nothing. Both must be plain accounts of the same top-level account (this one without sub-accounts, the other open and able to take entries). Refused when an entry or rule has both on opposite sides, or only one is part of the budget. With `dry_run=true` nothing changes and the answer says what would move. |
 | `GET` | `/accounts/{account_id}/changes` | What happened to an account or category, oldest first, each step with what it changed and who did it (works for a deleted one too). |
 | `GET` | `/accounts/{account_id}/check-balance` | Set a statement's balance (`statement_balance`) against the books on the same day (`as_of`, today by default): the books' balance, the difference and the entries of the last `days` days, with those exactly as large as the difference. Nothing is changed. A card's or loan's balance is what is owed, as the app shows it. |
 | `GET` | `/accounts/{account_id}/register` | The account's entries, oldest first, each with what it changed and the running balance. `own_only` leaves out |
@@ -55,7 +55,7 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 | `GET` | `/categories/{category_id}/register` | The entries that have a line labelled with the category (and its subcategories, unless `own_only=true`), oldest first, with what each changed and the running total. |
 | `POST` | `/categories/{category_id}/merge` | Fold it into another category (`into`): entries, labelled lines, planned amounts and recurring rules become the other's. `dry_run=true` only says what would move. |
 
-**On a transaction line** (`postings[]` of `/transactions/`, and the rows of a recurring split) `category` says what the line was for. Leave it out and a payment into a loan or fund that has a payment category takes that one; a line on Expenses or Income with none is Uncategorised. A line may carry **only** its category (no `account`): it then posts to the root Expenses account (a spending category) or Income (an earning one). A category on a line to Expenses or Income must be a spending or earning one to match; on any other account it must be a spending category, and not on an account that is part of the budget (the category goes on the other side). A simple recurring rule takes one `category`.
+**On a transaction line** (`postings[]` of `/transactions/`, and the rows of a recurring split) `category` says what the line was for. Leave it out and a line on Expenses or Income is Uncategorised; a payment into a loan or fund stays without one (nothing is filled in). A line may carry **only** its category (no `account`): it then posts to the root Expenses account (a spending category) or Income (an earning one). A category on a line to Expenses or Income must be a spending or earning one to match; on any other account it must be a spending category, and not on an account that is part of the budget (the category goes on the other side). A simple recurring rule takes one `category`.
 
 ## Transactions
 

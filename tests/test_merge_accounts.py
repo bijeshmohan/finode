@@ -64,7 +64,6 @@ def test_everything_moves_and_the_category_goes(client, books):
     ).json()
     for category, amount in ((books["swiggy"], "100"), (books["zomato"], "50")):
         client.put(f"/api/budget/categories/{category['id']}", json={"month": "2026-10-01", "amount": amount})
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["swiggy"]["id"]})
     ready_before = client.get("/api/budget/", params={"month": "2026-10-01"}).json()["ready_to_assign"]
 
     done = merge_category(client, books["swiggy"], books["zomato"])
@@ -72,13 +71,12 @@ def test_everything_moves_and_the_category_goes(client, books):
     result = done.json()
     assert (result["source"], result["into"]) == ("Swiggy", "Zomato")
     assert (result["entries_moved"], result["plan_months_moved"], result["recurring_rules_moved"]) == (1, 1, 1)
-    assert result["payment_links_moved"] == 1 and result["balance_moved"] == "30.00" and result["merged"] is True
+    assert result["balance_moved"] == "30.00" and result["merged"] is True
 
     assert client.get(f"/api/categories/{books['swiggy']['id']}").status_code == 404
     moved = client.get(f"/api/transactions/{one['id']}").json()
     assert books["zomato"]["id"] in {p["category_id"] for p in moved["postings"]}
     assert client.get(f"/api/recurring/{rule['id']}").json()["category_id"] == books["zomato"]["id"]
-    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] == books["zomato"]["id"]
     assert client.get("/api/budget/", params={"month": "2026-10-01"}).json()["ready_to_assign"] == ready_before
     assert client.get("/api/reports/trial-balance").json()["balanced"] is True
 

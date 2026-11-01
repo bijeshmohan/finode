@@ -40,8 +40,6 @@ class AccountCreate(AccountBase):
     )
     # Whether the account's money is part of the budget. Default: yes for a new asset account.
     on_budget: bool | None = None
-    # For an account outside the budget: the expense category that payments into it are budgeted under.
-    payment_category_id: UUID | None = None
 
 
 class AccountRead(AccountBase):
@@ -49,8 +47,6 @@ class AccountRead(AccountBase):
     balance: Decimal  # a sum: no digit limits, see schemas/budget.py
     # True when the account's money is part of the budget.
     on_budget: bool = False
-    # An account outside the budget: the expense category that payments into it are budgeted under.
-    payment_category_id: UUID | None = None
     # The day it was closed (no more postings; its history stays), or null while it is open.
     closed_on: Date | None = None
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); they cannot be changed or removed.
@@ -69,8 +65,6 @@ class AccountUpdate(BaseModel):
         max_digits=24,
     )
     on_budget: bool | None = None
-    # Send null to remove it; leave it out to keep it.
-    payment_category_id: UUID | None = None
 
     @field_validator("name")
     @classmethod
@@ -97,9 +91,9 @@ class AccountChangeRead(BaseModel):
     at: datetime
     # "web", "api" or "mcp:<token name>"; None if unknown.
     via: str | None = None
-    # The account as it stood after this step: name, path, note, budget flag, payment category, closing day.
+    # The account as it stood after this step: name, path, note, budget flag, closing day.
     entry: dict[str, Any]
-    # For an update: {field: {"from", "to"}} for name, path, note, on_budget, payment_category and closed_on.
+    # For an update: {field: {"from", "to"}} for name, path, note, on_budget and closed_on.
     changes: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -120,7 +114,6 @@ class MergeResult(BaseModel):
     entries_moved: int
     plan_months_moved: int
     recurring_rules_moved: int
-    payment_links_moved: int
 
 
 class BalanceCheck(BaseModel):

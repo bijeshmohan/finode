@@ -5,7 +5,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from types import EllipsisType
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -326,7 +325,6 @@ class AccountService:
             parent_id=account.parent_id,
             balance=balance,
             on_budget=account.on_budget,
-            payment_category_id=account.payment_category_id,
             closed_on=account.closed_on,
             system_key=account.system_key,
             created=account.created,
@@ -432,8 +430,6 @@ class AccountService:
         if rules:
             label = rules[0].payee or "a recurring transaction"
             raise AccountInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
-        for member in subtree:
-            self.ar.clear_payment_category(member.id)
         self.ar.set_closed([m.id for m in subtree if m.closed_on is None], today)
         self.ar.db.commit()
         return self._to_read(self._read(account_id), self._ensure_roots())
@@ -490,14 +486,6 @@ class AccountService:
                     f"{'there' if parent is None else repr(parent)} already has an account called '{other.name}'!"
                 )
 
-    def _check_payment_category(self, category_id: UUID) -> None:
-        """The category a loan's or fund's payments are budgeted under is an open spending category."""
-        category = CategoryRepository(self.ar.db, self.ar.uid).read(category_id)
-        if category is None or category.kind != "spending":
-            raise ValueError("payments can only be budgeted under a spending category!")
-        if category.closed_on is not None:
-            raise ValueError(f"'{category.name}' is closed: reopen it first!")
-
     def create(self, account: AccountCreate) -> AccountRead:
         all_accounts = self._ensure_roots()
 
@@ -522,7 +510,7 @@ class AccountService:
         self._check_name_free(account.name, account.parent_id, all_accounts)
         accounts_by_id = {a.id: a for a in all_accounts}
         start = FIXED_DEFAULTS.get(parent.system_key or "")
-        if start and account.on_budget is None and account.payment_category_id is None:
+        if start and account.on_budget is None:
             # Made under a built-in group without saying how: it starts as the group says (a bank in the budget, a loan outside it).
             account = account.model_copy(update={"on_budget": start == "budget"})
         in_budget = account.on_budget
@@ -530,14 +518,6 @@ class AccountService:
             in_budget = self._get_root_name(parent, accounts_by_id) == "Assets"
         elif in_budget:
             self._check_budgetable(parent, accounts_by_id)
-        if account.payment_category_id is not None:
-            self._check_payment_category(account.payment_category_id)
-            if self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):
-                raise ValueError("only asset and liability accounts can have a payment category!")
-            if in_budget:
-                raise ValueError(
-                    "an account that is part of the budget doesn't need one: its money is already budgeted!"
-                )
         created = self.ar.create(account, on_budget=in_budget)
         all_accounts_with_created = [*all_accounts, created]
 
@@ -690,7 +670,6 @@ class AccountService:
             entries_moved=len(tids),
             plan_months_moved=0,
             recurring_rules_moved=rules,
-            payment_links_moved=0,
         )
         if dry_run:
             return result
@@ -744,20 +723,8 @@ class AccountService:
             ):
                 if old.get(key) != new.get(key):
                     changes[label] = {"from": old.get(key), "to": new.get(key)}
-            if old.get("payment_category_id") != new.get("payment_category_id"):
-
-                def name(value):
-                    return paths.get(UUID(value), value) if value else None
-
-                changes["payment_category"] = {
-                    "from": name(old.get("payment_category_id")),
-                    "to": name(new.get("payment_category_id")),
-                }
-        entry = {k: v for k, v in row.snapshot.items() if k != "parent_id" and k != "payment_category_id"}
-        if row.snapshot.get("payment_category_id"):
-            entry["payment_category"] = paths.get(
-                UUID(row.snapshot["payment_category_id"]), row.snapshot["payment_category_id"]
-            )
+        # Steps recorded before the loan's usual category was removed still carry its key: it is not shown.
+        entry = {k: v for k, v in row.snapshot.items() if k not in ("parent_id", "payment_category_id")}
         return AccountChangeRead(
             id=row.id,
             account_id=row.account_id,
@@ -946,33 +913,9 @@ class AccountService:
             if new_home is not None and new_home.closed_on is not None:
                 raise ValueError(f"'{new_home.name}' is closed: reopen it to move accounts into it!")
 
-        payment_category: UUID | EllipsisType | None = ...
-        if "payment_category_id" in data.model_fields_set:
-            payment_category = data.payment_category_id
-            if payment_category is not None:
-                accounts_by_id = {a.id: a for a in all_accounts}
-                self._check_payment_category(payment_category)
-                if (
-                    is_system_root
-                    or account.parent_id is None
-                    or self._get_root_name(account, accounts_by_id) not in ("Assets", "Liabilities")
-                ):
-                    raise ValueError("only asset and liability accounts can have a payment category!")
-                if self.ar.has_children(account_id):
-                    raise ValueError("an account with sub-accounts cannot have one: use its sub-accounts!")
-                if on_budget if on_budget is not None else account.on_budget:
-                    raise ValueError(
-                        "an account that is part of the budget doesn't need one: its money is already budgeted!"
-                    )
-        elif on_budget and account.payment_category_id is not None:
-            payment_category = None  # now part of the budget itself
-
-        previous_payment = account.payment_category_id
-        updated = self.ar.update(account_id, data, on_budget, payment_category)
+        updated = self.ar.update(account_id, data, on_budget)
         if not updated:
             raise RuntimeError(f"failed to update account '{account_id}'!")
-        if payment_category is not ... or on_budget is not None:
-            self.tr.refresh_payment_labels(account_id, previous_payment)
 
         all_accounts = [a if a.id != account_id else updated for a in all_accounts]
 
@@ -1021,7 +964,6 @@ class AccountService:
             "path": self._path(account, by_id),
             "root": self._get_root_name(account, by_id),
             "on_budget": account.on_budget,
-            "payment_category_id": str(account.payment_category_id) if account.payment_category_id else None,
         }
 
     def restorable(self, limit: int = 50) -> builtins.list[dict]:
@@ -1088,7 +1030,6 @@ class AccountService:
         self._check_depth(parent, 1, all_accounts)
         if any(a.parent_id == parent.id and a.name == snap["name"] for a in all_accounts):
             raise ValueError(f"'{parent.name}' already has an account called '{snap['name']}'!")
-        payment = UUID(snap["payment_category_id"]) if snap.get("payment_category_id") else None
         restored = self.ar.restore(
             row.account_id,
             {
@@ -1096,9 +1037,6 @@ class AccountService:
                 "details": snap.get("details"),
                 "parent_id": parent.id,
                 "on_budget": bool(snap.get("on_budget")),
-                "payment_category_id": payment
-                if payment is not None and CategoryRepository(self.ar.db, self.ar.uid).read(payment) is not None
-                else None,
             },
         )
         self.ar.db.commit()

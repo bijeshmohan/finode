@@ -169,35 +169,25 @@ class TransactionRepository:
         ).first()
 
     def _line_categories(self, postings) -> builtins.list[UUID | None]:
-        """The category of each line: the one given, else (on Expenses or
-        Income) Uncategorised or, for a payment into a loan or fund outside the budget that has a payment category,
-        that category (only in an entry that touches the budget, which is when the budget counts it as spending)."""
+        """The category of each line: the one given, else (on Expenses or Income) Uncategorised. Nothing else is filled
+        in for the person: a payment into a loan or fund keeps the label it was given, or none."""
         ids = {p.account_id for p in postings}
         accounts: dict[UUID, Account] = {
             a.id: a for a in self.db.exec(select(Account).where(Account.user_id == self.uid, col(Account.id).in_(ids)))
         }
-        touches_budget = any(a.on_budget for a in accounts.values())
         every: dict[UUID, Account] | None = None
         found: builtins.list[UUID | None] = []
         for p in postings:
             account = accounts.get(p.account_id)
             category = p.category_id
             if category is None and account is not None:
-                if (
-                    touches_budget
-                    and not account.on_budget
-                    and account.payment_category_id is not None
-                    and p.side == PostingSide.DEBIT
-                ):
-                    category = account.payment_category_id
-                else:
-                    if every is None:
-                        every = {a.id: a for a in self.db.exec(select(Account).where(Account.user_id == self.uid))}
-                    root = account
-                    while root.parent_id is not None and root.parent_id in every:
-                        root = every[root.parent_id]
-                    if root.name in ROOT_KINDS and root.parent_id is None:
-                        category = CategoryRepository(self.db, self.uid).ensure_uncategorised(ROOT_KINDS[root.name]).id
+                if every is None:
+                    every = {a.id: a for a in self.db.exec(select(Account).where(Account.user_id == self.uid))}
+                root = account
+                while root.parent_id is not None and root.parent_id in every:
+                    root = every[root.parent_id]
+                if root.name in ROOT_KINDS and root.parent_id is None:
+                    category = CategoryRepository(self.db, self.uid).ensure_uncategorised(ROOT_KINDS[root.name]).id
             found.append(category)
         return found
 
@@ -628,53 +618,6 @@ class TransactionRepository:
                 select(Posting).where(Posting.user_id == self.uid, col(Posting.category_id).in_(builtins.list(bcids)))
             ).all()
         )
-
-    def refresh_payment_labels(self, account_id: UUID, previous: UUID | None) -> None:
-        """A loan's payment category (or the budget an account is in) changed: payments into loans outside the budget
-        that name a category carry it again. The loan's own lines that carried the old one (or none) take the new
-        one; lines the person labelled otherwise are left alone. Nothing is committed."""
-        touching = (
-            select(Posting.transaction_id)
-            .join(Account, Account.id == Posting.account_id)
-            .where(Posting.user_id == self.uid, col(Account.on_budget).is_(True))
-        )
-        loan = self.db.get(Account, account_id)
-        if loan is not None and loan.user_id == self.uid:
-            new = loan.payment_category_id if not loan.on_budget else None
-            stale = Posting.category_id.is_(None) if previous is None else col(Posting.category_id).in_([previous])
-            self.db.exec(
-                update(Posting)
-                .where(
-                    Posting.user_id == self.uid,
-                    Posting.account_id == account_id,
-                    Posting.side == PostingSide.DEBIT,
-                    or_(Posting.category_id.is_(None), stale),
-                    col(Posting.transaction_id).in_(touching),
-                )
-                .values(category_id=new)
-            )
-        # Any other loan with a payment category: its unlabelled payments in entries that touch the budget.
-        for other in self.db.exec(
-            select(Account).where(
-                Account.user_id == self.uid,
-                col(Account.payment_category_id).is_not(None),
-                col(Account.on_budget).is_(False),
-                Account.id != account_id,
-            )
-        ).all():
-            category = other.payment_category_id
-            self.db.exec(
-                update(Posting)
-                .where(
-                    Posting.user_id == self.uid,
-                    Posting.account_id == other.id,
-                    Posting.side == PostingSide.DEBIT,
-                    Posting.category_id.is_(None),
-                    col(Posting.transaction_id).in_(touching),
-                )
-                .values(category_id=category)
-            )
-        self.db.expire_all()
 
     def labelled(self, category: UUID) -> builtins.list[UUID]:
         """The entries that have a line labelled with a category."""

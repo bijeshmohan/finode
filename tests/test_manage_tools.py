@@ -40,11 +40,6 @@ async def test_move_budget_flag_and_clearing_a_note(session, client, books):
         assert moved["updated"]["path"] == "Assets:Cash2:HDFC" and moved["updated"]["on_budget"] is False
         await call(c, "update_account", account="HDFC", details="x")
         assert (await call(c, "update_account", account="HDFC", details=""))["updated"]["details"] is None
-        linked = await call(c, "update_account", account="HDFC", payment_category="Food")
-        assert linked["updated"]["payment_category"] == "Expenses:Food"
-        assert (
-            "payment_category" not in (await call(c, "update_account", account="HDFC", payment_category=""))["updated"]
-        )
         with pytest.raises(ToolFailed, match="nothing to change"):
             await call(c, "update_account", account="HDFC")
 

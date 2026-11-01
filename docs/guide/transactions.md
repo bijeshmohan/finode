@@ -12,13 +12,13 @@ Tap **+** (phone) or **New transaction** (wide screen).
    - Income: a **Category** (such as Salary), **Received in** an account.
    - Transfer: **From** and **To** your own accounts (including paying a card or a loan).
    - Tap the selected kind again to select *none*: every account is offered. Use this for anything unusual.
-3. **Accounts and category**: pick the accounts: each row opens a sheet (groups with their balances, with a search). The category comes after the accounts as a chip that opens a grid of tiles to choose from (*＋ New category* makes one). The amount sits beside it: type less than the total and the rest moves to a new row, so a split needs no extra step. When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional; a loan can have a *usual category* that fills it in. Several categories on one entry make it a split.
+3. **Accounts and category**: pick the accounts: each row opens a sheet (groups with their balances, with a search). The category comes after the accounts as a chip that opens a grid of tiles to choose from (*＋ New category* makes one). The amount sits beside it: type less than the total and the rest moves to a new row, so a split needs no extra step. When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional and starts empty. Several categories on one entry make it a split.
 4. **Payee**, **note** and **date** (a chip that reads "Today, 24 Oct"; tap it to pick another day).
 5. **Save**, or **Save & add another** to keep entering.
 
 ### Payee chips
 
-Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly.
+Under the payee field, finode suggests the payees you use most. Tapping one fills the payee and moves you to the amount; typing narrows the chips. Only the name is filled in: you choose the account and the category yourself.
 
 ### Splitting across accounts
 

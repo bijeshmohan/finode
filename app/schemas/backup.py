@@ -32,7 +32,9 @@ class BackupAccount(BaseModel):
     commodity: str | None = Field(default=None, exclude=True)
     on_budget: bool = False
     closed_on: Day | None = None
-    payment_category_id: UUID | None = None
+    payment_category_id: UUID | None = Field(
+        default=None, exclude=True
+    )  # a setting that was removed: read, never written
     # Older backups: accounts could be pinned. Read, never written.
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); a restore maps them onto the person's own.
     system_key: str | None = None

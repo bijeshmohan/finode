@@ -163,8 +163,6 @@ class CategoryService:
             if rules:
                 label = rules[0].payee or "a recurring transaction"
                 raise CategoryInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
-        for member in branch:
-            self.ar.clear_payment_category(member.id)
         self.cr.set_closed([m.id for m in branch if m.closed_on is None], today or local_today())
         self.db.commit()
         return self._read(category.id)
@@ -194,15 +192,14 @@ class CategoryService:
         before = self._read(category_id)
         if not self._unused(category):
             return CategoryDeleteResult(outcome="closed", category=self.close(category_id))
-        self.ar.clear_payment_category(category_id)
         BudgetRepository(self.db, self.uid).delete_for_category(category_id)  # only a plan: it goes with the category
         self.cr.delete(category)
         self.db.commit()
         return CategoryDeleteResult(outcome="deleted", category=before)
 
     def merge(self, source: UUID, target: UUID, dry_run: bool = False) -> MergeResult:
-        """Fold one category into another of the same kind: its lines, planned amounts, recurring rules and payment
-        links become the target's, and the source is deleted. All or nothing."""
+        """Fold one category into another of the same kind: its lines, planned amounts and recurring rules
+        become the target's, and the source is deleted. All or nothing."""
         origin, into = self._get(source), self._get(target)
         if source == target:
             raise ValueError("a category cannot be merged into itself!")
@@ -227,7 +224,6 @@ class CategoryService:
             entries_moved=len(tids),
             plan_months_moved=budget.months_for_category(source),
             recurring_rules_moved=RecurringRepository.rules_for_category(self.db, self.uid, source),
-            payment_links_moved=self.ar.count_payment_links(source),
         )
         if dry_run:
             return result
@@ -235,7 +231,6 @@ class CategoryService:
             self.tr.relabel_category(source, target, self.origin)
             budget.merge_category(source, target)
             RecurringRepository.repoint_category(self.db, self.uid, source, target)
-            self.ar.repoint_payment_category(source, target)
             self.cr.delete(origin)
             self.db.commit()
         except Exception:

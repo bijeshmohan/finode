@@ -623,10 +623,6 @@ input[type="file"] { padding: .5rem; }
 
 /* Optional fields tucked away until needed */
 details.add-note > summary { cursor: pointer; color: var(--muted); min-height: var(--tap); display: flex; align-items: center; font-size: .9rem; }
-details.budget-options { border: 1px solid var(--field-border); border-radius: 12px; background: var(--surface); }
-details.budget-options > summary { cursor: pointer; min-height: var(--tap); padding: .4rem .9rem; display: flex; justify-content: space-between; align-items: center; gap: .75rem; font-weight: 600; }
-details.budget-options .bo-now { color: var(--muted); font-weight: 400; font-size: .85rem; text-align: right; }
-details.budget-options > .stack { padding: .25rem .9rem .9rem; }
 details.add-note[open] > summary { min-height: 0; margin-bottom: .3rem; font-size: .875rem; font-weight: 500; }
 details.more { border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 0 .75rem; }
 details.more[open] { padding-bottom: .75rem; }
@@ -757,7 +753,6 @@ form.notice.fund button { margin: 0; }
   .txn-row { grid-template-columns: minmax(0, 1fr) var(--tap); background: var(--surface-2); padding: .6rem; border-radius: var(--radius-sm); }
   .txn-row select { grid-column: 1 / -1; }
 }
-[data-payment-category][hidden] { display: none; }
 
 /* ---------- Accounts page: search, closed accounts tucked away ---------- */
 

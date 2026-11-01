@@ -13,7 +13,7 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 If you signed up recently, your accounts start in five groups that are **built in**: under Assets, **Bank Accounts**, **Cash** and **Investments**; under Liabilities, **Credit Cards** and **Loans**. A group appears on the Accounts page once it has an account in it; until then the page shows an **Add account** button. You cannot rename, move, close or delete the groups, but you can add as many accounts as you like inside each (from that button or the round **+** at the top of the page, which starts on the first group), and you can still make groups of your own beside them.
 
-The group tells finode what an account is, so you do not have to answer the budget questions: an account in Bank Accounts, Cash or Credit Cards starts **part of the budget**; one in Investments or Loans starts **outside the budget**. You can change either choice for one account under *Budget options* on its form. Accounts you made before this existed are not moved or renamed. Use **Under** on an account's edit page to move it into a group. Accounts are listed alphabetically, the built-in groups first.
+The group tells finode what an account is, so you do not have to answer the budget questions: an account in Bank Accounts, Cash or Credit Cards starts **part of the budget**; one in Investments or Loans starts **outside the budget**. You can change either choice for one account with the **Part of the budget** box on its form. Accounts you made before this existed are not moved or renamed. Use **Under** on an account's edit page to move it into a group. Accounts are listed alphabetically, the built-in groups first.
 
 ## Accounts page
 
@@ -41,7 +41,7 @@ An account that has sub-accounts (such as a *Banks* group) is not posted to itse
 
 ### Credit cards and loans
 
-A card or loan is a **liability**: its balance is what you owe. Paying the bill is a *transfer* from your bank account to the card. To have the budget count a card's purchases as spending, turn on **Part of the budget** when you add it (or later in its edit page). A card or loan outside the budget can name a **payment category**, chosen in the same form, so an EMI counts as spending in that category.
+A card or loan is a **liability**: its balance is what you owe. Paying the bill is a *transfer* from your bank account to the card. To have the budget count a card's purchases as spending, turn on **Part of the budget** when you add it (or later in its edit page). A payment into a card or loan outside the budget can carry a **category** on the Add screen, so an EMI counts as spending in that category.
 
 ### Closing and deleting
 

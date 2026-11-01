@@ -95,7 +95,7 @@ def get_accounts(
 
 @router.patch("/{account_id}", response_model=AccountRead, status_code=200)
 def update_account(account_id: UUID, data: AccountUpdate, accounts: Accounts):
-    """Change an account: name, note, place (`parent_id`), budget flag or payment category."""
+    """Change an account: name, note, place (`parent_id`) or budget flag."""
     try:
         account = accounts.update(account_id, data)
     except ValueError as e:

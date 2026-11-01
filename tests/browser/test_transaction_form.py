@@ -151,49 +151,35 @@ def history(api: Api, books, payee="Swiggy", source="card", target="food"):
     )
 
 
-def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(page: Page, books, api: Api):
+def test_a_payee_chip_fills_the_payee_only_and_moves_on_to_the_amount(page: Page, books, api: Api):
     history(api, books)
     page.goto("/transactions/new")
     chip = page.locator("#payee-chips .chip", has_text="Swiggy")
     expect(chip).to_be_visible()
-    page.fill("#total", "250")  # 1. the amount
-    chip.click()  # 2. who
-    assert page.input_value('[data-rows="credit"] select') == books["card"]["id"]
-    assert page.input_value('[data-rows="debit"] select') == books["food"]["id"]
+    chip.click()
     assert page.input_value("#payee") == "Swiggy"
-    expect(page.locator('[data-kind="expense"]')).to_have_attribute("aria-pressed", "true")
-    expect(page.get_by_role("button", name="Save", exact=True)).to_be_focused()
-    page.get_by_role("button", name="Save", exact=True).click()  # 3. save
+    assert page.input_value('[data-rows="credit"] select') == "", "no account is chosen for you"
+    assert page.input_value('[data-rows="debit"] select') == "", "and no category"
+    expect(page.locator("#total")).to_be_focused()
+    page.fill("#total", "250")
+    page.select_option('[data-rows="credit"] select', label="Visa")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     newest = api.get("/transactions/")[0]
     assert newest["payee"] == "Swiggy" and {p["amount"] for p in newest["postings"]} == {"250.00"}
-    assert {(p["category_id"] or p["account_id"], p["side"]) for p in newest["postings"]} == {
-        (books["card"]["id"], "credit"),
-        (books["food"]["id"], "debit"),
-    }
 
 
-def test_a_chip_still_lets_you_split_the_amount_afterwards(page: Page, books, api: Api):
+def test_typing_a_known_payee_fills_nothing_but_keeps_the_chips_in_step(page: Page, books, api: Api):
     history(api, books)
     page.goto("/transactions/new")
-    page.fill("#total", "900")
-    page.locator("#payee-chips .chip", has_text="Swiggy").click()
-    page.fill('[data-rows="debit"] [data-row]:nth-child(1) [name="amount"]', "600")
-    assert page.locator('[data-rows="debit"] [data-row]').count() == 2, "a row for the rest appears"
-    assert page.input_value('[data-rows="debit"] [data-row]:nth-child(2) [name="amount"]') == "300.00"
-
-
-def test_typing_a_known_payee_fills_the_accounts_without_taking_the_focus(page: Page, books, api: Api):
-    history(api, books)
-    page.goto("/transactions/new")
-    page.select_option('[data-rows="credit"] select', "")
     page.click("#payee")
     page.keyboard.type("swiggy")
-    expect(page.locator("#payee-chips .chip[data-exact]")).to_be_visible()
-    assert page.input_value('[data-rows="debit"] select') == books["food"]["id"]
+    expect(page.locator("#payee-chips .chip", has_text="Swiggy")).to_be_visible()
+    assert (
+        page.input_value('[data-rows="debit"] select') == "" and page.input_value('[data-rows="credit"] select') == ""
+    )
     assert page.evaluate("document.activeElement.id") == "payee", "typing can go on"
-    page.keyboard.type(" instamart")
-    assert page.input_value("#payee") == "swiggy instamart"
 
 
 def test_the_chips_narrow_as_you_type(page: Page, books, api: Api):

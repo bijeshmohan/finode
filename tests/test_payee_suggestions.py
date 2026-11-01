@@ -1,4 +1,4 @@
-"""The payee chips on the Add screen and the quick-add bar: remember who you pay and with what."""
+"""The payee chips on the Add screen: the people you pay most, names only. They never choose an account or a category."""
 
 import re
 
@@ -40,29 +40,20 @@ def pay(client, payee, source, target, amount="10"):
 
 def chips(client, payee=""):
     html = client.get("/transactions/suggest", params={"payee": payee}).text
-    return re.findall(
-        r'<button type="button" class="chip" data-suggest data-payee="([^"]*)" data-suggest-kind="(\w+)" data-from="([0-9a-f-]+)" data-to="([0-9a-f-]+)"( data-exact)?',
-        html,
-    )
+    return re.findall(r'<button type="button" class="chip" data-suggest data-payee="([^"]*)">', html)
 
 
 def test_nothing_to_suggest_without_history(client, books):
     assert chips(client) == [], "an account's opening balance is not somebody you paid"
 
 
-def test_chips_carry_the_accounts_used_the_last_time(client, books):
+def test_a_chip_is_a_name_and_nothing_else(client, books):
     pay(client, "Swiggy", books["hdfc"], books["delivery"])
-    pay(client, "Swiggy", books["card"], books["delivery"])  # the newest is the one repeated
-    [(payee, kind, from_id, to_id, exact)] = chips(client)  # once, even though it was paid twice
-    assert (payee, kind, exact) == ("Swiggy", "expense", "")
-    assert (from_id, to_id) == (books["card"]["id"], books["delivery"]["id"])
-
-
-def test_there_is_no_amount_suggestion(client, books):
-    pay(client, "Swiggy", books["card"], books["delivery"], "597.50")
-    assert "data-amount" not in client.get("/transactions/suggest").text
-    form = client.get("/transactions/new").text
-    assert "data-amount-quick" not in form and "data-last-amount" not in form and "as last time" not in form
+    pay(client, "Swiggy", books["card"], books["delivery"])
+    assert chips(client) == ["Swiggy"], "once, even though it was paid twice"
+    html = client.get("/transactions/suggest").text
+    for leftover in ("data-from", "data-to", "data-suggest-kind", "data-exact", "data-amount", "title="):
+        assert leftover not in html, leftover
 
 
 def test_often_paid_people_come_first_and_typing_narrows(client, books):
@@ -70,48 +61,29 @@ def test_often_paid_people_come_first_and_typing_narrows(client, books):
         pay(client, "DMart", books["hdfc"], books["groceries"])
     pay(client, "Swiggy", books["hdfc"], books["delivery"])
     pay(client, "Dunzo", books["hdfc"], books["delivery"])
-    assert [c[0] for c in chips(client)] == ["DMart", "Dunzo", "Swiggy"]
-    assert [c[0] for c in chips(client, "d")] == ["DMart", "Dunzo"]
-    assert [c[0] for c in chips(client, "mart")] == ["DMart"], "what is typed may be inside the name"
-    assert [c[0] for c in chips(client, "zzz")] == []
+    assert chips(client) == ["DMart", "Dunzo", "Swiggy"]
+    assert chips(client, "d") == ["DMart", "Dunzo"]
+    assert chips(client, "mart") == ["DMart"], "what is typed may be inside the name"
+    assert chips(client, "zzz") == []
 
 
-def test_a_name_typed_in_full_is_marked_exact(client, books):
-    pay(client, "Swiggy", books["hdfc"], books["delivery"])
+def test_a_name_typed_in_full_comes_first_then_those_starting_with_it_then_containing_it(client, books):
+    pay(client, "Big Swiggy", books["hdfc"], books["delivery"])
     pay(client, "Swiggy Instamart", books["hdfc"], books["groceries"])
-    found = chips(client, "swiggy")
-    assert [(c[0], bool(c[4])) for c in found] == [("Swiggy", True), ("Swiggy Instamart", False)]
+    pay(client, "Swiggy", books["hdfc"], books["delivery"])
+    assert chips(client, "swiggy") == ["Swiggy", "Swiggy Instamart", "Big Swiggy"]
 
 
-def test_income_and_transfers_are_suggested_with_their_kind(client, books):
+def test_income_and_transfers_are_suggested_too(client, books):
     pay(client, "Employer", books["salary"], books["hdfc"], "5000")
     pay(client, "Card payment", books["hdfc"], books["card"], "300")
-    kinds = {c[0]: c[1] for c in chips(client)}
-    assert kinds == {"Employer": "income", "Card payment": "transfer"}
+    assert sorted(chips(client)) == ["Card payment", "Employer"]
 
 
-def test_splits_entries_without_a_payee_and_closed_accounts_are_left_out(client, books):
-    client.post(
-        "/api/transactions/",
-        json={
-            "payee": "Big shop",
-            "postings": [
-                leg(books["groceries"], "debit", "6"),
-                leg(books["delivery"], "debit", "4"),
-                leg(books["hdfc"], "credit", "10"),
-            ],
-        },
-    )
-    pay(client, "", books["hdfc"], books["groceries"])
-    extra = client.post("/api/categories/", json={"name": "Gone", "kind": "spending"}).json() | {}
-    extra["id"] = extra["id"]
-    pay(client, "Old place", books["hdfc"], extra)
-    pay(client, "Refund", extra, books["hdfc"])  # back to zero, so it can be closed
-    assert {c[0] for c in chips(client)} == {"Old place", "Refund"}
-    assert client.post(f"/api/categories/{extra['id']}/close").status_code == 200
-    assert chips(client) == [], (
-        "a closed account is never suggested, and splits and entries without a payee are not either"
-    )
+def test_only_six_chips_are_offered(client, books):
+    for n in range(8):
+        pay(client, f"Shop {n}", books["hdfc"], books["groceries"])
+    assert len(chips(client)) == 6
 
 
 def test_the_chips_are_html_escaped(client, books):
@@ -126,10 +98,6 @@ def test_the_add_page_loads_the_chips_and_keeps_edit_free_of_them(client, books)
     assert 'id="payee-chips"' in page and 'hx-get="/transactions/suggest"' in page
     transaction_id = client.get("/api/transactions/").json()[0]["id"]
     assert 'id="payee-chips"' not in client.get(f"/transactions/{transaction_id}/edit").text
-
-
-def field(html, name):
-    return re.search(rf'name="{name}"[^>]*value="([^"]*)"', html).group(1)
 
 
 def test_the_form_starts_with_no_account_chosen_however_often_you_pay_from_one(client, books):
