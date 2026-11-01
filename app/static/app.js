@@ -822,6 +822,11 @@ function syncRowPickers(form) {
       list.append(li);
     }
   };
+  // A press on an option must not take focus off the search: that puts the keyboard away, the sheet drops under the finger and
+  // the tap lands elsewhere, so nothing was chosen. (The fields under a chosen option still take focus as usual.)
+  list.addEventListener("mousedown", (event) => {
+    if (event.target.closest && event.target.closest("button")) event.preventDefault();
+  });
   document.body.addEventListener("click", (event) => {
     const open = event.target.closest && event.target.closest("[data-pick]");
     if (open) {
