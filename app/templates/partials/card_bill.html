@@ -1,0 +1,38 @@
+{#- A card's (or loan's) bill under its balance: what is left to pay of the latest statement and when, with Pay bill. Needs
+    `bill` (CardBill) or, without the days set, `can_set_days`. -#}
+{% from "partials/icons.html" import icon %}
+{% if bill %}
+{% set due = bill.days_to_due %}
+<section class="bill" aria-label="Bill">
+  <div class="bill-top">
+    <div>
+      <p class="bill-label">Bill</p>
+      <p class="bill-figure">{% if bill.bill > 0 %}{{ bill.bill|money|amount(currency) }}{% elif bill.statement_balance > 0 %}Paid{% else %}Nothing due{% endif %}</p>
+    </div>
+    <p class="bill-due{{ ' warn' if bill.bill > 0 and 0 <= due <= 5 }}{{ ' over' if bill.bill > 0 and due < 0 }}">
+      {%- if bill.bill > 0 -%}
+        {%- if due < 0 -%}Overdue by {{ -due }} day{{ "" if due == -1 else "s" }}
+        {%- elif due == 0 -%}Due today
+        {%- elif due <= 5 -%}Due in {{ due }} day{{ "" if due == 1 else "s" }}
+        {%- else -%}Due {{ bill.due_date|short_date }}{%- endif -%}
+      {%- else -%}Next statement {{ bill.next_statement_date|short_date }}{%- endif -%}
+    </p>
+  </div>
+  {% if bill.statement_balance > 0 or bill.spent_since > 0 %}
+  <dl class="bill-rows">
+    {% if bill.statement_balance > 0 %}<div><dt>Statement of {{ bill.statement_date|short_date }}</dt><dd>{{ bill.statement_balance|money }}</dd></div>{% endif %}
+    {% if bill.paid_since > 0 %}<div><dt>Paid since</dt><dd>−{{ bill.paid_since|money }}</dd></div>{% endif %}
+    {% if bill.spent_since > 0 %}<div><dt>Spent since the statement</dt><dd>{{ bill.spent_since|money }}</dd></div>{% endif %}
+  </dl>
+  {% endif %}
+  {% if bill.bill > 0 %}
+  <a class="button bill-pay" href="/transactions/new?pay={{ account.id }}&amount={{ bill.bill }}&back={{ area }}/{{ account.id }}">Pay bill</a>
+  {% endif %}
+</section>
+{% elif can_set_days %}
+<section class="bill" aria-label="Bill">
+  <p class="bill-label">Bill</p>
+  <p class="muted">Add the statement and due days to see what is due and when.</p>
+  <a class="button bill-pay quiet" href="/accounts/{{ account.id }}/edit">Add the days</a>
+</section>
+{% endif %}

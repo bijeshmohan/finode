@@ -1576,3 +1576,21 @@ form.copy-last { margin: .25rem 0 .75rem; }
 .tx-title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tx-pill { display: inline-flex; align-items: center; gap: .25rem; flex: none; padding: .05rem .5rem .05rem .4rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }
 .tx-pill .icon { width: .85em; height: .85em; }
+
+/* ---------- A card's bill (its page) ---------- */
+.bill { margin: 1rem 0 .5rem; padding: .85rem 1rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); }
+.bill-top { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; }
+.bill-label { margin: 0; font-size: .8125rem; color: var(--muted); }
+.bill-figure { margin: 0; font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bill-due { margin: 0; font-size: .875rem; color: var(--muted); text-align: right; }
+.bill-due.warn { color: var(--warn); }
+.bill-due.over { color: var(--negative); }
+.bill-rows { margin: .65rem 0 0; padding-top: .5rem; border-top: 1px solid var(--border); display: grid; gap: .2rem; font-size: .875rem; color: var(--muted); }
+.bill-rows div { display: flex; justify-content: space-between; gap: 1rem; }
+.bill-rows dt, .bill-rows dd { margin: 0; }
+.bill-rows dd { font-variant-numeric: tabular-nums; }
+.bill-pay { display: flex; justify-content: center; width: auto; min-height: 2.5rem; margin-top: .75rem; border-radius: 999px; }
+.bill-pay.quiet { background: var(--surface-2); color: var(--text); }
+.bill-days { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.bill-days[hidden] { display: none; }
+.bill-days .hint { font-weight: 400; }

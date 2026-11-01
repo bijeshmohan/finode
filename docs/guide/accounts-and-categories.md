@@ -43,6 +43,10 @@ An account that has sub-accounts (such as a *Banks* group) is not posted to itse
 
 A card or loan is a **liability**: its balance is what you owe. Paying the bill is a *transfer* from your bank account to the card. To have the budget count a card's purchases as spending, turn on **Part of the budget** when you add it (or later in its edit page). A payment into a card or loan outside the budget can carry a **category** on the Add screen, so an EMI counts as spending in that category.
 
+### A card's bill
+
+Give a card or loan its **statement day** (the day of the month the bank closes the bill) and its **payment due day** when you add or edit it (31 means the last day of a shorter month; a due day earlier in the month than the statement day falls in the next month). Its page then shows the **Bill**: what you owed when the latest statement closed, less the payments and refunds since, with the due date ("Due in 3 days" in amber, "Overdue by 2 days" in red, "Paid" once it is covered). The purchases after the statement day are listed as *Spent since the statement*: they belong to the next bill. **Pay bill** opens the Add screen with the card as the account paid and the bill as the amount; you choose which account it comes from, and you can change the amount to pay a part. Nothing is stored for the bill: it is worked out from your entries, so it follows any change you make to them. The bank's own figure may differ from yours (a late posting, a fee); recording the statement itself comes in a later step.
+
 ### Closing and deleting
 
 An account that holds a balance cannot be closed. A closed account keeps its history but disappears from pickers; **Reopen** it any time. Closing is in the account's **…** menu. An unused account can be deleted for good. Both can be brought back from **Settings › Recently deleted**.

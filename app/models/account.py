@@ -2,7 +2,7 @@ from datetime import date as Date
 from uuid import UUID, uuid4
 
 from pydantic import field_validator
-from sqlalchemy import Index, false, text
+from sqlalchemy import CheckConstraint, Index, false, text
 from sqlmodel import Field
 
 from .utils import TimestampMixin
@@ -28,6 +28,10 @@ class Account(TimestampMixin, table=True):
             sqlite_where=text("system_key IS NOT NULL"),
             postgresql_where=text("system_key IS NOT NULL"),
         ),
+        # A card's bill days (see services/cards.py): 1 to 31, both or neither.
+        CheckConstraint("statement_day IS NULL OR statement_day BETWEEN 1 AND 31", name="ck_accounts_statement_day"),
+        CheckConstraint("due_day IS NULL OR due_day BETWEEN 1 AND 31", name="ck_accounts_due_day"),
+        CheckConstraint("(statement_day IS NULL) = (due_day IS NULL)", name="ck_accounts_bill_days_together"),
     )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
@@ -39,6 +43,9 @@ class Account(TimestampMixin, table=True):
     on_budget: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
     # The day the account was closed: no longer offered or posted to, history kept (see AccountService.close).
     closed_on: Date | None = Field(default=None)
+    # A liability account's (a card's, a loan's) day of the month the bank closes a bill and the day it must be paid by.
+    statement_day: int | None = Field(default=None)
+    due_day: int | None = Field(default=None)
     # For an asset or liability account outside the budget (a loan): the expense category its payments are
     # budgeted under, so paying the EMI spends that category (see services/budget.py).
     # Set on the built-in groups under Assets and Liabilities (Bank Accounts, Cash, Investments, Credit Cards, Loans):

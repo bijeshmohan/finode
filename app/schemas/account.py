@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .transaction import RelatedRef
 
@@ -27,11 +27,21 @@ class AccountBase(BaseModel):
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
     parent_id: UUID | None = None
+    # Liability accounts (a card, a loan): the day of the month a bill is closed and the day it is due. Both or neither;
+    # 31 means the last day of a shorter month.
+    statement_day: int | None = Field(default=None, ge=1, le=31)
+    due_day: int | None = Field(default=None, ge=1, le=31)
 
     @field_validator("name")
     @classmethod
     def name_must_not_be_empty(cls, v: str) -> str:
         return clean_name(v)
+
+    @model_validator(mode="after")
+    def bill_days_come_together(self):
+        if (self.statement_day is None) != (self.due_day is None):
+            raise ValueError("give both the statement day and the due day, or neither!")
+        return self
 
 
 class AccountCreate(AccountBase):
@@ -67,6 +77,8 @@ class AccountUpdate(BaseModel):
         max_digits=24,
     )
     on_budget: bool | None = None
+    statement_day: int | None = Field(default=None, ge=1, le=31)
+    due_day: int | None = Field(default=None, ge=1, le=31)
 
     @field_validator("name")
     @classmethod
@@ -84,6 +96,29 @@ class RegisterEntry(BaseModel):
     balance: Decimal
     # The earlier entry this one is related to (a refund, a reversal), if any.
     related: RelatedRef | None = None
+
+
+class CardBill(BaseModel):
+    """A card's (or loan's) bill, worked out from its postings and its statement and due days. Nothing is stored."""
+
+    account_id: UUID
+    statement_day: int
+    due_day: int
+    # The latest statement date (the bill closed at the end of that day) and when that bill is due.
+    statement_date: Date
+    due_date: Date
+    next_statement_date: Date
+    # Negative once the due date has passed: -2 is two days overdue.
+    days_to_due: int
+    # What was owed when the bill closed (never below zero).
+    statement_balance: Decimal = Field(description="a sum: no digit limits")
+    # Payments and refunds since the statement, and purchases and charges since.
+    paid_since: Decimal
+    spent_since: Decimal
+    # What is still to pay of that statement: its balance less what was paid since, never below zero.
+    bill: Decimal
+    # Everything owed today, the statement's bill and what was spent since.
+    owed_total: Decimal
 
 
 class AccountChangeRead(BaseModel):

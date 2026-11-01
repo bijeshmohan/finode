@@ -14,6 +14,7 @@ from ..schemas.account import (
     AccountRead,
     AccountUpdate,
     BalanceCheck,
+    CardBill,
     ClosedAccount,
     DeletedAccount,
     MergeRequest,
@@ -169,6 +170,20 @@ def account_changes(account_id: UUID, accounts: Accounts):
     if not steps:
         raise HTTPException(status_code=404, detail="account not found")
     return steps
+
+
+@router.get("/{account_id}/bill", response_model=CardBill)
+def bill(account_id: UUID, accounts: Accounts):
+    """A card's or loan's bill, worked out from its statement day and due day: what was owed when the latest statement
+    closed, less the payments and refunds since, when it is due, and what was spent since. Nothing is stored. 400 while
+    the account has no days."""
+    try:
+        found = accounts.bill(account_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    if found is None:
+        raise HTTPException(status_code=404, detail="account not found")
+    return found
 
 
 @router.get("/{account_id}/check-balance", response_model=BalanceCheck)

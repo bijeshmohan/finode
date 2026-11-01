@@ -37,7 +37,7 @@ def rich(client, root_accounts):
     banks = acct(client, "Banks", root_accounts["Assets"])
     bank = acct(client, "HDFC", banks["id"], balance="50000", details="main account")
     old = acct(client, "Old Savings", banks["id"])
-    card = acct(client, "Visa", root_accounts["Liabilities"], on_budget=True)
+    card = acct(client, "Visa", root_accounts["Liabilities"], on_budget=True, statement_day=22, due_day=15)
     loan = acct(client, "Home Loan", root_accounts["Liabilities"], on_budget=False)
     food = acct(client, "Food", root_accounts["Expenses"])
     groceries = acct(client, "Groceries", food["id"])
@@ -144,6 +144,8 @@ def canonical(doc: dict) -> dict:
                 a["details"],
                 a["on_budget"],
                 a["closed_on"] is not None,
+                a.get("statement_day"),
+                a.get("due_day"),
             )
             for a in doc["accounts"]
         )

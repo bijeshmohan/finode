@@ -65,6 +65,7 @@ finode is the user's personal double-entry ledger.
   record_transaction, or on a row of record_split: that is what the budget counts. A row may name only a category
   instead of an account. create_category makes one; renaming, moving, closing and merging categories need access to
   manage accounts.
+- get_card_bill gives a card's bill (what is due and when) from its statement day and due day.
 - check_balance sets a statement's balance against the books and points at the entries that could explain a gap.
 - payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
 - get_account_history shows what happened to one account and who did it (renames, moves, closings); recent_changes(what='accounts') lists the latest across all of them.
@@ -320,6 +321,11 @@ def _account_row(e, index: AccountIndex) -> dict[str, Any]:
         **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
         **({"on_budget": e.account.on_budget} if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
         **({"group": e.account.system_key} if e.account.system_key else {}),
+        **(
+            {"statement_day": e.account.statement_day, "due_day": e.account.due_day}
+            if e.account.statement_day is not None
+            else {}
+        ),
     }
 
 
@@ -550,6 +556,34 @@ def check_balance(
             "difference": text(check.difference),
             "recent": [row(e) for e in check.recent],
             "same_size_as_difference": [row(e) for e in check.same_size_as_difference],
+        }
+
+
+@_tool_errors
+def get_card_bill(account: AccountRef) -> dict[str, Any]:
+    """A card's (or loan's) bill: what was owed when its latest statement closed, less the payments and refunds since,
+    when it is due, and what has been spent since. Worked out from the account's statement day and due day (set them
+    with update_account or create_account); nothing is stored. To pay it, record a transfer from a bank account."""
+    with services() as s:
+        entry = _index(s).find(account)
+        try:
+            bill = s.accounts.bill(entry.account.id)
+        except ValueError as e:
+            raise ToolError(str(e)) from None
+        if bill is None:
+            raise ToolError("account not found")
+        return {
+            "account": entry.path,
+            "account_id": str(bill.account_id),
+            "statement_date": bill.statement_date.isoformat(),
+            "due_date": bill.due_date.isoformat(),
+            "days_to_due": bill.days_to_due,
+            "next_statement_date": bill.next_statement_date.isoformat(),
+            "statement_balance": text(bill.statement_balance),
+            "paid_since": text(bill.paid_since),
+            "spent_since": text(bill.spent_since),
+            "bill": text(bill.bill),
+            "owed_total": text(bill.owed_total),
         }
 
 
@@ -1113,6 +1147,13 @@ def create_account(
     on_budget: Annotated[
         bool | None, Field(description="Assets and liabilities: whether the money is part of the budget")
     ] = None,
+    statement_day: Annotated[
+        int | None,
+        Field(ge=1, le=31, description="Cards and loans: the day of the month the bill closes (31 = last day)"),
+    ] = None,
+    due_day: Annotated[
+        int | None, Field(ge=1, le=31, description="Cards and loans: the day of the month the bill must be paid by")
+    ] = None,
 ) -> dict[str, Any]:
     """Add an account. Check list_accounts first so you don't create a duplicate."""
     with services() as s:
@@ -1134,6 +1175,8 @@ def create_account(
                 parent_id=parent_entry.account.id,
                 balance=opening_balance or Decimal("0.00"),
                 on_budget=on_budget,
+                statement_day=statement_day,
+                due_day=due_day,
             )
         )
         return {
@@ -1156,6 +1199,13 @@ def update_account(
         str | None, Field(description="Move it under this account (same top-level account; at most two levels deep)")
     ] = None,
     on_budget: Annotated[bool | None, Field(description="Assets and liabilities: part of the budget or not")] = None,
+    statement_day: Annotated[
+        int | None,
+        Field(ge=1, le=31, description="Cards and loans: the day of the month the bill closes (31 = last day)"),
+    ] = None,
+    due_day: Annotated[
+        int | None, Field(ge=1, le=31, description="Cards and loans: the day of the month the bill must be paid by")
+    ] = None,
 ) -> dict[str, Any]:
     """Rename an account, change its note, move it under another account, or change its budget settings. Its history
     stays with it and its id never changes (only its path does). The built-in groups, the top-level accounts and
@@ -1172,8 +1222,11 @@ def update_account(
             changes["parent_id"] = index.find(parent, allow_root=True).account.id
         if on_budget is not None:
             changes["on_budget"] = on_budget
+        if statement_day is not None or due_day is not None:
+            changes["statement_day"] = statement_day if statement_day is not None else entry.account.statement_day
+            changes["due_day"] = due_day if due_day is not None else entry.account.due_day
         if not changes:
-            raise ToolError("nothing to change: pass a name, details, parent or on_budget!")
+            raise ToolError("nothing to change: pass a name, details, parent, on_budget, statement_day or due_day!")
         before = entry.path
         s.accounts.update(entry.account.id, AccountUpdate(**changes))
         fresh = _index(s)
@@ -1909,6 +1962,7 @@ READ_TOOLS = [
     list_categories,
     payee_defaults,
     check_balance,
+    get_card_bill,
     spending_breakdown,
     list_recurring,
     check_books,

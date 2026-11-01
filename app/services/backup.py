@@ -93,6 +93,8 @@ class BackupService:
                     details=a.details,
                     on_budget=a.on_budget,
                     closed_on=a.closed_on,
+                    statement_day=a.statement_day,
+                    due_day=a.due_day,
                     system_key=a.system_key,
                 )
                 for a in accounts
@@ -551,7 +553,13 @@ class BackupService:
                     ids[a.id] = opening.id
                     continue
                 created = self.ar.create(
-                    AccountCreate(name=a.name, details=a.details, parent_id=ids[a.parent_id]),
+                    AccountCreate(
+                        name=a.name,
+                        details=a.details,
+                        parent_id=ids[a.parent_id],
+                        statement_day=a.statement_day,
+                        due_day=a.due_day,
+                    ),
                     on_budget=a.on_budget,
                 )
                 ids[a.id] = created.id

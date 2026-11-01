@@ -37,6 +37,21 @@
   </label>
   </div>
   {% endif %}
+  {% if editing and can_bill or not editing %}
+  <div class="stack bill-days" data-bill-fields {{ "hidden" if not can_bill }}>
+  <input type="hidden" name="bill_choice" value="1">
+  <label>Statement day
+    <input type="text" name="statement_day" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="22"
+           value="{{ node.account.statement_day or '' if editing else '' }}">
+    <span class="hint">The day of the month your bank closes the bill</span>
+  </label>
+  <label>Payment due day
+    <input type="text" name="due_day" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="15"
+           value="{{ node.account.due_day or '' if editing else '' }}">
+    <span class="hint">The day it must be paid by. 31 means the last day of the month</span>
+  </label>
+  </div>
+  {% endif %}
   {% set note = (node.account.details or '') if editing else '' %}
   <details class="add-note" {{ "open" if note }}>
     <summary>{{ "Note" if note else "+ Add a note" }}</summary>

@@ -32,6 +32,9 @@ class BackupAccount(BaseModel):
     commodity: str | None = Field(default=None, exclude=True)
     on_budget: bool = False
     closed_on: Day | None = None
+    # A card's or loan's bill days (files from before have none).
+    statement_day: int | None = Field(default=None, ge=1, le=31)
+    due_day: int | None = Field(default=None, ge=1, le=31)
     payment_category_id: UUID | None = Field(
         default=None, exclude=True
     )  # a setting that was removed: read, never written

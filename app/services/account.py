@@ -19,8 +19,9 @@ from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
-from ..schemas.account import AccountChangeRead, BalanceCheck, MergeResult
+from ..schemas.account import AccountChangeRead, BalanceCheck, CardBill, MergeResult
 from ..schemas.transaction import PostingCreate, TransactionCreate
+from . import cards
 
 # Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
 MAX_ACCOUNT_DEPTH = 2
@@ -326,6 +327,8 @@ class AccountService:
             balance=balance,
             on_budget=account.on_budget,
             closed_on=account.closed_on,
+            statement_day=account.statement_day,
+            due_day=account.due_day,
             system_key=account.system_key,
             created=account.created,
             updated=account.updated,
@@ -486,6 +489,15 @@ class AccountService:
                     f"{'there' if parent is None else repr(parent)} already has an account called '{other.name}'!"
                 )
 
+    def _check_bill_days(self, root: str, has_children: bool, statement_day: int | None, due_day: int | None) -> None:
+        """A statement day and a due day belong to a liability account that can be posted to (a card, a loan)."""
+        if statement_day is None and due_day is None:
+            return
+        if root != "Liabilities" or has_children:
+            raise ValueError(
+                "statement and due days belong to a card or loan account (a liability with no sub-accounts)!"
+            )
+
     def create(self, account: AccountCreate) -> AccountRead:
         all_accounts = self._ensure_roots()
 
@@ -509,6 +521,9 @@ class AccountService:
 
         self._check_name_free(account.name, account.parent_id, all_accounts)
         accounts_by_id = {a.id: a for a in all_accounts}
+        self._check_bill_days(
+            self._get_root_name(parent, accounts_by_id), False, account.statement_day, account.due_day
+        )
         start = FIXED_DEFAULTS.get(parent.system_key or "")
         if start and account.on_budget is None:
             # Made under a built-in group without saying how: it starts as the group says (a bank in the budget, a loan outside it).
@@ -721,6 +736,8 @@ class AccountService:
                 ("path", "path"),
                 ("details", "note"),
                 ("on_budget", "on_budget"),
+                ("statement_day", "statement_day"),
+                ("due_day", "due_day"),
                 ("closed_on", "closed_on"),
             ):
                 if old.get(key) != new.get(key):
@@ -763,6 +780,47 @@ class AccountService:
             matches=difference == 0,
             recent=entries,
             same_size_as_difference=[e for e in entries if difference != 0 and abs(e.change) == abs(difference)],
+        )
+
+    def bill(self, account_id: UUID, today: date | None = None) -> CardBill | None:
+        """The bill of a liability account with a statement day and a due day: what was owed when the latest statement
+        closed, less the payments and refunds since. None for an account that does not exist; ValueError when the days
+        are not set."""
+        day = today or local_today()
+        account = next((a for a in self._ensure_roots() if a.id == account_id), None)
+        if account is None:
+            return None
+        if account.statement_day is None or account.due_day is None:
+            raise ValueError(f"'{account.name}' has no statement day and due day: set them first!")
+        statement = cards.last_statement(account.statement_day, day)
+        owed = paid = spent = total = Decimal("0.00")
+        for fact in self.tr.posting_facts([account_id]):
+            if fact.date > day:
+                continue
+            credit = fact.side == PostingSide.CREDIT
+            value = fact.amount if credit else -fact.amount
+            total += value
+            if fact.date <= statement:
+                owed += value
+            elif credit:
+                spent += fact.amount
+            else:
+                paid += fact.amount
+        owed = max(owed, Decimal("0.00"))
+        due = cards.due_date(statement, account.statement_day, account.due_day)
+        return CardBill(
+            account_id=account_id,
+            statement_day=account.statement_day,
+            due_day=account.due_day,
+            statement_date=statement,
+            due_date=due,
+            next_statement_date=cards.next_statement(account.statement_day, day),
+            days_to_due=(due - day).days,
+            statement_balance=owed,
+            paid_since=paid,
+            spent_since=spent,
+            bill=max(owed - paid, Decimal("0.00")),
+            owed_total=max(total, Decimal("0.00")),
         )
 
     def register_page(
@@ -898,6 +956,18 @@ class AccountService:
             if self.ar.has_children(account_id):
                 raise ValueError("cannot set balance of an account with sub-accounts!")
 
+        if "statement_day" in data.model_fields_set or "due_day" in data.model_fields_set:
+            statement_day = data.statement_day if "statement_day" in data.model_fields_set else account.statement_day
+            due_day = data.due_day if "due_day" in data.model_fields_set else account.due_day
+            if (statement_day is None) != (due_day is None):
+                raise ValueError("give both the statement day and the due day, or neither!")
+            self._check_bill_days(
+                self._get_root_name(account, {a.id: a for a in all_accounts}),
+                self.ar.has_children(account_id),
+                statement_day,
+                due_day,
+            )
+
         on_budget = None
         if data.on_budget is not None:
             accounts_by_id = {a.id: a for a in all_accounts}
@@ -968,6 +1038,8 @@ class AccountService:
             "path": self._path(account, by_id),
             "root": self._get_root_name(account, by_id),
             "on_budget": account.on_budget,
+            "statement_day": account.statement_day,
+            "due_day": account.due_day,
         }
 
     def restorable(self, limit: int = 50) -> builtins.list[dict]:
@@ -1041,6 +1113,8 @@ class AccountService:
                 "details": snap.get("details"),
                 "parent_id": parent.id,
                 "on_budget": bool(snap.get("on_budget")),
+                "statement_day": snap.get("statement_day"),
+                "due_day": snap.get("due_day"),
             },
         )
         self.ar.db.commit()

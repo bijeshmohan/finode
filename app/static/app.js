@@ -963,6 +963,12 @@ document.body.addEventListener("click", (event) => {
 // `data-root`): an asset starts in the budget, a card or loan outside it. Hidden fields are disabled so they are not sent.
 (function budgetChoice() {
   const apply = (select) => {
+    const days = select.form && select.form.querySelector("[data-bill-fields]");
+    if (days && select.selectedOptions[0] && "root" in select.selectedOptions[0].dataset) {
+      const card = select.selectedOptions[0].dataset.root === "Liabilities";
+      days.hidden = !card;
+      days.querySelectorAll("input").forEach((el) => { el.disabled = !card; });
+    }
     const fields = select.form && select.form.querySelector("[data-budget-fields]");
     if (!fields || !select.options.length || !select.selectedOptions[0] || !("root" in select.selectedOptions[0].dataset)) return;
     const root = select.selectedOptions[0].dataset.root;
@@ -980,6 +986,9 @@ document.body.addEventListener("click", (event) => {
   document.body.addEventListener("change", (event) => {
     if (!event.target.matches) return;
     if (event.target.matches('form select[name="parent_id"]')) apply(event.target);
+  });
+  document.querySelectorAll("[data-bill-fields]").forEach((days) => {
+    days.querySelectorAll("input").forEach((el) => { el.disabled = days.hidden; });
   });
   const first = document.querySelector('[data-budget-fields]');
   const form = first && first.closest("form");
