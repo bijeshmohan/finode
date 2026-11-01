@@ -619,7 +619,16 @@ function ensurePick(select) {
   button.className = "row-pick";
   button.dataset.pick = "";
   button.setAttribute("aria-haspopup", "dialog");
-  button.append(document.createElement("span"));
+  const name = document.createElement("span");
+  name.className = "rp-name";
+  button.append(name);
+  if (select.matches("[data-account-select]")) {  // an account or category row also says its date and amount, when they differ
+    ["rp-when", "rp-amt"].forEach((name) => {
+      const part = document.createElement("span");
+      part.className = name;
+      button.append(part);
+    });
+  }
   select.after(button);
   select.classList.add("is-picked");
   return button;
@@ -634,6 +643,31 @@ function leafLabel(select, option) {
   return twins > 1 ? `${leaf} (${group})` : leaf;
 }
 
+// A day as a row says it: "18 Oct", with the year when it is not this one's.
+function shortDay(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const text = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "short" });
+  return y === new Date().getFullYear() ? text : `${text} ${y}`;
+}
+
+// What an account's row says beside its name: the day it posts the line (only when that is not the entry's) and the
+// amount (only when it is not the whole total).
+function describeRow(form, row, button, chosen) {
+  const entry = form.querySelector('[name="date"]');
+  const posted = row.querySelector('[name="posted_on"]');
+  const when = button.querySelector(".rp-when");
+  const amt = button.querySelector(".rp-amt");
+  const day = posted && entry && posted.value && posted.value !== entry.value ? posted.value : "";
+  const total = parseDec(form.querySelector("#total").value) || 0n;
+  const share = rowShare(row);
+  const amount = share > 0n && share !== total ? `${money(share)}${chosen ? "" : " left"}` : "";
+  const whenText = day ? `Posts ${shortDay(day)}` : "";
+  if (when.textContent !== whenText) when.textContent = whenText;
+  if (amt.textContent !== amount) amt.textContent = amount;
+  when.hidden = !day;
+  amt.hidden = !amount;
+}
+
 function syncRowPickers(form) {
   const kind = KINDS[form.dataset.txnKind] || KINDS.other;
   form.querySelectorAll("[data-row]").forEach((row) => {
@@ -643,8 +677,10 @@ function syncRowPickers(form) {
     [[rowAccount(row), onCategories], [row.querySelector("[data-category-select]"), true]].forEach(([select, category]) => {
       if (!select) return;
       const button = ensurePick(select);
+      const slim = select.matches("[data-account-select]");
       button.hidden = select.hidden;
-      button.classList.add("pill");
+      button.classList.toggle("pill", !slim);
+      button.classList.toggle("slim", slim);
       button.classList.toggle("account", !category);
       const option = select.selectedOptions[0];
       const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
@@ -653,6 +689,7 @@ function syncRowPickers(form) {
       const label = chosen ? leafLabel(select, option) : empty;
       if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
       button.classList.toggle("empty", !chosen);
+      if (slim) describeRow(form, row, button, chosen);
       const noun = category ? "Category" : "Account";
       button.setAttribute("aria-label", chosen ? `${noun}: ${option.textContent.replace(" › ", ", ")}` : `Choose ${category ? "a category" : "an account"}`);
     });
@@ -669,13 +706,41 @@ function syncRowPickers(form) {
   let target = null;
   let clearable = false; // a payment's category can be none
   let taken = new Set(); // what the other side of the entry already uses: an account cannot be on both
+  // An account or a category (not a payment's optional label) opens its amount, and an account its date, under the choice;
+  // the tick adds it. `chosen` is the option highlighted, `state` what was typed so far, `activeRow` the row being set.
+  let activeRow = null;
+  let formEl = null;
+  let chosen = "";
+  let state = { amount: "", date: "" };
+  let withDate = false;
+  const configTemplate = document.getElementById("pick-config-template");
+  const entryDate = () => {
+    const field = formEl && formEl.querySelector('[name="date"]');
+    return field ? field.value : "";
+  };
+  const showConfig = (li) => {
+    list.querySelectorAll(".pick-config").forEach((node) => node.remove());
+    const config = configTemplate.content.firstElementChild.cloneNode(true);
+    const amount = config.querySelector("[data-config-amount]");
+    const date = config.querySelector("[data-config-date]");
+    amount.value = state.amount;
+    amount.addEventListener("input", () => { state.amount = amount.value; });
+    const day = entryDate();
+    config.querySelector("[data-config-date-field]").hidden = !withDate || !day;
+    date.value = state.date || day;
+    if (day) date.min = day;
+    date.addEventListener("change", () => { state.date = date.value; });
+    config.querySelector("[data-config-remove]").hidden = !target.value || target.value !== chosen;
+    li.after(config);
+    return config;
+  };
   const choices = () => [...target.options].filter((o) => o.value && o.value !== NEW_ACCOUNT);
   const row = (option, group) => {
     const li = document.createElement("li");
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.pickOption = option.value;
-    button.setAttribute("aria-pressed", String(option.value === target.value));
+    button.setAttribute("aria-pressed", String(option.value === (chosen || target.value)));
     const name = group ? option.textContent.slice(group.length + 3) || option.textContent : option.textContent;
     const label = document.createElement("span");
     const [outer, inner] = !group ? option.textContent.split(" › ") : [];
@@ -742,6 +807,10 @@ function syncRowPickers(form) {
       li.append(button);
       list.prepend(li);
     }
+    if (chosen) {
+      const selected = list.querySelector(`[data-pick-option="${CSS.escape(chosen)}"]`);
+      if (selected) showConfig(selected.closest("li"));
+    }
     if (target.querySelector(`option[value="${NEW_ACCOUNT}"]`)) {
       const li = document.createElement("li");
       li.className = "pick-new-li";
@@ -777,19 +846,73 @@ function syncRowPickers(form) {
               .filter(Boolean),
           );
       search.value = "";
+      formEl = form;
+      const own = open.closest("[data-row]");
+      activeRow = own;
+      withDate = !clearable && !isCategorySide(kind[side].roots) && form.hasAttribute("data-posting-dates");
+      chosen = clearable ? "" : target.value;
+      const posted = own.querySelector('[name="posted_on"]');
+      state = { amount: own.querySelector('[name="amount"]').value, date: posted ? posted.value : "" };
       draw();
       dialog.showModal();
       return;
     }
     if (!target || !dialog.contains(event.target)) return;
+    if (event.target.closest("[data-config-ok]")) {
+      apply();
+      return;
+    }
+    if (event.target.closest("[data-config-remove]")) {
+      const own = activeRow;
+      target = null;
+      dialog.close();
+      own.querySelector("[data-remove-row]").click();
+      return;
+    }
     const option = event.target.closest("[data-pick-option]");
     const fresh = event.target.closest("[data-pick-new]");
     if (!option && !fresh) return;
+    if (option && !clearable && option.dataset.pickOption) {
+      // An account or a category: highlight it and open its amount (and date) under it; the tick adds it.
+      chosen = option.dataset.pickOption;
+      list.querySelectorAll("[data-pick-option]").forEach((b) => b.setAttribute("aria-pressed", String(b === option)));
+      showConfig(option.closest("li"));
+      return;
+    }
     const select = target;
     target = null;
     dialog.close();
     select.value = option ? option.dataset.pickOption : NEW_ACCOUNT;
     select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  // The tick: the account (or category) goes onto the row with the amount and the day typed.
+  const apply = () => {
+    const config = list.querySelector(".pick-config");
+    if (!config || !chosen) return;
+    const select = target;
+    const own = activeRow;
+    const day = entryDate();
+    const dateValue = config.querySelector("[data-config-date]").value;
+    const amountText = config.querySelector("[data-config-amount]").value.trim();
+    const posted = own.querySelector('[name="posted_on"]');
+    const rowAmount = own.querySelector('[name="amount"]');
+    target = null;
+    dialog.close();
+    if (posted) posted.value = withDate && dateValue && dateValue !== day ? dateValue : "";
+    if (parseDec(amountText) !== parseDec(rowAmount.value)) {
+      rowAmount.value = amountText;
+      rowAmount.classList.remove("suggested");
+      rowAmount.dispatchEvent(new Event("input", { bubbles: true }));
+      tidyField(rowAmount);
+    }
+    select.value = chosen;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  list.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.target.matches && event.target.matches("[data-config-amount], [data-config-date]")) {
+      event.preventDefault();
+      apply();
+    }
   });
   search.addEventListener("input", draw);
 })();
@@ -926,7 +1049,7 @@ document.body.addEventListener("click", (event) => {
     if (list.querySelectorAll("[data-row]").length > 1) row.remove();
     else {
       rowAccount(row).value = "";
-      row.querySelectorAll('[name="amount"]').forEach((f) => { f.value = ""; });
+      row.querySelectorAll('[name="amount"], [name="posted_on"]').forEach((f) => { f.value = ""; });
       row.removeAttribute("data-touched");
     }
     const left = list.querySelectorAll("[data-row]");
@@ -967,7 +1090,7 @@ document.body.addEventListener("click", (event) => {
     if (days && select.selectedOptions[0] && "root" in select.selectedOptions[0].dataset) {
       const card = select.selectedOptions[0].dataset.root === "Liabilities";
       days.hidden = !card;
-      days.querySelectorAll("input").forEach((el) => { el.disabled = !card; });
+      days.querySelectorAll("input, select").forEach((el) => { el.disabled = !card; });
     }
     const fields = select.form && select.form.querySelector("[data-budget-fields]");
     if (!fields || !select.options.length || !select.selectedOptions[0] || !("root" in select.selectedOptions[0].dataset)) return;
@@ -988,7 +1111,7 @@ document.body.addEventListener("click", (event) => {
     if (event.target.matches('form select[name="parent_id"]')) apply(event.target);
   });
   document.querySelectorAll("[data-bill-fields]").forEach((days) => {
-    days.querySelectorAll("input").forEach((el) => { el.disabled = days.hidden; });
+    days.querySelectorAll("input, select").forEach((el) => { el.disabled = days.hidden; });
   });
   const first = document.querySelector('[data-budget-fields]');
   const form = first && first.closest("form");
@@ -1422,4 +1545,15 @@ document.addEventListener("click", (event) => {
   if (input instanceof HTMLInputElement && input.closest("[data-date-chip]") && typeof input.showPicker === "function") {
     try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
   }
+});
+
+// Moving the entry's date past a line's posting date puts that line back on the entry's own day (a line cannot post before it).
+document.addEventListener("change", (event) => {
+  const field = event.target;
+  const form = field instanceof HTMLInputElement && field.name === "date" && field.closest("form[data-txn-form]");
+  if (!form) return;
+  form.querySelectorAll('[name="posted_on"]').forEach((posted) => {
+    if (posted.value && posted.value < field.value) posted.value = "";
+  });
+  recomputeTxn(form);
 });

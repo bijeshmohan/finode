@@ -32,7 +32,13 @@ def comparable_snapshot(snapshot: dict) -> dict:
         "related_id": None,  # snapshots written before the link was kept have no such key
         "tags": [],  # and before tags were their own thing (then they were #words in the note)
         **{key: value for key, value in snapshot.items() if key != "currency_id"},
-        "postings": [{key: value for key, value in p.items() if key != "value"} for p in snapshot.get("postings", [])],
+        "postings": [
+            {
+                "posted_on": None,
+                **{key: value for key, value in p.items() if key != "value"},
+            }  # no key before posting dates
+            for p in snapshot.get("postings", [])
+        ],
     }
 
 
@@ -86,6 +92,7 @@ class TransactionRepository:
                     "side": p.side.value,
                     "amount": str(p.amount),
                     "category": str(p.category_id) if p.category_id else None,
+                    "posted_on": p.posted_on.isoformat() if p.posted_on else None,
                 }
                 for p in sorted(postings, key=lambda p: (p.created, str(p.id)))
             ],
@@ -744,7 +751,14 @@ class TransactionRepository:
         if not aids:
             return []
         statement = (
-            select(Posting.transaction_id, Posting.side, Posting.amount, Transaction.date, Transaction.created)
+            select(
+                Posting.transaction_id,
+                Posting.side,
+                Posting.amount,
+                Posting.posted_on,
+                Transaction.date,
+                Transaction.created,
+            )
             .join(Transaction, Transaction.id == Posting.transaction_id)
             .where(col(Posting.account_id).in_(aids), Posting.user_id == self.uid, Transaction.user_id == self.uid)
         )
@@ -828,11 +842,12 @@ class TransactionRepository:
                 values = data.model_dump(exclude={"category_id"})
                 self.db.add(Posting(**values, category_id=category, transaction_id=transaction.id, user_id=self.uid))
             else:
-                old.account_id, old.side, old.amount, old.category_id = (
+                old.account_id, old.side, old.amount, old.category_id, old.posted_on = (
                     data.account_id,
                     data.side,
                     data.amount,
                     category,
+                    data.posted_on,
                 )
                 self.db.add(old)
         self.db.flush()

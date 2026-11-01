@@ -47,6 +47,7 @@ class AccountRepository:
             "on_budget": account.on_budget,
             "statement_day": account.statement_day,
             "due_day": account.due_day,
+            "bill_rounding": account.bill_rounding,
             "closed_on": account.closed_on.isoformat() if account.closed_on else None,
         }
 
@@ -56,7 +57,11 @@ class AccountRepository:
         if action == "updated" and not extra:
             previous = self.history(account.id)
             # Steps written before the bill days existed lack the two keys: they read as empty.
-            before = {"statement_day": None, "due_day": None, **previous[-1].snapshot} if previous else {}
+            before = (
+                {"statement_day": None, "due_day": None, "bill_rounding": "none", **previous[-1].snapshot}
+                if previous
+                else {}
+            )
             if previous and {k: v for k, v in before.items() if not k.startswith("merged_")} == snapshot:
                 return
         self.db.add(

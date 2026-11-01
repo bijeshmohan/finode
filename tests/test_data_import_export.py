@@ -239,3 +239,17 @@ def test_a_bad_tags_line_in_an_import_names_the_line(client: TestClient):
         params={"dry_run": "true"},
     ).json()
     assert any("cannot be a tag" in e and "line 1" in e for e in summary["errors"])
+
+
+def test_a_posting_date_is_read_and_kept(client: TestClient):
+    text = JOURNAL.replace("    Assets:Bank:HDFC\n2026-09-30", "    Assets:Bank:HDFC  ; posted: 2026-09-05\n2026-09-30")
+    done = _import(client, text)
+    assert done.status_code == 200, done.text
+    lines = [p for t in client.get("/api/transactions/").json() for p in t["postings"] if p["posted_on"]]
+    assert [p["posted_on"] for p in lines] == ["2026-09-05"]
+
+
+def test_a_posting_date_before_the_entry_is_refused_with_its_line(client: TestClient):
+    text = JOURNAL.replace("    Assets:Bank:HDFC\n2026-09-30", "    Assets:Bank:HDFC  ; posted: 2026-09-01\n2026-09-30")
+    refused = _import(client, text)
+    assert refused.status_code == 400 and "cannot post before the entry's own date" in refused.text

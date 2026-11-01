@@ -371,13 +371,13 @@ def quick_create_account(
     return htmx_trigger("account-added", {"id": str(created.id), "name": created.name})
 
 
-def _bill_days(statement_day: str, due_day: str) -> dict:
-    """The form's two days as numbers; both empty means none. Anything else that is not a day is refused."""
+def _bill_days(statement_day: str, due_day: str, bill_rounding: str = "none") -> dict:
+    """The form's two days as numbers (both empty means none) and how the bill is rounded. Anything else is refused."""
     try:
         days = [int(v) if v.strip() else None for v in (statement_day, due_day)]
     except ValueError:
         raise ValueError("the statement day and the due day are numbers from 1 to 31!") from None
-    return {"statement_day": days[0], "due_day": days[1]}
+    return {"statement_day": days[0], "due_day": days[1], "bill_rounding": bill_rounding or "none"}
 
 
 @router.post("")
@@ -392,6 +392,7 @@ def create_account(
     bill_choice: Annotated[str | None, Form()] = None,
     statement_day: Annotated[str, Form()] = "",
     due_day: Annotated[str, Form()] = "",
+    bill_rounding: Annotated[str, Form()] = "none",
 ):
     try:
         if not parent_id:
@@ -403,7 +404,7 @@ def create_account(
             balance=parse_amount(balance, Decimal("0.00")),
             # The form asked (budget_choice): its box says yes or no. Without it the default applies (an asset: yes).
             on_budget=None if budget_choice is None else on_budget is not None,
-            **(_bill_days(statement_day, due_day) if bill_choice is not None else {}),
+            **(_bill_days(statement_day, due_day, bill_rounding) if bill_choice is not None else {}),
         )
         created = accounts.create(data)
     except ValidationError as e:
@@ -605,6 +606,7 @@ def update_account(
     bill_choice: Annotated[str | None, Form()] = None,
     statement_day: Annotated[str, Form()] = "",
     due_day: Annotated[str, Form()] = "",
+    bill_rounding: Annotated[str, Form()] = "none",
 ):
     current = accounts.read(account_id)
     if current is None:
@@ -625,8 +627,12 @@ def update_account(
         if budget_choice is not None and (on_budget is not None) != current.on_budget:
             changes["on_budget"] = on_budget is not None
         if bill_choice is not None:
-            days = _bill_days(statement_day, due_day)
-            if days != {"statement_day": current.statement_day, "due_day": current.due_day}:
+            days = _bill_days(statement_day, due_day, bill_rounding)
+            if days != {
+                "statement_day": current.statement_day,
+                "due_day": current.due_day,
+                "bill_rounding": current.bill_rounding,
+            }:
                 changes.update(days)
         if changes:
             accounts.update(account_id, AccountUpdate(**changes))

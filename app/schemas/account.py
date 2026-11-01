@@ -23,6 +23,9 @@ def clean_name(value: str) -> str:
     return value
 
 
+BillRounding = Literal["none", "nearest", "up"]
+
+
 class AccountBase(BaseModel):
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
@@ -31,6 +34,8 @@ class AccountBase(BaseModel):
     # 31 means the last day of a shorter month.
     statement_day: int | None = Field(default=None, ge=1, le=31)
     due_day: int | None = Field(default=None, ge=1, le=31)
+    # How the bank rounds the bill: to the paisa, to the nearest whole unit, or up to the next one.
+    bill_rounding: BillRounding = "none"
 
     @field_validator("name")
     @classmethod
@@ -79,6 +84,7 @@ class AccountUpdate(BaseModel):
     on_budget: bool | None = None
     statement_day: int | None = Field(default=None, ge=1, le=31)
     due_day: int | None = Field(default=None, ge=1, le=31)
+    bill_rounding: BillRounding | None = None
 
     @field_validator("name")
     @classmethod
@@ -96,6 +102,8 @@ class RegisterEntry(BaseModel):
     balance: Decimal
     # The earlier entry this one is related to (a refund, a reversal), if any.
     related: RelatedRef | None = None
+    # The day this account posts the entry, when that is not the entry's own date.
+    posted_on: Date | None = None
 
 
 class CardBill(BaseModel):
@@ -110,12 +118,15 @@ class CardBill(BaseModel):
     next_statement_date: Date
     # Negative once the due date has passed: -2 is two days overdue.
     days_to_due: int
-    # What was owed when the bill closed (never below zero).
+    # What was owed when the bill closed (never below zero), exactly; the bank's figure after its rounding rule is
+    # `statement_due`, and `rounded_by` is what the rule added or took off (zero when it rounds nothing).
     statement_balance: Decimal = Field(description="a sum: no digit limits")
+    statement_due: Decimal
+    rounded_by: Decimal
     # Payments and refunds since the statement, and purchases and charges since.
     paid_since: Decimal
     spent_since: Decimal
-    # What is still to pay of that statement: its balance less what was paid since, never below zero.
+    # What is still to pay of that statement: what was due less what was paid since, never below zero.
     bill: Decimal
     # Everything owed today, the statement's bill and what was spent since.
     owed_total: Decimal

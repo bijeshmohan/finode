@@ -46,3 +46,19 @@
       <ul class="filter-options" data-pick-list></ul>
     </div>
   </dialog>
+
+  {#- What opens under the account or category chosen in the picker: its amount and, on an account, the day it posts the line. -#}
+  <template id="pick-config-template">
+    <li class="pick-config">
+      <div class="pick-fields">
+        <label class="pick-field">Amount
+          <input type="text" inputmode="decimal" data-group autocomplete="off" data-config-amount>
+        </label>
+        <label class="pick-field" data-config-date-field>Date
+          <input type="date" data-config-date>
+        </label>
+        <button type="button" class="tick" data-config-ok aria-label="Add">{{ icon("check") }}</button>
+      </div>
+      <button type="button" class="link pick-remove" data-config-remove>Remove this one</button>
+    </li>
+  </template>

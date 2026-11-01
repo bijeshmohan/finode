@@ -12,8 +12,8 @@
 </div>
 
 <dl class="sheet-facts">
-  <div><dt>{{ from_label }}</dt><dd>{% for name, p in from_postings %}<span>{{ name }}{% if from_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
-  <div><dt>{{ to_label }}</dt><dd>{% for name, p in to_postings %}<span>{{ name }}{% if to_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
+  <div><dt>{{ from_label }}</dt><dd>{% for name, p in from_postings %}<span>{{ name }}{% if from_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}{% if p.posted_on and p.posted_on != t.date %} <small class="muted">posts {{ p.posted_on|short_date }}</small>{% endif %}</span>{% endfor %}</dd></div>
+  <div><dt>{{ to_label }}</dt><dd>{% for name, p in to_postings %}<span>{{ name }}{% if to_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}{% if p.posted_on and p.posted_on != t.date %} <small class="muted">posts {{ p.posted_on|short_date }}</small>{% endif %}</span>{% endfor %}</dd></div>
   {% if t.comment %}<div><dt>Note</dt><dd>{{ t.comment }}</dd></div>{% endif %}
   {% if t.tags %}<div><dt>Tags</dt><dd class="sheet-tags">{% for tag in t.tags %}<a href="/transactions?month={{ t.date.strftime('%Y-%m') }}&amp;tag={{ tag }}">#{{ tag }}</a>{% endfor %}</dd></div>{% endif %}
 </dl>

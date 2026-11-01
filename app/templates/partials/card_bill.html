@@ -21,6 +21,7 @@
   {% if bill.statement_balance > 0 or bill.spent_since > 0 %}
   <dl class="bill-rows">
     {% if bill.statement_balance > 0 %}<div><dt>Statement of {{ bill.statement_date|short_date }}</dt><dd>{{ bill.statement_balance|money }}</dd></div>{% endif %}
+    {% if bill.rounded_by != 0 %}<div><dt>Rounded</dt><dd>{{ "+" if bill.rounded_by > 0 else "−" }}{{ bill.rounded_by|abs|money }}</dd></div>{% endif %}
     {% if bill.paid_since > 0 %}<div><dt>Paid since</dt><dd>−{{ bill.paid_since|money }}</dd></div>{% endif %}
     {% if bill.spent_since > 0 %}<div><dt>Spent since the statement</dt><dd>{{ bill.spent_since|money }}</dd></div>{% endif %}
   </dl>

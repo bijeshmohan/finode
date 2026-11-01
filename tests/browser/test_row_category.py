@@ -84,6 +84,7 @@ def test_a_category_is_chosen_in_a_sheet(page: Page, books, api: Api):
     dialog.locator("[data-pick-search]").fill("din")
     expect(dialog.locator("[data-pick-option]")).to_have_count(1)
     dialog.locator("[data-pick-option]").click()
+    dialog.locator("[data-config-ok]").click()
     expect(dialog).to_be_hidden()
     expect(button).to_have_text("Dining")
     assert page.input_value('[data-rows="debit"] select') != ""

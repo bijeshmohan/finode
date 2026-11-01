@@ -136,6 +136,19 @@ def _diff(before: dict, after: dict, paths: dict[UUID, str], categories: dict[UU
         and old_labels[a, s] != new_labels[a, s]
         and all(c is not None for c in old_labels[a, s] + new_labels[a, s])
     ]
+
+    def posting_days(snapshot: dict) -> list[dict]:
+        return sorted(
+            (
+                {"account": _where(p, paths, categories), "side": p["side"], "posted_on": p["posted_on"]}
+                for p in snapshot.get("postings", [])
+                if p.get("posted_on")
+            ),
+            key=lambda d: (d["account"], d["side"], d["posted_on"]),
+        )
+
+    if posting_days(before) != posting_days(after):
+        changes["posting_dates"] = {"from": posting_days(before), "to": posting_days(after)}
     if added or removed or changed or relabelled:
         rows_changed: dict[str, Any] = {"added": added, "removed": removed, "changed": changed}
         if relabelled:
@@ -238,11 +251,16 @@ class TransactionService:
         data: TransactionCreate | TransactionUpdate,
         keep_closed: Collection[UUID] = frozenset(),
         keep_categories: Collection[UUID] = frozenset(),
+        on: date | None = None,
     ) -> None:
-        """Check the postings: the accounts can be posted to, the amounts fit the currency and the entry balances."""
+        """Check the postings: the accounts can be posted to, the amounts fit the currency and the entry balances.
+        `on` is the entry's date, which no line may post before."""
         postings = data.postings
         if postings is None:
             return
+        for posting in postings:
+            if on is not None and posting.posted_on is not None and posting.posted_on < on:
+                raise InvalidPostingError("an account cannot post a line before the entry's own date!")
 
         if settings.max_postings_per_transaction and len(postings) > settings.max_postings_per_transaction:
             raise InvalidPostingError(
@@ -309,6 +327,7 @@ class TransactionService:
             side=posting.side,
             amount=posting.amount,
             category_id=posting.category_id,
+            posted_on=posting.posted_on,
             created=posting.created,
             updated=posting.updated,
         )
@@ -478,6 +497,7 @@ class TransactionService:
                     "side": p["side"],
                     "amount": Decimal(p["amount"]),
                     "category_id": self._known_category(p.get("category")),
+                    "posted_on": date.fromisoformat(p["posted_on"]) if p.get("posted_on") else None,
                 }
                 for p in snapshot["postings"]
             ],
@@ -485,7 +505,7 @@ class TransactionService:
             tags=clean_names(snapshot.get("tags", [])),
         )
         self._check_limits()
-        self._resolve(data)
+        self._resolve(data, on=data.date)
         self._check_reference(data.source, data.external_id)
         transaction = self.tr.create(data, self.origin, None, transaction_id=row.transaction_id)
         self._relink(transaction.id, snapshot.get("related_from", []))
@@ -523,7 +543,7 @@ class TransactionService:
 
     def validate(self, data: TransactionCreate) -> None:
         """Raise what create would raise, without saving anything."""
-        self._resolve(data)
+        self._resolve(data, on=data.date)
 
     def _check_related(self, related_id: UUID | None, transaction_id: UUID | None = None) -> None:
         """The entry this one is related to must be the person's own, and following the links must never lead back here."""
@@ -574,7 +594,7 @@ class TransactionService:
     def _check_new(self, data: TransactionCreate) -> None:
         """Everything creating an entry checks before it saves."""
         self._check_limits()
-        self._resolve(data)
+        self._resolve(data, on=data.date)
         self._check_related(data.related_id)
         self._check_reference(data.source, data.external_id)
         self._check_tags(data.tags)
@@ -687,7 +707,7 @@ class TransactionService:
             data.postings
             if data.postings is not None
             else [
-                PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount)
+                PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount, posted_on=p.posted_on)
                 for p in self.tr.postings(transaction_id)
             ]
         )
@@ -707,7 +727,10 @@ class TransactionService:
             source=existing.source,
             external_id=existing.external_id,
             source_url=existing.source_url,
-            postings=[PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount) for p in existing.postings],
+            postings=[
+                PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount, posted_on=p.posted_on)
+                for p in existing.postings
+            ],
         )
 
     def create_once(
@@ -1015,7 +1038,14 @@ class TransactionService:
         existing_lines = self.tr.postings(transaction_id)
         kept = {p.account_id for p in existing_lines}
         kept_categories = {p.category_id for p in existing_lines if p.category_id is not None}
-        self._resolve(data, kept, kept_categories)
+        day = data.date if "date" in data.model_fields_set and data.date is not None else existing.date
+        self._resolve(data, kept, kept_categories, on=day)
+        if data.postings is None and "date" in data.model_fields_set:
+            for line in existing_lines:
+                if line.posted_on is not None and line.posted_on < day:
+                    raise InvalidPostingError(
+                        "move the lines' posting dates too: one would post before the entry's date!"
+                    )
         if "related_id" in data.model_fields_set:
             self._check_related(data.related_id, transaction_id)
         if data.tags:
@@ -1063,6 +1093,7 @@ class TransactionService:
                     side=p.side,
                     amount=p.amount,
                     category_id=category_id if waiting else p.category_id,
+                    posted_on=p.posted_on,
                 )
             )
         if not changed:

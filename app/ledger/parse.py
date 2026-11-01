@@ -44,6 +44,7 @@ class _Entry:
     assertion: Decimal | None = None
     assertion_commodity: str | None = None
     category: str | None = None
+    posted: date | None = None
 
 
 class _State:
@@ -102,6 +103,13 @@ def _parse_entry(number: int, raw: str, state: _State) -> _Entry | None:
     found = re.search(r"(?:^|\s)category:\s*([^,;]+)", comment or "", re.IGNORECASE)
     if found:
         entry.category = found.group(1).strip() or None
+    posted = re.search(r"(?:^|[\s,])posted:\s*(\d{4})-(\d{2})-(\d{2})", comment or "", re.IGNORECASE)
+    if posted:
+        try:
+            entry.posted = date(int(posted.group(1)), int(posted.group(2)), int(posted.group(3)))
+        except ValueError:
+            state.error(number, f"'{posted.group(0).strip(' ,')}' is not a date")
+            return None
     if amount_text.strip():
         parsed = _parse_amount(amount_text, state, number)
         if parsed is None:
@@ -182,6 +190,7 @@ def _parse_transaction(header: re.Match, block: list[tuple[int, str]], line: int
                 line=entry.number,
                 commodity=entry.commodity,
                 category=entry.category,
+                posted=entry.posted,
             )
         )
     state.balances = running

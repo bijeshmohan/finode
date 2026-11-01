@@ -19,6 +19,9 @@ class _PostingFields(BaseModel):
     # What the line was for (a budget category). Leave it out and a payment into a loan or fund that has a payment
     # category takes that one, and a line on Expenses or Income with none is Uncategorised.
     category_id: UUID | None = None
+    # The day the account posts the line, when it is not the entry's own date (never before it). Only a card's bill
+    # reads it.
+    posted_on: Day | None = None
 
     @field_validator("amount")
     @classmethod

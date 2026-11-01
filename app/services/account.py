@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -19,7 +20,7 @@ from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
-from ..schemas.account import AccountChangeRead, BalanceCheck, CardBill, MergeResult
+from ..schemas.account import AccountChangeRead, BalanceCheck, BillRounding, CardBill, MergeResult
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from . import cards
 
@@ -329,6 +330,7 @@ class AccountService:
             closed_on=account.closed_on,
             statement_day=account.statement_day,
             due_day=account.due_day,
+            bill_rounding=cast(BillRounding, account.bill_rounding),
             system_key=account.system_key,
             created=account.created,
             updated=account.updated,
@@ -601,6 +603,7 @@ class AccountService:
         for transaction in transactions:
             balance += changes[transaction.id]
             counter_accounts = []
+            own = [p for p in postings_of.get(transaction.id, []) if p.account_id in target_ids]
             for posting in postings_of.get(transaction.id, []):
                 if posting.account_id in target_ids:
                     continue
@@ -617,6 +620,7 @@ class AccountService:
                     change=changes[transaction.id],
                     balance=balance,
                     related=related.get(transaction.related_id) if transaction.related_id else None,
+                    posted_on=next((p.posted_on for p in own if p.posted_on), None),
                 )
             )
         return entries
@@ -738,6 +742,7 @@ class AccountService:
                 ("on_budget", "on_budget"),
                 ("statement_day", "statement_day"),
                 ("due_day", "due_day"),
+                ("bill_rounding", "bill_rounding"),
                 ("closed_on", "closed_on"),
             ):
                 if old.get(key) != new.get(key):
@@ -795,18 +800,21 @@ class AccountService:
         statement = cards.last_statement(account.statement_day, day)
         owed = paid = spent = total = Decimal("0.00")
         for fact in self.tr.posting_facts([account_id]):
-            if fact.date > day:
+            # A line counts by the day the account posts it (an entry's own date when none was given).
+            posted = fact.posted_on or fact.date
+            if posted > day:
                 continue
             credit = fact.side == PostingSide.CREDIT
             value = fact.amount if credit else -fact.amount
             total += value
-            if fact.date <= statement:
+            if posted <= statement:
                 owed += value
             elif credit:
                 spent += fact.amount
             else:
                 paid += fact.amount
         owed = max(owed, Decimal("0.00"))
+        billed = cards.round_bill(owed, account.bill_rounding)
         due = cards.due_date(statement, account.statement_day, account.due_day)
         return CardBill(
             account_id=account_id,
@@ -817,9 +825,11 @@ class AccountService:
             next_statement_date=cards.next_statement(account.statement_day, day),
             days_to_due=(due - day).days,
             statement_balance=owed,
+            statement_due=billed,
+            rounded_by=billed - owed,
             paid_since=paid,
             spent_since=spent,
-            bill=max(owed - paid, Decimal("0.00")),
+            bill=max(billed - paid, Decimal("0.00")),
             owed_total=max(total, Decimal("0.00")),
         )
 
@@ -856,7 +866,7 @@ class AccountService:
         normal_side = self._normal_side(account, accounts_by_id)
         changes: dict[UUID, Decimal] = {}
         when: dict[UUID, tuple] = {}
-        for transaction, side, amount, day, created in self.tr.posting_facts(target_ids):
+        for transaction, side, amount, _posted_on, day, created in self.tr.posting_facts(target_ids):
             signed = amount if side == normal_side else -amount
             changes[transaction] = changes.get(transaction, Decimal("0.00")) + signed
             when[transaction] = (day, created)
@@ -881,6 +891,7 @@ class AccountService:
         def entry(transaction_id: UUID) -> RegisterEntry:
             transaction = loaded[transaction_id]
             counter: builtins.list[str] = []
+            own = [p for p in postings_of.get(transaction_id, []) if p.account_id in target_ids]
             for posting in postings_of.get(transaction_id, []):
                 if posting.account_id in target_ids:
                     continue
@@ -896,6 +907,7 @@ class AccountService:
                 change=changes[transaction_id],
                 balance=balances[transaction_id],
                 related=related.get(transaction.related_id) if transaction.related_id else None,
+                posted_on=next((p.posted_on for p in own if p.posted_on), None),
             )
 
         return RegisterPage(
@@ -1057,6 +1069,7 @@ class AccountService:
             "on_budget": account.on_budget,
             "statement_day": account.statement_day,
             "due_day": account.due_day,
+            "bill_rounding": account.bill_rounding,
         }
 
     def restorable(self, limit: int = 50) -> builtins.list[dict]:
@@ -1132,6 +1145,7 @@ class AccountService:
                 "on_budget": bool(snap.get("on_budget")),
                 "statement_day": snap.get("statement_day"),
                 "due_day": snap.get("due_day"),
+                "bill_rounding": snap.get("bill_rounding") or "none",
             },
         )
         self.ar.db.commit()

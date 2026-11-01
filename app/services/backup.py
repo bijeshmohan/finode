@@ -23,7 +23,7 @@ from ..models.transaction import PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..repositories.budget import BudgetRepository
 from ..repositories.recurring import RecurringRepository
-from ..schemas.account import AccountCreate
+from ..schemas.account import AccountCreate, BillRounding
 from ..schemas.backup import (
     FORMAT,
     READS,
@@ -95,6 +95,7 @@ class BackupService:
                     closed_on=a.closed_on,
                     statement_day=a.statement_day,
                     due_day=a.due_day,
+                    bill_rounding=cast(BillRounding, a.bill_rounding),
                     system_key=a.system_key,
                 )
                 for a in accounts
@@ -127,7 +128,13 @@ class BackupService:
                     external_id=t.external_id,
                     source_url=t.source_url,
                     postings=[
-                        BackupPosting(account=p.account_id, side=p.side, amount=p.amount, category=p.category_id)
+                        BackupPosting(
+                            account=p.account_id,
+                            side=p.side,
+                            amount=p.amount,
+                            category=p.category_id,
+                            posted_on=p.posted_on,
+                        )
                         for p in postings.get(t.id, [])
                     ],
                 )
@@ -559,6 +566,7 @@ class BackupService:
                         parent_id=ids[a.parent_id],
                         statement_day=a.statement_day,
                         due_day=a.due_day,
+                        bill_rounding=a.bill_rounding,
                     ),
                     on_budget=a.on_budget,
                 )
@@ -633,6 +641,7 @@ class BackupService:
                         side=p.side,
                         amount=p.amount,
                         category_id=cats.get(p.category) if p.category else None,
+                        posted_on=p.posted_on,
                     )
                     for p in t.postings
                 ]

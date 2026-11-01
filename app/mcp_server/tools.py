@@ -198,6 +198,7 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
                 "side": p.side.value,
                 "amount": text(p.amount),
                 **({"category": names.path(p.category_id), "category_id": str(p.category_id)} if p.category_id else {}),
+                **({"posted_on": p.posted_on.isoformat()} if p.posted_on else {}),
             }
             for p in t.postings
         ],
@@ -322,7 +323,11 @@ def _account_row(e, index: AccountIndex) -> dict[str, Any]:
         **({"on_budget": e.account.on_budget} if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
         **({"group": e.account.system_key} if e.account.system_key else {}),
         **(
-            {"statement_day": e.account.statement_day, "due_day": e.account.due_day}
+            {
+                "statement_day": e.account.statement_day,
+                "due_day": e.account.due_day,
+                "bill_rounding": e.account.bill_rounding,
+            }
             if e.account.statement_day is not None
             else {}
         ),
@@ -582,6 +587,8 @@ def get_card_bill(account: AccountRef) -> dict[str, Any]:
             "statement_balance": text(bill.statement_balance),
             "paid_since": text(bill.paid_since),
             "spent_since": text(bill.spent_since),
+            "statement_due": text(bill.statement_due),
+            "rounded_by": text(bill.rounded_by),
             "bill": text(bill.bill),
             "owed_total": text(bill.owed_total),
         }
@@ -895,6 +902,11 @@ class PostingIn(BaseModel):
         description="debit: money into an asset or expense (or paying down a liability); credit: the other way"
     )
     amount: Amount
+    posted_on: date | None = Field(
+        default=None,
+        description="Cards: the day the account posts this row when it is not the entry's date (YYYY-MM-DD, never "
+        "before it). A card's bill counts the row by this day",
+    )
 
 
 def _postings(rows: list[PostingIn], s: Services) -> list[PostingCreate]:
@@ -911,6 +923,7 @@ def _postings(rows: list[PostingIn], s: Services) -> list[PostingCreate]:
                 side=PostingSide(row.side),
                 amount=row.amount,
                 category_id=category or (place.category if place else None),
+                posted_on=row.posted_on,
             )
         )
     return found
@@ -1154,6 +1167,10 @@ def create_account(
     due_day: Annotated[
         int | None, Field(ge=1, le=31, description="Cards and loans: the day of the month the bill must be paid by")
     ] = None,
+    bill_rounding: Annotated[
+        Literal["none", "nearest", "up"] | None,
+        Field(description="Cards and loans: how the bank rounds the bill (to the paisa, nearest rupee, or up)"),
+    ] = None,
 ) -> dict[str, Any]:
     """Add an account. Check list_accounts first so you don't create a duplicate."""
     with services() as s:
@@ -1177,6 +1194,7 @@ def create_account(
                 on_budget=on_budget,
                 statement_day=statement_day,
                 due_day=due_day,
+                bill_rounding=bill_rounding or "none",
             )
         )
         return {
@@ -1206,6 +1224,10 @@ def update_account(
     due_day: Annotated[
         int | None, Field(ge=1, le=31, description="Cards and loans: the day of the month the bill must be paid by")
     ] = None,
+    bill_rounding: Annotated[
+        Literal["none", "nearest", "up"] | None,
+        Field(description="Cards and loans: how the bank rounds the bill (to the paisa, nearest rupee, or up)"),
+    ] = None,
 ) -> dict[str, Any]:
     """Rename an account, change its note, move it under another account, or change its budget settings. Its history
     stays with it and its id never changes (only its path does). The built-in groups, the top-level accounts and
@@ -1225,8 +1247,10 @@ def update_account(
         if statement_day is not None or due_day is not None:
             changes["statement_day"] = statement_day if statement_day is not None else entry.account.statement_day
             changes["due_day"] = due_day if due_day is not None else entry.account.due_day
+        if bill_rounding is not None:
+            changes["bill_rounding"] = bill_rounding
         if not changes:
-            raise ToolError("nothing to change: pass a name, details, parent, on_budget, statement_day or due_day!")
+            raise ToolError("nothing to change: pass a name, details, parent, on_budget, a bill day or bill_rounding!")
         before = entry.path
         s.accounts.update(entry.account.id, AccountUpdate(**changes))
         fresh = _index(s)

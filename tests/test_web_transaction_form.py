@@ -530,3 +530,55 @@ def test_a_split_across_expenses_is_still_an_expense(
         },
     ).json()["id"]
     assert _kind(client.get(f"/transactions/{transaction_id}/edit").text) == "expense"
+
+
+def test_the_form_sends_a_posting_date_for_a_line_and_the_edit_page_shows_it(
+    client: TestClient, account: dict, expense_account: dict
+):
+    made = client.post(
+        "/transactions/split",
+        data={
+            "date": "2026-05-04",
+            "account": [expense_account["id"], account["id"]],
+            "side": ["debit", "credit"],
+            "amount": ["42.50", "42.50"],
+            "posted_on": ["", "2026-05-06"],
+        },
+    )
+    assert made.status_code == 200, made.text
+    [entry] = client.get("/api/transactions/").json()
+    assert {p["side"]: p["posted_on"] for p in entry["postings"]} == {"debit": None, "credit": "2026-05-06"}
+    page = client.get(f"/transactions/{entry['id']}/edit").text
+    assert 'name="posted_on" value="2026-05-06"' in page
+
+
+def test_a_posting_date_before_the_entry_is_refused_on_the_form(
+    client: TestClient, account: dict, expense_account: dict
+):
+    refused = client.post(
+        "/transactions/split",
+        data={
+            "date": "2026-05-04",
+            "account": [expense_account["id"], account["id"]],
+            "side": ["debit", "credit"],
+            "amount": ["10", "10"],
+            "posted_on": ["", "2026-05-01"],
+        },
+    )
+    assert "before the entry" in refused.text
+    assert client.get("/api/transactions/").json() == []
+
+
+def test_repeating_an_entry_does_not_copy_its_posting_dates(client: TestClient, account: dict, expense_account: dict):
+    made = client.post(
+        "/api/transactions/",
+        json={
+            "date": "2026-05-04",
+            "postings": [
+                leg(expense_account, "debit", "10"),
+                {**leg(account, "credit", "10"), "posted_on": "2026-05-06"},
+            ],
+        },
+    ).json()
+    page = client.get("/transactions/new", params={"repeat": made["id"]}).text
+    assert 'name="posted_on" value="2026-05-06"' not in page
