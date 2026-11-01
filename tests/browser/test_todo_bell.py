@@ -60,3 +60,33 @@ def test_the_budgets_page_has_no_needs_you_line_any_more(page: Page, books, api:
     page.goto("/budget")
     expect(page.locator("#budget")).to_be_visible()
     expect(page.locator(".need-line")).to_have_count(0)
+
+
+def test_a_bill_due_soon_is_in_the_bell_and_pay_bill_opens_the_form(page: Page, books, api: Api):
+    from datetime import timedelta
+
+    from app.clock import local_today
+
+    today = local_today()
+    statement = today - timedelta(days=10)
+    card = api.post(
+        "/accounts/",
+        name="Amex",
+        parent_id=books["roots"]["Liabilities"],
+        statement_day=statement.day,
+        due_day=(today + timedelta(days=2)).day,
+    )
+    api.post(
+        "/transactions/",
+        payee="Flights",
+        date=str(statement - timedelta(days=5)),
+        postings=[leg(books["food"], "debit", "900"), leg(card, "credit", "900")],
+    )
+    page.goto("/")
+    expect(page.locator("#todo-count-bar")).to_have_text("1")
+    page.locator(".topbar .todo-open").click()
+    sheet = page.locator("#todo-sheet-body")
+    expect(sheet).to_contain_text("Amex bill is due in 2 days")
+    sheet.get_by_role("link", name="Pay bill").click()
+    page.wait_for_url("**/transactions/new**")
+    expect(page.locator("#total")).to_have_value("900.00")

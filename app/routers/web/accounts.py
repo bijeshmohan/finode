@@ -11,6 +11,7 @@ from ...clock import local_day, local_today
 from ...dependencies import Accounts, Categories
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...schemas.category import CategoryRead
+from ...services import cards
 from ...services.account import (
     FIXED_DEFAULTS,
     GROUP_POSTING_ROOT_NAMES,
@@ -467,6 +468,7 @@ def account_context(accounts: AccountService, account_id: UUID, entries=None, of
     return {
         "active": "accounts",
         "bill": bill,
+        "due_soon_days": cards.DUE_SOON_DAYS,
         "can_set_days": can_set_days,
         # The "+" in the bar starts an entry for this account and comes back here (a group, a closed account: the usual one).
         "new_transaction_url": f"/transactions/new?account={account_id}&back=/accounts/{account_id}"

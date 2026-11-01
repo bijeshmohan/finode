@@ -9,7 +9,7 @@
       <p class="bill-label">Bill</p>
       <p class="bill-figure">{% if bill.bill > 0 %}{{ bill.bill|money|amount(currency) }}{% elif bill.statement_balance > 0 %}Paid{% else %}Nothing due{% endif %}</p>
     </div>
-    <p class="bill-due{{ ' warn' if bill.bill > 0 and 0 <= due <= 5 }}{{ ' over' if bill.bill > 0 and due < 0 }}">
+    <p class="bill-due{{ ' warn' if bill.bill > 0 and 0 <= due <= due_soon_days }}{{ ' over' if bill.bill > 0 and due < 0 }}">
       {%- if bill.bill > 0 -%}
         {%- if due < 0 -%}Overdue by {{ -due }} day{{ "" if due == -1 else "s" }}
         {%- elif due == 0 -%}Due today

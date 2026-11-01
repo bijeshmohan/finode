@@ -161,8 +161,9 @@ def get_budget_service(
 def get_todo_service(
     budget: BudgetService = Depends(get_budget_service),
     recurring: RecurringService = Depends(get_recurring_service),
+    accounts: AccountService = Depends(get_account_service),
 ) -> TodoService:
-    return TodoService(budget, recurring)
+    return TodoService(budget, recurring, accounts)
 
 
 def get_api_token_service(
