@@ -527,7 +527,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "account under A's group (again)", "POST", "/api/accounts/", json={"name": "x", "parent_id": a["Banks"]}
         )
         refused("move into A's group", "PATCH", f"/api/accounts/{mine}", json={"parent_id": a["Banks"]})
-        refused("A's payment category", "PATCH", f"/api/accounts/{mine}", json={"payment_category_id": a["Groceries"]})
         refused(
             "recurring on A's accounts",
             "POST",

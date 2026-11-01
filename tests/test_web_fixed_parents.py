@@ -46,7 +46,6 @@ def test_the_form_starts_as_the_group_says(client):
     investments = group(client, "Investments")["id"]
     page = client.get(f"/accounts/new?parent={investments}").text
     assert 'name="on_budget" value="1" checked' not in page
-    assert "Outside the budget" in page, "the folded summary says it"
     bank = client.get(f"/accounts/new?parent={group(client, 'Bank Accounts')['id']}").text
     assert 'name="on_budget" value="1" checked' in bank
     assert 'data-start="outside"' in page and 'data-start="budget"' in page, "the choice can follow the group chosen"

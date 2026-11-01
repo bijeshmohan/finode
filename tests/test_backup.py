@@ -43,7 +43,6 @@ def rich(client, root_accounts):
     groceries = acct(client, "Groceries", food["id"])
     emi = acct(client, "EMI", root_accounts["Expenses"])
     salary = acct(client, "Salary", root_accounts["Income"])
-    client.patch(f"/api/accounts/{loan['id']}", json={"payment_category_id": emi["id"]})
     assert client.post(f"/api/accounts/{old['id']}/close").status_code == 200
 
     dmart = tx(
@@ -145,7 +144,6 @@ def canonical(doc: dict) -> dict:
                 a["details"],
                 a["on_budget"],
                 a["closed_on"] is not None,
-                paths.get(a["payment_category_id"]),
             )
             for a in doc["accounts"]
         )
@@ -212,7 +210,7 @@ def test_the_backup_has_everything(client, rich):
         "Assets",
     } <= names
     assert {"Groceries", "EMI"} <= {c["name"] for c in doc["categories"]} and "Groceries" not in names
-    assert any(a["closed_on"] for a in doc["accounts"]) and any(a["payment_category_id"] for a in doc["accounts"])
+    assert any(a["closed_on"] for a in doc["accounts"])
     assert any(a["on_budget"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"

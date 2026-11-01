@@ -428,11 +428,10 @@ def _made(client: TestClient, name: str) -> dict:
 
 
 def test_the_new_account_form_asks_whether_it_is_part_of_the_budget(client: TestClient, root_accounts: dict[str, str]):
-    expense = post_account(client, {"name": "EMI", "parent_id": root_accounts["Expenses"]}).json()
     page = client.get(f"/accounts/new?parent={root_accounts['Assets']}").text
     assert "data-budget-fields" in page and 'name="on_budget"' in page and 'name="budget_choice"' in page
     assert 'name="on_budget" value="1" checked' in page, "an asset starts in the budget"
-    assert "Usual category for payments" in page and f'<option value="{expense["id"]}"' in page
+    assert "Usual category" not in page and 'name="payment_category"' not in page, "nothing is chosen for payments"
     assert 'data-root="Assets"' in page and 'data-root="Liabilities"' in page and 'data-root="Equity"' in page
     liability = client.get(f"/accounts/new?parent={root_accounts['Liabilities']}").text
     assert 'name="on_budget" value="1" checked' not in liability, "a card or loan starts outside it"
@@ -443,49 +442,15 @@ def test_the_new_account_form_asks_whether_it_is_part_of_the_budget(client: Test
 
 
 def test_creating_an_account_follows_the_budget_choice(client: TestClient, root_accounts: dict[str, str]):
-    emi = post_account(client, {"name": "EMI", "parent_id": root_accounts["Expenses"]}).json()
     base = {"budget_choice": "1"}
     client.post("/accounts", data={**base, "name": "Savings", "parent_id": root_accounts["Assets"], "on_budget": "1"})
     assert _made(client, "Savings")["on_budget"] is True
     client.post("/accounts", data={**base, "name": "Fund", "parent_id": root_accounts["Assets"]})
     assert _made(client, "Fund")["on_budget"] is False, "the box was left off"
-    client.post(
-        "/accounts",
-        data={**base, "name": "Car loan", "parent_id": root_accounts["Liabilities"], "payment_category": emi["id"]},
-    )
-    loan = _made(client, "Car loan")
-    assert loan["on_budget"] is False and loan["payment_category_id"] == emi["id"]
+    client.post("/accounts", data={**base, "name": "Car loan", "parent_id": root_accounts["Liabilities"]})
+    assert _made(client, "Car loan")["on_budget"] is False, "a loan left out of the budget"
     client.post("/accounts", data={"name": "Wallet", "parent_id": root_accounts["Assets"]})
     assert _made(client, "Wallet")["on_budget"] is True, "no choice sent: an asset defaults to in"
-
-
-def test_a_payment_category_only_goes_with_an_account_outside_the_budget(
-    client: TestClient, root_accounts: dict[str, str]
-):
-    emi = post_account(client, {"name": "EMI", "parent_id": root_accounts["Expenses"]}).json()
-    client.post(
-        "/accounts",
-        data={
-            "budget_choice": "1",
-            "on_budget": "1",
-            "name": "A1",
-            "parent_id": root_accounts["Assets"],
-            "payment_category": emi["id"],
-        },
-    )
-    a1 = _made(client, "A1")
-    assert a1["on_budget"] is True and a1["payment_category_id"] is None, "in the budget: the choice is ignored"
-    other = client.post(
-        "/accounts",
-        data={
-            "budget_choice": "1",
-            "name": "A2",
-            "parent_id": root_accounts["Assets"],
-            "payment_category": root_accounts["Assets"],
-        },
-    )
-    assert other.headers.get("HX-Retarget") == "#form-error", "it must be an expense category"
-    assert not any(a["name"] == "A2" for a in client.get("/api/accounts/").json()), "nothing is left half made"
 
 
 def test_the_plus_on_a_type_tab_offers_only_that_type(client: TestClient, root_accounts: dict[str, str]):

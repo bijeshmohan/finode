@@ -176,8 +176,7 @@ def as_old_file(doc, version=3):
 
 
 def test_an_older_backup_with_categories_as_accounts_still_restores(client, books):
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["emi"]["id"]})
-    paid(client, books["bank"], books["loan"], "700")
+    paid(client, books["bank"], books["loan"], "700", books["emi"])
     paid(client, books["bank"], books["food"], "40")
     doc = as_old_file(client.get("/api/backup").json())
     try:

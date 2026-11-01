@@ -33,7 +33,7 @@ def test_a_groups_own_page_adds_inside_it(page: Page, api):
     page.locator(".section-head .circ-button").click()
     page.wait_for_url("**/accounts/new?parent=*")
     expect(page.locator('select[name="parent_id"] option:checked')).to_have_text(re.compile("Investments"))
-    expect(page.locator("[data-budget-summary]")).to_have_text("Outside the budget")
+    expect(page.locator('input[name="on_budget"]')).not_to_be_checked()  # Investments: outside the budget
 
 
 def choose(page: Page, name: str) -> None:
@@ -44,12 +44,12 @@ def choose(page: Page, name: str) -> None:
 
 def test_the_budget_line_follows_the_group_chosen(page: Page):
     page.goto("/accounts/new?root=assets")
-    summary = page.locator("[data-budget-summary]")
-    expect(summary).to_have_text("Part of the budget")  # Bank Accounts
+    box = page.locator('input[name="on_budget"]')
+    expect(box).to_be_checked()  # Bank Accounts
     choose(page, "Investments")
-    expect(summary).to_have_text("Outside the budget")
+    expect(box).not_to_be_checked()
     choose(page, "Cash")
-    expect(summary).to_have_text("Part of the budget")
+    expect(box).to_be_checked()
     page.locator('input[name="name"]').fill("Wallet")
     page.get_by_role("button", name="Add account").click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))

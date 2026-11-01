@@ -17,10 +17,12 @@ def account(client, root, name, parent, **extra):
     return response.json()
 
 
-def move(client, source, target, amount, on=None):
+def move(client, source, target, amount, on=None, category=None):
+    """Money goes from the source to the target; `category` labels the target's line (a payment into a loan: EMI)."""
+    label = {"category_id": category["id"]} if category else {}
     body = {
         "postings": [
-            leg(target, "debit", amount),
+            leg(target, "debit", amount, **label),
             leg(source, "credit", amount),
         ]
     }

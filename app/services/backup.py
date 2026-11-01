@@ -93,7 +93,6 @@ class BackupService:
                     details=a.details,
                     on_budget=a.on_budget,
                     closed_on=a.closed_on,
-                    payment_category_id=a.payment_category_id,
                     system_key=a.system_key,
                 )
                 for a in accounts
@@ -356,9 +355,6 @@ class BackupService:
             return
         category_ids = {c.id for c in file.categories}
         for a in file.accounts:
-            if a.payment_category_id is not None and a.payment_category_id not in category_ids:
-                errors.append(f"account '{a.name}' points to a missing payment category.")
-        for a in file.accounts:
             if a.parent_id is not None and accounts[a.parent_id].name in ("Expenses", "Income"):
                 errors.append(f"'{a.name}' is an account under {accounts[a.parent_id].name}: those hold categories.")
                 return
@@ -583,12 +579,6 @@ class BackupService:
                     )
                 )
                 cats[c.id] = made_category.id
-            for a in file.accounts:
-                if a.payment_category_id and a.id in ids and a.id not in kept:
-                    account = self.ar.read(ids[a.id])
-                    if account is not None:
-                        account.payment_category_id = cats.get(a.payment_category_id)
-                        db.add(account)
             db.flush()
 
             rules: dict[UUID, UUID] = {}

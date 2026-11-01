@@ -8,7 +8,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import ValidationError
 
 from ...clock import local_day, local_today
-from ...dependencies import Accounts, Categories, Profiles
+from ...dependencies import Accounts, Categories
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...schemas.category import CategoryRead
 from ...services.account import (
@@ -83,13 +83,12 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
 @dataclass
 class PickOption:
     """One choice in an account or category picker: what it is called (below its type: "Banks › HDFC",
-    "Food › Groceries"), and for an account its budget flag, balance and usual category for payments."""
+    "Food › Groceries"), and for an account its budget flag and balance."""
 
     id: UUID
     label: str
     budget: bool = False
     balance: Decimal | None = None
-    usual: UUID | None = None
 
 
 PickGroups = list[tuple[str, list[PickOption]]]
@@ -106,7 +105,6 @@ def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> P
                 n.path.split(" › ", 1)[1] if " › " in n.path else n.path,
                 budget=n.account.on_budget,
                 balance=n.account.balance,
-                usual=n.account.payment_category_id,
             )
             for n in root.walk()
             if n.postable and (n.account.closed_on is None or n.account.id in keep)
@@ -184,11 +182,6 @@ def _load(accounts: AccountService, account_id: UUID) -> tuple[list[Node], Node]
     return roots, node
 
 
-def spending_options(categories: Categories) -> list[tuple[UUID, str]]:
-    """The spending categories a payment-category choice may name: (id, "Group › Category")."""
-    return [(c.id, c.path.replace(":", " › ")) for c in categories.list("spending")]
-
-
 def _root_of(roots: list[Node], node: Node) -> Node:
     return next(r for r in roots if any(n is node for n in r.walk()))
 
@@ -260,7 +253,6 @@ def closed_count(roots: list[Node]) -> int:
 def new_account_page(
     request: Request,
     accounts: Accounts,
-    categories: Categories,
     parent: UUID | None = None,
     root: str = "",
 ):
@@ -301,15 +293,12 @@ def new_account_page(
             "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
             # an asset starts in the budget; a card or loan, outside it; under a built-in group, as that group says
             "on_budget": (starts.get(parent) == "budget") if parent in starts else root_of.get(parent) == "Assets",
-            "category_options": spending_options(categories),
         },
     )
 
 
 @router.get("/quick")
-def quick_account_sheet(
-    request: Request, accounts: Accounts, categories: Categories, profiles: Profiles, hint: str = ""
-):
+def quick_account_sheet(request: Request, accounts: Accounts, categories: Categories, hint: str = ""):
     """The "new account" sheet shown over the transaction form (a "new category" sheet where the picker lists
     categories: the Expenses and Income kinds)."""
     if hint in ("Expenses", "Income"):
@@ -389,7 +378,6 @@ def create_account(
     balance: Annotated[str, Form()] = "",
     on_budget: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
-    payment_category: Annotated[str, Form()] = "",
 ):
     try:
         if not parent_id:
@@ -401,9 +389,6 @@ def create_account(
             balance=parse_amount(balance, Decimal("0.00")),
             # The form asked (budget_choice): its box says yes or no. Without it the default applies (an asset: yes).
             on_budget=None if budget_choice is None else on_budget is not None,
-            payment_category_id=None
-            if on_budget is not None or not payment_category.strip()
-            else UUID(payment_category.strip()),
         )
         created = accounts.create(data)
     except ValidationError as e:
@@ -419,7 +404,7 @@ def _is_inflow(root_name: str, change: Decimal) -> bool:
     return (root_name == "Assets" and change > 0) or (root_name == "Liabilities" and change < 0)
 
 
-def account_context(accounts: AccountService, profiles, account_id: UUID, entries=None, offset: int = 0) -> dict:
+def account_context(accounts: AccountService, account_id: UUID, entries=None, offset: int = 0) -> dict:
     """What the account page needs; the category page (categories.py) reuses it with its month's entries."""
     roots, node = _load(accounts, account_id)
     root = _root_of(roots, node)
@@ -513,8 +498,8 @@ def restore_deleted_account(deletion_id: UUID, accounts: Accounts):
 
 
 @router.get("/{account_id}")
-def account_page(request: Request, account_id: UUID, accounts: Accounts, profiles: Profiles):
-    return templates.TemplateResponse(request, "account.html", account_context(accounts, profiles, account_id))
+def account_page(request: Request, account_id: UUID, accounts: Accounts):
+    return templates.TemplateResponse(request, "account.html", account_context(accounts, account_id))
 
 
 def _list_for_root(root: str | None) -> str:
@@ -548,14 +533,14 @@ def reopen_account(account_id: UUID, accounts: Accounts):
 
 
 @router.get("/{account_id}/more")
-def account_more(request: Request, account_id: UUID, accounts: Accounts, profiles: Profiles, offset: int = 0):
+def account_more(request: Request, account_id: UUID, accounts: Accounts, offset: int = 0):
     """The next chunk of an account's transactions (htmx replaces the "Load more" button with it)."""
-    context = account_context(accounts, profiles, account_id, None, offset=max(offset, 0))
+    context = account_context(accounts, account_id, None, offset=max(offset, 0))
     return templates.TemplateResponse(request, "partials/account_entries.html", {**context, "area": "/accounts"})
 
 
 @router.get("/{account_id}/edit")
-def edit_account_page(request: Request, account_id: UUID, accounts: Accounts, categories: Categories):
+def edit_account_page(request: Request, account_id: UUID, accounts: Accounts):
     roots, node = _load(accounts, account_id)
     if node.kind != "user":
         raise HTTPException(status_code=404, detail="account not found")
@@ -572,9 +557,7 @@ def edit_account_page(request: Request, account_id: UUID, accounts: Accounts, ca
             "root_name": root.account.name,
             "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
             "on_budget": node.account.on_budget,
-            "payment_category_id": node.account.payment_category_id,
             "starts": _starts(roots),
-            "category_options": spending_options(categories),
             "parent_options": [
                 n
                 for n in _parent_options(roots, exclude=node, keep=node.account.parent_id)
@@ -594,7 +577,6 @@ def update_account(
     balance: Annotated[str | None, Form()] = None,
     on_budget: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
-    payment_category: Annotated[str, Form()] = "",
 ):
     current = accounts.read(account_id)
     if current is None:
@@ -614,10 +596,6 @@ def update_account(
                 changes["balance"] = new_balance
         if budget_choice is not None and (on_budget is not None) != current.on_budget:
             changes["on_budget"] = on_budget is not None
-        if budget_choice is not None:
-            wanted = None if on_budget is not None or not payment_category.strip() else UUID(payment_category.strip())
-            if wanted != current.payment_category_id:
-                changes["payment_category_id"] = wanted
         if changes:
             accounts.update(account_id, AccountUpdate(**changes))
     except ValidationError as e:

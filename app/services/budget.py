@@ -13,7 +13,7 @@ from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, CategoryRepository, TransactionRepository
 from ..schemas.account import AccountUpdate
 from ..schemas.budget import BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetUncategorised, GoalLine
-from .account import AccountService
+from .account import FIXED_DEFAULTS, AccountService
 from .transaction import decimal_places
 
 ZERO = Decimal("0.00")
@@ -132,10 +132,6 @@ class BudgetService:
         by_id = {a.id: a for a in accounts}
         parents = {a.parent_id for a in accounts if a.parent_id is not None}
         categories = self._categories()
-        # Loans outside the budget that name a category for their payments.
-        payments = {
-            a.id: a.payment_category_id for a in accounts if a.payment_category_id in categories and not a.on_budget
-        }
 
         in_budget: set[UUID] = set()
         candidates: dict[UUID, Account] = {}  # could be in the budget but are not: assets/liabilities that could be
@@ -143,11 +139,13 @@ class BudgetService:
         ignored: list[str] = []
         for a in accounts:
             if not a.on_budget:
+                home = by_id.get(a.parent_id) if a.parent_id else None
                 if (
-                    a.id not in payments
-                    and a.parent_id is not None
+                    home is not None
                     and a.id not in parents
                     and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
+                    # Loans and investments sit outside the budget by design: no nudge to add them.
+                    and FIXED_DEFAULTS.get(home.system_key or "") != "outside"
                 ):
                     candidates[a.id] = a
                 continue
@@ -201,8 +199,8 @@ class BudgetService:
             if p.category_id in categories and first_of_month(p.date) == month:
                 value = p.amount if p.side == PostingSide.DEBIT else -p.amount
                 outside.setdefault(p.transaction_id, [ZERO, set()])[0] += value
-        for p in postings:
-            if p.transaction_id in outside and p.account_id in candidates:
+        for p in postings:  # the account that paid, not the loan or fund that took the money
+            if p.transaction_id in outside and p.side == PostingSide.CREDIT and p.account_id in candidates:
                 outside[p.transaction_id][1].add(p.account_id)
 
         goal_names = {g.id: g for g in self.br.goals()}

@@ -123,14 +123,14 @@ def test_a_line_to_a_category_posts_to_expenses_and_carries_it(client, session, 
     assert made.json()["postings"][0]["account_id"] == str(roots(client)["Expenses"]), "it posts to Expenses"
 
 
-def test_a_payment_into_a_loan_carries_its_payment_category_only_when_it_touches_the_budget(client, session, books):
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["emi"]["id"]})
-    paid = entry(client, [(books["loan"]["id"], "debit", "1000", None), (books["bank"]["id"], "credit", "1000", None)])
-    assert lines(session, paid.json()["id"])[(UUID(books["loan"]["id"]), "debit")] == UUID(books["emi"]["id"])
-    payout = entry(
-        client, [(books["bank"]["id"], "debit", "5000", None), (books["loan"]["id"], "credit", "5000", None)]
+def test_a_payment_into_a_loan_keeps_the_label_it_was_given_or_none(client, session, books):
+    plain = entry(client, [(books["loan"]["id"], "debit", "1000", None), (books["bank"]["id"], "credit", "1000", None)])
+    assert lines(session, plain.json()["id"])[(UUID(books["loan"]["id"]), "debit")] is None, "nothing is filled in"
+    labelled = entry(
+        client,
+        [(books["loan"]["id"], "debit", "1000", books["emi"]["id"]), (books["bank"]["id"], "credit", "1000", None)],
     )
-    assert lines(session, payout.json()["id"])[(UUID(books["loan"]["id"]), "credit")] is None
+    assert lines(session, labelled.json()["id"])[(UUID(books["loan"]["id"]), "debit")] == UUID(books["emi"]["id"])
 
 
 def test_a_line_can_name_its_category_and_a_split_can_use_several(client, session, books):
@@ -320,8 +320,9 @@ def test_a_category_that_labels_entries_cannot_be_deleted_only_closed(client, se
 
 
 def test_merging_two_expense_categories_moves_lines_labels_and_plan(client, session, books):
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["emi"]["id"]})
-    entry(client, [(books["loan"]["id"], "debit", "10", None), (books["bank"]["id"], "credit", "10", None)])
+    entry(
+        client, [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)]
+    )
     spent = entry(client, [(books["emi"]["id"], "debit", "7", None), (books["bank"]["id"], "credit", "7", None)])
     assign(client, books["emi"], "500")
     assign(client, books["food"], "300")

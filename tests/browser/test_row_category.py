@@ -1,5 +1,5 @@
 """The Category line of a payment into a loan or fund, in a browser: it shows only when money leaves the budget into an
-account outside it, starts at the account's usual category and is saved on the line."""
+account outside it, starts empty (nothing is filled in) and is saved on the line."""
 
 from playwright.sync_api import Page, expect
 
@@ -36,18 +36,17 @@ def test_the_category_line_shows_only_when_money_leaves_the_budget(page: Page, b
     assert labels[more["loan"]["id"]] == more["emi"]["id"] and labels[books["checking"]["id"]] is None
 
 
-def test_the_usual_category_of_a_loan_fills_the_line_in(page: Page, books, api: Api):
+def test_nothing_fills_the_category_line_in_and_a_choice_is_kept(page: Page, books, api: Api):
     more = loan_books(api, books)
-    api.request.patch(f"/api/accounts/{more['loan']['id']}", data={"payment_category_id": more["emi"]["id"]})
     page.goto("/transactions/new")
     page.get_by_role("button", name="Transfer", exact=True).click()
     page.select_option('[data-rows="credit"] select', label="Checking")
     page.select_option('[data-rows="debit"] select', label="Home loan")
-    assert page.input_value('[data-rows="debit"] [data-category-select]') == more["emi"]["id"]
-    page.select_option('[data-rows="debit"] [data-category-select]', value="")  # the person says none
+    assert page.input_value('[data-rows="debit"] [data-category-select]') == "", "no usual category is filled in"
+    page.select_option('[data-rows="debit"] [data-category-select]', label="EMI")
     page.select_option('[data-rows="credit"] select', label="Cash")
     page.select_option('[data-rows="credit"] select', label="Checking")
-    assert page.input_value('[data-rows="debit"] [data-category-select]') == "", "a choice is not filled in again"
+    assert page.input_value('[data-rows="debit"] [data-category-select]') == more["emi"]["id"], "a choice stays"
 
 
 def test_an_edit_keeps_the_category_it_had(page: Page, books, api: Api):

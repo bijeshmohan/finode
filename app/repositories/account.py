@@ -2,7 +2,6 @@
 
 import builtins
 from datetime import date
-from types import EllipsisType
 from uuid import UUID
 
 from sqlmodel import Session, col, func, select
@@ -46,7 +45,6 @@ class AccountRepository:
             "parent_id": str(account.parent_id) if account.parent_id else None,
             "details": account.details,
             "on_budget": account.on_budget,
-            "payment_category_id": str(account.payment_category_id) if account.payment_category_id else None,
             "closed_on": account.closed_on.isoformat() if account.closed_on else None,
         }
 
@@ -126,18 +124,15 @@ class AccountRepository:
         account_id: UUID,
         data: AccountUpdate,
         on_budget: bool | None = None,
-        payment_category: UUID | EllipsisType | None = ...,
     ) -> Account | None:
         account = self.read(account_id)
         if not account:
             return None
-        values = data.model_dump(exclude_unset=True, exclude={"balance", "on_budget", "payment_category_id"})
+        values = data.model_dump(exclude_unset=True, exclude={"balance", "on_budget"})
         for key, value in values.items():
             setattr(account, key, value)
         if on_budget is not None:
             account.on_budget = on_budget
-        if payment_category is not ...:
-            account.payment_category_id = payment_category
         self.db.add(account)
         self.db.flush()
         self._record(account, "updated")
@@ -184,38 +179,6 @@ class AccountRepository:
             self.db.flush()
             self._record(account, "closed" if day else "reopened")
         self.db.flush()
-
-    def clear_payment_category(self, category_id: UUID) -> None:
-        """Accounts whose payments were budgeted under this category (it is being deleted) stop pointing at it."""
-        for account in self.db.exec(
-            select(Account).where(Account.user_id == self.uid, Account.payment_category_id == category_id)
-        ).all():
-            account.payment_category_id = None
-            self.db.add(account)
-            self.db.flush()
-            self._record(account, "updated")
-        self.db.flush()
-
-    def count_payment_links(self, category_id: UUID) -> int:
-        """How many accounts budget their payments under this category."""
-        return len(
-            self.db.exec(
-                select(Account.id).where(Account.user_id == self.uid, Account.payment_category_id == category_id)
-            ).all()
-        )
-
-    def repoint_payment_category(self, source: UUID, target: UUID) -> int:
-        """Accounts whose payments were budgeted under `source` use `target` instead (a merge)."""
-        moved = 0
-        for account in self.db.exec(
-            select(Account).where(Account.user_id == self.uid, Account.payment_category_id == source)
-        ).all():
-            account.payment_category_id = target
-            self.db.add(account)
-            self.db.flush()
-            self._record(account, "updated")
-            moved += 1
-        return moved
 
     def has_children(self, account_id: UUID) -> bool:
         statement = select(Account).where(

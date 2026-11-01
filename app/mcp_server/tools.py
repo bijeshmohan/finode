@@ -142,8 +142,8 @@ CategoryParam = Annotated[
     str | None,
     Field(
         description="What the money was for, a spending category such as EMI or Food:Groceries (see list_categories). "
-        "Only needed when the account does not say it: a payment into a loan or fund is labelled EMI or SIP, "
-        "while an expense account already stands for its own category"
+        "Say it for an expense or an income, and for a payment into a loan or fund (EMI, SIP); nothing is filled in for "
+        "you: an expense or income left without one is Uncategorised, a payment into a loan stays without"
     ),
 ]
 DryRun = Annotated[
@@ -295,8 +295,7 @@ def list_accounts(
     ] = False,
 ) -> dict[str, Any]:
     """Every account with its id, path, type, balance and what it is for (details). Top-level accounts show the total of everything inside.
-    Assets and liabilities say whether they are part of the budget (on_budget) and, when not, which expense category
-    their payments are budgeted under."""
+    Assets and liabilities say whether they are part of the budget (on_budget)."""
     with services() as s:
         index = _index(s)
         return {
@@ -319,17 +318,11 @@ def _account_row(e, index: AccountIndex) -> dict[str, Any]:
         "can_post": e.postable and e.account.closed_on is None,
         "details": None if e.is_root else e.account.details,
         **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
-        **(_budget_facts(e, index) if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
+        **({"on_budget": e.account.on_budget} if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
         **({"group": e.account.system_key} if e.account.system_key else {}),
     }
 
 
-def _budget_facts(e, index: AccountIndex) -> dict[str, Any]:
-    """Whether an asset or liability is part of the budget, and where its payments are budgeted when it is not."""
-    facts: dict[str, Any] = {"on_budget": e.account.on_budget}
-    if e.account.payment_category_id:
-        facts["payment_category"] = index.category_paths.get(e.account.payment_category_id, "?")
-    return facts
 
 
 @_tool_errors
@@ -1122,9 +1115,6 @@ def create_account(
     on_budget: Annotated[
         bool | None, Field(description="Assets and liabilities: whether the money is part of the budget")
     ] = None,
-    payment_category: Annotated[
-        str | None, Field(description="An account outside the budget: the expense category its payments count under")
-    ] = None,
 ) -> dict[str, Any]:
     """Add an account. Check list_accounts first so you don't create a duplicate."""
     with services() as s:
@@ -1146,7 +1136,6 @@ def create_account(
                 parent_id=parent_entry.account.id,
                 balance=opening_balance or Decimal("0.00"),
                 on_budget=on_budget,
-                payment_category_id=_spending(s, payment_category).id if payment_category else None,
             )
         )
         return {
@@ -1169,10 +1158,6 @@ def update_account(
         str | None, Field(description="Move it under this account (same top-level account; at most two levels deep)")
     ] = None,
     on_budget: Annotated[bool | None, Field(description="Assets and liabilities: part of the budget or not")] = None,
-    payment_category: Annotated[
-        str | None,
-        Field(description="Outside the budget: the expense category its payments count under; empty removes it"),
-    ] = None,
 ) -> dict[str, Any]:
     """Rename an account, change its note, move it under another account, or change its budget settings. Its history
     stays with it and its id never changes (only its path does). The built-in groups, the top-level accounts and
@@ -1189,10 +1174,8 @@ def update_account(
             changes["parent_id"] = index.find(parent, allow_root=True).account.id
         if on_budget is not None:
             changes["on_budget"] = on_budget
-        if payment_category is not None:
-            changes["payment_category_id"] = _spending(s, payment_category).id if payment_category.strip() else None
         if not changes:
-            raise ToolError("nothing to change: pass a name, details, parent, on_budget or payment_category!")
+            raise ToolError("nothing to change: pass a name, details, parent or on_budget!")
         before = entry.path
         s.accounts.update(entry.account.id, AccountUpdate(**changes))
         fresh = _index(s)
@@ -1228,7 +1211,7 @@ def merge_accounts(
     dry_run: DryRun = False,
 ) -> dict[str, Any]:
     """Make one account part of another, e.g. two categories that mean the same: all its entries, planned amounts,
-    recurring rules and payment links become the other's, its balance moves with them, and it is deleted. Both
+    recurring rules become the other's, its balance moves with them, and it is deleted. Both
     must be plain accounts under the same top-level account. It cannot be undone, so call it with dry_run=true
     first, tell the user what would move, and only merge after their go-ahead."""
     with services() as s:
@@ -1245,7 +1228,6 @@ def merge_accounts(
             "entries_moved": done.entries_moved,
             "plan_months_moved": done.plan_months_moved,
             "recurring_rules_moved": done.recurring_rules_moved,
-            "payment_links_moved": done.payment_links_moved,
         }
         if done.merged:
             out["into_id"] = str(target.account.id)

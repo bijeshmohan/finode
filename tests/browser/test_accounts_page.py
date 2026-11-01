@@ -19,11 +19,6 @@ def visible(page: Page) -> list[str]:
     )
 
 
-def open_options(page: Page) -> None:
-    """The budget choices are folded away on the form; open them (the details element works even while its parent is hidden)."""
-    page.evaluate("document.querySelectorAll('details.budget-options').forEach(d => d.open = true)")
-
-
 def nested(api: Api, books):
     banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
     api.post("/accounts/", name="HDFC", parent_id=banks["id"], balance="100")
@@ -152,56 +147,33 @@ def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api)
 
 def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Page, api, books):
     page.goto("/accounts/new")
-    open_options(page)
     fields = page.locator("[data-budget-fields]")
     expect(fields).to_be_hidden()  # nothing chosen yet
     parent = page.locator('select[name="parent_id"]')
     box = page.locator('input[name="on_budget"]')
-    payment = page.locator("[data-payment-category]")
     parent.select_option(label="Assets")
     expect(fields).to_be_visible()
     expect(box).to_be_checked()
-    expect(payment).to_be_hidden()
     parent.select_option(label="Liabilities")
-    expect(box).not_to_be_checked()
-    expect(payment).to_be_visible()  # outside the budget: the expense category can be chosen
+    expect(box).not_to_be_checked()  # a loan or card starts outside the budget
     parent.select_option(label="Equity")
     expect(fields).to_be_hidden()
     assert page.locator('[data-budget-fields] input[name="on_budget"]').is_disabled(), "hidden fields are not sent"
     parent.select_option(label="Liabilities")
     page.locator('input[name="name"]').fill("Car loan")
-    page.locator('select[name="payment_category"]').select_option(label="Rent")
     page.get_by_role("button", name="Add account").click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))  # not /accounts/new, where the form already is
     loan = next(a for a in api.get("/accounts/") if a["name"] == "Car loan")
-    assert loan["on_budget"] is False and loan["payment_category_id"] == books["rent"]["id"]
+    assert loan["on_budget"] is False
 
 
 def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Page, api, books):
     for url in ("/accounts/new?root=assets", f"/accounts/new?parent={books['checking']['id']}"):
         page.goto(url)
-        open_options(page)
         box = page.locator('input[name="on_budget"]')
         expect(box).to_be_checked()
         box.uncheck()
         expect(box).not_to_be_checked()
-        expect(page.locator("[data-payment-category]")).to_be_visible()
-
-
-def test_the_payment_category_shows_only_for_an_account_outside_the_budget(page: Page, api, books):
-    page.goto("/accounts/new?root=assets")
-    open_options(page)
-    box = page.locator('input[name="on_budget"]')
-    payment = page.locator("[data-payment-category]")
-    expect(payment).to_be_hidden()  # an asset starts in the budget
-    box.uncheck()
-    expect(payment).to_be_visible()
-    box.check()
-    expect(payment).to_be_hidden()
-    page.goto("/accounts/new")
-    open_options(page)
-    page.locator('select[name="parent_id"]').select_option(label="Liabilities")
-    expect(payment).to_be_visible()  # a loan starts outside the budget
 
 
 def test_going_back_from_an_account_keeps_the_chip(page: Page, api, books):
@@ -215,17 +187,6 @@ def test_going_back_from_an_account_keeps_the_chip(page: Page, api, books):
     page.locator("a.back").click()
     page.wait_for_url("**/accounts?tab=liabilities")
     expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Liability")
-
-
-def test_budget_options_are_folded_and_say_where_the_account_stands(page: Page, api, books):
-    page.goto("/accounts/new?root=assets")
-    details = page.locator("details.budget-options")
-    expect(details).to_be_visible()
-    assert details.get_attribute("open") is None, "folded away at first"
-    expect(page.locator("[data-budget-summary]")).to_have_text("Part of the budget")
-    page.locator("details.budget-options summary").click()
-    page.locator('input[name="on_budget"]').uncheck()
-    expect(page.locator("[data-budget-summary]")).to_have_text("Outside the budget")
 
 
 def test_saving_an_entry_started_from_an_accounts_page_comes_back_to_it(page: Page, api, books):

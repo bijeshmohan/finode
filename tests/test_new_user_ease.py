@@ -19,8 +19,3 @@ def test_the_plan_welcomes_a_new_person_until_something_is_assigned(client, root
     assert "Give every" in text and "Tap a category below" in text and "Start with your first category" not in text
     client.put(f"/api/budget/categories/{food['id']}", json={"amount": "300"})
     assert "Give every" not in client.get("/budget").text
-
-
-def test_the_account_form_folds_the_budget_choices_and_says_where_it_stands(client, root_accounts, new_person):
-    text = client.get(f"/accounts/new?parent={root_accounts['Assets']}").text
-    assert "Budget options" in text and "Part of the budget" in text and "data-budget-summary" in text

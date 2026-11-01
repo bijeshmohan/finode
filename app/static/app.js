@@ -591,7 +591,7 @@ function setSuggestion(row, text) {
 }
 
 // A payment from the budget into an account outside it (a loan, a fund) can say what it was for: the Category
-// row of that line appears, filled with the account's usual category until the person picks another (or none).
+// row of that line appears, empty until the person picks one (nothing is filled in for them).
 const OUTSIDE_ROOTS = ["Assets", "Liabilities"];
 function syncRowCategories(form) {
   const rows = [...form.querySelectorAll("[data-row]")];
@@ -604,20 +604,10 @@ function syncRowCategories(form) {
     const option = chosen[index];
     const outside = option && option.value && option.dataset.budget === "0" && OUTSIDE_ROOTS.includes(root(option));
     const show = Boolean(inBudget && outside);
-    if (show && select.hidden && !select.value && option.dataset.usual && !select.dataset.chosen) {
-      select.value = option.dataset.usual;
-    }
     select.hidden = !show;
-    if (!show) {
-      select.value = "";
-      delete select.dataset.chosen;
-    }
+    if (!show) select.value = "";
   });
 }
-
-document.body.addEventListener("change", (event) => {
-  if (event.target.matches && event.target.matches("[data-category-select]")) event.target.dataset.chosen = "1";
-});
 
 // ---- Choosing an account or a category: a sheet instead of the browser's list, on every row of the form ----
 // The <select> stays (hidden) so everything that sets or reads the account keeps working; the button shows its choice.
@@ -969,24 +959,9 @@ document.body.addEventListener("click", (event) => {
   }
 });
 
-// Account form: a payment category goes only with an account that is not part of the budget. A new account asks only under
-// Assets and Liabilities (the options carry their root in `data-root`): an asset starts in the budget, a card or loan outside
-// it. Hidden fields are disabled so they are not sent.
+// Account form: a new account asks about the budget only under Assets and Liabilities (the options carry their root in
+// `data-root`): an asset starts in the budget, a card or loan outside it. Hidden fields are disabled so they are not sent.
 (function budgetChoice() {
-  const sync = (fields) => {
-    const box = fields.querySelector('input[name="on_budget"]');
-    const payment = fields.querySelector("[data-payment-category]");
-    if (!box) return;
-    const out = !box.checked;
-    const now = fields.querySelector("[data-budget-summary]");
-    if (now) {
-      const choice = payment && payment.querySelector("select");
-      now.textContent = !out ? "Part of the budget"
-        : choice && choice.value ? "Outside the budget · payments have a usual category"
-        : "Outside the budget";
-    }
-    if (payment) payment.hidden = !out;
-  };
   const apply = (select) => {
     const fields = select.form && select.form.querySelector("[data-budget-fields]");
     if (!fields || !select.options.length || !select.selectedOptions[0] || !("root" in select.selectedOptions[0].dataset)) return;
@@ -1001,15 +976,10 @@ document.body.addEventListener("click", (event) => {
     // Under a built-in group (Bank Accounts, Investments, Loans...) the account starts as that group says.
     const start = select.selectedOptions[0].dataset.start;
     if (start) box.checked = start === "budget";
-    sync(fields);
   };
   document.body.addEventListener("change", (event) => {
     if (!event.target.matches) return;
     if (event.target.matches('form select[name="parent_id"]')) apply(event.target);
-    if (event.target.matches('input[name="on_budget"], select[name="payment_category"]')) {
-      const fields = event.target.closest("[data-budget-fields]");
-      if (fields) sync(fields);
-    }
   });
   const first = document.querySelector('[data-budget-fields]');
   const form = first && first.closest("form");
