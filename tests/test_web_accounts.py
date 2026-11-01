@@ -573,3 +573,20 @@ def test_others_is_not_shown_when_there_are_no_groups_or_for_equity(client: Test
     post_account(client, {"name": "Apple", "parent_id": root_accounts["Assets"], "balance": "10"})
     assert "data-others" not in client.get("/accounts").text, "nothing to tell apart from"
     assert "data-others" not in client.get("/accounts?tab=equity").text
+
+
+def test_the_plus_in_the_bar_on_an_account_page_starts_an_entry_for_it_and_comes_back(
+    client: TestClient, account: dict
+):
+    page = client.get(f"/accounts/{account['id']}").text
+    here = f"/transactions/new?account={account['id']}&amp;back=/accounts/{account['id']}"
+    assert f'class="fab" href="{here}"' in page, "the docked plus"
+    assert f'sidebar-new" href="{here}"' in page, "the sidebar's button on a wide screen"
+
+
+def test_the_plus_is_the_usual_one_where_the_page_cannot_be_posted_to(
+    client: TestClient, root_accounts: dict[str, str]
+):
+    group = client.get(f"/accounts/{root_accounts['Assets']}").text
+    assert 'class="fab" href="/transactions/new"' in group
+    assert 'class="fab" href="/transactions/new"' in client.get("/").text

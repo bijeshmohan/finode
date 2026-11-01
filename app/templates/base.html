@@ -31,7 +31,7 @@
   <aside class="sidebar" aria-label="Main">
     <a class="brand" href="/"><span>finode</span></a>
     {% if not hide_fab %}
-    <a class="button secondary sidebar-new" href="/transactions/new">{{ icon("plus") }}<span>New transaction</span></a>
+    <a class="button secondary sidebar-new" href="{{ new_transaction_url or '/transactions/new' }}">{{ icon("plus") }}<span>New transaction</span></a>
     {% endif %}
     <nav class="sidenav" aria-label="Main">
       <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>
@@ -68,7 +68,7 @@
   <nav class="tabbar{{ ' has-plus' if plus }}" aria-label="Main">
     <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>{{ icon("home") }}<span>Home</span></a>
     <a href="/budget" {% if active == 'budget' %}aria-current="page"{% endif %}>{{ icon("budget") }}<span>Budgets</span></a>
-    {% if plus %}<a class="fab" href="/transactions/new" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>{% endif %}
+    {% if plus %}<a class="fab" href="{{ new_transaction_url or '/transactions/new' }}" title="New transaction">{{ icon("plus") }}<span class="sr-only">New transaction</span></a>{% endif %}
     <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
     <a href="/categories" {% if active == 'categories' %}aria-current="page"{% endif %}>{{ icon("tag") }}<span>Categories</span></a>
   </nav>

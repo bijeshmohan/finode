@@ -333,3 +333,9 @@ def test_the_plus_on_a_categories_tab_offers_only_that_kind(client, books):
     assert 'name="kind" value="earning"' in income and f'value="{books["food"]["id"]}"' not in income
     expense = client.get("/categories/new?root=expense").text
     assert 'name="kind" value="spending"' in expense and f'value="{books["food"]["id"]}"' in expense
+
+
+def test_the_plus_in_the_bar_on_a_category_page_starts_an_entry_for_it_and_comes_back(client, books):
+    food = books["food"]["id"]
+    page = client.get(f"/categories/{food}").text
+    assert f'class="fab" href="/transactions/new?category={food}&amp;back=/categories/{food}"' in page

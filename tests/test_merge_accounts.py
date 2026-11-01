@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.clock import local_today
 from app.repositories.category import CategoryRepository
 
 from .books import into, post_account
@@ -130,7 +131,7 @@ def test_unknown_categories(client, books):
 
 
 def test_a_failure_part_way_leaves_everything_as_it_was(client, books, monkeypatch):
-    spend(client, books, books["swiggy"], "30")
+    spend(client, books, books["swiggy"], "30", on=local_today().isoformat())  # the breakdown below is this month's
 
     def broken(self, *args, **kwargs):
         raise RuntimeError("the database went away")

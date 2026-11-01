@@ -279,6 +279,10 @@ def category_page(request: Request, category_id: UUID, categories: Categories, r
         "category.html",
         {
             "active": "categories",
+            # The "+" in the bar starts an entry for this category and comes back here.
+            "new_transaction_url": None
+            if category.closed_on
+            else f"/transactions/new?category={category_id}&back=/categories/{category_id}",
             "category": category,
             "group": group,
             "entries": list(reversed(entries)),

@@ -461,6 +461,10 @@ def account_context(accounts: AccountService, profiles, account_id: UUID, entrie
     )
     return {
         "active": "accounts",
+        # The "+" in the bar starts an entry for this account and comes back here (a group, a closed account: the usual one).
+        "new_transaction_url": f"/transactions/new?account={account_id}&back=/accounts/{account_id}"
+        if node.postable and not node.account.closed_on
+        else None,
         "node": node,
         "root": root,
         "entries": history,
