@@ -27,7 +27,9 @@ def upgrade() -> None:
     with op.batch_alter_table("accounts") as batch:
         batch.add_column(sa.Column("statement_day", sa.Integer(), nullable=True))
         batch.add_column(sa.Column("due_day", sa.Integer(), nullable=True))
-        batch.create_check_constraint("ck_accounts_statement_day", "statement_day IS NULL OR statement_day BETWEEN 1 AND 31")
+        batch.create_check_constraint(
+            "ck_accounts_statement_day", "statement_day IS NULL OR statement_day BETWEEN 1 AND 31"
+        )
         batch.create_check_constraint("ck_accounts_due_day", "due_day IS NULL OR due_day BETWEEN 1 AND 31")
         batch.create_check_constraint("ck_accounts_bill_days_together", "(statement_day IS NULL) = (due_day IS NULL)")
 
