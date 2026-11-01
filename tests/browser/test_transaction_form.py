@@ -302,7 +302,7 @@ def _spend(api: Api, books, payee: str, amount: str, on: str, **extra):
 
 def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books, api: Api):
     first = _spend(api, books, "Swiggy", "1000", "2026-10-10")
-    page.goto("/transactions")
+    page.goto("/transactions?month=2026-10")  # the entry is dated in October, whatever month it is now
     page.locator("a.tx", has_text="Swiggy").click()
     page.get_by_role("link", name="Related").click()
     expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy · 10 Oct · 1,000.00")
@@ -318,6 +318,7 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books,
     page.wait_for_url("**/transactions")
     [new] = [t for t in api.get("/transactions/") if t["payee"] == "Swiggy cash-back"]
     assert new["related_id"] == first["id"]
+    page.goto("/transactions?month=2026-10")  # the original is dated in October, the cash-back is today
     page.locator(
         "a.tx", has_text="Swiggy"
     ).last.click()  # the original now lists it, and the sheet of one opens the other

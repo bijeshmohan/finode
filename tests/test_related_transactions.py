@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from app.auth import CurrentUser, require_authenticated_user
+from app.clock import local_today
 from app.main import app
 
 from .books import leg, post_account
@@ -208,7 +209,9 @@ def test_the_backup_and_the_service_see_the_links(session, client, account, expe
 
 
 def test_account_and_category_pages_open_the_sheet_and_come_back(client, account, expense_account):
-    made = make(client, expense_account, account, "250", "DMart")
+    made = make(
+        client, expense_account, account, "250", "DMart", on=local_today().isoformat()
+    )  # a category lists this month
     for page_url, back in (
         (f"/accounts/{account['id']}", f"/accounts/{account['id']}"),
         (f"/categories/{expense_account['id']}", f"/categories/{expense_account['id']}"),

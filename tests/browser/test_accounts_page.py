@@ -226,3 +226,15 @@ def test_budget_options_are_folded_and_say_where_the_account_stands(page: Page, 
     page.locator("details.budget-options summary").click()
     page.locator('input[name="on_budget"]').uncheck()
     expect(page.locator("[data-budget-summary]")).to_have_text("Outside the budget")
+
+
+def test_saving_an_entry_started_from_an_accounts_page_comes_back_to_it(page: Page, api, books):
+    account = books["checking"]["id"]
+    page.goto(f"/accounts/{account}")
+    page.locator("a.fab").click()  # the bar's plus, not the page's own Add button
+    page.wait_for_url("**/transactions/new**")
+    page.fill("#total", "75")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url(re.compile(rf"/accounts/{account}$"))
+    expect(page.locator("a.tx", has_text="Groceries").first).to_be_visible()
