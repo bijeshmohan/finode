@@ -60,8 +60,8 @@ The new-transaction page is the most used and the most designed:
 - A large **amount** at the top. Its width follows what is typed (`--n`, a comma counts as about half a digit) and the rupee sign sits in front. On a phone nothing is focused (a script cannot open the keyboard); the grey `0.00` stays visible until the first digit, also while focused.
 - A kind switcher, **Expense · Income · Transfer**, whose pill glides to the chosen button. The kind only narrows the account pickers.
 - **From** and **To** tiles with the swap button on the seam between them. A side with one row has no ×; a split shows it on every row. Only "left to allocate" and "over" speak under a side.
-- The **date is a chip** ("Today, 24 Oct"), the note a plain field, **Save & add another** a quiet underlined link under Save.
-- **Payee chips**: one row on any width, chips that would not fit are hidden.
+- The **date is a chip** ("Today, 24 Oct"), the note a plain field, and the form ends with Save alone.
+- **Payee chips**: only while typing (nothing for an empty field), one row on any width, chips that would not fit are hidden; they go once one is chosen.
 
 ## Amounts
 

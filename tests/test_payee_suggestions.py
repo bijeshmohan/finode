@@ -44,14 +44,20 @@ def chips(client, payee=""):
 
 
 def test_nothing_to_suggest_without_history(client, books):
-    assert chips(client) == [], "an account's opening balance is not somebody you paid"
+    assert chips(client, "o") == [], "an account's opening balance is not somebody you paid"
+
+
+def test_nothing_is_suggested_until_something_is_typed(client, books):
+    pay(client, "Swiggy", books["hdfc"], books["delivery"])
+    assert chips(client) == [] and chips(client, "   ") == []
+    assert chips(client, "sw") == ["Swiggy"]
 
 
 def test_a_chip_is_a_name_and_nothing_else(client, books):
     pay(client, "Swiggy", books["hdfc"], books["delivery"])
     pay(client, "Swiggy", books["card"], books["delivery"])
-    assert chips(client) == ["Swiggy"], "once, even though it was paid twice"
-    html = client.get("/transactions/suggest").text
+    assert chips(client, "s") == ["Swiggy"], "once, even though it was paid twice"
+    html = client.get("/transactions/suggest", params={"payee": "s"}).text
     for leftover in ("data-from", "data-to", "data-suggest-kind", "data-exact", "data-amount", "title="):
         assert leftover not in html, leftover
 
@@ -61,7 +67,6 @@ def test_often_paid_people_come_first_and_typing_narrows(client, books):
         pay(client, "DMart", books["hdfc"], books["groceries"])
     pay(client, "Swiggy", books["hdfc"], books["delivery"])
     pay(client, "Dunzo", books["hdfc"], books["delivery"])
-    assert chips(client) == ["DMart", "Dunzo", "Swiggy"]
     assert chips(client, "d") == ["DMart", "Dunzo"]
     assert chips(client, "mart") == ["DMart"], "what is typed may be inside the name"
     assert chips(client, "zzz") == []
@@ -77,25 +82,28 @@ def test_a_name_typed_in_full_comes_first_then_those_starting_with_it_then_conta
 def test_income_and_transfers_are_suggested_too(client, books):
     pay(client, "Employer", books["salary"], books["hdfc"], "5000")
     pay(client, "Card payment", books["hdfc"], books["card"], "300")
-    assert sorted(chips(client)) == ["Card payment", "Employer"]
+    assert sorted(chips(client, "employer") + chips(client, "card")) == ["Card payment", "Employer"]
 
 
 def test_only_six_chips_are_offered(client, books):
     for n in range(8):
         pay(client, f"Shop {n}", books["hdfc"], books["groceries"])
-    assert len(chips(client)) == 6
+    assert len(chips(client, "shop")) == 6
 
 
 def test_the_chips_are_html_escaped(client, books):
     pay(client, '<b>x</b> "q"', books["hdfc"], books["delivery"])
-    html = client.get("/transactions/suggest").text
+    html = client.get("/transactions/suggest", params={"payee": "x"}).text
     assert "<b>x</b>" not in html and "&lt;b&gt;" in html
 
 
-def test_the_add_page_loads_the_chips_and_keeps_edit_free_of_them(client, books):
+def test_the_add_page_asks_for_chips_as_you_type_not_on_load_and_edit_has_none(client, books):
     pay(client, "Swiggy", books["hdfc"], books["delivery"])
     page = client.get("/transactions/new").text
     assert 'id="payee-chips"' in page and 'hx-get="/transactions/suggest"' in page
+    assert "load," not in page.split('id="payee-chips"')[1].split(">")[0], (
+        "nothing is asked for before the person types"
+    )
     transaction_id = client.get("/api/transactions/").json()[0]["id"]
     assert 'id="payee-chips"' not in client.get(f"/transactions/{transaction_id}/edit").text
 

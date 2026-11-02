@@ -1404,7 +1404,6 @@ form[data-txn-kind="other"] .segmented.kinds::before { opacity: 0; }
 .txn-form label.date-chip { position: relative; display: inline-flex; flex-direction: row; align-self: flex-start; gap: .4rem; align-items: center; cursor: pointer; padding: 0 .9rem; min-height: 2.25rem; border-radius: 999px; font-size: .875rem; font-weight: 500; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
 .date-chip .icon { width: 1rem; height: 1rem; }
 .date-chip input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
-.form-actions button.quiet { background: none; border: 0; color: var(--muted); text-decoration: underline; min-height: 2.5rem; font-size: .9375rem; font-weight: 500; }
 
 /* Home polish (2026-10-24): a caption says what the bar is, "View all ›" is quiet, the day label lines up with the card, and the column is centred beside the sidebar. */
 .glance-caption { margin: .6rem 0 0; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }

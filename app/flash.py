@@ -28,7 +28,6 @@ MESSAGES = {
     "recurring-resumed": "Resumed. Occurrences missed while it was paused are skipped.",
     "recurring-deleted": "Recurring transaction deleted. What it recorded is kept.",
     "transaction-saved": "Transaction saved",
-    "transaction-saved-next": "Transaction saved. Add the next one.",
     "transaction-updated": "Transaction updated",
     "transaction-deleted": "Transaction deleted",
     "transaction-restored": "Transaction restored",

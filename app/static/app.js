@@ -559,7 +559,7 @@ document.body.addEventListener("click", (event) => {
 function usePayee(form, chip) {
   const payee = form.querySelector("#payee");
   if (payee) payee.value = chip.dataset.payee;
-  form.querySelectorAll("[data-suggest]").forEach((c) => c.setAttribute("aria-pressed", c === chip ? "true" : "false"));
+  chip.parentElement.replaceChildren(); // the suggestions go once one is chosen
   const total = form.querySelector("#total");
   (total && !total.value.trim() ? total : form.querySelector('button[type="submit"]')).focus();
 }

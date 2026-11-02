@@ -47,7 +47,7 @@ On a wide screen a sidebar replaces the bar and the **+** (it has a *New transac
 3. Optionally type a **payee** (who you paid).
 4. Keep **Expense** selected (the default), then choose **Paid from** (the account you paid with) and **Category** (what it was for, such as Groceries). You can create an account or category right there with *+ New category…*.
 5. Change the **date** if it was not today, and add a **note** if you like.
-6. **Save**, or **Save & add another** to keep entering.
+6. **Save**.
 
 <img src="img/new-transaction.png" alt="The new transaction form: amount, payee, Expense, Income and Transfer, Paid from and Category, date" width="300">
 

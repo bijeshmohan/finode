@@ -1,4 +1,4 @@
-{#- The payee field with the chips of people you pay (names only). The chips come from /transactions/suggest as you type. -#}
+{#- The payee field with the chips of people you pay (names only). They appear only while the person types (/transactions/suggest answers nothing for an empty field) and go when one is chosen. -#}
 <div class="payee-field">
   <label class="payee-label">Payee
     <input type="text" id="payee" name="payee" maxlength="40" placeholder="Payee or Merchant?" autocomplete="off" autocapitalize="words"
@@ -6,6 +6,6 @@
   </label>
   {% if not editing %}
   <div class="chips" id="payee-chips" role="group" aria-label="People you pay" hx-get="/transactions/suggest"
-       hx-trigger="load, input changed delay:150ms from:#payee" hx-include="#payee" hx-swap="innerHTML"></div>
+       hx-trigger="input changed delay:150ms from:#payee" hx-include="#payee" hx-swap="innerHTML"></div>
   {% endif %}
 </div>

@@ -612,21 +612,16 @@ def category_places(accounts: Accounts, categories: Categories) -> dict[UUID, UU
     return {c.id: roots["Expenses" if c.kind == "spending" else "Income"] for c in categories.list(include_closed=True)}
 
 
-def _after_save(back: str, another: str) -> str:
-    if another:
-        return "/transactions/new" + (f"?{urlencode({'back': back})}" if back else "")
-    return safe_back(back)
-
-
 SUGGESTED_PAYEES = 6  # how many chips sit under the payee field
 
 
 def suggested_payees(names: list[str], query: str = "", limit: int = SUGGESTED_PAYEES) -> list[str]:
-    """The chips under the payee field, from the people paid most (`names` come most used first): what is typed narrows
-    them to those starting with, then containing, it, an exact match first. Only the name is suggested, never accounts."""
+    """The chips under the payee field while something is typed, from the people paid most (`names` come most used first):
+    those starting with it, then containing it, an exact match first; nothing for an empty field. Only the name is
+    suggested, never accounts."""
     wanted = query.strip().lower()
     if not wanted:
-        return names[:limit]
+        return []
     exact = [n for n in names if n.lower() == wanted]
     starting = [n for n in names if n.lower().startswith(wanted) and n.lower() != wanted]
     containing = [n for n in names if wanted in n.lower() and not n.lower().startswith(wanted)]
@@ -643,7 +638,7 @@ class _P:
 
 @router.get("/suggest")
 def suggest_payees(request: Request, transactions: Transactions, payee: str = ""):
-    """The chips under the payee field: people you pay, the ones paid most first."""
+    """The chips under the payee field: people you pay that match what is typed, the ones paid most first."""
     names = suggested_payees([name for name, _ in transactions.payees()], payee)
     return templates.TemplateResponse(request, "partials/payee_chips.html", {"names": names})
 
@@ -834,7 +829,6 @@ def create_split_transaction(
     payee: Annotated[str, Form()] = "",
     comment: Annotated[str, Form()] = "",
     back: Annotated[str, Form()] = "",
-    another: Annotated[str, Form()] = "",
     related: Annotated[str, Form()] = "",
     tags: Annotated[list[str] | None, Form()] = None,
 ):
@@ -856,11 +850,7 @@ def create_split_transaction(
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(
-        _after_save(back, another),
-        flash="transaction-saved-next" if another else "transaction-saved",
-        undo=("delete", made.id),
-    )
+    return htmx_redirect(safe_back(back), flash="transaction-saved", undo=("delete", made.id))
 
 
 @router.get("/{transaction_id}/edit")

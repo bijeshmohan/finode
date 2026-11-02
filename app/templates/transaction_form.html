@@ -37,7 +37,6 @@
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions form-actions">
     <button type="submit">{{ "Save changes" if editing else "Save" }}</button>
-    {% if not editing %}<button type="submit" class="quiet" name="another" value="1">Save &amp; add another</button>{% endif %}
   </div>
 </form>
 {% include "partials/tags_dialog.html" %}
