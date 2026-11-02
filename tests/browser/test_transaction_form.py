@@ -154,10 +154,13 @@ def history(api: Api, books, payee="Swiggy", source="card", target="food"):
 def test_a_payee_chip_fills_the_payee_only_and_moves_on_to_the_amount(page: Page, books, api: Api):
     history(api, books)
     page.goto("/transactions/new")
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)  # nothing is suggested until something is typed
+    page.fill("#payee", "sw")
     chip = page.locator("#payee-chips .chip", has_text="Swiggy")
     expect(chip).to_be_visible()
     chip.click()
     assert page.input_value("#payee") == "Swiggy"
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)  # and the row goes once one is chosen
     assert page.input_value('[data-rows="credit"] select') == "", "no account is chosen for you"
     assert page.input_value('[data-rows="debit"] select') == "", "and no category"
     expect(page.locator("#total")).to_be_focused()
@@ -186,10 +189,12 @@ def test_the_chips_narrow_as_you_type(page: Page, books, api: Api):
     history(api, books, "Swiggy")
     history(api, books, "DMart", "checking")
     page.goto("/transactions/new")
-    expect(page.locator("#payee-chips .chip")).to_have_count(2)
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)
     page.fill("#payee", "dm")
     expect(page.locator("#payee-chips .chip")).to_have_count(1)
     expect(page.locator("#payee-chips .chip")).to_have_text("DMart")
+    page.fill("#payee", "")
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)
 
 
 def test_the_cursor_is_ink_coloured_and_the_grey_zero_stays_while_empty(page: Page, books):
@@ -407,6 +412,7 @@ def test_the_payee_suggestions_stay_on_one_row_on_a_phone_and_a_wide_screen(page
     for width in (390, 1280):
         page.set_viewport_size({"width": width, "height": 800})
         page.goto("/transactions/new")
+        page.fill("#payee", "a")
         expect(page.locator("#payee-chips .chip").first).to_be_visible()
         tops = page.eval_on_selector_all(
             "#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).map(e => e.offsetTop)"
@@ -415,9 +421,10 @@ def test_the_payee_suggestions_stay_on_one_row_on_a_phone_and_a_wide_screen(page
     expect(page.locator("#payee")).to_have_attribute("placeholder", "Payee or Merchant?")
     page.set_viewport_size({"width": 390, "height": 800})
     page.goto("/transactions/new")
+    page.fill("#payee", "a")
     expect(page.locator("#payee-chips .chip").first).to_be_visible()  # the chips arrive by htmx
     shown = page.eval_on_selector_all("#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).length")
-    assert 0 < shown < 7, "a phone fits fewer chips than there are habits"
+    assert 0 < shown < 5, "a phone fits fewer chips than there are matches"
 
 
 def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(page: Page, books):

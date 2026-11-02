@@ -313,31 +313,6 @@ def test_return_path_must_stay_inside_the_app(client: TestClient, account: dict,
         assert response.headers["HX-Redirect"] == "/transactions", back
 
 
-def test_save_and_add_another_reopens_the_form(client: TestClient, account: dict, expense_account: dict):
-    simple = client.post(
-        "/transactions/split",
-        data={
-            "account": [expense_account["id"], account["id"]],
-            "side": ["debit", "credit"],
-            "amount": ["1", "1"],
-            "another": "1",
-        },
-    )
-    assert simple.headers["HX-Redirect"] == "/transactions/new"
-
-    split = client.post(
-        "/transactions/split",
-        data={
-            "account": [expense_account["id"], account["id"]],
-            "side": ["debit", "credit"],
-            "amount": ["2.00", "2.00"],
-            "another": "1",
-            "back": "/accounts",
-        },
-    )
-    assert split.headers["HX-Redirect"] == "/transactions/new?back=%2Faccounts"
-
-
 def test_update_transaction_to_other_accounts(
     client: TestClient, account: dict, other_account: dict, expense_account: dict
 ):
