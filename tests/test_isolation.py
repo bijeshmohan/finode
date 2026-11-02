@@ -120,6 +120,9 @@ LISTS = {
     ("GET", "/tags"),
     ("GET", "/api/tags/"),
     ("GET", "/transactions/more"),
+    ("GET", "/budget/coming-up"),
+    ("GET", "/budget/coming-up/note"),
+    ("GET", "/api/budget/coming-up"),
     ("GET", "/transactions/related-picker"),
     ("GET", "/transactions/new"),
 }

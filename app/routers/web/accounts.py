@@ -452,6 +452,8 @@ def account_context(accounts: AccountService, account_id: UUID, entries=None, of
     ]
     signs = {e.change > 0 for e in ahead}
     upcoming_total = sum((u.amount for u in upcoming), Decimal("0.00")) if upcoming and len(signs) == 1 else None
+    # With entries dated ahead, the balance they leave (the running balance of the last one); a category has its own month.
+    balance_after = ahead[-1].balance if ahead and page is not None else None
     at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
     # Asset and liability accounts with their own postings cannot gain sub-accounts.
     has_own_postings = node.is_leaf and has_any and node.kind != "root"
@@ -482,6 +484,7 @@ def account_context(accounts: AccountService, account_id: UUID, entries=None, of
         "next_offset": page.next_offset if page else 0,
         "upcoming": upcoming,
         "upcoming_total": upcoming_total,
+        "balance_after": balance_after,
         "is_inflow": lambda change: _is_inflow(root.account.name, change),
         "currency": accounts.currency().code,
         "can_add_child": can_add_child,

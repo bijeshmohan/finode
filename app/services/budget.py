@@ -127,6 +127,9 @@ class BudgetService:
     def _compute(self, month: date | None) -> tuple[BudgetRead, dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]]]:
         month = month_start(month)
         through = month_end(month)
+        today = local_today()
+        if month == first_of_month(today):
+            through = min(through, today)  # what is dated later this month is not here yet: the budget is as of today
         currency = self.accounts.currency()
         accounts = self.accounts.ar.list()
         by_id = {a.id: a for a in accounts}

@@ -25,7 +25,7 @@
     </div>
     <span class="figure">{{ figure(rta if rta > 0 else 0, cur) }}</span>
     <span class="glance-note hero-note"><span class="rta-text">{% if rta < 0 %}<span class="hero-warn">Over-assigned by {{ (-rta)|money|amount(cur) }} · take some back from a category</span>{% elif rta > 0 %}Give it a job: tap a category{% elif budget.lines or budget.goals %}Every {{ cur|symbol }} has a job{% else %}Nothing to assign yet{% endif %}{% if budget.goal_available > 0 %} · <a href="/budget?tab=save&month={{ month_key }}"><b>{{ budget.goal_available|money|amount(cur) }}</b> in goals ›</a>{% endif %}</span></span>
-    {{ calc_panel(sum_rows, "Ready to assign", rta, cur, "Money in your accounts that has no job yet.") }}
+    {{ calc_panel(sum_rows, "Ready to assign", rta, cur, "Money in your accounts that has no job yet, counted up to " ~ ("today" if is_current else "the end of " ~ month_name) ~ ".", coming=is_current) }}
   </div>
   {% endif %}
   {#- Setting up a month: copy what each category got last month. What needs a decision lives under the bell (To do). -#}
