@@ -668,6 +668,20 @@ function describeRow(form, row, button, chosen) {
   amt.hidden = !amount;
 }
 
+// The settings glyph at the right of a chosen account or category: its amount and, on an account, the day it posts the line.
+function ensureGear(button) {
+  let gear = button.nextElementSibling;
+  if (gear && gear.matches("[data-row-settings]")) return gear;
+  gear = document.createElement("button");
+  gear.type = "button";
+  gear.className = "row-settings-open";
+  gear.dataset.rowSettings = "";
+  gear.setAttribute("aria-haspopup", "dialog");
+  gear.setAttribute("aria-label", "Amount and date");
+  button.after(gear);
+  return gear;
+}
+
 function syncRowPickers(form) {
   const kind = KINDS[form.dataset.txnKind] || KINDS.other;
   form.querySelectorAll("[data-row]").forEach((row) => {
@@ -689,7 +703,12 @@ function syncRowPickers(form) {
       const label = chosen ? leafLabel(select, option) : empty;
       if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
       button.classList.toggle("empty", !chosen);
-      if (slim) describeRow(form, row, button, chosen);
+      if (slim) {
+        describeRow(form, row, button, chosen);
+        const gear = ensureGear(button);
+        gear.hidden = !chosen;
+        gear.classList.toggle("set", !button.querySelector(".rp-when").hidden || !button.querySelector(".rp-amt").hidden);
+      }
       const noun = category ? "Category" : "Account";
       button.setAttribute("aria-label", chosen ? `${noun}: ${option.textContent.replace(" › ", ", ")}` : `Choose ${category ? "a category" : "an account"}`);
     });
@@ -706,41 +725,13 @@ function syncRowPickers(form) {
   let target = null;
   let clearable = false; // a payment's category can be none
   let taken = new Set(); // what the other side of the entry already uses: an account cannot be on both
-  // An account or a category (not a payment's optional label) opens its amount, and an account its date, under the choice;
-  // the tick adds it. `chosen` is the option highlighted, `state` what was typed so far, `activeRow` the row being set.
-  let activeRow = null;
-  let formEl = null;
-  let chosen = "";
-  let state = { amount: "", date: "" };
-  let withDate = false;
-  const configTemplate = document.getElementById("pick-config-template");
-  const entryDate = () => {
-    const field = formEl && formEl.querySelector('[name="date"]');
-    return field ? field.value : "";
-  };
-  const showConfig = (li) => {
-    list.querySelectorAll(".pick-config").forEach((node) => node.remove());
-    const config = configTemplate.content.firstElementChild.cloneNode(true);
-    const amount = config.querySelector("[data-config-amount]");
-    const date = config.querySelector("[data-config-date]");
-    amount.value = state.amount;
-    amount.addEventListener("input", () => { state.amount = amount.value; });
-    const day = entryDate();
-    config.querySelector("[data-config-date-field]").hidden = !withDate || !day;
-    date.value = state.date || day;
-    if (day) date.min = day;
-    date.addEventListener("change", () => { state.date = date.value; });
-    config.querySelector("[data-config-remove]").hidden = !target.value || target.value !== chosen;
-    li.after(config);
-    return config;
-  };
   const choices = () => [...target.options].filter((o) => o.value && o.value !== NEW_ACCOUNT);
   const row = (option, group) => {
     const li = document.createElement("li");
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.pickOption = option.value;
-    button.setAttribute("aria-pressed", String(option.value === (chosen || target.value)));
+    button.setAttribute("aria-pressed", String(option.value === target.value));
     const name = group ? option.textContent.slice(group.length + 3) || option.textContent : option.textContent;
     const label = document.createElement("span");
     const [outer, inner] = !group ? option.textContent.split(" › ") : [];
@@ -807,10 +798,6 @@ function syncRowPickers(form) {
       li.append(button);
       list.prepend(li);
     }
-    if (chosen) {
-      const selected = list.querySelector(`[data-pick-option="${CSS.escape(chosen)}"]`);
-      if (selected) showConfig(selected.closest("li"));
-    }
     if (target.querySelector(`option[value="${NEW_ACCOUNT}"]`)) {
       const li = document.createElement("li");
       li.className = "pick-new-li";
@@ -823,7 +810,7 @@ function syncRowPickers(form) {
     }
   };
   // A press on an option must not take focus off the search: that puts the keyboard away, the sheet drops under the finger and
-  // the tap lands elsewhere, so nothing was chosen. (The fields under a chosen option still take focus as usual.)
+  // the tap lands elsewhere, so nothing was chosen.
   list.addEventListener("mousedown", (event) => {
     if (event.target.closest && event.target.closest("button")) event.preventDefault();
   });
@@ -851,75 +838,87 @@ function syncRowPickers(form) {
               .filter(Boolean),
           );
       search.value = "";
-      formEl = form;
-      const own = open.closest("[data-row]");
-      activeRow = own;
-      withDate = !clearable && !isCategorySide(kind[side].roots) && form.hasAttribute("data-posting-dates");
-      chosen = clearable ? "" : target.value;
-      const posted = own.querySelector('[name="posted_on"]');
-      state = { amount: own.querySelector('[name="amount"]').value, date: posted ? posted.value : "" };
       draw();
       dialog.showModal();
       return;
     }
     if (!target || !dialog.contains(event.target)) return;
-    if (event.target.closest("[data-config-ok]")) {
-      apply();
-      return;
-    }
-    if (event.target.closest("[data-config-remove]")) {
-      const own = activeRow;
-      target = null;
-      dialog.close();
-      own.querySelector("[data-remove-row]").click();
-      return;
-    }
     const option = event.target.closest("[data-pick-option]");
     const fresh = event.target.closest("[data-pick-new]");
     if (!option && !fresh) return;
-    if (option && !clearable && option.dataset.pickOption) {
-      // An account or a category: highlight it and open its amount (and date) under it; the tick adds it.
-      chosen = option.dataset.pickOption;
-      list.querySelectorAll("[data-pick-option]").forEach((b) => b.setAttribute("aria-pressed", String(b === option)));
-      showConfig(option.closest("li"));
-      return;
-    }
     const select = target;
     target = null;
     dialog.close();
     select.value = option ? option.dataset.pickOption : NEW_ACCOUNT;
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  // The tick: the account (or category) goes onto the row with the amount and the day typed.
+  search.addEventListener("input", draw);
+})();
+
+// The settings sheet of a row: its amount and the day its account posts the line. The tick puts them on the row.
+(() => {
+  const dialog = document.getElementById("row-settings");
+  if (!dialog) return;
+  const title = dialog.querySelector("[data-settings-title]");
+  const amount = dialog.querySelector("[data-config-amount]");
+  const date = dialog.querySelector("[data-config-date]");
+  const dateField = dialog.querySelector("[data-config-date-field]");
+  const remove = dialog.querySelector("[data-config-remove]");
+  let row = null;
+  let form = null;
+  let withDate = false;
+  document.body.addEventListener("click", (event) => {
+    const open = event.target.closest && event.target.closest("[data-row-settings]");
+    if (open) {
+      row = open.closest("[data-row]");
+      form = open.closest("form[data-txn-form]");
+      const side = row.querySelector('[name="side"]').value;
+      const select = rowAccount(row);
+      title.textContent = leafLabel(select, select.selectedOptions[0]);
+      const day = form.querySelector('[name="date"]');
+      const posted = row.querySelector('[name="posted_on"]');
+      withDate = !isCategorySide((KINDS[form.dataset.txnKind] || KINDS.other)[side].roots) && form.hasAttribute("data-posting-dates") && !!day && !!day.value;
+      amount.value = row.querySelector('[name="amount"]').value;
+      dateField.hidden = !withDate;
+      if (withDate) {
+        date.min = day.value;
+        date.value = (posted && posted.value) || day.value;
+      }
+      dialog.showModal();
+      return;
+    }
+    if (!row || !dialog.contains(event.target)) return;
+    if (event.target.closest("[data-config-ok]")) apply();
+    else if (event.target.closest("[data-config-remove]")) {
+      const own = row;
+      row = null;
+      dialog.close();
+      own.querySelector("[data-remove-row]").click();
+    }
+  });
   const apply = () => {
-    const config = list.querySelector(".pick-config");
-    if (!config || !chosen) return;
-    const select = target;
-    const own = activeRow;
-    const day = entryDate();
-    const dateValue = config.querySelector("[data-config-date]").value;
-    const amountText = config.querySelector("[data-config-amount]").value.trim();
+    const own = row;
+    const day = form.querySelector('[name="date"]');
     const posted = own.querySelector('[name="posted_on"]');
     const rowAmount = own.querySelector('[name="amount"]');
-    target = null;
+    const amountText = amount.value.trim();
+    row = null;
     dialog.close();
-    if (posted) posted.value = withDate && dateValue && dateValue !== day ? dateValue : "";
+    if (posted) posted.value = withDate && date.value && date.value !== day.value ? date.value : "";
     if (parseDec(amountText) !== parseDec(rowAmount.value)) {
       rowAmount.value = amountText;
       rowAmount.classList.remove("suggested");
       rowAmount.dispatchEvent(new Event("input", { bubbles: true }));
       tidyField(rowAmount);
     }
-    select.value = chosen;
-    select.dispatchEvent(new Event("change", { bubbles: true }));
+    rowAccount(own).dispatchEvent(new Event("change", { bubbles: true }));
   };
-  list.addEventListener("keydown", (event) => {
+  dialog.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && event.target.matches && event.target.matches("[data-config-amount], [data-config-date]")) {
       event.preventDefault();
       apply();
     }
   });
-  search.addEventListener("input", draw);
 })();
 
 function recomputeTxn(form) {

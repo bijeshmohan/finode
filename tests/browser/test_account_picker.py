@@ -20,15 +20,12 @@ def test_an_account_is_chosen_in_a_sheet(page: Page, books, api: Api):
     dialog.locator("[data-pick-search]").fill("chec")
     expect(dialog.locator("[data-pick-option]")).to_have_count(1)
     checking.click()
-    expect(dialog).to_be_visible()  # choosing opens its amount and date under it; the tick adds it
-    dialog.locator("[data-config-ok]").click()
-    expect(dialog).to_be_hidden()
+    expect(dialog).to_be_hidden()  # one tap chooses: the amount and date are set from the row afterwards
     expect(button).to_have_text("Checking")
     assert page.input_value('[data-rows="credit"] select') == books["checking"]["id"]
     page.fill("#total", "40")
     page.locator('[data-rows="debit"] [data-pick]:visible').click()
     page.locator("#row-picker [data-pick-option]", has_text="Groceries").click()
-    page.locator("#row-picker [data-config-ok]").click()
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url("**/transactions")
     [entry] = api.get("/transactions/")[:1]
@@ -43,7 +40,6 @@ def test_the_account_on_the_other_side_is_greyed(page: Page, books):
     page.get_by_role("button", name="Transfer", exact=True).click()
     page.locator('[data-rows="credit"] [data-pick]:visible').click()
     page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
-    page.locator("#row-picker [data-config-ok]").click()
     page.locator('[data-rows="debit"] [data-pick]:visible').click()
     expect(page.locator("#row-picker [data-pick-option]", has_text="Checking")).to_be_disabled()
     expect(page.locator("#row-picker [data-pick-option]", has_text="Cash")).to_be_enabled()
@@ -69,7 +65,6 @@ def test_the_chosen_account_is_bold_and_the_scroll_bar_stays_clear_of_the_balanc
     page.goto("/transactions/new")
     page.locator('[data-rows="credit"] [data-pick]:visible').click()
     page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
-    page.locator("#row-picker [data-config-ok]").click()
     page.locator('[data-rows="credit"] [data-pick]:visible').click()
     assert page.locator("#row-picker .tag-tick").count() == 0, "no tick circle on the options themselves"
     chosen = page.locator('#row-picker [aria-pressed="true"] > span:first-child').first
@@ -90,12 +85,10 @@ def test_chips_and_search_results_show_the_name_and_the_group_under_it_without_a
     account = page.locator('[data-rows="credit"] [data-pick]:visible')
     account.click()
     page.locator("#row-picker [data-pick-option]", has_text="Kotak").first.click()
-    page.locator("#row-picker [data-config-ok]").click()
     expect(account).to_have_text("Kotak")
     category = page.locator('[data-rows="debit"] [data-pick]:visible')
     category.click()
     page.locator("#row-picker [data-pick-option]", has_text="Dining").first.click()
-    page.locator("#row-picker [data-config-ok]").click()
     expect(category).to_have_text("Dining")
     account.click()
     page.locator("#row-picker [data-pick-search]").fill("kot")
@@ -123,4 +116,4 @@ def test_pressing_an_option_keeps_the_search_focused_so_the_sheet_does_not_move(
     page.mouse.down()
     expect(search).to_be_focused()
     page.mouse.up()
-    expect(dialog.locator(".pick-config")).to_be_visible()  # chosen: its amount and date are open under it
+    expect(dialog).to_be_hidden()  # chosen at once

@@ -12,7 +12,7 @@ Tap **+** (phone) or **New transaction** (wide screen).
    - Income: a **Category** (such as Salary), **Received in** an account.
    - Transfer: **From** and **To** your own accounts (including paying a card or a loan).
    - Tap the selected kind again to select *none*: every account is offered. Use this for anything unusual.
-3. **Accounts and category**: each side shows a **Choose account…** row (a **Category…** row for the category). Tap it and a sheet lists the accounts (groups with their balances, with a search). Tap the one you want and its **Amount** and **Date** open under it, both already filled in (the whole total, and the entry's date); change either if you need to and tap the round **tick** to add it. A row then shows only the account's name; its amount appears beside it only when it is not the whole total, and a date ("Posts 18 Oct") only when it is not the entry's. Tap a row again to change it or to remove it. When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional and starts empty. Several accounts or categories on one entry make it a split.
+3. **Accounts and category**: each side shows a **Choose account…** row (a **Category…** row for the category). Tap it and a sheet lists the accounts (groups with their balances, with a search). Tap the one you want and the sheet closes. A chosen row has a small **settings** glyph at its right: tap it to change the **Amount** or the **Date** (both already filled in: the whole total, and the entry's date) and tap the round **tick**; the same sheet has **Remove this one**. A row shows the account's name; its amount appears beside it only when it is not the whole total, and a date ("Posts 18 Oct") only when it is not the entry's, and the glyph is filled in then. Tap the name to change the account. When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional and starts empty. Several accounts or categories on one entry make it a split.
 4. **Payee**, **note** and **date** (a chip that reads "Today, 24 Oct"; tap it to pick another day).
 5. **Save**, or **Save & add another** to keep entering.
 
@@ -26,7 +26,7 @@ When you need more than one account on a side (a bill paid half by cash and half
 
 ### The date a card posts a line
 
-Some cards bill an entry in a later statement than its date (for example a tax line recorded on the 16th that the card posts on the 17th). In that account's sheet set its **Date** to the day the card posts it. The entry keeps its own date everywhere, and only the card's bill counts the line by the posting date (see *A card's bill* under Accounts). The posting date is never before the entry's date, and it goes back to the entry's date if you move the entry past it.
+Some cards bill an entry in a later statement than its date (for example a tax line recorded on the 16th that the card posts on the 17th). In that account's settings (the glyph on its row) set its **Date** to the day the card posts it. The entry keeps its own date everywhere, and only the card's bill counts the line by the posting date (see *A card's bill* under Accounts). The posting date is never before the entry's date, and it goes back to the entry's date if you move the entry past it.
 
 ### Repeat
 

@@ -1,5 +1,6 @@
 """The posting date on the Add screen: an account's row opens its amount and date in the picker sheet; a tick adds it."""
 
+import re
 from datetime import timedelta
 
 from playwright.sync_api import Page, expect
@@ -7,7 +8,7 @@ from playwright.sync_api import Page, expect
 from app.clock import local_today
 
 from ..books import leg
-from .conftest import Api, add_row, row_button, set_row
+from .conftest import Api, add_row, row_button, row_gear, set_row
 
 
 def card(api: Api, books, name="Regalia Gold", **extra):
@@ -20,8 +21,9 @@ def test_the_sheet_asks_for_the_amount_and_a_native_date_both_filled_in(page: Pa
     page.goto("/transactions/new")
     page.fill("#total", "1250")
     row_button(page, "credit").click()
-    sheet = page.locator("#row-picker")
-    sheet.locator("[data-pick-option]", has_text="Checking").click()
+    page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
+    row_gear(page, "credit").click()
+    sheet = page.locator("#row-settings")
     amount, day = sheet.locator("[data-config-amount]"), sheet.locator("[data-config-date]")
     assert amount.input_value() == "1,250.00", "the whole total, to begin with"
     assert day.get_attribute("type") == "date", "the device's own date picker"
@@ -116,16 +118,19 @@ def test_every_account_takes_a_date_but_a_category_and_a_recurring_rule_do_not(p
     page.fill("#total", "50")
     row_button(page, "credit").click()
     page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
-    expect(page.locator("#row-picker [data-config-date-field]")).to_be_visible()
+    row_gear(page, "credit").click()
+    expect(page.locator("#row-settings [data-config-date-field]")).to_be_visible()
     page.keyboard.press("Escape")
     row_button(page, "debit").click()
     page.locator("#row-picker [data-pick-option]", has_text="Groceries").click()
-    expect(page.locator("#row-picker [data-config-date-field]")).to_be_hidden()
+    row_gear(page, "debit").click()
+    expect(page.locator("#row-settings [data-config-date-field]")).to_be_hidden()
     page.keyboard.press("Escape")
     page.goto("/recurring/new")
     row_button(page, "credit").click()
     page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
-    expect(page.locator("#row-picker [data-config-date-field]")).to_be_hidden()
+    row_gear(page, "credit").click()
+    expect(page.locator("#row-settings [data-config-date-field]")).to_be_hidden()
 
 
 def test_a_row_is_removed_from_its_own_sheet(page: Page, books, api: Api):
@@ -134,8 +139,8 @@ def test_a_row_is_removed_from_its_own_sheet(page: Page, books, api: Api):
     page.select_option('[data-rows="credit"] select', label="Checking")
     set_row(page, "credit", 0, amount="60")
     page.select_option('[data-rows="credit"] [data-row]:nth-child(2) select', label="Cash")
-    row_button(page, "credit", 1).click()
-    page.locator("#row-picker [data-config-remove]").click()
+    row_gear(page, "credit", 1).click()
+    page.locator("#row-settings [data-config-remove]").click()
     expect(page.locator('[data-rows="credit"] [data-row]')).to_have_count(2)  # the open row for what is left is back
     assert page.input_value('[data-rows="credit"] [data-row]:nth-child(2) select') == ""
 
@@ -145,7 +150,28 @@ def test_the_tick_sits_in_the_middle_of_its_circle(page: Page, books):
     page.fill("#total", "100")
     row_button(page, "credit").click()
     page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
-    tick = page.locator("#row-picker [data-config-ok]")
+    row_gear(page, "credit").click()
+    tick = page.locator("#row-settings [data-config-ok]")
     circle, mark = tick.bounding_box(), tick.locator("svg").bounding_box()
     assert abs((circle["x"] + circle["width"] / 2) - (mark["x"] + mark["width"] / 2)) < 1
     assert abs((circle["y"] + circle["height"] / 2) - (mark["y"] + mark["height"] / 2)) < 1
+
+
+def test_the_picker_only_picks_and_the_row_has_a_glyph_for_its_settings(page: Page, books):
+    page.goto("/transactions/new")
+    page.fill("#total", "100")
+    expect(row_gear(page, "credit")).to_be_hidden()  # nothing chosen yet, nothing to set
+    row_button(page, "credit").click()
+    picker = page.locator("#row-picker")
+    picker.locator("[data-pick-option]", has_text="Checking").click()
+    expect(picker).to_be_hidden()  # one tap chooses
+    assert page.locator("#row-picker [data-config-amount], #row-picker [data-config-date]").count() == 0
+    expect(row_gear(page, "credit")).to_be_visible()
+    expect(row_gear(page, "credit")).not_to_have_class(re.compile(r"\bset\b"))
+    set_row(page, "credit", amount="60", date=str(local_today() + timedelta(days=2)))
+    expect(row_button(page, "credit")).to_contain_text("60.00")
+    expect(row_button(page, "credit")).to_contain_text("Posts")
+    expect(row_gear(page, "credit")).to_have_class(re.compile(r"\bset\b"))  # the glyph shows the row differs
+    row_gear(page, "credit").click()  # and its settings open as they were left
+    assert page.input_value("#row-settings [data-config-amount]") == "60.00"
+    assert page.input_value("#row-settings [data-config-date]") == str(local_today() + timedelta(days=2))

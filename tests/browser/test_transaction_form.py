@@ -3,7 +3,7 @@
 from playwright.sync_api import Page, expect
 
 from ..books import leg
-from .conftest import Api, row_button, set_row
+from .conftest import Api, row_button, row_gear, set_row
 
 
 def groups(page: Page, side: str) -> list[str]:
@@ -90,8 +90,8 @@ def test_removing_a_row_brings_the_remainder_back(page: Page, books):
     page.select_option('[data-rows="debit"] select', label="Groceries")
     set_row(page, "debit", 0, amount="30")
     assert amounts(page, "debit") == ["30.00", "70.00"]
-    row_button(page, "debit", 0).click()
-    page.locator("#row-picker [data-config-remove]").click()  # a row is removed from its own sheet
+    row_gear(page, "debit", 0).click()
+    page.locator("#row-settings [data-config-remove]").click()  # a row is removed from its own sheet
     assert amounts(page, "debit") == ["100.00"]
 
 
@@ -437,9 +437,9 @@ def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(page: Page, b
     assert total.input_value() == "12,34,567.50"
     assert page.input_value('[data-rows="debit"] [name="amount"]') == "12,34,567.50", "the rows are grouped too"
     page.select_option('[data-rows="debit"] select', label="Groceries")
-    row_button(page, "debit").click()
+    row_gear(page, "debit").click()
     amount = page.locator(
-        "#row-picker [data-config-amount]"
+        "#row-settings [data-config-amount]"
     )  # the sheet's amount is cleaned and grouped as it is typed
     amount.fill("")
     amount.click()
