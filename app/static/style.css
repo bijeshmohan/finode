@@ -1628,14 +1628,14 @@ form.copy-last { margin: .25rem 0 .75rem; }
 .txn-row .row-settings-open.set { background: var(--surface-2); color: var(--text); }
 .row-settings-open[hidden] { display: none; }
 @media (hover: hover) { .row-settings-open:hover { color: var(--text); } }
-.pick-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 2.75rem; gap: .6rem; align-items: end; }
-.pick-fields:has([data-config-date-field][hidden]) { grid-template-columns: minmax(0, 1fr) 2.75rem; }
+.pick-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .6rem; align-items: end; }
+.pick-fields:has([data-config-date-field][hidden]) { grid-template-columns: minmax(0, 1fr); }
 .pick-field { display: flex; flex-direction: column; gap: .25rem; margin: 0; font-size: .6875rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .pick-field[hidden] { display: none; }
 .pick-field input { width: 100%; box-sizing: border-box; min-height: 2.6rem; padding: .4rem .6rem; border: 1px solid var(--field-border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; font-size: 1rem; font-weight: 600; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
-.pick-fields .tick { display: flex; align-items: center; justify-content: center; gap: 0; width: 2.75rem; height: 2.75rem; min-height: 0; padding: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); border: 0; }
-.pick-fields .tick .icon { width: 1.3rem; height: 1.3rem; stroke-width: 2.5; }
-.pick-remove { margin: .6rem 0 0; font-size: .875rem; color: var(--negative); background: none; border: 0; padding: 0; text-decoration: underline; }
+#row-settings .row-done { display: block; width: 100%; margin-top: 1rem; border-radius: 999px; }
+button.pick-remove { display: block; margin: .9rem auto 0; font-size: .9rem; color: var(--negative); background: none; border: 0; padding: 0; }
+button.pick-remove:hover { color: var(--negative); }
 .pick-remove[hidden] { display: none; }
 /* A row's own amount and remove button are never shown: the sheet holds them. */
 .txn-row [data-remove-row] { display: none !important; }
