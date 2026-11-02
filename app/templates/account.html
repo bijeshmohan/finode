@@ -56,6 +56,7 @@
   </div>
   {% if account.closed_on %}<p class="muted">Closed on {{ account.closed_on.strftime("%d %b %Y") }}. Its history stays; nothing can be added to it until you reopen it.</p>{% endif %}
   <p class="hero-balance">{{ figure(account.balance, currency) }}</p>
+  {% if balance_after is not none and upcoming %}<p class="balance-after muted" data-balance-after>{{ balance_after|money|amount(currency) }} after the {{ upcoming|length }} coming up</p>{% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
   {% include "partials/card_bill.html" %}
   {% if node.postable and not account.closed_on %}

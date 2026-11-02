@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
-from ..dependencies import Budget
+from ..dependencies import Budget, ComingUp
 from ..schemas.budget import (
     BudgetAssign,
     BudgetCopy,
@@ -16,6 +16,7 @@ from ..schemas.budget import (
     GoalUse,
     GroupAssign,
 )
+from ..schemas.coming_up import ComingUpRead
 from ..services.budget import BudgetError
 
 router = APIRouter(
@@ -30,6 +31,16 @@ def get_budget(budget: Budget, month: date | None = None):
     """The month's budget (the current month by default): what is left to assign and each category's figures."""
     try:
         return budget.view(month)
+    except BudgetError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+
+
+@router.get("/coming-up", response_model=ComingUpRead, status_code=200)
+def coming_up(service: ComingUp, through: date | None = None):
+    """What is coming up after today, to the end of this month (or to `through`, at most a year ahead): entries dated
+    ahead and what recurring rules will record, those that touch an account of the budget, soonest first."""
+    try:
+        return service.view(through)
     except BudgetError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
 

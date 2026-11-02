@@ -19,6 +19,7 @@ from .repositories.oauth_grant import OAuthGrantRepository
 from .services import (
     AccountService,
     BudgetService,
+    ComingUpService,
     DataService,
     ProfileService,
     RecurringService,
@@ -158,6 +159,14 @@ def get_budget_service(
     return BudgetService(accounts, tr, BudgetRepository(db, user.id))
 
 
+def get_coming_up_service(
+    accounts: AccountService = Depends(get_account_service),
+    transactions: TransactionService = Depends(get_transaction_service),
+    recurring: RecurringService = Depends(get_recurring_service),
+) -> ComingUpService:
+    return ComingUpService(accounts, transactions, recurring)
+
+
 def get_todo_service(
     budget: BudgetService = Depends(get_budget_service),
     recurring: RecurringService = Depends(get_recurring_service),
@@ -190,6 +199,7 @@ Profiles = Annotated[ProfileService, Depends(get_profile_service)]
 Recurring = Annotated[RecurringService, Depends(get_recurring_service)]
 Reports = Annotated[ReportService, Depends(get_report_service)]
 Budget = Annotated[BudgetService, Depends(get_budget_service)]
+ComingUp = Annotated[ComingUpService, Depends(get_coming_up_service)]
 Todo = Annotated[TodoService, Depends(get_todo_service)]
 ApiTokens = Annotated[ApiTokenService, Depends(get_api_token_service)]
 OAuthGrants = Annotated[OAuthGrantService, Depends(get_oauth_grant_service)]

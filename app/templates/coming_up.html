@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/money.html" import figure %}
+{% block title %}Coming up · finode{% endblock %}
+{% block content %}
+<a class="back" href="/budget">{{ icon("back") }}Budgets</a>
+<div class="page-head tall"><h1>Coming up</h1></div>
+{% if data.items %}
+<div class="ready zero budget-hero ready-hero">
+  <div class="hero-top"><span class="muted">Until {{ data.through|friendly_date }}</span></div>
+  {% if data.total is not none %}<span class="figure">{{ figure(data.total, currency) }}</span>{% endif %}
+  <span class="glance-note hero-note"><span>{{ data.count }} {{ "payment" if data.count == 1 else "payments" }} that touch your budget accounts</span></span>
+</div>
+{% for day in days %}
+<section class="tx-day">
+  <h3 class="tx-day-head"><span>{{ day.date|friendly_date }}</span>{% if day.total is not none and day.rows|length > 1 %}<span class="tx-day-total">{{ day.total|money }}</span>{% endif %}</h3>
+  <ul class="card list">
+    {% for r in day.rows %}
+    {% set item = r.item %}
+    <li>
+      <a class="tx" href="{{ '/recurring/' ~ item.recurring_id ~ '/edit' if item.recurring_id else '/transactions/' ~ item.transaction_id ~ '/edit?back=/budget/coming-up' }}">
+        <span class="tx-main">
+          <span class="tx-title"><span class="tx-title-text">{{ r.title }}</span></span>
+          <span class="tx-sub">{{ r.sub }}</span>
+          {% if item.recurring_id %}<span class="tx-via">{{ icon("repeat") }}Repeats</span>{% endif %}
+        </span>
+        <span class="tx-amount {{ 'income' if item.income }}">{{ "+" if item.income }}{{ item.amount|money }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% else %}
+<div class="card empty-state"><p>Nothing is coming up before {{ data.through|friendly_date }}.</p><a class="button secondary" href="/budget">Back to Budgets</a></div>
+{% endif %}
+{% endblock %}

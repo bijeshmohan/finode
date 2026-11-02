@@ -1640,3 +1640,9 @@ button.pick-remove:hover { color: var(--negative); }
 .pick-remove[hidden] { display: none; }
 /* A row's own amount and remove button are never shown: the sheet holds them. */
 .txn-row [data-remove-row] { display: none !important; }
+
+/* The line in the sum behind Ready to assign that says what is coming up this month, and opens the list. */
+.calc-coming:empty { display: none; }
+.coming-note { display: flex; justify-content: space-between; gap: .5rem; margin-top: .6rem; padding-top: .6rem; border-top: 1px solid var(--border); color: var(--text); font-size: .875rem; text-decoration: none; }
+.coming-note b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.balance-after { margin: -.25rem 0 .75rem; font-size: .875rem; }
