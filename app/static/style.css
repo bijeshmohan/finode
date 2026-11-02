@@ -800,6 +800,8 @@ form.copy-last button { margin: 0; }
 
 .payee-field { display: flex; flex-direction: column; gap: .75rem; }
 .payee-label { font-size: 0; }
+.payee-field .chips { min-height: 0; }
+.payee-field .chips:not(:has(.chip)) { display: none; } /* no suggestions, no space: the row exists only while typing */
 .payee-label input { font-size: 1rem; font-weight: 500; }
 .chips { display: flex; flex-wrap: wrap; gap: .5rem; min-height: 2.25rem; }
 button.chip {

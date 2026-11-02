@@ -477,3 +477,18 @@ def test_the_date_is_a_chip_that_names_the_day(page: Page, books):
     expect(chip).to_have_text("4 Mar 2020")
     page.fill('input[name="date"]', page.locator("[data-date-chip]").get_attribute("data-today"))
     expect(chip).to_contain_text("Today, ")
+
+
+def test_the_empty_suggestion_row_takes_no_space(page: Page, books, api: Api):
+    history(api, books)
+    page.goto("/transactions/new")
+    payee = page.locator("#payee").bounding_box()
+    side = page.locator('[data-side-section="credit"]').bounding_box()
+    assert side["y"] - (payee["y"] + payee["height"]) < 40, "no dead space between the payee and the account"
+    page.fill("#payee", "sw")
+    expect(page.locator("#payee-chips .chip")).to_have_count(1)
+    chosen = page.locator('[data-side-section="credit"]').bounding_box()["y"]
+    page.locator("#payee-chips .chip").click()
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)
+    assert abs(page.locator('[data-side-section="credit"]').bounding_box()["y"] - side["y"]) < 2, "back where it was"
+    assert chosen > side["y"], "the row took room only while it was there"
