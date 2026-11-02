@@ -1,4 +1,4 @@
-"""The posting date on the Add screen: an account's row opens its amount and date in the picker sheet; a tick adds it."""
+"""The posting date on the Add screen: a chosen row's glyph opens its amount and date in a small sheet; Done sets them."""
 
 import re
 from datetime import timedelta
@@ -145,18 +145,6 @@ def test_a_row_is_removed_from_its_own_sheet(page: Page, books, api: Api):
     assert page.input_value('[data-rows="credit"] [data-row]:nth-child(2) select') == ""
 
 
-def test_the_tick_sits_in_the_middle_of_its_circle(page: Page, books):
-    page.goto("/transactions/new")
-    page.fill("#total", "100")
-    row_button(page, "credit").click()
-    page.locator("#row-picker [data-pick-option]", has_text="Checking").click()
-    row_gear(page, "credit").click()
-    tick = page.locator("#row-settings [data-config-ok]")
-    circle, mark = tick.bounding_box(), tick.locator("svg").bounding_box()
-    assert abs((circle["x"] + circle["width"] / 2) - (mark["x"] + mark["width"] / 2)) < 1
-    assert abs((circle["y"] + circle["height"] / 2) - (mark["y"] + mark["height"] / 2)) < 1
-
-
 def test_the_picker_only_picks_and_the_row_has_a_glyph_for_its_settings(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "100")
@@ -175,3 +163,23 @@ def test_the_picker_only_picks_and_the_row_has_a_glyph_for_its_settings(page: Pa
     row_gear(page, "credit").click()  # and its settings open as they were left
     assert page.input_value("#row-settings [data-config-amount]") == "60.00"
     assert page.input_value("#row-settings [data-config-date]") == str(local_today() + timedelta(days=2))
+
+
+def test_the_settings_sheet_has_two_cells_a_done_pill_and_a_red_remove_below_it(page: Page, books):
+    page.goto("/transactions/new")
+    page.fill("#total", "100")
+    add_row(page, "credit", "Checking")
+    row_gear(page, "credit").click()
+    sheet = page.locator("#row-settings")
+    amount, day = sheet.locator(".pick-field", has_text="Amount"), sheet.locator(".pick-field", has_text="Date")
+    a, d = amount.bounding_box(), day.bounding_box()
+    assert abs(a["y"] - d["y"]) < 2 and a["x"] < d["x"], "amount and date side by side"
+    done, remove = sheet.locator("[data-config-ok]"), sheet.locator("[data-config-remove]")
+    assert done.inner_text().strip() == "Done" and sheet.locator("[data-config-ok] svg").count() == 0, "a word, no tick"
+    assert a["y"] + a["height"] <= done.bounding_box()["y"] <= remove.bounding_box()["y"], "fields, Done, then Remove"
+    red = page.evaluate(
+        "() => { const i = document.createElement('i'); i.style.color = 'var(--negative)'; document.body.append(i); return getComputedStyle(i).color; }"
+    )
+    assert remove.evaluate("el => getComputedStyle(el).color") == red, "Remove is red"
+    done.click()
+    expect(sheet).to_be_hidden()

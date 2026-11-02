@@ -179,7 +179,7 @@ def row_gear(page: Page, side: str, index: int = 0):
 
 
 def set_row(page: Page, side: str, index: int = 0, amount: str | None = None, date: str | None = None) -> None:
-    """Open the settings of a row that already has its account, type its amount and/or day and tick it."""
+    """Open the settings of a row that already has its account, type its amount and/or day and press Done."""
     row_gear(page, side, index).click()
     sheet = page.locator("#row-settings")
     if amount is not None:
