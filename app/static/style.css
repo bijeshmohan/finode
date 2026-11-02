@@ -1598,8 +1598,8 @@ form.copy-last { margin: .25rem 0 .75rem; }
 
 /* ---------- Account and category rows: no pill, no amount field (2026-11-01) ---------- */
 /* A side lists what was added as slim rows (name, the day it posts when that differs, the amount when it differs from the
-   total); the amount and the day are typed in the picker sheet, under the account chosen, and a tick adds it. */
-.txn-row:has(.row-pick.slim) { grid-template-columns: minmax(0, 1fr); gap: 0; background: transparent; padding: 0; border-radius: 0; }
+   total); the amount and the day are set from the glyph at the right of a chosen row, in a small sheet with a tick. */
+.txn-row:has(.row-pick.slim) { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .25rem; background: transparent; padding: 0; border-radius: 0; }
 .txn-rows:has(.row-pick.slim) { gap: 0; }
 .txn-rows .txn-row + .txn-row { border-top: 1px solid var(--border); }
 .txn-row .row-pick.slim { display: flex; align-items: center; justify-content: flex-start; gap: .6rem; width: 100%; min-height: 2.9rem; margin: 0; padding: .35rem 0; border: 0; border-radius: 0; background: transparent; font: inherit; font-weight: 600; text-align: left; position: static; grid-column: 1; grid-row: 1; }
@@ -1617,12 +1617,17 @@ form.copy-last { margin: .25rem 0 .75rem; }
 .txn-row .row-pick.slim .rp-when[hidden], .txn-row .row-pick.slim .rp-amt[hidden] { display: none; }
 :root {
   --glyph-bank: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18'/%3E%3C/svg%3E");
+  --glyph-sliders: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h10M18 7h2M4 17h2M10 17h10'/%3E%3Ccircle cx='16' cy='7' r='2'/%3E%3Ccircle cx='8' cy='17' r='2'/%3E%3C/svg%3E");
   --glyph-tag: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12V4h8l10 10-8 8z'/%3E%3Ccircle cx='7.5' cy='8.5' r='1.2'/%3E%3C/svg%3E");
 }
 
-/* What opens under the account chosen in the picker. */
-.filter-options .pick-config { list-style: none; background: var(--surface-2); border-radius: 0 0 var(--radius-sm) var(--radius-sm); margin: -.25rem 0 .5rem; padding: .25rem .75rem .75rem; }
-.filter-options.grid .pick-config { grid-column: 1 / -1; }
+/* The settings sheet of a row, opened by the glyph at its right. */
+#row-settings .pick-fields { margin-top: .75rem; }
+.txn-row:has(.row-pick.slim) .row-settings-open { grid-column: 2; grid-row: 1; width: 2.25rem; height: 2.25rem; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--faint); position: relative; }
+.row-settings-open::before { content: ""; position: absolute; inset: .55rem; background: currentColor; -webkit-mask: var(--glyph-sliders) center / contain no-repeat; mask: var(--glyph-sliders) center / contain no-repeat; }
+.txn-row .row-settings-open.set { background: var(--surface-2); color: var(--text); }
+.row-settings-open[hidden] { display: none; }
+@media (hover: hover) { .row-settings-open:hover { color: var(--text); } }
 .pick-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 2.75rem; gap: .6rem; align-items: end; }
 .pick-fields:has([data-config-date-field][hidden]) { grid-template-columns: minmax(0, 1fr) 2.75rem; }
 .pick-field { display: flex; flex-direction: column; gap: .25rem; margin: 0; font-size: .6875rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }

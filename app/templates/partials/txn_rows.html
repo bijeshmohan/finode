@@ -47,9 +47,11 @@
     </div>
   </dialog>
 
-  {#- What opens under the account or category chosen in the picker: its amount and, on an account, the day it posts the line. -#}
-  <template id="pick-config-template">
-    <li class="pick-config">
+  {#- The settings of a row, opened by the glyph at its right: the amount and, on an account, the day it posts the line. -#}
+  <dialog id="row-settings" class="sheet sheet-bottom" aria-label="Amount and date">
+    <div class="sheet-body">
+      <div class="sheet-grab" aria-hidden="true"></div>
+      <h2 class="filter-title" tabindex="-1" data-settings-title></h2>
       <div class="pick-fields">
         <label class="pick-field">Amount
           <input type="text" inputmode="decimal" data-group autocomplete="off" data-config-amount>
@@ -57,8 +59,8 @@
         <label class="pick-field" data-config-date-field>Date
           <input type="date" data-config-date>
         </label>
-        <button type="button" class="tick" data-config-ok aria-label="Add">{{ icon("check") }}</button>
+        <button type="button" class="tick" data-config-ok aria-label="Done">{{ icon("check") }}</button>
       </div>
       <button type="button" class="link pick-remove" data-config-remove>Remove this one</button>
-    </li>
-  </template>
+    </div>
+  </dialog>
