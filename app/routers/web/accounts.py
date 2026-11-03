@@ -219,6 +219,12 @@ def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
             "account_count": sum(
                 1 for n in root.walk() if n.account.closed_on is None and n.depth > 0 and not n.children
             ),
+            # Whether any open account feeds the budget: the line under the figure then explains the dot beside them.
+            "has_budget_accounts": any(
+                n.account.on_budget and n.account.closed_on is None and not n.children
+                for n in root.walk()
+                if n.depth > 0
+            ),
         },
     )
 

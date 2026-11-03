@@ -131,3 +131,20 @@ def test_categories_end_with_an_add_row_and_an_empty_page_keeps_its_button(clien
     assert client.get("/categories?tab=income").text.count('class="add-row"') == 0, (
         "nothing in Income yet: its own button"
     )
+
+
+def test_accounts_in_the_budget_carry_a_dot_and_the_line_explains_it(client, tree):
+    html = client.get("/accounts?tab=assets").text
+    row = lambda name: re.search(
+        rf'<a class="account-row[^>]*>(?:(?!</a>).)*{name}(?:(?!</a>).)*</a>', html, re.S
+    ).group(0)
+    assert "budget-dot" in row("HDFC")
+    client.patch(f"/api/accounts/{tree['hdfc']}", json={"on_budget": False})
+    html = client.get("/accounts?tab=assets").text
+    assert "budget-dot" not in row("HDFC")
+    assert "budget-dot" in row("Rent")
+
+
+def test_the_key_shows_only_when_an_account_feeds_the_budget(client, tree):
+    assert "budget-key" in client.get("/accounts?tab=assets").text
+    assert "budget-key" not in client.get("/accounts?tab=liabilities").text
