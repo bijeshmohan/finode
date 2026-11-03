@@ -1646,3 +1646,8 @@ button.pick-remove:hover { color: var(--negative); }
 .coming-note { display: flex; justify-content: space-between; gap: .5rem; margin-top: .6rem; padding-top: .6rem; border-top: 1px solid var(--border); color: var(--text); font-size: .875rem; text-decoration: none; }
 .coming-note b { font-variant-numeric: tabular-nums; font-weight: 600; }
 .balance-after { margin: -.25rem 0 .75rem; font-size: .875rem; }
+
+/* A small dot beside an account that feeds the budget (Accounts page); the line under the figure explains it. */
+.budget-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text); opacity: .55; margin-left: .45rem; vertical-align: middle; flex: none; }
+.budget-key { display: inline-flex; align-items: center; }
+.budget-key .budget-dot { margin: 0 .35rem 0 0; }

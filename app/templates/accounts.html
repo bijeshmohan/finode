@@ -7,7 +7,7 @@
 {% macro entry(node) %}
 <li data-path="{{ node.path|lower }}" class="{{ 'closed-hidden' if node.closed }}">
   <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.id }}">
-    <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}</span>
+    <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}{% if node.account.on_budget and not node.closed %}<i class="budget-dot" title="In the budget"></i>{% endif %}</span>
     <span class="account-balance">{{ node.account.balance|money }}</span>
   </a>
 </li>
@@ -44,7 +44,7 @@
 <div class="ready zero budget-hero ready-hero cat-hero">
   <div class="hero-top"><div class="calc-row"><span class="muted">{{ {"assets": "What you own", "liabilities": "What you owe", "equity": "Equity"}[tab] }}</span></div></div>
   <span class="figure">{{ figure(root.account.balance, currency) }}</span>
-  <span class="glance-note hero-note"><span>{% if account_count %}{{ account_count }} account{{ "" if account_count == 1 else "s" }}{% else %}No accounts yet{% endif %}</span></span>
+  <span class="glance-note hero-note"><span>{% if account_count %}{{ account_count }} account{{ "" if account_count == 1 else "s" }}{% else %}No accounts yet{% endif %}</span>{% if has_budget_accounts %}<span class="budget-key"><i class="budget-dot"></i>in the budget</span>{% endif %}</span>
 </div>
 
 <div data-accounts>
