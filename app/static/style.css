@@ -1685,3 +1685,14 @@ label.check-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--
 .goal-calc { background: none; padding: .1rem .15rem; }
 .goal-calc b { font-size: 1.15rem; }
 label.check-row .hint { color: var(--muted); }
+
+/* ---------- A transaction's details beside the list on a wide screen with a mouse (2026-11-04) ---------- */
+.panel-close { display: none; }
+@media (min-width: 80rem) and (hover: hover) and (pointer: fine) {
+  dialog.sheet.side-panel { position: fixed; inset: 3rem 1.5rem auto auto; margin: 0; width: 22rem; max-width: 22rem; max-height: calc(100vh - 6rem); z-index: 15; box-shadow: var(--shadow); }
+  dialog.side-panel > .panel-close { display: grid; place-items: center; position: absolute; top: .6rem; right: .6rem; width: 2rem; height: 2rem; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; box-shadow: none; color: var(--muted); font-size: 1.4rem; line-height: 1; cursor: pointer; }
+  dialog.side-panel > .panel-close:hover { background: var(--surface-2); color: var(--text); }
+  dialog.side-panel .sheet-body { padding-top: 2.75rem; }
+  body.app:has(dialog.side-panel[open]) main { margin-left: calc(var(--sidebar-w) + 2rem); max-width: 38rem; }
+  a.tx.is-open { background: var(--surface-2); }
+}
