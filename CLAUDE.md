@@ -374,7 +374,7 @@ Every page is made of the same parts, so none looks like it came from another ap
 
 **The kind switcher glides (2026-10-24).** On the Add screen the Expense / Income / Transfer pill is one `::before` pill that slides to the chosen button (`form[data-txn-kind]` picks the position, transform and opacity only so Safari on iOS and macOS animate it; it fades out for "other"); the buttons no longer paint their own selected background. Off under reduced motion.
 
-**Safari on iOS and the keyboard's form bar (2026-11-04).** The translucent bar above the keyboard is not counted by the visual viewport, so a single filtered row sat under it. While a field in a sheet has focus on an iPhone or iPad, `place()` sets `--kb-bar` (3rem; 0 elsewhere) and a bottom sheet keeps that much padding below its content.
+**Safari on iOS and the keyboard's form bar (2026-11-04).** The translucent bar above the keyboard is not counted by the visual viewport, so a single filtered row sat under it. While a field in a sheet has focus on an iPhone or iPad, `place()` sets `--kb-bar` (.75rem on top of the safe-area padding the sheet already has; 0 elsewhere) and a bottom sheet keeps that much padding below its content.
 
 **Sheets and toasts move (2026-10-23).** A bottom sheet slides up from the edge in .25 s and the dim area fades (CSS `@starting-style` and `transition-behavior` on `dialog.sheet`, end of `style.css`; closing runs it backwards); on wide screens the sheet rises 12 px and fades. A toast rises in over .25 s and fades out (`toast-in`, `toast-out`, `--toast-life`: 2.9 s, 6.7 s with Undo). The sheet itself takes no focus ring (`outline: none`, for iOS). Reduced motion removes the sheet's transition and keeps the toast's timing without movement.
 
