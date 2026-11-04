@@ -520,7 +520,7 @@ document.body.addEventListener("click", (event) => {
   const vv = window.visualViewport;
   // Safari on iOS draws its translucent form bar (the arrows and Done) over the bottom of the page, above the keyboard, and
   // the visual viewport does not count it: the last row of a short list sat under it. While typing, the sheet keeps that
-  // much room below its content (--kb-bar).
+  // much room below its content (--kb-bar), on top of the safe area the sheet already keeps.
   const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const place = () => {
     if (!vv) return;
@@ -531,7 +531,7 @@ document.body.addEventListener("click", (event) => {
     const typing = !!field && field.matches && field.matches("input, select, textarea") && !!field.closest("dialog.sheet");
     root.setProperty("--kb", `${typing ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0}px`);
     root.setProperty("--vvh", `${Math.round(vv.height)}px`);
-    root.setProperty("--kb-bar", typing && ios ? "3rem" : "0px");
+    root.setProperty("--kb-bar", typing && ios ? ".75rem" : "0px");
   };
   if (vv) {
     vv.addEventListener("resize", place);

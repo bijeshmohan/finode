@@ -142,10 +142,10 @@ def test_on_an_iphone_the_sheet_keeps_room_for_the_keyboards_form_bar(browser, l
     search.focus()
     search.fill("chec")
     room = dialog.evaluate("el => parseFloat(getComputedStyle(el).paddingBottom)")
-    assert room >= 40
+    assert room >= 10
     search.blur()
     page.wait_for_timeout(800)
-    assert dialog.evaluate("el => parseFloat(getComputedStyle(el).paddingBottom)") < 40
+    assert dialog.evaluate("el => parseFloat(getComputedStyle(el).paddingBottom)") < 5
     context.close()
 
 
@@ -154,4 +154,4 @@ def test_off_an_iphone_the_sheet_keeps_no_extra_room(page: Page, books):
     page.locator('[data-rows="credit"] [data-pick]:visible').click()
     dialog = page.locator("#row-picker")
     dialog.locator("[data-pick-search]").focus()
-    assert dialog.evaluate("el => parseFloat(getComputedStyle(el).paddingBottom)") < 40
+    assert dialog.evaluate("el => parseFloat(getComputedStyle(el).paddingBottom)") < 5
