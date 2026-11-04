@@ -117,3 +117,41 @@ def test_pressing_an_option_keeps_the_search_focused_so_the_sheet_does_not_move(
     expect(search).to_be_focused()
     page.mouse.up()
     expect(dialog).to_be_hidden()  # chosen at once
+
+
+IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+
+
+def test_on_an_iphone_the_sheet_keeps_room_for_the_keyboards_form_bar(browser, live_server, books):
+    """Safari on iOS draws a translucent bar over the bottom of the page, above the keyboard, which the visual viewport does
+    not count: a single filtered row sat under it. While the search has focus the sheet keeps room below its content."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        base_url=live_server,
+        reduced_motion="reduce",
+        has_touch=True,
+        is_mobile=True,
+        user_agent=IPHONE,
+    )
+    page = context.new_page()
+    page.set_default_timeout(8000)
+    page.goto("/transactions/new")
+    page.locator('[data-rows="credit"] [data-pick]:visible').click()
+    dialog = page.locator("#row-picker")
+    search = dialog.locator("[data-pick-search]")
+    search.focus()
+    search.fill("chec")
+    room = dialog.evaluate("el => parseFloat(getComputedStyle(el).paddingBottom)")
+    assert room >= 40
+    search.blur()
+    page.wait_for_timeout(800)
+    assert dialog.evaluate("el => parseFloat(getComputedStyle(el).paddingBottom)") < 40
+    context.close()
+
+
+def test_off_an_iphone_the_sheet_keeps_no_extra_room(page: Page, books):
+    page.goto("/transactions/new")
+    page.locator('[data-rows="credit"] [data-pick]:visible').click()
+    dialog = page.locator("#row-picker")
+    dialog.locator("[data-pick-search]").focus()
+    assert dialog.evaluate("el => parseFloat(getComputedStyle(el).paddingBottom)") < 40
