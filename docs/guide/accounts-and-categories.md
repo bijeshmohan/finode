@@ -28,7 +28,7 @@ Tap **+ Add account**, the dashed row at the end of the Accounts page. The form 
 
 <img src="img/accounts.png" alt="The Accounts page: groups with subtotals, accounts in tiles" width="300">
 
-An account page shows its balance, an **Add transaction** button, a pencil for Edit, a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu when there is something in it (to add a sub-account or close it), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
+An account page shows its balance (the **+** at the bottom adds an entry for this account), a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu (Edit, add a sub-account, close it), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
 
 An account that has sub-accounts (such as a *Banks* group) is not posted to itself, so its page shows a **Sub-accounts** list with each balance instead; open one to see its transactions. The **+** beside the heading adds another.
 

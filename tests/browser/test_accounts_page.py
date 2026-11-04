@@ -111,9 +111,10 @@ def test_names_and_amounts_line_up_in_every_row(page: Page, api, books):
     assert len(lefts) >= 5 and len(set(lefts)) == 1, f"names start at the same edge: {lefts}"
 
 
-def test_the_edit_button_on_an_account_is_one_tap_away(page: Page, books):
+def test_edit_on_an_account_is_in_its_menu(page: Page, books):
     page.goto(f"/accounts/{books['checking']['id']}")
-    page.get_by_role("link", name="Edit Checking").click()
+    page.get_by_label("More actions").click()
+    page.get_by_role("link", name="Edit", exact=True).click()
     page.wait_for_url(f"**/accounts/{books['checking']['id']}/edit")
 
 

@@ -88,7 +88,7 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(pag
     page.locator("a.crow", has_text="Rent").click()
     page.wait_for_url(f"**/categories/{books['rent']['id']}**")
     expect(page.locator(".hero-balance")).to_have_text("₹900.00")
-    expect(page.get_by_role("link", name="Add transaction")).to_have_attribute(
+    expect(page.locator("a.fab")).to_have_attribute(
         "href", f"/transactions/new?category={books['rent']['id']}&back=/categories/{books['rent']['id']}"
     )
     page.get_by_label("More actions").click()

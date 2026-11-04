@@ -24,10 +24,10 @@
       <p class="acct-sub">{{ group.name if group else ("Earning" if earning else "Spending") }}</p>
     </div>
     <div class="acct-icons">
-      <a class="circ-button" href="/categories/{{ category.id }}/edit" title="Edit" aria-label="Edit {{ category.name }}">{{ icon("edit") }}</a>
       <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
+        <a href="/categories/{{ category.id }}/edit">{{ icon("edit") }}Edit</a>
         {% if not earning %}<a href="/budget">{{ icon("budget") }}See in Budgets</a>{% endif %}
         {% if can_add_child %}<a href="/categories/new?parent={{ category.id }}">{{ icon("plus") }}Add subcategory</a>{% endif %}
         {% if category.closed_on %}
@@ -69,7 +69,6 @@
 
 <div class="section-head">
   <h2>Transactions</h2>
-  {% if not category.closed_on %}<a class="circ-button" href="/transactions/new?category={{ category.id }}&back=/categories/{{ category.id }}" title="Add transaction" aria-label="Add transaction">{{ icon("plus") }}</a>{% endif %}
 </div>
 {% if entries %}
 <div class="tx-list">

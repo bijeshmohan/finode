@@ -23,18 +23,13 @@
       </div>
       <p class="acct-sub">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}</p>
     </div>
-    {% set has_menu = node.kind == "user" or (can_add_child and not account.closed_on) %}
-    {% if node.kind == "user" or has_menu %}
-    <div class="acct-icons">
-      {% if node.kind == "user" %}
-      <a class="circ-button" href="/accounts/{{ account.id }}/edit" title="Edit" aria-label="Edit {{ account.name }}">{{ icon("edit") }}</a>
-      {% endif %}
-      {% if has_menu %}
-            {% set menu_items = (can_add_child and not account.closed_on) or node.kind == "user" %}
-      {% if menu_items %}
-      <details class="menu">
+    {% if node.kind == "user" or (can_add_child and not account.closed_on) %}
+    <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
+        {% if node.kind == "user" %}
+        <a href="/accounts/{{ account.id }}/edit">{{ icon("edit") }}Edit</a>
+        {% endif %}
         {% if can_add_child and not account.closed_on %}
         <a href="/accounts/new?parent={{ account.id }}">{{ icon("plus") }}Add sub-account</a>
         {% endif %}
@@ -48,10 +43,7 @@
         {% endif %}
         {% endif %}
       </div>
-      </details>
-      {% endif %}
-      {% endif %}
-    </div>
+    </details>
     {% endif %}
   </div>
   {% if account.closed_on %}<p class="muted">Closed on {{ account.closed_on.strftime("%d %b %Y") }}. Its history stays; nothing can be added to it until you reopen it.</p>{% endif %}
@@ -59,9 +51,6 @@
   {% if balance_after is not none and upcoming %}<p class="balance-after muted" data-balance-after>{{ balance_after|money|amount(currency) }} after the {{ upcoming|length }} coming up</p>{% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
   {% include "partials/card_bill.html" %}
-  {% if node.postable and not account.closed_on %}
-  <a class="button acct-add" href="/transactions/new?account={{ account.id }}&back={{ area }}/{{ account.id }}">{{ icon("plus") }}Add transaction</a>
-  {% endif %}
   <p id="page-error" class="error" role="alert"></p>
 </header>
 
