@@ -25,8 +25,8 @@ def test_fieldsets_stay_block_for_safari():
 def test_the_budget_checkbox_is_a_whole_tappable_row(client: TestClient, root_accounts):
     bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
     page = client.get(f"/accounts/{bank['id']}/edit").text
-    assert '<label class="check">' in page and 'type="checkbox" name="on_budget"' in page
-    assert "label.check" in CSS and "cursor: pointer" in CSS
+    assert '<label class="check-row">' in page and 'type="checkbox" name="on_budget"' in page
+    assert "label.check-row" in CSS and "cursor: pointer" in CSS
 
 
 def test_the_token_form_keeps_its_legend_outside_the_segmented_choice(client: TestClient):

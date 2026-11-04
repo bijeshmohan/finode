@@ -13,12 +13,14 @@
            placeholder="{{ 'e.g. Groceries' if kind == 'spending' else 'e.g. Salary' }}" {{ "autofocus" if not editing }}>
   </label>
   {% if groups or parent_id %}
-  <label>Under
-    <select name="parent_id">
+  <div class="under-field">
+    <span>Under</span>
+    <select name="parent_id" data-parent-select data-allow-empty class="is-picked" aria-hidden="true" tabindex="-1">
       <option value="">None (top level)</option>
       {% for g in groups %}<option value="{{ g.id }}" {{ "selected" if g.id == parent_id }}>{{ g.name }}</option>{% endfor %}
     </select>
-  </label>
+    <button type="button" class="field-pick" data-pick-generic data-title="Under" aria-haspopup="dialog" aria-label="Under"><span>None (top level)</span></button>
+  </div>
   {% endif %}
   {% set note = (category.details or '') if editing else '' %}
   <details class="add-note" {{ "open" if note }}>
@@ -42,4 +44,5 @@
   <p class="hint muted">A category that was never used is removed for good. One with entries stays in your history and reports, but leaves your lists and pickers.</p>
 </section>
 {% endif %}
+{% include "partials/pick_dialog.html" %}
 {% endblock %}
