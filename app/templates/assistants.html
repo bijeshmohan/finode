@@ -1,48 +1,57 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
-{% from "partials/access.html" import level %}
 {% block title %}AI assistants · finode{% endblock %}
 {% block content %}
 <a class="back" href="/settings">{{ icon("back") }}Settings</a>
-<h1>AI assistants</h1>
-<p class="muted form-narrow">Let Claude or another assistant that speaks MCP work with your books. Each connection is either <strong>read only</strong> (it answers questions) or <strong>read &amp; write</strong> (it can also record transactions). You can change that at any time.</p>
+<div class="page-head tall"><h1>AI assistants</h1></div>
 
-<section class="card stack">
-  <h2>Connected</h2>
-  {% include "partials/connections.html" %}
-</section>
+<div class="settings">
+  <h2 class="settings-label">Connected</h2>
+  <div class="tile assist-list">
+    {% include "partials/connections.html" %}
+  </div>
 
-<section class="card stack">
-  <h2>Connect by signing in</h2>
-  <p class="muted">Add this address as a custom connector in Claude or another app, then choose the access level.</p>
-  <div class="copy-row"><code class="secret" id="mcp-address">{{ mcp_url }}</code>
-    <button type="button" class="secondary small" data-copy="#mcp-address">Copy</button></div>
-</section>
+  <h2 class="settings-label">Connect a new one</h2>
+  <div class="tile">
+  <details id="signin" class="setting">
+    <summary><span class="setting-title">Sign in with Claude</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">
+      <p class="muted">Add this address as a custom connector in Claude or another app, then choose the access level.</p>
+      <div class="copy-row"><code class="secret" id="mcp-address">{{ mcp_url }}</code>
+        <button type="button" class="secondary small" data-copy="#mcp-address">Copy</button></div>
+    </div>
+  </details>
 
-<section class="card stack">
-  <h2>Connect with a token</h2>
-  <p class="muted">For tools that take a token, such as Claude Code, Claude Desktop and Cursor.</p>
-  <form class="stack" hx-post="/profile/assistants" hx-target="#new-token" hx-swap="innerHTML">
-    <label>Name
-      <input type="text" name="name" maxlength="40" required autocomplete="off" placeholder="e.g. Claude Desktop">
-      <span class="hint">Where you'll use it. It shows up next to everything the assistant records.</span>
-    </label>
-    <fieldset class="plain">
-      <legend>Access</legend>
-      <div class="access-choice">
-        <label class="access-card"><input type="radio" name="scope" value="read" checked><span>{{ level("read") }}</span></label>
-        <label class="access-card"><input type="radio" name="scope" value="write"><span>{{ level("write") }}</span></label>
-        <label class="access-card"><input type="radio" name="scope" value="manage"><span>{{ level("manage") }}</span></label>
-      </div>
-    </fieldset>
-    <p id="token-error" class="error" role="alert"></p>
-    <div class="actions"><button type="submit">{{ icon("key") }}Create token</button></div>
-  </form>
-  <div id="new-token"></div>
-</section>
+  <details id="token" class="setting">
+    <summary><span class="setting-title">Use a token</span><span class="setting-value">Claude Code, Cursor</span>{{ icon("chevron-right") }}</summary>
+    <form class="stack" hx-post="/profile/assistants" hx-target="#new-token" hx-swap="innerHTML">
+      <label>Name
+        <input type="text" name="name" maxlength="40" required autocomplete="off" placeholder="e.g. Claude Desktop">
+        <span class="hint">Where you'll use it. It shows up next to everything the assistant records.</span>
+      </label>
+      <fieldset class="plain">
+        <legend>Access</legend>
+        <div class="scope-seg">
+          <label><input type="radio" name="scope" value="read" checked><span>Read</span></label>
+          <label><input type="radio" name="scope" value="write"><span>Write</span></label>
+          <label><input type="radio" name="scope" value="manage"><span>Manage</span></label>
+        </div>
+        <div class="scope-desc muted">
+          <p data-for="read"><strong>Read only.</strong> Answers questions about your accounts, balances, transactions and reports. Cannot change anything. The safe choice; you can allow changes later.</p>
+          <p data-for="write"><strong>Read &amp; write.</strong> Can also record, edit and delete transactions and add accounts. Cannot rename, merge or delete accounts. Everything it records carries its name, so you can review it.</p>
+          <p data-for="manage"><strong>Read, write &amp; manage accounts.</strong> Can also rename, move, close and reopen accounts, and merge two into one. Never deletes accounts. It changes how your whole history is organised, so allow it only for assistants you trust.</p>
+        </div>
+      </fieldset>
+      <p id="token-error" class="error" role="alert"></p>
+      <div class="actions"><button type="submit">{{ icon("key") }}Create token</button></div>
+    </form>
+    <div id="new-token"></div>
+  </details>
 
-<details class="card stack">
-  <summary>Setup instructions for tokens</summary>
-  {% with secret = none %}{% include "partials/mcp_setup.html" %}{% endwith %}
-</details>
+  <details id="setup" class="setting">
+    <summary><span class="setting-title">Setup instructions for tokens</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">{% with secret = none %}{% include "partials/mcp_setup.html" %}{% endwith %}</div>
+  </details>
+  </div>
+</div>
 {% endblock %}
