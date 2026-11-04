@@ -1007,7 +1007,6 @@ ul.tile.list > li + li { border-top-color: var(--surface-2); }
 .cat-bar.acct-nav .back { margin: 0 0 0 -.35rem; }
 .acct-nav + .account-hero .hero-balance { margin-top: .5rem; }
 .section-head:has(> .circ-button) { align-items: center; }
-.acct-add { display: inline-flex; width: auto; min-height: 2.5rem; margin-top: .25rem; padding: 0 1.1rem; border-radius: 999px; }
 details.menu, details.note-info { position: static; }
 .acct-name-row { display: flex; align-items: center; gap: .35rem; min-width: 0; }
 .acct-name-row h1 { min-width: 0; overflow-wrap: anywhere; }

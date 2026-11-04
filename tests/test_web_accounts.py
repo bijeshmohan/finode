@@ -63,7 +63,7 @@ def test_account_page_shows_balance_activity_and_actions(
     text = client.get(f"/accounts/{bank['id']}").text
     assert "70.00" in text
     assert "lunch" in text and "30.00" in text and "−30.00" not in text
-    assert f'href="/transactions/new?account={bank["id"]}&back=/accounts/{bank["id"]}"' in text
+    assert f'class="fab" href="/transactions/new?account={bank["id"]}&amp;back=/accounts/{bank["id"]}"' in text
     assert f'href="/accounts/{bank["id"]}/edit"' in text
     # it has postings, so it cannot gain sub-accounts
     assert f"/accounts/new?parent={bank['id']}" not in text
@@ -249,20 +249,23 @@ def test_expense_group_page_shows_direct_postings(client: TestClient, account: d
     assert f"/categories/new?parent={expense_account['id']}" in text
 
 
-def test_the_edit_button_is_beside_the_menu_not_inside_it(client, root_accounts):
+def test_edit_is_the_first_row_of_the_one_menu(client, root_accounts):
     bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}).json()
     page = client.get(f"/accounts/{bank['id']}").text
     head, menu = page.split('<details class="menu">', 1)
-    assert f'class="circ-button" href="/accounts/{bank["id"]}/edit"' in head and 'title="Edit"' in head
-    assert f"/accounts/{bank['id']}/edit" not in menu.split("</details>", 1)[0], "it left the menu"
+    menu = menu.split("</details>", 1)[0]
+    assert "circ-button" not in head.split("<h1>", 1)[1] and "/edit" not in head, "no pencil of its own"
+    assert menu.index(f'href="/accounts/{bank["id"]}/edit"') < menu.index("Close account")
     food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     cat = client.get(f"/categories/{food['id']}").text
-    assert f'class="circ-button" href="/categories/{food["id"]}/edit"' in cat.split('<details class="menu">', 1)[0]
+    cat_head, cat_menu = cat.split('<details class="menu">', 1)
+    assert "/edit" not in cat_head.split("<h1>", 1)[1]
+    assert f'href="/categories/{food["id"]}/edit"' in cat_menu.split("</details>", 1)[0]
     roots_page = client.get(f"/accounts/{root_accounts['Assets']}").text
     assert f"/accounts/{root_accounts['Assets']}/edit" not in roots_page, "a top-level account cannot be edited"
 
 
-def test_the_top_is_a_title_with_its_actions_then_the_figure_and_a_wide_add_button(client, root_accounts):
+def test_the_top_is_a_title_with_its_menu_then_the_figure_and_no_add_button(client, root_accounts):
     bank = post_account(
         client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10", "details": "main account"}
     ).json()
@@ -271,15 +274,13 @@ def test_the_top_is_a_title_with_its_actions_then_the_figure_and_a_wide_add_butt
     assert (
         head.index("<h1>Bank")
         < head.index('class="note-info"')
-        < head.index('title="Edit"')
         < head.index('class="menu"')
         < head.index("hero-balance")
-        < head.index("acct-add")
     )
     assert "Assets · main account" not in head and ">Assets</p>" in head, (
         "the small line is the type; the note is behind the i"
     )
-    assert 'class="button acct-add"' in head and "Add transaction" in head
+    assert "acct-add" not in page and "Add transaction" not in head, "the docked + already adds one for this account"
 
 
 def test_a_category_has_the_month_pill_in_the_top_row_and_no_label(client, root_accounts):
@@ -293,7 +294,7 @@ def test_a_category_has_the_month_pill_in_the_top_row_and_no_label(client, root_
     assert "month-pill" not in head and ">Spending</p>" in head, "the type stays under the title"
     assert "so far" not in head and "Spent" not in head and "Earned" not in head, "the figure needs no label"
     assert 'title="Previous month"' in nav and 'title="Next month"' not in nav, "nothing after the current month"
-    assert "acct-add" not in page, "adding is a + on the Transactions heading"
+    assert "acct-add" not in page
     last = client.get(f"/categories/{food['id']}?month=2026-01").text
     assert 'title="Next month"' in last and "Jan 2026" in last
 

@@ -142,7 +142,7 @@ def test_a_category_page_shows_its_month_and_its_transactions(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     entry(client, books["groceries"], books["bank"], "70", LAST_MONTH.replace(day=3))
     page = client.get(f"/categories/{books['groceries']['id']}").text
-    assert "300.00" in page and "Add transaction" in page and "/budget" in page
+    assert "300.00" in page and f"/transactions/new?category={books['groceries']['id']}" in page and "/budget" in page
     assert page.count('class="tx"') == 1, "only this month's"
     assert "Add subcategory" not in page, "a subcategory is as deep as it gets"
     assert "Add subcategory" in client.get(f"/categories/{books['food']['id']}").text
@@ -291,15 +291,14 @@ def test_a_category_page_lists_only_what_was_posted_to_it_not_its_sub_categories
     assert client.get(f"/categories/{books['groceries']['id']}").text.count('class="tx"') == 1
 
 
-def test_each_list_heading_on_a_category_page_has_its_own_plus(client, books):
+def test_the_subcategories_heading_has_a_plus_and_the_transactions_heading_none(client, books):
     entry(client, books["groceries"], books["bank"], "30", THIS_MONTH)
     group = client.get(f"/categories/{books['food']['id']}").text
     assert f'href="/categories/new?parent={books["food"]["id"]}"' in group and 'title="Add subcategory"' in group
-    assert f'href="/transactions/new?category={books["food"]["id"]}' in group and 'title="Add transaction"' in group
+    assert 'title="Add transaction"' not in group, "the docked + adds one for this category"
+    assert f'class="fab" href="/transactions/new?category={books["food"]["id"]}' in group
     leaf = client.get(f"/categories/{books['groceries']['id']}").text
-    assert (
-        'title="Add transaction"' in leaf and "Subcategories" not in leaf and 'title="Add subcategory"' not in leaf
-    ), "as deep as it gets"
+    assert "Subcategories" not in leaf and 'title="Add subcategory"' not in leaf, "as deep as it gets"
     empty = client.get(f"/categories/{books['rent']['id']}").text
     assert "Subcategories" not in empty and 'title="Add subcategory"' not in empty, (
         "no empty row: the … menu adds the first"
