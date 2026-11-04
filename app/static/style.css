@@ -898,7 +898,7 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
 @media (max-width: 40rem) {
   dialog.sheet.sheet-bottom {
     width: 100%; max-width: none; margin: auto 0 var(--kb, 0px); border-radius: 24px 24px 0 0; border-width: 1px 0 0;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--kb-bar, 0px));
   }
   .sheet-grab { display: block; width: 2.5rem; height: 4px; margin: -.25rem auto 1rem; border-radius: 2px; background: var(--border); }
 }
