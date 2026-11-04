@@ -45,7 +45,7 @@ On a wide screen a sidebar replaces the bar and the **+** (it has a *New transac
 1. Tap **+**.
 2. Type the **amount** at the top.
 3. Optionally type a **payee** (who you paid).
-4. Keep **Expense** selected (the default), then choose **Paid from** (the account you paid with) and **Category** (what it was for, such as Groceries). You can create an account or category right there with *+ New category…*.
+4. Keep **Expense** selected (the default), then choose **Paid from** (the account you paid with) and **Spent on** (the category, such as Groceries). You can create an account or category right there with *+ New category…*.
 5. Change the **date** if it was not today, and add a **note** if you like.
 6. **Save**.
 

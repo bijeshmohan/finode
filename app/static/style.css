@@ -741,7 +741,6 @@ form.notice.fund button { margin: 0; }
 .txn-side { display: flex; flex-direction: column; gap: .5rem; }
 .txn-side-head { display: flex; align-items: center; justify-content: space-between; }
 .txn-side-head h2 { margin: 0; font-size: 1rem; }
-.txn-side-head .hint { font-weight: 400; margin-left: .35rem; }
 .txn-rows { display: flex; flex-direction: column; gap: .5rem; }
 .txn-row { display: grid; grid-template-columns: minmax(0, 1fr) 8rem var(--tap); gap: .5rem; align-items: center; }
 .txn-row [hidden] { display: none !important; }
@@ -822,7 +821,6 @@ button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--ac
 /* From and To are tiles, like every other group on the page. */
 .txn-side { background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); padding: .75rem 1rem .9rem; }
 .txn-side-head h2 { font-size: .8125rem; font-weight: 500; color: var(--muted); margin: 0; }
-.txn-side-head .hint { font-weight: 400; color: var(--faint); }
 .txn-row { grid-template-columns: minmax(0, 1fr) 7rem var(--tap); gap: .25rem .5rem; }
 .txn-row select, .txn-row input {
   border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background-color: transparent; box-shadow: none;
@@ -1543,7 +1541,6 @@ button.add-row { width: 100%; font: inherit; cursor: pointer; background: transp
 .txn-row .row-pick.pill.empty { color: var(--muted); font-weight: 500; }
 .txn-row .row-category + .row-pick.pill { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
 .txn-row .row-pick[hidden] { display: none; }
-.txn-side.cat-side .txn-side-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .txn-side.cat-side .side-status:empty { display: none; }
 .txn-row .row-pick.pill { justify-self: start; min-width: 0; }
 .txn-row .row-pick.pill > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

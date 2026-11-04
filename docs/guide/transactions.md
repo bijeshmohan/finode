@@ -8,7 +8,7 @@ Tap **+** (phone) or **New transaction** (wide screen).
 
 1. **Amount**: type it at the top. The amount field cleans itself as you type: only digits, one decimal point and a leading minus are kept, so `42.00.00` cannot happen. On a phone, tap the amount to open the keyboard. Amounts are grouped as you type (1,24,500 for rupees).
 2. **Kind**: **Expense** (the default), **Income** or **Transfer**. The kind only narrows the lists:
-   - Expense: **Paid from** an account or card, for a **Category**.
+   - Expense: **Paid from** an account or card, **Spent on** a category.
    - Income: a **Category** (such as Salary), **Received in** an account.
    - Transfer: **From** and **To** your own accounts (including paying a card or a loan).
    - Tap the selected kind again to select *none*: every account is offered. Use this for anything unusual.
