@@ -29,10 +29,10 @@ def test_the_budget_checkbox_is_a_whole_tappable_row(client: TestClient, root_ac
     assert "label.check" in CSS and "cursor: pointer" in CSS
 
 
-def test_the_token_form_wraps_its_cards_so_the_legend_is_not_a_grid_item(client: TestClient):
+def test_the_token_form_keeps_its_legend_outside_the_segmented_choice(client: TestClient):
     page = client.get("/profile/assistants").text
     form = page[page.index('<fieldset class="plain">') :]
-    assert form.index("<legend>Access</legend>") < form.index('<div class="access-choice">')
+    assert form.index("<legend>Access</legend>") < form.index('<div class="scope-seg">')
     assert page.count('type="radio" name="scope"') == 3
 
 

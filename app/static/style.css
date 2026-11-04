@@ -1650,3 +1650,17 @@ button.pick-remove:hover { color: var(--negative); }
 .budget-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text); opacity: .55; margin-left: .45rem; vertical-align: middle; flex: none; }
 .budget-key { display: inline-flex; align-items: center; }
 .budget-key .budget-dot { margin: 0 .35rem 0 0; }
+.setting-title.danger-title { color: var(--danger); }
+
+/* AI assistants: the access level is one segmented choice with a sentence under it (2026-11-04). */
+.scope-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 4px; border-radius: 14px; background: var(--surface-2); }
+.scope-seg label { position: relative; display: block; margin: 0; padding: .55rem 0; border-radius: 10px; text-align: center; color: var(--muted); font-size: .9rem; cursor: pointer; }
+.scope-seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.scope-seg label:has(input:checked) { background: var(--surface); color: var(--text); font-weight: 600; }
+.scope-seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.scope-desc p { display: none; margin: .6rem .25rem 0; font-size: .9rem; }
+fieldset:has(input[value="read"]:checked) .scope-desc [data-for="read"],
+fieldset:has(input[value="write"]:checked) .scope-desc [data-for="write"],
+fieldset:has(input[value="manage"]:checked) .scope-desc [data-for="manage"] { display: block; }
+.assist-list { padding: .25rem 1rem; }
+.assist-list .muted { margin: .75rem 0; }
