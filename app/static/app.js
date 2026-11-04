@@ -420,6 +420,37 @@ function applyKind(form, kind) {
 
 // A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
 // if it never does (an error, no connection) the sheet closes again.
+// On a wide screen with a mouse the transaction's details open in a panel beside the list (not over it), so the list stays in
+// view and another row can be tapped at once; everywhere else it is the bottom sheet.
+const wideScreen = window.matchMedia("(min-width: 80rem) and (hover: hover) and (pointer: fine)");
+function openSheet(dialog) {
+  if (dialog.open) return;
+  const panel = dialog.id === "txn-sheet" && wideScreen.matches;
+  dialog.classList.toggle("side-panel", panel);
+  if (!panel) return dialog.showModal();
+  if (!dialog.querySelector(":scope > .panel-close")) {
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "panel-close";
+    close.setAttribute("aria-label", "Close");
+    close.textContent = "×";
+    dialog.prepend(close);
+  }
+  dialog.show();
+}
+document.addEventListener("click", (event) => {
+  const close = event.target.closest && event.target.closest(".panel-close");
+  if (close) close.closest("dialog").close();
+});
+document.addEventListener("keydown", (event) => {
+  const panel = event.key === "Escape" && document.querySelector("dialog.side-panel[open]");
+  if (panel && !document.querySelector("dialog:modal")) panel.close();
+});
+document.addEventListener("close", (event) => {
+  if (event.target.classList && event.target.classList.contains("side-panel")) {
+    document.querySelectorAll("a.tx.is-open").forEach((row) => row.classList.remove("is-open"));
+  }
+}, true);
 const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "todo-sheet-body"];
 const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
 document.body.addEventListener("htmx:beforeRequest", (event) => {
@@ -432,7 +463,12 @@ document.body.addEventListener("htmx:beforeRequest", (event) => {
   body.innerHTML = SHEET_SKELETON;
   dialog.dataset.loading = "1";
   loadingBy.set(dialog, event.detail.elt);
-  if (!dialog.open) dialog.showModal();
+  const row = event.detail.elt.closest && event.detail.elt.closest("a.tx");
+  if (row && wideScreen.matches && dialog.id === "txn-sheet") {
+    document.querySelectorAll("a.tx.is-open").forEach((other) => other.classList.remove("is-open"));
+    row.classList.add("is-open");
+  }
+  openSheet(dialog);
 });
 // A sheet closed while its content is still on the way stays closed: the request is dropped, so nothing arrives to reopen it.
 const loadingBy = new WeakMap();
@@ -498,7 +534,7 @@ document.addEventListener("pointerdown", (event) => {
 }, true);
 document.body.addEventListener("click", (event) => {
   const dialog = event.target;
-  if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains("sheet-bottom")) return;
+  if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains("sheet-bottom") || dialog.classList.contains("side-panel")) return;
   if (pressedInside) {
     pressedInside = false;
     return;
