@@ -13,14 +13,16 @@
     <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
            placeholder="e.g. HDFC Savings" {{ "autofocus" if not editing }}>
   </label>
-  <label>Under
-    <select name="parent_id" required>
+  <div class="under-field">
+    <span>Under</span>
+    <select name="parent_id" data-parent-select class="is-picked" aria-hidden="true" tabindex="-1">
       {% if not editing %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
-      <option value="{{ n.account.id }}" {{ "selected" if n.account.id == parent_id }}{% if root_of %} data-root="{{ root_of[n.account.id] }}"{% endif %}{% if starts and n.account.id in starts %} data-start="{{ starts[n.account.id] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
+      <option value="{{ n.account.id }}" {{ "selected" if n.account.id == parent_id }}{% if root_of %} data-root="{{ root_of[n.account.id] }}"{% endif %}{% if starts and n.account.id in starts %} data-start="{{ starts[n.account.id] }}"{% endif %}>{{ n.path }}</option>
       {% endfor %}
     </select>
-  </label>
+    <button type="button" class="field-pick" data-pick-generic data-title="Under" aria-haspopup="dialog" aria-label="Under"><span>Choose…</span></button>
+  </div>
   {% if not editing or node.is_leaf %}
   <label>{{ "Balance" if editing else "Current balance" }}
     <input type="text" name="balance" inputmode="decimal" placeholder="0.00"
@@ -31,9 +33,9 @@
   {% if editing and can_budget or not editing %}
   <div class="stack" data-budget-fields data-root="{{ root_name }}" {{ "hidden" if not can_budget }}>
   <input type="hidden" name="budget_choice" value="1">
-  <label class="check">
-    <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
+  <label class="check-row">
     <span>Part of the budget <span class="hint">Money you assign to categories</span></span>
+    <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
   </label>
   </div>
   {% endif %}
@@ -83,4 +85,5 @@
   <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
 </section>
 {% endif %}
+{% include "partials/pick_dialog.html" %}
 {% endblock %}

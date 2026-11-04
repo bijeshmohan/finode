@@ -398,3 +398,17 @@ def test_home_is_centred_beside_the_sidebar_and_its_day_label_lines_up(page: Pag
     heading = page.locator(".home-recent .section-head h2").bounding_box()["x"]
     day = page.locator(".tx-day-head").first.bounding_box()["x"]
     assert abs(heading - day) <= 1, "the day label starts where the heading does"
+
+
+def test_the_goal_form_has_a_month_chip_and_a_switch_instead_of_boxes(page: Page, books):
+    index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
+    by = f"{index // 12}-{index % 12 + 1:02d}"
+    page.goto("/budget/goal")
+    chip = page.locator("[data-month-chip]")
+    expect(chip).to_have_text("Needed by…")
+    page.locator('input[name="by"]').fill(by)
+    expect(chip).to_contain_text("Needed by · ")
+    expect(chip).to_contain_text(str(index // 12))
+    switch = page.locator('input[name="assign_now"]')
+    expect(switch).to_be_checked()
+    assert switch.evaluate("e => getComputedStyle(e).borderRadius") != "0px", "drawn as a switch, not a native box"

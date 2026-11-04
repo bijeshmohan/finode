@@ -37,9 +37,9 @@ def test_a_groups_own_page_adds_inside_it(page: Page, api):
 
 
 def choose(page: Page, name: str) -> None:
-    """Pick a parent by its name (the options are indented by depth, so the label alone does not match)."""
-    value = page.locator("select[name=parent_id] option", has_text=name).first.get_attribute("value")
-    page.locator('select[name="parent_id"]').select_option(value=value)
+    """Pick a parent by its name in the Under sheet."""
+    page.locator(".field-pick").click()
+    page.locator("#row-picker [data-pick-option]", has_text=name).first.click()
 
 
 def test_the_budget_line_follows_the_group_chosen(page: Page):

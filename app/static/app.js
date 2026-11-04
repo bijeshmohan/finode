@@ -729,6 +729,8 @@ function syncRowPickers(form) {
   let noun = "category";
   let target = null;
   let clearable = false; // a payment's category can be none
+  let emptyLabel = "No category"; // what choosing nothing is called
+  let flat = false; // the Under field of a form: one plain list of accounts, each with the group it sits in
   let taken = new Set(); // what the other side of the entry already uses: an account cannot be on both
   const choices = () => [...target.options].filter((o) => o.value && o.value !== NEW_ACCOUNT);
   const row = (option, group) => {
@@ -771,7 +773,15 @@ function syncRowPickers(form) {
     const text = search.value.trim().toLowerCase();
     const all = choices();
     list.replaceChildren();
-    if (text) {
+    if (flat) {
+      all.filter((o) => o.textContent.toLowerCase().includes(text)).forEach((o) => list.append(row(o, "")));
+      if (!list.children.length) {
+        const li = document.createElement("li");
+        li.className = "filter-empty muted";
+        li.textContent = `No ${noun} matches.`;
+        list.append(li);
+      }
+    } else if (text) {
       all.filter((o) => o.textContent.toLowerCase().includes(text)).forEach((o) => list.append(row(o, "")));
       if (!list.children.length) {
         const li = document.createElement("li");
@@ -799,7 +809,7 @@ function syncRowPickers(form) {
       button.type = "button";
       button.dataset.pickOption = "";
       button.setAttribute("aria-pressed", String(!target.value));
-      button.textContent = "No category";
+      button.textContent = emptyLabel;
       li.append(button);
       list.prepend(li);
     }
@@ -820,8 +830,28 @@ function syncRowPickers(form) {
     if (event.target.closest && event.target.closest("button")) event.preventDefault();
   });
   document.body.addEventListener("click", (event) => {
+    const under = event.target.closest && event.target.closest("[data-pick-generic]");
+    if (under) {
+      target = under.previousElementSibling; // the hidden select this button stands for
+      clearable = target.hasAttribute("data-allow-empty");
+      emptyLabel = target.querySelector('option[value=""]')?.textContent || "None";
+      flat = true;
+      noun = "account";
+      title.textContent = under.dataset.title;
+      dialog.setAttribute("aria-label", title.textContent);
+      search.placeholder = target.name === "parent_id" && clearable ? "Search groups" : "Search accounts";
+      search.setAttribute("aria-label", search.placeholder);
+      list.classList.remove("grid");
+      taken = new Set();
+      search.value = "";
+      draw();
+      dialog.showModal();
+      return;
+    }
     const open = event.target.closest && event.target.closest("[data-pick]");
     if (open) {
+      flat = false;
+      emptyLabel = "No category";
       const rowEl = open.closest("[data-row]");
       const form = open.closest("form[data-txn-form]");
       const side = rowEl.querySelector('[name="side"]').value;
@@ -858,6 +888,22 @@ function syncRowPickers(form) {
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   search.addEventListener("input", draw);
+})();
+
+// The Under field of the account and category forms shows the chosen group on its button (the select stays, hidden).
+(() => {
+  const show = (select) => {
+    const option = select.selectedOptions[0];
+    const chosen = option && (option.value || select.hasAttribute("data-allow-empty"));
+    const text = chosen ? option.textContent.split(" › ").pop().trim() : "Choose…";
+    const label = select.nextElementSibling.firstElementChild;
+    if (label.textContent !== text) label.textContent = text;
+    select.nextElementSibling.classList.toggle("empty", !chosen);
+  };
+  document.querySelectorAll("select[data-parent-select]").forEach(show);
+  document.body.addEventListener("change", (event) => {
+    if (event.target.matches && event.target.matches("select[data-parent-select]")) show(event.target);
+  });
 })();
 
 // The settings sheet of a row: its amount and the day its account posts the line. The tick puts them on the row.
@@ -1565,4 +1611,22 @@ document.addEventListener("change", (event) => {
     if (posted.value && posted.value < field.value) posted.value = "";
   });
   recomputeTxn(form);
+});
+
+// The goal form's month chip: a native month picker under "Needed by · Mar 2027"; choosing a month renames it.
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  const chip = input instanceof HTMLInputElement && input.closest("[data-month-chip]");
+  if (!chip) return;
+  const label = chip.querySelector("[data-month-label]");
+  chip.classList.toggle("dim", !input.value);
+  if (!input.value) { label.textContent = "Needed by…"; return; }
+  const [y, m] = input.value.split("-").map(Number);
+  label.textContent = `Needed by · ${new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-GB", { timeZone: "UTC", month: "short", year: "numeric" })}`;
+});
+document.addEventListener("click", (event) => {
+  const input = event.target;
+  if (input instanceof HTMLInputElement && input.closest("[data-month-chip]") && typeof input.showPicker === "function") {
+    try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
+  }
 });

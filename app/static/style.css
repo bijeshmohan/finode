@@ -1651,3 +1651,24 @@ button.pick-remove:hover { color: var(--negative); }
 .budget-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text); opacity: .55; margin-left: .45rem; vertical-align: middle; flex: none; }
 .budget-key { display: inline-flex; align-items: center; }
 .budget-key .budget-dot { margin: 0 .35rem 0 0; }
+
+/* "Under" on the account and category forms is our own sheet, not the browser's list (2026-11-04). */
+.under-field { display: flex; flex-direction: column; gap: .3rem; font-size: .875rem; font-weight: 500; color: var(--muted); }
+.under-field select.is-picked { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.field-pick { position: relative; display: flex; align-items: center; justify-content: flex-start; width: 100%; min-height: var(--tap); margin: 0; padding: .55rem 2rem .55rem .7rem; border: 1px solid var(--field-border); border-radius: var(--radius-sm); background: var(--surface); box-shadow: none; color: var(--text); font: inherit; font-size: 1rem; font-weight: 400; text-align: left; cursor: pointer; }
+.field-pick::after { content: "›"; position: absolute; right: .8rem; color: var(--faint); font-size: 1.25rem; }
+.field-pick.empty { color: var(--muted); }
+.field-pick:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* A yes/no row: the words at the left, a switch at the right, no box (goal form, "Part of the budget"; 2026-11-04). */
+label.check-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 1rem; min-height: var(--tap); padding: .15rem 0; color: var(--text); font-weight: 400; font-size: 1rem; cursor: pointer; }
+label.check-row > span { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+label.check-row input[type="checkbox"] { -webkit-appearance: none; appearance: none; flex: none; width: 2.75rem; height: 1.6rem; border-radius: 999px; border: 0; background: var(--field-border) radial-gradient(circle closest-side, var(--surface) 96%, transparent) no-repeat .2rem center / 1.2rem 1.2rem; transition: background-color .15s ease, background-position .15s ease; }
+label.check-row input[type="checkbox"]:checked { background-color: var(--accent); background-image: radial-gradient(circle closest-side, var(--on-accent) 96%, transparent); background-position: calc(100% - .2rem) center; }
+label.check-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { label.check-row input[type="checkbox"] { transition: none; } }
+.month-chip { position: relative; display: inline-flex; flex-direction: row; align-self: flex-start; gap: .4rem; align-items: center; cursor: pointer; padding: 0 .9rem; min-height: 2.25rem; border-radius: 999px; font-size: .875rem; font-weight: 500; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+.month-chip.dim [data-month-label] { color: var(--muted); }
+.goal-calc { background: none; padding: .1rem .15rem; }
+.goal-calc b { font-size: 1.15rem; }
+label.check-row .hint { color: var(--muted); }
