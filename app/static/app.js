@@ -340,20 +340,20 @@ function money(value) {
 // What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
 const KINDS = {
   expense: {
-    credit: { roots: ["Assets", "Liabilities"], title: "Paid from", hint: "the account you paid with" },
-    debit: { roots: ["Expenses"], title: "Category", hint: "what it was for" },
+    credit: { roots: ["Assets", "Liabilities"], title: "Paid from" },
+    debit: { roots: ["Expenses"], title: "Spent on" },
   },
   income: {
-    credit: { roots: ["Income"], title: "Category", hint: "who paid you" },
-    debit: { roots: ["Assets", "Liabilities"], title: "Received in", hint: "where it landed" },
+    credit: { roots: ["Income"], title: "From" },
+    debit: { roots: ["Assets", "Liabilities"], title: "Received in" },
   },
   transfer: {
-    credit: { roots: ["Assets", "Liabilities"], title: "From", hint: "the account the money leaves" },
-    debit: { roots: ["Assets", "Liabilities"], title: "To", hint: "the account it goes to" },
+    credit: { roots: ["Assets", "Liabilities"], title: "From" },
+    debit: { roots: ["Assets", "Liabilities"], title: "To" },
   },
   other: {
-    credit: { roots: null, title: "From", hint: "where the money comes from" },
-    debit: { roots: null, title: "To", hint: "where the money goes" },
+    credit: { roots: null, title: "From" },
+    debit: { roots: null, title: "To" },
   },
 };
 
@@ -401,8 +401,6 @@ function applyKind(form, kind) {
     select.dataset.previous = select.value;
   });
   ["credit", "debit"].forEach((side) => {
-    const hint = form.querySelector(`[data-side-section="${side}"] [data-side-hint]`);
-    if (hint) hint.textContent = KINDS[kind][side].hint;
     const title = form.querySelector(`[data-side-section="${side}"] [data-side-title]`);
     if (title) title.textContent = KINDS[kind][side].title;
   });

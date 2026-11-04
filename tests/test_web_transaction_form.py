@@ -428,7 +428,7 @@ def test_a_new_entry_starts_as_an_expense_with_three_buttons_in_order(
     order = [page.index(f">{label}</button>") for label in ("Expense", "Income", "Transfer")]
     assert order == sorted(order), "Expense, Income, Transfer"
     assert ">Other</button>" not in page, "no button for it: selecting nothing offers every account"
-    assert "data-side-hint" in page
+    assert "data-side-hint" not in page and "the account you paid with" not in page, "the headings are enough"
 
 
 def test_an_entry_that_fits_no_kind_has_nothing_selected(

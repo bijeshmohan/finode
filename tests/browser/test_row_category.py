@@ -73,7 +73,7 @@ def test_an_edit_keeps_the_category_it_had(page: Page, books, api: Api):
 def test_a_category_is_chosen_in_a_sheet(page: Page, books, api: Api):
     api.post("/accounts/", name="Dining", parent_id=books["roots"]["Expenses"])
     page.goto("/transactions/new")
-    expect(page.locator('[data-side-section="debit"] [data-side-title]')).to_have_text("Category")
+    expect(page.locator('[data-side-section="debit"] [data-side-title]')).to_have_text("Spent on")
     expect(page.locator('[data-side-section="credit"] [data-side-title]')).to_have_text("Paid from")
     button = page.locator('[data-rows="debit"] [data-pick]:visible')
     expect(button).to_have_text("Category…")
@@ -108,7 +108,7 @@ def test_a_new_category_can_be_made_from_the_sheet(page: Page, books, api: Api):
 def test_income_shows_the_earning_categories_and_a_transfer_lists_accounts(page: Page, books):
     page.goto("/transactions/new")
     page.get_by_role("button", name="Income", exact=True).click()
-    expect(page.locator('[data-side-section="credit"] [data-side-title]')).to_have_text("Category")
+    expect(page.locator('[data-side-section="credit"] [data-side-title]')).to_have_text("From")
     expect(page.locator('[data-side-section="debit"] [data-side-title]')).to_have_text("Received in")
     page.locator('[data-rows="credit"] [data-pick]:visible').click()
     expect(page.locator("#row-picker [data-pick-option]")).to_have_text(["Salary"])
