@@ -38,7 +38,7 @@
       <button type="button" class="end-clear" data-date-clear aria-label="No end date"{% if not end_day %} hidden{% endif %}>✕</button>
     </span>
   </div>
-  <p class="hint muted rep-hint">A start date in the past is recorded right away for every missed date.</p>
+  <p class="hint muted rep-hint" data-past-hint{% if start_day|string >= today %} hidden{% endif %}>A start date in the past is recorded right away for every missed date.</p>
 
   {% set chosen_tags = rule.tags if editing else [] %}
   {% set note_value = (rule.comment or '') if editing else '' %}

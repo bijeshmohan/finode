@@ -112,3 +112,13 @@ def test_the_recurring_list_is_flat_rows_in_a_tile(touch_page: Page, books, api:
     box = row.bounding_box()
     assert box and box["height"] < 80, "one title line and one quiet line, no extra padding"
     expect(row).to_contain_text("next 1 Jan 2999")
+
+
+def test_the_past_start_hint_shows_only_for_a_past_start(page: Page, books):
+    page.goto("/recurring/new")
+    hint = page.locator("[data-past-hint]")
+    expect(hint).to_be_hidden()
+    page.locator('input[name="start"]').fill("2020-01-15")
+    expect(hint).to_be_visible()
+    page.locator('input[name="start"]').fill("2999-01-15")
+    expect(hint).to_be_hidden()
