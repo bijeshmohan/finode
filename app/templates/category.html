@@ -67,14 +67,17 @@
 {% if can_add_child %}<a class="add-row" href="/categories/new?parent={{ category.id }}">{{ icon("plus") }}Add subcategory</a>{% endif %}
 {% endif %}
 
+{#- A group's entries live on its subcategories' own pages: with none of its own there is nothing to say here. -#}
+{% if entries or not subs %}
 <div class="section-head">
   <h2>Transactions</h2>
 </div>
+{% endif %}
 {% if entries %}
 <div class="tx-list">
   {% include "partials/category_entries.html" %}
 </div>
-{% else %}
+{% elif not subs %}
 <div class="card empty-state">
   <p>Nothing in {{ month_name.split(" ")[0] }}.</p>
 </div>
