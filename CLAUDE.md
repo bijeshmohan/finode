@@ -437,3 +437,7 @@ Sign in, sign up, forgot and reset (`body.bare`) have no card: the form is centr
 ### First run (2026-11-05)
 
 Home's steps (`partials/get_started.html`, `ol.steps.tile`) are rows you can tap (a chevron at the right, the next step's number filled in `.step-mark.now`, finished ones ticked), under "Get started · N of 3", with one line of small print (the import). Budgets with no account in it says one sentence and has one button, "Choose accounts" (`/accounts`); its intro box shows only once an account is part of the budget. `tests/test_web_budget.py`.
+
+### A group's page and its Transactions (2026-11-05)
+
+A category with subcategories shows a "Transactions" heading only when something was posted to the category itself; otherwise the page ends after "+ Add subcategory" (its entries are on the subcategories' own pages, and "Nothing in November." beside a figure that is not zero read as a contradiction).

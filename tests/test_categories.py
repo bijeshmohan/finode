@@ -336,3 +336,13 @@ def test_the_plus_in_the_bar_on_a_category_page_starts_an_entry_for_it_and_comes
     food = books["food"]["id"]
     page = client.get(f"/categories/{food}").text
     assert f'class="fab" href="/transactions/new?category={food}&amp;back=/categories/{food}"' in page
+
+
+def test_a_group_with_nothing_of_its_own_has_no_transactions_section(client, books):
+    entry(client, books["groceries"], books["bank"], "30", THIS_MONTH)
+    group = client.get(f"/categories/{books['food']['id']}").text
+    assert "Subcategories" in group and "Nothing in" not in group and "<h2>Transactions</h2>" not in group
+    leaf = client.get(f"/categories/{books['groceries']['id']}").text
+    assert "<h2>Transactions</h2>" in leaf, "a category with no subcategories keeps its list"
+    empty = client.get(f"/categories/{books['rent']['id']}").text
+    assert "<h2>Transactions</h2>" in empty and "Nothing in" in empty
