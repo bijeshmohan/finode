@@ -423,7 +423,7 @@ function applyKind(form, kind) {
 const wideScreen = window.matchMedia("(min-width: 80rem) and (hover: hover) and (pointer: fine)");
 function openSheet(dialog) {
   if (dialog.open) return;
-  const panel = dialog.id === "txn-sheet" && wideScreen.matches;
+  const panel = (dialog.id === "txn-sheet" || dialog.id === "cat-sheet") && wideScreen.matches;
   dialog.classList.toggle("side-panel", panel);
   if (!panel) return dialog.showModal();
   if (!dialog.querySelector(":scope > .panel-close")) {
@@ -446,7 +446,7 @@ document.addEventListener("keydown", (event) => {
 });
 document.addEventListener("close", (event) => {
   if (event.target.classList && event.target.classList.contains("side-panel")) {
-    document.querySelectorAll("a.tx.is-open").forEach((row) => row.classList.remove("is-open"));
+    document.querySelectorAll("a.tx.is-open, a.crow.is-open").forEach((row) => row.classList.remove("is-open"));
   }
 }, true);
 const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "todo-sheet-body"];
@@ -461,9 +461,9 @@ document.body.addEventListener("htmx:beforeRequest", (event) => {
   body.innerHTML = SHEET_SKELETON;
   dialog.dataset.loading = "1";
   loadingBy.set(dialog, event.detail.elt);
-  const row = event.detail.elt.closest && event.detail.elt.closest("a.tx");
-  if (row && wideScreen.matches && dialog.id === "txn-sheet") {
-    document.querySelectorAll("a.tx.is-open").forEach((other) => other.classList.remove("is-open"));
+  const row = event.detail.elt.closest && event.detail.elt.closest("a.tx, a.crow");
+  if (row && wideScreen.matches && (dialog.id === "txn-sheet" || dialog.id === "cat-sheet")) {
+    document.querySelectorAll("a.tx.is-open, a.crow.is-open").forEach((other) => other.classList.remove("is-open"));
     row.classList.add("is-open");
   }
   openSheet(dialog);
