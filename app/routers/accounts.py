@@ -6,17 +6,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
-from ..clock import local_start_utc
 from ..dependencies import Accounts
 from ..schemas.account import (
-    AccountChangeRead,
     AccountCreate,
     AccountRead,
     AccountUpdate,
     BalanceCheck,
     CardBill,
     ClosedAccount,
-    DeletedAccount,
     MergeRequest,
     MergeResult,
     RegisterEntry,
@@ -44,35 +41,6 @@ def closed_accounts(accounts: Accounts):
     """Accounts that were closed (and categories "deleted" while they had a history): the outermost of each closed
     branch, newest first. Reopen one with POST /accounts/{account_id}/reopen."""
     return accounts.closed()
-
-
-@router.get("/deleted", response_model=list[DeletedAccount])
-def deleted_accounts(accounts: Accounts):
-    """Accounts and categories deleted for good that can still be restored, newest first."""
-    return accounts.restorable()
-
-
-@router.get("/changes", response_model=list[AccountChangeRead])
-def recent_changes(
-    accounts: Accounts,
-    since: date | None = None,
-    by: str | None = None,
-    limit: int = Query(default=50, ge=1, le=200),
-):
-    """The latest steps across all accounts and categories (made, renamed, moved, closed, reopened, deleted), newest
-    first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api` or `mcp:<name>`."""
-    return accounts.recent_changes(local_start_utc(since) if since else None, (by or "").strip() or None, limit)
-
-
-@router.post("/deleted/{deletion_id}/restore", response_model=AccountRead)
-def restore_deleted_account(deletion_id: UUID, accounts: Accounts):
-    """Bring back a deleted account or category (with its old id, plan and payment links)."""
-    try:
-        return accounts.restore_deleted(deletion_id)
-    except LookupError:
-        raise HTTPException(status_code=404, detail="deleted account not found") from None
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.get("/{account_id}", response_model=AccountRead, status_code=200)
@@ -160,16 +128,6 @@ def merge_account(account_id: UUID, data: MergeRequest, accounts: Accounts, dry_
         return accounts.merge(account_id, data.into, dry_run)
     except ValueError as e:
         raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e)) from None
-
-
-@router.get("/{account_id}/changes", response_model=list[AccountChangeRead])
-def account_changes(account_id: UUID, accounts: Accounts):
-    """What happened to an account or category, oldest first, each step with what it changed and who did it (works for a
-    deleted one too)."""
-    steps = accounts.changes(account_id)
-    if not steps:
-        raise HTTPException(status_code=404, detail="account not found")
-    return steps
 
 
 @router.get("/{account_id}/bill", response_model=CardBill)

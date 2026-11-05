@@ -59,18 +59,6 @@ def test_close_reopen_and_the_closed_list(client, books):
     assert client.post(f"/api/accounts/{MISSING}/reopen").status_code == 404
 
 
-def test_deleted_accounts_are_listed_and_restored(client, books):
-    spare = books["spare"]["id"]
-    assert client.delete(f"/api/accounts/{spare}").status_code == 204
-    gone = client.get("/api/accounts/deleted").json()
-    assert len(gone) == 1 and gone[0]["account_id"] == spare and gone[0]["name"] == "Spare"
-    restored = client.post(f"/api/accounts/deleted/{gone[0]['id']}/restore")
-    assert restored.status_code == 200 and restored.json()["id"] == spare, "back with its old id"
-    assert client.get("/api/accounts/deleted").json() == []
-    assert client.post(f"/api/accounts/deleted/{gone[0]['id']}/restore").status_code == 400, "already back"
-    assert client.post(f"/api/accounts/deleted/{MISSING}/restore").status_code == 404
-
-
 def test_the_register_has_the_running_balance(client, books):
     entry(client, books, "10")
     entry(client, books, "25")
@@ -116,28 +104,11 @@ def test_payees_most_used_first(client, books):
     assert client.get("/api/transactions/payees").json() == [{"payee": "B", "count": 2}, {"payee": "A", "count": 1}]
 
 
-def test_deleted_transactions_are_listed_and_restored(client, books):
-    made = entry(client, books, "42", payee="Milk")
-    assert client.get("/api/transactions/deleted").json() == []
-    assert client.delete(f"/api/transactions/{made['id']}").status_code == 204
-    gone = client.get("/api/transactions/deleted").json()
-    assert len(gone) == 1 and gone[0]["transaction_id"] == made["id"] and gone[0]["action"] == "deleted"
-    back = client.post(f"/api/transactions/deleted/{gone[0]['id']}/restore")
-    assert back.status_code == 200 and back.json()["id"] == made["id"] and back.json()["payee"] == "Milk"
-    assert client.get("/api/transactions/deleted").json() == []
-    assert client.post(f"/api/transactions/deleted/{gone[0]['id']}/restore").status_code == 400
-    assert client.post(f"/api/transactions/deleted/{MISSING}/restore").status_code == 404
-
-
-def test_history_and_related(client, books):
+def test_related(client, books):
     made = entry(client, books, "10", payee="Shop")
-    client.patch(f"/api/transactions/{made['id']}", json={"payee": "Shop 2"})
-    history = client.get(f"/api/transactions/{made['id']}/history").json()
-    assert [h["action"] for h in history] == ["created", "updated"]
     refund = entry(client, books, "4", payee="Shop refund", related_id=made["id"])
     assert [r["id"] for r in client.get(f"/api/transactions/{made['id']}/related").json()] == [refund["id"]]
     assert client.get(f"/api/transactions/{refund['id']}/related").json() == []
-    assert client.get(f"/api/transactions/{MISSING}/history").status_code == 404
     assert client.get(f"/api/transactions/{MISSING}/related").status_code == 404
 
 

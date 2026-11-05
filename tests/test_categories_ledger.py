@@ -11,7 +11,6 @@ from sqlmodel import select
 from app.models.budget import BudgetAllocation
 from app.models.category import BudgetCategory
 from app.models.transaction import Posting
-from app.models.transaction_history import TransactionHistory
 from app.schemas.category import CategoryCreate, CategoryUpdate
 
 from .books import leg, post_account
@@ -201,106 +200,6 @@ def test_a_closed_category_cannot_be_used_but_an_entry_that_already_has_it_can_b
         },
     )
     assert again.status_code == 200, again.text
-
-
-# ---- history and restoring ---------------------------------------------------------------------
-
-
-def test_history_remembers_the_categories_and_an_unchanged_save_adds_nothing(client, session, books):
-    made = entry(
-        client, [(books["groceries"]["id"], "debit", "400", None), (books["bank"]["id"], "credit", "400", None)]
-    )
-    transaction_id = made.json()["id"]
-    snapshot = (
-        session.exec(select(TransactionHistory).where(TransactionHistory.transaction_id == UUID(transaction_id)))
-        .one()
-        .snapshot
-    )
-    assert {p["category"] for p in snapshot["postings"]} == {books["groceries"]["id"], None}
-    resave = {"postings": [p | {"category_id": p.get("category_id")} for p in made.json()["postings"]]}
-    client.patch(f"/api/transactions/{transaction_id}", json=resave)
-    rows = session.exec(
-        select(TransactionHistory).where(TransactionHistory.transaction_id == UUID(transaction_id))
-    ).all()
-    assert len(rows) == 1
-
-
-def test_an_old_snapshot_without_categories_does_not_make_a_resave_look_like_a_change(client, session, books):
-    made = entry(
-        client, [(books["groceries"]["id"], "debit", "400", None), (books["bank"]["id"], "credit", "400", None)]
-    )
-    transaction_id = made.json()["id"]
-    row = session.exec(
-        select(TransactionHistory).where(TransactionHistory.transaction_id == UUID(transaction_id))
-    ).one()
-    row.snapshot = {
-        **row.snapshot,
-        "postings": [{k: v for k, v in p.items() if k != "category"} for p in row.snapshot["postings"]],
-    }
-    session.add(row)
-    session.commit()
-    client.patch(
-        f"/api/transactions/{transaction_id}",
-        json={
-            "postings": [
-                {
-                    "account_id": p["account_id"],
-                    "side": p["side"],
-                    "amount": p["amount"],
-                    "category_id": p["category_id"],
-                }
-                for p in made.json()["postings"]
-            ]
-        },
-    )
-    assert (
-        len(
-            session.exec(
-                select(TransactionHistory).where(TransactionHistory.transaction_id == UUID(transaction_id))
-            ).all()
-        )
-        == 1
-    )
-
-
-def test_a_changed_category_is_told_in_the_changes(client, books):
-    made = entry(
-        client,
-        [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)],
-    )
-    transaction_id = made.json()["id"]
-    client.patch(
-        f"/api/transactions/{transaction_id}",
-        json={
-            "postings": [
-                {
-                    "account_id": books["loan"]["id"],
-                    "side": "debit",
-                    "amount": "10",
-                    "category_id": books["food"]["id"],
-                },
-                leg(books["bank"], "credit", "10"),
-            ]
-        },
-    )
-    steps = client.get(f"/api/transactions/{transaction_id}/changes").json()
-    relabelled = steps[-1]["changes"]["postings"]["relabelled"]
-    assert relabelled[0]["category_from"] == [books["emi"]["id"]] and relabelled[0]["category_to"] == [
-        books["food"]["id"]
-    ]
-
-
-def test_a_restored_entry_gets_its_categories_back(client, session, books):
-    made = entry(
-        client,
-        [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)],
-    )
-    transaction_id = made.json()["id"]
-    client.delete(f"/api/transactions/{transaction_id}")
-    history_id = client.get("/api/transactions/deleted").json()[0]["id"]
-    restored = client.post(f"/api/transactions/deleted/{history_id}/restore")
-    assert restored.status_code in (200, 201), restored.text
-    assert lines(session, transaction_id)[(UUID(books["loan"]["id"]), "debit")] == UUID(books["emi"]["id"])
 
 
 # ---- deleting, merging and the plan ------------------------------------------------------------

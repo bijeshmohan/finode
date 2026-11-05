@@ -84,7 +84,7 @@ def test_the_bill_counts_a_line_by_the_day_the_card_posts_it(client, session, ca
     assert str(next_month.statement_balance) == "1180.00", "it lands in the next bill"
 
 
-def test_editing_keeps_the_posting_date_and_history_says_when_it_changes(client, card, expense_account):
+def test_editing_keeps_the_posting_date_and_can_change_it(client, card, expense_account):
     made = buy(client, expense_account, card, "180", "2026-10-16", posted_on="2026-10-18")
     lines = [
         {"account_id": p["account_id"], "side": p["side"], "amount": p["amount"], "posted_on": p["posted_on"]}
@@ -96,18 +96,9 @@ def test_editing_keeps_the_posting_date_and_history_says_when_it_changes(client,
     for line in lines:
         if line["account_id"] == card["id"]:
             line["posted_on"] = "2026-10-20"
-    assert client.patch(f"/api/transactions/{made['id']}", json={"postings": lines}).status_code == 200
-    steps = client.get(f"/api/transactions/{made['id']}/changes").json()
-    assert steps[-1]["changes"]["posting_dates"]["to"][0]["posted_on"] == "2026-10-20"
-
-
-def test_a_restored_entry_keeps_its_posting_date(client, card, expense_account):
-    made = buy(client, expense_account, card, "180", "2026-10-16", posted_on="2026-10-18")
-    assert client.delete(f"/api/transactions/{made['id']}").status_code in (200, 204)
-    deleted = client.get("/api/transactions/deleted").json()[0]
-    restored = client.post(f"/api/transactions/deleted/{deleted['id']}/restore")
-    assert restored.status_code == 200, restored.text
-    assert "2026-10-18" in {p["posted_on"] for p in restored.json()["postings"]}
+    changed = client.patch(f"/api/transactions/{made['id']}", json={"postings": lines})
+    assert changed.status_code == 200
+    assert "2026-10-20" in {p["posted_on"] for p in changed.json()["postings"]}
 
 
 @pytest.mark.parametrize(
@@ -142,11 +133,9 @@ def test_a_rounded_bill_is_paid_by_paying_it(client, session, card, account, exp
     assert str(bill(session, card, date(2026, 10, 27)).bill) == "0.00"
 
 
-def test_the_rule_is_checked_and_shows_in_the_history(client, card):
+def test_the_rule_is_checked(client, card):
     assert client.patch(f"/api/accounts/{card['id']}", json={"bill_rounding": "sometimes"}).status_code == 422
     assert client.patch(f"/api/accounts/{card['id']}", json={"bill_rounding": "up"}).json()["bill_rounding"] == "up"
-    steps = client.get(f"/api/accounts/{card['id']}/changes").json()
-    assert steps[-1]["changes"]["bill_rounding"] == {"from": "none", "to": "up"}
 
 
 def test_the_card_page_shows_when_a_line_posts_and_the_rounding(client, card, expense_account):

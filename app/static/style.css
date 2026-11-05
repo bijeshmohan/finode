@@ -541,9 +541,6 @@ details.filters .count {
 }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, .75rem); } }
 @keyframes toast-out { to { opacity: 0; transform: translate(-50%, .25rem); visibility: hidden; } }
-/* A toast with Undo stays long enough to be tapped. */
-.toast.has-undo { display: flex; align-items: center; gap: 1rem; --toast-life: 6.7s; pointer-events: auto; }
-.toast-undo { min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; font-weight: 600; text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
 }
@@ -1271,8 +1268,7 @@ dialog.sheet[open]::backdrop { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   dialog.sheet, dialog.sheet::backdrop { transition: none; }
-  .toast, .toast.has-undo { animation: toast-out 0s var(--toast-life) forwards; }
-}
+  .toast, }
 
 /* ---------- More motion: bars fill on load, folding rows open smoothly, pressed rows answer ---------- */
 :root { interpolate-size: allow-keywords; }
@@ -1301,11 +1297,8 @@ a.button:active, button:not(.switch):not(.chip):active { transform: scale(.98); 
 @keyframes fade-in { from { opacity: 0; } }
 #txn-sheet-body > *, #cat-sheet-body > * { animation: fade-in .18s ease-out; }
 #txn-sheet-body > .skeleton, #cat-sheet-body > .skeleton { animation: none; }
-@keyframes tx-new { from { opacity: 0; transform: translateY(-6px); background: var(--surface-2); } 60% { background: var(--surface-2); } to { background: transparent; } }
-a.tx.tx-new { animation: tx-new .6s cubic-bezier(.3, .7, .2, 1) .15s backwards; }
 @media (prefers-reduced-motion: reduce) {
-  #txn-sheet-body > *, #cat-sheet-body > *, a.tx.tx-new { animation: none; }
-}
+  #txn-sheet-body > *, #cat-sheet-body > *, }
 
 /* ---------- Transactions filter: one quiet word, a sheet behind it ---------- */
 .tx-filterbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 2.5rem; margin: 0 0 .25rem; font-size: .875rem; color: var(--muted); }

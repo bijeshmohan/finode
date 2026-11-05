@@ -8,7 +8,7 @@ Everything the web app and the assistants can do with your books can be done thr
 - **Everything is yours alone.** Every request is scoped to the signed-in person; another person's ids answer 404 (or 400 when they are named inside a request). `tests/test_isolation.py` checks this for every route.
 - **Amounts** are decimal strings or numbers in the person's one currency (no other currency exists); more decimals than the currency keeps are refused. **Dates** are `YYYY-MM-DD`, between 1900 and 2999. Money moves as a list of **postings** (`account`, `side` debit or credit, `amount`) whose debits equal their credits.
 - **Errors** are JSON `{"detail": ...}`: 400 for a refused change (with the reason), 404 for an unknown id, 409 when something is in use, 422 for a malformed request.
-- Routes with a trailing slash (`/accounts/`) are the collection; `/accounts/closed`, `/transactions/deleted` and the like are fixed words, not ids.
+- Routes with a trailing slash (`/accounts/`) are the collection; `/accounts/closed`, `/transactions/payees` and the like are fixed words, not ids.
 
 ## What is not in the API, on purpose
 
@@ -25,17 +25,13 @@ Everything the web app and the assistants can do with your books can be done thr
 |---|---|---|
 | `POST` | `/accounts/` | Create an account (under Assets, Liabilities or Equity; Expenses and Income hold categories: use `/categories/`); `balance` sets an opening balance on an asset or liability. |
 | `GET` | `/accounts/closed` | Accounts that were closed (and categories "deleted" while they had a history): the outermost of each closed |
-| `GET` | `/accounts/deleted` | Accounts and categories deleted for good that can still be restored, newest first. |
-| `POST` | `/accounts/deleted/{deletion_id}/restore` | Bring back a deleted account or category (with its old id, plan and payment links). |
 | `GET` | `/accounts/{account_id}` | The account with its balance as of a day (today by default: later entries do not count yet). |
 | `GET` | `/accounts/` | Accounts with their balances as of a day (today by default: later entries do not count yet). |
 | `PATCH` | `/accounts/{account_id}` | Change an account: name, note, place (`parent_id`) or budget flag. |
 | `DELETE` | `/accounts/{account_id}` | Delete an account for good; refused when it has entries, sub-accounts or a recurring rule (close it instead). |
 | `POST` | `/accounts/{account_id}/close` | Close an account (and everything inside it): its history stays, nothing more can be posted to it. |
 | `POST` | `/accounts/{account_id}/reopen` | Reopen a closed account with everything inside it, and the groups above it. |
-| `GET` | `/accounts/changes` | The latest steps across all accounts and categories (made, renamed, moved, closed, reopened, deleted), newest first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api` or `mcp:<name>`. |
 | `POST` | `/accounts/{account_id}/merge` | Make this account part of another (`into`): its entries, planned amounts, recurring rules become the other's and it is deleted, all or nothing. Both must be plain accounts of the same top-level account (this one without sub-accounts, the other open and able to take entries). Refused when an entry or rule has both on opposite sides, or only one is part of the budget. With `dry_run=true` nothing changes and the answer says what would move. |
-| `GET` | `/accounts/{account_id}/changes` | What happened to an account or category, oldest first, each step with what it changed and who did it (works for a deleted one too). |
 | `GET` | `/accounts/{account_id}/bill` | A card's or loan's bill, worked out from its `statement_day`, `due_day` and `bill_rounding` (`none`, `nearest`, `up`) and from each line's `posted_on` (the day the account posts it, when not the entry's date): what was owed when the latest statement closed (`statement_balance`, and `statement_due` after the rounding, `rounded_by`), the payments and refunds since (`paid_since`), what is left to pay (`bill`), when it is due (`due_date`, `days_to_due`, negative once overdue), what was spent since and what is owed in all. Nothing is stored. 400 while the account has no days. |
 | `GET` | `/accounts/{account_id}/check-balance` | Set a statement's balance (`statement_balance`) against the books on the same day (`as_of`, today by default): the books' balance, the difference and the entries of the last `days` days, with those exactly as large as the difference. Nothing is changed. A card's or loan's balance is what is owed, as the app shows it. |
 | `GET` | `/accounts/{account_id}/register` | The account's entries, oldest first, each with what it changed and the running balance. `own_only` leaves out |
@@ -66,15 +62,10 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 | `POST` | `/transactions/batch` | Record up to 50 transactions as one: all are saved or none. An entry whose `source` and `external_id` are already recorded with the same date and rows is skipped (status `already_recorded`), so a batch can be sent again safely. Any problem refuses the whole batch (400) naming the entries at fault. With `dry_run=true` nothing is saved and the answer (200) shows what would be. |
 | `GET` | `/transactions/payees` | Who you have paid or been paid by, most used first (the opening-balance entries are left out). |
 | `GET` | `/transactions/payee-defaults` | How payees are usually booked, most used first: the accounts of the newest entry with one account on each side (so a repeat can be filled in), and the other routes seen. `payee` narrows to those that match what is typed. |
-| `GET` | `/transactions/deleted` | Entries that were deleted and are not back, newest deletion first; `id` is what to restore. |
-| `POST` | `/transactions/deleted/{history_id}/restore` | Bring a deleted entry back as it was, with its old id (checked again like any new entry). |
 | `GET` | `/transactions/{transaction_id}` | One transaction with its postings. |
 | `GET` | `/transactions/` | Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts used; `payee` is exact; `source` and `external_id` find the entry a source's reference stands for; `tag` finds the entries that carry that tag (every entry reads back its `tags`; create and update take `tags`). |
 | `PATCH` | `/transactions/{transaction_id}` | Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or cleared with null). With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards. |
-| `DELETE` | `/transactions/{transaction_id}` | Delete a transaction; it waits in /transactions/deleted and can be restored. With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go. |
-| `GET` | `/transactions/changes` | The latest steps across all entries (made, edited, deleted), newest first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api`, `import`, `recurring` or `mcp:<connection name>`. |
-| `GET` | `/transactions/{transaction_id}/changes` | What happened to an entry, oldest first, each step with what it changed (works for a deleted one too). |
-| `GET` | `/transactions/{transaction_id}/history` | What happened to an entry, oldest first (works for a deleted one too). |
+| `DELETE` | `/transactions/{transaction_id}` | Delete a transaction for good (finode keeps no history). With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go. |
 | `GET` | `/transactions/{transaction_id}/related` | The entries that are related to this one (refunds, reversals), oldest first. |
 
 ## Tags

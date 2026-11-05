@@ -9,7 +9,6 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 | Tool | Answers |
 |---|---|
 | `get_status` | what this connection may do, today's date, how much room is left today, when your books last changed |
-| `get_transaction_history`, `get_account_history`, `recent_changes` | what happened to an entry or an account, what each change did and who made it (you, the app, an import or an assistant); what changed lately |
 | `list_tags` | your tags (`reimbursable`, `goa-trip`) and how often they are used; search finds entries by tag |
 | `get_card_bill` | a card's bill from its statement day and due day: what is due, by when, and what was spent since |
 | `check_balance` | compares a bank or card statement's balance with your books on the same day and points at the entry that could explain a gap |
@@ -21,7 +20,6 @@ finode has an **MCP server**, so an assistant such as Claude can read your books
 | `list_categories` | your categories (spending ones are budgeted, earning ones label income), with their paths |
 | `get_budget` | the month's budget: Ready to assign, each category's assigned, spent and left |
 | `list_recurring` | your recurring rules |
-| `list_deleted_transactions` | deleted transactions that can still be brought back |
 | `check_books` | re-checks that every transaction balances |
 
 **Write** (only on a read & write connection): `record_transaction`, `record_split`, `record_transactions` (they take a `category` such as `EMI` for a payment into a loan or fund; a row of a split may name only a category; up to 50 entries at once, all saved or none, safe to send again when each has a source and reference), `update_transaction`, `delete_transaction`, `create_account`, `create_category`, `create_recurring`, `stop_recurring`, `resume_recurring`, `skip_recurring_occurrence`, `restore_transaction`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`. Recording or changing a transaction can link it to an earlier one (`related_to`, for a refund or reversal) and put **tags** on it (`tags`, a list; `update_transaction` also takes `add_tags` and `remove_tags`; `create_recurring` takes `tags` too, which every entry the rule records gets). A `#word` written in a note is only text: the reply says so (`notice`) when an assistant does it. They also take `source`, `external_id` and `source_url` for an entry that comes from outside finode (a bank message, a mail): sending the same source and reference again returns the entry already made instead of a copy, and `search_transactions` finds an entry by them. `record_transaction`, `record_split`, `record_transactions`, `update_transaction` and `delete_transaction` also take `dry_run`: finode checks every rule and tells the assistant what would be saved without saving anything, which works on a read-only connection too, so an assistant can show you a change before you allow it.
@@ -65,5 +63,5 @@ On the same page every connection has **Allow changes** / **Make read only** / *
 ## Tips
 
 - Start with a **read only** connection and ask questions ("what did I spend on food last month?", "how much is Ready to assign?").
-- Before letting an assistant record anything, ask it to tell you what it is going to record. Deleting a transaction is marked as destructive, but you can bring one back from *Recently deleted* on the Transactions page.
+- Before letting an assistant record anything, ask it to tell you what it is going to record. Deleting a transaction is for good (finode keeps no history), so assistants are told to ask you first.
 - Your data is only reachable with a valid token or approved connection, and a token works **only** on the assistant endpoint, never on the website or the JSON API.

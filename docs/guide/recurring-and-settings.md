@@ -22,7 +22,7 @@ What to know:
 - Renaming, merging or deleting a tag on the **Tags** page changes the rules that use it too, so a rule never brings an old tag back.
 - **Delete** a rule and the transactions it already recorded stay.
 - If a rule cannot be recorded (an account was closed, for example), it keeps the reason and retries.
-- Entries a rule records are marked *Recurring* in blue, and are not linked back after a restore from *Recently deleted*.
+- Entries a rule records are marked *Recurring* in blue.
 
 For a fixed set of future payments such as an **EMI schedule**, you can also enter the future-dated transactions directly: they wait in the *upcoming* card until their date.
 
@@ -34,7 +34,7 @@ Settings is about how the application works (your name and your data are on Prof
 |---|---|
 | **Preferences › Currency** | the one currency of your ledger. Changing it relabels; nothing is converted |
 | **Preferences › Appearance** | match the device, light or dark (kept per browser) |
-| **Your data** | backup, export and import, **Tags**, **Recurring transactions**, **Recently deleted** and **AI assistants** (connect Claude or another assistant, see [the MCP guide](mcp.md)) |
+| **Your data** | backup, export and import, **Tags**, **Recurring transactions** and **AI assistants** (connect Claude or another assistant, see [the MCP guide](mcp.md)) |
 | **About** | *Send feedback* (when the installation has an address for it), *About this test*, and *Sign out* (the red row at the end) |
 
 ## Profile and your data

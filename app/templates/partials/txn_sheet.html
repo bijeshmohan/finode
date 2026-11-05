@@ -62,5 +62,6 @@
   <a href="/transactions/new?repeat={{ t.id }}{{ bx }}">Repeat</a>
   <a href="/transactions/new?related={{ t.id }}{{ bx }}">Related</a>
   <button type="button" class="sheet-delete"
-          hx-post="/transactions/{{ t.id }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>
+          hx-post="/transactions/{{ t.id }}/delete" hx-vals='{"sheet": "1"}'
+          hx-confirm="Delete this transaction? Account balances will change. This cannot be undone.">Delete</button>
 </div>

@@ -47,7 +47,7 @@ Home is the exception by design: one number ("Left to spend"), a thin bar and th
 | **Row** | A name, one quiet second line, the figure at the right. Budgets rows add a bar under it; Categories show the biggest subcategories and the share; Accounts rows have no initials. Rows are links; destructive actions live on the detail page, not on rows. |
 | **Month pill** | `‹ Oct 2026 ›` as plain text: two arrows around a native month picker laid invisibly over the month name (`partials/month_pill.html`). Pages that never look ahead pass `max`. |
 | **Bottom sheet** | A `<dialog>` that slides up (a transaction's details, a category's budget, the Filter). It opens at once with grey placeholders and the content fades in over them. A press that starts inside never closes it. |
-| **Toast** | A flash after saving. After saving or deleting an entry it carries **Undo**. |
+| **Toast** | A short message after saving or deleting. |
 | **Empty state** | A sentence and one pill button (`.empty-state`), without a box. |
 | **Form** | Boxed fields in one card and **one full-width primary button, no Cancel** (the back link is the cancel; sheets keep theirs). |
 | **Progress bar** | 3 px, full width of its row. Bars of the current month carry a small triangle under them showing how far through the month today is (`.pace`): a fill ahead of it is spending faster than the month passes. Over the plan is red. |

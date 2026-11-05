@@ -229,25 +229,6 @@ def quick_create_category(
     return htmx_trigger("account-added", {"id": str(made.id), "name": made.name})
 
 
-@router.get("/deleted")
-def deleted_categories_page(request: Request, categories: Categories):
-    closed = [c for c in categories.list(include_closed=True) if c.closed_on is not None]
-    # Show the outermost of each closed branch: a closed group carries the categories in it.
-    shown = [c for c in closed if not any(p.id == c.parent_id and p.closed_on for p in closed)]
-    entries = sorted(
-        (
-            {"id": c.id, "name": c.name, "path": c.path, "kind": "closed", "when": c.closed_on}
-            for c in shown
-            if c.closed_on is not None
-        ),
-        key=lambda e: e["when"],
-        reverse=True,
-    )
-    return templates.TemplateResponse(
-        request, "accounts_deleted.html", {"active": "settings", "area": "categories", "entries": entries}
-    )
-
-
 def _load(categories: Categories, category_id: UUID) -> CategoryRead:
     category = categories.read(category_id)
     if category is None:

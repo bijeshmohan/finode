@@ -1,6 +1,6 @@
 # Making finode friendlier to AI assistants: evaluation and plan
 
-Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) 3b (payee defaults), 3c (statement check) and 3d (tags) done: phase 3 is complete. Phase 4: 4a (the `manage` access level), 4b (account history), 4c (the account tools) and 4d (merge) done: **all four phases are complete**.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
+**Update 2026-11-05: change history (3a) and account history (4b) were removed with all history (`feature/remove-history`); the rest stands.** Branch: `feature/agent-friendly`. **Status: phases 1 and 2, and 3a (change history) 3b (payee defaults), 3c (statement check) and 3d (tags) done: phase 3 is complete. Phase 4: 4a (the `manage` access level), 4b (account history), 4c (the account tools) and 4d (merge) done: **all four phases are complete**.** Source: a week of real use over MCP, where Claude proposed 14 improvements. This page
 checks each against what the code does today, decides, and orders the work. Nothing here is built yet.
 
 ## Verdicts at a glance

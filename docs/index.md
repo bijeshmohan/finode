@@ -15,7 +15,7 @@ finode is a personal finance app built on double-entry bookkeeping, with envelop
 
 1. [Getting started](guide/getting-started.md): sign up, the first account, the first expense
 2. [Accounts and categories](guide/accounts-and-categories.md)
-3. [Transactions](guide/transactions.md): adding, splitting, upcoming, recently deleted
+3. [Transactions](guide/transactions.md): adding, splitting, upcoming
 4. [Budgeting](guide/budgeting.md): Ready to assign, categories, cards
 5. [Recurring transactions, settings and your data](guide/recurring-and-settings.md)
 6. [Using finode from an AI assistant](guide/mcp.md)
@@ -25,7 +25,7 @@ finode is a personal finance app built on double-entry bookkeeping, with envelop
 Read in this order:
 
 1. [Overview](architecture/overview.md): layers, request flow, the pieces around the app
-2. [The ledger](architecture/ledger.md): accounts, postings, balancing, history
+2. [The ledger](architecture/ledger.md): accounts, postings, balancing
 3. [The budget](architecture/budget.md): the envelope arithmetic
 4. [The web UI](architecture/web-ui.md): templates, htmx, how a page updates
 5. [The design system](architecture/design.md): the look, the parts every page is made of, motion, the rules behind them

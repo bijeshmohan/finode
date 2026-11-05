@@ -3,7 +3,7 @@
 import builtins
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import cast
 from uuid import UUID
@@ -15,12 +15,12 @@ from ..config import settings
 from ..currencies import Currency
 from ..currencies import find as find_currency
 from ..limits import ensure_room
-from ..models import Account, AccountDeletion
+from ..models import Account
 from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
-from ..schemas.account import AccountChangeRead, BalanceCheck, BillRounding, CardBill, MergeResult
+from ..schemas.account import BalanceCheck, BillRounding, CardBill, MergeResult
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from . import cards
 
@@ -351,7 +351,6 @@ class AccountService:
                 details="System account for opening balance adjustments",
                 parent_id=equity_root.id,
             ),
-            record=False,  # finode's own account: not part of anyone's history
         )
 
     def _post_balance_adjustment(
@@ -697,70 +696,11 @@ class AccountService:
         try:
             self.tr.repoint_account(source_id, target_id, self.ar.origin)
             RecurringRepository.repoint_account(self.ar.db, self.ar.uid, source_id, target_id)
-            self.ar._record(self._read(target_id), "updated", merged_from=result.source)
-            self.delete(source_id, merged_into=result.into)  # commits
+            self.delete(source_id)  # commits
         except Exception:
             self.ar.db.rollback()
             raise
         return result
-
-    def changes(self, account_id: UUID) -> builtins.list[AccountChangeRead]:
-        """An account's history, oldest first, each step with what it changed (works for a deleted account too)."""
-        rows = self.ar.history(account_id)
-        paths = self._paths_by_id()
-        return [self._change(row, rows[i - 1] if i else None, paths) for i, row in enumerate(rows)]
-
-    def recent_changes(
-        self, since: datetime | None = None, via: str | None = None, limit: int = 50
-    ) -> builtins.list[AccountChangeRead]:
-        """The latest steps across every account, newest first, each with what it changed."""
-        newest = self.ar.history_since(since, via, limit)
-        by_account: dict[UUID, builtins.list] = {}
-        for row in self.ar.histories_for(list({r.account_id for r in newest})):
-            by_account.setdefault(row.account_id, []).append(row)
-        paths = self._paths_by_id()
-        result = []
-        for row in newest:
-            steps = by_account[row.account_id]
-            position = next(i for i, step in enumerate(steps) if step.id == row.id)
-            result.append(self._change(row, steps[position - 1] if position else None, paths))
-        return result
-
-    def _paths_by_id(self) -> dict[UUID, str]:
-        by_id = {a.id: a for a in self.ar.list()}
-        return {account_id: self._path(a, by_id) for account_id, a in by_id.items()}
-
-    @staticmethod
-    def _change(row, before, paths: dict[UUID, str]) -> AccountChangeRead:
-        changes: dict = {}
-        if before is not None and row.action == "updated":
-            old, new = before.snapshot, row.snapshot
-            for key, label in (
-                ("name", "name"),
-                ("path", "path"),
-                ("details", "note"),
-                ("on_budget", "on_budget"),
-                ("statement_day", "statement_day"),
-                ("due_day", "due_day"),
-                ("bill_rounding", "bill_rounding"),
-                ("closed_on", "closed_on"),
-            ):
-                if old.get(key) != new.get(key):
-                    changes[label] = {"from": old.get(key), "to": new.get(key)}
-        # Steps recorded before the loan's usual category was removed still carry its key: it is not shown.
-        entry = {k: v for k, v in row.snapshot.items() if k not in ("parent_id", "payment_category_id")}
-        return AccountChangeRead(
-            id=row.id,
-            account_id=row.account_id,
-            action=row.action,
-            at=row.at,
-            via=row.via,
-            entry=entry,
-            changes={
-                **changes,
-                **({"merged_in": row.snapshot["merged_from"]} if row.snapshot.get("merged_from") else {}),
-            },
-        )
 
     def check_balance(
         self, account_id: UUID, statement_balance: Decimal, as_of: date | None = None, days: int = 14
@@ -1057,38 +997,6 @@ class AccountService:
             current = by_id.get(current.parent_id) if current.parent_id else None
         return ":".join(reversed(names))
 
-    def _deletion_snapshot(self, account: Account, all_accounts: builtins.list[Account]) -> dict:
-        """What is needed to bring an unused account back (see models/account_deletion.py)."""
-        by_id = {a.id: a for a in all_accounts}
-        return {
-            "name": account.name,
-            "details": account.details,
-            "parent_id": str(account.parent_id) if account.parent_id else None,
-            "path": self._path(account, by_id),
-            "root": self._get_root_name(account, by_id),
-            "on_budget": account.on_budget,
-            "statement_day": account.statement_day,
-            "due_day": account.due_day,
-            "bill_rounding": account.bill_rounding,
-        }
-
-    def restorable(self, limit: int = 50) -> builtins.list[dict]:
-        """Accounts and categories deleted for good and not back, newest first (one per account, the latest deletion)."""
-        by_id = {a.id: a for a in self._ensure_roots()}
-        latest: dict[UUID, AccountDeletion] = {}
-        for row in self.ar.deletions():
-            latest.setdefault(row.account_id, row)
-        return [
-            {
-                "id": row.id,
-                "account_id": row.account_id,
-                "at": row.at,
-                **{k: row.snapshot.get(k) for k in ("name", "path", "root")},
-            }
-            for account_id, row in latest.items()
-            if account_id not in by_id
-        ][:limit]
-
     def closed(self) -> builtins.list[dict]:
         """The accounts that were closed (a category that was deleted but had a history is closed): the outermost of
         each closed branch, newest first."""
@@ -1113,46 +1021,7 @@ class AccountService:
             for a in top
         ]
 
-    def restore_deleted(self, deletion_id: UUID) -> AccountRead:
-        """Bring back an account or category that was deleted for good: with its old id, note, budget flag, place,
-        planned amounts and target, and the payment links that pointed at it."""
-        row = self.ar.deletion(deletion_id)
-        if row is None:
-            raise LookupError("deleted account not found!")
-        all_accounts = self._ensure_roots()
-        by_id = {a.id: a for a in all_accounts}
-        if row.account_id in by_id:
-            raise ValueError("this account is already back!")
-        if next(r for r in self.ar.deletions() if r.account_id == row.account_id).id != row.id:
-            raise ValueError("this account was deleted again later; restore the latest deletion!")
-        snap = row.snapshot
-        parent = by_id.get(UUID(snap["parent_id"])) if snap.get("parent_id") else None
-        if parent is None:
-            raise ValueError("the account it was in no longer exists, so it cannot be restored!")
-        if parent.closed_on is not None:
-            raise ValueError(f"'{parent.name}' is closed: reopen it first!")
-        self._validate_parent(parent, all_accounts)
-        ensure_room(len(all_accounts), settings.max_accounts, "accounts")
-        self._check_depth(parent, 1, all_accounts)
-        if any(a.parent_id == parent.id and a.name == snap["name"] for a in all_accounts):
-            raise ValueError(f"'{parent.name}' already has an account called '{snap['name']}'!")
-        restored = self.ar.restore(
-            row.account_id,
-            {
-                "name": snap["name"],
-                "details": snap.get("details"),
-                "parent_id": parent.id,
-                "on_budget": bool(snap.get("on_budget")),
-                "statement_day": snap.get("statement_day"),
-                "due_day": snap.get("due_day"),
-                "bill_rounding": snap.get("bill_rounding") or "none",
-            },
-        )
-        self.ar.db.commit()
-        self.ar.db.refresh(restored)
-        return self._to_read(restored, self._ensure_roots())
-
-    def delete(self, account_id: UUID, merged_into: str | None = None) -> AccountRead | None:
+    def delete(self, account_id: UUID) -> AccountRead | None:
         all_accounts = self._ensure_roots()
         account = next((a for a in all_accounts if a.id == account_id), None)
         if not account:
@@ -1174,8 +1043,7 @@ class AccountService:
             raise AccountInUseError("account is used by a recurring transaction")
 
         account_read = self._to_read(account, all_accounts)
-        self.ar.record_deletion(account_id, self._deletion_snapshot(account, all_accounts))
-        deleted = self.ar.delete(account_id, **({"merged_into": merged_into} if merged_into else {}))
+        deleted = self.ar.delete(account_id)
         if not deleted:
             raise ValueError(f"account '{account_id}' not found!")
         self.ar.db.commit()

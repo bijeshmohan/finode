@@ -546,31 +546,6 @@ async def test_assistants_can_link_a_refund_to_the_purchase(session, books, secr
             )
 
 
-async def test_assistants_can_list_and_restore_deleted_transactions(session, books, secret):
-    async with running_app(session), mcp_client(secret) as c:
-        assert (await call(c, "list_deleted_transactions"))["deleted"] == []
-        made = (
-            await call(c, "record_transaction", amount="75", from_account="HDFC", to_account="Groceries", payee="Milk")
-        )["recorded"]
-        await call(c, "delete_transaction", transaction_id=made["id"])
-        gone = (await call(c, "list_deleted_transactions"))["deleted"]
-        assert (
-            len(gone) == 1
-            and gone[0]["payee"] == "Milk"
-            and gone[0]["total"] == "75.00"
-            and gone[0]["transaction_id"] == made["id"]
-        )
-        back = (await call(c, "restore_transaction", deleted_id=gone[0]["deleted_id"]))["restored"]
-        assert back["id"] == made["id"] and back["total"] == "75.00"
-        assert (await call(c, "list_deleted_transactions"))["deleted"] == []
-        with pytest.raises(ToolFailed, match="already back"):
-            await call(c, "restore_transaction", deleted_id=gone[0]["deleted_id"])
-        with pytest.raises(ToolFailed, match="no deleted transaction"):
-            await call(c, "restore_transaction", deleted_id="00000000-0000-4000-8000-0000000000aa")
-        with pytest.raises(ToolFailed, match="not a deleted-transaction id"):
-            await call(c, "restore_transaction", deleted_id="abc")
-
-
 async def test_assistants_can_resume_a_paused_recurring_transaction(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         made = (
@@ -595,12 +570,9 @@ async def test_assistants_can_resume_a_paused_recurring_transaction(session, boo
 async def test_a_read_only_connection_refuses_the_new_tools(session, books):
     read_only = make_token(session, TEST_USER_ID, scope="read")
     async with running_app(session), mcp_client(read_only) as c:
-        assert "list_deleted_transactions" in {t.name for t in (await c.list_tools()).tools}
-        assert (await call(c, "list_deleted_transactions"))["deleted"] == []
-        for tool, args in (
-            ("restore_transaction", {"deleted_id": "x"}),
-            ("resume_recurring", {"recurring_id": "x"}),
-        ):
+        names = {t.name for t in (await c.list_tools()).tools}
+        assert not {"list_deleted_transactions", "restore_transaction", "recent_changes"} & names, "no history tools"
+        for tool, args in (("resume_recurring", {"recurring_id": "x"}),):
             with pytest.raises(ToolFailed, match="read-only"):
                 await call(c, tool, **args)
 

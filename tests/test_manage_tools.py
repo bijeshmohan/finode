@@ -21,16 +21,14 @@ async def call(c, tool, **args):
 
 
 @pytest.mark.anyio
-async def test_a_rename_keeps_the_id_and_the_history(session, client, books):
+async def test_a_rename_keeps_the_id(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name="Claude", scope="manage")) as c:
         done = await call(c, "update_account", account="Banks", name="Bank Accounts", details="where salary lands")
         assert done["was"] == "Assets:Banks" and done["updated"]["path"] == "Assets:Bank Accounts"
         assert done["updated"]["id"] == books["banks"]["id"] and done["updated"]["details"] == "where salary lands"
         by_old_id = await call(c, "get_account", account=books["hdfc"]["id"])
         assert by_old_id["path"] == "Assets:Bank Accounts:HDFC" and by_old_id["balance"] == "500.00"
-        history = await call(c, "get_account_history", account=books["banks"]["id"])
-        assert history["history"][-1]["by"] == "assistant (Claude)"
-        assert history["history"][-1]["changes"]["name"] == {"from": "Banks", "to": "Bank Accounts"}
+        assert "get_account_history" not in {t.name for t in (await c.list_tools()).tools}
 
 
 @pytest.mark.anyio
@@ -64,8 +62,6 @@ async def test_close_and_reopen(session, client, books):
         assert closed["closed"]["closed"] and closed["closed"]["can_post"] is False
         reopened = await call(c, "reopen_account", account="Cash2")
         assert "closed" not in reopened["reopened"] and reopened["reopened"]["can_post"] is True
-        steps = (await call(c, "get_account_history", account="Cash2"))["history"]
-        assert [s["action"] for s in steps] == ["created", "closed", "reopened"]
 
 
 @pytest.mark.anyio

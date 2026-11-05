@@ -104,6 +104,7 @@ def test_deleting_from_the_sheet(page: Page, books, api: Api):
     add(api, books, "DMart", "food", "checking")
     page.goto("/transactions")
     page.locator("a.tx", has_text="Swiggy").click()
+    page.once("dialog", lambda d: d.accept())
     page.locator("#txn-sheet").get_by_role("button", name="Delete").click()
     page.wait_for_url("**/transactions")
     expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(0)
@@ -139,15 +140,21 @@ def test_a_sheet_closed_while_loading_stays_closed(page: Page, books, api: Api):
     expect(page.locator("#txn-sheet")).to_be_hidden()
 
 
-def test_undo_in_the_toast_brings_a_deleted_entry_back(page: Page, books, api: Api):
+def test_deleting_an_entry_asks_first_and_it_is_gone_for_good(page: Page, books, api: Api):
     add(api, books, "Swiggy", "food", "card")
     page.goto("/transactions")
     page.locator("a.tx", has_text="Swiggy").click()
+    asked = []
+    page.once("dialog", lambda d: (asked.append(d.message), d.dismiss()))
+    page.locator("#txn-sheet").get_by_role("button", name="Delete").click()
+    assert "cannot be undone" in asked[0]
+    assert any(t["payee"] == "Swiggy" for t in api.get("/transactions/")), "dismissing the question deletes nothing"
+    page.once("dialog", lambda d: d.accept())
     page.locator("#txn-sheet").get_by_role("button", name="Delete").click()
     expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(0)
-    page.locator(".toast .toast-undo").click()
-    expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(1)
-    assert any(t["payee"] == "Swiggy" for t in api.get("/transactions/"))
+    expect(page.locator(".toast")).to_contain_text("Transaction deleted")
+    assert not any(t["payee"] == "Swiggy" for t in api.get("/transactions/"))
+    assert "Undo" not in page.content()
 
 
 def pick(page: Page, field: str, choice: str):
