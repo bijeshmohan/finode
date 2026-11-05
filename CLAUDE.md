@@ -431,3 +431,6 @@ The recurring form's hint about a past start date shows only while the start dat
 ### One way to add (2026-11-05)
 
 A group's page ends its Sub-accounts tile, and a category's page its Subcategories tile, with the dashed `.add-row` ("+ Add sub-account", "+ Add subcategory"), like Accounts, Categories, Recurring and Goals; the round "+" in a heading is gone everywhere. Sub-account rows carry the budget dot like the Accounts page.
+### Sign-in without a card (2026-11-05)
+
+Sign in, sign up, forgot and reset (`body.bare`) have no card: the form is centred on the page (`body.bare main` is a flex box and `.card.narrow` has `margin: auto`, so a long sign-up still scrolls) under a larger wordmark. `tests/browser/test_sign_in_page.py`.
