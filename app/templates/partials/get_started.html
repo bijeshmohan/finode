@@ -1,10 +1,13 @@
-<ol class="steps">
+{#- The first steps: one tile of rows. A step still to do is a link (the next one is filled in), a finished one is ticked. -#}
+{% from "partials/icons.html" import icon %}
+<ol class="steps tile">
   {% for step in steps %}
+  {% set next = not step.done and (steps|rejectattr("done")|first) is sameas step %}
   <li class="{{ 'done' if step.done }}">
     {% if step.done %}
-    <span class="step-mark" aria-hidden="true">✓</span><span>{{ step.title }}</span>
+    <span class="step-mark" aria-hidden="true">✓</span><span class="step-text">{{ step.title }}</span>
     {% else %}
-    <span class="step-mark" aria-hidden="true">{{ loop.index }}</span><span><a href="{{ step.href }}">{{ step.title }}</a>{% if step.hint %}<small class="step-hint">{{ step.hint }}</small>{% endif %}</span>
+    <a class="step-link" href="{{ step.href }}"><span class="step-mark{{ ' now' if next }}" aria-hidden="true">{{ loop.index }}</span><span class="step-text">{{ step.title }}{% if step.hint %}<small class="step-hint">{{ step.hint }}</small>{% endif %}</span>{{ icon("chevron-right") }}</a>
     {% endif %}
   </li>
   {% endfor %}

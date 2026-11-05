@@ -202,7 +202,7 @@ Accounts go **two levels below a top-level account, for everybody and every type
 
 ### Running a test with invited people
 
-`FINODE_TEST_NOTICE=true` shows the notice (`partials/test_notice.html`, the wording agreed with the owner: a person runs this, the data is technically reachable but not looked at, data may be reset, no financial advice) on the sign-up page, where ticking the box is required (`accept`), and under Profile › About this test. `FINODE_FEEDBACK_EMAIL` adds Profile › Send feedback, a `mailto:` link with the build version (`app/version.py`, from pyproject) and no personal data. The dashboard's "Get started" card names the currency and points to Settings and to the backup. Changing the notice's wording means editing that one partial.
+`FINODE_TEST_NOTICE=true` shows the notice (`partials/test_notice.html`, the wording agreed with the owner: a person runs this, the data is technically reachable but not looked at, data may be reset, no financial advice) on the sign-up page, where ticking the box is required (`accept`), and under Profile › About this test. `FINODE_FEEDBACK_EMAIL` adds Profile › Send feedback, a `mailto:` link with the build version (`app/version.py`, from pyproject) and no personal data. The dashboard's "Get started" card is one tile of tappable rows (see "First run" below) and points only at the import; the currency and the backup live in Settings (2026-11-05). Changing the notice's wording means editing that one partial.
 
 ### Limits and rate limiting
 
@@ -420,3 +420,7 @@ From 80rem with a mouse (`(min-width: 80rem) and (hover: hover) and (pointer: fi
 ### The Add screen's headings (2026-11-04)
 
 Both tiles carry a heading in the words of the details sheet, which follow the kind (`KINDS` in `app.js`, `applyKind`): Expense **Paid from / Spent on**, Income **From / Received in**, Transfer and "other" **From / To**. The category tile's heading is no longer hidden and the hint beside each heading ("the account you paid with"...) is gone. Two tiles always, so nothing changes shape when a side is split.
+
+### First run (2026-11-05)
+
+Home's steps (`partials/get_started.html`, `ol.steps.tile`) are rows you can tap (a chevron at the right, the next step's number filled in `.step-mark.now`, finished ones ticked), under "Get started · N of 3", with one line of small print (the import). Budgets with no account in it says one sentence and has one button, "Choose accounts" (`/accounts`); its intro box shows only once an account is part of the budget. `tests/test_web_budget.py`.

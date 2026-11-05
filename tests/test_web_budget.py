@@ -428,3 +428,15 @@ def test_a_row_says_all_spent_or_over_by_and_otherwise_nothing(client, setup):
     )
     assign(client, setup["food"], "300")
     assert "all spent" not in client.get("/budget").text.split("Food", 1)[1].split("</a>", 1)[0], "money is left"
+
+
+def test_a_budget_with_no_account_says_one_thing_with_one_button(client, root_accounts):
+    page = client.get("/budget").text
+    assert "No account is part of the budget yet" in page and 'href="/accounts">Choose accounts</a>' in page
+    assert "data-plan-intro" not in page, "nothing to assign yet: no intro box"
+
+
+def test_the_first_steps_are_tappable_rows_with_the_next_one_marked(client):
+    page = client.get("/").text
+    assert page.count('class="step-link"') == 3 and page.count("step-mark now") == 1
+    assert page.index("step-mark now") < page.index("Record your first spend")

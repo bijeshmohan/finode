@@ -18,7 +18,7 @@
   {% if steps %}
   <p class="section-label">Get started · {{ steps_done }} of {{ steps_total }}</p>
   {% include "partials/get_started.html" %}
-  <p class="muted small-print">Amounts are in <strong>{{ currency }}</strong>. Using another currency? Change it in <a href="/settings#currency">Settings</a> before you add accounts. Already keep a ledger file? <a href="/profile/data">Import it</a>. Keep a backup safe from time to time: <a href="/profile/data#backup">Profile › Your data</a>.</p>
+  <p class="muted small-print">Already keep a ledger file? <a href="/profile/data#import">Import it</a></p>
   {% endif %}
 </section>
 {% else %}
@@ -42,7 +42,7 @@
 
 {% if has_recorded %}
 {% if steps %}
-<section class="tile get-started">
+<section class="get-started">
   <p class="section-label">Get started · {{ steps_done }} of {{ steps_total }}</p>
   {% include "partials/get_started.html" %}
 </section>
