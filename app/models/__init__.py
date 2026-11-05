@@ -3,7 +3,7 @@ from .account_deletion import AccountDeletion
 from .account_history import AccountHistory
 from .api_token import ApiToken
 from .auth import AuthUser
-from .budget import BudgetAllocation, Goal, GoalAllocation
+from .budget import BudgetAllocation
 from .category import BudgetCategory, CategoryKind
 from .oauth_grant import OAuthGrant
 from .profile import Profile
@@ -21,8 +21,6 @@ __all__ = [
     "BudgetAllocation",
     "BudgetCategory",
     "CategoryKind",
-    "Goal",
-    "GoalAllocation",
     "OAuthGrant",
     "Posting",
     "Profile",

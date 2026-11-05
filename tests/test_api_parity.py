@@ -212,38 +212,6 @@ def test_a_group_budget(client, books, root_accounts):
     assert float(line(ok.json(), "Dining")["assigned"]) == 60
 
 
-def test_goals_from_start_to_finish(client, books):
-    made = client.post("/api/budget/goals", json={"name": "Laptop", "amount": "6000", "by": "2999-12-01"})
-    assert made.status_code == 201, made.text
-    goal = made.json()["goals"][0]
-    goal_id = goal["id"]
-    assert goal["name"] == "Laptop" and float(goal["amount"]) == 6000
-    assert (
-        client.post("/api/budget/goals", json={"name": "laptop", "amount": "1", "by": "2999-12-01"}).status_code == 400
-    )
-    changed = client.put(
-        f"/api/budget/goals/{goal_id}", json={"name": "New laptop", "amount": "7000", "by": "2999-12-01"}
-    )
-    assert changed.json()["goals"][0]["name"] == "New laptop" and float(changed.json()["goals"][0]["amount"]) == 7000
-    saved = client.put(f"/api/budget/goals/{goal_id}/month", json={"amount": "500"})
-    assert saved.status_code == 200 and float(saved.json()["goals"][0]["available"]) == 500
-    used = client.post(f"/api/budget/goals/{goal_id}/use", json={"category_id": books["rent"]["id"], "amount": "200"})
-    assert used.status_code == 200 and float(line(used.json(), "Rent")["available"]) == 200
-    assert (
-        client.post(
-            f"/api/budget/goals/{goal_id}/use", json={"category_id": books["rent"]["id"], "amount": "9999"}
-        ).status_code
-        == 400
-    )
-    assert client.delete(f"/api/budget/goals/{goal_id}").status_code == 204
-    assert budget(client)["goals"] == []
-    assert client.delete(f"/api/budget/goals/{goal_id}").status_code == 404
-    assert client.put(f"/api/budget/goals/{goal_id}/month", json={"amount": "1"}).status_code == 404
-
-
-# ---- reports and profile --------------------------------------------------------------------------------------------
-
-
 def test_summary_and_breakdown(client, books):
     entry(client, books, "30")
     entry(client, books, "70", to="rent")

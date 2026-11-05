@@ -1,7 +1,7 @@
 """A complete backup of what a user has recorded, and restoring it into an empty ledger.
 
 The ledger and CSV exports carry accounts and transactions; this one also carries everything
-around them (settings, budget plan and goals, recurring rules, account flags such as
+around them (settings, budget plan, recurring rules, account flags such as
 "part of the budget" and "closed"), so it can rebuild the whole book. Left out on purpose: access tokens and
 connected apps (secrets and sign-ins to set up again) and the audit history (it describes the old rows).
 Restoring creates everything with new ids, all or nothing in one database transaction.
@@ -32,8 +32,6 @@ from ..schemas.backup import (
     BackupAllocation,
     BackupCategory,
     BackupFile,
-    BackupGoal,
-    BackupGoalMonth,
     BackupPosting,
     BackupProfile,
     BackupRecurring,
@@ -172,19 +170,6 @@ class BackupService:
                 BackupAllocation(month=row.month, category_id=row.category_id, amount=row.amount)
                 for row in self.br.list()
             ],
-            goals=[
-                BackupGoal(
-                    name=g.name,
-                    amount=g.amount,
-                    target_date=g.target_date,
-                    allocations=[
-                        BackupGoalMonth(month=r.month, amount=r.amount)
-                        for r in sorted(self.br.goal_allocations(), key=lambda r: r.month)
-                        if r.goal_id == g.id
-                    ],
-                )
-                for g in sorted(self.br.goals(), key=lambda g: (g.target_date, g.name))
-            ],
         )
         return file.model_dump(mode="json")
 
@@ -204,7 +189,6 @@ class BackupService:
             and not self.tr.account_ids_with_postings()
             and not self.rr.list()
             and not self.br.list()
-            and not self.br.goals()
         )
 
     def restore(self, raw: dict, dry_run: bool = False) -> RestoreSummary:
@@ -249,7 +233,6 @@ class BackupService:
         summary.transactions = len(file.transactions)
         summary.recurring = len(file.recurring)
         summary.allocations = len(self._spending_plan(file))
-        summary.goals = len(file.goals)
         summary.tags = len({n for t in file.transactions for n in t.tags})
         if file.transactions:
             summary.date_from = min(t.date for t in file.transactions)
@@ -413,19 +396,6 @@ class BackupService:
                 errors.append(
                     f"a recurring transaction ({r.payee or r.id}) has neither from, to and amount nor postings."
                 )
-        names = [" ".join(g.name.split()).lower() for g in file.goals]
-        if len(set(names)) != len(names) or "" in names:
-            errors.append("a goal has no name, or two goals have the same name.")
-        for g in file.goals:
-            if g.amount <= 0 or len(g.name) > 80:
-                errors.append(f"the goal '{g.name}' has an amount that is not positive, or a name that is too long.")
-                break
-            saved = Decimal(0)
-            for alloc in sorted(g.allocations, key=lambda x: x.month):
-                saved += alloc.amount
-                if saved < 0:
-                    errors.append(f"the goal '{g.name}' would hold less than nothing in {alloc.month:%B %Y}.")
-                    break
         for row in file.allocations:
             # (plan rows of a fund or an income account, from when the Plan had Build and Earn, are read and dropped)
             if row.category_id not in category_ids and row.category_id not in accounts:
@@ -674,10 +644,6 @@ class BackupService:
                     db.add(linked)
             for row in self._spending_plan(file):
                 self.br.set(row.month, cats[row.category_id], row.amount)
-            for g in file.goals:
-                goal = self.br.add_goal(g.name, g.amount, g.target_date)
-                for alloc in g.allocations:
-                    self.br.set_goal(alloc.month, goal.id, alloc.amount)
             db.commit()
         except Exception:
             db.rollback()

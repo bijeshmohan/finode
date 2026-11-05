@@ -4,12 +4,7 @@
 {% block content %}
 <div class="page-head tall">
   <h1>Budgets</h1>
-  {{ month_pill("/budget?tab=" ~ tab ~ "&month={month}", month_name, month_key, previous, next) }}
-</div>
-<div class="cat-bar budget-bar">
-  <div class="chips seg cat-chips" role="group" aria-label="What to plan">
-    {% for key, name in tabs.items() %}<a class="chip" href="/budget?tab={{ key }}&month={{ month_key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ name }}</a>{% endfor %}
-  </div>
+  {{ month_pill("/budget?month={month}", month_name, month_key, previous, next) }}
 </div>
 {% include "partials/budget_body.html" %}
 {% endblock %}

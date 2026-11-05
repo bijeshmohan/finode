@@ -1648,24 +1648,6 @@ document.addEventListener("change", (event) => {
   recomputeTxn(form);
 });
 
-// The goal form's month chip: a native month picker under "Needed by · Mar 2027"; choosing a month renames it.
-document.addEventListener("change", (event) => {
-  const input = event.target;
-  const chip = input instanceof HTMLInputElement && input.closest("[data-month-chip]");
-  if (!chip) return;
-  const label = chip.querySelector("[data-month-label]");
-  chip.classList.toggle("dim", !input.value);
-  if (!input.value) { label.textContent = "Needed by…"; return; }
-  const [y, m] = input.value.split("-").map(Number);
-  label.textContent = `Needed by · ${new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-GB", { timeZone: "UTC", month: "short", year: "numeric" })}`;
-});
-document.addEventListener("click", (event) => {
-  const input = event.target;
-  if (input instanceof HTMLInputElement && input.closest("[data-month-chip]") && typeof input.showPicker === "function") {
-    try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
-  }
-});
-
 // The recurring form says a past start date is recorded at once only while the start date is in the past.
 document.addEventListener("change", (event) => {
   const input = event.target;

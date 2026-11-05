@@ -78,8 +78,6 @@ async def test_a_read_only_token_can_see_but_not_use_write_tools(session, root_a
             "delete_transaction",
             "create_account",
             "assign_to_category",
-            "assign_to_goal",
-            "use_goal",
             "move_budget_money",
             "copy_budget_from_previous_month",
         }
@@ -96,8 +94,6 @@ async def test_a_read_only_token_can_see_but_not_use_write_tools(session, root_a
             "delete_transaction": {"transaction_id": "00000000-0000-4000-8000-000000000001"},
             "create_account": {"name": "X", "parent": "Assets"},
             "assign_to_category": {"category": "Food", "amount": "1"},
-            "assign_to_goal": {"goal": "Trip", "amount": "1"},
-            "use_goal": {"goal": "Trip", "category": "Food", "amount": "1"},
             "move_budget_money": {"from_category": "Food", "to_category": "Rent", "amount": "1"},
             "copy_budget_from_previous_month": {},
         }
