@@ -63,25 +63,6 @@ class BudgetLine(BaseModel):
     overspent_last_month: Decimal = Money
 
 
-class GoalLine(BaseModel):
-    """A goal: money set aside for something by a month. Not a category; nothing is spent from it directly (it hands its
-    money to a category with `use_goal`)."""
-
-    id: UUID
-    name: str
-    # How much is needed, and the month it is needed by (the first day of it).
-    amount: Decimal = Money
-    target_date: Date
-    # What was set aside (or taken back, or handed to a category, if negative) in the month, and what is saved in all, up to the month's end.
-    assigned: Decimal = Money
-    available: Decimal = Money
-    # What this month asks of it (the by-date rule), what of that is still missing, and whether its month has passed with
-    # money still short.
-    needed: Decimal = Money
-    underfunded: Decimal = Money
-    overdue: bool = False
-
-
 class BudgetRead(BaseModel):
     # First day of the month the figures are for; they count everything up to its last day.
     month: Date
@@ -100,15 +81,8 @@ class BudgetRead(BaseModel):
     assigned_to_later_months: Decimal = Money
     # What copying last month's assignments would assign here (categories with nothing assigned this month yet).
     copyable: Decimal = Money
-    # Goals are set aside for something and are not money to spend, so `assigned`, `activity`, `available`, `lines` and
-    # Home's Left to spend leave them out; these are the goals and their sums.
-    goals: list[GoalLine] = []
-    goal_assigned: Decimal = Money
-    goal_available: Decimal = Money
-    # What the goals still need this month.
-    goal_underfunded: Decimal = Money
     # Money in the budget's asset accounts and what is reserved for the cards' bills (sums of the cards' `owed`).
-    # ready_to_assign = money_in_accounts - reserved_for_cards - available - goal_available - assigned_to_later_months.
+    # ready_to_assign = money_in_accounts - reserved_for_cards - available - assigned_to_later_months.
     money_in_accounts: Decimal = Money
     reserved_for_cards: Decimal = Money
     cards: list[BudgetCard] = []
@@ -153,32 +127,3 @@ class GroupAssign(BaseModel):
     month: Day | None = None
     # The group's whole budget for the month: at least what its subcategories add up to.
     total: Decimal = Amount
-
-
-class GoalCreate(BaseModel):
-    name: str
-    amount: Decimal = Amount
-    # Any day in the month the goal is needed by (after this month).
-    by: Day
-    # Also set aside this month's share now.
-    set_aside_now: bool = False
-
-
-class GoalUpdate(BaseModel):
-    name: str
-    amount: Decimal = Amount
-    by: Day
-
-
-class GoalAssign(BaseModel):
-    month: Day | None = None
-    # The month's total set aside for the goal (replaces it; negative takes back what was saved before).
-    amount: Decimal = Amount
-
-
-class GoalUse(BaseModel):
-    """Hand money a goal saved to the category that paid for something."""
-
-    month: Day | None = None
-    category_id: UUID
-    amount: Decimal = Amount

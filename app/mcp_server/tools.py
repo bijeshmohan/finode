@@ -98,10 +98,8 @@ finode is the user's personal double-entry ledger.
 - Dates are YYYY-MM-DD; today's date is used when you leave the date out. Balances count entries
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
-  expense category's assigned, spent and available amounts (goals, money being saved for something by a month, are listed
-  under `goals`, not in `categories`, and are not counted in assigned/spent/available_total); assign_to_category plans a month's money and
-  move_budget_money shifts it between categories; create_goal, update_goal and delete_goal manage goals; assign_to_goal sets money aside for a goal and use_goal hands what a goal saved to a
-  category that paid for something. These only change the plan, never the ledger, and the
+  expense category's assigned, spent and available amounts; assign_to_category plans a month's money and
+  move_budget_money shifts it between categories. These only change the plan, never the ledger, and the
   user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
 - check_books confirms that debits equal credits in every transaction and overall; use it when the
   user doubts their numbers.
@@ -1509,25 +1507,6 @@ def _budget(data) -> dict[str, Any]:
         ),
         "overspent_last_month": text(data.overspent_last_month),
         "budget_accounts": data.budget_accounts,
-        **(
-            {
-                "saved_for_goals": text(data.goal_available),
-                "goals": [
-                    {
-                        "goal_id": str(g.id),
-                        "goal": g.name,
-                        "saved": text(g.available),
-                        "target": text(g.amount),
-                        "by": g.target_date.isoformat(),
-                        "assigned_this_month": text(g.assigned),
-                        **({"needs_this_month": text(g.underfunded)} if g.underfunded else {}),
-                    }
-                    for g in data.goals
-                ],
-            }
-            if data.goals
-            else {}
-        ),
         "categories": [
             {
                 "category_id": str(line.category_id),
@@ -1583,46 +1562,6 @@ def assign_to_category(
     with services() as s:
         entry = _spending(s, category)
         return _budget(s.budget.assign(_month(month), entry.id, amount))
-
-
-def _goal(s, name: str):
-    """The goal called `name` (capitals aside), or an explanation of the ones there are."""
-    goals = s.budget.view(None).goals
-    for goal in goals:
-        if goal.name.lower() == name.strip().lower():
-            return goal
-    raise ValueError(f"no goal is called '{name}'. Goals: {', '.join(g.name for g in goals) or 'none yet'}.")
-
-
-@_tool_errors
-def assign_to_goal(
-    goal: Annotated[str, Field(description="The goal's name, e.g. Emergency fund (see `goals` in get_budget)")],
-    amount: Annotated[
-        Decimal,
-        Field(
-            description="The month's total set aside for the goal (replaces it; 0 clears it; negative takes back what was saved before)"
-        ),
-    ],
-    month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
-) -> dict[str, Any]:
-    """Set money aside for a goal in a month. This is a plan only; no transaction is recorded. It lowers what is
-    ready to assign, so check get_budget first."""
-    with services() as s:
-        return _budget(s.budget.assign_goal(_month(month), _goal(s, goal).id, amount))
-
-
-@_tool_errors
-def use_goal(
-    goal: Annotated[str, Field(description="The goal whose saved money is used")],
-    category: Annotated[str, Field(description="The expense category that paid for the thing, e.g. Health:Hospital")],
-    amount: Annotated[Decimal, Field(gt=0, description="At most what is saved in the goal")],
-    month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
-) -> dict[str, Any]:
-    """Hand money a goal saved to a category, so spending recorded there is covered. It does not change what is
-    ready to assign."""
-    with services() as s:
-        entry = _spending(s, category)
-        return _budget(s.budget.use_goal(_month(month), _goal(s, goal).id, entry.id, amount))
 
 
 @_tool_errors
@@ -1766,58 +1705,6 @@ def resume_recurring(
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
         return {"resumed": str(rule.id), "next_due": rule.next_date.isoformat() if rule.active else None}
-
-
-def _goal_month(value: str) -> date:
-    month = _month(value)
-    if month is None:
-        raise ToolError("pass the month the goal is needed by, YYYY-MM!")
-    return month
-
-
-@_tool_errors
-def create_goal(
-    name: Annotated[str, Field(description="What it is for, e.g. Emergency fund (at most 80 characters)")],
-    amount: Annotated[Decimal, Field(gt=0, description="How much to save in all")],
-    by: Annotated[str, Field(description="The month it is needed by, YYYY-MM; after this month")],
-    set_aside_now: Annotated[
-        bool, Field(description="Also set aside this month's share (it lowers ready to assign)")
-    ] = False,
-) -> dict[str, Any]:
-    """Create a savings goal. Goals are listed under `goals` in get_budget."""
-    with services() as s:
-        return _budget(s.budget.create_goal(name, amount, _goal_month(by), set_aside_now))
-
-
-@_tool_errors
-def update_goal(
-    goal: Annotated[str, Field(description="The goal's current name")],
-    name: Annotated[str | None, Field(description="New name; leave out to keep it")] = None,
-    amount: Annotated[Decimal | None, Field(gt=0, description="New target amount; leave out to keep it")] = None,
-    by: Annotated[str | None, Field(description="New month it is needed by, YYYY-MM; leave out to keep it")] = None,
-) -> dict[str, Any]:
-    """Change a goal's name, target amount or month. What is saved in it stays."""
-    with services() as s:
-        current = _goal(s, goal)
-        if name is None and amount is None and by is None:
-            raise ToolError("nothing to change: pass a name, amount or by!")
-        return _budget(
-            s.budget.update_goal(
-                current.id,
-                name if name is not None else current.name,
-                amount if amount is not None else current.amount,
-                _goal_month(by) if by else current.target_date,
-            )
-        )
-
-
-@_tool_errors
-def delete_goal(goal: Annotated[str, Field(description="The goal's name")]) -> dict[str, Any]:
-    """Delete a goal for good: what was saved in it goes back to ready to assign. Ask the user to confirm first."""
-    with services() as s:
-        found = _goal(s, goal)
-        s.budget.delete_goal(found.id)
-        return {"deleted": found.name, "returned_to_ready_to_assign": text(found.available)}
 
 
 # Changing accounts: only on a connection allowed to manage them (the others list these tools but they refuse).
@@ -2006,12 +1893,7 @@ WRITE_TOOLS = [
     (skip_recurring_occurrence, WRITE),
     (resume_recurring, IDEMPOTENT_WRITE),
     (restore_transaction, WRITE),
-    (create_goal, WRITE),
-    (update_goal, IDEMPOTENT_WRITE),
-    (delete_goal, DESTRUCTIVE),
     (assign_to_category, IDEMPOTENT_WRITE),
-    (assign_to_goal, IDEMPOTENT_WRITE),
-    (use_goal, WRITE),
     (move_budget_money, WRITE),
     (copy_budget_from_previous_month, IDEMPOTENT_WRITE),
 ]

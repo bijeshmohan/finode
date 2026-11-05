@@ -31,7 +31,7 @@ On a phone, the bottom bar has four tabs with a **+** in the middle:
 | Tab | What it is for |
 |---|---|
 | **Home** | one number (what is left to spend this month) and your recent transactions |
-| **Budgets** | give every rupee a job (Budgets), save for a trip or a bike (Goals); see what is Ready to assign |
+| **Budgets** | give every rupee a job (Budgets); see what is Ready to assign |
 | **Accounts** | where your money is: banks, cash, cards, loans |
 | **Categories** | what you spend on and earn from, and how much, month by month |
 | **+** | add a transaction |

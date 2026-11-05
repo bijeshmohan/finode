@@ -32,7 +32,7 @@ The tokens are CSS variables at the top of `style.css`. Style with tokens only, 
 Every list page opens the same way:
 
 1. **Title row** (`.page-head.tall`): the title, and the month pill at the right where the page has a month. It is the same height on every page, so titles line up.
-2. **Switcher** (full width, `.chips.seg`): Spend · Save, Asset · Liability, Expense · Income. Transactions and Settings have none.
+2. **Switcher** (full width, `.chips.seg`): Asset · Liability, Expense · Income. Transactions and Settings have none.
 3. **Head** (`.ready-hero`): a small label above one large figure, and one quiet line under it. Budgets: Ready to assign. Accounts: What you own / What you owe / Equity. Categories: Spent so far / Earned.
 4. **The list**, in tiles.
 5. **A dashed "+ Add …" row** (`.add-row`) at the end where something can be added.
@@ -46,7 +46,7 @@ Home is the exception by design: one number ("Left to spend"), a thin bar and th
 | **Tile** (`.tile`, `ul.card.list`) | A soft rounded surface with a hairline border and a hairline between rows. One tile per day in transaction lists, per group on Accounts and Budgets, per section in Settings. The tile rule is one block at the end of `style.css`. |
 | **Row** | A name, one quiet second line, the figure at the right. Budgets rows add a bar under it; Categories show the biggest subcategories and the share; Accounts rows have no initials. Rows are links; destructive actions live on the detail page, not on rows. |
 | **Month pill** | `‹ Oct 2026 ›` as plain text: two arrows around a native month picker laid invisibly over the month name (`partials/month_pill.html`). Pages that never look ahead pass `max`. |
-| **Bottom sheet** | A `<dialog>` that slides up (a transaction's details, a category's budget, a goal, the Filter). It opens at once with grey placeholders and the content fades in over them. A press that starts inside never closes it. |
+| **Bottom sheet** | A `<dialog>` that slides up (a transaction's details, a category's budget, the Filter). It opens at once with grey placeholders and the content fades in over them. A press that starts inside never closes it. |
 | **Toast** | A flash after saving. After saving or deleting an entry it carries **Undo**. |
 | **Empty state** | A sentence and one pill button (`.empty-state`), without a box. |
 | **Form** | Boxed fields in one card and **one full-width primary button, no Cancel** (the back link is the cancel; sheets keep theirs). |

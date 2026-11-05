@@ -132,19 +132,6 @@ class BackupAllocation(BaseModel):
     amount: Decimal
 
 
-class BackupGoalMonth(BaseModel):
-    month: Day
-    amount: Decimal
-
-
-class BackupGoal(BaseModel):
-    name: str
-    amount: Decimal
-    target_date: Day
-    # What was set aside for it, month by month.
-    allocations: list[BackupGoalMonth] = []
-
-
 class BackupFile(BaseModel):
     format: str
     version: int
@@ -158,8 +145,6 @@ class BackupFile(BaseModel):
     transactions: list[BackupTransaction] = []
     recurring: list[BackupRecurring] = []
     allocations: list[BackupAllocation] = []
-    # Goals (their own records since the goals table; a file from before has its goals as plain categories).
-    goals: list[BackupGoal] = []
 
 
 class RestoreSummary(BaseModel):
@@ -171,7 +156,6 @@ class RestoreSummary(BaseModel):
     transactions: int = 0
     recurring: int = 0
     allocations: int = 0
-    goals: int = 0
     tags: int = 0
     date_from: Date | None = None
     date_to: Date | None = None

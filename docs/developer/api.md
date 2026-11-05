@@ -98,7 +98,7 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 | `POST` | `/recurring/{recurring_id}/skip` | Leave the next occurrence out (nothing is recorded for it); the rule carries on with the one after. |
 | `DELETE` | `/recurring/{recurring_id}` | Delete a rule; the transactions it recorded are kept. |
 
-## Budget and goals
+## Budget
 
 | Method | Path | What it does |
 |---|---|---|
@@ -110,11 +110,6 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 | `POST` | `/budget/copy` | Assign a month what each category got the month before, where nothing is assigned yet (nothing is overwritten). |
 | `PUT` | `/budget/groups/{category_id}` | Set a group's budget for a month: at least what its subcategories add up to; the rest is the group's own money. |
 | `POST` | `/budget/accounts/{account_id}/include` | Make an account part of the budget (its money and its spending count from now on). |
-| `POST` | `/budget/goals` | A savings goal: an amount by a month. `set_aside_now` also sets aside this month's share. |
-| `PUT` | `/budget/goals/{goal_id}` | Change a goal's name, amount or month. What is saved in it stays. |
-| `DELETE` | `/budget/goals/{goal_id}` | Delete a goal for good: what was saved in it goes back to Ready to assign. |
-| `PUT` | `/budget/goals/{goal_id}/month` | Set what is set aside for a goal in a month (0 clears it; negative takes back what was saved before). |
-| `POST` | `/budget/goals/{goal_id}/use` | Hand money a goal saved to the category that paid for something; Ready to assign does not change. |
 
 ## Reports
 

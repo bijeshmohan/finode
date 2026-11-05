@@ -223,20 +223,15 @@ def month_of(day):
 
 
 def budget_checks(session, s, label: str) -> None:
-    from app.models.budget import BudgetAllocation, GoalAllocation
+    from app.models.budget import BudgetAllocation
 
     today = month_of(local_today())
     rows = list(session.exec(select(BudgetAllocation).where(BudgetAllocation.user_id == TEST_USER_ID)).all())
-    rows += session.exec(select(GoalAllocation).where(GoalAllocation.user_id == TEST_USER_ID)).all()
     for offset in (-2, -1, 0, 1, 2):
         month = month_of(today + timedelta(days=31 * offset))
         view = s.budget.view(month)
         assert view.ready_to_assign == (
-            view.money_in_accounts
-            - view.reserved_for_cards
-            - view.available
-            - view.goal_available
-            - view.assigned_to_later_months
+            view.money_in_accounts - view.reserved_for_cards - view.available - view.assigned_to_later_months
         ), (label, month, "Ready to assign must be what is in the accounts minus what already has a job")
         assert view.assigned_to_later_months == sum((r.amount for r in rows if r.month > month), Decimal(0)), (
             label,
@@ -256,24 +251,16 @@ def run_budget(session, seed: int, steps: int) -> int:
     for step in range(steps):
         s = services(session)
         month = month_of(local_today() + timedelta(days=31 * rng.randint(-2, 2)))
-        op = rng.choice(
-            ["assign"] * 4
-            + ["move"] * 3
-            + ["spend"] * 4
-            + ["card"] * 2
-            + ["income"]
-            + ["copy"]
-            + ["goal", "gassign", "gassign", "guse", "guse", "gdelete"]
-        )
+        op = rng.choice(["assign"] * 4 + ["move"] * 3 + ["spend"] * 4 + ["card"] * 2 + ["income"] + ["copy"])
         label = f"budget seed {seed} step {step} {op}"
         try:
             if op == "assign":
                 cat = rng.choice(cats)
                 seen = s.budget.view(month)
-                before = {l.name: l.available for l in seen.lines + seen.goals}[cat.name]
+                before = {l.name: l.available for l in seen.lines}[cat.name]
                 amount = money(rng) * rng.choice([1, 1, 1, -1])
                 view = s.budget.assign(month, cat.id, amount)
-                after = {l.name: l.available for l in view.lines + view.goals}[cat.name]
+                after = {l.name: l.available for l in view.lines}[cat.name]
                 assert amount >= 0 or after >= 0 or before < 0, (
                     label,
                     "taking money out never leaves a category overspent",
@@ -310,30 +297,6 @@ def run_budget(session, seed: int, steps: int) -> int:
                         ],
                     )
                 )
-            elif op == "goal":
-                s.budget.create_goal(
-                    rng.choice(["Trip", "Bike", "Laptop", "Fund"]),
-                    money(rng) * 10,
-                    local_today() + timedelta(days=31 * rng.randint(1, 8)),
-                    rng.random() < 0.5,
-                )
-            elif op in ("gassign", "guse", "gdelete"):
-                goals = s.budget.view(month).goals
-                if not goals:
-                    raise ValueError("no goal yet")
-                goal = rng.choice(goals)
-                if op == "gassign":
-                    view = s.budget.assign_goal(month, goal.id, money(rng) * rng.choice([1, 1, -1]))
-                    assert all(g.available >= 0 for g in view.goals), (label, "a goal never holds less than nothing")
-                elif op == "guse":
-                    before = s.budget.view(month).ready_to_assign
-                    s.budget.use_goal(month, goal.id, rng.choice(cats).id, money(rng) / 10)
-                    assert s.budget.view(month).ready_to_assign == before, (
-                        label,
-                        "handing a goal's money to a category never changes Ready to assign",
-                    )
-                else:
-                    s.budget.delete_goal(goal.id)
             elif op == "copy":
                 s.budget.copy_previous(month)
             done += 1
