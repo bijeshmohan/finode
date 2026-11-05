@@ -1664,3 +1664,11 @@ document.addEventListener("click", (event) => {
     try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
   }
 });
+
+// The recurring form says a past start date is recorded at once only while the start date is in the past.
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  const hint = input instanceof HTMLInputElement && input.name === "start" ? document.querySelector("[data-past-hint]") : null;
+  const chip = hint && input.closest("[data-date-chip]");
+  if (hint && chip) hint.hidden = !input.value || input.value >= chip.dataset.today;
+});

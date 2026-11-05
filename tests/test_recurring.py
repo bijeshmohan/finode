@@ -524,3 +524,8 @@ def test_the_recurring_form_has_the_kind_buttons(client, accounts):
     assert 'name="kind" value="expense"' in new and ">Transfer</button>" in new
     created = rule(client, accounts, start_date="2999-01-01")
     assert 'name="kind" value="expense"' in client.get(f"/recurring/{created['id']}/edit").text
+
+
+def test_the_past_start_hint_is_hidden_until_the_start_is_past(client):
+    page = client.get("/recurring/new").text
+    assert "data-past-hint hidden" in page, "a new rule starts today: nothing to warn about"

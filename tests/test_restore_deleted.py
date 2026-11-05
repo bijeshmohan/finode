@@ -192,3 +192,9 @@ def test_history_notes_a_changed_link_but_not_an_unchanged_one(client, ledger, s
     assert [h.action for h in svc.transactions.history(UUID(b))] == ["created"]
     client.patch(f"/api/transactions/{b}", json={"related_id": a})
     assert [h.action for h in svc.transactions.history(UUID(b))] == ["created", "updated"]
+
+
+def test_an_empty_deleted_page_has_no_back_button(client):
+    for path in ("/transactions/deleted", "/accounts/deleted", "/categories/deleted"):
+        page = client.get(path).text
+        assert "Nothing deleted" in page and ">Back</a>" not in page, path
