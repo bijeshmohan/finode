@@ -120,6 +120,10 @@ A round `i` (`.calc-info`) sits beside the label of **Left to spend** (Home) and
 
 Rows are grouped into soft rounded tiles (`--surface` with a `--tile-border` hairline, a hairline between rows inside, a gap between tiles) so groups are easy to tell apart while the page stays minimal: a tile per day in transaction lists (`.tx-day ul.card.list`), per account type and per group on the accounts page, per group of categories on the budget (`.budget-tile`, opened in `budget_body.html` at each top-level group and at the first plain category after one) and per section in Settings (`.tile`). The tile rule is one block at the end of `style.css`; new lists should reuse it rather than draw their own borders.
 
+### Contrast (2026-11-04)
+
+`--muted` is `#6b6b64` in the light theme (5.1 : 1 on the page, 4.7 : 1 on a grey chip; it had been 4.1 and 3.7) and `--faint` `#85857e` (3.6 : 1, for placeholders and glyphs, not for sentences). `tests/test_contrast.py` fails if `--muted` drops under 4.5 : 1 on the page, a tile or a chip in either theme: change the greys only with that test in view.
+
 ### Dark mode
 
 Both dark blocks at the top of `style.css` (the automatic `prefers-color-scheme` one and the manual `data-theme="dark"` one) must define the same tokens (a test compares them). Use tokens only, never literal colours (the one exception is the white switch knob, which switches to `--on-accent` when on). Form fields use `--field-border` (stronger than the hairline `--border` in dark so empty fields are visible), the big amount placeholder uses `--faint`, and `favicon.svg` switches between ink and paper with `prefers-color-scheme`. `apple-touch-icon.png` is still the older blue mark.
