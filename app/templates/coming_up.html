@@ -9,7 +9,7 @@
 <div class="ready zero budget-hero ready-hero">
   <div class="hero-top"><span class="muted">Until {{ data.through|friendly_date }}</span></div>
   {% if data.total is not none %}<span class="figure">{{ figure(data.total, currency) }}</span>{% endif %}
-  <span class="glance-note hero-note"><span>{{ data.count }} {{ "payment" if data.count == 1 else "payments" }} that touch your budget accounts</span></span>
+  <span class="glance-note hero-note"><span>{{ data.count }} {{ "payment that touches" if data.count == 1 else "payments that touch" }} your budget accounts</span></span>
 </div>
 {% for day in days %}
 <section class="tx-day">
