@@ -444,3 +444,6 @@ A category with subcategories shows a "Transactions" heading only when something
 ### Move money picks in the sheet (2026-11-05)
 
 `/budget/move` has no native menus: From and To are `.field-pick` buttons over hidden `select[data-sheet-select]` that open `#row-picker` in its flat mode, each category showing what it has left ("300.00 left", `data-balance`); the same attribute and button serve the Under field of the account and category forms (`data-noun` names what is picked). The selects are not browser-required, so `POST /budget/move` answers an empty From or To with a message in `#form-error`.
+### Opening balances fold (2026-11-05)
+
+On a day with two or more "Opening balance" entries (a new ledger adding its accounts) the lists (`partials/transaction_days.html`: Home, Transactions, Show more) show one quiet row, "Opening balances · N accounts" (`li.tx-fold`, a `details`), that opens to the entries, each still a row with its own sheet. One opening balance stays a normal row, a balance adjustment is never folded, and an account's own page (`account_entries.html`) is unchanged. `tests/test_opening_fold.py`.
