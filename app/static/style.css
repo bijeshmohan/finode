@@ -1693,3 +1693,9 @@ label.check-row .hint { color: var(--muted); }
   body.app:has(dialog.side-panel[open]) main { margin-left: calc(var(--sidebar-w) + 2rem); max-width: 38rem; }
   a.tx.is-open { background: var(--surface-2); }
 }
+
+/* Sign in, sign up and the password pages: no card, the form centred on the page (2026-11-05). */
+body.bare main { display: flex; min-height: 100dvh; padding: max(1.5rem, env(safe-area-inset-top)) 1.25rem 1.5rem; }
+body.bare .card.narrow { width: 100%; max-width: 22rem; margin: auto; background: none; border: 0; box-shadow: none; padding: 0; }
+body.bare .brand-title { font-size: 1.6rem; margin-bottom: .25rem; }
+body.bare .brand-title img { width: 44px; height: 44px; border-radius: 11px; }

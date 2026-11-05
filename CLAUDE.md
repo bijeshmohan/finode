@@ -420,3 +420,7 @@ From 80rem with a mouse (`(min-width: 80rem) and (hover: hover) and (pointer: fi
 ### The Add screen's headings (2026-11-04)
 
 Both tiles carry a heading in the words of the details sheet, which follow the kind (`KINDS` in `app.js`, `applyKind`): Expense **Paid from / Spent on**, Income **From / Received in**, Transfer and "other" **From / To**. The category tile's heading is no longer hidden and the hint beside each heading ("the account you paid with"...) is gone. Two tiles always, so nothing changes shape when a side is split.
+
+### Sign-in without a card (2026-11-05)
+
+Sign in, sign up, forgot and reset (`body.bare`) have no card: the form is centred on the page (`body.bare main` is a flex box and `.card.narrow` has `margin: auto`, so a long sign-up still scrolls) under a larger wordmark. `tests/browser/test_sign_in_page.py`.
