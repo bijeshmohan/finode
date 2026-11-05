@@ -1,13 +1,8 @@
 {% from "partials/tx_title.html" import tx_title %}
 {#- The day sections of a list of rows (TransactionRow, newest first): shared by the list and by "Show more". -#}
 {% from "partials/icons.html" import icon %}
-  {% for day, items in rows|groupby("transaction.date")|reverse %}
-  <section class="tx-day{{ " tx-more-in" if more_in }}">
-    {#- What was spent that day (expenses only), quietly at the right of the date, only on a day with more than one entry (one entry would just repeat its row). -#}
-    {% set spent = items|selectattr("kind", "equalto", "expense")|sum(attribute="amount") %}
-    <h3 class="tx-day-head"><span>{{ day|friendly_date }}</span>{% if spent and items|length > 1 %}<span class="tx-day-total">Spent {{ spent|money }}</span>{% endif %}</h3>
-    <ul class="card list">
-      {% for row in items %}
+{#- One row of a day (the same for a day's own list and for the folded opening balances). -#}
+{% macro entry(row) %}
       {% set t = row.transaction %}
       {% set system = "Opening Balances" in row.credits or "Opening Balances" in row.debits %}
       <li>
@@ -24,7 +19,25 @@
           <span class="tx-amount {{ row.kind }}">{{ "+" if row.kind == "income" }}{{ row.amount|money }}</span>
         </a>
       </li>
-      {% endfor %}
+{% endmacro %}
+  {% for day, items in rows|groupby("transaction.date")|reverse %}
+  <section class="tx-day{{ " tx-more-in" if more_in }}">
+    {#- What was spent that day (expenses only), quietly at the right of the date, only on a day with more than one entry (one entry would just repeat its row). -#}
+    {% set spent = items|selectattr("kind", "equalto", "expense")|sum(attribute="amount") %}
+    <h3 class="tx-day-head"><span>{{ day|friendly_date }}</span>{% if spent and items|length > 1 %}<span class="tx-day-total">Spent {{ spent|money }}</span>{% endif %}</h3>
+    <ul class="card list">
+      {#- Several opening balances on one day (a new ledger) fold into one quiet row that opens to them. -#}
+      {% set openings = items|selectattr("transaction.payee", "equalto", "Opening balance")|list %}
+      {% set fold = openings|length > 1 %}
+      {% for row in items if not (fold and row in openings) %}{{ entry(row) }}{% endfor %}
+      {% if fold %}
+      <li class="tx-fold">
+        <details>
+          <summary><span class="tx-main"><span class="tx-title">Opening balances</span><span class="tx-sub">{{ openings|length }} accounts</span></span>{{ icon("chevron-right") }}</summary>
+          <ul class="tx-fold-rows">{% for row in openings %}{{ entry(row) }}{% endfor %}</ul>
+        </details>
+      </li>
+      {% endif %}
     </ul>
   </section>
   {% endfor %}

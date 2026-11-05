@@ -437,3 +437,7 @@ Sign in, sign up, forgot and reset (`body.bare`) have no card: the form is centr
 ### First run (2026-11-05)
 
 Home's steps (`partials/get_started.html`, `ol.steps.tile`) are rows you can tap (a chevron at the right, the next step's number filled in `.step-mark.now`, finished ones ticked), under "Get started · N of 3", with one line of small print (the import). Budgets with no account in it says one sentence and has one button, "Choose accounts" (`/accounts`); its intro box shows only once an account is part of the budget. `tests/test_web_budget.py`.
+
+### Opening balances fold (2026-11-05)
+
+On a day with two or more "Opening balance" entries (a new ledger adding its accounts) the lists (`partials/transaction_days.html`: Home, Transactions, Show more) show one quiet row, "Opening balances · N accounts" (`li.tx-fold`, a `details`), that opens to the entries, each still a row with its own sheet. One opening balance stays a normal row, a balance adjustment is never folded, and an account's own page (`account_entries.html`) is unchanged. `tests/test_opening_fold.py`.

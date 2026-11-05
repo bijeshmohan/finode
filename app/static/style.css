@@ -1702,3 +1702,14 @@ body.bare main { display: flex; min-height: 100dvh; padding: max(1.5rem, env(saf
 body.bare .card.narrow { width: 100%; max-width: 22rem; margin: auto; background: none; border: 0; box-shadow: none; padding: 0; }
 body.bare .brand-title { font-size: 1.6rem; margin-bottom: .25rem; }
 body.bare .brand-title img { width: 44px; height: 44px; border-radius: 11px; }
+
+/* Several opening balances on one day fold into one quiet row (2026-11-05). */
+.tx-fold > details > summary { display: flex; align-items: center; gap: .75rem; min-height: 56px; padding: .6rem 0; list-style: none; cursor: pointer; color: var(--muted); }
+.tx-fold > details > summary::-webkit-details-marker { display: none; }
+.tx-fold .tx-main { flex: 1; min-width: 0; }
+.tx-fold .tx-title { font-weight: 500; }
+.tx-fold > details > summary .icon { margin-left: auto; flex: none; color: var(--faint); transition: transform .15s ease; }
+.tx-fold > details[open] > summary .icon { transform: rotate(90deg); }
+.tx-fold-rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--surface-2); }
+.tx-fold-rows > li + li { border-top: 1px solid var(--surface-2); }
+@media (prefers-reduced-motion: reduce) { .tx-fold > details > summary .icon { transition: none; } }
