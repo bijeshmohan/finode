@@ -412,3 +412,28 @@ def test_the_goal_form_has_a_month_chip_and_a_switch_instead_of_boxes(page: Page
     switch = page.locator('input[name="assign_now"]')
     expect(switch).to_be_checked()
     assert switch.evaluate("e => getComputedStyle(e).borderRadius") != "0px", "drawn as a switch, not a native box"
+
+
+def test_move_money_picks_in_our_sheet_with_what_each_has_left(page: Page, books, api: Api):
+    api.put(f"/budget/categories/{books['food']['id']}", amount="300")
+    api.put(f"/budget/categories/{books['rent']['id']}", amount="50")
+    page.goto("/budget/move")
+    page.locator('input[name="amount"]').fill("120")
+    page.locator(".field-pick").first.click()  # From
+    sheet = page.locator("#row-picker")
+    expect(sheet.locator("[data-pick-option]", has_text="Groceries")).to_contain_text("300.00 left")
+    sheet.locator("[data-pick-option]", has_text="Groceries").click()
+    expect(page.locator(".field-pick").first).to_have_text("Groceries")
+    page.locator(".field-pick").nth(1).click()  # To
+    sheet.locator("[data-pick-option]", has_text="Rent").click()
+    page.get_by_role("button", name="Move money").click()
+    page.wait_for_url("**/budget**")
+    expect(page.locator("a.crow", has_text="Rent")).to_contain_text("170.00")
+    expect(page.locator("a.crow", has_text="Groceries")).to_contain_text("180.00")
+
+
+def test_move_money_without_both_categories_says_so(page: Page, books):
+    page.goto("/budget/move")
+    page.locator('input[name="amount"]').fill("10")
+    page.get_by_role("button", name="Move money").click()
+    expect(page.locator("#form-error")).to_contain_text("Choose the category")

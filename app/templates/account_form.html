@@ -15,13 +15,13 @@
   </label>
   <div class="under-field">
     <span>Under</span>
-    <select name="parent_id" data-parent-select class="is-picked" aria-hidden="true" tabindex="-1">
+    <select name="parent_id" data-sheet-select class="is-picked" aria-hidden="true" tabindex="-1">
       {% if not editing %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
       <option value="{{ n.account.id }}" {{ "selected" if n.account.id == parent_id }}{% if root_of %} data-root="{{ root_of[n.account.id] }}"{% endif %}{% if starts and n.account.id in starts %} data-start="{{ starts[n.account.id] }}"{% endif %}>{{ n.path }}</option>
       {% endfor %}
     </select>
-    <button type="button" class="field-pick" data-pick-generic data-title="Under" aria-haspopup="dialog" aria-label="Under"><span>Choose…</span></button>
+    <button type="button" class="field-pick" data-pick-generic data-title="Under" data-noun="accounts" aria-haspopup="dialog" aria-label="Under"><span>Choose…</span></button>
   </div>
   {% if not editing or node.is_leaf %}
   <label>{{ "Balance" if editing else "Current balance" }}

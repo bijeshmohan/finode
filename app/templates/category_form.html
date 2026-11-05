@@ -15,11 +15,11 @@
   {% if groups or parent_id %}
   <div class="under-field">
     <span>Under</span>
-    <select name="parent_id" data-parent-select data-allow-empty class="is-picked" aria-hidden="true" tabindex="-1">
+    <select name="parent_id" data-sheet-select data-allow-empty class="is-picked" aria-hidden="true" tabindex="-1">
       <option value="">None (top level)</option>
       {% for g in groups %}<option value="{{ g.id }}" {{ "selected" if g.id == parent_id }}>{{ g.name }}</option>{% endfor %}
     </select>
-    <button type="button" class="field-pick" data-pick-generic data-title="Under" aria-haspopup="dialog" aria-label="Under"><span>None (top level)</span></button>
+    <button type="button" class="field-pick" data-pick-generic data-title="Under" data-noun="groups" aria-haspopup="dialog" aria-label="Under"><span>None (top level)</span></button>
   </div>
   {% endif %}
   {% set note = (category.details or '') if editing else '' %}
