@@ -99,8 +99,6 @@ LISTS = {
     ("GET", "/api/transactions/payees"),
     ("GET", "/backup"),
     ("GET", "/budget"),
-    ("GET", "/budget/goal"),
-    ("GET", "/budget/goal/preview"),
     ("GET", "/budget/move"),
     ("GET", "/export"),
     ("GET", "/profile/assistants"),
@@ -143,7 +141,6 @@ REFERENCES = {
     ("POST", "/api/transactions/batch"),
     ("POST", "/budget/assign"),
     ("POST", "/budget/copy"),
-    ("POST", "/budget/goal"),
     ("POST", "/budget/move"),
     ("POST", "/import"),
     ("POST", "/import/preview"),
@@ -155,7 +152,6 @@ REFERENCES = {
     ("POST", "/settings/currency"),
     ("POST", "/transactions/split"),
     ("POST", "/api/budget/copy"),
-    ("POST", "/api/budget/goals"),
     ("POST", "/api/budget/move"),
 }
 
@@ -243,8 +239,6 @@ def world(client: TestClient, session, rich) -> World:
     shelf = post_account(client, {"name": "Spare shelf", "parent_id": assets}).json()["id"]
     client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
     w.deletion_ids = [str(d["id"]) for d in services(session).accounts.restorable()]
-    client.post("/budget/goal", data={"name": "Isolated holiday", "amount": "5000", "by": "2999-12", "assign_now": "1"})
-    w.goal_ids = [g["id"] for g in client.get("/api/budget/").json()["goals"]]
     doc = client.get("/api/backup").json()
     w.backup = doc
     w.categories = {c["name"]: c["id"] for c in doc["categories"]}
@@ -255,23 +249,18 @@ def world(client: TestClient, session, rich) -> World:
     w.recurring_ids = [r["id"] for r in doc["recurring"]]
     w.history_ids = [str(d.id) for d in services(session).transactions.deleted()]
     w.token_id, w.grant_id = str(w.token.id), str(w.grant.id)
-    w.markers = (
-        A_WORDS
-        + [
-            str(i)
-            for i in (
-                *w.accounts.values(),
-                *w.transaction_ids,
-                *w.recurring_ids,
-                *w.history_ids,
-                *w.deletion_ids,
-                w.token_id,
-                w.grant_id,
-                *w.goal_ids,
-            )
-        ]
-        + ["Isolated holiday"]
-    )
+    w.markers = A_WORDS + [
+        str(i)
+        for i in (
+            *w.accounts.values(),
+            *w.transaction_ids,
+            *w.recurring_ids,
+            *w.history_ids,
+            *w.deletion_ids,
+            w.token_id,
+            w.grant_id,
+        )
+    ]
     # B has a small ledger of their own (and none of A's names).
     with signed_in_as(B_USER):
         roots = {a["name"]: a["id"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
@@ -325,7 +314,6 @@ def candidates(world: World, name: str) -> list[str]:
         "recurring_id": world.recurring_ids,
         "token_id": [world.token_id],
         "grant_id": [world.grant_id],
-        "goal_id": world.goal_ids,
         "name": world.tags,
     }[name]
 
@@ -347,9 +335,6 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("POST", "/recurring/{recurring_id}/edit"): {
             "data": {**rows, "frequency": "monthly", "every": "1", "start": "2999-01-01"}
         },
-        ("POST", "/budget/goal/{goal_id}"): {"data": {"name": "hacked", "amount": "5", "by": "2999-12"}},
-        ("POST", "/budget/goal/{goal_id}/use"): {"data": {"category": bills, "amount": "1"}},
-        ("POST", "/budget/goal/{goal_id}/assign"): {"data": {"amount": "5"}},
         ("POST", "/api/accounts/{account_id}/merge"): {"json": {"into": bills}},
         ("POST", "/api/categories/{category_id}/merge"): {"json": {"into": bills}},
         ("PATCH", "/api/categories/{category_id}"): {"json": {"name": "hacked"}},
@@ -643,20 +628,6 @@ def test_tags_are_per_person(client: TestClient, world: World):
     assert sorted(t["tag"] for t in client.get("/api/tags/").json()) == mine, "A's tags are untouched"
 
 
-def test_a_goal_is_made_in_the_callers_own_books(client: TestClient, world: World):
-    """B may call a goal what A calls theirs (names are per person); it lands in B's books and A's stay as they were."""
-    before = books_of(client, TEST_USER_ID)
-    with signed_in_as(B_USER):
-        assert client.get("/api/budget/").json()["goals"] == [], "A's goal is not B's"
-        done = client.post(
-            "/budget/goal", data={"name": "Isolated holiday", "amount": "1000", "by": "2999-12", "assign_now": "1"}
-        )
-        assert done.status_code == 200, done.text
-        mine = client.get("/api/budget/").json()["goals"]
-        assert [g["name"] for g in mine] == ["Isolated holiday"] and mine[0]["id"] not in world.goal_ids
-    assert books_of(client, TEST_USER_ID) == before
-
-
 def test_a_backup_is_only_ever_the_callers_own(client: TestClient, world: World):
     with signed_in_as(B_USER):
         doc = client.get("/api/backup").json()
@@ -762,7 +733,6 @@ def test_nothing_answers_without_a_sign_in(session, world: World):
                     "token_id",
                     "grant_id",
                     "category_id",
-                    "goal_id",
                     "name",
                 ):
                     url = url.replace("{" + name + "}", str(world.transaction_ids[0]))

@@ -16,7 +16,7 @@ finode is a personal finance app built on double-entry bookkeeping, with envelop
 1. [Getting started](guide/getting-started.md): sign up, the first account, the first expense
 2. [Accounts and categories](guide/accounts-and-categories.md)
 3. [Transactions](guide/transactions.md): adding, splitting, upcoming, recently deleted
-4. [Budgeting](guide/budgeting.md): Ready to assign, categories, cards, goals
+4. [Budgeting](guide/budgeting.md): Ready to assign, categories, cards
 5. [Recurring transactions, settings and your data](guide/recurring-and-settings.md)
 6. [Using finode from an AI assistant](guide/mcp.md)
 

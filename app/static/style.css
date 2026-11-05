@@ -1101,7 +1101,6 @@ dd.auto, dd.auto a { color: var(--auto); }
 .ready-warns { display: flex; flex-direction: column; gap: .5rem; margin: -.75rem 0 1rem; }
 .ready-warn { margin: 0; padding: .5rem 1rem; border-radius: var(--radius-sm); font-size: .9375rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ready-warn.over { background: var(--danger-soft); color: var(--danger); }
-.ready-warn.assigned { background: var(--warn-soft); color: var(--warn); }
 .budget-hero .glance-bar { margin-top: .6rem; }
 .glance-note { font-size: .8125rem; color: var(--muted); margin-top: .35rem; }
 .budget-list .top + .top, .budget-list > .crow + .crow { border-top: 1px solid var(--surface-2); }
@@ -1209,17 +1208,9 @@ dialog.sheet.typing .sheet-actions { margin-top: .5rem; }
 .hero-note a b { color: var(--text); font-weight: 600; }
 .glance-bar.over i { background: var(--danger); }
 
-/* New goal: a quiet link under the categories, and the monthly share under the form. */
+/* The dashed row that ends a list. */
 .add-row { display: flex; align-items: center; justify-content: center; gap: .4rem; margin: .9rem 0 0; min-height: var(--tap); border: 1px dashed var(--field-border); border-radius: var(--radius); color: var(--muted); font-weight: 600; text-decoration: none; }
 .add-row .icon { width: 1.1rem; height: 1.1rem; }
-.goal-calc { display: flex; flex-direction: column; gap: .15rem; padding: .8rem .9rem; background: var(--surface-2); border-radius: var(--radius-sm); }
-.goal-calc b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
-.goal-calc.bad { background: none; padding: 0; }
-/* A goal's row: what this month asks, under its bar. */
-.goal-status { grid-column: 1 / -1; margin-top: .45rem; font-size: .8125rem; color: var(--muted); }
-.goal-status.short, .goal-status.overdue { color: var(--warn); }
-.goal-status.done, .goal-status.reached { color: var(--positive); }
-.goal-status:empty { display: none; }
 .sheet-body > .bar { display: block; height: var(--bar-h); margin: .25rem 0 .75rem; border-radius: calc(var(--bar-h) / 2); background: var(--surface-2); }
 .sheet-body > .bar i { display: block; height: 100%; border-radius: calc(var(--bar-h) / 2); background: var(--text); }
 .sheet-more .danger-text { color: var(--danger); }
@@ -1666,17 +1657,13 @@ fieldset:has(input[value="manage"]:checked) .scope-desc [data-for="manage"] { di
 .field-pick.empty { color: var(--muted); }
 .field-pick:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
-/* A yes/no row: the words at the left, a switch at the right, no box (goal form, "Part of the budget"; 2026-11-04). */
+/* A yes/no row: the words at the left, a switch at the right, no box ("Part of the budget"; 2026-11-04). */
 label.check-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 1rem; min-height: var(--tap); padding: .15rem 0; color: var(--text); font-weight: 400; font-size: 1rem; cursor: pointer; }
 label.check-row > span { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
 label.check-row input[type="checkbox"] { -webkit-appearance: none; appearance: none; flex: none; width: 2.75rem; height: 1.6rem; border-radius: 999px; border: 0; background: var(--field-border) radial-gradient(circle closest-side, var(--surface) 96%, transparent) no-repeat .2rem center / 1.2rem 1.2rem; transition: background-color .15s ease, background-position .15s ease; }
 label.check-row input[type="checkbox"]:checked { background-color: var(--accent); background-image: radial-gradient(circle closest-side, var(--on-accent) 96%, transparent); background-position: calc(100% - .2rem) center; }
 label.check-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { label.check-row input[type="checkbox"] { transition: none; } }
-.month-chip { position: relative; display: inline-flex; flex-direction: row; align-self: flex-start; gap: .4rem; align-items: center; cursor: pointer; padding: 0 .9rem; min-height: 2.25rem; border-radius: 999px; font-size: .875rem; font-weight: 500; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
-.month-chip.dim [data-month-label] { color: var(--muted); }
-.goal-calc { background: none; padding: .1rem .15rem; }
-.goal-calc b { font-size: 1.15rem; }
 label.check-row .hint { color: var(--muted); }
 
 /* ---------- A transaction's details beside the list on a wide screen with a mouse (2026-11-04) ---------- */

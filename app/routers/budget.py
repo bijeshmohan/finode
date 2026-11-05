@@ -10,10 +10,6 @@ from ..schemas.budget import (
     BudgetCopy,
     BudgetMove,
     BudgetRead,
-    GoalAssign,
-    GoalCreate,
-    GoalUpdate,
-    GoalUse,
     GroupAssign,
 )
 from ..schemas.coming_up import ComingUpRead
@@ -55,7 +51,7 @@ def assign(category_id: UUID, data: BudgetAssign, budget: Budget):
 
 
 def _run(action, *args):
-    """Run a budget action; its refusals are 400s (a missing goal or account is a 404)."""
+    """Run a budget action; its refusals are 400s (a missing category is a 404)."""
     try:
         return action(*args)
     except BudgetError as e:
@@ -86,33 +82,3 @@ def include_account(account_id: UUID, budget: Budget, month: date | None = None)
     """Make an account part of the budget (its money and its spending count from now on)."""
     _run(budget.include_account, account_id)
     return _run(budget.view, month)
-
-
-@router.post("/goals", response_model=BudgetRead, status_code=201)
-def create_goal(data: GoalCreate, budget: Budget):
-    """A savings goal: an amount by a month. `set_aside_now` also sets aside this month's share."""
-    return _run(budget.create_goal, data.name, data.amount, data.by, data.set_aside_now)
-
-
-@router.put("/goals/{goal_id}", response_model=BudgetRead)
-def update_goal(goal_id: UUID, data: GoalUpdate, budget: Budget):
-    """Change a goal's name, amount or month. What is saved in it stays."""
-    return _run(budget.update_goal, goal_id, data.name, data.amount, data.by)
-
-
-@router.delete("/goals/{goal_id}", status_code=204)
-def delete_goal(goal_id: UUID, budget: Budget):
-    """Delete a goal for good: what was saved in it goes back to Ready to assign."""
-    _run(budget.delete_goal, goal_id)
-
-
-@router.put("/goals/{goal_id}/month", response_model=BudgetRead)
-def assign_goal(goal_id: UUID, data: GoalAssign, budget: Budget):
-    """Set what is set aside for a goal in a month (0 clears it; negative takes back what was saved before)."""
-    return _run(budget.assign_goal, data.month, goal_id, data.amount)
-
-
-@router.post("/goals/{goal_id}/use", response_model=BudgetRead)
-def use_goal(goal_id: UUID, data: GoalUse, budget: Budget):
-    """Hand money a goal saved to the category that paid for something; Ready to assign does not change."""
-    return _run(budget.use_goal, data.month, goal_id, data.category_id, data.amount)

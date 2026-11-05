@@ -7,6 +7,7 @@ import pytest
 
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
+from app.schemas.backup import BackupFile
 
 from .books import into, leg, post_account
 from .conftest import TEST_USER_ID
@@ -98,12 +99,6 @@ def rich(client, root_accounts):
     )  # a skipped occurrence is part of the rule's state
     client.put(f"/api/budget/categories/{groceries['id']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['id']}", json={"month": "2026-09-01", "amount": "15000"})
-    assert (
-        client.post(
-            "/budget/goal", data={"name": "Emergency fund", "amount": "100000", "by": "2999-12", "assign_now": "1"}
-        ).status_code
-        == 200
-    )
     return {"bank": bank, "groceries": groceries}
 
 
@@ -185,10 +180,6 @@ def canonical(doc: dict) -> dict:
             for r in doc["recurring"]
         ),
         "allocations": sorted((a["month"], paths[a["category_id"]], a["amount"]) for a in doc["allocations"]),
-        "goals": sorted(
-            (g["name"], g["amount"], g["target_date"], sorted((r["month"], r["amount"]) for r in g["allocations"]))
-            for g in doc["goals"]
-        ),
     }
 
 
@@ -217,9 +208,6 @@ def test_the_backup_has_everything(client, rich):
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
     assert len(doc["allocations"]) == 2
-    assert [g["name"] for g in doc["goals"]] == ["Emergency fund"] and len(doc["goals"][0]["allocations"]) == 1, (
-        "goals are their own records"
-    )
     assert set(doc) == {
         "format",
         "version",
@@ -230,7 +218,6 @@ def test_the_backup_has_everything(client, rich):
         "transactions",
         "recurring",
         "allocations",
-        "goals",
     }, "no tokens or connected apps"
     assert not any("commodity" in a for a in doc["accounts"]) and not any(
         "value" in p for t in doc["transactions"] for p in t["postings"]
@@ -486,3 +473,11 @@ def test_a_backup_with_a_bad_tag_is_refused(client, rich):
         assert refused.status_code == 400 and "cannot be a tag" in refused.text
     finally:
         as_user(TEST_USER_ID)
+
+
+def test_a_backup_from_before_goals_were_removed_restores_without_them(client, rich):
+    doc = client.get("/api/backup").json()
+    doc["goals"] = [{"name": "Emergency fund", "amount": "100000", "target_date": "2999-12-01", "allocations": []}]
+    assert "goals" not in client.get("/api/backup").json(), "no longer written"
+    body = BackupFile.model_validate(doc)
+    assert not hasattr(body, "goals"), "no longer read"

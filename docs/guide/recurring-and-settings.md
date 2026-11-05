@@ -45,7 +45,7 @@ There is no separate Profile page: the header of Settings is you (tap it to chan
 
 - **Export**: a plain-text ledger file (readable by ledger and hledger) or a CSV for spreadsheets. Always available.
 - **Import**: bring in a ledger file. Only possible while you have **no transactions** yet. You see a preview first, and it is all-or-nothing. Anything finode cannot represent (another currency, prices, conversions) is refused with the line number.
-- **Full backup**: one JSON file with everything you recorded (settings, accounts, transactions, recurring rules, budget plan and goals). **Restore** puts it back, but only into an empty ledger. Access tokens and connected apps are not included; set those up again.
+- **Full backup**: one JSON file with everything you recorded (settings, accounts, transactions, recurring rules, budget plan). **Restore** puts it back, but only into an empty ledger. Access tokens and connected apps are not included; set those up again.
 - **Erase my books**: removes every account, transaction, rule and budget but keeps your profile, tokens and connections. You type your email to confirm.
 - **Delete my account**: removes everything including your sign-in (offered only when the installation allows it).
 
