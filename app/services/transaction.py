@@ -1,4 +1,4 @@
-"""Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits), plus history, deleted entries and restoring."""
+"""Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits)."""
 
 import builtins
 from collections import Counter
@@ -17,14 +17,10 @@ from ..limits import ensure_room
 from ..models import Account
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
-from ..repositories.transaction import comparable_snapshot
 from ..schemas.transaction import (
     MAX_BATCH,
     BatchEntryResult,
     BatchResult,
-    ChangeRead,
-    HistoryPosting,
-    HistoryRead,
     PayeeDefaultRead,
     PayeeRouteRead,
     PostingCreate,
@@ -36,7 +32,7 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
-from ..tags import clean_name, clean_names, clean_tag
+from ..tags import clean_name, clean_tag
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 
 # How many recent entries the payee suggestions look at.
@@ -58,10 +54,6 @@ class PayeeRoute:
     others: builtins.list[tuple[UUID, UUID, int]] = field(default_factory=list)
 
 
-# How many deleted entries the recently-deleted page lists.
-RESTORABLE_LIMIT = 50
-
-
 class InvalidPostingError(ValueError): ...
 
 
@@ -78,83 +70,6 @@ class DuplicateReferenceError(InvalidPostingError):
 
 def _rows(postings) -> list[tuple[str, str, Decimal]]:
     return sorted((str(p.account_id), PostingSide(p.side).value, p.amount) for p in postings)
-
-
-def _where(p: dict, paths: dict[UUID, str], categories: dict[UUID, str]) -> str:
-    """Where a snapshot's line posted, as a journal would write it: a line on Expenses or Income by its category
-    (Expenses:Food:Groceries), any other line by its account."""
-    path = paths.get(UUID(p["account"]), p["account"])
-    if path in ("Expenses", "Income") and p.get("category") and UUID(p["category"]) in categories:
-        return categories[UUID(p["category"])]
-    return path
-
-
-def _diff(before: dict, after: dict, paths: dict[UUID, str], categories: dict[UUID, str] | None = None) -> dict:
-    """What an update changed between two snapshots: fields as {"from", "to"}, rows added, removed or changed."""
-    categories = categories or {}
-    before, after = comparable_snapshot(before), comparable_snapshot(after)
-    changes: dict = {}
-    for key, label in (("date", "date"), ("payee", "payee"), ("comment", "note")):
-        if before.get(key) != after.get(key):
-            changes[label] = {"from": before.get(key), "to": after.get(key)}
-    keys = ("source", "external_id", "source_url")
-    if any(before.get(k) != after.get(k) for k in keys):
-        changes["reference"] = {
-            "from": {k: before.get(k) for k in keys},
-            "to": {k: after.get(k) for k in keys},
-        }
-
-    def rows(snapshot: dict) -> dict[tuple[str, str], Decimal]:
-        found: dict[tuple[str, str], Decimal] = {}
-        for p in snapshot.get("postings", []):
-            key = (_where(p, paths, categories), p["side"])
-            found[key] = found.get(key, Decimal(0)) + Decimal(p["amount"])
-        return found
-
-    def labels(snapshot: dict) -> dict[tuple[str, str], tuple[str | None, ...]]:
-        found: dict[tuple[str, str], list[str | None]] = {}
-        for p in snapshot.get("postings", []):
-            key = (_where(p, paths, categories), p["side"])
-            found.setdefault(key, []).append(p.get("category"))
-        return {key: tuple(sorted(value, key=str)) for key, value in found.items()}
-
-    old, new = rows(before), rows(after)
-    old_labels, new_labels = labels(before), labels(after)
-    added = [{"account": a, "side": s, "amount": new[a, s]} for a, s in new if (a, s) not in old]
-    removed = [{"account": a, "side": s, "amount": old[a, s]} for a, s in old if (a, s) not in new]
-    changed = [
-        {"account": a, "side": s, "from": old[a, s], "to": new[a, s]}
-        for a, s in new
-        if (a, s) in old and old[a, s] != new[a, s]
-    ]
-    # A line moved to another category (only when both snapshots recorded categories at all).
-    relabelled = [
-        {"account": a, "side": s, "category_from": old_labels[a, s], "category_to": new_labels[a, s]}
-        for a, s in new
-        if (a, s) in old
-        and old[a, s] == new[a, s]
-        and old_labels[a, s] != new_labels[a, s]
-        and all(c is not None for c in old_labels[a, s] + new_labels[a, s])
-    ]
-
-    def posting_days(snapshot: dict) -> list[dict]:
-        return sorted(
-            (
-                {"account": _where(p, paths, categories), "side": p["side"], "posted_on": p["posted_on"]}
-                for p in snapshot.get("postings", [])
-                if p.get("posted_on")
-            ),
-            key=lambda d: (d["account"], d["side"], d["posted_on"]),
-        )
-
-    if posting_days(before) != posting_days(after):
-        changes["posting_dates"] = {"from": posting_days(before), "to": posting_days(after)}
-    if added or removed or changed or relabelled:
-        rows_changed: dict[str, Any] = {"added": added, "removed": removed, "changed": changed}
-        if relabelled:
-            rows_changed["relabelled"] = relabelled
-        changes["postings"] = rows_changed
-    return changes
 
 
 def _different_content(data: TransactionCreate, transaction_id: UUID) -> str:
@@ -373,33 +288,6 @@ class TransactionService:
             )
         return paths
 
-    def _history_read(self, row, paths: dict[UUID, str]) -> HistoryRead:
-        snap = row.snapshot
-        names = {c.id: c.name for c in self.cr.list()}
-        where = self._category_paths()
-        return HistoryRead(
-            id=row.id,
-            transaction_id=row.transaction_id,
-            action=row.action,
-            at=row.at,
-            via=row.via,
-            date=date.fromisoformat(snap["date"]),
-            payee=snap.get("payee"),
-            comment=snap.get("comment"),
-            source=snap.get("source"),
-            external_id=snap.get("external_id"),
-            source_url=snap.get("source_url"),
-            postings=[
-                HistoryPosting(
-                    account=_where(p, paths, where),
-                    side=p["side"],
-                    amount=Decimal(p["amount"]),
-                    category=names.get(UUID(p["category"])) if p.get("category") else None,
-                )
-                for p in snap["postings"]
-            ],
-        )
-
     def _account_paths(self) -> dict[UUID, str]:
         accounts = {a.id: a for a in self.ar.list()}
         paths: dict[UUID, str] = {}
@@ -413,133 +301,6 @@ class TransactionService:
                 current = accounts.get(current.parent_id) if current.parent_id else None
             paths[account_id] = ":".join(reversed(chain))
         return paths
-
-    def history(self, transaction_id: UUID) -> list[HistoryRead]:
-        """What happened to a transaction, oldest first; works for a deleted one too."""
-        paths = self._account_paths()
-        return [self._history_read(row, paths) for row in self.tr.history(transaction_id)]
-
-    def changes(self, transaction_id: UUID) -> builtins.list[ChangeRead]:
-        """An entry's history, oldest first, each step with what it changed (works for a deleted entry too)."""
-        paths = self._account_paths()
-        rows = self.tr.history(transaction_id)
-        return [self._change(row, rows[i - 1] if i else None, paths) for i, row in enumerate(rows)]
-
-    def recent_changes(
-        self, since: datetime | None = None, via: str | None = None, limit: int = 50
-    ) -> builtins.list[ChangeRead]:
-        """The latest steps across every entry, newest first, each with what it changed."""
-        newest = self.tr.history_since(since, via, limit)
-        paths = self._account_paths()
-        by_entry: dict[UUID, builtins.list] = {}
-        for row in self.tr.histories_for(list({r.transaction_id for r in newest})):
-            by_entry.setdefault(row.transaction_id, []).append(row)
-        result = []
-        for row in newest:
-            steps = by_entry[row.transaction_id]
-            position = next(i for i, step in enumerate(steps) if step.id == row.id)
-            result.append(self._change(row, steps[position - 1] if position else None, paths))
-        return result
-
-    def _change(self, row, before, paths: dict[UUID, str]) -> ChangeRead:
-        return ChangeRead(
-            id=row.id,
-            transaction_id=row.transaction_id,
-            action=row.action,
-            at=row.at,
-            via=row.via,
-            entry=self._history_read(row, paths),
-            changes=_diff(before.snapshot, row.snapshot, paths, self._category_paths())
-            if before is not None and row.action == "updated"
-            else {},
-        )
-
-    def deleted(self) -> list[HistoryRead]:
-        """Transactions that were deleted, as they were when deleted, newest first."""
-        paths = self._account_paths()
-        return [self._history_read(row, paths) for row in self.tr.deleted()]
-
-    def restorable(self, limit: int = RESTORABLE_LIMIT) -> list[HistoryRead]:
-        """Entries that were deleted and are not back, newest deletion first (one per entry, as it stood when it went)."""
-        latest: dict[UUID, object] = {}
-        for row in self.tr.deleted():
-            latest.setdefault(row.transaction_id, row)
-        alive = self.tr.read_many(list(latest))
-        paths = self._account_paths()
-        rows = [row for transaction_id, row in latest.items() if transaction_id not in alive]
-        return [self._history_read(row, paths) for row in rows[:limit]]
-
-    def restore(self, history_id: UUID) -> TransactionRead:
-        """Bring a deleted entry back as it was, with its old id (so its history carries on). It becomes an
-        ordinary entry: the link to a recurring rule is not restored, so the rule cannot record the day twice. Its
-        related links come back (to an earlier entry that is still there, and from the entries that were linked to it)."""
-        row = self.tr.deleted_row(history_id)
-        if row is None:
-            raise LookupError("deleted transaction not found!")
-        if self.tr.read(row.transaction_id) is not None:
-            raise ValueError("this transaction is already back!")
-        if self.tr.history(row.transaction_id)[-1].id != row.id:
-            raise ValueError("this transaction was changed after it was deleted; restore the latest deletion!")
-        snapshot = row.snapshot
-        known = {a.id for a in self.ar.list()}
-        if any(UUID(p["account"]) not in known for p in snapshot["postings"]):
-            raise ValueError("an account this transaction used no longer exists, so it cannot be restored!")
-        data = TransactionCreate(
-            date=date.fromisoformat(snapshot["date"]),
-            payee=snapshot.get("payee"),
-            comment=snapshot.get("comment"),
-            source=snapshot.get("source"),
-            external_id=snapshot.get("external_id"),
-            source_url=snapshot.get("source_url"),
-            postings=[
-                {
-                    "account_id": UUID(p["account"]),
-                    "side": p["side"],
-                    "amount": Decimal(p["amount"]),
-                    "category_id": self._known_category(p.get("category")),
-                    "posted_on": date.fromisoformat(p["posted_on"]) if p.get("posted_on") else None,
-                }
-                for p in snapshot["postings"]
-            ],
-            related_id=self._restorable_link(snapshot.get("related_id")),
-            tags=clean_names(snapshot.get("tags", [])),
-        )
-        self._check_limits()
-        self._resolve(data, on=data.date)
-        self._check_reference(data.source, data.external_id)
-        transaction = self.tr.create(data, self.origin, None, transaction_id=row.transaction_id)
-        self._relink(transaction.id, snapshot.get("related_from", []))
-        self.tr.db.commit()
-        self.tr.db.refresh(transaction)
-        return self._to_read(transaction)
-
-    def _known_category(self, value: str | None) -> UUID | None:
-        """The category a restored line had, if it is still there and open (otherwise the account decides)."""
-        if not value:
-            return None
-        category = self.cr.read(UUID(value))
-        return category.id if category is not None and category.closed_on is None else None
-
-    def _restorable_link(self, value: str | None) -> UUID | None:
-        """The entry a restored one was related to, if it is still there (otherwise the link is simply not restored)."""
-        if not value:
-            return None
-        target = UUID(value)
-        return target if self.tr.read(target) is not None else None
-
-    def _relink(self, restored: UUID, former: list[str]) -> None:
-        """Point the entries that were related to a restored one at it again, unless they have a link of their own by
-        now or it would make a circle."""
-        for value in former:
-            other = self.tr.read(UUID(value))
-            if other is None or other.related_id is not None:
-                continue
-            try:
-                self._check_related(restored, other.id)
-            except InvalidPostingError:
-                continue
-            other.related_id = restored
-            self.tr.db.add(other)
 
     def validate(self, data: TransactionCreate) -> None:
         """Raise what create would raise, without saving anything."""

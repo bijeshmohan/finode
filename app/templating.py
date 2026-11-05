@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 from .clock import local_day, local_today
 from .currencies import find
-from .flash import flash_message, flash_undo
+from .flash import flash_message
 from .models.utils import normalize_amount
 
 BASE_DIR = Path(__file__).parent
@@ -145,7 +145,6 @@ templates.env.filters["date_chip"] = date_chip
 templates.env.filters["local_day"] = local_day
 templates.env.filters["origin_label"] = origin_label
 _globals["flash_message"] = flash_message
-_globals["flash_undo"] = flash_undo
 _globals["asset_url"] = asset_url
 
 

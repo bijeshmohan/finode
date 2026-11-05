@@ -12,19 +12,17 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field, ValidationError
 
-from ..clock import local_start_utc, local_today
+from ..clock import local_today
 from ..config import settings
 from ..models.api_token import TokenScope
 from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate, AccountUpdate
-from ..schemas.account import AccountChangeRead
 from ..schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import (
     MAX_BATCH,
-    ChangeRead,
     PostingCreate,
     TransactionCreate,
     TransactionPreview,
@@ -68,10 +66,6 @@ finode is the user's personal double-entry ledger.
 - get_card_bill gives a card's bill (what is due and when) from its statement day and due day.
 - check_balance sets a statement's balance against the books and points at the entries that could explain a gap.
 - payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
-- get_account_history shows what happened to one account and who did it (renames, moves, closings); recent_changes(what='accounts') lists the latest across all of them.
-- get_transaction_history shows what happened to one transaction and who did it, with each edit's exact changes;
-  recent_changes lists the latest changes of all of them (by='assistant' for what assistants did). Look there
-  before assuming who changed something.
 - Entries that come from outside finode (a bank SMS, a mail, a UPI app) should carry source (a short kind: gmail,
   upi...) and external_id (the reference that source gave it) when you record them. Recording the same pair again
   returns the entry already made (already_recorded) instead of a copy, so retrying is safe; search_transactions
@@ -93,8 +87,8 @@ finode is the user's personal double-entry ledger.
   record the same payment by hand; give postings instead of from/to/amount for a split), stop_recurring
   pauses one and skip_recurring_occurrence leaves out just the next occurrence.
 - A refund, reversal or cash-back can be linked to the earlier transaction with related_to (its id); it is a link
-  only and changes no amount. Deleted transactions can be listed (list_deleted_transactions) and brought back
-  (restore_transaction); resume_recurring restarts a paused recurring transaction.
+  only and changes no amount. resume_recurring restarts a paused recurring transaction. Deleting a transaction is for good
+  (finode keeps no history), so confirm with the user first.
 - Dates are YYYY-MM-DD; today's date is used when you leave the date out. Balances count entries
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
@@ -494,35 +488,6 @@ def _plain(value: Any) -> Any:
     return value
 
 
-def _step(c: ChangeRead, full: bool) -> dict[str, Any]:
-    e = c.entry
-    debits = sum((p.amount for p in e.postings if p.side == PostingSide.DEBIT), Decimal(0))
-    step: dict[str, Any] = {
-        "at": c.at.isoformat(),
-        "action": c.action,
-        "by": _via(c.via),
-        "transaction_id": str(c.transaction_id),
-    }
-    if full or c.action != "updated":
-        step["entry"] = _plain(
-            {
-                "date": e.date.isoformat(),
-                "payee": e.payee,
-                "note": e.comment,
-                "total": e.postings and debits,
-                "postings": [{"account": p.account, "side": p.side.value, "amount": p.amount} for p in e.postings],
-                "reference": {"source": e.source, "external_id": e.external_id, "url": e.source_url}
-                if e.source or e.external_id or e.source_url
-                else None,
-            }
-        )
-    else:
-        step["entry"] = {"date": e.date.isoformat(), "payee": e.payee, "total": text(debits)}
-    if c.changes:
-        step["changes"] = _plain(c.changes)
-    return step
-
-
 @_tool_errors
 def check_balance(
     account: AccountRef,
@@ -636,94 +601,6 @@ def payee_defaults(
                 for d in s.transactions.payee_defaults(payee, limit)
             ]
         }
-
-
-@_tool_errors
-def get_transaction_history(
-    transaction_id: Annotated[str, Field(description="Id from search_transactions or list_deleted_transactions")],
-) -> dict[str, Any]:
-    """Everything that happened to one transaction, oldest first: when it was made, each edit with exactly what
-    changed (date, payee, note, reference, rows added, removed or changed) and who did it (web, api, import,
-    recurring or an assistant), and its deletion. Works for a deleted transaction too."""
-    transaction_uuid = _transaction_id(transaction_id)
-    with services() as s:
-        steps = s.transactions.changes(transaction_uuid)
-        if not steps:
-            raise ToolError("no history for that transaction: check the id")
-        return {
-            "transaction_id": str(transaction_uuid),
-            "exists": s.transactions.read(transaction_uuid) is not None,
-            "history": [_step(c, full=True) for c in steps],
-        }
-
-
-def _account_step(c: AccountChangeRead) -> dict[str, Any]:
-    step: dict[str, Any] = {
-        "at": c.at.isoformat(),
-        "action": c.action,
-        "by": _via(c.via),
-        "account_id": str(c.account_id),
-        "entry": _plain(c.entry),
-    }
-    if c.changes:
-        step["changes"] = _plain(c.changes)
-    return step
-
-
-@_tool_errors
-def get_account_history(
-    account: Annotated[str, Field(description="Account path or id; the id for one that was deleted or merged away")],
-) -> dict[str, Any]:
-    """Everything that happened to one account or category, oldest first: when it was made, each rename, move,
-    closing or reopening with what changed, who did it (web, api or an assistant), and its deletion if any.
-    Changes made before finode kept this history are not listed."""
-    with services() as s:
-        index = _index(s)
-        try:
-            account_id = index.find(account, allow_root=True).account.id
-        except ValueError:
-            try:
-                account_id = UUID(account.strip())
-            except ValueError:
-                raise ToolError(
-                    f"no account matches '{account}': use list_accounts, or the id of a deleted one!"
-                ) from None
-        steps = s.accounts.changes(account_id)
-        if not steps:
-            raise ToolError("no history for that account: changes before finode kept one are not listed")
-        return {
-            "account_id": str(account_id),
-            "exists": account_id in index.entries,
-            "history": [_account_step(c) for c in steps],
-        }
-
-
-@_tool_errors
-def recent_changes(
-    since: Annotated[date | None, Field(description="From this day on (YYYY-MM-DD); no limit by default")] = None,
-    by: Annotated[
-        str | None,
-        Field(
-            description="Only changes made by: assistant (any), web, api, import, recurring, or mcp:<connection name>"
-        ),
-    ] = None,
-    limit: Annotated[int, Field(ge=1, le=200)] = 50,
-    what: Annotated[
-        Literal["transactions", "accounts"], Field(description="Changes to transactions, or to accounts")
-    ] = "transactions",
-) -> dict[str, Any]:
-    """The latest changes across all transactions (or, with what='accounts', all accounts and categories), newest
-    first: what was made, edited (with what changed) or deleted, when, and by whom. Use it to see what you or the
-    user changed lately."""
-    with services() as s:
-        if what == "accounts":
-            since_at = local_start_utc(since) if since else None
-            changes = s.accounts.recent_changes(since_at, (by or "").strip() or None, limit)
-            return {"changes": [_account_step(c) for c in changes], "count": len(changes), "limit": limit}
-        steps = s.transactions.recent_changes(
-            local_start_utc(since) if since else None, (by or "").strip() or None, limit
-        )
-        return {"changes": [_step(c, full=False) for c in steps], "count": len(steps), "limit": limit}
 
 
 @_tool_errors
@@ -1136,7 +1013,7 @@ def delete_transaction(
     transaction_id: Annotated[str, Field(description="Id from search_transactions")],
     dry_run: DryRun = False,
 ) -> dict[str, Any]:
-    """Delete a transaction (it waits in the user's recently deleted list and can be restored). Ask the user to confirm first."""
+    """Delete a transaction for good. Ask the user to confirm first."""
     transaction_uuid = _transaction_id(transaction_id)
     with services() as s:
         index = _index(s)
@@ -1708,48 +1585,6 @@ def check_books(as_of: str | None = None) -> dict[str, Any]:
 
 
 @_tool_errors
-def list_deleted_transactions() -> dict[str, Any]:
-    """Transactions that were deleted and can still be brought back, newest deletion first (up to 50). Use the
-    `deleted_id` with restore_transaction."""
-    with services() as s:
-        rows = []
-        for h in s.transactions.restorable():
-            total = sum((p.amount for p in h.postings if p.side == PostingSide.DEBIT), Decimal(0))
-            rows.append(
-                {
-                    "deleted_id": str(h.id),
-                    "transaction_id": str(h.transaction_id),
-                    "deleted_at": h.at.isoformat(),
-                    "date": h.date.isoformat(),
-                    "payee": h.payee,
-                    "note": h.comment,
-                    "total": text(total),
-                }
-            )
-        return {"deleted": rows}
-
-
-@_tool_errors
-def restore_transaction(
-    deleted_id: Annotated[str, Field(description="The deleted_id from list_deleted_transactions")],
-) -> dict[str, Any]:
-    """Bring a deleted transaction back as it was. It returns as an ordinary entry (a link to a recurring rule is not
-    restored; its related links are, where the other entry is still there)."""
-    try:
-        history_id = UUID(deleted_id.strip())
-    except ValueError:
-        raise ToolError(
-            f"'{deleted_id}' is not a deleted-transaction id: use the deleted_id from list_deleted_transactions!"
-        ) from None
-    with services() as s:
-        try:
-            restored = s.transactions.restore(history_id)
-        except LookupError:
-            raise ToolError("no deleted transaction has that id!") from None
-        return {"restored": _transaction(restored, _index(s), s)}
-
-
-@_tool_errors
 def resume_recurring(
     recurring_id: Annotated[str, Field(description="The id from list_recurring")],
 ) -> dict[str, Any]:
@@ -1979,9 +1814,6 @@ READ_TOOLS = [
     get_account,
     search_transactions,
     get_transaction,
-    get_transaction_history,
-    get_account_history,
-    recent_changes,
     list_tags,
     list_categories,
     payee_defaults,
@@ -1991,7 +1823,6 @@ READ_TOOLS = [
     list_recurring,
     check_books,
     get_budget,
-    list_deleted_transactions,
 ]
 WRITE_TOOLS = [
     (record_transaction, WRITE),
@@ -2005,7 +1836,6 @@ WRITE_TOOLS = [
     (stop_recurring, IDEMPOTENT_WRITE),
     (skip_recurring_occurrence, WRITE),
     (resume_recurring, IDEMPOTENT_WRITE),
-    (restore_transaction, WRITE),
     (create_goal, WRITE),
     (update_goal, IDEMPOTENT_WRITE),
     (delete_goal, DESTRUCTIVE),

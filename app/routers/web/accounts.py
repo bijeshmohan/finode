@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import ValidationError
 
-from ...clock import local_day, local_today
+from ...clock import local_today
 from ...dependencies import Accounts, Categories
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
 from ...schemas.category import CategoryRead
@@ -499,36 +499,6 @@ def account_context(accounts: AccountService, account_id: UUID, entries=None, of
         if node.postable and node.children
         else None,
     }
-
-
-def deleted_page(request: Request, accounts: Accounts):
-    """Closed and deleted accounts, newest first, each with Restore."""
-    closed = [dict(c, kind="closed", when=c["closed_on"]) for c in accounts.closed() if c["root"] in ACCOUNT_ROOTS]
-    gone = [
-        dict(d, kind="deleted", when=local_day(d["at"])) for d in accounts.restorable() if d["root"] in ACCOUNT_ROOTS
-    ]
-    entries = sorted(closed + gone, key=lambda e: e["when"], reverse=True)
-    return templates.TemplateResponse(
-        request,
-        "accounts_deleted.html",
-        {"active": "settings", "area": "accounts", "entries": entries},
-    )
-
-
-@router.get("/deleted")
-def deleted_accounts_page(request: Request, accounts: Accounts):
-    return deleted_page(request, accounts)
-
-
-@router.post("/deleted/{deletion_id}/restore")
-def restore_deleted_account(deletion_id: UUID, accounts: Accounts):
-    try:
-        restored = accounts.restore_deleted(deletion_id)
-    except LookupError:
-        return htmx_error("That deleted account is not there any more.", "#restore-error", status_code=404)
-    except ValueError as e:
-        return htmx_error(str(e), "#restore-error")
-    return htmx_redirect(f"/accounts/{restored.id}", flash="account-restored")
 
 
 @router.get("/{account_id}")

@@ -53,7 +53,8 @@
 <section class="danger-zone quiet">
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
-          hx-post="/transactions/{{ transaction.id }}/delete{{ '?back=' ~ back|urlencode if back }}">{{ icon("trash") }}Delete transaction</button>
+          hx-post="/transactions/{{ transaction.id }}/delete{{ '?back=' ~ back|urlencode if back }}"
+          hx-confirm="Delete this transaction? Account balances will change. This cannot be undone.">{{ icon("trash") }}Delete transaction</button>
 </section>
 {% endif %}
 {% endblock %}

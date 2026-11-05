@@ -4,8 +4,6 @@ The cookie only ever holds a key from MESSAGES, so nothing user-supplied is
 rendered from it.
 """
 
-from uuid import UUID
-
 from fastapi import Request, Response
 
 FLASH_COOKIE = "finode_flash"
@@ -17,9 +15,6 @@ MESSAGES = {
     "your-account-deleted": "Your account was deleted. Goodbye!",
     "restore-done": "Backup restored",
     "account-closed": "Account closed",
-    "goal-created": "Goal created",
-    "goal-saved": "Goal saved",
-    "goal-deleted": "Goal deleted",
     "account-reopened": "Account reopened",
     "account-restored": "Account restored",
     "recurring-saved": "Recurring transaction saved. Anything already due has been recorded.",
@@ -50,34 +45,14 @@ MESSAGES = {
 }
 
 
-UNDO_KINDS = {"restore": "/transactions/deleted/{}/restore", "delete": "/transactions/{}/delete"}
-
-
-def set_flash(response: Response, key: str, undo: tuple[str, UUID] | None = None) -> None:
-    """`undo` is ("restore", history_id) or ("delete", transaction_id): the toast then carries an Undo button for that one action."""
+def set_flash(response: Response, key: str) -> None:
     if key not in MESSAGES:
         raise ValueError(f"unknown flash message '{key}'")
-    value = key if undo is None else f"{key}|{undo[0]}|{undo[1]}"
-    response.set_cookie(FLASH_COOKIE, value, max_age=60, httponly=True, samesite="lax", path="/")
-
-
-def _parts(request: Request) -> list[str]:
-    return request.cookies.get(FLASH_COOKIE, "").split("|")
+    response.set_cookie(FLASH_COOKIE, key, max_age=60, httponly=True, samesite="lax", path="/")
 
 
 def flash_message(request: Request) -> str | None:
-    return MESSAGES.get(_parts(request)[0])
-
-
-def flash_undo(request: Request) -> str | None:
-    """The address the toast's Undo button posts to, rebuilt from a kind and a UUID (nothing else is ever trusted)."""
-    parts = _parts(request)
-    if len(parts) != 3 or parts[0] not in MESSAGES or parts[1] not in UNDO_KINDS:
-        return None
-    try:
-        return UNDO_KINDS[parts[1]].format(UUID(parts[2]))
-    except ValueError:
-        return None
+    return MESSAGES.get(request.cookies.get(FLASH_COOKIE, ""))
 
 
 async def clear_shown_flash_middleware(request: Request, call_next):

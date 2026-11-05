@@ -1353,16 +1353,6 @@ document.addEventListener("click", (event) => {
 // Bars fill from zero once, when a page loads; after that (an amount assigned, a sheet saved) they are only replaced.
 setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
 
-// After saving an entry the toast carries Undo for it; the saved entry's row, when the page lists it, settles in with a short tint.
-(() => {
-  const undo = document.querySelector('.toast [hx-post^="/transactions/"][hx-post$="/delete"]');
-  const transactionId = undo && undo.getAttribute("hx-post").split("/")[2];
-  if (!transactionId) return;
-  document.querySelectorAll("a.tx").forEach((row) => {
-    if ((row.getAttribute("href") || "").startsWith(`/transactions/${transactionId}/`)) row.classList.add("tx-new");
-  });
-})();
-
 // ---- The Transactions filter sheet: three fields, each opens a searchable list ----
 (() => {
   const dialog = document.getElementById("tx-filter");

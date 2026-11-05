@@ -1,9 +1,8 @@
-"""Persistence for transactions and postings, always filtered by the user's id; appends the history row on every create, update and delete."""
+"""Persistence for transactions and postings, always filtered by the user's id."""
 
 import builtins
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, not_, or_, update
@@ -15,32 +14,11 @@ from ..models.category import BudgetCategory
 from ..models.recurring import RecurringTransaction
 from ..models.tag import Tag, TransactionTag
 from ..models.transaction import Posting, PostingSide, Transaction
-from ..models.transaction_history import TransactionHistory
 from ..models.utils import without_nul
 from ..schemas.transaction import RelatedRef, TransactionCreate, TransactionUpdate
 from ..tags import clean_tag
 from .cache import remembered
 from .category import ROOT_KINDS, CategoryRepository
-
-
-def comparable_snapshot(snapshot: dict) -> dict:
-    """A stored snapshot without what entries made before finode kept one currency also recorded (the currency, each worth)."""
-    return {
-        "source": None,  # snapshots written before references existed have none
-        "external_id": None,
-        "source_url": None,
-        "related_id": None,  # snapshots written before the link was kept have no such key
-        "tags": [],  # and before tags were their own thing (then they were #words in the note)
-        **{key: value for key, value in snapshot.items() if key != "currency_id"},
-        "postings": [
-            {
-                "posted_on": None,
-                **{key: value for key, value in p.items() if key != "value"},
-            }  # no key before posting dates
-            for p in snapshot.get("postings", [])
-        ],
-    }
-
 
 # What the application writes itself (an opening balance, an adjustment): not a merchant to filter by.
 SYSTEM_PAYEES = ("Opening balance", "Balance adjustment")
@@ -56,12 +34,9 @@ class TransactionRepository:
         data: TransactionCreate,
         origin: str | None = None,
         recurring: tuple[UUID, date] | None = None,
-        transaction_id: UUID | None = None,
     ) -> Transaction:
         fields = data.model_dump(exclude={"postings", "tags"})
         transaction = Transaction(**fields, user_id=self.uid, created_via=origin, updated_via=origin)
-        if transaction_id is not None:  # bringing a deleted entry back keeps its id
-            transaction.id = transaction_id
         if recurring is not None:
             transaction.recurring_id, transaction.recurring_date = recurring
         self.db.add(transaction)
@@ -69,111 +44,7 @@ class TransactionRepository:
         self._add_postings(transaction, data.postings)
         self.db.flush()
         self.set_tags(transaction.id, data.tags)
-        self._record(transaction, "created", origin)
         return transaction
-
-    @staticmethod
-    def _snapshot(
-        transaction: Transaction, postings: builtins.list[Posting], tags: builtins.list[str]
-    ) -> dict[str, Any]:
-        return {
-            "date": transaction.date.isoformat(),
-            "payee": transaction.payee,
-            "comment": transaction.comment,
-            "recurring_id": str(transaction.recurring_id) if transaction.recurring_id else None,
-            "source": transaction.source,
-            "external_id": transaction.external_id,
-            "source_url": transaction.source_url,
-            "related_id": str(transaction.related_id) if transaction.related_id else None,
-            "tags": sorted(tags),
-            "postings": [
-                {
-                    "account": str(p.account_id),
-                    "side": p.side.value,
-                    "amount": str(p.amount),
-                    "category": str(p.category_id) if p.category_id else None,
-                    "posted_on": p.posted_on.isoformat() if p.posted_on else None,
-                }
-                for p in sorted(postings, key=lambda p: (p.created, str(p.id)))
-            ],
-        }
-
-    def _record(self, transaction: Transaction, action: str, origin: str | None) -> None:
-        """Append what the transaction looks like now to its history."""
-        snapshot = self._snapshot(transaction, self.postings(transaction.id), self.tag_names(transaction.id))
-        if action == "deleted":
-            # What pointed at it is unlinked below; remember which entries, so restoring it can link them again.
-            snapshot["related_from"] = [str(other.id) for other in self.related_to(transaction.id)]
-        if action == "updated":
-            previous = self.history(transaction.id)
-            if previous:
-                before = comparable_snapshot(previous[-1].snapshot)
-                if any("category" not in p for p in previous[-1].snapshot.get("postings", [])):
-                    # Written before lines carried a category: compare without it, so a save that changed nothing adds nothing.
-                    after = {
-                        **snapshot,
-                        "postings": [{k: v for k, v in p.items() if k != "category"} for p in snapshot["postings"]],
-                    }
-                else:
-                    after = snapshot
-                if before == after:
-                    return  # saved without changing anything
-        self.db.add(
-            TransactionHistory(
-                user_id=self.uid, transaction_id=transaction.id, action=action, via=origin, snapshot=snapshot
-            )
-        )
-        self.db.flush()
-
-    def history(self, transaction_id: UUID) -> list[TransactionHistory]:
-        statement = (
-            select(TransactionHistory)
-            .where(TransactionHistory.transaction_id == transaction_id, TransactionHistory.user_id == self.uid)
-            .order_by(TransactionHistory.at, TransactionHistory.id)
-        )
-        return self.db.exec(statement).all()
-
-    def history_since(self, since: datetime | None, via: str | None, limit: int) -> builtins.list[TransactionHistory]:
-        """The newest history rows of every entry (deleted ones too), optionally from a moment on and by one origin.
-        `via` is an origin ("web", "api", "import", "recurring", "mcp:<name>") or "assistant" for any assistant."""
-        statement = select(TransactionHistory).where(TransactionHistory.user_id == self.uid)
-        if since is not None:
-            statement = statement.where(TransactionHistory.at >= since)
-        if via == "assistant":
-            statement = statement.where(col(TransactionHistory.via).startswith("mcp:"))
-        elif via:
-            statement = statement.where(TransactionHistory.via == via)
-        return self.db.exec(
-            statement.order_by(col(TransactionHistory.at).desc(), col(TransactionHistory.id)).limit(limit)
-        ).all()
-
-    def histories_for(self, tids: builtins.list[UUID]) -> builtins.list[TransactionHistory]:
-        """Every history row of the given entries, oldest first."""
-        if not tids:
-            return []
-        return self.db.exec(
-            select(TransactionHistory)
-            .where(TransactionHistory.user_id == self.uid, col(TransactionHistory.transaction_id).in_(tids))
-            .order_by(TransactionHistory.at, TransactionHistory.id)
-        ).all()
-
-    def deleted(self) -> list[TransactionHistory]:
-        """The deletion record of every transaction that no longer exists, newest first."""
-        statement = (
-            select(TransactionHistory)
-            .where(TransactionHistory.user_id == self.uid, TransactionHistory.action == "deleted")
-            .order_by(col(TransactionHistory.at).desc())
-        )
-        return self.db.exec(statement).all()
-
-    def deleted_row(self, history_id: UUID) -> TransactionHistory | None:
-        return self.db.exec(
-            select(TransactionHistory).where(
-                TransactionHistory.id == history_id,
-                TransactionHistory.user_id == self.uid,
-                TransactionHistory.action == "deleted",
-            )
-        ).first()
 
     def _line_categories(self, postings) -> builtins.list[UUID | None]:
         """The category of each line: the one given, else (on Expenses or Income) Uncategorised. Nothing else is filled
@@ -658,8 +529,8 @@ class TransactionRepository:
         categories: tuple[UUID, UUID] | None = None,
     ) -> builtins.list[UUID]:
         """Move every posting from one account to another (a merge). With `categories` (source's, target's) every
-        line labelled with the first takes the second. Each entry it touches gets an "updated" history row saying
-        who did it. Returns the entries that moved. Nothing is committed."""
+        line labelled with the first takes the second. Each entry it touches records who did it
+        (`updated_via`). Returns the entries that moved. Nothing is committed."""
         tids = self.transactions_touching(source)
         if categories is not None:
             tids = builtins.list(dict.fromkeys([*tids, *self.labelled(categories[0])]))
@@ -679,31 +550,11 @@ class TransactionRepository:
             .where(Transaction.user_id == self.uid, col(Transaction.id).in_(tids))
             .values(updated_via=origin)
         )
-        self._record_updated(tids, origin)
+        self.db.expire_all()  # the bulk updates above changed rows the session may hold
         return tids
 
-    def _record_updated(self, tids: builtins.list[UUID], origin: str | None) -> None:
-        """An "updated" history row for each entry that was changed in bulk (a merge, a relabelling)."""
-        self.db.expire_all()
-        moved = self.read_many(tids)
-        postings = self.postings_for_transactions(tids)
-        tag_names = self.tag_map(tids)
-        for transaction_id in tids:
-            self.db.add(
-                TransactionHistory(
-                    user_id=self.uid,
-                    transaction_id=transaction_id,
-                    action="updated",
-                    via=origin,
-                    snapshot=self._snapshot(
-                        moved[transaction_id], postings.get(transaction_id, []), tag_names.get(transaction_id, [])
-                    ),
-                )
-            )
-        self.db.flush()
-
     def relabel_category(self, old: UUID, new: UUID, origin: str | None) -> builtins.list[UUID]:
-        """Every line labelled with one category takes another (a merge). Each entry gets an "updated" history row.
+        """Every line labelled with one category takes another (a merge). Each entry records who did it.
         Returns the entries that changed. Nothing is committed."""
         tids = self.labelled(old)
         if not tids:
@@ -716,7 +567,7 @@ class TransactionRepository:
             .where(Transaction.user_id == self.uid, col(Transaction.id).in_(tids))
             .values(updated_via=origin)
         )
-        self._record_updated(tids, origin)
+        self.db.expire_all()  # the bulk updates above changed rows the session may hold
         return tids
 
     def last_change(self) -> datetime | None:
@@ -813,7 +664,6 @@ class TransactionRepository:
 
         self.db.add(transaction)
         self.db.flush()
-        self._record(transaction, "updated", origin)
         return transaction
 
     def _replace_postings(self, transaction: Transaction, postings) -> None:
@@ -856,7 +706,6 @@ class TransactionRepository:
         transaction = self.read(transaction_id)
         if not transaction:
             return None
-        self._record(transaction, "deleted", origin)
         for other in self.related_to(transaction_id):  # what pointed at it is no longer related to anything
             other.related_id = None
             self.db.add(other)

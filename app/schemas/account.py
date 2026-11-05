@@ -2,7 +2,7 @@ import unicodedata
 from datetime import date as Date
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -132,21 +132,6 @@ class CardBill(BaseModel):
     owed_total: Decimal
 
 
-class AccountChangeRead(BaseModel):
-    """One step in an account's life, with what it changed compared with the step before."""
-
-    id: UUID
-    account_id: UUID
-    action: Literal["created", "updated", "closed", "reopened", "restored", "deleted"]
-    at: datetime
-    # "web", "api" or "mcp:<token name>"; None if unknown.
-    via: str | None = None
-    # The account as it stood after this step: name, path, note, budget flag, closing day.
-    entry: dict[str, Any]
-    # For an update: {field: {"from", "to"}} for name, path, note, on_budget and closed_on.
-    changes: dict[str, Any] = Field(default_factory=dict)
-
-
 class MergeRequest(BaseModel):
     # The account that takes over everything (this one is merged into it).
     into: UUID
@@ -194,12 +179,3 @@ class ClosedAccount(BaseModel):
     closed_on: Date
 
 
-class DeletedAccount(BaseModel):
-    """An account or category deleted for good that can still be restored."""
-
-    id: UUID
-    account_id: UUID
-    at: datetime
-    name: str | None = None
-    path: str | None = None
-    root: str | None = None

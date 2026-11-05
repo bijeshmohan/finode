@@ -463,7 +463,7 @@ def transaction_sheet(
 
 
 def _here(request: Request) -> str:
-    """The page an htmx request was made from (path and query), for returning to it after a toast's Undo."""
+    """The page an htmx request was made from (path and query), for returning to it."""
     url = urlparse(request.headers.get("HX-Current-URL", ""))
     return f"{url.path}?{url.query}" if url.query else url.path
 
@@ -480,33 +480,7 @@ def delete_transaction(
         transactions.delete(transaction_id)
     except ValueError as e:
         return htmx_error(str(e), "#sheet-error" if sheet else "#page-error")
-    # The deletion's own id lets the toast offer Undo (the entry comes back with its old id).
-    gone = next((h for h in transactions.deleted() if h.transaction_id == transaction_id), None)
-    return htmx_redirect(
-        safe_back(back or _here(request)), flash="transaction-deleted", undo=("restore", gone.id) if gone else None
-    )
-
-
-@router.get("/deleted")
-def deleted_page(request: Request, accounts: Accounts, transactions: Transactions):
-    """Entries that were deleted, newest deletion first, each with a Restore button."""
-    entries = transactions.restorable()
-    return templates.TemplateResponse(
-        request,
-        "transactions_deleted.html",
-        {"active": "settings", "entries": entries, "currency": accounts.currency().code},
-    )
-
-
-@router.post("/deleted/{history_id}/restore")
-def restore_deleted(request: Request, history_id: UUID, transactions: Transactions):
-    try:
-        transactions.restore(history_id)
-    except LookupError:
-        return htmx_error("That deleted transaction is not there any more.", "#restore-error", status_code=404)
-    except ValueError as e:
-        return htmx_error(str(e), "#restore-error")
-    return htmx_redirect(safe_back(_here(request), "/transactions/deleted"), flash="transaction-restored")
+    return htmx_redirect(safe_back(back or _here(request)), flash="transaction-deleted")
 
 
 # Paths that are not pages of the web app.
@@ -834,7 +808,7 @@ def create_split_transaction(
 ):
     account, side, amount = account or [], side or [], amount or []
     try:
-        made = transactions.create(
+        transactions.create(
             TransactionCreate(
                 date=date_ or local_today(),
                 payee=payee.strip() or None,
@@ -850,7 +824,7 @@ def create_split_transaction(
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
         return htmx_error(str(e), "#form-error")
-    return htmx_redirect(safe_back(back), flash="transaction-saved", undo=("delete", made.id))
+    return htmx_redirect(safe_back(back), flash="transaction-saved")
 
 
 @router.get("/{transaction_id}/edit")
