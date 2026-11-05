@@ -291,18 +291,16 @@ def test_a_category_page_lists_only_what_was_posted_to_it_not_its_sub_categories
     assert client.get(f"/categories/{books['groceries']['id']}").text.count('class="tx"') == 1
 
 
-def test_the_subcategories_heading_has_a_plus_and_the_transactions_heading_none(client, books):
+def test_subcategories_end_in_a_dashed_add_row_and_the_transactions_heading_has_no_plus(client, books):
     entry(client, books["groceries"], books["bank"], "30", THIS_MONTH)
     group = client.get(f"/categories/{books['food']['id']}").text
-    assert f'href="/categories/new?parent={books["food"]["id"]}"' in group and 'title="Add subcategory"' in group
+    assert f'href="/categories/new?parent={books["food"]["id"]}"' in group and 'class="add-row"' in group
     assert 'title="Add transaction"' not in group, "the docked + adds one for this category"
     assert f'class="fab" href="/transactions/new?category={books["food"]["id"]}' in group
     leaf = client.get(f"/categories/{books['groceries']['id']}").text
-    assert "Subcategories" not in leaf and 'title="Add subcategory"' not in leaf, "as deep as it gets"
+    assert "Subcategories" not in leaf and 'class="add-row"' not in leaf, "as deep as it gets"
     empty = client.get(f"/categories/{books['rent']['id']}").text
-    assert "Subcategories" not in empty and 'title="Add subcategory"' not in empty, (
-        "no empty row: the … menu adds the first"
-    )
+    assert "Subcategories" not in empty and 'class="add-row"' not in empty, "no empty row: the … menu adds the first"
     assert "Add subcategory" in empty, "the menu still does"
 
 

@@ -420,3 +420,7 @@ From 80rem with a mouse (`(min-width: 80rem) and (hover: hover) and (pointer: fi
 ### The Add screen's headings (2026-11-04)
 
 Both tiles carry a heading in the words of the details sheet, which follow the kind (`KINDS` in `app.js`, `applyKind`): Expense **Paid from / Spent on**, Income **From / Received in**, Transfer and "other" **From / To**. The category tile's heading is no longer hidden and the hint beside each heading ("the account you paid with"...) is gone. Two tiles always, so nothing changes shape when a side is split.
+
+### One way to add (2026-11-05)
+
+A group's page ends its Sub-accounts tile, and a category's page its Subcategories tile, with the dashed `.add-row` ("+ Add sub-account", "+ Add subcategory"), like Accounts, Categories, Recurring and Goals; the round "+" in a heading is gone everywhere. Sub-account rows carry the budget dot like the Accounts page.
