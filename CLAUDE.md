@@ -428,3 +428,6 @@ Both tiles carry a heading in the words of the details sheet, which follow the k
 ### Two removals (2026-11-05)
 
 The recurring form's hint about a past start date shows only while the start date is in the past (`[data-past-hint]`, toggled by `app.js` with the start chip), and the empty states of Recently deleted and Coming up no longer carry a Back button (the page has its back link).
+### One way to add (2026-11-05)
+
+A group's page ends its Sub-accounts tile, and a category's page its Subcategories tile, with the dashed `.add-row` ("+ Add sub-account", "+ Add subcategory"), like Accounts, Categories, Recurring and Goals; the round "+" in a heading is gone everywhere. Sub-account rows carry the budget dot like the Accounts page.

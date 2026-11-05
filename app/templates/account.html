@@ -58,18 +58,18 @@
 {% set subs = node.children|rejectattr("account.closed_on")|list %}
 <div class="section-head">
   <h2>Sub-accounts</h2>
-  {% if can_add_child and not account.closed_on %}<a class="circ-button" href="/accounts/new?parent={{ account.id }}" title="Add sub-account" aria-label="Add sub-account">{{ icon("plus") }}</a>{% endif %}
 </div>
 <div class="tile sub-tile">
   {% for c in subs %}
   <a class="r crow" href="/accounts/{{ c.account.id }}">
-    <span class="crow-main"><span class="crow-name">{{ c.account.name }}</span></span>
+    <span class="crow-main"><span class="crow-name">{{ c.account.name }}{% if c.account.on_budget and not c.children %}<i class="budget-dot" title="In the budget"></i>{% endif %}</span></span>
     <span class="crow-amt"><span class="{{ 'negative' if c.account.balance < 0 }}">{{ c.account.balance|money }}</span></span>
   </a>
   {% else %}
-  <p class="muted sub-empty">Nothing here yet. Tap + to add one.</p>
+  <p class="muted sub-empty">Nothing here yet.</p>
   {% endfor %}
 </div>
+{% if can_add_child and not account.closed_on %}<a class="add-row" href="/accounts/new?parent={{ account.id }}">{{ icon("plus") }}Add sub-account</a>{% endif %}
 {% else %}
 <div class="section-head">
   <h2>Transactions</h2>
