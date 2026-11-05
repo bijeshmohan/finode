@@ -207,8 +207,8 @@ def test_the_sheet_offers_edit_add_again_and_delete(client, books, ledger):
     html = sheet(client, ledger["dmart"])
     assert f'href="/transactions/{ledger["dmart"]["id"]}/edit"' in html
     assert f'href="/transactions/new?repeat={ledger["dmart"]["id"]}"' in html
-    assert f'hx-post="/transactions/{ledger["dmart"]["id"]}/delete"' in html and "hx-confirm" not in html, (
-        "undo replaces the confirmation"
+    assert f'hx-post="/transactions/{ledger["dmart"]["id"]}/delete"' in html and "hx-confirm" in html, (
+        "deleting is for good, so it asks first"
     )
 
 

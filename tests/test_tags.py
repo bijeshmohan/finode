@@ -130,24 +130,10 @@ def test_a_person_has_only_so_many_tags(client, account, expense_account, monkey
     assert client.post("/api/transactions/", json=body(expense_account, account, "5", tags=["one"])).status_code == 201
 
 
-def test_deleting_an_entry_and_restoring_it_brings_its_tags_back(client, account, expense_account, svc):
+def test_deleting_an_entry_drops_the_tags_nothing_else_carries(client, account, expense_account):
     made = make(client, account, expense_account, "Taxi", ["a", "b"])
     client.delete(f"/api/transactions/{made['id']}")
     assert client.get("/api/tags/").json() == [], "no entry carries them now"
-    gone = client.get("/api/transactions/deleted").json()
-    restored = client.post(f"/api/transactions/deleted/{gone[0]['id']}/restore")
-    assert restored.status_code == 200 and restored.json()["tags"] == ["a", "b"]
-    assert [t["tag"] for t in client.get("/api/tags/").json()] == ["a", "b"]
-
-
-def test_the_history_notes_a_changed_tag_but_not_an_unchanged_one(client, account, expense_account):
-    made = make(client, account, expense_account, "Taxi", ["a"])
-    url = f"/api/transactions/{made['id']}"
-    client.patch(url, json={"tags": ["a"]})
-    assert len(client.get(f"{url}/history").json()) == 1
-    client.patch(url, json={"tags": ["a", "b"]})
-    history = client.get(f"{url}/history").json()
-    assert [h["action"] for h in history] == ["created", "updated"]
 
 
 def test_renaming_merging_and_deleting_tags(client, account, expense_account):

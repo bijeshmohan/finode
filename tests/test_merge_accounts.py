@@ -90,12 +90,12 @@ def test_the_plan_of_both_is_added(client, books):
     assert zomato["assigned"] == "150.00"
 
 
-def test_the_entries_history_remembers_the_merge(client, books):
+def test_a_merged_entry_records_who_did_it(client, books):
     one = spend(client, books, books["swiggy"], "30")
     merge_category(client, books["swiggy"], books["zomato"])
-    entry = client.get(f"/api/transactions/{one['id']}/changes").json()
-    assert [s["action"] for s in entry] == ["created", "updated"] and entry[-1]["via"] == "api"
-    assert {p["account"] for p in entry[-1]["entry"]["postings"]} == {"Assets:Bank", "Expenses:Zomato"}
+    entry = client.get(f"/api/transactions/{one['id']}").json()
+    assert entry["updated_via"] == "api"
+    assert {p["category_id"] for p in entry["postings"]} >= {books["zomato"]["id"]}
 
 
 def test_a_dry_run_changes_nothing(client, books):

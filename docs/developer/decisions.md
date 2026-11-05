@@ -35,10 +35,10 @@ The decisions that look odd until you know the reason. Each entry says what was 
 **Decision.** The web form, the JSON API, imports, recurring rules and assistants all create transactions through `TransactionService`.
 **Why.** Balancing, ownership of accounts, closed accounts and limits then exist once. The exceptions (imports and restores fill an empty ledger through repositories) are documented and tested.
 
-## History is append-only and has no foreign key
+## No history
 
-**Decision.** `transaction_history` and `account_deletions` only ever get new rows.
-**Why.** A deleted transaction's trace survives it, which is what makes *Recently deleted* possible with no extra storage. Restoring recreates the entry with its old id.
+**Decision.** finode keeps no history of what happened to a transaction or an account (2026-11-05). There are no history tables, no Undo, no Recently deleted pages and no change logs; deleting is for good and asks first.
+**Why.** The owner does not want to maintain any kind of history. What stays is *who* made or last changed an entry (`created_via`, `updated_via`), because lists and the details sheet mark what an assistant did.
 
 ## The budget sits on top of the ledger
 

@@ -73,6 +73,4 @@ def downgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_transaction_history_user_id"), "transaction_history", ["user_id"], unique=False)
-    op.create_index(
-        "ix_transaction_history_user_transaction", "transaction_history", ["user_id", "transaction_id"]
-    )
+    op.create_index("ix_transaction_history_user_transaction", "transaction_history", ["user_id", "transaction_id"])

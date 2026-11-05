@@ -121,9 +121,8 @@ def run(session, seed: int, steps: int) -> list[str]:
             + ["tx"] * 8
             + ["edit"] * 3
             + ["delete"] * 2
-            + ["restore"] * 2
             + ["balance"] * 2
-            + ["rename", "move", "close", "reopen", "drop", "undrop"]
+            + ["rename", "move", "close", "reopen", "drop"]
         )
         label = f"seed {seed} step {step} {op}"
         s = services(session)
@@ -147,10 +146,6 @@ def run(session, seed: int, steps: int) -> list[str]:
                     else:
                         rows = pick_postings()
                         s.transactions.update(t.id, TransactionUpdate(date=when(), payee=f"e{step}", postings=rows))
-            elif op == "restore":
-                options = s.transactions.restorable()
-                if options:
-                    s.transactions.restore(rng.choice(options).id)
             elif op == "balance":
                 pool = [a for a in accounts() if a.parent_id in roots.values() or True]
                 if pool:
@@ -172,10 +167,6 @@ def run(session, seed: int, steps: int) -> list[str]:
                 pool = accounts()
                 if pool:
                     s.accounts.delete(rng.choice(pool).id)
-            elif op == "undrop":
-                options = s.accounts.restorable()
-                if options:
-                    s.accounts.restore_deleted(rng.choice(options)["id"])
             log.append(f"{label}: ok")
         except ValueError as refusal:
             session.rollback()

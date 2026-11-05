@@ -177,5 +177,3 @@ class ClosedAccount(BaseModel):
     path: str
     root: str
     closed_on: Date
-
-

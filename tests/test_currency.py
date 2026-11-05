@@ -1,13 +1,10 @@
 """One currency for the whole ledger: INR until the person picks another, a label and not a conversion."""
 
 from decimal import Decimal
-from uuid import UUID
 
 import pytest
-from sqlmodel import select
 
 from app import currencies
-from app.models.transaction_history import TransactionHistory
 from app.models.utils import normalize_amount
 
 from .books import leg, post_account
@@ -188,35 +185,3 @@ def test_the_account_form_has_no_commodity_fields(client):
     assert 'name="commodity"' not in page and 'name="balance_value"' not in page and "Balance is worth" not in page
     form = client.get("/transactions/new").text
     assert 'name="value"' not in form and 'name="currency"' not in form and "row-worth" not in form
-
-
-# ---- entries made before finode kept one currency ----------------------------------------------------------------------
-
-
-def test_old_history_rows_still_read_and_do_not_count_as_a_change(client, session, account, expense_account):
-    made = post(client, expense_account, account, "10").json()
-    transaction_id = UUID(made["id"])
-    [row] = session.exec(select(TransactionHistory).where(TransactionHistory.transaction_id == transaction_id)).all()
-    # What an older finode wrote: a currency and a worth in every posting.
-    old = dict(row.snapshot)
-    old["currency_id"] = "00000000-0000-4000-8000-000000000999"
-    old["postings"] = [{**p, "value": p["amount"]} for p in old["postings"]]
-    row.snapshot = old
-    session.add(row)
-    session.commit()
-    history = plain(services(session).transactions.history(transaction_id))
-    assert len(history) == 1 and history[0]["postings"][0]["amount"] == "10.00" and "currency" not in history[0]
-    saved = client.patch(
-        f"/api/transactions/{transaction_id}",
-        json={
-            "payee": made["payee"],
-            "postings": [
-                leg(expense_account, "debit", "10"),
-                leg(account, "credit", "10"),
-            ],
-        },
-    )
-    assert saved.status_code == 200
-    assert len(services(session).transactions.history(transaction_id)) == 1, "saving it unchanged adds nothing"
-    client.patch(f"/api/transactions/{transaction_id}", json={"payee": "Changed"})
-    assert len(services(session).transactions.history(transaction_id)) == 2

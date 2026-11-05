@@ -49,7 +49,7 @@ Give a card or loan its **statement day** (the day of the month the bank closes 
 
 ### Closing and deleting
 
-An account that holds a balance cannot be closed. A closed account keeps its history but disappears from pickers; **Reopen** it any time. Closing is in the account's **…** menu. An unused account can be deleted for good. Both can be brought back from **Settings › Recently deleted**.
+An account that holds a balance cannot be closed. A closed account keeps its history but disappears from pickers; **Reopen** it any time. Closing is in the account's **…** menu. An unused account can be deleted for good. A closed account is listed under **Load more** on the Accounts page; open it to **Reopen**. Deleting is for good.
 
 ## Categories page
 
@@ -59,7 +59,7 @@ An account that holds a balance cannot be closed. A closed account keeps its his
 
 Every category is listed, biggest first, including the ones with nothing in the month. To add one, tap **+ Add category** at the end of the list. A category can have subcategories one level down (Food › Groceries), no further.
 
-**Deleting a category:** if it has never been used it is removed. If it has history it is *closed* instead: it leaves your lists and pickers but stays in the months where it has amounts. **Restore category** brings it back. Both are under the **…** menu and in **Settings › Recently deleted**.
+**Deleting a category:** if it has never been used it is removed. If it has history it is *closed* instead: it leaves your lists and pickers but stays in the months where it has amounts. **Restore category** brings it back. Both are under the **…** menu.
 
 ## Notes
 

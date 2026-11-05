@@ -87,15 +87,11 @@ LISTS = {
     ("GET", "/api/recurring/"),
     ("GET", "/api/reports/trial-balance"),
     ("GET", "/api/transactions/"),
-    ("GET", "/api/transactions/changes"),
-    ("GET", "/api/accounts/changes"),
     ("GET", "/api/transactions/payee-defaults"),
     ("GET", "/api/accounts/closed"),
-    ("GET", "/api/accounts/deleted"),
     ("GET", "/api/profile/currencies"),
     ("GET", "/api/reports/breakdown"),
     ("GET", "/api/reports/summary"),
-    ("GET", "/api/transactions/deleted"),
     ("GET", "/api/transactions/payees"),
     ("GET", "/backup"),
     ("GET", "/budget"),
@@ -109,9 +105,6 @@ LISTS = {
     ("GET", "/categories/new"),
     ("GET", "/settings"),
     ("GET", "/transactions"),
-    ("GET", "/transactions/deleted"),
-    ("GET", "/accounts/deleted"),
-    ("GET", "/categories/deleted"),
     ("GET", "/transactions/suggest"),
     ("GET", "/transactions/tag-options"),
     ("GET", "/transactions/tag-picker"),
@@ -233,12 +226,6 @@ def world(client: TestClient, session, rich) -> World:
         },
     ).json()
     client.delete(f"/api/transactions/{spare['id']}")
-    assets = next(
-        a["id"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == "Assets"
-    )
-    shelf = post_account(client, {"name": "Spare shelf", "parent_id": assets}).json()["id"]
-    client.delete(f"/api/accounts/{shelf}")  # an account deleted for good, which can be restored
-    w.deletion_ids = [str(d["id"]) for d in services(session).accounts.restorable()]
     doc = client.get("/api/backup").json()
     w.backup = doc
     w.categories = {c["name"]: c["id"] for c in doc["categories"]}
@@ -247,7 +234,6 @@ def world(client: TestClient, session, rich) -> World:
     w.tags = sorted({name for t in doc["transactions"] for name in t.get("tags", [])})
     w.transaction_ids = [t["id"] for t in doc["transactions"]] + [spare["id"]]
     w.recurring_ids = [r["id"] for r in doc["recurring"]]
-    w.history_ids = [str(d.id) for d in services(session).transactions.deleted()]
     w.token_id, w.grant_id = str(w.token.id), str(w.grant.id)
     w.markers = A_WORDS + [
         str(i)
@@ -255,8 +241,6 @@ def world(client: TestClient, session, rich) -> World:
             *w.accounts.values(),
             *w.transaction_ids,
             *w.recurring_ids,
-            *w.history_ids,
-            *w.deletion_ids,
             w.token_id,
             w.grant_id,
         )
@@ -309,8 +293,6 @@ def candidates(world: World, name: str) -> list[str]:
         "account_id": [*world.accounts.values(), *world.roots],
         "category_id": list(world.categories.values()),
         "transaction_id": world.transaction_ids,
-        "history_id": world.history_ids,
-        "deletion_id": world.deletion_ids,
         "recurring_id": world.recurring_ids,
         "token_id": [world.token_id],
         "grant_id": [world.grant_id],
@@ -399,7 +381,6 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
             "Opening balance",
             "Power",
         ]
-        assert theirs.transactions.deleted() == [] and theirs.accounts.restorable() == []
         assert client.get("/api/recurring/").json() == []
         assert client.get("/api/profile/").json()["first_name"] in (None, "")
         assert {l["name"] for l in client.get("/api/budget/").json()["lines"]} <= {"Bills"}
@@ -728,8 +709,6 @@ def test_nothing_answers_without_a_sign_in(session, world: World):
                     "account_id",
                     "transaction_id",
                     "recurring_id",
-                    "history_id",
-                    "deletion_id",
                     "token_id",
                     "grant_id",
                     "category_id",
