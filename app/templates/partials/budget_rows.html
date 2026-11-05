@@ -18,7 +18,7 @@
     <span class="crow-name">{{ name }}</span>
     {#- One quiet second line on every row: what there was ("of 25,000.00"), then what needs a look. -#}
     <span class="crow-sub"><span class="crow-of">{% if line.assigned or line.available or line.activity %}of {{ (line.activity + line.available if line.activity + line.available > 0 else line.activity)|money }}{% else %}nothing assigned{% endif %}</span>
-      {%- if line.available < 0 %} · <span class="negative">over by {{ (-line.available)|money }}</span>{% elif line.available == 0 and line.activity > 0 %} · all spent{% endif %}
+      {%- if line.available < 0 %} · <span class="negative">overspent</span>{% elif line.available == 0 and line.activity > 0 %} · all spent{% endif %}
       {%- if other %} · kept on the group itself{% elif item.hint %} · {{ item.hint }}{% endif %}</span>
   </span>
   <span class="crow-amt"><span class="{{ 'negative' if line.available < 0 }}">{{ line.available|money }}</span></span>

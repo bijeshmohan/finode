@@ -413,7 +413,7 @@ def test_the_month_pill_is_in_the_title_row_and_what_needs_you_is_under_the_bell
     assert 'hx-get="/todo/badge"' in page and 'id="todo-sheet"' in page, "the bell and its sheet are on every page"
 
 
-def test_a_row_says_all_spent_or_over_by_and_otherwise_nothing(client, setup):
+def test_a_row_says_all_spent_or_overspent_and_otherwise_nothing(client, setup):
     assign(client, setup["food"], "100")
     assign(client, setup["rent"], "100")
     move(client, setup["bank"], setup["food"], "100")  # Food spent all of it
@@ -421,11 +421,9 @@ def test_a_row_says_all_spent_or_over_by_and_otherwise_nothing(client, setup):
     page = client.get("/budget").text
     food = page.split("Food", 1)[1].split("</a>", 1)[0]
     rent = page.split("Rent", 1)[1].split("</a>", 1)[0]
-    assert "all spent" in food and "over by" not in food
-    assert (
-        "over by 30.00" in rent.replace("</span>", "").replace('<span class="negative">', "")
-        and "all spent" not in rent
-    )
+    assert "all spent" in food and "overspent" not in food
+    assert '<span class="negative">overspent</span>' in rent and "all spent" not in rent
+    assert "over by" not in page, "the red figure already says how much"
     assign(client, setup["food"], "300")
     assert "all spent" not in client.get("/budget").text.split("Food", 1)[1].split("</a>", 1)[0], "money is left"
 

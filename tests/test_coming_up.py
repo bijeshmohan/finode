@@ -182,3 +182,10 @@ def test_an_account_page_says_what_the_balance_will_be_after_what_is_coming_up(c
     assert "9,750.00 after the 1 coming up" in page
     nothing = client.get(f"/accounts/{accounts['rent']}")
     assert nothing.status_code == 404 or "after the" not in nothing.text
+
+
+def test_the_count_line_agrees_with_one_payment_and_with_several(client, accounts, fake_today):
+    entry(client, accounts, "2999-11-10", payee="Cab", amount="70")
+    assert "1 payment that touches your budget accounts" in client.get("/budget/coming-up").text
+    entry(client, accounts, "2999-11-11", payee="Bus", amount="20")
+    assert "2 payments that touch your budget accounts" in client.get("/budget/coming-up").text
