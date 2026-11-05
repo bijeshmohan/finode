@@ -157,15 +157,17 @@ def test_onboarding_checklist_for_new_users(client: TestClient, root_accounts: d
     text = client.get("/").text
     assert "Get started" in text
     assert f'href="/accounts/new?parent={root_accounts["Assets"]}"' in text
-    assert 'href="/transactions/new">Record your first spend' in text
-    assert 'href="/budget">Give your money a job' in text
+    assert 'href="/transactions/new"><span class="step-mark' in text and "Record your first spend" in text
+    assert 'href="/budget"><span class="step-mark' in text and "Give your money a job" in text
 
 
 def test_onboarding_ticks_off_steps_and_ignores_opening_balances(client: TestClient, root_accounts: dict[str, str]):
     bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"}).json()
     text = client.get("/").text
     assert '<li class="done">' in text
-    assert "Record your first spend</a>" in text  # opening balance is not a recorded transaction
+    assert (
+        'href="/transactions/new"' in text and "Record your first spend" in text
+    )  # opening balance is not a recorded transaction
 
     food = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
     client.post(
@@ -312,8 +314,8 @@ def test_the_checklist_stays_on_home_after_the_first_entry_until_the_plan_is_use
         },
     )
     text = client.get("/").text
-    assert "Get started · 2 of 3" in text and "Give your money a job</a>" in text
-    assert "Open Budgets and set aside rent and food" in text
+    assert "Get started · 2 of 3" in text and '<span class="step-text">Give your money a job' in text
+    assert "Set aside rent and food" in text
     client.put(
         f"/api/budget/categories/{food['id']}", json={"month": date.today().replace(day=1).isoformat(), "amount": "50"}
     )

@@ -206,7 +206,7 @@ Accounts go **two levels below a top-level account, for everybody and every type
 
 ### Running a test with invited people
 
-`FINODE_TEST_NOTICE=true` shows the notice (`partials/test_notice.html`, the wording agreed with the owner: a person runs this, the data is technically reachable but not looked at, data may be reset, no financial advice) on the sign-up page, where ticking the box is required (`accept`), and under Profile › About this test. `FINODE_FEEDBACK_EMAIL` adds Profile › Send feedback, a `mailto:` link with the build version (`app/version.py`, from pyproject) and no personal data. The dashboard's "Get started" card names the currency and points to Settings and to the backup. Changing the notice's wording means editing that one partial.
+`FINODE_TEST_NOTICE=true` shows the notice (`partials/test_notice.html`, the wording agreed with the owner: a person runs this, the data is technically reachable but not looked at, data may be reset, no financial advice) on the sign-up page, where ticking the box is required (`accept`), and under Profile › About this test. `FINODE_FEEDBACK_EMAIL` adds Profile › Send feedback, a `mailto:` link with the build version (`app/version.py`, from pyproject) and no personal data. The dashboard's "Get started" card is one tile of tappable rows (see "First run" below) and points only at the import; the currency and the backup live in Settings (2026-11-05). Changing the notice's wording means editing that one partial.
 
 ### Limits and rate limiting
 
@@ -434,3 +434,6 @@ A group's page ends its Sub-accounts tile, and a category's page its Subcategori
 ### Sign-in without a card (2026-11-05)
 
 Sign in, sign up, forgot and reset (`body.bare`) have no card: the form is centred on the page (`body.bare main` is a flex box and `.card.narrow` has `margin: auto`, so a long sign-up still scrolls) under a larger wordmark. `tests/browser/test_sign_in_page.py`.
+### First run (2026-11-05)
+
+Home's steps (`partials/get_started.html`, `ol.steps.tile`) are rows you can tap (a chevron at the right, the next step's number filled in `.step-mark.now`, finished ones ticked), under "Get started · N of 3", with one line of small print (the import). Budgets with no account in it says one sentence and has one button, "Choose accounts" (`/accounts`); its intro box shows only once an account is part of the budget. `tests/test_web_budget.py`.

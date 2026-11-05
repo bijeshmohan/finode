@@ -36,7 +36,7 @@
     <button type="submit" class="quiet-link">Copy last month's amounts · {{ budget.copyable|money }}</button>
   </form>
   {% endif %}
-  {% if show_intro and tab == "spend" %}
+  {% if show_intro and tab == "spend" and budget.budget_accounts %}
   <div class="intro" data-plan-intro>
     <b>Give every {{ budget.currency|symbol }} a job</b>
     <p>Decide how much of your money goes to rent, food and the rest. What you don't spend stays there for next month.</p>
@@ -55,7 +55,7 @@
   <p id="budget-error" class="error" role="alert"></p>
 
   {% if not budget.budget_accounts %}
-  <div class="empty-state"><p>No account is part of the budget yet. Open an asset account (or a credit card) and switch on <strong>Part of the budget</strong> in its edit page.</p></div>
+  <div class="empty-state"><p>No account is part of the budget yet. Choose the accounts whose money you plan with.</p><a class="button" href="/accounts">Choose accounts</a></div>
   {% endif %}
 
   {% if tab == "save" %}

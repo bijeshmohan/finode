@@ -11,9 +11,10 @@ def new_person():
 
 
 def test_the_plan_welcomes_a_new_person_until_something_is_assigned(client, root_accounts, new_person):
-    assert "Give every" in client.get("/budget").text
-    assert "Start with your first category" in client.get("/budget").text
+    empty = client.get("/budget").text
+    assert "Give every" not in empty and "Choose accounts" in empty, "nothing to assign yet: one sentence, one button"
     account(client, root_accounts, "Bank", "Assets", balance="1000")
+    assert "Start with your first category" in client.get("/budget").text
     food = account(client, root_accounts, "Food", "Expenses")
     text = client.get("/budget").text
     assert "Give every" in text and "Tap a category below" in text and "Start with your first category" not in text
