@@ -70,3 +70,29 @@ def test_a_phone_and_a_narrow_window_keep_the_bottom_sheet(page: Page, books, ap
     expect(page.locator("dialog#txn-sheet[open]")).to_be_visible()
     assert page.evaluate("document.querySelector('#txn-sheet').matches(':modal')"), "a sheet over the page"
     assert not page.evaluate("document.querySelector('#txn-sheet').classList.contains('side-panel')")
+
+
+def test_a_budget_category_opens_beside_the_list_and_saving_updates_the_list(wide: Page, books, api: Api):
+    wide.goto("/budget")
+    wide.locator("a.crow", has_text="Groceries").click()
+    panel = wide.locator("dialog#cat-sheet.side-panel[open]")
+    expect(panel).to_be_visible()
+    column = wide.locator("main").bounding_box()
+    box = panel.bounding_box()
+    assert column["x"] + column["width"] <= box["x"], "the list is not under the panel"
+    field = panel.locator("input[name=amount]")
+    expect(field).to_be_focused()
+    expect(panel.locator(".sheet-facts")).to_be_visible()  # typing does not fold the panel up as it does a sheet
+    field.fill("300")
+    panel.get_by_role("button", name="Save").click()
+    expect(wide.locator("a.crow", has_text="Groceries")).to_contain_text("of 300.00")
+    expect(wide.locator("dialog.side-panel[open]")).to_have_count(0)
+
+
+def test_another_category_replaces_the_panel(wide: Page, books, api: Api):
+    wide.goto("/budget")
+    wide.locator("a.crow", has_text="Groceries").click()
+    expect(wide.locator("dialog#cat-sheet")).to_contain_text("Groceries")
+    wide.locator("a.crow", has_text="Rent").click()
+    expect(wide.locator("dialog#cat-sheet")).to_contain_text("Rent")
+    expect(wide.locator("a.crow.is-open")).to_have_count(1)
