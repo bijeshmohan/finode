@@ -84,7 +84,8 @@ def test_every_unit_with_a_job_is_celebrated(client, setup):
 def test_the_move_page_lists_the_categories_and_moves_money(client, setup):
     assign(client, setup["food"], "300")
     page = client.get(f"/budget/move?source={setup['food']['id']}").text
-    assert "Move money" in page and f'value="{setup["food"]["id"]}" selected' in page
+    assert "Move money" in page and re.search(rf'value="{setup["food"]["id"]}"[^>]* selected', page)
+    assert "300.00 left" in page, "what each category has left is in the sheet"
     done = client.post(
         "/budget/move",
         data={"from_category": setup["food"]["id"], "to_category": setup["rent"]["id"], "amount": "100", "month": ""},
@@ -438,3 +439,9 @@ def test_the_first_steps_are_tappable_rows_with_the_next_one_marked(client):
     page = client.get("/").text
     assert page.count('class="step-link"') == 3 and page.count("step-mark now") == 1
     assert page.index("step-mark now") < page.index("Record your first spend")
+
+
+def test_moving_money_without_both_categories_is_a_message_not_a_crash(client, setup):
+    response = client.post("/budget/move", data={"amount": "10", "from_category": "", "to_category": ""})
+    assert response.status_code == 400 and response.headers["HX-Retarget"] == "#form-error"
+    assert "Choose the category" in response.text

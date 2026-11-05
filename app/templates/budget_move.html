@@ -10,25 +10,30 @@
   <label>Amount
     <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" autofocus>
   </label>
-  <label>From
-    <select name="from_category" required>
+  <div class="under-field">
+    <span>From</span>
+    <select name="from_category" data-sheet-select class="is-picked" aria-hidden="true" tabindex="-1">
       {% if not source %}<option value="">Choose…</option>{% endif %}
       {% for line in lines %}
-      <option value="{{ line.category_id }}" {{ "selected" if line.category_id == source }}>{{ line.path }} · {{ line.available|money }} available</option>
+      <option value="{{ line.category_id }}" data-balance="{{ line.available|money }} left" {{ "selected" if line.category_id == source }}>{{ line.path.replace(":", " › ") }}</option>
       {% endfor %}
     </select>
-  </label>
-  <label>To
-    <select name="to_category" required>
+    <button type="button" class="field-pick" data-pick-generic data-title="From" data-noun="categories" aria-haspopup="dialog" aria-label="From"><span>Choose…</span></button>
+  </div>
+  <div class="under-field">
+    <span>To</span>
+    <select name="to_category" data-sheet-select class="is-picked" aria-hidden="true" tabindex="-1">
       <option value="">Choose…</option>
       {% for line in lines %}
-      <option value="{{ line.category_id }}">{{ line.path }} · {{ line.available|money }} available</option>
+      <option value="{{ line.category_id }}" data-balance="{{ line.available|money }} left">{{ line.path.replace(":", " › ") }}</option>
       {% endfor %}
     </select>
-  </label>
+    <button type="button" class="field-pick" data-pick-generic data-title="To" data-noun="categories" aria-haspopup="dialog" aria-label="To"><span>Choose…</span></button>
+  </div>
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions">
     <button type="submit">Move money</button>
   </div>
 </form>
+{% include "partials/pick_dialog.html" %}
 {% endblock %}

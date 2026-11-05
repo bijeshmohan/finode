@@ -870,10 +870,11 @@ function syncRowPickers(form) {
       clearable = target.hasAttribute("data-allow-empty");
       emptyLabel = target.querySelector('option[value=""]')?.textContent || "None";
       flat = true;
-      noun = "account";
+      const plural = under.dataset.noun || "accounts";
+      noun = plural.replace(/ies$/, "y").replace(/s$/, "");
       title.textContent = under.dataset.title;
       dialog.setAttribute("aria-label", title.textContent);
-      search.placeholder = target.name === "parent_id" && clearable ? "Search groups" : "Search accounts";
+      search.placeholder = `Search ${plural}`;
       search.setAttribute("aria-label", search.placeholder);
       list.classList.remove("grid");
       taken = new Set();
@@ -924,7 +925,7 @@ function syncRowPickers(form) {
   search.addEventListener("input", draw);
 })();
 
-// The Under field of the account and category forms shows the chosen group on its button (the select stays, hidden).
+// A field that picks in the sheet (Under, Move money's From and To) shows its choice on a button; the select stays, hidden.
 (() => {
   const show = (select) => {
     const option = select.selectedOptions[0];
@@ -934,9 +935,9 @@ function syncRowPickers(form) {
     if (label.textContent !== text) label.textContent = text;
     select.nextElementSibling.classList.toggle("empty", !chosen);
   };
-  document.querySelectorAll("select[data-parent-select]").forEach(show);
+  document.querySelectorAll("select[data-sheet-select]").forEach(show);
   document.body.addEventListener("change", (event) => {
-    if (event.target.matches && event.target.matches("select[data-parent-select]")) show(event.target);
+    if (event.target.matches && event.target.matches("select[data-sheet-select]")) show(event.target);
   });
 })();
 

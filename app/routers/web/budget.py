@@ -317,14 +317,16 @@ def move_page(request: Request, budget: Budget, month: str = "", source: UUID | 
 @router.post("/move")
 def move(
     budget: Budget,
-    from_category: Annotated[UUID, Form()],
-    to_category: Annotated[UUID, Form()],
+    from_category: Annotated[str, Form()] = "",
+    to_category: Annotated[str, Form()] = "",
     amount: Annotated[str, Form()] = "",
     month: Annotated[str, Form()] = "",
 ):
     when = parse_month(month)
+    if not from_category or not to_category:  # the sheet pickers are not browser-required fields
+        return htmx_error("Choose the category to move from and the one to move to.", "#form-error")
     try:
-        budget.move(when, from_category, to_category, parse_amount(amount))
+        budget.move(when, UUID(from_category), UUID(to_category), parse_amount(amount))
     except (BudgetError, ValueError) as e:
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(f"/budget?month={when:%Y-%m}", flash="budget-moved")
