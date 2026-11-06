@@ -85,3 +85,5 @@ Any new code that writes transactions outside `TransactionService` must call the
 A **credit card** or **loan** is a Liability. An asset or liability can be flagged `on_budget`; the [budget](budget.md) works on those accounts. A payment into a liability outside the budget can carry a *category* (EMI) on its line, so the budget counts it as spending in that category; nothing fills it in for the person. Categories are their own table, apart from the Income and Expenses accounts the books keep (see [the budget](budget.md)).
 
 Next: [The budget](budget.md).
+
+- **Contacts (2026-11-06).** A contact (`contacts`, `contact_accounts`; migration `c8e0a2b4d6f3`) is a person, not an account. Making one makes two ledger accounts with it, "Due from X" (an asset: X owes you) and "Due to X" (a liability: you owe X), both outside the budget, so what is owed is always read from the ledger and never stored. The accounts follow the contact (renamed with it, never edited, closed, deleted or merged on their own). A contact nobody dealt with is deleted for good; one with entries is archived, and only once nothing is owed either way.

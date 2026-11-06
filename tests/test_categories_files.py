@@ -133,7 +133,7 @@ def test_a_backup_carries_the_category_of_each_line_and_rule_and_restoring_gives
     paid(client, books["bank"], books["food"], "40")
     make_rule(client, books, category_id=books["emi"]["id"])
     doc = client.get("/api/backup").json()
-    assert doc["version"] == 5 and {c["name"] for c in doc["categories"]} >= {"SIP", "Food", "EMI"}
+    assert doc["version"] == 6 and {c["name"] for c in doc["categories"]} >= {"SIP", "Food", "EMI"}
     labelled = [p for t in doc["transactions"] for p in t["postings"] if p["category"]]
     assert {p["category"] for p in labelled} == {books["sip"]["id"], books["food"]["id"], books["emi"]["id"]}
     assert doc["recurring"][0]["category"] == books["emi"]["id"]

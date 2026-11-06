@@ -77,6 +77,7 @@ LISTS = {
     ("GET", "/accounts/quick"),
     ("GET", "/api/accounts/"),
     ("GET", "/api/categories/"),
+    ("GET", "/api/contacts/"),
     ("GET", "/api/backup"),
     ("GET", "/api/budget/"),
     ("GET", "/api/todo/"),
@@ -124,6 +125,7 @@ REFERENCES = {
     ("POST", "/accounts/quick"),
     ("POST", "/api/accounts/"),
     ("POST", "/api/categories/"),
+    ("POST", "/api/contacts/"),
     ("POST", "/categories"),
     ("POST", "/categories/quick"),
     ("POST", "/api/import"),
@@ -234,6 +236,7 @@ def world(client: TestClient, session, rich) -> World:
     w.tags = sorted({name for t in doc["transactions"] for name in t.get("tags", [])})
     w.transaction_ids = [t["id"] for t in doc["transactions"]] + [spare["id"]]
     w.recurring_ids = [r["id"] for r in doc["recurring"]]
+    w.contact_ids = [c["id"] for c in doc["contacts"]]
     w.token_id, w.grant_id = str(w.token.id), str(w.grant.id)
     w.markers = A_WORDS + [
         str(i)
@@ -241,6 +244,7 @@ def world(client: TestClient, session, rich) -> World:
             *w.accounts.values(),
             *w.transaction_ids,
             *w.recurring_ids,
+            *w.contact_ids,
             w.token_id,
             w.grant_id,
         )
@@ -292,6 +296,7 @@ def candidates(world: World, name: str) -> list[str]:
     return {
         "account_id": [*world.accounts.values(), *world.roots],
         "category_id": list(world.categories.values()),
+        "contact_id": world.contact_ids,
         "transaction_id": world.transaction_ids,
         "recurring_id": world.recurring_ids,
         "token_id": [world.token_id],
@@ -320,6 +325,7 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("POST", "/api/accounts/{account_id}/merge"): {"json": {"into": bills}},
         ("POST", "/api/categories/{category_id}/merge"): {"json": {"into": bills}},
         ("PATCH", "/api/categories/{category_id}"): {"json": {"name": "hacked"}},
+        ("PATCH", "/api/contacts/{contact_id}"): {"json": {"name": "hacked"}},
         ("POST", "/oauth/apps/{grant_id}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{token_id}/access"): {"data": {"scope": "read"}},
     }
@@ -382,6 +388,10 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
             "Power",
         ]
         assert client.get("/api/recurring/").json() == []
+        assert client.get("/api/contacts/", params={"include_archived": True}).json() == []
+        same_name = client.post("/api/contacts/", json={"name": "Alice"})
+        assert same_name.status_code == 201, "names are unique per person, not across people"
+        assert same_name.json()["id"] not in world.contact_ids
         assert client.get("/api/profile/").json()["first_name"] in (None, "")
         assert {l["name"] for l in client.get("/api/budget/").json()["lines"]} <= {"Bills"}
         backup = client.get("/api/backup").json()

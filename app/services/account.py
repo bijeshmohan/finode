@@ -156,6 +156,28 @@ class AccountService:
         if account.system_key is not None:
             raise FixedParentError(f"'{account.name}' is built in and can't be {what}!")
 
+    def _refuse_contact(self, account: Account, what: str) -> None:
+        """ "Due from X" and "Due to X" belong to a contact: they follow the contact, never the accounts screens."""
+        if account.id in self.ar.contact_account_ids():
+            raise SystemAccountError(
+                f"'{account.name}' belongs to a contact and can't be {what} here: change the contact!"
+            )
+
+    def rename_contact_account(self, account_id: UUID, name: str) -> None:
+        """Give a contact's account its new name (the contact's service calls this; the caller commits)."""
+        all_accounts = self._ensure_roots()
+        account = next((a for a in all_accounts if a.id == account_id), None)
+        if account is None:
+            raise ValueError("account not found!")
+        self._check_name_free(name, account.parent_id, all_accounts, exclude=account_id)
+        self.ar.update(account_id, AccountUpdate(name=name))
+
+    def delete_contact_account(self, account_id: UUID) -> None:
+        """Remove the account of a contact that never had money move (the caller commits)."""
+        if self.tr.postings_for_account(account_id):
+            raise AccountInUseError("account has postings")
+        self.ar.delete(account_id)
+
     def empty_fixed_parents(self) -> list[Account]:
         """The built-in groups nothing has been made under yet (what a restore or an import may replace with its own)."""
         all_accounts = self._ensure_roots()
@@ -416,6 +438,7 @@ class AccountService:
         if self.is_opening_balances(account, all_accounts):
             raise SystemAccountError(f"cannot close system account '{account.name}'!")
         self._refuse_fixed(account, "closed")
+        self._refuse_contact(account, "closed")
         subtree = self._subtree(account_id, all_accounts)
         by_id = {a.id: a for a in all_accounts}
         if self._get_root_name(account, by_id) in GROUP_POSTING_ROOT_NAMES:
@@ -499,7 +522,7 @@ class AccountService:
                 "statement and due days belong to a card or loan account (a liability with no sub-accounts)!"
             )
 
-    def create(self, account: AccountCreate) -> AccountRead:
+    def create(self, account: AccountCreate, *, commit: bool = True) -> AccountRead:
         all_accounts = self._ensure_roots()
 
         if account.parent_id is None:
@@ -548,8 +571,9 @@ class AccountService:
         except ValueError:
             self.ar.db.rollback()
             raise
-        self.ar.db.commit()
-        self.ar.db.refresh(created)
+        if commit:
+            self.ar.db.commit()
+            self.ar.db.refresh(created)
         return self._to_read(created, all_accounts_with_created)
 
     def read(self, account_id: UUID, as_of: date | None = None) -> AccountRead | None:
@@ -655,6 +679,8 @@ class AccountService:
                 raise SystemAccountError(f"cannot merge system account '{account.name}'!")
         self._refuse_fixed(source, "merged")
         self._refuse_fixed(target, "merged")
+        self._refuse_contact(source, "merged")
+        self._refuse_contact(target, "merged")
         if self._get_root_name(source, by_id) != self._get_root_name(target, by_id):
             raise ValueError("cannot merge accounts of different kinds (an asset into an expense, say)!")
         if self.ar.has_children(source_id):
@@ -869,6 +895,7 @@ class AccountService:
         is_opening = self.is_opening_balances(account, all_accounts)
         if data.model_fields_set:
             self._refuse_fixed(account, "changed")
+            self._refuse_contact(account, "changed")
 
         if is_opening:
             if "name" in data.model_fields_set and data.name != account.name:
@@ -1034,6 +1061,7 @@ class AccountService:
         if self.is_opening_balances(account, all_accounts):
             raise SystemAccountError(f"cannot delete system account '{account.name}'!")
         self._refuse_fixed(account, "deleted")
+        self._refuse_contact(account, "deleted")
 
         if self.ar.has_children(account_id):
             raise AccountInUseError("account has sub-accounts")

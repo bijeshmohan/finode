@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
+from ..models.contact import ContactAccount
 from ..schemas.account import AccountCreate, AccountUpdate
 from .cache import remembered
 
@@ -95,3 +96,8 @@ class AccountRepository:
             Account.user_id == self.uid,
         )
         return self.db.exec(statement).first() is not None
+
+    def contact_account_ids(self) -> frozenset[UUID]:
+        """The accounts that stand for contacts ("Due from X", "Due to X"), loaded once per session."""
+        statement = select(ContactAccount.account_id).where(ContactAccount.user_id == self.uid)
+        return frozenset(remembered(self.db, ("contact_accounts", self.uid), lambda: self.db.exec(statement).all()))

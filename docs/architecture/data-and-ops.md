@@ -51,7 +51,7 @@ Main groups: database (`database_url`, `database_echo`), Supabase (`supabase_url
 |---|---|---|
 | **Export** | plain-text ledger journal (`/export`, `/api/export`) or CSV | always allowed |
 | **Import** | the same journal format (`app/ledger/` parses it, `services/data.py` maps it to accounts and transactions) | only while you have no transactions; preview first; all-or-nothing; unsupported input (conversions, prices, include, …) is an error with its line number |
-| **Backup** | one JSON file, `finode-backup` version 2 (`services/backup.py`) | everything you recorded: settings, accounts, transactions, recurring rules, budget plan. Access tokens, connected apps and the audit history are deliberately left out |
+| **Backup** | one JSON file, `finode-backup` version 6 (`services/backup.py`) | everything you recorded: settings, accounts, contacts, transactions, recurring rules, budget plan. Access tokens, connected apps and the audit history are deliberately left out |
 | **Restore** | that file | only into an empty ledger; validated first; all-or-nothing; everything gets new ids |
 
 When you add a model or an account/budget flag, add it to the backup and to `tests/test_backup.py`, or it will silently be missing from backups.

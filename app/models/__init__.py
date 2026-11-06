@@ -3,6 +3,7 @@ from .api_token import ApiToken
 from .auth import AuthUser
 from .budget import BudgetAllocation
 from .category import BudgetCategory, CategoryKind
+from .contact import Contact, ContactAccount
 from .oauth_grant import OAuthGrant
 from .profile import Profile
 from .recurring import RecurringPosting, RecurringTransaction
@@ -16,6 +17,8 @@ __all__ = [
     "BudgetAllocation",
     "BudgetCategory",
     "CategoryKind",
+    "Contact",
+    "ContactAccount",
     "OAuthGrant",
     "Posting",
     "Profile",
