@@ -23,6 +23,7 @@ from .routers import (
     tags,
     todo,
     transactions,
+    transfers,
     web,
 )
 from .templating import BASE_DIR
@@ -53,7 +54,21 @@ def protected_resource(request: Request):
 
 
 # The JSON API lives under /api; the web UI owns the site root.
-for api_router in (accounts, categories, contacts, budget, recurring, transactions, tags, todo, data, profile, reports):
+for api_router in (
+    accounts,
+    categories,
+    contacts,
+    transfers,
+    budget,
+    recurring,
+    transactions,
+    transfers,
+    tags,
+    todo,
+    data,
+    profile,
+    reports,
+):
     app.include_router(api_router.router, prefix="/api")
 app.include_router(web.router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")

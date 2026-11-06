@@ -96,9 +96,13 @@ class TransactionService:
         ar: AccountRepository,
         pr: ProfileRepository | None = None,
         origin: str | None = None,
+        contacts: bool = False,
     ):
         # Recorded on what this service creates or changes: "web", "api" or "mcp:<token name>".
         self.origin = origin
+        # Only the contact services may post to a contact's accounts and change the entries they made: anything else
+        # would leave a debt in the books without its obligation.
+        self.contacts = contacts
         self.tr = tr
         self.ar = ar
         self.pr = pr or ProfileRepository(tr.db, tr.uid)
@@ -188,12 +192,18 @@ class TransactionService:
         accounts_by_id = {a.id: a for a in every_account}
         self._fill_accounts(postings, every_account)
         has_children = {a.parent_id for a in accounts_by_id.values() if a.parent_id is not None}
+        contact_accounts = self.ar.contact_account_ids()
         for posting in postings:
             account = accounts_by_id.get(posting.target)
             if not account:
                 raise ValueError(f"account '{posting.account_id}' not found!")
             if account.parent_id is None and account.name not in GROUP_POSTING_ROOT_NAMES:
                 raise InvalidPostingAccountError(f"cannot post to root account '{account.name}'!")
+            if not self.contacts and account.id in contact_accounts:
+                raise InvalidPostingAccountError(
+                    f"'{account.name}' belongs to a contact: lend, borrow, share an expense or settle up "
+                    "from the contact instead!"
+                )
             if account.closed_on is not None and account.id not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
             if (
@@ -350,6 +360,12 @@ class TransactionService:
         if found is not None and found.id != transaction_id:
             raise DuplicateReferenceError(
                 f"source '{source}' reference '{external_id}' is already used by the entry {found.id}!"
+            )
+
+    def _refuse_contact_entry(self, transaction_id: UUID, what: str) -> None:
+        if not self.contacts and self.tr.owned_by_contacts(transaction_id):
+            raise InvalidPostingError(
+                f"this entry belongs to a contact and can't be {what} here: reverse it from the contact's page!"
             )
 
     def _check_new(self, data: TransactionCreate) -> None:
@@ -510,11 +526,15 @@ class TransactionService:
                 raise DuplicateReferenceError(_different_content(data, found.id))
         return self.create(data, recurring), True
 
-    def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
+    def create(
+        self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None, *, commit: bool = True
+    ) -> TransactionRead:
+        """Record an entry. `commit=False` leaves the commit to the caller (a workflow that saves more with it)."""
         self._check_new(data)
         transaction = self.tr.create(data, self.origin, recurring)
-        self.tr.db.commit()
-        self.tr.db.refresh(transaction)
+        if commit:
+            self.tr.db.commit()
+            self.tr.db.refresh(transaction)
         return self._to_read(transaction)
 
     def read(self, transaction_id: UUID) -> TransactionRead | None:
@@ -795,6 +815,7 @@ class TransactionService:
         existing = self.tr.read(transaction_id)
         if not existing:
             raise ValueError(f"transaction '{transaction_id}' not found!")
+        self._refuse_contact_entry(transaction_id, "changed")
         # Postings an entry already has on an account that was closed since stay allowed, so it can still be edited.
         existing_lines = self.tr.postings(transaction_id)
         kept = {p.account_id for p in existing_lines}
@@ -864,10 +885,12 @@ class TransactionService:
             raise ValueError(f"transaction '{transaction_id}' not found!")
         return updated
 
-    def delete(self, transaction_id: UUID) -> TransactionRead | None:
+    def delete(self, transaction_id: UUID, *, commit: bool = True) -> TransactionRead | None:
+        self._refuse_contact_entry(transaction_id, "deleted")
         transaction = self.read(transaction_id)
         deleted = self.tr.delete(transaction_id, self.origin)
         if not deleted:
             raise ValueError(f"transaction '{transaction_id}' not found!")
-        self.tr.db.commit()
+        if commit:
+            self.tr.db.commit()
         return transaction

@@ -16,6 +16,7 @@ from .repositories import (
 )
 from .repositories.api_token import ApiTokenRepository
 from .repositories.oauth_grant import OAuthGrantRepository
+from .repositories.obligation import ObligationRepository
 from .services import (
     AccountService,
     BudgetService,
@@ -32,7 +33,9 @@ from .services.category import CategoryService
 from .services.contact import ContactService
 from .services.erase import EraseService
 from .services.oauth_grant import OAuthGrantService
+from .services.obligation import ObligationService
 from .services.todo import TodoService
+from .services.transfer import TransferService
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
 
@@ -88,6 +91,38 @@ def get_category_service(accounts: AccountService = Depends(get_account_service)
 
 def get_contact_service(accounts: AccountService = Depends(get_account_service)) -> ContactService:
     return ContactService(accounts)
+
+
+def get_obligation_repository(
+    db: Session = Depends(get_db_session), user: CurrentUser = Depends(require_authenticated_user)
+) -> ObligationRepository:
+    return ObligationRepository(db, user.id)
+
+
+def get_obligation_service(
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+) -> ObligationService:
+    return ObligationService(tr, ob)
+
+
+def get_contact_transactions(
+    request: Request,
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    ar: AccountRepository = Depends(get_account_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
+) -> TransactionService:
+    """The transaction service the contact workflows use: the only one that may post to a contact's accounts."""
+    origin = "api" if request.url.path.startswith("/api/") else "web"
+    return TransactionService(tr, ar, pr, origin=origin, contacts=True)
+
+
+def get_transfer_service(
+    contacts: ContactService = Depends(get_contact_service),
+    transactions: TransactionService = Depends(get_contact_transactions),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+) -> TransferService:
+    return TransferService(contacts, transactions, ob)
 
 
 def get_profile_service(
@@ -197,6 +232,8 @@ def get_oauth_grant_service(
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Categories = Annotated[CategoryService, Depends(get_category_service)]
 Contacts = Annotated[ContactService, Depends(get_contact_service)]
+Obligations = Annotated[ObligationService, Depends(get_obligation_service)]
+Transfers = Annotated[TransferService, Depends(get_transfer_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]
 Backup = Annotated[BackupService, Depends(get_backup_service)]

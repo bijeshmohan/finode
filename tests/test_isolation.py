@@ -265,6 +265,7 @@ def world(client: TestClient, session, rich) -> World:
                 ],
             },
         )
+        w.b_contact = client.post("/api/contacts/", json={"name": "Bea's friend"}).json()
         w.b_backup = client.get("/api/backup").json()
     return w
 
@@ -381,6 +382,8 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
         assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"]} == {
             "Mine",
             "Opening Balances",
+            "Due from Bea's friend",
+            "Due to Bea's friend",
         }
         assert {c["name"] for c in client.get("/api/categories/").json()} == {"Bills"}
         assert sorted(t["payee"] for t in client.get("/api/transactions/").json() if t["payee"]) == [
@@ -388,7 +391,9 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
             "Power",
         ]
         assert client.get("/api/recurring/").json() == []
-        assert client.get("/api/contacts/", params={"include_archived": True}).json() == []
+        assert [c["name"] for c in client.get("/api/contacts/", params={"include_archived": True}).json()] == [
+            "Bea's friend"
+        ]
         same_name = client.post("/api/contacts/", json={"name": "Alice"})
         assert same_name.status_code == 201, "names are unique per person, not across people"
         assert same_name.json()["id"] not in world.contact_ids
@@ -435,6 +440,18 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             },
         )
         refused("merge into A's account", "POST", f"/api/accounts/{mine}/merge", json={"into": a["Groceries"]})
+        refused(
+            "a transfer to A's contact",
+            "POST",
+            f"/api/contacts/{world.contact_ids[0]}/transfers",
+            json={"direction": "sent", "purpose": "loan", "amount": "5", "account_id": mine},
+        )
+        refused(
+            "a transfer from A's account",
+            "POST",
+            f"/api/contacts/{world.b_contact['id']}/transfers",
+            json={"direction": "sent", "purpose": "loan", "amount": "5", "account_id": a["HDFC"]},
+        )
         refused(
             "A's category on B's line",
             "POST",

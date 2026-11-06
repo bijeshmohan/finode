@@ -54,7 +54,7 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 
 ## Contacts
 
-A contact is a person you lend to, borrow from or share costs with. It is not an account: its ledger side is two ordinary accounts made with it, **Due from X** (an asset: X owes you) and **Due to X** (a liability: you owe X), both outside the budget. They follow the contact and can't be renamed, closed, deleted or merged on their own. Names are unique (capitals aside) and at most 30 characters.
+A contact is a person you lend to, borrow from or share costs with. It is not an account: its ledger side is two ordinary accounts made with it, **Due from X** (an asset: X owes you) and **Due to X** (a liability: you owe X), both outside the budget. They follow the contact and can't be renamed, closed, deleted or merged on their own, and **nothing can be posted to them except through the contact routes** (the ordinary transaction routes answer 400): that keeps every debt tied to an obligation. An entry made through a contact can't be edited or deleted on the ordinary routes either; reverse it from the contact. Names are unique (capitals aside) and at most 30 characters.
 
 | Method | Path | What it does |
 |---|---|---|
@@ -65,6 +65,11 @@ A contact is a person you lend to, borrow from or share costs with. It is not an
 | `DELETE` | `/contacts/{contact_id}` | Remove a contact no money moved with, for good. One with entries is archived instead (refused while anything is owed); `outcome` says `deleted` or `archived`. |
 | `POST` | `/contacts/{contact_id}/archive` | Hide a contact from new entries; history stays. Refused while anything is owed either way. |
 | `POST` | `/contacts/{contact_id}/restore` | Bring an archived contact back. |
+| `GET` | `/contacts/{contact_id}/obligations` | What the contact owes you and what you owe them, one row per amount, oldest first, with `settled_amount`, `outstanding_amount` and `status`. `direction` and `open_only` narrow it. |
+| `POST` | `/contacts/{contact_id}/transfers` | Money sent to a contact (`loan`, `advance`, `gift`) or received from one (`borrowing`, `advance`, `gift`) with `amount`, `account_id` (yours), `date`, `description` and, for a gift, `category_id`. A loan or advance leaves a receivable, a borrowing or received advance a payable, a gift nothing. Send an `Idempotency-Key` header and a retry returns the first result. |
+| `GET` | `/contacts/{contact_id}/transfers` | A contact's transfers, newest first. |
+| `GET` | `/transfers/{transaction_id}` | One transfer (its id is the id of its ledger entry). |
+| `DELETE` | `/transfers/{transaction_id}` | Undo a transfer for good: its entry, what it left owed and its activity go. Refused (409) once anything was settled against it. |
 
 **A transaction line** (`postings[]`) may also carry `posted_on`: the day its account posts it when that is not the entry's `date` (never before it); a card's bill counts the line by that day and nothing else reads it. **On a transaction line** (`postings[]` of `/transactions/`, and the rows of a recurring split) `category` says what the line was for. Leave it out and a line on Expenses or Income is Uncategorised; a payment into a loan or fund stays without one (nothing is filled in). A line may carry **only** its category (no `account`): it then posts to the root Expenses account (a spending category) or Income (an earning one). A category on a line to Expenses or Income must be a spending or earning one to match; on any other account it must be a spending category, and not on an account that is part of the budget (the category goes on the other side). A simple recurring rule takes one `category`.
 

@@ -14,27 +14,14 @@ from ..limits import ensure_room
 from ..models.contact import Contact
 from ..models.utils import utc_now
 from ..repositories.contact import ContactRepository
+from ..repositories.obligation import ObligationRepository
 from ..schemas.account import AccountCreate
 from ..schemas.contact import ContactCreate, ContactDeleteResult, ContactRead, ContactUpdate
 from .account import AccountService
+from .contact_errors import ContactArchivedError, ContactInUseError, ContactNotFoundError
 
 RECEIVABLE, PAYABLE = "receivable", "payable"
 LAST_DAY = date(2999, 12, 31)
-
-
-class ContactNotFoundError(ValueError):
-    """No such contact among the person's own."""
-
-    def __init__(self) -> None:
-        super().__init__("contact not found!")
-
-
-class ContactArchivedError(ValueError):
-    """The contact is archived: restore it before using it again."""
-
-
-class ContactInUseError(ValueError):
-    """The contact cannot be archived or removed because something is still owed."""
 
 
 class ContactService:
@@ -43,6 +30,7 @@ class ContactService:
         self.ar = accounts.ar
         self.cr = cr or ContactRepository(self.ar.db, self.ar.uid)
         self.db = self.ar.db
+        self.ob = ObligationRepository(self.db, self.ar.uid)
 
     # ---- reading -----------------------------------------------------------------------------------
 
@@ -62,6 +50,13 @@ class ContactService:
             receivable_account_id=ids[RECEIVABLE],
             payable_account_id=ids[PAYABLE],
         )
+
+    def account_ids(self, contact_id: UUID) -> dict[str, UUID]:
+        """The ids of a contact's accounts by role ("receivable", "payable")."""
+        return self._account_ids(self.get(contact_id).id)
+
+    def get(self, contact_id: UUID) -> Contact:
+        return self._get(contact_id)
 
     def _get(self, contact_id: UUID) -> Contact:
         contact = self.cr.read(contact_id)
@@ -179,7 +174,9 @@ class ContactService:
         contact = self._get(contact_id)
         read = self._read(contact)
         ids = list(self._account_ids(contact.id).values())
-        if any(self.accounts.tr.postings_for_account(account_id) for account_id in ids):
+        if self.ob.party_rows(contact_id=contact.id) or any(
+            self.accounts.tr.postings_for_account(account_id) for account_id in ids
+        ):
             return ContactDeleteResult(outcome="archived", contact=self.archive(contact_id))
         try:
             self.cr.delete(contact)

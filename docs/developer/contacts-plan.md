@@ -7,12 +7,14 @@ settlement tables included), **the no-history rule stays** (nothing auditable be
 
 | Phase | What | Status |
 |---|---|---|
-| 1 | Contacts, their two accounts, API, backup v6, tests | built on `feature/contacts-phase1`, awaiting deploy |
+| 1 | Contacts, their two accounts, API, backup v6, tests | built on `feature/contacts` |
 | 2 | Plain transfers: lend, borrow, gift, advance | not started |
 | 3 | Shared expenses (equal, exact, percentage, shares; several payers) | not started |
 | 4 | Obligations and settlements (FIFO, manual, partial, idempotency, locking) | not started |
 | 5 | Contact summary and activity | not started |
 | 6 | Web pages (mock-ups first) | not started |
+
+All phases are built on the one branch `feature/contacts`; nothing is merged until the owner says so.
 
 ## Deviations from the plan (and why)
 

@@ -100,15 +100,11 @@ def rich(client, root_accounts):
     alice = client.post("/api/contacts/", json={"name": "Alice", "email": "a@example.com", "notes": "friend"}).json()
     bob = client.post("/api/contacts/", json={"name": "Bob"}).json()
     assert client.post(f"/api/contacts/{bob['id']}/archive").status_code == 200
-    tx(
-        client,
-        [
-            {"account_id": alice["receivable_account_id"], "side": "debit", "amount": "300"},
-            line(bank, "credit", "300"),
-        ],
-        date="2026-09-07",
-        payee="Alice",
+    lent = client.post(
+        f"/api/contacts/{alice['id']}/transfers",
+        json={"direction": "sent", "purpose": "loan", "amount": "300", "account_id": bank["id"], "date": "2026-09-07"},
     )
+    assert lent.status_code == 201, lent.text
     client.put(f"/api/budget/categories/{groceries['id']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['id']}", json={"month": "2026-09-01", "amount": "15000"})
     return {"bank": bank, "groceries": groceries}

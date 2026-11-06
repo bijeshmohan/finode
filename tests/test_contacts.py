@@ -2,8 +2,6 @@
 
 import pytest
 
-from .books import leg
-
 MISSING = "00000000-0000-4000-8000-0000000000aa"
 
 
@@ -99,35 +97,27 @@ def test_a_contact_nobody_dealt_with_is_deleted_with_its_accounts(client):
 
 
 def lend(client, contact, bank, amount="300"):
-    """Phase 2 does this through the transfer service; for now a plain entry puts money on 'Due from'."""
     response = client.post(
-        "/api/transactions/",
-        json={
-            "postings": [
-                {"account_id": contact["receivable_account_id"], "side": "debit", "amount": amount},
-                leg(bank, "credit", amount),
-            ]
-        },
+        f"/api/contacts/{contact['id']}/transfers",
+        json={"direction": "sent", "purpose": "loan", "amount": amount, "account_id": bank["id"]},
     )
     assert response.status_code == 201, response.text
+    return response.json()
 
 
 def test_a_contact_with_history_is_archived_only_once_nothing_is_owed(client, bank):
     alice = make(client)
-    lend(client, alice, bank)
+    loan = lend(client, alice, bank)
     refused = client.post(f"/api/contacts/{alice['id']}/archive")
     assert refused.status_code == 400 and "owes you 300" in refused.json()["detail"]
     kept = client.delete(f"/api/contacts/{alice['id']}")
     assert kept.status_code == 400, "deleting a contact with a debt is refused, not hidden"
-    client.post(
-        "/api/transactions/",
-        json={
-            "postings": [
-                leg(bank, "debit", "300"),
-                {"account_id": alice["receivable_account_id"], "side": "credit", "amount": "300"},
-            ]
-        },
+    gift = client.post(
+        f"/api/contacts/{alice['id']}/transfers",
+        json={"direction": "received", "purpose": "gift", "amount": "5", "account_id": bank["id"]},
     )
+    assert gift.status_code == 201
+    assert client.delete(f"/api/transfers/{loan['id']}").status_code == 204
     gone = client.delete(f"/api/contacts/{alice['id']}")
     assert gone.status_code == 200 and gone.json()["outcome"] == "archived" and gone.json()["contact"]["archived"]
     assert [c["id"] for c in client.get("/api/contacts/").json()] == []
