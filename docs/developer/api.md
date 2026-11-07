@@ -72,13 +72,15 @@ A contact is a person you lend to, borrow from or share costs with. It is not an
 
 | Method | Path | What it does |
 |---|---|---|
-| `GET` | `/contacts/` | Your contacts by name, each with the ids of its two accounts. `include_archived=true` adds archived ones. |
+| `GET` | `/contacts/` | Your contacts, each with the ids of its two accounts, what each holds (`receivable`, `payable`, `net`: entries dated ahead included) and the day of the latest activity. `q` searches name, email, phone and notes; `owing=receivable|payable` filters; `sort=name|balance` (the biggest outstanding first); `include_archived=true` adds archived ones. |
 | `POST` | `/contacts/` | Add a contact (`name`, optional `email`, `phone`, `notes`); its two accounts are made with it. |
 | `GET` | `/contacts/{contact_id}` | One contact. |
 | `PATCH` | `/contacts/{contact_id}` | Change the name (both accounts are renamed) or details; null clears email, phone or notes. |
 | `DELETE` | `/contacts/{contact_id}` | Remove a contact no money moved with, for good. One with entries is archived instead (refused while anything is owed); `outcome` says `deleted` or `archived`. |
 | `POST` | `/contacts/{contact_id}/archive` | Hide a contact from new entries; history stays. Refused while anything is owed either way. |
 | `POST` | `/contacts/{contact_id}/restore` | Bring an archived contact back. |
+| `GET` | `/contacts/{contact_id}/summary` | The ledger's figures (`total_receivable`, `total_payable`, `net_balance`), what you lent and borrowed, the expenses you shared, the settlements, how many obligations are open and the latest activity. |
+| `GET` | `/contacts/{contact_id}/activity` | Everything done with the contact, newest first, with `total` for paging (`purpose`, `limit`, `offset`). |
 | `GET` | `/contacts/{contact_id}/obligations` | What the contact owes you and what you owe them, one row per amount, oldest first, with `settled_amount`, `outstanding_amount` and `status`. `direction` and `open_only` narrow it. |
 | `POST` | `/contacts/{contact_id}/transfers` | Money sent to a contact (`loan`, `advance`, `gift`) or received from one (`borrowing`, `advance`, `gift`) with `amount`, `account_id` (yours), `date`, `description` and, for a gift, `category_id`. A loan or advance leaves a receivable, a borrowing or received advance a payable, a gift nothing. Send an `Idempotency-Key` header and a retry returns the first result. |
 | `GET` | `/contacts/{contact_id}/transfers` | A contact's transfers, newest first. |

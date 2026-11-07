@@ -1,15 +1,18 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from ..auth import require_authenticated_user
-from ..dependencies import Contacts, Obligations, Settlements, Transfers
+from ..dependencies import Contacts, ContactSummaries, Obligations, Settlements, Transfers
 from ..limits import LimitReached
 from ..schemas.contact import (
+    ActivityPage,
+    ActivityPurpose,
     ContactCreate,
     ContactDeleteResult,
     ContactRead,
+    ContactSummary,
     ContactUpdate,
     ObligationRead,
     SettlementCreate,
@@ -43,10 +46,18 @@ def _refused(e: ValueError) -> HTTPException:
 
 
 @router.get("/", response_model=list[ContactRead])
-def list_contacts(contacts: Contacts, include_archived: bool = False):
-    """Your contacts by name. Each carries the two ledger accounts behind it: "Due from" (they owe you) and "Due to"
-    (you owe them)."""
-    return contacts.list(include_archived)
+def list_contacts(
+    contacts: Contacts,
+    include_archived: bool = False,
+    q: str | None = None,
+    owing: Literal["receivable", "payable"] | None = None,
+    sort: Literal["name", "balance"] = "name",
+):
+    """Your contacts, by name or (`sort=balance`) by how much is outstanding, the biggest first. Each carries the two
+    ledger accounts behind it ("Due from": they owe you, "Due to": you owe them), what each holds, and the day of the
+    latest thing done with them. `q` looks in name, email, phone and notes; `owing` keeps those who owe you
+    (`receivable`) or whom you owe (`payable`)."""
+    return contacts.list(include_archived, q, owing, sort)
 
 
 @router.post("/", response_model=ContactRead, status_code=201)
@@ -172,5 +183,31 @@ def list_settlements(contact_id: UUID, settlements: Settlements):
     """A contact's settlements, newest first."""
     try:
         return settlements.list(contact_id)
+    except ValueError as e:
+        raise _refused(e) from None
+
+
+@router.get("/{contact_id}/summary", response_model=ContactSummary)
+def contact_summary(contact_id: UUID, summaries: ContactSummaries):
+    """What the books say about the contact (receivable, payable, net), what you lent and borrowed, the expenses you
+    shared and the settlements, how many obligations are open and the latest activity."""
+    try:
+        return summaries.summary(contact_id)
+    except ValueError as e:
+        raise _refused(e) from None
+
+
+@router.get("/{contact_id}/activity", response_model=ActivityPage)
+def contact_activity(
+    contact_id: UUID,
+    summaries: ContactSummaries,
+    purpose: ActivityPurpose | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+):
+    """Everything done with the contact (loans, borrowings, advances, gifts, shared expenses, settlements), newest
+    first, with the total count for paging."""
+    try:
+        return summaries.activity(contact_id, purpose, limit, offset)
     except ValueError as e:
         raise _refused(e) from None

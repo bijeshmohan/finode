@@ -70,6 +70,13 @@ class ContactRead(ContactBase):
     # The ledger accounts behind the contact: "Due from X" (they owe you) and "Due to X" (you owe them).
     receivable_account_id: UUID
     payable_account_id: UUID
+    # What the books say (entries dated ahead included): `receivable` is what they owe you, `payable` what you owe them,
+    # `net` the two together (above zero they owe you).
+    receivable: Decimal
+    payable: Decimal
+    net: Decimal
+    # The day of the latest thing done with them.
+    last_activity: Date | None
 
 
 class ContactDeleteResult(BaseModel):
@@ -223,3 +230,36 @@ class SettlementRead(BaseModel):
     excess_as: ExcessUse | None
     # The new amount owed the excess left, when it became a loan, borrowing or advance.
     excess_obligation_id: UUID | None
+
+
+ActivityPurpose = Literal["loan", "borrowing", "advance", "gift", "expense", "settlement"]
+
+
+class ActivityRead(BaseModel):
+    transaction_id: UUID
+    date: Date
+    purpose: ActivityPurpose
+    direction: Literal["sent", "received"]
+    # A transfer or settlement: what moved. A shared expense: the contact's share of it.
+    amount: Decimal
+    description: str | None
+
+
+class ActivityPage(BaseModel):
+    total: int
+    items: list[ActivityRead]
+
+
+class ContactSummary(BaseModel):
+    contact_id: UUID
+    # The ledger is the authority: receivable and payable are the balances of "Due from" and "Due to".
+    total_receivable: Decimal
+    total_payable: Decimal
+    net_balance: Decimal
+    # Over everything ever done with the contact.
+    total_lent: Decimal
+    total_borrowed: Decimal
+    total_expenses_shared: Decimal
+    total_settlements: Decimal
+    open_obligations: int
+    recent: list[ActivityRead]

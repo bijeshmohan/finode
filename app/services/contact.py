@@ -7,6 +7,8 @@ owed either way. The account service refuses to rename, close, delete or merge t
 follow the contact."""
 
 from datetime import date
+from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from ..config import settings
@@ -44,8 +46,15 @@ class ContactService:
     def _account_ids(self, contact_id: UUID) -> dict[str, UUID]:
         return {link.role: link.account_id for link in self.cr.links() if link.contact_id == contact_id}
 
-    def _read(self, contact: Contact) -> ContactRead:
+    def _read(
+        self, contact: Contact, balances: dict[UUID, Decimal] | None = None, last: dict[UUID, date] | None = None
+    ) -> ContactRead:
         ids = self._account_ids(contact.id)
+        if balances is None:
+            balances = {i: self._balance(i) for i in ids.values()}
+        if last is None:
+            last = self.ob.last_activity()
+        receivable, payable = balances[ids[RECEIVABLE]], balances[ids[PAYABLE]]
         return ContactRead(
             id=contact.id,
             name=contact.name,
@@ -56,6 +65,10 @@ class ContactService:
             archived_at=contact.archived_at,
             receivable_account_id=ids[RECEIVABLE],
             payable_account_id=ids[PAYABLE],
+            receivable=receivable,
+            payable=payable,
+            net=receivable - payable,
+            last_activity=last.get(contact.id),
         )
 
     def account_ids(self, contact_id: UUID) -> dict[str, UUID]:
@@ -71,10 +84,34 @@ class ContactService:
             raise ContactNotFoundError
         return contact
 
-    def list(self, include_archived: bool = False) -> list[ContactRead]:
-        """The contacts by name; archived ones only when asked."""
+    def list(
+        self,
+        include_archived: bool = False,
+        q: str | None = None,
+        owing: Literal["receivable", "payable"] | None = None,
+        sort: Literal["name", "balance"] = "name",
+    ) -> list[ContactRead]:
+        """The contacts, by name or by how much is outstanding (the biggest first); archived ones only when asked.
+        `q` looks in the name, email, phone and notes; `owing` keeps those who owe you (`receivable`) or whom you owe
+        (`payable`)."""
         contacts = [c for c in self.cr.list() if include_archived or c.archived_at is None]
-        return [self._read(c) for c in sorted(contacts, key=lambda c: c.name.casefold())]
+        if q and q.strip():
+            wanted = q.strip().casefold()
+            contacts = [
+                c
+                for c in contacts
+                if any(wanted in (field or "").casefold() for field in (c.name, c.email, c.phone, c.notes))
+            ]
+        balances = {a.id: a.balance for a in self.accounts.list(as_of=LAST_DAY)}
+        last = self.ob.last_activity()
+        reads = [self._read(c, balances, last) for c in contacts]
+        if owing == "receivable":
+            reads = [r for r in reads if r.receivable > 0]
+        elif owing == "payable":
+            reads = [r for r in reads if r.payable > 0]
+        if sort == "balance":
+            return sorted(reads, key=lambda r: (-abs(r.net), r.name.casefold()))
+        return sorted(reads, key=lambda r: r.name.casefold())
 
     def read(self, contact_id: UUID) -> ContactRead | None:
         contact = self.cr.read(contact_id)

@@ -32,6 +32,7 @@ from .services.api_token import ApiTokenService
 from .services.backup import BackupService
 from .services.category import CategoryService
 from .services.contact import ContactService
+from .services.contact_summary import ContactSummaryService
 from .services.erase import EraseService
 from .services.expense_sharing import ExpenseSharingService
 from .services.oauth_grant import OAuthGrantService
@@ -149,6 +150,16 @@ def get_settlement_service(
     return SettlementService(contacts, transactions, ob, obligations, SharedExpenseRepository(db, user.id))
 
 
+def get_contact_summary_service(
+    contacts: ContactService = Depends(get_contact_service),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> ContactSummaryService:
+    return ContactSummaryService(contacts, tr, ob, SharedExpenseRepository(db, user.id))
+
+
 def get_profile_service(
     pr: ProfileRepository = Depends(get_profile_repository),
     accounts: AccountService = Depends(get_account_service),
@@ -255,6 +266,7 @@ def get_oauth_grant_service(
 
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Categories = Annotated[CategoryService, Depends(get_category_service)]
+ContactSummaries = Annotated[ContactSummaryService, Depends(get_contact_summary_service)]
 Contacts = Annotated[ContactService, Depends(get_contact_service)]
 Obligations = Annotated[ObligationService, Depends(get_obligation_service)]
 Settlements = Annotated[SettlementService, Depends(get_settlement_service)]

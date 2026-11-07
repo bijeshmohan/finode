@@ -2,12 +2,14 @@
 idempotency keys. Always filtered by the user's id."""
 
 import builtins
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
 from sqlmodel import Session, col, func, select
 
 from ..models.contact import ContactRequest, ObligationSettlement, PartyObligation, PartyTransaction
+from ..models.transaction import Transaction
 
 ZERO = Decimal(0)
 
@@ -36,6 +38,16 @@ class ObligationRepository:
         if transaction_id is not None:
             statement = statement.where(PartyTransaction.transaction_id == transaction_id)
         return list(self.db.exec(statement).all())
+
+    def last_activity(self) -> dict[UUID, date]:
+        """The day of the latest entry done with each contact."""
+        rows = self.db.exec(
+            select(PartyTransaction.contact_id, func.max(Transaction.date))
+            .join(Transaction, col(Transaction.id) == col(PartyTransaction.transaction_id))
+            .where(PartyTransaction.user_id == self.uid)
+            .group_by(PartyTransaction.contact_id)
+        ).all()
+        return dict(rows)
 
     # ---- obligations -------------------------------------------------------------------------------
 
