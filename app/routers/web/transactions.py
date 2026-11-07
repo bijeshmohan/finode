@@ -11,12 +11,13 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import ValidationError
 
 from ...clock import local_today
-from ...dependencies import Accounts, Categories, Contacts, Recurring, Transactions
+from ...dependencies import Accounts, Categories, Contacts, Recurring, Transactions, Transfers
 from ...models.transaction import PostingSide
 from ...repositories.obligation import ObligationRepository
 from ...repositories.transaction import SYSTEM_PAYEES
 from ...schemas import AccountRead
 from ...schemas.category import CategoryRead
+from ...schemas.contact import TransferCreate
 from ...schemas.transaction import (
     PostingCreate,
     RelatedRef,
@@ -26,7 +27,7 @@ from ...schemas.transaction import (
 )
 from ...tags import clean_tag
 from ...templating import templates
-from .accounts import build_tree, category_groups, posting_groups, without_contacts
+from .accounts import PickGroups, PickOption, build_tree, category_groups, posting_groups, without_contacts
 from .budget import parse_month
 from .categories import _month_context
 from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
@@ -524,7 +525,16 @@ def infer_kind(postings, roots: dict[UUID, str]) -> str:
     return "other"
 
 
-def form_context(accounts: Accounts, categories: Categories, **extra) -> dict:
+def people_group(accounts: Accounts, contacts: Contacts | None) -> PickGroups:
+    """The people a transfer can go to or come from, as one more group in the pickers. Nobody with no contacts pays a
+    query for it: the contact accounts are known from the account list."""
+    if contacts is None or not accounts.ar.contact_account_ids():
+        return []
+    people = [PickOption(c.id, c.name) for c in contacts.cr.list() if c.archived_at is None]
+    return [("People", sorted(people, key=lambda o: o.label.casefold()))] if people else []
+
+
+def form_context(accounts: Accounts, categories: Categories, contacts: Contacts | None = None, **extra) -> dict:
     all_accounts = accounts.list()
     # Accounts and categories an entry being edited already uses stay offered even if they were closed since.
     used = getattr(extra.get("transaction"), "postings", ())
@@ -539,6 +549,7 @@ def form_context(accounts: Accounts, categories: Categories, **extra) -> dict:
         "hide_fab": True,
         "groups": [
             *posting_groups(build_tree(all_accounts), keep),
+            *people_group(accounts, contacts),
             *category_groups(categories.list(include_closed=True), keep_categories),
         ],
         "currency": accounts.currency().code,
@@ -715,6 +726,7 @@ def new_transaction_page(
     accounts: Accounts,
     categories: Categories,
     transactions: Transactions,
+    contacts: Contacts,
     account: UUID | None = None,
     category: UUID | None = None,  # opened from a category's page: the entry starts on that category
     back: str = "",
@@ -736,6 +748,7 @@ def new_transaction_page(
             form_context(
                 accounts,
                 categories,
+                contacts,
                 today=local_today().isoformat(),
                 transaction=None,
                 copy_of=again,
@@ -781,6 +794,7 @@ def new_transaction_page(
         form_context(
             accounts,
             categories,
+            contacts,
             today=local_today().isoformat(),
             transaction=None,
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
@@ -795,11 +809,55 @@ def new_transaction_page(
     )
 
 
+def _transfer_with_person(
+    contacts: Contacts,
+    transfers: Transfers,
+    people: set[UUID],
+    account: list[str],
+    side: list[str],
+    amount: list[str],
+    date_: str,
+    comment: str,
+    tags: list[str] | None,
+    related: str,
+) -> None:
+    """A Transfer with a person on one side is a loan (money to them) or a borrowing (money from them), recorded by the
+    contact services. It must be one of your accounts and one person, for one amount."""
+    rows = [
+        (UUID(a), PostingSide(sd), parse_amount(am))
+        for a, sd, am in zip(account, side, amount, strict=False)
+        if a or am.strip()
+    ]
+    mine = [r for r in rows if r[0] not in people]
+    theirs = [r for r in rows if r[0] in people]
+    if len(rows) != 2 or len(theirs) != 1 or len(mine) != 1 or theirs[0][1] == mine[0][1]:
+        raise ValueError("a person goes on one side, one of your accounts on the other, for one amount!")
+    if theirs[0][2] != mine[0][2]:
+        raise ValueError("the amount to or from a person must be the same on both sides!")
+    if tags or related.strip():
+        raise ValueError("tags and related entries are not available for money lent to or borrowed from a person!")
+    person, person_side, value = theirs[0]
+    sent = person_side == PostingSide.DEBIT  # the money goes to them
+    transfers.record(
+        person,
+        TransferCreate(
+            direction="sent" if sent else "received",
+            purpose="loan" if sent else "borrowing",
+            amount=value,
+            account_id=mine[0][0],
+            description=comment.strip() or None,
+            **({"date": date_} if date_ else {}),
+        ),
+    )
+
+
 @router.post("/split")
 def create_split_transaction(
     transactions: Transactions,
     accounts: Accounts,
     categories: Categories,
+    contacts: Contacts,
+    transfers: Transfers,
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
     amount: Annotated[list[str] | None, Form()] = None,
@@ -813,7 +871,11 @@ def create_split_transaction(
     tags: Annotated[list[str] | None, Form()] = None,
 ):
     account, side, amount = account or [], side or [], amount or []
+    people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
     try:
+        if people and any(a in {str(i) for i in people} for a in account):
+            _transfer_with_person(contacts, transfers, people, account, side, amount, date_, comment, tags, related)
+            return htmx_redirect(safe_back(back), flash="transfer-recorded")
         transactions.create(
             TransactionCreate(
                 date=date_ or local_today(),

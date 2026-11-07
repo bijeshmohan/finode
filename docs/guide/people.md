@@ -17,6 +17,8 @@ The big figure is the difference: *Alice owes you ₹1,500.00*, or *You owe Alic
 
 Choose what happened: *I lent money*, *I borrowed money*, *I paid an advance*, *They paid an advance*, *I gave a gift* or *They gave me a gift*, then the amount, your account and the day. A loan or borrowing is **not** spending or income, so your budgets don't change; the money simply leaves (or joins) Ready to assign. A gift is spending (or income) under a category you pick, and nothing is owed.
 
+You can also start a loan from **+** (New transaction): choose **Transfer**, then pick a person on one side and one of your accounts on the other. A person on the **To** side is money you lent; on the **From** side is money you borrowed. Paying back or being paid back is always done from the person's page with **Settle up**.
+
 ## Share an expense
 
 **Add expense** takes the total, what it was for, a category, the day and your account, and how to split it:

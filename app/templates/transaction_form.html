@@ -34,6 +34,7 @@
   {% set note_value = (transaction.comment or '') if editing else (new_note or '') %}
   {% include "partials/tags_box.html" %}
 
+  {% if not editing %}<p class="person-note muted" data-person-note hidden></p>{% endif %}
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions form-actions">
     <button type="submit">{{ "Save changes" if editing else "Save" }}</button>
