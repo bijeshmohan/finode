@@ -15,7 +15,7 @@ The big figure is the difference: *Alice owes you ₹1,500.00*, or *You owe Alic
 
 ## Money that was already owed
 
-If someone owed you (or you owed them) before you started with finode, fill in **Already owes you, or is owed?** on **Add person**, or choose **Add an opening balance** in the **…** menu of someone already added. Say who owes whom, how much, and since when. It is added to your opening balances: none of your accounts or budgets change, and it can be paid back with **Settle up** like anything else.
+If someone owed you (or you owed them) before you started with finode, fill in **Already owes you, or is owed?** on **Add person**, or choose **Add an opening balance** in the **…** menu of someone already added. Say who owes whom, how much, and since when. It is added to your opening balances: none of your accounts or budgets change, and it can be paid back with **Settle up** like anything else. To change it later, open it under **Activity** and tap **Edit**: you can change the amount, the day, the note and who owes whom. Once part of it has been paid back, the amount can't go below what was paid and who owes whom stays as it is.
 
 ## Lend or borrow
 

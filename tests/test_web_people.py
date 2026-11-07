@@ -482,3 +482,45 @@ def test_adding_an_opening_balance_later(client):
     entry = client.get(f"/api/contacts/{alice['id']}/transfers").json()[0]["id"]
     assert "Opening balance" in page(client, f"/people/{alice['id']}/entry/{entry}/sheet")
     assert client.post(f"/people/{alice['id']}/entry/{entry}/reverse").status_code == 200
+
+
+def test_editing_an_opening_balance_from_its_sheet(client, bank):
+    alice = person(client)
+    made = client.post(
+        f"/api/contacts/{alice['id']}/opening-balance",
+        json={"direction": "receivable", "amount": "4000", "date": "2026-01-01", "description": "Old loan"},
+    ).json()
+    sheet = page(client, f"/people/{alice['id']}/entry/{made['id']}/sheet")
+    assert f'href="/people/{alice["id"]}/opening/{made["id"]}/edit"' in sheet and ">Edit<" in sheet
+    form = page(client, f"/people/{alice['id']}/opening/{made['id']}/edit")
+    assert 'value="4,000.00"' in form or 'value="4000.00"' in form
+    assert (
+        'value="2026-01-01"' in form
+        and 'value="Old loan"' in form
+        and "Save changes" in form
+        and "paid back" not in form
+    )
+    data = {
+        "opening_direction": "payable",
+        "opening_amount": "900",
+        "opening_since": "2026-02-01",
+        "description": "Changed",
+    }
+    done = client.post(f"/people/{alice['id']}/opening/{made['id']}/edit", data=data)
+    assert done.status_code == 200 and done.headers["HX-Redirect"] == f"/people/{alice['id']}"
+    now = client.get(f"/api/contacts/{alice['id']}").json()
+    assert float(now["payable"]) == 900 and float(now["receivable"]) == 0
+    client.post(
+        f"/api/contacts/{alice['id']}/settlements",
+        json={"direction": "sent", "amount": "300", "account_id": bank["id"]},
+    )
+    warned = page(client, f"/people/{alice['id']}/opening/{made['id']}/edit")
+    assert "300.00 of this has been paid back" in flat(warned) and 'type="hidden" name="opening_direction"' in warned
+    low = client.post(f"/people/{alice['id']}/opening/{made['id']}/edit", data={**data, "opening_amount": "100"})
+    assert low.status_code == 400 and "go below that" in low.text and low.headers["HX-Retarget"] == "#form-error"
+    loan = client.post(
+        f"/api/contacts/{alice['id']}/transfers",
+        json={"direction": "sent", "purpose": "loan", "amount": "5", "account_id": bank["id"]},
+    ).json()
+    assert page(client, f"/people/{alice['id']}/opening/{loan['id']}/edit", status=404)
+    assert ">Edit<" not in page(client, f"/people/{alice['id']}/entry/{loan['id']}/sheet")

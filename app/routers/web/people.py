@@ -31,6 +31,7 @@ from ...schemas.contact import (
     ContactUpdate,
     ObligationRead,
     OpeningBalanceCreate,
+    OpeningBalanceUpdate,
     SettlementCreate,
     TransferCreate,
 )
@@ -305,6 +306,68 @@ def person_page(
             "currency": request.state.currency,
         },
     )
+
+
+@router.get("/{contact_id}/opening/{transaction_id}/edit")
+def edit_opening_page(
+    request: Request,
+    contact_id: UUID,
+    transaction_id: UUID,
+    contacts: Contacts,
+    transfers: Transfers,
+    obligations: Obligations,
+):
+    person = _person(contacts, contact_id)
+    try:
+        found = transfers.read(transaction_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="entry not found") from None
+    if found.purpose != "opening" or found.contact_id != contact_id:
+        raise HTTPException(status_code=404, detail="entry not found")
+    mine = next(o for o in obligations.list(contact_id) if o.id == found.obligation_id)
+    return templates.TemplateResponse(
+        request,
+        "person_opening.html",
+        {
+            "active": "people",
+            "hide_fab": True,
+            "person": person,
+            "today": found.date.isoformat(),
+            "editing": found,
+            "direction": mine.direction,
+            "paid": mine.settled_amount,
+            "currency": request.state.currency,
+        },
+    )
+
+
+@router.post("/{contact_id}/opening/{transaction_id}/edit")
+def change_opening(
+    contact_id: UUID,
+    transaction_id: UUID,
+    contacts: Contacts,
+    transfers: Transfers,
+    opening_direction: Annotated[str, Form()] = "receivable",
+    opening_amount: Annotated[str, Form()] = "",
+    opening_since: Annotated[str, Form()] = "",
+    description: Annotated[str, Form()] = "",
+):
+    _person(contacts, contact_id)
+    try:
+        if transfers.read(transaction_id).contact_id != contact_id:
+            raise HTTPException(status_code=404, detail="entry not found")
+        changes = OpeningBalanceUpdate(
+            direction="payable" if opening_direction == "payable" else "receivable",
+            amount=parse_amount(opening_amount),
+            date=opening_since or None,  # pyrefly: ignore[bad-argument-type]  # parsed by the schema
+            description=description,
+        )
+        transfers.update_opening(transaction_id, changes)
+    except HTTPException:
+        raise
+    except (ValueError, ValidationError) as e:
+        return htmx_error(_message(e), "#form-error")
+    return htmx_redirect(f"/people/{contact_id}", flash="opening-updated")
 
 
 # ---- lending, borrowing and gifts ----------------------------------------------------------------------------

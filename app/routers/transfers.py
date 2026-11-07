@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user
 from ..dependencies import Transfers
-from ..schemas.contact import TransferRead
+from ..schemas.contact import OpeningBalanceUpdate, TransferRead
 from ..services.contact_errors import ConflictError
 
 router = APIRouter(prefix="/transfers", tags=["contacts"], dependencies=[Depends(require_authenticated_user)])
@@ -16,6 +16,19 @@ def get_transfer(transaction_id: UUID, transfers: Transfers):
         return transfers.read(transaction_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="transfer not found!") from None
+
+
+@router.patch("/{transaction_id}", response_model=TransferRead)
+def change_opening_balance(transaction_id: UUID, data: OpeningBalanceUpdate, transfers: Transfers):
+    """Change an opening balance (`amount`, `date`, `description`, `direction`); only what is sent changes. Once part of
+    it was paid back, the amount can't go below that (400) and who owes whom can't change (409). Other transfers are
+    reversed and recorded again."""
+    try:
+        return transfers.update_opening(transaction_id, data)
+    except ConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
+    except ValueError as e:
+        raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e)) from None
 
 
 @router.delete("/{transaction_id}", status_code=204)

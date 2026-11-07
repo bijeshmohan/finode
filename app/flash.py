@@ -44,6 +44,7 @@ MESSAGES = {
     "person-deleted": "Person removed",
     "transfer-recorded": "Recorded",
     "opening-added": "Opening balance added",
+    "opening-updated": "Opening balance saved",
     "expense-shared": "Expense recorded",
     "settled-up": "Settled up",
     "entry-reversed": "Reversed. It is as if it never happened.",

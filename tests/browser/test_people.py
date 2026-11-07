@@ -204,3 +204,16 @@ def test_the_figures_carry_the_rupee_sign_and_the_page_has_no_stray_wrapping(pag
     heading = page.locator(".preview-head").first
     expect(heading).to_be_visible()
     assert heading.evaluate("e => getComputedStyle(e).textTransform") == "none"
+
+
+def test_an_opening_balance_can_be_edited_from_its_sheet(page: Page, books, api: Api):
+    who = alice_of(api)
+    entry = api.post(f"/contacts/{who['id']}/opening-balance", direction="receivable", amount="4000", date="2026-01-01")
+    page.goto(f"/people/{who['id']}")
+    page.locator("a.person-entry").first.click()
+    page.locator("#person-sheet").get_by_role("link", name="Edit").click()
+    page.wait_for_url(f"**/opening/{entry['id']}/edit")
+    page.locator('input[name="opening_amount"]').fill("2500")
+    page.get_by_role("button", name="Save changes").click()
+    page.wait_for_url(f"**/people/{who['id']}")
+    expect(page.locator(".hero-balance")).to_contain_text("2,500.00")
