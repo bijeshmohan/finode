@@ -241,6 +241,7 @@ def world(client: TestClient, session, rich) -> World:
     w.recurring_ids = [r["id"] for r in doc["recurring"]]
     w.contact_ids = [c["id"] for c in doc["contacts"]]
     w.expense_ids = [e["id"] for e in doc["shared_expenses"]]
+    w.obligation_ids = [o["id"] for o in doc["obligations"]]
     w.token_id, w.grant_id = str(w.token.id), str(w.grant.id)
     w.markers = A_WORDS + [
         str(i)
@@ -250,6 +251,7 @@ def world(client: TestClient, session, rich) -> World:
             *w.recurring_ids,
             *w.contact_ids,
             *w.expense_ids,
+            *w.obligation_ids,
             w.token_id,
             w.grant_id,
         )
@@ -479,6 +481,30 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                 **expense,
                 "participants": [{"is_self": True}, {"contact_id": world.b_contact["id"]}],
                 "category_id": a["Groceries"],
+            },
+        )
+        refused(
+            "a settlement from A's account",
+            "POST",
+            f"/api/contacts/{world.b_contact['id']}/settlements",
+            json={"direction": "received", "amount": "5", "account_id": a["HDFC"], "excess_as": "gift"},
+        )
+        refused(
+            "a settlement of A's contact",
+            "POST",
+            f"/api/contacts/{world.contact_ids[0]}/settlements",
+            json={"direction": "received", "amount": "5", "account_id": mine, "excess_as": "gift"},
+        )
+        refused(
+            "a settlement of A's obligation",
+            "POST",
+            f"/api/contacts/{world.b_contact['id']}/settlements",
+            json={
+                "direction": "received",
+                "amount": "5",
+                "account_id": mine,
+                "allocation_method": "manual",
+                "allocations": [{"obligation_id": world.obligation_ids[0], "amount": "5"}],
             },
         )
         refused(

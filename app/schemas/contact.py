@@ -139,3 +139,87 @@ class ObligationRead(BaseModel):
     settled_amount: Decimal
     outstanding_amount: Decimal
     status: Literal["open", "partially_settled", "settled"]
+
+
+SettlementDirection = Literal["received", "sent"]
+ExcessUse = Literal["loan", "borrowing", "advance", "gift"]
+
+
+class AllocationIn(BaseModel):
+    obligation_id: UUID
+    amount: Decimal = Field(decimal_places=8, max_digits=24)
+
+    @field_validator("amount")
+    @classmethod
+    def _positive(cls, value: Decimal) -> Decimal:
+        if value <= 0:
+            raise ValueError("amount must be positive!")
+        return value
+
+
+class SettlementCreate(BaseModel):
+    """Money a contact pays back (`received`, clearing what they owe you) or you pay them (`sent`, clearing what you
+    owe them)."""
+
+    direction: SettlementDirection
+    amount: Decimal = Field(decimal_places=8, max_digits=24)
+    date: Day = Field(default_factory=local_today)
+    # Your own account the money arrives in (received) or leaves (sent).
+    account_id: UUID
+    # fifo: the oldest amounts owed are cleared first. manual: `allocations` say which and how much.
+    allocation_method: Literal["fifo", "manual"] = "fifo"
+    allocations: list[AllocationIn] = Field(default_factory=list)
+    description: str | None = Field(default=None, max_length=200)
+    # More than is owed is never swallowed: say what the rest is. Received: `borrowing` or `advance` (you now owe them)
+    # or `gift`; sent: `loan` or `advance` (they now owe you) or `gift`.
+    excess_as: ExcessUse | None = None
+    # A gift's category (none means Uncategorised).
+    excess_category_id: UUID | None = None
+
+    @field_validator("amount")
+    @classmethod
+    def _positive(cls, value: Decimal) -> Decimal:
+        if value <= 0:
+            raise ValueError("amount must be positive!")
+        return value
+
+    @field_validator("description")
+    @classmethod
+    def _tidy_description(cls, value: str | None) -> str | None:
+        return _tidy(value)
+
+
+class AllocationRead(BaseModel):
+    obligation_id: UUID
+    # What was owed on it before this settlement, how much this one clears and what is left.
+    outstanding_before: Decimal
+    amount: Decimal
+    outstanding_after: Decimal
+
+
+class SettlementPreview(BaseModel):
+    direction: SettlementDirection
+    amount: Decimal
+    allocations: list[AllocationRead]
+    # What the settlement clears, what is left over and what that was said to be.
+    allocated: Decimal
+    excess: Decimal
+    excess_as: ExcessUse | None
+    # Still owed on this side after the settlement.
+    remaining: Decimal
+
+
+class SettlementRead(BaseModel):
+    # The ledger entry that records it.
+    id: UUID
+    contact_id: UUID
+    direction: SettlementDirection
+    amount: Decimal
+    date: Date
+    account_id: UUID | None
+    description: str | None
+    allocations: list[AllocationRead]
+    excess: Decimal
+    excess_as: ExcessUse | None
+    # The new amount owed the excess left, when it became a loan, borrowing or advance.
+    excess_obligation_id: UUID | None

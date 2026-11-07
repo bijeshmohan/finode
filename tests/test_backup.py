@@ -106,6 +106,11 @@ def rich(client, root_accounts):
         json={"direction": "sent", "purpose": "loan", "amount": "300", "account_id": bank["id"], "date": "2026-09-07"},
     )
     assert lent.status_code == 201, lent.text
+    paid = client.post(
+        f"/api/contacts/{alice['id']}/settlements",
+        json={"direction": "received", "amount": "100", "account_id": bank["id"], "date": "2026-09-08"},
+    )
+    assert paid.status_code == 201, paid.text
     dinner = client.post(
         "/api/shared-expenses/",
         params={"confirm": True},
@@ -579,7 +584,7 @@ def test_a_backup_carries_contacts_and_their_accounts(client, rich):
         restored = {c["name"]: c for c in client.get("/api/contacts/", params={"include_archived": True}).json()}
         assert not restored["Bob"]["archived"] and not restored["Alice"]["archived"]
         due = client.get(f"/api/accounts/{restored['Alice']['receivable_account_id']}").json()
-        assert due["name"] == "Due from Alice" and float(due["balance"]) == 600, "the debt came back with its account"
+        assert due["name"] == "Due from Alice" and float(due["balance"]) == 500, "the debt came back with its account"
         assert client.patch(f"/api/accounts/{due['id']}", json={"name": "x"}).status_code == 400, "still the contact's"
     finally:
         as_user(TEST_USER_ID)

@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from ..auth import require_authenticated_user
-from ..dependencies import Contacts, Obligations, Transfers
+from ..dependencies import Contacts, Obligations, Settlements, Transfers
 from ..limits import LimitReached
 from ..schemas.contact import (
     ContactCreate,
@@ -12,6 +12,9 @@ from ..schemas.contact import (
     ContactRead,
     ContactUpdate,
     ObligationRead,
+    SettlementCreate,
+    SettlementPreview,
+    SettlementRead,
     TransferCreate,
     TransferRead,
 )
@@ -136,5 +139,38 @@ def list_transfers(contact_id: UUID, transfers: Transfers):
     """A contact's transfers, newest first."""
     try:
         return transfers.list(contact_id)
+    except ValueError as e:
+        raise _refused(e) from None
+
+
+@router.post("/{contact_id}/settlements/preview", response_model=SettlementPreview)
+def preview_settlement(contact_id: UUID, data: SettlementCreate, settlements: Settlements):
+    """What a settlement would clear (which obligations, how much of each, what is left over and what is still owed),
+    saving nothing."""
+    try:
+        return settlements.preview(contact_id, data)
+    except ValueError as e:
+        raise _refused(e) from None
+
+
+@router.post("/{contact_id}/settlements", response_model=SettlementRead, status_code=201)
+def record_settlement(
+    contact_id: UUID, data: SettlementCreate, settlements: Settlements, idempotency_key: IdempotencyKey = None
+):
+    """Settle up: `received` is the contact paying back what they owe you, `sent` you paying back what you owe them.
+    `allocation_method` `fifo` clears the oldest amounts first, `manual` takes `allocations`. Nothing is cleared beyond
+    what is owed: more than that needs `excess_as` to say what the rest is. Send an `Idempotency-Key` header to make a
+    retry safe."""
+    try:
+        return settlements.record(contact_id, data, idempotency_key)
+    except ValueError as e:
+        raise _refused(e) from None
+
+
+@router.get("/{contact_id}/settlements", response_model=list[SettlementRead])
+def list_settlements(contact_id: UUID, settlements: Settlements):
+    """A contact's settlements, newest first."""
+    try:
+        return settlements.list(contact_id)
     except ValueError as e:
         raise _refused(e) from None

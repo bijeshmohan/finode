@@ -38,7 +38,10 @@ class ObligationService:
                     source_transaction_id=o.source_transaction_id,
                     source_type=o.source_type,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
                     direction=o.direction,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
-                    description=(entry.comment or entry.payee) if entry else None,
+                    # a shared expense is named by its payee; a transfer has only the note it was given
+                    description=(entry.payee if o.source_type == "shared_expense" else entry.comment)
+                    if entry
+                    else None,
                     date=entry.date if entry else o.created.date(),
                     original_amount=o.original_amount,
                     settled_amount=done,
@@ -61,11 +64,13 @@ class ObligationService:
             raise ObligationNotFoundError
         return self._reads([row])[0]
 
-    def open_for_update(self, contact_id: UUID, direction: str) -> builtins.list[tuple[PartyObligation, Decimal]]:
+    def open_rows(
+        self, contact_id: UUID, direction: str, lock: bool = False
+    ) -> builtins.list[tuple[PartyObligation, Decimal]]:
         """The contact's obligations in one direction that still have something owed, oldest first, with what is owed.
-        The rows are locked and the settled sums read after the lock, so the figures are the ones the caller may
-        rely on until it commits."""
-        rows = self.ob.obligations(contact_id=contact_id, direction=direction, lock=True)
+        With `lock` the rows are locked first and the settled sums read after, so the figures are the ones the caller
+        may rely on until it commits."""
+        rows = self.ob.obligations(contact_id=contact_id, direction=direction, lock=lock)
         settled = self.ob.settled([o.id for o in rows])
         entries = self.tr.read_many(list({o.source_transaction_id for o in rows}))
         found = [(o, outstanding(o, settled.get(o.id, ZERO))) for o in rows]

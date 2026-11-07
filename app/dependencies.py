@@ -36,6 +36,7 @@ from .services.erase import EraseService
 from .services.expense_sharing import ExpenseSharingService
 from .services.oauth_grant import OAuthGrantService
 from .services.obligation import ObligationService
+from .services.settlement import SettlementService
 from .services.todo import TodoService
 from .services.transfer import TransferService
 
@@ -135,6 +136,17 @@ def get_expense_sharing_service(
     user: CurrentUser = Depends(require_authenticated_user),
 ) -> ExpenseSharingService:
     return ExpenseSharingService(contacts, transactions, ob, SharedExpenseRepository(db, user.id))
+
+
+def get_settlement_service(
+    contacts: ContactService = Depends(get_contact_service),
+    transactions: TransactionService = Depends(get_contact_transactions),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+    obligations: ObligationService = Depends(get_obligation_service),
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> SettlementService:
+    return SettlementService(contacts, transactions, ob, obligations, SharedExpenseRepository(db, user.id))
 
 
 def get_profile_service(
@@ -245,6 +257,7 @@ Accounts = Annotated[AccountService, Depends(get_account_service)]
 Categories = Annotated[CategoryService, Depends(get_category_service)]
 Contacts = Annotated[ContactService, Depends(get_contact_service)]
 Obligations = Annotated[ObligationService, Depends(get_obligation_service)]
+Settlements = Annotated[SettlementService, Depends(get_settlement_service)]
 SharedExpenses = Annotated[ExpenseSharingService, Depends(get_expense_sharing_service)]
 Transfers = Annotated[TransferService, Depends(get_transfer_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
