@@ -95,6 +95,6 @@ The browser tests run with reduced motion so measured positions never catch a pa
 2. Use tokens, and define any new token in all three blocks.
 3. Keep tap targets at `--tap` and text inputs at 16px.
 4. Put anything that depends on `app.js` under a browser test in `tests/browser/` (run Chromium and WebKit; WebKit is the closest to iOS Safari).
-5. Update this page and `CLAUDE.md` when a part changes.
+5. Update this page and `docs/developer/reference/ui-look.md` when a part changes.
 
 Next: [MCP and authentication](mcp-and-auth.md).

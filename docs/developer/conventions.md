@@ -1,6 +1,6 @@
 # Conventions and how-tos
 
-The rules the code follows, and the steps for the common changes. `CLAUDE.md` in the repository root has the same rules in a denser form for AI assistants; keep both in step.
+The rules the code follows, and the steps for the common changes. `AGENTS.md` in the repository root has the short form of these rules for AI assistants (`CLAUDE.md` imports it), with the detail in `reference/`; keep them in step.
 
 ## Commands
 
