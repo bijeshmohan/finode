@@ -1,0 +1,17 @@
+{#- One entry in a person's activity: what it was, and the way to undo it. Expects person and item (ActivityRead). -#}
+{% from "partials/icons.html" import icon %}
+{% set names = {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "expense": item.description or "Shared expense", "settlement": "Paid back" if item.direction == "received" else "You paid back"} %}
+<div class="sheet-grab" aria-hidden="true"></div>
+<div class="sheet-title">
+  <div>
+    <h2>{{ names[item.purpose] }}</h2>
+    <p class="muted">{{ item.date|friendly_date }} · {{ person.name }}</p>
+  </div>
+  <p class="sheet-amount">{{ item.amount|money }}</p>
+</div>
+{% if item.description and item.purpose != "expense" %}<p class="muted">{{ item.description }}</p>{% endif %}
+{% if item.purpose == "expense" %}<p class="muted">{{ person.name }}'s share of the bill.</p>{% endif %}
+<p class="muted hint">Reversing removes it for good, as if it had never happened. It can't be reversed while something has been paid back against it.</p>
+<p id="person-sheet-error" class="error" role="alert"></p>
+<button type="button" class="danger-text" hx-post="/people/{{ person.id }}/entry/{{ item.transaction_id }}/reverse"
+        hx-confirm="Reverse this? It is removed for good.">{{ icon("trash") }}Reverse</button>

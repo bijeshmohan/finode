@@ -15,7 +15,7 @@ def test_upgrade_drops_the_tables_and_the_ledger_stays(alembic):
     config, engine = alembic
     prepare(config, engine)
     command.upgrade(config, PREVIOUS)
-    assert TABLES <= set(sa.inspect(engine).get_table_names())
+    assert set(sa.inspect(engine).get_table_names()) >= TABLES
     with engine.begin() as conn:
         entries = conn.execute(sa.text("SELECT count(*) FROM transactions")).scalar()
         accounts = conn.execute(sa.text("SELECT count(*) FROM accounts")).scalar()
@@ -32,7 +32,7 @@ def test_downgrade_brings_back_empty_tables(alembic):
     command.upgrade(config, HEAD)
     command.downgrade(config, PREVIOUS)
     inspector = sa.inspect(engine)
-    assert TABLES <= set(inspector.get_table_names())
+    assert set(inspector.get_table_names()) >= TABLES
     assert {c["name"] for c in inspector.get_columns("transaction_history")} >= {
         "id",
         "user_id",

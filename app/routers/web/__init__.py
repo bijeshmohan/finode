@@ -11,6 +11,7 @@ from . import (
     dashboard,
     data,
     oauth,
+    people,
     profile,
     recurring,
     settings,
@@ -30,6 +31,7 @@ protected.include_router(budget.router)
 protected.include_router(categories.router)
 protected.include_router(recurring.router)
 protected.include_router(tags.router)
+protected.include_router(people.router)
 protected.include_router(todo.router)
 protected.include_router(transactions.router)
 protected.include_router(profile.router)

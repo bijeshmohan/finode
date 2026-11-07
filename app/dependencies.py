@@ -16,6 +16,8 @@ from .repositories import (
 )
 from .repositories.api_token import ApiTokenRepository
 from .repositories.oauth_grant import OAuthGrantRepository
+from .repositories.obligation import ObligationRepository
+from .repositories.shared_expense import SharedExpenseRepository
 from .services import (
     AccountService,
     BudgetService,
@@ -29,9 +31,15 @@ from .services import (
 from .services.api_token import ApiTokenService
 from .services.backup import BackupService
 from .services.category import CategoryService
+from .services.contact import ContactService
+from .services.contact_summary import ContactSummaryService
 from .services.erase import EraseService
+from .services.expense_sharing import ExpenseSharingService
 from .services.oauth_grant import OAuthGrantService
+from .services.obligation import ObligationService
+from .services.settlement import SettlementService
 from .services.todo import TodoService
+from .services.transfer import TransferService
 
 engine = create_engine(settings.database_url, echo=settings.database_echo)
 
@@ -83,6 +91,73 @@ def get_account_service(
 
 def get_category_service(accounts: AccountService = Depends(get_account_service)) -> CategoryService:
     return CategoryService(accounts)
+
+
+def get_contact_service(accounts: AccountService = Depends(get_account_service)) -> ContactService:
+    return ContactService(accounts)
+
+
+def get_obligation_repository(
+    db: Session = Depends(get_db_session), user: CurrentUser = Depends(require_authenticated_user)
+) -> ObligationRepository:
+    return ObligationRepository(db, user.id)
+
+
+def get_obligation_service(
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+) -> ObligationService:
+    return ObligationService(tr, ob)
+
+
+def get_contact_transactions(
+    request: Request,
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    ar: AccountRepository = Depends(get_account_repository),
+    pr: ProfileRepository = Depends(get_profile_repository),
+) -> TransactionService:
+    """The transaction service the contact workflows use: the only one that may post to a contact's accounts."""
+    origin = "api" if request.url.path.startswith("/api/") else "web"
+    return TransactionService(tr, ar, pr, origin=origin, contacts=True)
+
+
+def get_transfer_service(
+    contacts: ContactService = Depends(get_contact_service),
+    transactions: TransactionService = Depends(get_contact_transactions),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+) -> TransferService:
+    return TransferService(contacts, transactions, ob)
+
+
+def get_expense_sharing_service(
+    contacts: ContactService = Depends(get_contact_service),
+    transactions: TransactionService = Depends(get_contact_transactions),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> ExpenseSharingService:
+    return ExpenseSharingService(contacts, transactions, ob, SharedExpenseRepository(db, user.id))
+
+
+def get_settlement_service(
+    contacts: ContactService = Depends(get_contact_service),
+    transactions: TransactionService = Depends(get_contact_transactions),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+    obligations: ObligationService = Depends(get_obligation_service),
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> SettlementService:
+    return SettlementService(contacts, transactions, ob, obligations, SharedExpenseRepository(db, user.id))
+
+
+def get_contact_summary_service(
+    contacts: ContactService = Depends(get_contact_service),
+    tr: TransactionRepository = Depends(get_transaction_repository),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> ContactSummaryService:
+    return ContactSummaryService(contacts, tr, ob, SharedExpenseRepository(db, user.id))
 
 
 def get_profile_service(
@@ -191,6 +266,12 @@ def get_oauth_grant_service(
 
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Categories = Annotated[CategoryService, Depends(get_category_service)]
+ContactSummaries = Annotated[ContactSummaryService, Depends(get_contact_summary_service)]
+Contacts = Annotated[ContactService, Depends(get_contact_service)]
+Obligations = Annotated[ObligationService, Depends(get_obligation_service)]
+Settlements = Annotated[SettlementService, Depends(get_settlement_service)]
+SharedExpenses = Annotated[ExpenseSharingService, Depends(get_expense_sharing_service)]
+Transfers = Annotated[TransferService, Depends(get_transfer_service)]
 Transactions = Annotated[TransactionService, Depends(get_transaction_service)]
 Data = Annotated[DataService, Depends(get_data_service)]
 Backup = Annotated[BackupService, Depends(get_backup_service)]

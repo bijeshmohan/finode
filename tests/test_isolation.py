@@ -77,6 +77,11 @@ LISTS = {
     ("GET", "/accounts/quick"),
     ("GET", "/api/accounts/"),
     ("GET", "/api/categories/"),
+    ("GET", "/api/contacts/"),
+    ("GET", "/people"),
+    ("GET", "/people/new"),
+    ("GET", "/people/expense/new"),
+    ("GET", "/api/shared-expenses/"),
     ("GET", "/api/backup"),
     ("GET", "/api/budget/"),
     ("GET", "/api/todo/"),
@@ -124,6 +129,12 @@ REFERENCES = {
     ("POST", "/accounts/quick"),
     ("POST", "/api/accounts/"),
     ("POST", "/api/categories/"),
+    ("POST", "/api/contacts/"),
+    ("POST", "/people"),
+    ("POST", "/people/expense"),
+    ("POST", "/people/expense/preview"),
+    ("POST", "/api/shared-expenses/"),
+    ("POST", "/api/shared-expenses/preview"),
     ("POST", "/categories"),
     ("POST", "/categories/quick"),
     ("POST", "/api/import"),
@@ -234,6 +245,9 @@ def world(client: TestClient, session, rich) -> World:
     w.tags = sorted({name for t in doc["transactions"] for name in t.get("tags", [])})
     w.transaction_ids = [t["id"] for t in doc["transactions"]] + [spare["id"]]
     w.recurring_ids = [r["id"] for r in doc["recurring"]]
+    w.contact_ids = [c["id"] for c in doc["contacts"]]
+    w.expense_ids = [e["id"] for e in doc["shared_expenses"]]
+    w.obligation_ids = [o["id"] for o in doc["obligations"]]
     w.token_id, w.grant_id = str(w.token.id), str(w.grant.id)
     w.markers = A_WORDS + [
         str(i)
@@ -241,6 +255,9 @@ def world(client: TestClient, session, rich) -> World:
             *w.accounts.values(),
             *w.transaction_ids,
             *w.recurring_ids,
+            *w.contact_ids,
+            *w.expense_ids,
+            *w.obligation_ids,
             w.token_id,
             w.grant_id,
         )
@@ -261,6 +278,7 @@ def world(client: TestClient, session, rich) -> World:
                 ],
             },
         )
+        w.b_contact = client.post("/api/contacts/", json={"name": "Bea's friend"}).json()
         w.b_backup = client.get("/api/backup").json()
     return w
 
@@ -292,6 +310,8 @@ def candidates(world: World, name: str) -> list[str]:
     return {
         "account_id": [*world.accounts.values(), *world.roots],
         "category_id": list(world.categories.values()),
+        "contact_id": world.contact_ids,
+        "expense_id": world.expense_ids,
         "transaction_id": world.transaction_ids,
         "recurring_id": world.recurring_ids,
         "token_id": [world.token_id],
@@ -320,6 +340,8 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("POST", "/api/accounts/{account_id}/merge"): {"json": {"into": bills}},
         ("POST", "/api/categories/{category_id}/merge"): {"json": {"into": bills}},
         ("PATCH", "/api/categories/{category_id}"): {"json": {"name": "hacked"}},
+        ("PATCH", "/api/contacts/{contact_id}"): {"json": {"name": "hacked"}},
+        ("PATCH", "/api/shared-expenses/{expense_id}"): {"json": {"description": "hacked"}},
         ("POST", "/oauth/apps/{grant_id}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{token_id}/access"): {"data": {"scope": "read"}},
     }
@@ -375,6 +397,8 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
         assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"]} == {
             "Mine",
             "Opening Balances",
+            "Due from Bea's friend",
+            "Due to Bea's friend",
         }
         assert {c["name"] for c in client.get("/api/categories/").json()} == {"Bills"}
         assert sorted(t["payee"] for t in client.get("/api/transactions/").json() if t["payee"]) == [
@@ -382,6 +406,12 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
             "Power",
         ]
         assert client.get("/api/recurring/").json() == []
+        assert [c["name"] for c in client.get("/api/contacts/", params={"include_archived": True}).json()] == [
+            "Bea's friend"
+        ]
+        same_name = client.post("/api/contacts/", json={"name": "Alice"})
+        assert same_name.status_code == 201, "names are unique per person, not across people"
+        assert same_name.json()["id"] not in world.contact_ids
         assert client.get("/api/profile/").json()["first_name"] in (None, "")
         assert {l["name"] for l in client.get("/api/budget/").json()["lines"]} <= {"Bills"}
         backup = client.get("/api/backup").json()
@@ -425,6 +455,70 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             },
         )
         refused("merge into A's account", "POST", f"/api/accounts/{mine}/merge", json={"into": a["Groceries"]})
+        refused(
+            "a transfer to A's contact",
+            "POST",
+            f"/api/contacts/{world.contact_ids[0]}/transfers",
+            json={"direction": "sent", "purpose": "loan", "amount": "5", "account_id": mine},
+        )
+        expense = {
+            "description": "Trip",
+            "total_amount": "10",
+            "participants": [{"is_self": True}, {"contact_id": world.contact_ids[0]}],
+            "payments": [{"account_id": mine, "amount": "10"}],
+        }
+        refused("a shared expense with A's contact", "POST", "/api/shared-expenses/", json=expense)
+        refused("a preview with A's contact", "POST", "/api/shared-expenses/preview", json=expense)
+        refused(
+            "a shared expense paid from A's account",
+            "POST",
+            "/api/shared-expenses/",
+            json={
+                **expense,
+                "participants": [{"is_self": True}, {"contact_id": world.b_contact["id"]}],
+                "payments": [{"account_id": a["HDFC"], "amount": "10"}],
+            },
+        )
+        refused(
+            "a shared expense under A's category",
+            "POST",
+            "/api/shared-expenses/",
+            json={
+                **expense,
+                "participants": [{"is_self": True}, {"contact_id": world.b_contact["id"]}],
+                "category_id": a["Groceries"],
+            },
+        )
+        refused(
+            "a settlement from A's account",
+            "POST",
+            f"/api/contacts/{world.b_contact['id']}/settlements",
+            json={"direction": "received", "amount": "5", "account_id": a["HDFC"], "excess_as": "gift"},
+        )
+        refused(
+            "a settlement of A's contact",
+            "POST",
+            f"/api/contacts/{world.contact_ids[0]}/settlements",
+            json={"direction": "received", "amount": "5", "account_id": mine, "excess_as": "gift"},
+        )
+        refused(
+            "a settlement of A's obligation",
+            "POST",
+            f"/api/contacts/{world.b_contact['id']}/settlements",
+            json={
+                "direction": "received",
+                "amount": "5",
+                "account_id": mine,
+                "allocation_method": "manual",
+                "allocations": [{"obligation_id": world.obligation_ids[0], "amount": "5"}],
+            },
+        )
+        refused(
+            "a transfer from A's account",
+            "POST",
+            f"/api/contacts/{world.b_contact['id']}/transfers",
+            json={"direction": "sent", "purpose": "loan", "amount": "5", "account_id": a["HDFC"]},
+        )
         refused(
             "A's category on B's line",
             "POST",

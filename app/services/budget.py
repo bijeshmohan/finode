@@ -114,6 +114,7 @@ class BudgetService:
         parents = {a.parent_id for a in accounts if a.parent_id is not None}
         categories = self._categories()
 
+        owed = self.accounts.ar.contact_account_ids()  # "Due from" and "Due to": money owed, not a place money is kept
         in_budget: set[UUID] = set()
         candidates: dict[UUID, Account] = {}  # could be in the budget but are not: assets/liabilities that could be
         budget_accounts: list[str] = []
@@ -124,6 +125,7 @@ class BudgetService:
                 if (
                     home is not None
                     and a.id not in parents
+                    and a.id not in owed
                     and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
                     # Loans and investments sit outside the budget by design: no nudge to add them.
                     and FIXED_DEFAULTS.get(home.system_key or "") != "outside"
@@ -153,6 +155,7 @@ class BudgetService:
             and p.side == PostingSide.DEBIT
             and p.category_id is None
             and p.account_id not in in_budget
+            and p.account_id not in owed
             and first_of_month(p.date) == month
             and p.account_id in by_id
             and AccountService.root_name(by_id[p.account_id], by_id) in ("Assets", "Liabilities")

@@ -1693,3 +1693,22 @@ body.bare .brand-title img { width: 44px; height: 44px; border-radius: 11px; }
 .tx-fold-rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--surface-2); }
 .tx-fold-rows > li + li { border-top: 1px solid var(--surface-2); }
 @media (prefers-reduced-motion: reduce) { .tx-fold > details > summary .icon { transition: none; } }
+
+/* ---------- People: lending, sharing a bill, settling up ---------- */
+.out-amount { color: var(--negative); }
+.person-actions { margin: .75rem 0 1rem; }
+.person-actions .button { flex: 1 1 0; text-align: center; white-space: nowrap; }
+.kind-list label.r { cursor: pointer; }
+.kind-list label.r input { margin: 0 0 0 auto; flex: none; }
+.person-form [data-gift] { display: none; }
+.person-form:has(input[value="gift_sent"]:checked) [data-gift="sent"],
+.person-form:has(input[value="gift_received"]:checked) [data-gift="received"] { display: flex; }
+.share-row { gap: .75rem; }
+.share-row input[type="checkbox"] { margin: 0; flex: none; }
+.share-row .share-value { width: 6.5rem; flex: none; text-align: right; }
+.person-form:has(input[name="split_method"][value="equal"]:checked) .share-value { display: none; }
+.preview:empty { display: none; }
+.preview-head { margin: .5rem 0 .25rem; font-size: .8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.preview-list { list-style: none; margin: 0; padding: 0; }
+.preview-list li { display: flex; justify-content: space-between; gap: 1rem; padding: .3rem 0; font-variant-numeric: tabular-nums; }
+.warn-note { margin: .5rem 0 0; padding: .6rem .8rem; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn); font-size: .9rem; }

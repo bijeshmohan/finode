@@ -11,6 +11,7 @@ from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
 from ..models.category import BudgetCategory
+from ..models.contact import PartyTransaction
 from ..models.recurring import RecurringTransaction
 from ..models.tag import Tag, TransactionTag
 from ..models.transaction import Posting, PostingSide, Transaction
@@ -82,6 +83,17 @@ class TransactionRepository:
         )
         transaction = self.db.exec(statement).first()
         return transaction
+
+    def owned_by_contacts(self, transaction_id: UUID) -> bool:
+        """Whether a contact's activity (a loan, a shared expense, a settlement) is built on this entry."""
+        return (
+            self.db.exec(
+                select(PartyTransaction.id).where(
+                    PartyTransaction.user_id == self.uid, PartyTransaction.transaction_id == transaction_id
+                )
+            ).first()
+            is not None
+        )
 
     def related_to(self, transaction_id: UUID) -> list[Transaction]:
         """The entries that point at this one, oldest first."""

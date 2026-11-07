@@ -39,6 +39,7 @@
       <a href="/accounts" {% if active == 'accounts' %}aria-current="page"{% endif %}>{{ icon("accounts") }}<span>Accounts</span></a>
       <a href="/categories" {% if active == 'categories' %}aria-current="page"{% endif %}>{{ icon("tag") }}<span>Categories</span></a>
       <a href="/transactions" {% if active == 'transactions' %}aria-current="page"{% endif %}>{{ icon("list") }}<span>Transactions</span></a>
+      <a href="/people" {% if active == 'people' %}aria-current="page"{% endif %}>{{ icon("user") }}<span>People</span></a>
     </nav>
     <div class="sidebar-foot">
       <button type="button" class="todo-open" hx-get="/todo/sheet" hx-target="#todo-sheet-body" hx-swap="innerHTML">{{ icon("bell") }}<span>To do</span><span id="todo-count-side" class="bell-badge" hidden></span></button>

@@ -9,6 +9,7 @@ from sqlmodel import select
 from app.config import settings
 from app.models.account import Account
 from app.models.api_token import ApiToken
+from app.models.contact import Contact, ContactAccount
 from app.models.oauth_grant import OAuthGrant
 from app.models.profile import Profile
 from app.models.tag import Tag, TransactionTag
@@ -57,8 +58,10 @@ def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, bo
         "budget_allocations",
         "tags",
         "transaction_tags",
+        "contacts",
+        "contact_accounts",
     } <= set(removed)
-    for model in (Account, Transaction, Posting, Tag, TransactionTag):
+    for model in (Account, Transaction, Posting, Tag, TransactionTag, Contact, ContactAccount):
         assert rows(session, model) == [], model
     # What belongs to the person, not the books, stays.
     [profile] = rows(session, Profile)
@@ -70,7 +73,18 @@ def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, bo
 def test_deleting_everything_leaves_nothing_of_the_person(client, session, both):
     before_b = books_of(client, B_USER)
     EraseService(session, TEST_USER_ID).erase_everything()
-    for model in (Account, Transaction, Posting, Tag, TransactionTag, Profile, ApiToken, OAuthGrant):
+    for model in (
+        Account,
+        Transaction,
+        Posting,
+        Tag,
+        TransactionTag,
+        Contact,
+        ContactAccount,
+        Profile,
+        ApiToken,
+        OAuthGrant,
+    ):
         assert rows(session, model) == [], model
     assert books_of(client, B_USER) == before_b
     assert len(rows(session, Profile, B_USER)) == 1 and len(rows(session, ApiToken, B_USER)) == 1
@@ -87,6 +101,10 @@ def test_after_erasing_a_backup_restores_everything(client, session, both):
         backup["accounts"]
     )
     assert client.get("/api/reports/trial-balance").json()["balanced"]
+    assert {c["name"] for c in client.get("/api/contacts/", params={"include_archived": True}).json()} == {
+        "Alice",
+        "Bob",
+    }
 
 
 # ---- the pages -----------------------------------------------------------------------------------------------

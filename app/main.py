@@ -11,7 +11,23 @@ from .caching import Compression, cache_headers_middleware
 from .config import settings
 from .flash import clear_shown_flash_middleware
 from .mcp_server import transport as mcp_transport
-from .routers import accounts, budget, categories, data, profile, recurring, reports, tags, todo, transactions, web
+from .routers import (
+    accounts,
+    budget,
+    categories,
+    contacts,
+    data,
+    profile,
+    recurring,
+    reports,
+    settlements,
+    shared_expenses,
+    tags,
+    todo,
+    transactions,
+    transfers,
+    web,
+)
 from .templating import BASE_DIR
 from .web_auth import LoginRequired, login_required_handler, refreshed_cookies_middleware
 
@@ -40,7 +56,22 @@ def protected_resource(request: Request):
 
 
 # The JSON API lives under /api; the web UI owns the site root.
-for api_router in (accounts, categories, budget, recurring, transactions, tags, todo, data, profile, reports):
+for api_router in (
+    accounts,
+    categories,
+    contacts,
+    transfers,
+    shared_expenses,
+    settlements,
+    budget,
+    recurring,
+    transactions,
+    tags,
+    todo,
+    data,
+    profile,
+    reports,
+):
     app.include_router(api_router.router, prefix="/api")
 app.include_router(web.router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")

@@ -1,0 +1,20 @@
+{#- What a shared expense would do, as typed so far. Expects preview (ExpensePreview or none) and message. -#}
+{% if message %}
+<p class="error">{{ message }}</p>
+{% elif preview %}
+<ul class="preview-list">
+  {% for s in preview.shares %}
+  <li><span>{{ s.name }}</span><b>{{ s.share_amount|money }}</b></li>
+  {% endfor %}
+</ul>
+<p class="preview-head">After this</p>
+<ul class="preview-list">
+  <li><span>Your share <span class="muted">(what your budget sees)</span></span><b>{{ preview.user_share|money }}</b></li>
+  {% for o in preview.owed %}
+  <li><span>{{ o.name }} {{ "owes you" if o.direction == "receivable" else "is owed by you" }}</span><b class="{{ 'income' if o.direction == 'receivable' else 'out-amount' }}">{{ o.amount|money }}</b></li>
+  {% endfor %}
+</ul>
+{% if preview.unfunded != 0 %}
+<p class="warn-note">{% if preview.unfunded > 0 %}{{ preview.unfunded|money }} of the bill has no payer yet. Say who paid the rest.{% else %}The payments are {{ (-preview.unfunded)|money }} more than the bill.{% endif %}</p>
+{% endif %}
+{% endif %}

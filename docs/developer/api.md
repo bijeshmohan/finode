@@ -52,6 +52,46 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 | `GET` | `/categories/{category_id}/register` | The entries that have a line labelled with the category (and its subcategories, unless `own_only=true`), oldest first, with what each changed and the running total. |
 | `POST` | `/categories/{category_id}/merge` | Fold it into another category (`into`): entries, labelled lines, planned amounts and recurring rules become the other's. `dry_run=true` only says what would move. |
 
+## Shared expenses
+
+An expense split with contacts. A **draft** is only the plan; **confirming** records one ordinary ledger entry (your own share spent under the expense's `category_id`, what you paid out of your accounts) and, for each contact, what they owe you or you owe them, worked out from what they paid against their share. Only your own share counts against your budget. `split_method` is `equal`, `exact` (the `value` of each participant is an amount), `percentage` (values make 100) or `shares` (weights); leftover units of the smallest coin go to the first participants. `payments` are what *you* paid (an account each), `contributions` what contacts paid; together they must make the total before it can be confirmed. A confirmed expense can't be edited: cancel it (which removes its entry and what it left owed, refused once something was settled) and enter it again.
+
+| Method | Path | What it does |
+|---|---|---|
+| `POST` | `/shared-expenses/preview` | Each person's share, who owes whom, the ledger lines and how much is still unpaid for, saving nothing. |
+| `POST` | `/shared-expenses/` | Save a draft, or with `confirm=true` record it at once. `Idempotency-Key` makes a retry safe (with `confirm`). |
+| `GET` | `/shared-expenses/` | Your shared expenses, newest first (`status=draft|confirmed`). |
+| `GET` | `/shared-expenses/{expense_id}` | One expense with its shares, payments, ledger lines and what is owed. |
+| `PATCH` | `/shared-expenses/{expense_id}` | Change a draft; only what is sent changes (409 once confirmed). |
+| `POST` | `/shared-expenses/{expense_id}/confirm` | Record a draft (409 if already confirmed; `Idempotency-Key` returns the first result on a retry). |
+| `POST` | `/shared-expenses/{expense_id}/cancel` | Remove a draft, or reverse a confirmed expense for good. |
+
+## Contacts
+
+A contact is a person you lend to, borrow from or share costs with. It is not an account: its ledger side is two ordinary accounts made with it, **Due from X** (an asset: X owes you) and **Due to X** (a liability: you owe X), both outside the budget. They follow the contact (account responses carry `contact_account: true` for them) and can't be renamed, closed, deleted, merged or given sub-accounts on their own, and **nothing can be posted to them except through the contact routes** (the ordinary transaction routes answer 400): that keeps every debt tied to an obligation. An entry made through a contact can't be edited or deleted on the ordinary routes either; reverse it from the contact. Names are unique (capitals aside) and at most 30 characters.
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/contacts/` | Your contacts, each with the ids of its two accounts, what each holds (`receivable`, `payable`, `net`: entries dated ahead included) and the day of the latest activity. `q` searches name, email, phone and notes; `owing=receivable|payable` filters; `sort=name|balance` (the biggest outstanding first); `include_archived=true` adds archived ones. |
+| `POST` | `/contacts/` | Add a contact (`name`, optional `email`, `phone`, `notes`); its two accounts are made with it. |
+| `GET` | `/contacts/{contact_id}` | One contact. |
+| `PATCH` | `/contacts/{contact_id}` | Change the name (both accounts are renamed) or details; null clears email, phone or notes. |
+| `DELETE` | `/contacts/{contact_id}` | Remove a contact no money moved with, for good. One with entries is archived instead (refused while anything is owed); `outcome` says `deleted` or `archived`. |
+| `POST` | `/contacts/{contact_id}/archive` | Hide a contact from new entries; history stays. Refused while anything is owed either way. |
+| `POST` | `/contacts/{contact_id}/restore` | Bring an archived contact back. |
+| `GET` | `/contacts/{contact_id}/summary` | The ledger's figures (`total_receivable`, `total_payable`, `net_balance`), what you lent and borrowed, the expenses you shared, the settlements, how many obligations are open and the latest activity. |
+| `GET` | `/contacts/{contact_id}/activity` | Everything done with the contact, newest first, with `total` for paging (`purpose`, `limit`, `offset`). |
+| `GET` | `/contacts/{contact_id}/obligations` | What the contact owes you and what you owe them, one row per amount, oldest first, with `settled_amount`, `outstanding_amount` and `status`. `direction` and `open_only` narrow it. |
+| `POST` | `/contacts/{contact_id}/transfers` | Money sent to a contact (`loan`, `advance`, `gift`) or received from one (`borrowing`, `advance`, `gift`) with `amount`, `account_id` (yours), `date`, `description` and, for a gift, `category_id`. A loan or advance leaves a receivable, a borrowing or received advance a payable, a gift nothing. Send an `Idempotency-Key` header and a retry returns the first result. |
+| `GET` | `/contacts/{contact_id}/transfers` | A contact's transfers, newest first. |
+| `GET` | `/transfers/{transaction_id}` | One transfer (its id is the id of its ledger entry). |
+| `POST` | `/contacts/{contact_id}/settlements/preview` | What a settlement would clear: which obligations, how much of each, what is left over and what is still owed. Saves nothing. |
+| `POST` | `/contacts/{contact_id}/settlements` | Settle up: `received` (they pay back what they owe you) or `sent` (you pay back what you owe them), `amount`, `account_id` (yours), `allocation_method` `fifo` (oldest first) or `manual` (`allocations`: `obligation_id` and `amount`). Never beyond what is owed: more needs `excess_as` (received: `borrowing`, `advance`, `gift`; sent: `loan`, `advance`, `gift`; a gift may name `excess_category_id`). `Idempotency-Key` makes a retry safe. |
+| `GET` | `/contacts/{contact_id}/settlements` | A contact's settlements, newest first. |
+| `GET` | `/settlements/{transaction_id}` | One settlement with what it cleared. |
+| `DELETE` | `/settlements/{transaction_id}` | Undo a settlement for good: what it cleared is owed again. Refused (409) once what its excess left owed has been settled in turn. |
+| `DELETE` | `/transfers/{transaction_id}` | Undo a transfer for good: its entry, what it left owed and its activity go. Refused (409) once anything was settled against it. |
+
 **A transaction line** (`postings[]`) may also carry `posted_on`: the day its account posts it when that is not the entry's `date` (never before it); a card's bill counts the line by that day and nothing else reads it. **On a transaction line** (`postings[]` of `/transactions/`, and the rows of a recurring split) `category` says what the line was for. Leave it out and a line on Expenses or Income is Uncategorised; a payment into a loan or fund stays without one (nothing is filled in). A line may carry **only** its category (no `account`): it then posts to the root Expenses account (a spending category) or Income (an earning one). A category on a line to Expenses or Income must be a spending or earning one to match; on any other account it must be a spending category, and not on an account that is part of the budget (the category goes on the other side). A simple recurring rule takes one `category`.
 
 ## Transactions

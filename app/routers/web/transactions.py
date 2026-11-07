@@ -11,8 +11,9 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import ValidationError
 
 from ...clock import local_today
-from ...dependencies import Accounts, Categories, Recurring, Transactions
+from ...dependencies import Accounts, Categories, Contacts, Recurring, Transactions
 from ...models.transaction import PostingSide
+from ...repositories.obligation import ObligationRepository
 from ...repositories.transaction import SYSTEM_PAYEES
 from ...schemas import AccountRead
 from ...schemas.category import CategoryRead
@@ -25,7 +26,7 @@ from ...schemas.transaction import (
 )
 from ...tags import clean_tag
 from ...templating import templates
-from .accounts import build_tree, category_groups, posting_groups
+from .accounts import build_tree, category_groups, posting_groups, without_contacts
 from .budget import parse_month
 from .categories import _month_context
 from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
@@ -85,7 +86,7 @@ def _summary(found: list, index: AccountIndex) -> dict:
 def _filter_options(all_accounts, categories: list[CategoryRead], transactions) -> dict:
     """The choices behind the Filter sheet: accounts (assets, liabilities, equity), categories, payees."""
     accounts: list[dict] = []
-    for root in build_tree(all_accounts):
+    for root in without_contacts(build_tree(all_accounts)):
         if root.account.name in ("Expenses", "Income"):
             continue
         parents: dict[int, str] = {}
@@ -335,7 +336,7 @@ def transactions_page(
             "q": q.strip(),
             "kind": kind,
             "searching": bool(q.strip() or kind or query),
-            "roots": build_tree(all_accounts),
+            "roots": without_contacts(build_tree(all_accounts)),
             "more": _more(
                 {**shown, "scope": "list"},
                 len(rows),
@@ -431,12 +432,16 @@ def transaction_sheet(
     accounts: Accounts,
     categories: Categories,
     transactions: Transactions,
+    contacts: Contacts,
     back: str = "",
 ):
     """The details of one transaction, for the sheet that opens over a list (the edit page has the rest)."""
     transaction = transactions.read(transaction_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
+    # An entry made through a person (a loan, a shared bill, a settlement) is looked after on that person's page.
+    party = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
+    with_person = contacts.read(party[0].contact_id) if party else None
     index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     row = to_row(transaction, index)
     labels = {
@@ -458,6 +463,7 @@ def transaction_sheet(
             "to_postings": [(index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.DEBIT],
             "related_to": related_info(transactions, index, transaction.related_id),
             "related": [to_row(r, index) for r in transactions.related(transaction_id)],
+            "with_person": with_person,
         },
     )
 

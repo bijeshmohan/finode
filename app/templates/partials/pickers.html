@@ -1,0 +1,25 @@
+{#- Fields that pick in the one bottom sheet (see "Forms: our own sheet for Under"): the select stays, hidden, and carries the value. -#}
+{% macro account_pick(name, label, groups, selected="") %}
+<div class="under-field">
+  <span>{{ label }}</span>
+  <select name="{{ name }}" data-sheet-select class="is-picked" aria-hidden="true" tabindex="-1">
+    <option value="">Choose…</option>
+    {% for group, options in groups %}{% for o in options %}<option value="{{ o.id }}" data-balance="{{ o.balance|money }}" {{ "selected" if o.id|string == selected }}>{{ o.label }}</option>{% endfor %}{% endfor %}
+  </select>
+  <button type="button" class="field-pick" data-pick-generic data-title="{{ label }}" data-noun="accounts" aria-haspopup="dialog" aria-label="{{ label }}"><span>Choose…</span></button>
+</div>
+{% endmacro %}
+
+{% macro category_pick(name, label, nodes, empty="Uncategorised", extra="") %}
+<div class="under-field" {{ extra|safe }}>
+  <span>{{ label }}</span>
+  <select name="{{ name }}" data-sheet-select data-allow-empty class="is-picked" aria-hidden="true" tabindex="-1">
+    <option value="">{{ empty }}</option>
+    {% for n in nodes %}
+    <option value="{{ n.category.id }}">{{ n.category.name }}</option>
+    {% for c in n.children %}<option value="{{ c.category.id }}">{{ n.category.name }} › {{ c.category.name }}</option>{% endfor %}
+    {% endfor %}
+  </select>
+  <button type="button" class="field-pick" data-pick-generic data-title="{{ label }}" data-noun="categories" aria-haspopup="dialog" aria-label="{{ label }}"><span>{{ empty }}</span></button>
+</div>
+{% endmacro %}
