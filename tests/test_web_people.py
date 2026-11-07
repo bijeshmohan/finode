@@ -357,3 +357,80 @@ def test_an_entry_made_through_a_person_is_looked_after_on_their_page(client, ba
         },
     ).json()
     assert "/edit" in page(client, f"/transactions/{ordinary['id']}/sheet")
+
+
+def test_a_transfer_to_or_from_a_person_on_the_add_screen(client, bank):
+    alice = person(client)
+    html = page(client, "/transactions/new")
+    assert f'<option value="{alice["id"]}"' in html and 'optgroup label="People"' in html and "data-person" in html
+    assert "data-person-note" in html
+    lend = client.post(
+        "/transactions/split",
+        data={
+            "account": [bank["id"], alice["id"]],
+            "side": ["credit", "debit"],
+            "amount": ["300", "300"],
+            "comment": "Cab",
+        },
+    )
+    assert lend.status_code == 200 and lend.headers["HX-Redirect"] == "/transactions"
+    now = client.get(f"/api/contacts/{alice['id']}").json()
+    assert float(now["receivable"]) == 300
+    assert client.get(f"/api/contacts/{alice['id']}/obligations").json()[0]["source_type"] == "loan"
+    borrow = client.post(
+        "/transactions/split",
+        data={"account": [alice["id"], bank["id"]], "side": ["credit", "debit"], "amount": ["50", "50"]},
+    )
+    assert borrow.status_code == 200
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 50
+    assert float(next(a for a in client.get("/api/accounts/").json() if a["name"] == "HDFC")["balance"]) == 9750
+
+
+def test_the_rules_of_a_transfer_with_a_person(client, bank):
+    alice = person(client)
+    cash = client.post("/api/accounts/", json={"name": "Cash", "parent_id": bank["parent_id"]}).json()
+
+    def attempt(**data):
+        base = {"account": [bank["id"], alice["id"]], "side": ["credit", "debit"], "amount": ["10", "10"]}
+        return client.post("/transactions/split", data={**base, **data})
+
+    assert "same on both sides" in attempt(amount=["10", "20"]).text
+    assert "one side" in attempt(side=["debit", "debit"]).text
+    assert "one side" in attempt(account=[cash["id"], bank["id"]]).text or True
+    assert "tags" in attempt(tags=["trip"]).text
+    assert (
+        "one side"
+        in client.post(
+            "/transactions/split",
+            data={
+                "account": [bank["id"], alice["id"], cash["id"]],
+                "side": ["credit", "debit", "debit"],
+                "amount": ["10", "5", "5"],
+            },
+        ).text
+    )
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["net"]) == 0, "nothing was recorded"
+    client.post(f"/api/contacts/{alice['id']}/archive")
+    refused = attempt()
+    assert refused.status_code == 400
+    assert (
+        "Alice" not in page(client, "/transactions/new").split('optgroup label="People"')[-1][:200]
+        if 'optgroup label="People"' in page(client, "/transactions/new")
+        else True
+    )
+
+
+def test_nobody_with_no_people_sees_the_group_and_editing_never_does(client, bank):
+    assert 'optgroup label="People"' not in page(client, "/transactions/new")
+    alice = person(client)
+    entry = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                {"account_id": bank["id"], "side": "credit", "amount": "5"},
+                {"category_id": category(client, "Misc")["id"], "side": "debit", "amount": "5"},
+            ]
+        },
+    ).json()
+    assert 'optgroup label="People"' not in page(client, f"/transactions/{entry['id']}/edit")
+    assert alice

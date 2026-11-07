@@ -348,8 +348,8 @@ const KINDS = {
     debit: { roots: ["Assets", "Liabilities"], title: "Received in" },
   },
   transfer: {
-    credit: { roots: ["Assets", "Liabilities"], title: "From" },
-    debit: { roots: ["Assets", "Liabilities"], title: "To" },
+    credit: { roots: ["Assets", "Liabilities", "People"], title: "From" },
+    debit: { roots: ["Assets", "Liabilities", "People"], title: "To" },
   },
   other: {
     credit: { roots: null, title: "From" },
@@ -1644,4 +1644,24 @@ document.addEventListener("change", (event) => {
   const hint = input instanceof HTMLInputElement && input.name === "start" ? document.querySelector("[data-past-hint]") : null;
   const chip = hint && input.closest("[data-date-chip]");
   if (hint && chip) hint.hidden = !input.value || input.value >= chip.dataset.today;
+});
+
+// A transfer with a person on one side is a loan or a borrowing: say so, and that the budget stays as it is.
+document.body.addEventListener("change", (event) => {
+  const form = event.target.closest && event.target.closest("form[data-txn-form]");
+  const note = form && form.querySelector("[data-person-note]");
+  if (!note) return;
+  let text = "";
+  form.querySelectorAll("[data-row]").forEach((row) => {
+    const select = row.querySelector('select[name="account"]');
+    const option = select && select.selectedOptions[0];
+    if (!option || !option.hasAttribute("data-person")) return;
+    const name = option.textContent.trim();
+    text =
+      row.querySelector('[name="side"]').value === "debit"
+        ? `${name} will owe you this. It is not spending, so your budgets stay as they are.`
+        : `You will owe ${name} this. It is not income, so your budgets stay as they are.`;
+  });
+  note.textContent = text;
+  note.hidden = !text;
 });

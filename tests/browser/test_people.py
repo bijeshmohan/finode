@@ -2,7 +2,7 @@
 
 from playwright.sync_api import Page, expect
 
-from .conftest import Api
+from .conftest import Api, row_button
 
 
 def alice_of(api: Api, name: str = "Alice") -> dict:
@@ -113,3 +113,23 @@ def test_reversing_an_entry_asks_first(page: Page, books, api: Api):
     sheet.get_by_role("button", name="Reverse").click()
     page.wait_for_url(f"**/people/{who['id']}")
     expect(page.get_by_text("All settled up")).to_be_visible()
+
+
+def test_lending_from_the_add_screen_with_a_transfer(page: Page, books, api: Api):
+    from .conftest import add_row
+
+    who = alice_of(api)
+    page.goto("/transactions/new")
+    page.locator('input[name="total"]').fill("300")
+    # An expense does not offer people.
+    row_button(page, "credit").click()
+    expect(page.locator("#row-picker [data-pick-option]", has_text="Alice")).to_have_count(0)
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="Transfer").click()
+    add_row(page, "credit", "Checking")
+    add_row(page, "debit", "Alice")
+    expect(page.locator("[data-person-note]")).to_contain_text("Alice will owe you this")
+    page.get_by_role("button", name="Save").click()
+    page.wait_for_url("**/transactions")
+    assert float(api.get(f"/contacts/{who['id']}")["receivable"]) == 300
+    assert float(next(a for a in api.get("/accounts/") if a["name"] == "Checking")["balance"]) == 4700
