@@ -15,6 +15,7 @@
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
         <a href="/people/{{ person.id }}/edit">{{ icon("edit") }}Edit</a>
+        {% if not person.archived %}<a href="/people/{{ person.id }}/opening">{{ icon("plus") }}Add an opening balance</a>{% endif %}
         {% if person.archived %}
         <button type="button" hx-post="/people/{{ person.id }}/restore">Restore {{ person.name }}</button>
         {% elif not person.receivable and not person.payable %}
@@ -57,7 +58,7 @@
 <div class="tile">
   {% for a in activity %}
   <a class="r crow person-entry" href="/people/{{ person.id }}" hx-get="/people/{{ person.id }}/entry/{{ a.transaction_id }}/sheet" hx-target="#person-sheet-body" hx-swap="innerHTML" hx-push-url="false">
-    <span class="crow-main"><span class="crow-name">{{ {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "expense": a.description or "Shared expense", "settlement": "Paid back" if a.direction == "received" else "You paid back"}[a.purpose] }}</span><span class="crow-sub">{{ a.date|friendly_date }}{% if a.purpose == "expense" %} · their share{% elif a.description %} · {{ a.description }}{% endif %}</span></span>
+    <span class="crow-main"><span class="crow-name">{{ {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "opening": "Opening balance", "expense": a.description or "Shared expense", "settlement": "Paid back" if a.direction == "received" else "You paid back"}[a.purpose] }}</span><span class="crow-sub">{{ a.date|friendly_date }}{% if a.purpose == "expense" %} · their share{% elif a.description %} · {{ a.description }}{% endif %}</span></span>
     <span class="crow-amt"><span class="{{ 'income' if a.direction == 'received' and a.purpose in ('settlement', 'gift') else '' }}">{{ a.amount|money }}</span></span>
   </a>
   {% endfor %}

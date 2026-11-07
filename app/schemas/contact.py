@@ -85,6 +85,7 @@ class ContactDeleteResult(BaseModel):
     contact: ContactRead
 
 
+ObligationDirection = Literal["receivable", "payable"]
 TransferDirection = Literal["sent", "received"]
 TransferPurpose = Literal["loan", "borrowing", "advance", "gift"]
 
@@ -115,12 +116,35 @@ class TransferCreate(BaseModel):
         return _tidy(value)
 
 
+class OpeningBalanceCreate(BaseModel):
+    """What a person already owed before finode: they owe you (`receivable`) or you owe them (`payable`). It touches none
+    of your accounts or budgets."""
+
+    direction: ObligationDirection
+    amount: Decimal = Field(decimal_places=8, max_digits=24)
+    # Since when (it is the day the amount is dated, nothing else).
+    date: Day = Field(default_factory=local_today)
+    description: str | None = Field(default=None, max_length=200)
+
+    @field_validator("amount")
+    @classmethod
+    def _positive(cls, value: Decimal) -> Decimal:
+        if value <= 0:
+            raise ValueError("amount must be positive!")
+        return value
+
+    @field_validator("description")
+    @classmethod
+    def _tidy_description(cls, value: str | None) -> str | None:
+        return _tidy(value)
+
+
 class TransferRead(BaseModel):
     # The ledger entry that records it.
     id: UUID
     contact_id: UUID
     direction: TransferDirection
-    purpose: TransferPurpose
+    purpose: TransferPurpose | Literal["opening"]
     amount: Decimal
     date: Date
     account_id: UUID | None
@@ -129,8 +153,7 @@ class TransferRead(BaseModel):
     obligation_id: UUID | None
 
 
-ObligationDirection = Literal["receivable", "payable"]
-ObligationSource = Literal["shared_expense", "loan", "borrowing", "advance"]
+ObligationSource = Literal["shared_expense", "loan", "borrowing", "advance", "opening"]
 
 
 class ObligationRead(BaseModel):
@@ -232,7 +255,7 @@ class SettlementRead(BaseModel):
     excess_obligation_id: UUID | None
 
 
-ActivityPurpose = Literal["loan", "borrowing", "advance", "gift", "expense", "settlement"]
+ActivityPurpose = Literal["loan", "borrowing", "advance", "gift", "expense", "settlement", "opening"]
 
 
 class ActivityRead(BaseModel):
