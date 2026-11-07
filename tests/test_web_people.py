@@ -434,3 +434,51 @@ def test_nobody_with_no_people_sees_the_group_and_editing_never_does(client, ban
     ).json()
     assert 'optgroup label="People"' not in page(client, f"/transactions/{entry['id']}/edit")
     assert alice
+
+
+def test_adding_a_person_who_already_owes_you(client):
+    html = page(client, "/people/new")
+    assert "Already owes you, or is owed?" in html and 'name="opening_amount"' in html
+    data = {"name": "Alice", "opening_direction": "receivable", "opening_amount": "4000", "opening_since": "2026-01-01"}
+    made = client.post("/people", data=data)
+    assert made.status_code == 200 and made.headers["HX-Redirect"].startswith("/people/")
+    alice = client.get("/api/contacts/").json()[0]
+    assert float(alice["receivable"]) == 4000
+    text = flat(page(client, f"/people/{alice['id']}"))
+    assert "Alice owes you" in text and "Opening balance" in text and "4,000.00" in text
+    assert (
+        client.post("/people", data={"name": "Bob", "opening_direction": "payable", "opening_amount": "75"}).status_code
+        == 200
+    )
+    bob = next(c for c in client.get("/api/contacts/").json() if c["name"] == "Bob")
+    assert float(bob["payable"]) == 75
+    assert client.post("/people", data={"name": "Carol", "opening_amount": ""}).status_code == 200
+
+
+def test_a_bad_opening_balance_leaves_nobody_half_made(client):
+    bad = client.post("/people", data={"name": "Dave", "opening_amount": "x"})
+    assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#form-error"
+    assert client.post("/people", data={"name": "Dave", "opening_amount": "0"}).status_code == 400
+    assert client.get("/api/contacts/", params={"include_archived": True}).json() == []
+
+
+def test_adding_an_opening_balance_later(client):
+    alice = person(client)
+    assert "Add an opening balance" in page(client, f"/people/{alice['id']}")
+    form = page(client, f"/people/{alice['id']}/opening")
+    assert "Alice owes you" in form and "You owe Alice" in form
+    data = {
+        "opening_direction": "payable",
+        "opening_amount": "90",
+        "opening_since": "2026-02-01",
+        "description": "Rent",
+    }
+    done = client.post(f"/people/{alice['id']}/opening", data=data)
+    assert done.status_code == 200 and done.headers["HX-Redirect"] == f"/people/{alice['id']}"
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 90
+    assert "Rent" in flat(page(client, f"/people/{alice['id']}"))
+    blank = client.post(f"/people/{alice['id']}/opening", data={"opening_amount": ""})
+    assert blank.status_code == 400 and "amount" in blank.text
+    entry = client.get(f"/api/contacts/{alice['id']}/transfers").json()[0]["id"]
+    assert "Opening balance" in page(client, f"/people/{alice['id']}/entry/{entry}/sheet")
+    assert client.post(f"/people/{alice['id']}/entry/{entry}/reverse").status_code == 200

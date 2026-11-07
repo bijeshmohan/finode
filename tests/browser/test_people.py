@@ -133,3 +133,23 @@ def test_lending_from_the_add_screen_with_a_transfer(page: Page, books, api: Api
     page.wait_for_url("**/transactions")
     assert float(api.get(f"/contacts/{who['id']}")["receivable"]) == 300
     assert float(next(a for a in api.get("/accounts/") if a["name"] == "Checking")["balance"]) == 4700
+
+
+def test_a_new_person_can_start_with_an_opening_balance(page: Page, books, api: Api):
+    page.goto("/people/new")
+    page.locator('input[name="name"]').fill("Alice")
+    page.get_by_text("Already owes you, or is owed?").click()
+    page.locator('input[name="opening_amount"]').fill("4000")
+    page.get_by_role("button", name="Add person").click()
+    page.wait_for_url("**/people/*")
+    expect(page.get_by_text("Alice owes you")).to_be_visible()
+    expect(page.locator(".hero-balance")).to_contain_text("4,000.00")
+    expect(page.locator("main")).to_contain_text("Opening balance")
+    page.locator("details.menu summary").click()
+    page.get_by_role("link", name="Add an opening balance").click()
+    page.get_by_text("You owe Alice").click()
+    page.locator('input[name="opening_amount"]').fill("1000")
+    page.get_by_role("button", name="Add opening balance").click()
+    page.wait_for_url("**/people/*")
+    expect(page.locator(".hero-balance")).to_contain_text("3,000.00")
+    assert float(next(a for a in api.get("/accounts/") if a["name"] == "Checking")["balance"]) == 5000

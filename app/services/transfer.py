@@ -14,7 +14,7 @@ from uuid import UUID
 from ..models.contact import PartyTransaction
 from ..models.transaction import PostingSide
 from ..repositories.obligation import ObligationRepository
-from ..schemas.contact import TransferCreate, TransferRead
+from ..schemas.contact import OpeningBalanceCreate, TransferCreate, TransferRead
 from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead
 from .contact import PAYABLE, RECEIVABLE, ContactService
 from .contact_errors import (
@@ -24,7 +24,7 @@ from .contact_errors import (
 )
 from .transaction import TransactionService
 
-TRANSFER_PURPOSES = ("loan", "borrowing", "advance", "gift")
+TRANSFER_PURPOSES = ("loan", "borrowing", "advance", "gift", "opening")
 ALLOWED = {
     "sent": ("loan", "advance", "gift"),
     "received": ("borrowing", "advance", "gift"),
@@ -101,6 +101,46 @@ class TransferService:
             raise
         return self._read(entry, self.ob.party_rows(transaction_id=entry.id)[0], obligation_id)
 
+    def opening_balance(self, contact_id: UUID, data: OpeningBalanceCreate, key: str | None = None) -> TransferRead:
+        """What the person already owed before finode: against the system's Opening Balances account, so none of your own
+        accounts or budgets move. They owe you (debit "Due from X") or you owe them (credit "Due to X")."""
+        if key and (found := self.ob.request(key)) is not None:
+            same = self.read(found.transaction_id)
+            if (same.contact_id, same.purpose, same.amount, same.date) != (
+                contact_id,
+                "opening",
+                data.amount,
+                data.date,
+            ):
+                raise DuplicateRequestError("this idempotency key was already used for a different request!")
+            return same
+        contact = self.contacts.active(contact_id)
+        ids = self.contacts.account_ids(contact.id)
+        opening = self.accounts.opening_balances_account().id
+        receivable = data.direction == "receivable"
+        mine, theirs = (ids[RECEIVABLE], opening) if receivable else (opening, ids[PAYABLE])
+        try:
+            entry = self.transactions.create(
+                TransactionCreate(
+                    date=data.date,
+                    payee="Opening balance",
+                    comment=data.description,
+                    postings=[
+                        PostingCreate(account_id=mine, side=PostingSide.DEBIT, amount=data.amount),
+                        PostingCreate(account_id=theirs, side=PostingSide.CREDIT, amount=data.amount),
+                    ],
+                ),
+                commit=False,
+            )
+            self.ob.add_party(contact.id, entry.id, "opening", "sent" if receivable else "received")
+            made = self.ob.add_obligation(contact.id, entry.id, "opening", data.direction, data.amount)
+            self.remember(key, entry.id)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        return self._read(entry, self.ob.party_rows(transaction_id=entry.id)[0], made.id)
+
     def _replay(self, transaction_id: UUID, contact_id: UUID, data: TransferCreate) -> TransferRead:
         """The same idempotency key again: the same transfer is returned, a different request with it is refused."""
         found = self.read(transaction_id)
@@ -118,13 +158,13 @@ class TransferService:
 
     def _read(self, entry: TransactionRead, party: PartyTransaction, obligation_id: UUID | None) -> TransferRead:
         side = PostingSide.CREDIT if party.direction == "sent" else PostingSide.DEBIT
-        mine = next((p for p in entry.postings if p.side == side), None)
+        mine = next((p for p in entry.postings if p.side == side), None) if party.purpose != "opening" else None
         return TransferRead(
             id=entry.id,
             contact_id=party.contact_id,
             direction=party.direction,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
             purpose=party.purpose,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
-            amount=sum((p.amount for p in entry.postings if p.side == side), Decimal(0)),
+            amount=sum((p.amount for p in entry.postings if p.side == PostingSide.DEBIT), Decimal(0)),
             date=entry.date,
             account_id=mine.account_id if mine else None,
             description=entry.comment,

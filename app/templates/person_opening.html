@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Opening balance · finode{% endblock %}
+{% block content %}
+<a class="back" href="/people/{{ person.id }}">{{ icon("back") }}{{ person.name }}</a>
+<h1>Opening balance</h1>
+<p class="muted">What {{ person.name }} already owed before you started with finode. It touches none of your accounts or budgets.</p>
+<form class="card stack form-narrow" hx-post="/people/{{ person.id }}/opening">
+  <div class="scope-seg" role="radiogroup" aria-label="Who owes whom">
+    <label><input type="radio" name="opening_direction" value="receivable" checked><span>{{ person.name }} owes you</span></label>
+    <label><input type="radio" name="opening_direction" value="payable"><span>You owe {{ person.name }}</span></label>
+  </div>
+  <label>Amount
+    <input type="text" name="opening_amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" autofocus>
+  </label>
+  <label>Since
+    <input type="date" name="opening_since" value="{{ today }}">
+  </label>
+  <label>Note <span class="muted">(optional)</span>
+    <input type="text" name="description" maxlength="200">
+  </label>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit">Add opening balance</button></div>
+</form>
+{% endblock %}

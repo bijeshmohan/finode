@@ -30,6 +30,7 @@ from ...schemas.contact import (
     ContactRead,
     ContactUpdate,
     ObligationRead,
+    OpeningBalanceCreate,
     SettlementCreate,
     TransferCreate,
 )
@@ -61,7 +62,7 @@ EXCESS_CHOICES = {
     "sent": [("loan", "I lent them this"), ("advance", "An advance to them"), ("gift", "A gift")],
 }
 SHOWS = {"all": "All", "owed": "Owe you", "owe": "You owe"}
-SOURCE_NAMES = {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance"}
+SOURCE_NAMES = {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "opening": "Opening balance"}
 
 
 @dataclass
@@ -148,22 +149,82 @@ def people_page(request: Request, contacts: Contacts, show: str = "all"):
 
 @router.get("/new")
 def new_person_page(request: Request):
-    return templates.TemplateResponse(request, "person_form.html", {"active": "people", "person": None})
+    return templates.TemplateResponse(
+        request, "person_form.html", {"active": "people", "person": None, "today": local_today().isoformat()}
+    )
+
+
+def _opening(direction: str, amount: str, since: str, description: str = "") -> OpeningBalanceCreate | None:
+    """The opening balance a form describes, or none when the amount is left empty."""
+    if not amount.strip():
+        return None
+    return OpeningBalanceCreate(
+        direction="payable" if direction == "payable" else "receivable",
+        amount=parse_amount(amount),
+        description=description,
+        **({"date": since} if since else {}),
+    )
 
 
 @router.post("")
 def create_person(
     contacts: Contacts,
+    transfers: Transfers,
     name: Annotated[str, Form()] = "",
     email: Annotated[str, Form()] = "",
     phone: Annotated[str, Form()] = "",
     notes: Annotated[str, Form()] = "",
+    opening_direction: Annotated[str, Form()] = "receivable",
+    opening_amount: Annotated[str, Form()] = "",
+    opening_since: Annotated[str, Form()] = "",
 ):
     try:
+        opening = _opening(opening_direction, opening_amount, opening_since)  # checked before anyone is made
         made = contacts.create(ContactCreate(name=name, email=email, phone=phone, notes=notes))
     except (ValueError, ValidationError) as e:
         return htmx_error(_message(e), "#form-error")
+    if opening is not None:
+        try:
+            transfers.opening_balance(made.id, opening)
+        except (ValueError, ValidationError) as e:
+            contacts.delete(made.id)  # nothing else was done with them: they are removed again, not left half made
+            return htmx_error(_message(e), "#form-error")
     return htmx_redirect(f"/people/{made.id}", flash="person-added")
+
+
+@router.get("/{contact_id}/opening")
+def opening_page(request: Request, contact_id: UUID, contacts: Contacts):
+    return templates.TemplateResponse(
+        request,
+        "person_opening.html",
+        {
+            "active": "people",
+            "hide_fab": True,
+            "person": _person(contacts, contact_id),
+            "today": local_today().isoformat(),
+        },
+    )
+
+
+@router.post("/{contact_id}/opening")
+def add_opening(
+    contact_id: UUID,
+    contacts: Contacts,
+    transfers: Transfers,
+    opening_direction: Annotated[str, Form()] = "receivable",
+    opening_amount: Annotated[str, Form()] = "",
+    opening_since: Annotated[str, Form()] = "",
+    description: Annotated[str, Form()] = "",
+):
+    _person(contacts, contact_id)
+    try:
+        opening = _opening(opening_direction, opening_amount, opening_since, description)
+        if opening is None:
+            raise ValueError("enter the amount!")
+        transfers.opening_balance(contact_id, opening)
+    except (ValueError, ValidationError) as e:
+        return htmx_error(_message(e), "#form-error")
+    return htmx_redirect(f"/people/{contact_id}", flash="opening-added")
 
 
 @router.get("/{contact_id}/edit")

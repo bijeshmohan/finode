@@ -15,6 +15,7 @@ from ..schemas.contact import (
     ContactSummary,
     ContactUpdate,
     ObligationRead,
+    OpeningBalanceCreate,
     SettlementCreate,
     SettlementPreview,
     SettlementRead,
@@ -209,5 +210,18 @@ def contact_activity(
     first, with the total count for paging."""
     try:
         return summaries.activity(contact_id, purpose, limit, offset)
+    except ValueError as e:
+        raise _refused(e) from None
+
+
+@router.post("/{contact_id}/opening-balance", response_model=TransferRead, status_code=201)
+def record_opening_balance(
+    contact_id: UUID, data: OpeningBalanceCreate, transfers: Transfers, idempotency_key: IdempotencyKey = None
+):
+    """What the contact already owed you (`receivable`) or you owed them (`payable`) before you started with finode. It
+    is recorded against the Opening Balances account, so none of your accounts or budgets move, and it can be settled
+    like any other amount. Undo it with `DELETE /transfers/{transaction_id}`."""
+    try:
+        return transfers.opening_balance(contact_id, data, idempotency_key)
     except ValueError as e:
         raise _refused(e) from None

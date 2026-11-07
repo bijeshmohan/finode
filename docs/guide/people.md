@@ -13,6 +13,10 @@ The big figure is the difference: *Alice owes you ₹1,500.00*, or *You owe Alic
 - **Open** lists each amount still owed, oldest first, with how much of it has been paid back. Tap one to pay off just that one.
 - **Activity** lists everything you did together. Tap an entry to see it or **Reverse** it.
 
+## Money that was already owed
+
+If someone owed you (or you owed them) before you started with finode, fill in **Already owes you, or is owed?** on **Add person**, or choose **Add an opening balance** in the **…** menu of someone already added. Say who owes whom, how much, and since when. It is added to your opening balances: none of your accounts or budgets change, and it can be paid back with **Settle up** like anything else.
+
 ## Lend or borrow
 
 Choose what happened: *I lent money*, *I borrowed money*, *I paid an advance*, *They paid an advance*, *I gave a gift* or *They gave me a gift*, then the amount, your account and the day. A loan or borrowing is **not** spending or income, so your budgets don't change; the money simply leaves (or joins) Ready to assign. A gift is spending (or income) under a category you pick, and nothing is owed.
