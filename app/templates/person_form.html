@@ -9,13 +9,13 @@
   <label>Name
     <input type="text" name="name" maxlength="30" required value="{{ person.name if editing else '' }}" placeholder="e.g. Alice" {{ "autofocus" if not editing }}>
   </label>
-  <label>Phone <span class="muted">(optional)</span>
+  <label><span>Phone <span class="muted">(optional)</span></span>
     <input type="tel" name="phone" maxlength="30" value="{{ (person.phone or '') if editing else '' }}" autocomplete="off">
   </label>
-  <label>Email <span class="muted">(optional)</span>
+  <label><span>Email <span class="muted">(optional)</span></span>
     <input type="email" name="email" maxlength="254" value="{{ (person.email or '') if editing else '' }}" autocomplete="off">
   </label>
-  <label>Note <span class="muted">(optional)</span>
+  <label><span>Note <span class="muted">(optional)</span></span>
     <input type="text" name="notes" maxlength="500" value="{{ (person.notes or '') if editing else '' }}">
   </label>
   {% if not editing %}

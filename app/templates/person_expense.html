@@ -26,7 +26,7 @@
     </div>
   </fieldset>
   <div class="tile">
-    <div class="r share-row"><span class="crow-main"><span class="crow-name">You</span></span><input class="share-value" type="text" inputmode="decimal" name="value_self" aria-label="Your share value" autocomplete="off"></div>
+    <div class="r share-row"><input type="checkbox" checked disabled aria-label="You are in it"><span class="crow-main"><span class="crow-name">You</span></span><input class="share-value" type="text" inputmode="decimal" name="value_self" aria-label="Your share value" autocomplete="off"></div>
     {% for p in people %}
     <label class="r share-row"><input type="checkbox" name="with_{{ p.id }}" value="1" {{ "checked" if p.id == start }}><span class="crow-main"><span class="crow-name">{{ p.name }}</span></span><input class="share-value" type="text" inputmode="decimal" name="value_{{ p.id }}" aria-label="{{ p.name }}'s share value" autocomplete="off"></label>
     {% endfor %}
@@ -36,7 +36,7 @@
   <details class="sheet-extra">
     <summary><span>Someone else paid some of it</span>{{ icon("chevron-right") }}</summary>
     <div class="stack">
-      <label>You paid <span class="muted">(blank: whatever the others did not)</span>
+      <label><span>You paid <span class="muted">(blank: whatever the others did not)</span></span>
         <input type="text" name="paid_self" inputmode="decimal" autocomplete="off">
       </label>
       {% for p in people %}

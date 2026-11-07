@@ -153,3 +153,54 @@ def test_a_new_person_can_start_with_an_opening_balance(page: Page, books, api: 
     page.wait_for_url("**/people/*")
     expect(page.locator(".hero-balance")).to_contain_text("3,000.00")
     assert float(next(a for a in api.get("/accounts/") if a["name"] == "Checking")["balance"]) == 5000
+
+
+def test_the_sharing_rows_sit_in_a_line(page: Page, books, api: Api):
+    who = alice_of(api)
+    page.goto(f"/people/expense/new?with={who['id']}")
+    rows = page.locator(".share-row")
+    assert rows.count() == 2
+    for index in range(2):
+        row = rows.nth(index)
+        box, check, name = (
+            row.bounding_box(),
+            row.locator('input[type="checkbox"]').bounding_box(),
+            row.locator(".crow-name").bounding_box(),
+        )
+        assert box and check and name
+        assert abs((check["y"] + check["height"] / 2) - (name["y"] + name["height"] / 2)) < 6, (
+            "the box and the name are on one line"
+        )
+        assert box["height"] < 70, "a row is one line tall"
+    expect(rows.first.locator('input[type="checkbox"]')).to_be_disabled()
+    page.get_by_text("%", exact=True).click()
+    inputs = rows.nth(1).locator(".share-value")
+    expect(inputs).to_be_visible()
+    value, name = inputs.bounding_box(), rows.nth(1).locator(".crow-name").bounding_box()
+    assert value and name and abs((value["y"] + value["height"] / 2) - (name["y"] + name["height"] / 2)) < 12
+
+
+def test_the_figures_carry_the_rupee_sign_and_the_page_has_no_stray_wrapping(page: Page, books, api: Api):
+    who = alice_of(api)
+    api.post(
+        f"/contacts/{who['id']}/transfers",
+        direction="sent",
+        purpose="loan",
+        amount="500",
+        account_id=books["checking"]["id"],
+    )
+    page.goto("/people")
+    expect(page.locator(".ready-hero .figure")).to_contain_text("₹")
+    page.goto(f"/people/{who['id']}")
+    expect(page.locator(".hero-balance")).to_contain_text("₹")
+    buttons = page.locator(".person-actions .button")
+    assert buttons.count() == 3
+    tops = {round(buttons.nth(i).bounding_box()["y"]) for i in range(3)}
+    assert len(tops) == 1, "Add expense, Lend or borrow and Settle up are on one row"
+    page.goto(f"/people/{who['id']}/settle")
+    label = page.locator("label", has_text="Note").first
+    assert label.bounding_box()["height"] < 80, "the label's '(optional)' stays beside it, not under it"
+    page.locator('input[name="amount"]').fill("100")
+    heading = page.locator(".preview-head").first
+    expect(heading).to_be_visible()
+    assert heading.evaluate("e => getComputedStyle(e).textTransform") == "none"

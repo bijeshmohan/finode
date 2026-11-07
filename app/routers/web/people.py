@@ -140,6 +140,7 @@ def people_page(request: Request, contacts: Contacts, show: str = "all"):
             "owed_total": sum((p.receivable for p in live), Decimal(0)),
             "owe_total": sum((p.payable for p in live), Decimal(0)),
             "everyone": bool(live),
+            "currency": request.state.currency,
         },
     )
 
@@ -301,6 +302,7 @@ def person_page(
             "open_rows": open_rows,
             "activity": activity.items,
             "more_activity": activity.total - len(activity.items),
+            "currency": request.state.currency,
         },
     )
 
