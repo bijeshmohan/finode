@@ -12,7 +12,7 @@ settlement tables included), **the no-history rule stays** (nothing auditable be
 | 3 | Shared expenses (equal, exact, percentage, shares; several payers) | built |
 | 4 | Settlements (FIFO, manual, partial, excess named, idempotency, locking) | built |
 | 5 | Contact summary, activity, list search/sort/filter | built |
-| 6 | Web pages (mock-ups first) | mock-ups for the owner's choice |
+| 6 | Web pages (mock-ups first) | built (mock-ups chosen: Settings row, one-page split) |
 
 All phases are built on the one branch `feature/contacts`; nothing is merged until the owner says so.
 
@@ -38,6 +38,8 @@ All phases are built on the one branch `feature/contacts`; nothing is merged unt
 - **Concurrency:** obligations and expenses are locked with `SELECT … FOR UPDATE` (a no-op on SQLite, so the tests check the re-read rule, not the lock itself).
 - **Reversal** (`DELETE /transfers/{id}`, `DELETE /settlements/{id}`, `POST /shared-expenses/{id}/cancel`) deletes for good.
 - **Backup** is version 6 from phase 1; every later table is added to it and to `tests/test_backup.py`.
+
+- **Phase 6:** the forms are pages instead of the mock-ups' sheets (a sheet opened from a sheet is fragile); no drafts in the UI; no search or sort controls on the list (the owner removed search boxes before; the API has `q` and `sort`); advance is in the transfer kinds, an excess gift has no category choice (Uncategorised).
 
 ## Rules for the next phases
 

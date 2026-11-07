@@ -127,6 +127,8 @@ class AccountService:
         accounts_by_id = {a.id: a for a in all_accounts}
         if self._get_root_name(parent, accounts_by_id) in GROUP_POSTING_ROOT_NAMES:
             raise ValueError("Expenses and Income hold categories, not accounts: add a category instead!")
+        if parent.id in self.ar.contact_account_ids():
+            raise SystemAccountError(f"'{parent.name}' belongs to a contact: it can't hold sub-accounts!")
         if self.tr.postings_for_account(parent.id):
             raise ValueError(f"cannot add sub-accounts to '{parent.name}' because it has postings!")
 
@@ -354,6 +356,7 @@ class AccountService:
             due_day=account.due_day,
             bill_rounding=cast(BillRounding, account.bill_rounding),
             system_key=account.system_key,
+            contact_account=account.id in self.ar.contact_account_ids(),
             created=account.created,
             updated=account.updated,
         )

@@ -95,6 +95,15 @@ class PickOption:
 PickGroups = list[tuple[str, list[PickOption]]]
 
 
+def without_contacts(roots: list[Node]) -> list[Node]:
+    """The tree without a contact's "Due from" and "Due to" accounts: they belong to the People pages, not to the Accounts
+    page or the pickers."""
+    for node in roots:
+        node.children = [c for c in node.children if not c.account.contact_account]
+        without_contacts(node.children)
+    return roots
+
+
 def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> PickGroups:
     """Accounts that transactions may post to, grouped by root. Closed accounts are left out, except those in
     `keep` (what an entry being edited already uses)."""
@@ -108,7 +117,7 @@ def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> P
                 balance=n.account.balance,
             )
             for n in root.walk()
-            if n.postable and (n.account.closed_on is None or n.account.id in keep)
+            if n.postable and not n.account.contact_account and (n.account.closed_on is None or n.account.id in keep)
         ]
         if options:
             groups.append((root.account.name, options))
@@ -200,7 +209,7 @@ ACCOUNT_CHIP_NAMES = {"assets": "Asset", "liabilities": "Liability", "equity": "
 @router.get("")
 def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
     tab = tab.lower() if tab.lower() in ACCOUNT_TABS else "assets"
-    roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
+    roots = [r for r in without_contacts(build_tree(accounts.list())) if r.account.name in ACCOUNT_ROOTS]
     mark_closed(roots)
     root = next(r for r in roots if r.account.name == ACCOUNT_TABS[tab])
     return templates.TemplateResponse(
@@ -264,7 +273,7 @@ def new_account_page(
     root: str = "",
 ):
     """The form for a new account (under Assets, Liabilities or Equity)."""
-    everything = build_tree(accounts.list())
+    everything = without_contacts(build_tree(accounts.list()))
     roots = [r for r in everything if r.account.name in ACCOUNT_ROOTS]
     root_of = {n.account.id: r.account.name for r in roots for n in r.walk()}
     only = ACCOUNT_TABS.get(root.lower())
@@ -313,7 +322,7 @@ def quick_account_sheet(request: Request, accounts: Accounts, categories: Catego
         kind = "spending" if hint == "Expenses" else "earning"
         groups = [c for c in categories.list(kind) if c.parent_id is None]
         return templates.TemplateResponse(request, "partials/quick_category.html", {"kind": kind, "groups": groups})
-    roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
+    roots = [r for r in without_contacts(build_tree(accounts.list())) if r.account.name in ACCOUNT_ROOTS]
     suggested = next((r.account.id for r in roots if r.account.name == hint), None)
     return templates.TemplateResponse(
         request,

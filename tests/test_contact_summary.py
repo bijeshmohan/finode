@@ -60,7 +60,7 @@ def test_the_summary_and_the_activity(client, bank):
     assert summary["open_obligations"] == 3, "the rest of the loan, the borrowing and Alice's share of the dinner"
     assert [r["purpose"] for r in summary["recent"]] == ["expense", "settlement", "gift", "borrowing", "loan"]
     page = client.get(f"/api/contacts/{alice['id']}/activity").json()
-    assert page["total"] == 5 and [i["purpose"] for i in page["items"]][0] == "expense"
+    assert page["total"] == 5 and page["items"][0]["purpose"] == "expense"
     only = client.get(f"/api/contacts/{alice['id']}/activity", params={"purpose": "loan"}).json()
     assert only["total"] == 1 and float(only["items"][0]["amount"]) == 2000 and only["items"][0]["direction"] == "sent"
     two = client.get(f"/api/contacts/{alice['id']}/activity", params={"limit": 2, "offset": 1}).json()

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/money.html" import figure %}
+{% block title %}People · finode{% endblock %}
+{% block content %}
+<a class="back" href="/settings">{{ icon("back") }}Settings</a>
+<div class="page-head tall"><h1>People</h1></div>
+
+{% if everyone or show == "archived" %}
+<div class="cat-bar">
+  <div class="chips seg cat-chips" role="group" aria-label="Show">
+    {% for key, name in shows.items() %}
+    <a class="chip" href="/people?show={{ key }}" aria-pressed="{{ 'true' if show == key else 'false' }}">{{ name }}</a>
+    {% endfor %}
+    {% if has_archived %}<a class="chip" href="/people?show=archived" aria-pressed="{{ 'true' if show == 'archived' else 'false' }}">Archived</a>{% endif %}
+  </div>
+</div>
+
+<div class="ready zero budget-hero ready-hero cat-hero">
+  <div class="hero-top"><div class="calc-row"><span class="muted">{% if owed_total or owe_total %}{{ "Owed to you" if owed_total >= owe_total else "You owe" }}{% else %}Everything is settled{% endif %}</span></div></div>
+  {% if owed_total or owe_total %}
+  <span class="figure">{{ figure((owed_total - owe_total)|abs, currency) }}</span>
+  <span class="glance-note hero-note"><span>{% if owed_total and owe_total %}{{ owed_total|money }} owed to you · {{ owe_total|money }} you owe{% else %}in total{% endif %}</span></span>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if rows %}
+<div class="tile">
+  {% for r in rows %}
+  <a class="r crow" href="/people/{{ r.person.id }}">
+    <span class="crow-main"><span class="crow-name">{{ r.person.name }}</span><span class="crow-sub">{{ r.sub }}</span></span>
+    <span class="crow-amt">{% if r.person.net > 0 %}<span class="income">{{ r.person.net|money }}</span>{% elif r.person.net < 0 %}<span class="out-amount">{{ (-r.person.net)|money }}</span>{% elif r.person.receivable or r.person.payable %}<span>{{ r.person.receivable|money }}</span>{% else %}<span class="muted">–</span>{% endif %}</span>
+  </a>
+  {% endfor %}
+</div>
+{% elif everyone %}
+<div class="card empty-state"><p>Nobody here.</p></div>
+{% elif show != "archived" %}
+<div class="card empty-state">
+  <p>Keep track of money you lend, borrow and share with people.</p>
+  <a class="button" href="/people/new">Add a person</a>
+</div>
+{% endif %}
+{% if everyone and show != "archived" %}<a class="add-row" href="/people/new">{{ icon("plus") }}Add person</a>{% endif %}
+{% endblock %}

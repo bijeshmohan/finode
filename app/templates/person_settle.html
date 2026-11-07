@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/pickers.html" import account_pick %}
+{% block title %}Settle up · finode{% endblock %}
+{% block content %}
+<a class="back" href="/people/{{ person.id }}">{{ icon("back") }}{{ person.name }}</a>
+<h1>Settle up with {{ person.name }}</h1>
+<form class="card stack form-narrow person-form" hx-post="/people/{{ person.id }}/settle">
+  {% if chosen %}
+  <input type="hidden" name="obligation_id" value="{{ chosen.id }}">
+  <p class="muted">Paying off one amount: {{ chosen.description or "Open amount" }} ({{ chosen.outstanding_amount|money }} left).</p>
+  <input type="hidden" name="direction" value="{{ direction }}">
+  {% else %}
+  <div class="scope-seg" role="radiogroup" aria-label="Who pays">
+    <label><input type="radio" name="direction" value="received" {{ "checked" if direction == "received" }}><span>{{ person.name }} pays you</span></label>
+    <label><input type="radio" name="direction" value="sent" {{ "checked" if direction == "sent" }}><span>You pay {{ person.name }}</span></label>
+  </div>
+  {% endif %}
+  <label>Amount
+    <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off" value="{{ amount|money if amount != '' else '' }}">
+  </label>
+  {{ account_pick("account_id", "Your account", account_groups) }}
+  <label>Date
+    <input type="date" name="date" value="{{ today }}">
+  </label>
+  <label>Note <span class="muted">(optional)</span>
+    <input type="text" name="description" maxlength="200">
+  </label>
+  <div id="settle-preview" class="preview" hx-post="/people/{{ person.id }}/settle/preview" hx-include="closest form"
+       hx-trigger="load, change from:closest form, input delay:400ms from:closest form" hx-swap="innerHTML" aria-live="polite"></div>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit">Settle up</button></div>
+</form>
+{% include "partials/pick_dialog.html" %}
+{% endblock %}

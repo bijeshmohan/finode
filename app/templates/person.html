@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/money.html" import figure %}
+{% block title %}{{ person.name }} · finode{% endblock %}
+{% block content %}
+<a class="back" href="/people">{{ icon("back") }}People</a>
+
+<header class="account-hero">
+  <div class="acct-title">
+    <div class="acct-names">
+      <div class="acct-name-row"><h1>{{ person.name }}{% if person.archived %} <span class="badge">archived</span>{% endif %}</h1></div>
+      {% if person.phone or person.email %}<p class="acct-sub">{{ [person.phone, person.email]|select|join(" · ") }}</p>{% endif %}
+    </div>
+    <details class="menu">
+      <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
+      <div class="menu-panel">
+        <a href="/people/{{ person.id }}/edit">{{ icon("edit") }}Edit</a>
+        {% if person.archived %}
+        <button type="button" hx-post="/people/{{ person.id }}/restore">Restore {{ person.name }}</button>
+        {% elif not person.receivable and not person.payable %}
+        <p class="menu-note">Archiving hides {{ person.name }} from new entries. What you did together stays.</p>
+        <button type="button" hx-post="/people/{{ person.id }}/archive" hx-target="#page-error">Archive</button>
+        {% endif %}
+        <button type="button" class="danger-text" hx-post="/people/{{ person.id }}/delete" hx-target="#page-error"
+                hx-confirm="Remove {{ person.name }}? Someone you never dealt with is deleted; otherwise they are archived.">{{ icon("trash") }}Remove</button>
+      </div>
+    </details>
+  </div>
+  <p id="page-error" class="error" role="alert"></p>
+  <p class="muted">{% if person.net > 0 %}{{ person.name }} owes you{% elif person.net < 0 %}You owe {{ person.name }}{% elif person.receivable %}Even: each owes the other the same{% else %}All settled up{% endif %}</p>
+  <p class="hero-balance">{{ figure(person.net|abs, currency) }}</p>
+  {% if person.receivable and person.payable %}<p class="muted">{{ person.receivable|money }} they owe you · {{ person.payable|money }} you owe them</p>{% endif %}
+</header>
+
+{% if not person.archived %}
+<div class="actions person-actions">
+  <a class="button secondary" href="/people/expense/new?with={{ person.id }}">Add expense</a>
+  <a class="button secondary" href="/people/{{ person.id }}/transfer">Lend or borrow</a>
+  {% if person.receivable or person.payable %}<a class="button secondary" href="/people/{{ person.id }}/settle">Settle up</a>{% endif %}
+</div>
+{% endif %}
+
+{% if open_rows %}
+<h2 class="section-head">Open</h2>
+<div class="tile">
+  {% for o, name, who, partly in open_rows %}
+  <a class="r crow" href="/people/{{ person.id }}/settle?obligation={{ o.id }}">
+    <span class="crow-main"><span class="crow-name">{{ name }}</span><span class="crow-sub">{{ o.date|friendly_date }} · {{ who }}{% if partly %} · {{ o.settled_amount|money }} of {{ o.original_amount|money }} paid{% endif %}</span></span>
+    <span class="crow-amt"><span class="{{ 'income' if o.direction == 'receivable' else 'out-amount' }}">{{ o.outstanding_amount|money }}</span></span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2 class="section-head">Activity</h2>
+{% if activity %}
+<div class="tile">
+  {% for a in activity %}
+  <a class="r crow person-entry" href="/people/{{ person.id }}" hx-get="/people/{{ person.id }}/entry/{{ a.transaction_id }}/sheet" hx-target="#person-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+    <span class="crow-main"><span class="crow-name">{{ {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "expense": a.description or "Shared expense", "settlement": "Paid back" if a.direction == "received" else "You paid back"}[a.purpose] }}</span><span class="crow-sub">{{ a.date|friendly_date }}{% if a.purpose == "expense" %} · their share{% elif a.description %} · {{ a.description }}{% endif %}</span></span>
+    <span class="crow-amt"><span class="{{ 'income' if a.direction == 'received' and a.purpose in ('settlement', 'gift') else '' }}">{{ a.amount|money }}</span></span>
+  </a>
+  {% endfor %}
+</div>
+{% if more_activity > 0 %}<p class="muted hint">{{ more_activity }} older entr{{ "y" if more_activity == 1 else "ies" }} not shown.</p>{% endif %}
+{% else %}
+<div class="card empty-state"><p>Nothing yet with {{ person.name }}.</p></div>
+{% endif %}
+
+<dialog id="person-sheet" class="sheet sheet-bottom" aria-label="Entry">
+  <div id="person-sheet-body" class="sheet-body"></div>
+</dialog>
+{% endblock %}

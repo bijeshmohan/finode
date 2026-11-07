@@ -449,7 +449,7 @@ document.addEventListener("close", (event) => {
     document.querySelectorAll("a.tx.is-open, a.crow.is-open").forEach((row) => row.classList.remove("is-open"));
   }
 }, true);
-const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "todo-sheet-body"];
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "todo-sheet-body", "person-sheet-body"];
 const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
 document.body.addEventListener("htmx:beforeRequest", (event) => {
   const body = event.detail && event.detail.target;

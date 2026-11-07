@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% set editing = person is not none %}
+{% block title %}{{ "Edit " ~ person.name if editing else "Add person" }} · finode{% endblock %}
+{% block content %}
+<a class="back" href="{{ ('/people/' ~ person.id) if editing else '/people' }}">{{ icon("back") }}{{ person.name if editing else "People" }}</a>
+<h1>{{ "Edit person" if editing else "Add person" }}</h1>
+<form class="card stack form-narrow" hx-post="{{ '/people/' ~ person.id ~ '/edit' if editing else '/people' }}">
+  <label>Name
+    <input type="text" name="name" maxlength="30" required value="{{ person.name if editing else '' }}" placeholder="e.g. Alice" {{ "autofocus" if not editing }}>
+  </label>
+  <label>Phone <span class="muted">(optional)</span>
+    <input type="tel" name="phone" maxlength="30" value="{{ (person.phone or '') if editing else '' }}" autocomplete="off">
+  </label>
+  <label>Email <span class="muted">(optional)</span>
+    <input type="email" name="email" maxlength="254" value="{{ (person.email or '') if editing else '' }}" autocomplete="off">
+  </label>
+  <label>Note <span class="muted">(optional)</span>
+    <input type="text" name="notes" maxlength="500" value="{{ (person.notes or '') if editing else '' }}">
+  </label>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit">{{ "Save changes" if editing else "Add person" }}</button></div>
+</form>
+{% endblock %}

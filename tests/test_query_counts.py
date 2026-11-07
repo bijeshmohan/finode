@@ -107,3 +107,28 @@ def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_account
 
     short, long = save(2), save(7)
     assert long <= short + 1, (short, long)
+
+
+def test_the_people_pages_do_not_ask_per_person_or_per_row(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=4, transactions=4)
+    bank = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Acct1")
+
+    def add_people(count: int, start: int) -> str:
+        first = ""
+        for i in range(start, start + count):
+            who = client.post("/api/contacts/", json={"name": f"Person {i}"}).json()
+            first = first or who["id"]
+            client.post(
+                f"/api/contacts/{who['id']}/transfers",
+                json={"direction": "sent", "purpose": "loan", "amount": "5", "account_id": bank["id"]},
+            )
+        return first
+
+    first = add_people(3, 0)
+    pages = ["/people", f"/people/{first}", "/api/contacts/", f"/api/contacts/{first}/summary"]
+    small = {p: count_queries(lambda p=p: client.get(p)) for p in pages}
+    add_people(25, 3)
+    large = {p: count_queries(lambda p=p: client.get(p)) for p in pages}
+    for page in pages:
+        assert large[page] <= small[page] + 1, f"{page} asks more as the people grow: {small[page]} -> {large[page]}"
+        assert large[page] <= 25, f"{page} makes {large[page]} queries"

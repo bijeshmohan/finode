@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/pickers.html" import account_pick, category_pick %}
+{% block title %}Lend or borrow · finode{% endblock %}
+{% block content %}
+<a class="back" href="/people/{{ person.id }}">{{ icon("back") }}{{ person.name }}</a>
+<h1>{{ person.name }}</h1>
+<form class="card stack form-narrow person-form" hx-post="/people/{{ person.id }}/transfer">
+  <fieldset class="plain">
+    <legend>What happened?</legend>
+    <div class="tile kind-list">
+      {% for key, direction, purpose, name, hint in kinds %}
+      <label class="r"><span class="crow-main"><span class="crow-name">{{ name }}</span><span class="crow-sub">{{ hint }}</span></span><input type="radio" name="kind" value="{{ key }}" {{ "checked" if loop.first }}></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <label>Amount
+    <input type="text" name="amount" inputmode="decimal" placeholder="0.00" required autocomplete="off">
+  </label>
+  {{ account_pick("account_id", "Your account", account_groups) }}
+  {{ category_pick("spending_category_id", "Spent on", spending, extra='data-gift="sent"') }}
+  {{ category_pick("earning_category_id", "Counts as", earning, extra='data-gift="received"') }}
+  <label>Date
+    <input type="date" name="date" value="{{ today }}">
+  </label>
+  <label>Note <span class="muted">(optional)</span>
+    <input type="text" name="description" maxlength="200">
+  </label>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit">Record</button></div>
+</form>
+{% include "partials/pick_dialog.html" %}
+{% endblock %}

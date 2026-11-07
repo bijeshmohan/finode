@@ -151,7 +151,8 @@ class SettlementService:
         """What a settlement would clear, saving nothing."""
         self.contacts.active(contact_id)
         plan = self._plan(contact_id, data, lock=False)
-        self._check_excess(data, plan)
+        if data.excess_as is not None and plan.excess > 0:
+            self._check_excess(data, plan)  # no excess_as yet is fine here: the preview says what the rest is
         direction = RECEIVABLE if data.direction == "received" else PAYABLE
         owing = sum((owed for _, owed in self.obligations.open_rows(contact_id, direction, lock=False)), ZERO)
         return SettlementPreview(
@@ -160,7 +161,7 @@ class SettlementService:
             allocations=[self._alloc_read(a) for a in plan.allocations],
             allocated=plan.allocated,
             excess=plan.excess,
-            excess_as=data.excess_as,
+            excess_as=data.excess_as if plan.excess > 0 else None,
             remaining=owing - plan.allocated,
         )
 

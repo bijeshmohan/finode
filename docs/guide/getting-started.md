@@ -59,4 +59,5 @@ After a few entries, tapping a payee chip under the payee field fills in the pay
 - [Transactions](transactions.md)
 - [Budgeting](budgeting.md)
 - [Recurring transactions, settings and backup](recurring-and-settings.md)
+- [People: lending, sharing a bill and settling up](people.md)
 - [Using finode from an AI assistant](mcp.md)

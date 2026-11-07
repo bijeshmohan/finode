@@ -68,6 +68,8 @@ class AccountRead(AccountBase):
     closed_on: Date | None = None
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); they cannot be changed or removed.
     system_key: str | None = None
+    # True for a contact's "Due from" and "Due to" accounts: they follow the contact and only its page uses them.
+    contact_account: bool = False
     created: datetime
     updated: datetime
 

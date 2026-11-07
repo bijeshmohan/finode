@@ -9,7 +9,7 @@ from sqlmodel import Session, col, func, select
 from ..models.account import Account
 from ..models.contact import ContactAccount
 from ..schemas.account import AccountCreate, AccountUpdate
-from .cache import remembered
+from .cache import remember, remembered
 
 
 class AccountRepository:
@@ -39,8 +39,19 @@ class AccountRepository:
 
     def list(self) -> builtins.list[Account]:
         """Every account of the person, loaded once per session (see repositories/cache.py)."""
-        statement = select(Account).where(Account.user_id == self.uid)
-        return list(remembered(self.db, ("accounts", self.uid), lambda: self.db.exec(statement).all()))
+        # The contact accounts come in the same query (the account service marks them), so no page pays for them apart.
+        statement = (
+            select(Account, ContactAccount.account_id)
+            .outerjoin(ContactAccount, col(ContactAccount.account_id) == col(Account.id))
+            .where(Account.user_id == self.uid)
+        )
+
+        def load() -> builtins.list[Account]:
+            rows = self.db.exec(statement).all()
+            remember(self.db, ("contact_accounts", self.uid), frozenset(c for _, c in rows if c is not None))
+            return [account for account, _ in rows]
+
+        return list(remembered(self.db, ("accounts", self.uid), load))
 
     def read_by_name(
         self,
