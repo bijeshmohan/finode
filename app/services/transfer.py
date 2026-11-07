@@ -16,11 +16,9 @@ from ..models.transaction import PostingSide
 from ..repositories.obligation import ObligationRepository
 from ..schemas.contact import TransferCreate, TransferRead
 from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead
-from .account import AccountService
 from .contact import PAYABLE, RECEIVABLE, ContactService
 from .contact_errors import (
     DuplicateRequestError,
-    InvalidContactAccountError,
     InvalidTransferPurposeError,
     ReversalBlockedError,
 )
@@ -42,18 +40,6 @@ class TransferService:
         self.db = ob.db
 
     # ---- shared with the other contact services ----------------------------------------------------
-
-    def own_account(self, account_id: UUID) -> UUID:
-        """An account of the owner's where money can be kept or paid from: an asset or liability, not a contact's."""
-        every = {a.id: a for a in self.accounts.ar.list()}
-        account = every.get(account_id)
-        if account is None:
-            raise InvalidContactAccountError(f"account '{account_id}' not found!")
-        if account.id in self.accounts.ar.contact_account_ids():
-            raise InvalidContactAccountError(f"'{account.name}' belongs to a contact: name one of your own accounts!")
-        if AccountService.root_name(account, every) not in ("Assets", "Liabilities"):
-            raise InvalidContactAccountError(f"'{account.name}' is not an asset or liability account of yours!")
-        return account.id
 
     def remember(self, key: str | None, transaction_id: UUID) -> None:
         if key:
@@ -92,7 +78,7 @@ class TransferService:
             )
         if data.category_id is not None and data.purpose != "gift":
             raise InvalidTransferPurposeError("only a gift has a category: a loan is not spending or income!")
-        account_id = self.own_account(data.account_id)
+        account_id = self.contacts.own_account(data.account_id)
         try:
             entry = self.transactions.create(
                 TransactionCreate(

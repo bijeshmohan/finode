@@ -145,6 +145,58 @@ class BackupContact(BaseModel):
     payable_account: UUID
 
 
+class BackupPartyTransaction(BaseModel):
+    contact: UUID
+    transaction: UUID
+    purpose: str
+    direction: str
+
+
+class BackupObligation(BaseModel):
+    id: UUID
+    contact: UUID
+    # The entry that made it (a loan, a shared expense...).
+    transaction: UUID
+    source_type: str
+    direction: str
+    amount: Decimal
+
+
+class BackupSettlement(BaseModel):
+    obligation: UUID
+    # The entry that cleared (part of) it.
+    transaction: UUID
+    amount: Decimal
+
+
+class BackupShare(BaseModel):
+    contact: UUID | None = None
+    is_self: bool = False
+    share_amount: Decimal
+    share_value: Decimal | None = None
+
+
+class BackupContribution(BaseModel):
+    contact: UUID | None = None
+    is_self: bool = False
+    account: UUID | None = None
+    amount: Decimal
+
+
+class BackupSharedExpense(BaseModel):
+    id: UUID
+    # The entry, once confirmed; a draft has none.
+    transaction: UUID | None = None
+    description: str
+    date: Day
+    total_amount: Decimal
+    category: UUID | None = None
+    split_method: str
+    status: str
+    shares: list[BackupShare] = []
+    contributions: list[BackupContribution] = []
+
+
 class BackupFile(BaseModel):
     format: str
     version: int
@@ -156,6 +208,10 @@ class BackupFile(BaseModel):
     accounts: list[BackupAccount]
     categories: list[BackupCategory] = []
     contacts: list[BackupContact] = []
+    party_transactions: list[BackupPartyTransaction] = []
+    obligations: list[BackupObligation] = []
+    settlements: list[BackupSettlement] = []
+    shared_expenses: list[BackupSharedExpense] = []
     transactions: list[BackupTransaction] = []
     recurring: list[BackupRecurring] = []
     allocations: list[BackupAllocation] = []
@@ -168,6 +224,7 @@ class RestoreSummary(BaseModel):
     accounts: int = 0
     categories: int = 0
     contacts: int = 0
+    shared_expenses: int = 0
     transactions: int = 0
     recurring: int = 0
     allocations: int = 0

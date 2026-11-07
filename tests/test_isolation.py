@@ -78,6 +78,7 @@ LISTS = {
     ("GET", "/api/accounts/"),
     ("GET", "/api/categories/"),
     ("GET", "/api/contacts/"),
+    ("GET", "/api/shared-expenses/"),
     ("GET", "/api/backup"),
     ("GET", "/api/budget/"),
     ("GET", "/api/todo/"),
@@ -126,6 +127,8 @@ REFERENCES = {
     ("POST", "/api/accounts/"),
     ("POST", "/api/categories/"),
     ("POST", "/api/contacts/"),
+    ("POST", "/api/shared-expenses/"),
+    ("POST", "/api/shared-expenses/preview"),
     ("POST", "/categories"),
     ("POST", "/categories/quick"),
     ("POST", "/api/import"),
@@ -237,6 +240,7 @@ def world(client: TestClient, session, rich) -> World:
     w.transaction_ids = [t["id"] for t in doc["transactions"]] + [spare["id"]]
     w.recurring_ids = [r["id"] for r in doc["recurring"]]
     w.contact_ids = [c["id"] for c in doc["contacts"]]
+    w.expense_ids = [e["id"] for e in doc["shared_expenses"]]
     w.token_id, w.grant_id = str(w.token.id), str(w.grant.id)
     w.markers = A_WORDS + [
         str(i)
@@ -245,6 +249,7 @@ def world(client: TestClient, session, rich) -> World:
             *w.transaction_ids,
             *w.recurring_ids,
             *w.contact_ids,
+            *w.expense_ids,
             w.token_id,
             w.grant_id,
         )
@@ -298,6 +303,7 @@ def candidates(world: World, name: str) -> list[str]:
         "account_id": [*world.accounts.values(), *world.roots],
         "category_id": list(world.categories.values()),
         "contact_id": world.contact_ids,
+        "expense_id": world.expense_ids,
         "transaction_id": world.transaction_ids,
         "recurring_id": world.recurring_ids,
         "token_id": [world.token_id],
@@ -327,6 +333,7 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("POST", "/api/categories/{category_id}/merge"): {"json": {"into": bills}},
         ("PATCH", "/api/categories/{category_id}"): {"json": {"name": "hacked"}},
         ("PATCH", "/api/contacts/{contact_id}"): {"json": {"name": "hacked"}},
+        ("PATCH", "/api/shared-expenses/{expense_id}"): {"json": {"description": "hacked"}},
         ("POST", "/oauth/apps/{grant_id}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{token_id}/access"): {"data": {"scope": "read"}},
     }
@@ -445,6 +452,34 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "POST",
             f"/api/contacts/{world.contact_ids[0]}/transfers",
             json={"direction": "sent", "purpose": "loan", "amount": "5", "account_id": mine},
+        )
+        expense = {
+            "description": "Trip",
+            "total_amount": "10",
+            "participants": [{"is_self": True}, {"contact_id": world.contact_ids[0]}],
+            "payments": [{"account_id": mine, "amount": "10"}],
+        }
+        refused("a shared expense with A's contact", "POST", "/api/shared-expenses/", json=expense)
+        refused("a preview with A's contact", "POST", "/api/shared-expenses/preview", json=expense)
+        refused(
+            "a shared expense paid from A's account",
+            "POST",
+            "/api/shared-expenses/",
+            json={
+                **expense,
+                "participants": [{"is_self": True}, {"contact_id": world.b_contact["id"]}],
+                "payments": [{"account_id": a["HDFC"], "amount": "10"}],
+            },
+        )
+        refused(
+            "a shared expense under A's category",
+            "POST",
+            "/api/shared-expenses/",
+            json={
+                **expense,
+                "participants": [{"is_self": True}, {"contact_id": world.b_contact["id"]}],
+                "category_id": a["Groceries"],
+            },
         )
         refused(
             "a transfer from A's account",

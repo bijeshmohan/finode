@@ -15,10 +15,16 @@ from ..models.contact import Contact
 from ..models.utils import utc_now
 from ..repositories.contact import ContactRepository
 from ..repositories.obligation import ObligationRepository
+from ..repositories.shared_expense import SharedExpenseRepository
 from ..schemas.account import AccountCreate
 from ..schemas.contact import ContactCreate, ContactDeleteResult, ContactRead, ContactUpdate
 from .account import AccountService
-from .contact_errors import ContactArchivedError, ContactInUseError, ContactNotFoundError
+from .contact_errors import (
+    ContactArchivedError,
+    ContactInUseError,
+    ContactNotFoundError,
+    InvalidContactAccountError,
+)
 
 RECEIVABLE, PAYABLE = "receivable", "payable"
 LAST_DAY = date(2999, 12, 31)
@@ -31,6 +37,7 @@ class ContactService:
         self.cr = cr or ContactRepository(self.ar.db, self.ar.uid)
         self.db = self.ar.db
         self.ob = ObligationRepository(self.db, self.ar.uid)
+        self.expenses = SharedExpenseRepository(self.db, self.ar.uid)
 
     # ---- reading -----------------------------------------------------------------------------------
 
@@ -90,6 +97,18 @@ class ContactService:
         if account is None:
             raise ValueError("account not found!")
         return account.balance
+
+    def own_account(self, account_id: UUID) -> UUID:
+        """An account of the owner's where money can be kept or paid from: an asset or liability, not a contact's."""
+        every = {a.id: a for a in self.accounts.ar.list()}
+        account = every.get(account_id)
+        if account is None:
+            raise InvalidContactAccountError(f"account '{account_id}' not found!")
+        if account.id in self.accounts.ar.contact_account_ids():
+            raise InvalidContactAccountError(f"'{account.name}' belongs to a contact: name one of your own accounts!")
+        if AccountService.root_name(account, every) not in ("Assets", "Liabilities"):
+            raise InvalidContactAccountError(f"'{account.name}' is not an asset or liability account of yours!")
+        return account.id
 
     # ---- writing -----------------------------------------------------------------------------------
 
@@ -174,8 +193,10 @@ class ContactService:
         contact = self._get(contact_id)
         read = self._read(contact)
         ids = list(self._account_ids(contact.id).values())
-        if self.ob.party_rows(contact_id=contact.id) or any(
-            self.accounts.tr.postings_for_account(account_id) for account_id in ids
+        if (
+            self.ob.party_rows(contact_id=contact.id)
+            or self.expenses.uses_contact(contact.id)
+            or any(self.accounts.tr.postings_for_account(account_id) for account_id in ids)
         ):
             return ContactDeleteResult(outcome="archived", contact=self.archive(contact_id))
         try:

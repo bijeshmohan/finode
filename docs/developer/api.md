@@ -52,6 +52,20 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 | `GET` | `/categories/{category_id}/register` | The entries that have a line labelled with the category (and its subcategories, unless `own_only=true`), oldest first, with what each changed and the running total. |
 | `POST` | `/categories/{category_id}/merge` | Fold it into another category (`into`): entries, labelled lines, planned amounts and recurring rules become the other's. `dry_run=true` only says what would move. |
 
+## Shared expenses
+
+An expense split with contacts. A **draft** is only the plan; **confirming** records one ordinary ledger entry (your own share spent under the expense's `category_id`, what you paid out of your accounts) and, for each contact, what they owe you or you owe them, worked out from what they paid against their share. Only your own share counts against your budget. `split_method` is `equal`, `exact` (the `value` of each participant is an amount), `percentage` (values make 100) or `shares` (weights); leftover units of the smallest coin go to the first participants. `payments` are what *you* paid (an account each), `contributions` what contacts paid; together they must make the total before it can be confirmed. A confirmed expense can't be edited: cancel it (which removes its entry and what it left owed, refused once something was settled) and enter it again.
+
+| Method | Path | What it does |
+|---|---|---|
+| `POST` | `/shared-expenses/preview` | Each person's share, who owes whom, the ledger lines and how much is still unpaid for, saving nothing. |
+| `POST` | `/shared-expenses/` | Save a draft, or with `confirm=true` record it at once. `Idempotency-Key` makes a retry safe (with `confirm`). |
+| `GET` | `/shared-expenses/` | Your shared expenses, newest first (`status=draft|confirmed`). |
+| `GET` | `/shared-expenses/{expense_id}` | One expense with its shares, payments, ledger lines and what is owed. |
+| `PATCH` | `/shared-expenses/{expense_id}` | Change a draft; only what is sent changes (409 once confirmed). |
+| `POST` | `/shared-expenses/{expense_id}/confirm` | Record a draft (409 if already confirmed; `Idempotency-Key` returns the first result on a retry). |
+| `POST` | `/shared-expenses/{expense_id}/cancel` | Remove a draft, or reverse a confirmed expense for good. |
+
 ## Contacts
 
 A contact is a person you lend to, borrow from or share costs with. It is not an account: its ledger side is two ordinary accounts made with it, **Due from X** (an asset: X owes you) and **Due to X** (a liability: you owe X), both outside the budget. They follow the contact and can't be renamed, closed, deleted or merged on their own, and **nothing can be posted to them except through the contact routes** (the ordinary transaction routes answer 400): that keeps every debt tied to an obligation. An entry made through a contact can't be edited or deleted on the ordinary routes either; reverse it from the contact. Names are unique (capitals aside) and at most 30 characters.

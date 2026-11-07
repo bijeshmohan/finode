@@ -18,13 +18,20 @@ from ..config import settings
 from ..currencies import find as find_currency
 from ..limits import LimitReached, ensure_room
 from ..models.category import BudgetCategory
-from ..models.contact import Contact
+from ..models.contact import (
+    Contact,
+    ExpenseContribution,
+    ExpenseShare,
+    SharedExpense,
+)
 from ..models.recurring import RecurringTransaction
 from ..models.transaction import PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..repositories.budget import BudgetRepository
 from ..repositories.contact import ContactRepository
+from ..repositories.obligation import ObligationRepository
 from ..repositories.recurring import RecurringRepository
+from ..repositories.shared_expense import SharedExpenseRepository
 from ..schemas.account import AccountCreate, BillRounding
 from ..schemas.backup import (
     FORMAT,
@@ -34,11 +41,17 @@ from ..schemas.backup import (
     BackupAllocation,
     BackupCategory,
     BackupContact,
+    BackupContribution,
     BackupFile,
+    BackupObligation,
+    BackupPartyTransaction,
     BackupPosting,
     BackupProfile,
     BackupRecurring,
     BackupRecurringPosting,
+    BackupSettlement,
+    BackupShare,
+    BackupSharedExpense,
     BackupTransaction,
     RestoreSummary,
 )
@@ -67,6 +80,8 @@ class BackupService:
         self.br = br
         self.cr = CategoryRepository(tr.db, tr.uid)
         self.contacts = ContactRepository(tr.db, tr.uid)
+        self.obligations = ObligationRepository(tr.db, tr.uid)
+        self.expenses = SharedExpenseRepository(tr.db, tr.uid)
 
     # ---- backing up ------------------------------------------------------------------------------
 
@@ -115,6 +130,7 @@ class BackupService:
                 for c in sorted(self.cr.list(), key=lambda c: (c.parent_id is not None, c.kind, c.name.lower()))
             ],
             contacts=self._export_contacts(),
+            **self._export_party(),
             transactions=[
                 BackupTransaction(
                     id=t.id,
@@ -198,6 +214,61 @@ class BackupService:
             for c in sorted(self.contacts.list(), key=lambda c: c.name.casefold())
         ]
 
+    def _export_party(self) -> dict:
+        """What contacts did: activity, what is owed, settlements and shared expenses."""
+        obligations = self.obligations.obligations()
+        return {
+            "party_transactions": [
+                BackupPartyTransaction(
+                    contact=r.contact_id, transaction=r.transaction_id, purpose=r.purpose, direction=r.direction
+                )
+                for r in sorted(self.obligations.party_rows(), key=lambda r: (str(r.transaction_id), str(r.contact_id)))
+            ],
+            "obligations": [
+                BackupObligation(
+                    id=o.id,
+                    contact=o.contact_id,
+                    transaction=o.source_transaction_id,
+                    source_type=o.source_type,
+                    direction=o.direction,
+                    amount=o.original_amount,
+                )
+                for o in obligations
+            ],
+            "settlements": [
+                BackupSettlement(obligation=r.obligation_id, transaction=r.settlement_transaction_id, amount=r.amount)
+                for r in self.obligations.settlements()
+            ],
+            "shared_expenses": [
+                BackupSharedExpense(
+                    id=e.id,
+                    transaction=e.transaction_id,
+                    description=e.description,
+                    date=e.date,
+                    total_amount=e.total_amount,
+                    category=e.category_id,
+                    split_method=e.split_method,
+                    status=e.status,
+                    shares=[
+                        BackupShare(
+                            contact=s.contact_id,
+                            is_self=s.is_self,
+                            share_amount=s.share_amount,
+                            share_value=s.share_value,
+                        )
+                        for s in self.expenses.shares(e.id)
+                    ],
+                    contributions=[
+                        BackupContribution(
+                            contact=c.contact_id, is_self=c.is_self, account=c.account_id, amount=c.amount
+                        )
+                        for c in self.expenses.contributions(e.id)
+                    ],
+                )
+                for e in self.expenses.list()
+            ],
+        }
+
     # ---- restoring -------------------------------------------------------------------------------
 
     def can_restore(self) -> bool:
@@ -257,6 +328,7 @@ class BackupService:
         summary.accounts = sum(1 for a in file.accounts if a.parent_id is not None)
         summary.categories = len(file.categories)
         summary.contacts = len(file.contacts)
+        summary.shared_expenses = len(file.shared_expenses)
         summary.transactions = len(file.transactions)
         summary.recurring = len(file.recurring)
         summary.allocations = len(self._spending_plan(file))
@@ -381,6 +453,7 @@ class BackupService:
         postable |= {a.id for a in file.accounts if a.parent_id is None and a.name in ("Expenses", "Income")}
         self._check_categories(file, accounts, errors)
         self._check_contacts(file, accounts, errors)
+        self._check_party(file, errors)
         rules = {r.id for r in file.recurring}
         references: set[tuple[str, str]] = set()
         for t in file.transactions:
@@ -458,6 +531,56 @@ class BackupService:
                 return
 
     @staticmethod
+    def _check_party(file: BackupFile, errors: list[str]) -> None:
+        """What contacts did refers only to the file's own contacts, entries and obligations, and nothing is settled
+        beyond what was owed."""
+        if errors or not (file.party_transactions or file.obligations or file.settlements or file.shared_expenses):
+            return
+        contacts = {c.id for c in file.contacts}
+        entries = {t.id for t in file.transactions}
+        accounts = {a.id for a in file.accounts}
+        categories = {c.id for c in file.categories}
+        owed = {o.id: o for o in file.obligations}
+        for r in file.party_transactions:
+            if r.contact not in contacts or r.transaction not in entries:
+                errors.append("a contact's activity refers to a contact or an entry that is not in the file.")
+                return
+        for o in file.obligations:
+            if o.contact not in contacts or o.transaction not in entries or o.amount <= 0:
+                errors.append("an obligation refers to a contact or an entry that is not in the file.")
+                return
+        if len(owed) != len(file.obligations):
+            errors.append("an obligation id appears twice.")
+            return
+        settled: dict[UUID, Decimal] = {}
+        for r in file.settlements:
+            if r.obligation not in owed or r.transaction not in entries or r.amount <= 0:
+                errors.append("a settlement refers to an obligation or an entry that is not in the file.")
+                return
+            settled[r.obligation] = settled.get(r.obligation, Decimal(0)) + r.amount
+        if any(total > owed[i].amount for i, total in settled.items()):
+            errors.append("a settlement clears more than was owed.")
+            return
+        for e in file.shared_expenses:
+            people = [(s.contact, s.is_self) for s in e.shares]
+            paid = [(c.contact, c.is_self, c.account) for c in e.contributions]
+            if (
+                (e.status == "confirmed") != (e.transaction is not None)
+                or (e.transaction is not None and e.transaction not in entries)
+                or (e.category is not None and e.category not in categories)
+                or any((c is None) != self_ or (c is not None and c not in contacts) for c, self_ in people)
+                or len(set(people)) != len(people)
+                or any(
+                    (c is None) != self_
+                    or (account is None) == self_
+                    or (account is not None and account not in accounts)
+                    for c, self_, account in paid
+                )
+            ):
+                errors.append(f"the shared expense '{e.description}' is not sound.")
+                return
+
+    @staticmethod
     def _check_categories(file: BackupFile, accounts: dict[UUID, BackupAccount], errors: list[str]) -> None:
         """The categories are sound (two levels, one kind in a group, names unique in a place) and a category on a line
         (or a rule) is one of the file's and fits the line: spending on Expenses or a payment out of the budget, earning
@@ -532,6 +655,62 @@ class BackupService:
             depth += 1
         return depth
 
+    def _apply_party(
+        self,
+        file: BackupFile,
+        contact_ids: dict[UUID, UUID],
+        made: dict[UUID, UUID],
+        ids: dict[UUID, UUID],
+        cats: dict[UUID, UUID],
+    ) -> None:
+        """What contacts did, on the new ids (their entries have just been made)."""
+        db = self.tr.db
+        for r in file.party_transactions:
+            self.obligations.add_party(contact_ids[r.contact], made[r.transaction], r.purpose, r.direction)
+        owed: dict[UUID, UUID] = {}
+        for o in file.obligations:
+            owed[o.id] = self.obligations.add_obligation(
+                contact_ids[o.contact], made[o.transaction], o.source_type, o.direction, o.amount
+            ).id
+        for r in file.settlements:
+            self.obligations.add_settlement(owed[r.obligation], made[r.transaction], r.amount)
+        for e in file.shared_expenses:
+            expense = self.expenses.add(
+                SharedExpense(
+                    user_id=self.expenses.uid,
+                    transaction_id=made[e.transaction] if e.transaction else None,
+                    description=e.description,
+                    date=e.date,
+                    total_amount=e.total_amount,
+                    category_id=cats.get(e.category) if e.category else None,
+                    split_method=e.split_method,
+                    status=e.status,
+                )
+            )
+            for s in e.shares:
+                db.add(
+                    ExpenseShare(
+                        user_id=self.expenses.uid,
+                        shared_expense_id=expense.id,
+                        contact_id=contact_ids[s.contact] if s.contact else None,
+                        is_self=s.is_self,
+                        share_amount=s.share_amount,
+                        share_value=s.share_value,
+                    )
+                )
+            for c in e.contributions:
+                db.add(
+                    ExpenseContribution(
+                        user_id=self.expenses.uid,
+                        shared_expense_id=expense.id,
+                        contact_id=contact_ids[c.contact] if c.contact else None,
+                        is_self=c.is_self,
+                        account_id=ids[c.account] if c.account else None,
+                        amount=c.amount,
+                    )
+                )
+        db.flush()
+
     def _apply(self, file: BackupFile) -> None:
         db = self.tr.db
         try:
@@ -605,6 +784,7 @@ class BackupService:
                 account.closed_on = a.closed_on
                 db.add(account)
                 db.flush()
+            contact_ids: dict[UUID, UUID] = {}
             for c in file.contacts:
                 contact = self.contacts.add(
                     Contact(
@@ -616,6 +796,7 @@ class BackupService:
                         archived_at=c.archived_at,
                     )
                 )
+                contact_ids[c.id] = contact.id
                 self.contacts.link(contact.id, ids[c.receivable_account], "receivable")
                 self.contacts.link(contact.id, ids[c.payable_account], "payable")
             # Categories: a group first, then the categories in it.
@@ -712,6 +893,7 @@ class BackupService:
                     db.add(linked)
             for row in self._spending_plan(file):
                 self.br.set(row.month, cats[row.category_id], row.amount)
+            self._apply_party(file, contact_ids, made, ids, cats)
             db.commit()
         except Exception:
             db.rollback()

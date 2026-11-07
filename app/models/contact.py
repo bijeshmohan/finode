@@ -1,8 +1,9 @@
+from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, Index, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, Index, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 from .utils import Amount, TimestampMixin, utc_now
@@ -128,4 +129,93 @@ class ContactRequest(SQLModel, table=True):
     user_id: UUID = Field(foreign_key="auth.users.id")
     key: str = Field(max_length=100)
     transaction_id: UUID = Field(foreign_key="transactions.id")
+    created: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
+
+
+class SharedExpense(TimestampMixin, table=True):
+    """An expense split with contacts. A draft is only the plan; confirming it records one ledger entry (`transaction_id`)
+    and the obligations it leaves. Cancelling removes it all."""
+
+    __tablename__ = "shared_expenses"
+    __table_args__ = (
+        UniqueConstraint("transaction_id", name="uq_shared_expenses_transaction"),
+        CheckConstraint("total_amount > 0", name="ck_shared_expenses_total"),
+        CheckConstraint("split_method IN ('equal', 'exact', 'percentage', 'shares')", name="ck_shared_expenses_method"),
+        CheckConstraint("status IN ('draft', 'confirmed')", name="ck_shared_expenses_status"),
+        CheckConstraint(
+            "(status = 'confirmed') = (transaction_id IS NOT NULL)", name="ck_shared_expenses_confirmed_has_entry"
+        ),
+        Index("ix_shared_expenses_user", "user_id"),
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="auth.users.id")
+    transaction_id: UUID | None = Field(default=None, foreign_key="transactions.id")
+    description: str = Field(max_length=40)
+    date: date_type
+    total_amount: Decimal = Field(sa_type=Amount())
+    # What the owner's own share is spent under (none means Uncategorised).
+    category_id: UUID | None = Field(default=None, foreign_key="budget_categories.id")
+    split_method: str = Field(max_length=10)
+    status: str = Field(default="draft", max_length=9)
+
+
+class ExpenseShare(SQLModel, table=True):
+    """What one participant is responsible for: the owner (`is_self`) or a contact."""
+
+    __tablename__ = "expense_shares"
+    __table_args__ = (
+        CheckConstraint(
+            "(is_self AND contact_id IS NULL) OR (NOT is_self AND contact_id IS NOT NULL)",
+            name="ck_expense_shares_participant",
+        ),
+        CheckConstraint("share_amount >= 0", name="ck_expense_shares_amount"),
+        UniqueConstraint("shared_expense_id", "contact_id", name="uq_expense_shares_contact"),
+        Index(
+            "uq_expense_shares_self",
+            "shared_expense_id",
+            unique=True,
+            sqlite_where=text("is_self"),
+            postgresql_where=text("is_self"),
+        ),
+        Index("ix_expense_shares_user", "user_id"),
+        Index("ix_expense_shares_expense", "shared_expense_id"),
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="auth.users.id")
+    shared_expense_id: UUID = Field(foreign_key="shared_expenses.id")
+    contact_id: UUID | None = Field(default=None, foreign_key="contacts.id")
+    is_self: bool = Field(default=False)
+    share_amount: Decimal = Field(sa_type=Amount())
+    # The percentage, the weight or the amount the share was worked out from (none for an equal split).
+    share_value: Decimal | None = Field(default=None, sa_type=Amount())
+    created: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
+
+
+class ExpenseContribution(SQLModel, table=True):
+    """What one participant paid towards the expense. The owner's payments name the account they left (one row each); a
+    contact's payment is one row and moves nothing in the owner's accounts."""
+
+    __tablename__ = "expense_contributions"
+    __table_args__ = (
+        CheckConstraint(
+            "(is_self AND contact_id IS NULL AND account_id IS NOT NULL) "
+            "OR (NOT is_self AND contact_id IS NOT NULL AND account_id IS NULL)",
+            name="ck_expense_contributions_participant",
+        ),
+        CheckConstraint("amount > 0", name="ck_expense_contributions_amount"),
+        UniqueConstraint("shared_expense_id", "contact_id", name="uq_expense_contributions_contact"),
+        UniqueConstraint("shared_expense_id", "account_id", name="uq_expense_contributions_account"),
+        Index("ix_expense_contributions_user", "user_id"),
+        Index("ix_expense_contributions_expense", "shared_expense_id"),
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="auth.users.id")
+    shared_expense_id: UUID = Field(foreign_key="shared_expenses.id")
+    contact_id: UUID | None = Field(default=None, foreign_key="contacts.id")
+    is_self: bool = Field(default=False)
+    account_id: UUID | None = Field(default=None, foreign_key="accounts.id")
+    amount: Decimal = Field(sa_type=Amount())
     created: datetime = Field(default_factory=utc_now, sa_type=DateTime(timezone=True))
