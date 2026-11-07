@@ -844,13 +844,16 @@ class TransactionService:
         self,
         transaction_id: UUID,
         data: TransactionUpdate,
+        *,
+        commit: bool = True,
     ) -> TransactionRead | None:
         self._check_update(transaction_id, data)
         transaction = self.tr.update(transaction_id, data, self.origin)
         if not transaction:
             raise RuntimeError(f"failed to update transaction '{transaction_id}'!")
-        self.tr.db.commit()
-        self.tr.db.refresh(transaction)
+        if commit:
+            self.tr.db.commit()
+            self.tr.db.refresh(transaction)
         return self._to_read(transaction)
 
     def label_payment(self, transaction_id: UUID, category_id: UUID) -> TransactionRead:

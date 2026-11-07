@@ -139,6 +139,28 @@ class OpeningBalanceCreate(BaseModel):
         return _tidy(value)
 
 
+class OpeningBalanceUpdate(BaseModel):
+    """Changes to an opening balance: only what is sent changes. Once part of it has been paid back, the amount cannot go
+    below that and who owes whom cannot change. `description` null clears the note."""
+
+    direction: ObligationDirection | None = None
+    amount: Decimal | None = Field(default=None, decimal_places=8, max_digits=24)
+    date: Day | None = None
+    description: str | None = Field(default=None, max_length=200)
+
+    @field_validator("amount")
+    @classmethod
+    def _positive(cls, value: Decimal | None) -> Decimal | None:
+        if value is not None and value <= 0:
+            raise ValueError("amount must be positive!")
+        return value
+
+    @field_validator("description")
+    @classmethod
+    def _tidy_description(cls, value: str | None) -> str | None:
+        return _tidy(value)
+
+
 class TransferRead(BaseModel):
     # The ledger entry that records it.
     id: UUID

@@ -13,5 +13,8 @@
 {% if item.purpose == "expense" %}<p class="muted">{{ person.name }}'s share of the bill.</p>{% endif %}
 <p class="muted hint">Reversing removes it for good, as if it had never happened. It can't be reversed while something has been paid back against it.</p>
 <p id="person-sheet-error" class="error" role="alert"></p>
+{% if item.purpose == "opening" %}
+<div class="sheet-actions"><a class="button" href="/people/{{ person.id }}/opening/{{ item.transaction_id }}/edit">Edit</a></div>
+{% endif %}
 <button type="button" class="danger-text" hx-post="/people/{{ person.id }}/entry/{{ item.transaction_id }}/reverse"
         hx-confirm="Reverse this? It is removed for good.">{{ icon("trash") }}Reverse</button>

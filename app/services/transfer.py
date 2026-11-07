@@ -14,11 +14,13 @@ from uuid import UUID
 from ..models.contact import PartyTransaction
 from ..models.transaction import PostingSide
 from ..repositories.obligation import ObligationRepository
-from ..schemas.contact import OpeningBalanceCreate, TransferCreate, TransferRead
-from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead
+from ..schemas.contact import OpeningBalanceCreate, OpeningBalanceUpdate, TransferCreate, TransferRead
+from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead, TransactionUpdate
 from .contact import PAYABLE, RECEIVABLE, ContactService
 from .contact_errors import (
+    ConflictError,
     DuplicateRequestError,
+    InsufficientOutstandingBalanceError,
     InvalidTransferPurposeError,
     ReversalBlockedError,
 )
@@ -140,6 +142,52 @@ class TransferService:
             self.db.rollback()
             raise
         return self._read(entry, self.ob.party_rows(transaction_id=entry.id)[0], made.id)
+
+    def update_opening(self, transaction_id: UUID, data: OpeningBalanceUpdate) -> TransferRead:
+        """Change an opening balance (the amount, the day, the note, who owes whom). The same entry is rewritten, so none
+        of your accounts or budgets move. Once part of it was paid back the amount cannot go below that and the
+        direction cannot change; the owed figures are read again under a row lock."""
+        party = self._party(transaction_id)
+        if party.purpose != "opening":
+            raise InvalidTransferPurposeError("only an opening balance can be changed: reverse it and record it again!")
+        contact = self.contacts.active(party.contact_id)
+        obligation = self.ob.obligations(source_transaction_id=transaction_id, lock=True)[0]
+        paid = self.ob.settled([obligation.id]).get(obligation.id, Decimal(0))
+        sent = data.model_fields_set
+        direction = data.direction if "direction" in sent and data.direction else obligation.direction
+        amount = data.amount if "amount" in sent and data.amount else obligation.original_amount
+        if paid > 0 and direction != obligation.direction:
+            raise ConflictError("part of this has been paid back: who owes whom can't change!")
+        if amount < paid:
+            raise InsufficientOutstandingBalanceError(
+                f"{paid:f} of this has been paid back: the amount can't go below that!"
+            )
+        ids = self.contacts.account_ids(contact.id)
+        opening = self.accounts.opening_balances_account().id
+        receivable = direction == "receivable"
+        debit, credit = (ids[RECEIVABLE], opening) if receivable else (opening, ids[PAYABLE])
+        changes: dict = {
+            "postings": [
+                PostingCreate(account_id=debit, side=PostingSide.DEBIT, amount=amount),
+                PostingCreate(account_id=credit, side=PostingSide.CREDIT, amount=amount),
+            ]
+        }
+        if "date" in sent and data.date:
+            changes["date"] = data.date
+        if "description" in sent:
+            changes["comment"] = data.description
+        try:
+            entry = self.transactions.update(transaction_id, TransactionUpdate(**changes), commit=False)
+            if entry is None:
+                raise InvalidTransferPurposeError("transfer not found!")
+            obligation.original_amount, obligation.direction = amount, direction
+            party.direction = "sent" if receivable else "received"
+            self.db.add_all([obligation, party])
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        return self.read(transaction_id)
 
     def _replay(self, transaction_id: UUID, contact_id: UUID, data: TransferCreate) -> TransferRead:
         """The same idempotency key again: the same transfer is returned, a different request with it is refused."""

@@ -141,3 +141,66 @@ def test_a_backup_brings_it_back(client, alice):
         assert float(again["receivable"]) == 4000 and again["last_activity"] == "2026-01-01"
     finally:
         as_user(TEST_USER_ID)
+
+
+def test_an_opening_balance_can_be_changed(client, bank, alice):
+    made = opening(client, alice, date="2026-01-01", description="Old loan").json()
+    before = client.get("/api/budget/").json()
+    changed = client.patch(
+        f"/api/transfers/{made['id']}", json={"amount": "4500", "date": "2025-12-01", "description": "Loan from Dec"}
+    )
+    assert changed.status_code == 200, changed.text
+    body = changed.json()
+    assert (float(body["amount"]), body["date"], body["description"], body["purpose"]) == (
+        4500.0,
+        "2025-12-01",
+        "Loan from Dec",
+        "opening",
+    )
+    assert balance(client, alice["receivable_account_id"]) == 4500 and balance(client, bank["id"]) == 10000
+    owed = client.get(f"/api/contacts/{alice['id']}/obligations").json()
+    assert len(owed) == 1 and float(owed[0]["original_amount"]) == 4500 and owed[0]["description"] == "Loan from Dec"
+    after = client.get("/api/budget/").json()
+    assert after["ready_to_assign"] == before["ready_to_assign"], "the budget did not move"
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+    assert client.patch(f"/api/transfers/{made['id']}", json={"description": None}).json()["description"] is None
+
+
+def test_who_owes_whom_can_be_turned_round_until_something_is_paid(client, bank, alice):
+    made = opening(client, alice).json()
+    flipped = client.patch(f"/api/transfers/{made['id']}", json={"direction": "payable"})
+    assert flipped.status_code == 200, flipped.text
+    assert balance(client, alice["receivable_account_id"]) == 0 and balance(client, alice["payable_account_id"]) == 4000
+    assert client.get(f"/api/contacts/{alice['id']}/obligations").json()[0]["direction"] == "payable"
+    back = client.patch(f"/api/transfers/{made['id']}", json={"direction": "receivable"}).json()
+    assert float(back["amount"]) == 4000
+    paid = client.post(
+        f"/api/contacts/{alice['id']}/settlements",
+        json={"direction": "received", "amount": "1500", "account_id": bank["id"]},
+    )
+    assert paid.status_code == 201
+    turned = client.patch(f"/api/transfers/{made['id']}", json={"direction": "payable"})
+    assert turned.status_code == 409 and "who owes whom" in turned.json()["detail"]
+    low = client.patch(f"/api/transfers/{made['id']}", json={"amount": "1000"})
+    assert low.status_code == 400 and "1500" in low.json()["detail"]
+    ok = client.patch(f"/api/transfers/{made['id']}", json={"amount": "1500"})
+    assert ok.status_code == 200
+    assert float(client.get(f"/api/contacts/{alice['id']}/obligations").json()[0]["outstanding_amount"]) == 0
+    assert balance(client, alice["receivable_account_id"]) == 0
+
+
+def test_only_an_opening_balance_can_be_changed_this_way(client, bank, alice):
+    loan = client.post(
+        f"/api/contacts/{alice['id']}/transfers",
+        json={"direction": "sent", "purpose": "loan", "amount": "5", "account_id": bank["id"]},
+    ).json()
+    refused = client.patch(f"/api/transfers/{loan['id']}", json={"amount": "6"})
+    assert refused.status_code == 400 and "reverse it" in refused.json()["detail"]
+    assert client.patch(f"/api/transfers/{MISSING}", json={"amount": "6"}).status_code == 404
+    made = opening(client, alice).json()
+    assert client.patch(f"/api/transfers/{made['id']}", json={"amount": "0"}).status_code == 422
+    client.delete(f"/api/transfers/{loan['id']}")
+    client.delete(f"/api/transfers/{made['id']}")
+    client.post(f"/api/contacts/{alice['id']}/archive")
+    gone = opening(client, {"id": MISSING})
+    assert gone.status_code == 404
