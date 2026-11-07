@@ -1,4 +1,4 @@
-"""The rupee sign in place of "INR", and blue for what was added automatically."""
+"""The rupee sign in place of "INR", and violet for what was added automatically."""
 
 from app.templating import amount, symbol
 
@@ -29,17 +29,16 @@ def test_the_big_figures_use_the_sign_and_the_font_carries_it(client, root_accou
     move(client, bank, food, "30")
     home = client.get("/").text
     assert '<span class="cur">&#8377;</span>' in home
-    assert "fonts/figtree-rupee.woff2" in home and "unicode-range:U+20B9" in home, (
-        "the sign comes from our own font, not the phone's"
-    )
+    face = home.split('font-family:"Anek Latin"')[1].split("}")[0]
+    assert "fonts/anek-latin.woff2" in face and "U+20B9" in face, "the sign comes from our own font, not the phone's"
 
 
-def test_what_was_added_automatically_is_blue(client):
+def test_what_was_added_automatically_is_violet(client):
     from pathlib import Path
 
     css = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
     assert ".tx-via {" in css and "color: var(--auto)" in css.split(".tx-via {")[1].split("}")[0]
-    assert "color: var(--auto)" in css.split(".sheet-tags a {")[1].split("}")[0], "the sheet's tags are blue links"
+    assert "color: var(--auto)" in css.split(".sheet-tags a {")[1].split("}")[0], "the sheet's tags are coloured links"
     tokens = [block for block in css.split("{") if "--auto:" in block]
     assert len(tokens) == 3, "light and both dark blocks define it"
 

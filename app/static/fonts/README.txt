@@ -1,5 +1,6 @@
-Figtree (variable, latin subset, weights 400-700), by Erik Kennedy and contributors.
+anek-latin.woff2: Anek Latin (variable), by Ek Type (https://github.com/EkType/Anek).
 Licensed under the SIL Open Font License 1.1: https://openfontlicense.org
-Source: https://fonts.google.com/specimen/Figtree  (served here so the app does not depend on a third party for its look)
+Source: https://github.com/google/fonts/tree/main/ofl/aneklatin (served here so the app does not depend on a third party for its look)
 
-figtree-rupee.woff2: only the rupee sign (U+20B9), subset from Figtree's latin-ext file (SIL Open Font License), so it looks the same on every phone.
+Cut with fontTools from AnekLatin[wdth,wght].ttf: weight 400-700, width 75-100 (condensed for the big figures, normal for the rest),
+the Latin range plus the rupee sign (U+20B9) and tabular figures, no hinting.

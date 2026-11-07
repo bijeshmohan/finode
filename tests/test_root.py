@@ -34,5 +34,5 @@ def test_pages_and_styles_are_compressed_but_fonts_are_not(client):
     css = client.get("/static/style.css", headers={"Accept-Encoding": "gzip"})
     assert css.headers.get("content-encoding") == "gzip" and css.num_bytes_downloaded < len(css.content) // 3
 
-    font = client.get("/static/fonts/figtree-rupee.woff2", headers={"Accept-Encoding": "gzip"})
+    font = client.get("/static/fonts/anek-latin.woff2", headers={"Accept-Encoding": "gzip"})
     assert font.status_code == 200 and "content-encoding" not in font.headers
