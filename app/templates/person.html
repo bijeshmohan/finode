@@ -46,7 +46,7 @@
 <div class="tile">
   {% for o, name, who, partly in open_rows %}
   <a class="r crow" href="/people/{{ person.id }}/settle?obligation={{ o.id }}">
-    <span class="crow-main"><span class="crow-name">{{ name }}</span><span class="crow-sub">{{ o.date|friendly_date }} · {{ who }}{% if partly %} · {{ o.settled_amount|money }} of {{ o.original_amount|money }} paid{% endif %}</span></span>
+    <span class="crow-main"><span class="crow-name">{{ name }}</span><span class="crow-sub">{{ o.date|friendly_date }}{% if person.receivable and person.payable %} · {{ who }}{% endif %}{% if partly %} · {{ o.settled_amount|money }} of {{ o.original_amount|money }} paid{% endif %}</span></span>
     <span class="crow-amt"><span class="{{ 'income' if o.direction == 'receivable' else 'out-amount' }}">{{ o.outstanding_amount|money }}</span></span>
   </a>
   {% endfor %}
