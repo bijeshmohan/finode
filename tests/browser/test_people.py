@@ -4,7 +4,7 @@ import re
 
 from playwright.sync_api import Page, expect
 
-from .conftest import Api, row_button
+from .conftest import Api, row_button, set_row
 
 
 def alice_of(api: Api, name: str = "Alice") -> dict:
@@ -309,3 +309,31 @@ def test_a_friend_who_paid_can_also_be_in_the_bill(page: Page, books, api: Api):
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     assert float(api.get(f"/contacts/{alice['id']}")["payable"]) == 500
+
+
+def test_an_old_expense_can_be_edited_into_a_shared_bill(page: Page, books, api: Api):
+    from .conftest import add_row
+
+    alice, bob = alice_of(api), alice_of(api, "Bob")
+    entry = api.post(
+        "/transactions/",
+        payee="Restaurant",
+        date="2026-10-09",
+        postings=[
+            {"category_id": books["food"]["id"], "side": "debit", "amount": "3000"},
+            {"account_id": books["checking"]["id"], "side": "credit", "amount": "3000"},
+        ],
+    )
+    page.goto(f"/transactions/{entry['id']}/edit")
+    set_row(page, "debit", 0, amount="1000")  # your share; the rest is left to allocate
+    add_row(page, "debit", "Alice", index=1, amount="1000")
+    add_row(page, "debit", "Bob", index=2)
+    expect(page.locator("[data-person-note]")).to_contain_text("Alice owes you 1,000.00")
+    page.get_by_role("button", name="Save changes").click()
+    page.wait_for_url(lambda u: "/edit" not in u)
+    assert float(api.get(f"/contacts/{alice['id']}")["receivable"]) == 1000
+    assert float(api.get(f"/contacts/{bob['id']}")["receivable"]) == 1000
+    same = api.get(f"/transactions/{entry['id']}")
+    assert same["date"] == "2026-10-09"
+    page.goto(f"/transactions/{entry['id']}/edit")
+    expect(row_button(page, "debit", 1)).to_contain_text("Alice")

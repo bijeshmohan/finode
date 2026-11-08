@@ -27,7 +27,7 @@ An entry you already recorded can become a loan too: open it, choose **Transfer*
 
 ## Split a bill from the New transaction screen
 
-On **Expense**, the **People** group is in both pickers. Under **Spent on**, add your own category row (your share) and a row for each person with their share. Under **Paid from**, add your account, and a person if they paid. A person can be on both sides: Alice paid the bill and is also in it. The note under the rows says your share and who owes whom, and both sides must add up to the same total. For an equal, percentage or shares split use **Add expense** on a person's page instead. A bill recorded this way can't be edited into place: reverse it on the person's page and add it again.
+On **Expense**, the **People** group is in both pickers. Under **Spent on**, add your own category row (your share) and a row for each person with their share. Under **Paid from**, add your account, and a person if they paid. A person can be on both sides: Alice paid the bill and is also in it. The note under the rows says your share and who owes whom, and both sides must add up to the same total. For an equal, percentage or shares split use **Add expense** on a person's page instead. An entry you already recorded can become a shared bill the same way: open it, add the people rows and save. It keeps its date, tags and related link. Editing a shared bill later shows the rows as you entered them; you can change them, or remove the people to make it an ordinary expense again. This doesn't work once a share has been paid back.
 
 ## Share an expense
 

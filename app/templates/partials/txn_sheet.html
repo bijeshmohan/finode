@@ -65,7 +65,7 @@
   <a class="button" href="/transactions/{{ t.id }}/edit{{ bq }}">Edit</a>
 </div>
 {% if with_person %}
-<p class="muted hint">This is money lent to or borrowed from {{ with_person.name }}. What has been paid back is on <a href="/people/{{ with_person.id }}">their page</a>.</p>
+<p class="muted hint">This is part of what you did with {{ with_names|join(", ") }}. What has been paid back is on <a href="/people/{{ with_person.id }}">{{ "their page" if with_names|length == 1 else with_person.name ~ "'s page" }}</a>.</p>
 {% else %}
 <div class="sheet-links">
   <a href="/transactions/new?repeat={{ t.id }}{{ bx }}">Repeat</a>
