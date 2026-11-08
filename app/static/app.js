@@ -100,7 +100,7 @@ function suggestedRoot(select) {
   const row = select.closest("[data-row]");
   const side = row ? row.querySelector('[name="side"]').value : "credit";
   const form = select.closest("form[data-txn-form]");
-  const roots = form && KINDS[form.dataset.txnKind] ? KINDS[form.dataset.txnKind][side].roots : null;
+  const roots = form && KINDS[form.dataset.txnKind] ? sideRoots(form, side) : null;
   if (roots) return roots[0];
   return side === "debit" ? "Expenses" : "Assets";
 }
@@ -344,8 +344,8 @@ const KINDS = {
     debit: { roots: ["Expenses"], title: "Spent on" },
   },
   income: {
-    credit: { roots: ["Income"], title: "From" },
-    debit: { roots: ["Assets", "Liabilities"], title: "Received in" },
+    credit: { roots: ["Income"], title: "Earned from" },
+    debit: { roots: ["Assets", "Liabilities"], title: "Paid into" },
   },
   transfer: {
     credit: { roots: ["Assets", "Liabilities", "People"], title: "From" },
@@ -372,6 +372,13 @@ const isCategorySide = (roots) => {
   return own.length > 0 && own.every((root) => CATEGORY_ROOTS.includes(root));
 };
 
+// People are offered on a transfer only in Share (lending, borrowing, paying back); on an expense or income they are not
+// rows of a side.
+function sideRoots(form, side) {
+  const roots = (KINDS[form.dataset.txnKind] || KINDS.other)[side].roots;
+  return roots && form.dataset.mode !== "share" ? roots.filter((root) => root !== "People") : roots;
+}
+
 function optionsFor(all, roots) {
   if (!roots) return all;
   const holder = document.createElement("select");
@@ -388,6 +395,18 @@ function optionsFor(all, roots) {
   return holder.innerHTML;
 }
 
+function refreshRowOptions(form) {
+  form.querySelectorAll("[data-row]").forEach((row) => {
+    const select = rowAccount(row);
+    const side = row.querySelector('[name="side"]').value;
+    const current = select.value;
+    select.innerHTML = optionsFor(form._all, sideRoots(form, side));
+    select.value = current; // stays when the kind still offers it, else the empty choice
+    if (select.value !== current) select.value = "";
+    select.dataset.previous = select.value;
+  });
+}
+
 function applyKind(form, kind) {
   if (!KINDS[kind]) kind = "other";
   form.dataset.txnKind = kind;
@@ -395,15 +414,7 @@ function applyKind(form, kind) {
   form.querySelectorAll("[data-kind]").forEach((button) => {
     button.setAttribute("aria-pressed", button.dataset.kind === kind ? "true" : "false");
   });
-  form.querySelectorAll("[data-row]").forEach((row) => {
-    const select = rowAccount(row);
-    const side = row.querySelector('[name="side"]').value;
-    const current = select.value;
-    select.innerHTML = optionsFor(form._all, KINDS[kind][side].roots);
-    select.value = current; // stays when the kind still offers it, else the empty choice
-    if (select.value !== current) select.value = "";
-    select.dataset.previous = select.value;
-  });
+  refreshRowOptions(form);
   ["credit", "debit"].forEach((side) => {
     const title = form.querySelector(`[data-side-section="${side}"] [data-side-title]`);
     if (title) title.textContent = KINDS[kind][side].title;
@@ -618,7 +629,7 @@ function newRow(form, side) {
   row.querySelector('[name="side"]').value = side;
   // Copy the live account list: it may have gained accounts since the page loaded.
   const select = rowAccount(row);
-  select.innerHTML = optionsFor(form._all, (KINDS[form.dataset.txnKind] || KINDS.other)[side].roots);
+  select.innerHTML = optionsFor(form._all, sideRoots(form, side));
   select.value = "";
   return row;
 }
@@ -1676,45 +1687,56 @@ function noteForPeople(target) {
 }
 document.body.addEventListener("change", (event) => noteForPeople(event.target));
 
-// ---- Simple, Split, Share: the three ways to record an expense (an income has the first two) ----
+// ---- Simple, Split, Share: the three ways to record an entry ----
 // Simple is one row on each side with the whole total. Split is the rows that add up to it: typing less than the total in a row
-// switches to Split by itself. Share hides the rows and shows who the bill is for, how it is split and who paid; it is saved
-// as a shared bill. Switching never loses the total, the payee, the date or the note; choosing Simple keeps the first row of
-// each side.
+// switches to Split by itself. Share on an expense or an income hides the rows and shows who it is shared with (a shared bill,
+// or income part of which is theirs); on a transfer the rows stay and the pickers also list People (lending, borrowing, paying
+// back). Switching never loses the total, the payee, the date or the note; choosing Simple keeps the first row of each side.
 function collapseRows(list) {
   const rows = [...list.querySelectorAll("[data-row]")];
   rows.slice(1).forEach((row) => row.remove());
   if (rows[0]) rows[0].removeAttribute("data-touched");
 }
 
+// What the rows already say carries over to a Share editor, once: the account and the category.
+const CARRY = {
+  expense: [["credit", "account_id"], ["debit", "category_id"]],
+  income: [["debit", "income_account_id"], ["credit", "income_category_id"]],
+};
+
 function applyMode(form, mode) {
   const modes = form.querySelector("[data-modes]");
   if (!modes) return;
+  const before = form.dataset.mode;
   form.dataset.mode = mode;
   modes.querySelectorAll('input[name="mode"]').forEach((radio) => { radio.checked = radio.value === mode; });
-  const editor = form.querySelector("[data-people-editor]");
-  const people = mode === "share";
-  const was = form._peopleOpen === true;
-  form._peopleOpen = people;
-  if (editor) {
-    editor.hidden = !people;
-    editor.querySelectorAll("input, select").forEach((el) => { if (!el.hasAttribute("data-fixed")) el.disabled = !people; });
-  }
-  form.querySelectorAll("[data-side-section] input, [data-side-section] select, [data-side-section] button").forEach((el) => {
-    el.disabled = people;
+  const kind = form.dataset.txnKind;
+  const shared = mode === "share" && (kind === "expense" || kind === "income") ? kind : null;
+  const was = form._shared || null;
+  form._shared = shared;
+  if (shared) form.dataset.shared = shared;
+  else delete form.dataset.shared;
+  form.querySelectorAll("[data-people-editor]").forEach((editor) => {
+    const open = editor.dataset.peopleEditor === shared;
+    editor.hidden = !open;
+    editor.querySelectorAll("input, select").forEach((el) => { if (!el.hasAttribute("data-fixed")) el.disabled = !open; });
   });
-  if (people && !was && editor) {
-    // What the rows already say (the account that pays, the category) carries over to the tab, once.
-    [["credit", "account_id"], ["debit", "category_id"]].forEach(([side, name]) => {
+  form.querySelectorAll("[data-side-section] input, [data-side-section] select, [data-side-section] button").forEach((el) => {
+    el.disabled = shared !== null;
+  });
+  if (kind === "transfer" && before !== mode) refreshRowOptions(form);
+  if (shared && was !== shared) {
+    const editor = form.querySelector(`[data-people-editor="${shared}"]`);
+    (CARRY[shared] || []).forEach(([side, name]) => {
       const row = form.querySelector(`[data-rows="${side}"] [data-row]`);
-      const target = editor.querySelector(`select[name="${name}"]`);
+      const target = editor && editor.querySelector(`select[name="${name}"]`);
       const chosen = row && rowAccount(row).value;
       if (target && chosen && !target.value && target.querySelector(`option[value="${chosen}"]`)) {
         target.value = chosen;
         target.dispatchEvent(new Event("change", { bubbles: true }));
       }
     });
-    editor.dispatchEvent(new CustomEvent("people-mode", { bubbles: true }));
+    if (editor) editor.dispatchEvent(new CustomEvent("people-mode", { bubbles: true }));
   }
   recomputeTxn(form);
 }
@@ -1722,17 +1744,20 @@ function applyMode(form, mode) {
 function syncModes(form, kind) {
   const modes = form.querySelector("[data-modes]");
   if (!modes) return;
-  const simple = kind === "expense" || kind === "income";
-  const wasSimple = form._simple !== false;
-  form._simple = simple;
-  modes.hidden = !simple;
-  modes.querySelector("[data-mode-share]").hidden = kind !== "expense";
+  const offered = kind !== "other";
+  const wasOffered = form._offered !== false;
+  form._offered = offered;
+  modes.hidden = !offered;
   let mode = form.dataset.mode || "simple";
-  if (!simple) mode = "split";
-  else if (!wasSimple) {
+  // Share on a transfer (people on a side) and Share on an expense or income (who it is shared with) are different things:
+  // crossing between them goes back to the rows.
+  const crossing = form._kind !== undefined && (form._kind === "transfer") !== (kind === "transfer");
+  form._kind = kind;
+  if (!offered) mode = "split";
+  else if (!wasOffered || (crossing && mode === "share")) {
     const many = [...form.querySelectorAll("[data-rows]")].some((list) => list.querySelectorAll("[data-row]").length > 1);
     mode = many ? "split" : "simple";
-  } else if (mode === "share" && kind !== "expense") mode = "simple";
+  }
   applyMode(form, mode);
 }
 

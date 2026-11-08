@@ -1719,7 +1719,7 @@ body.bare .brand-title img { width: 44px; height: 44px; border-radius: 11px; }
 
 /* ---------- The three ways to record an entry: Simple, Split, Share ---------- */
 .scope-seg.modes { margin-top: -.25rem; }
-form[data-mode="share"] [data-side-section], form[data-mode="share"] .txn-swap { display: none; }
+form[data-shared] [data-side-section], form[data-shared] .txn-swap { display: none; }
 form[data-mode="simple"] .side-status { display: none; }
 form[data-mode="simple"] [data-remove-row] { display: none; }
 .people-editor[hidden] { display: none; }

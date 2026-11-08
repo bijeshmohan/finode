@@ -52,7 +52,7 @@ class PartyTransaction(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("contact_id", "transaction_id", name="uq_party_transactions_contact_transaction"),
         CheckConstraint(
-            "purpose IN ('loan', 'borrowing', 'advance', 'gift', 'expense', 'settlement', 'opening', 'netoff')",
+            "purpose IN ('loan', 'borrowing', 'advance', 'gift', 'expense', 'settlement', 'opening', 'netoff', 'income')",
             name="ck_party_transactions_purpose",
         ),
         CheckConstraint("direction IN ('sent', 'received')", name="ck_party_transactions_direction"),
@@ -78,7 +78,7 @@ class PartyObligation(SQLModel, table=True):
         CheckConstraint("original_amount > 0", name="ck_party_obligations_amount"),
         CheckConstraint("direction IN ('receivable', 'payable')", name="ck_party_obligations_direction"),
         CheckConstraint(
-            "source_type IN ('shared_expense', 'loan', 'borrowing', 'advance', 'opening')",
+            "source_type IN ('shared_expense', 'shared_income', 'loan', 'borrowing', 'advance', 'opening')",
             name="ck_party_obligations_source",
         ),
         Index("ix_party_obligations_user", "user_id"),

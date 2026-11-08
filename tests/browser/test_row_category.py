@@ -108,8 +108,8 @@ def test_a_new_category_can_be_made_from_the_sheet(page: Page, books, api: Api):
 def test_income_shows_the_earning_categories_and_a_transfer_lists_accounts(page: Page, books):
     page.goto("/transactions/new")
     page.get_by_role("button", name="Income", exact=True).click()
-    expect(page.locator('[data-side-section="credit"] [data-side-title]')).to_have_text("From")
-    expect(page.locator('[data-side-section="debit"] [data-side-title]')).to_have_text("Received in")
+    expect(page.locator('[data-side-section="credit"] [data-side-title]')).to_have_text("Earned from")
+    expect(page.locator('[data-side-section="debit"] [data-side-title]')).to_have_text("Paid into")
     page.locator('[data-rows="credit"] [data-pick]:visible').click()
     expect(page.locator("#row-picker [data-pick-option]")).to_have_text(["Salary"])
     page.keyboard.press("Escape")

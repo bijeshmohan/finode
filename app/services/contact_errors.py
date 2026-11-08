@@ -69,3 +69,12 @@ class DuplicateRequestError(ConflictError):
 
 class ReversalBlockedError(ConflictError):
     """Something was settled against the entry, so it cannot be reversed until that is reversed first."""
+
+
+class InvalidSharedIncomeError(ValueError):
+    """Income shared with people is wrong (the parts or the deposits do not add up, a person is on both sides…)."""
+
+
+class SharedIncomeNotFoundError(ValueError):
+    def __init__(self) -> None:
+        super().__init__("shared income not found!")

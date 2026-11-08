@@ -614,7 +614,7 @@ def test_only_a_loan_or_a_borrowing_is_edited_this_way(client, bank):
     assert moved.status_code == 303 and moved.headers["location"] == f"/people/{alice['id']}"
     entry, _ = ordinary_expense(client, bank)
     refused = client.post(f"/transactions/{gift['id']}/edit", data=rows(bank, alice))
-    assert refused.status_code == 400 and "only a loan, a borrowing or a bill" in refused.text
+    assert refused.status_code == 400 and "only a loan, a borrowing, or a bill or income" in refused.text
     uneven = client.post(f"/transactions/{entry['id']}/edit", data={**rows(bank, alice), "amount": ["300", "200"]})
     assert uneven.status_code == 400 and "same on both sides" in uneven.text
     assert (
@@ -716,7 +716,7 @@ def test_the_new_screen_has_the_three_ways_and_opens_on_with_people_from_a_perso
     html = page(client, "/transactions/new")
     assert 'data-mode="simple"' in html and 'name="mode" value="simple" checked' in html
     assert 'value="split"' in html and 'value="share"' in html and "data-people-editor" in html
-    assert re.search(r"data-people-editor\s+hidden", html), "the tab is closed until Share is chosen"
+    assert re.search(r'data-people-editor="expense"\s+hidden', html), "the tab is closed until Share is chosen"
     opened = page(client, "/transactions/new", mode="share", **{"with": alice["id"]})
     assert 'data-mode="share"' in opened and re.search(rf'name="with_{alice["id"]}" value="1" checked', opened)
     assert "Alice" in opened and 'name="split_method"' in opened and "Someone else paid some of it" in opened
@@ -943,3 +943,167 @@ def test_nothing_changes_once_a_share_was_paid_back_or_when_the_edit_fails(clien
     assert ordinary.status_code == 400 and "paid back" in ordinary.text
     assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 800
     assert float(client.get(f"/api/contacts/{bob['id']}").json()["receivable"]) == 1000
+
+
+# ---- income shared with people, and a transfer in Share ------------------------------------------------------
+
+
+def income_form(bank, rent, who, **extra):
+    """What the Share tab posts for an income: the total, which part is theirs, and where it landed."""
+    data = {
+        "mode": "share",
+        "kind": "income",
+        "total": "10000",
+        "payee": "Rent, Flat 4B",
+        "date": "2026-11-08",
+        "income_category_id": rent["id"],
+        "income_account_id": bank["id"],
+    }
+    data.update({f"theirs_{p['id']}": "4000" for p in who})
+    data.update(extra)
+    return data
+
+
+def earned(client, name="Rent"):
+    lines = client.get("/api/reports/breakdown", params={"kind": "income"}).json()["lines"]
+    return next((float(x["amount"]) for x in lines if x["account"] == name), 0.0)
+
+
+def test_the_new_screen_has_an_income_tab_that_is_closed_until_share_is_chosen(client, bank):
+    person(client)
+    html = page(client, "/transactions/new")
+    assert re.search(r'data-people-editor="income"\s+hidden', html)
+    assert 'name="theirs_' in html and 'name="got_' in html and 'name="income_account_id"' in html
+
+
+def test_income_with_part_of_it_theirs_from_the_add_screen(client, bank):
+    alice = person(client)
+    rent = category(client, "Rent", kind="earning")
+    preview = flat(client.post("/people/income/preview", data=income_form(bank, rent, [alice])).text)
+    assert "Your income" in preview and "6,000.00" in preview and "Alice" in preview and "4,000.00" in preview
+    done = client.post("/transactions/split", data=income_form(bank, rent, [alice], comment="Q4", tags=["rent"]))
+    assert done.status_code == 200 and done.headers["HX-Redirect"], done.text
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 4000
+    assert earned(client) == 6000, "only your part is income"
+    assert float(next(a for a in client.get("/api/accounts/").json() if a["name"] == "HDFC")["balance"]) == 20000
+    entry = next(t for t in client.get("/api/transactions/").json() if t["payee"] == "Rent, Flat 4B")
+    assert entry["comment"] == "Q4" and entry["tags"] == ["rent"]
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+
+
+def test_someone_received_it_for_you_from_the_add_screen(client, bank):
+    alice = person(client)
+    rent = category(client, "Rent", kind="earning")
+    data = income_form(bank, rent, [], **{f"got_{alice['id']}": "3000"})
+    assert client.post("/transactions/split", data=data).status_code == 200
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 3000
+    assert earned(client) == 10000
+    assert float(next(a for a in client.get("/api/accounts/").json() if a["name"] == "HDFC")["balance"]) == 17000
+
+
+def test_the_rules_of_income_with_people(client, bank):
+    alice = person(client)
+    rent = category(client, "Rent", kind="earning")
+    nobody = client.post("/transactions/split", data=income_form(bank, rent, []))
+    assert nobody.status_code == 400 and "name a person" in nobody.text
+    no_account = client.post(
+        "/transactions/split",
+        data={k: v for k, v in income_form(bank, rent, [alice]).items() if k != "income_account_id"},
+    )
+    assert no_account.status_code == 400 and "account" in no_account.text
+    both = client.post("/transactions/split", data=income_form(bank, rent, [alice], **{f"got_{alice['id']}": "1000"}))
+    assert both.status_code == 400 and "both" in both.text
+    assert all(t["payee"] != "Rent, Flat 4B" for t in client.get("/api/transactions/").json())
+
+
+def test_shared_income_is_edited_in_place(client, bank):
+    alice, bob = person(client), person(client, "Bob")
+    rent = category(client, "Rent", kind="earning")
+    assert client.post("/transactions/split", data=income_form(bank, rent, [alice])).status_code == 200
+    entry = next(t for t in client.get("/api/transactions/").json() if t["payee"] == "Rent, Flat 4B")
+    html = page(client, f"/transactions/{entry['id']}/edit")
+    assert 'data-mode="share"' in html and 'name="kind" value="income"' in html
+    assert re.search(rf'name="theirs_{alice["id"]}"[^>]*value="4000', html)
+    changed = client.post(
+        f"/transactions/{entry['id']}/edit",
+        data=income_form(bank, rent, [bob], **{"theirs_" + bob["id"]: "1000"}),
+    )
+    assert changed.status_code == 200, changed.text
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 0
+    assert float(client.get(f"/api/contacts/{bob['id']}").json()["payable"]) == 1000
+    assert earned(client) == 9000
+    assert [t["id"] for t in client.get("/api/transactions/").json() if t["payee"] == "Rent, Flat 4B"] == [entry["id"]]
+
+
+def test_shared_income_is_edited_back_into_an_ordinary_one(client, bank):
+    alice = person(client)
+    rent = category(client, "Rent", kind="earning")
+    assert client.post("/transactions/split", data=income_form(bank, rent, [alice])).status_code == 200
+    entry = next(t for t in client.get("/api/transactions/").json() if t["payee"] == "Rent, Flat 4B")
+    back = client.post(
+        f"/transactions/{entry['id']}/edit",
+        data={
+            "mode": "split",
+            "kind": "income",
+            "date": "2026-11-08",
+            "payee": "Rent, Flat 4B",
+            "account": [rent["id"], bank["id"]],
+            "side": ["credit", "debit"],
+            "amount": ["10000", "10000"],
+        },
+    )
+    assert back.status_code == 200, back.text
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 0
+    assert client.get(f"/api/contacts/{alice['id']}/obligations").json() == []
+    assert earned(client) == 10000
+
+
+def test_an_ordinary_income_becomes_shared_in_place(client, bank):
+    alice = person(client)
+    rent = category(client, "Rent", kind="earning")
+    made = client.post(
+        "/api/transactions/",
+        json={
+            "payee": "Rent, Flat 4B",
+            "postings": [
+                {"category_id": rent["id"], "side": "credit", "amount": "10000"},
+                {"account_id": bank["id"], "side": "debit", "amount": "10000"},
+            ],
+        },
+    ).json()
+    done = client.post(f"/transactions/{made['id']}/edit", data=income_form(bank, rent, [alice]))
+    assert done.status_code == 200, done.text
+    assert earned(client) == 6000 and float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 4000
+    assert [t["id"] for t in client.get("/api/transactions/").json() if t["payee"] == "Rent, Flat 4B"] == [made["id"]]
+
+
+def test_shared_income_shows_on_the_persons_page_and_can_be_reversed_there(client, bank):
+    alice = person(client)
+    rent = category(client, "Rent", kind="earning")
+    assert client.post("/transactions/split", data=income_form(bank, rent, [alice])).status_code == 200
+    html = page(client, f"/people/{alice['id']}")
+    assert "Rent, Flat 4B" in html and "their part" in html and "4,000.00" in flat(html)
+    entry = next(t for t in client.get("/api/transactions/").json() if t["payee"] == "Rent, Flat 4B")
+    sheet = flat(page(client, f"/people/{alice['id']}/entry/{entry['id']}/sheet"))
+    assert "you hold it for them" in sheet
+    assert client.post(f"/people/{alice['id']}/entry/{entry['id']}/reverse").status_code == 200
+    assert client.get(f"/api/shared-incomes/{entry['id']}").status_code == 404
+    assert earned(client) == 0
+
+
+def test_a_transfer_in_share_needs_a_person(client, bank, root_accounts):
+    alice = person(client)
+    cash = client.post("/api/accounts/", json={"name": "Cash", "parent_id": root_accounts["Assets"]}).json()
+    plain = {
+        "mode": "share",
+        "kind": "transfer",
+        "date": "2026-11-01",
+        "account": [bank["id"], cash["id"]],
+        "side": ["credit", "debit"],
+        "amount": ["300", "300"],
+    }
+    refused = client.post("/transactions/split", data=plain)
+    assert refused.status_code == 400 and "person" in refused.text
+    lent = client.post("/transactions/split", data={**plain, "account": [bank["id"], alice["id"]]})
+    assert lent.status_code == 200, lent.text
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 300
