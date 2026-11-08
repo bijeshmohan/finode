@@ -345,8 +345,15 @@ def test_an_entry_made_through_a_person_is_looked_after_on_their_page(client, ba
         json={"direction": "sent", "purpose": "loan", "amount": "500", "account_id": bank["id"]},
     ).json()
     sheet = page(client, f"/transactions/{loan['id']}/sheet")
-    assert f'href="/people/{alice["id"]}"' in sheet and "Open Alice" in sheet
-    assert "/edit" not in sheet and "sheet-delete" not in sheet and "Repeat" not in sheet
+    assert f'href="/people/{alice["id"]}"' in sheet
+    assert f'href="/transactions/{loan["id"]}/edit"' in sheet, "a loan is edited here too"
+    assert "sheet-delete" not in sheet and "Repeat" not in sheet and f'href="/people/{alice["id"]}"' in sheet
+    gift = client.post(
+        f"/api/contacts/{alice['id']}/transfers",
+        json={"direction": "sent", "purpose": "gift", "amount": "5", "account_id": bank["id"]},
+    ).json()
+    gift_sheet = page(client, f"/transactions/{gift['id']}/sheet")
+    assert "Open Alice" in gift_sheet and "/edit" not in gift_sheet
     ordinary = client.post(
         "/api/transactions/",
         json={
@@ -420,7 +427,7 @@ def test_the_rules_of_a_transfer_with_a_person(client, bank):
     )
 
 
-def test_nobody_with_no_people_sees_the_group_and_editing_never_does(client, bank):
+def test_nobody_with_no_people_sees_the_group_and_everybody_else_does_when_editing_too(client, bank):
     assert 'optgroup label="People"' not in page(client, "/transactions/new")
     alice = person(client)
     entry = client.post(
@@ -432,7 +439,9 @@ def test_nobody_with_no_people_sees_the_group_and_editing_never_does(client, ban
             ]
         },
     ).json()
-    assert 'optgroup label="People"' not in page(client, f"/transactions/{entry['id']}/edit")
+    assert 'optgroup label="People"' in page(client, f"/transactions/{entry['id']}/edit"), (
+        "an entry can be turned into a loan"
+    )
     assert alice
 
 
@@ -524,3 +533,150 @@ def test_editing_an_opening_balance_from_its_sheet(client, bank):
     ).json()
     assert page(client, f"/people/{alice['id']}/opening/{loan['id']}/edit", status=404)
     assert ">Edit<" not in page(client, f"/people/{alice['id']}/entry/{loan['id']}/sheet")
+
+
+def ordinary_expense(client, bank, name="Cab", amount="300", **extra):
+    misc = category(client, name + " spend")
+    made = client.post(
+        "/api/transactions/",
+        json={
+            "payee": name,
+            "postings": [
+                {"category_id": misc["id"], "side": "debit", "amount": amount},
+                {"account_id": bank["id"], "side": "credit", "amount": amount},
+            ],
+            **extra,
+        },
+    )
+    assert made.status_code == 201, made.text
+    return made.json(), misc
+
+
+def rows(bank, alice, sent=True, amount="300"):
+    return {
+        "account": [bank["id"], alice["id"]] if sent else [alice["id"], bank["id"]],
+        "side": ["credit", "debit"],
+        "amount": [amount, amount],
+        "date": "2026-11-01",
+        "comment": "Cab money",
+    }
+
+
+def test_an_existing_entry_becomes_a_loan_in_place(client, bank):
+    alice = person(client)
+    entry, _ = ordinary_expense(client, bank, tags=["trip"])
+    form = page(client, f"/transactions/{entry['id']}/edit")
+    assert 'optgroup label="People"' in form and f'<option value="{alice["id"]}"' in form
+    done = client.post(
+        f"/transactions/{entry['id']}/edit", data={**rows(bank, alice), "tags": ["trip"], "payee": "Cab"}
+    )
+    assert done.status_code == 200 and done.headers["HX-Redirect"], done.text
+    same = client.get(f"/api/transactions/{entry['id']}").json()
+    assert (
+        same["id"] == entry["id"]
+        and same["payee"] == "Alice"
+        and same["tags"] == ["trip"]
+        and same["date"] == "2026-11-01"
+    )
+    assert {p["account_id"] for p in same["postings"]} == {bank["id"], alice["receivable_account_id"]}
+    owed = client.get(f"/api/contacts/{alice['id']}/obligations").json()
+    assert [(o["source_type"], float(o["outstanding_amount"])) for o in owed] == [("loan", 300.0)]
+    assert float(next(a for a in client.get("/api/accounts/").json() if a["name"] == "HDFC")["balance"]) == 9700
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+    edit = page(client, f"/transactions/{entry['id']}/edit")
+    assert (
+        f'<option value="{alice["id"]}" data-person="1" selected' in edit.replace("  ", " ")
+        or f'value="{alice["id"]}"' in edit
+    )
+
+
+def test_a_loan_can_move_to_another_person_or_the_other_way_round(client, bank):
+    alice, bob = person(client), person(client, "Bob")
+    entry, _ = ordinary_expense(client, bank)
+    client.post(f"/transactions/{entry['id']}/edit", data=rows(bank, alice))
+    done = client.post(f"/transactions/{entry['id']}/edit", data=rows(bank, bob, sent=False, amount="450"))
+    assert done.status_code == 200, done.text
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["net"]) == 0
+    now = client.get(f"/api/contacts/{bob['id']}").json()
+    assert float(now["payable"]) == 450 and float(now["receivable"]) == 0
+    assert [o["source_type"] for o in client.get(f"/api/contacts/{bob['id']}/obligations").json()] == ["borrowing"]
+    assert float(next(a for a in client.get("/api/accounts/").json() if a["name"] == "HDFC")["balance"]) == 10450
+
+
+def test_a_loan_can_be_edited_back_into_an_ordinary_entry(client, bank):
+    alice = person(client)
+    entry, misc = ordinary_expense(client, bank)
+    client.post(f"/transactions/{entry['id']}/edit", data=rows(bank, alice))
+    back = client.post(
+        f"/transactions/{entry['id']}/edit",
+        data={
+            "account": [bank["id"], misc["id"]],
+            "side": ["credit", "debit"],
+            "amount": ["300", "300"],
+            "date": "2026-11-01",
+            "payee": "Cab",
+        },
+    )
+    assert back.status_code == 200, back.text
+    assert client.get(f"/api/contacts/{alice['id']}/obligations").json() == []
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["net"]) == 0
+    assert client.get(f"/api/contacts/{alice['id']}/transfers").json() == []
+    plain = client.get(f"/api/transactions/{entry['id']}").json()
+    assert plain["payee"] == "Cab" and any(p["category_id"] == misc["id"] for p in plain["postings"])
+    assert client.delete(f"/api/transactions/{entry['id']}").status_code == 204, "an ordinary entry again"
+
+
+def test_nothing_changes_once_something_was_paid_back_or_if_the_edit_fails(client, bank):
+    alice = person(client)
+    entry, misc = ordinary_expense(client, bank)
+    client.post(f"/transactions/{entry['id']}/edit", data=rows(bank, alice))
+    broken = client.post(
+        f"/transactions/{entry['id']}/edit",
+        data={
+            "account": [bank["id"], misc["id"]],
+            "side": ["credit", "debit"],
+            "amount": ["300", "200"],
+            "date": "2026-11-01",
+        },
+    )
+    assert broken.status_code == 400
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 300, (
+        "a failed edit leaves the loan as it was"
+    )
+    assert len(client.get(f"/api/contacts/{alice['id']}/obligations").json()) == 1
+    client.post(
+        f"/api/contacts/{alice['id']}/settlements",
+        json={"direction": "received", "amount": "50", "account_id": bank["id"]},
+    )
+    ordinary = client.post(
+        f"/transactions/{entry['id']}/edit",
+        data={
+            "account": [bank["id"], misc["id"]],
+            "side": ["credit", "debit"],
+            "amount": ["300", "300"],
+            "date": "2026-11-01",
+        },
+    )
+    assert ordinary.status_code == 400 and "paid back" in ordinary.text
+    again = client.post(f"/transactions/{entry['id']}/edit", data=rows(bank, alice, amount="400"))
+    assert again.status_code == 400 and "paid back" in again.text
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 250
+
+
+def test_only_a_loan_or_a_borrowing_is_edited_this_way(client, bank):
+    alice = person(client)
+    gift = client.post(
+        f"/api/contacts/{alice['id']}/transfers",
+        json={"direction": "sent", "purpose": "gift", "amount": "5", "account_id": bank["id"]},
+    ).json()
+    moved = client.get(f"/transactions/{gift['id']}/edit", follow_redirects=False)
+    assert moved.status_code == 303 and moved.headers["location"] == f"/people/{alice['id']}"
+    entry, _ = ordinary_expense(client, bank)
+    refused = client.post(f"/transactions/{gift['id']}/edit", data=rows(bank, alice))
+    assert refused.status_code == 400 and "only a loan or a borrowing" in refused.text
+    uneven = client.post(f"/transactions/{entry['id']}/edit", data={**rows(bank, alice), "amount": ["300", "200"]})
+    assert uneven.status_code == 400 and "same on both sides" in uneven.text
+    assert (
+        client.get(f"/api/transactions/{entry['id']}").json()["postings"][0]["account_id"]
+        != alice["receivable_account_id"]
+    )

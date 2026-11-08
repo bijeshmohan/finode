@@ -217,3 +217,31 @@ def test_an_opening_balance_can_be_edited_from_its_sheet(page: Page, books, api:
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(f"**/people/{who['id']}")
     expect(page.locator(".hero-balance")).to_contain_text("2,500.00")
+
+
+def test_an_expense_can_be_edited_into_a_loan_and_back(page: Page, books, api: Api):
+    who = alice_of(api)
+    entry = api.post(
+        "/transactions/",
+        payee="Cab",
+        postings=[
+            {"category_id": books["food"]["id"], "side": "debit", "amount": "300"},
+            {"account_id": books["checking"]["id"], "side": "credit", "amount": "300"},
+        ],
+    )
+    page.goto(f"/transactions/{entry['id']}/edit")
+    page.get_by_role("button", name="Transfer", exact=True).click()
+    row_button(page, "debit").click()
+    page.locator("#row-picker [data-pick-option]", has_text="Alice").first.click()
+    expect(page.locator("[data-person-note]")).to_contain_text("Alice will owe you this")
+    page.get_by_role("button", name="Save").click()
+    page.wait_for_url(lambda url: "/edit" not in url)
+    assert float(api.get(f"/contacts/{who['id']}")["receivable"]) == 300
+    page.goto(f"/transactions/{entry['id']}/edit")
+    expect(row_button(page, "debit")).to_contain_text("Alice")
+    page.get_by_role("button", name="Expense", exact=True).click()
+    row_button(page, "debit").click()
+    page.locator("#row-picker [data-pick-option]", has_text="Groceries").first.click()
+    page.get_by_role("button", name="Save").click()
+    page.wait_for_url(lambda url: "/edit" not in url)
+    assert float(api.get(f"/contacts/{who['id']}")["net"]) == 0

@@ -23,6 +23,8 @@ Choose what happened: *I lent money*, *I borrowed money*, *I paid an advance*, *
 
 You can also start a loan from **+** (New transaction): choose **Transfer**, then pick a person on one side and one of your accounts on the other. A person on the **To** side is money you lent; on the **From** side is money you borrowed. Paying back or being paid back is always done from the person's page with **Settle up**.
 
+An entry you already recorded can become a loan too: open it, choose **Transfer**, and pick a person on one side. It keeps its date, tags and related link. To turn a loan back into an ordinary entry, edit it and pick an ordinary account instead of the person. Neither works once something has been paid back against it.
+
 ## Share an expense
 
 **Add expense** takes the total, what it was for, a category, the day and your account, and how to split it:

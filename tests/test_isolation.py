@@ -513,6 +513,29 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                 "allocations": [{"obligation_id": world.obligation_ids[0], "amount": "5"}],
             },
         )
+        own_entry = next(t["id"] for t in client.get("/api/transactions/").json() if t["payee"] == "Power")
+        refused(
+            "an entry of B's turned into a loan to A's contact",
+            "POST",
+            f"/transactions/{own_entry}/edit",
+            data={
+                "account": [mine, world.contact_ids[0]],
+                "side": ["credit", "debit"],
+                "amount": ["5", "5"],
+                "date": "2026-11-01",
+            },
+        )
+        refused(
+            "an entry of B's turned into a loan paid from A's account",
+            "POST",
+            f"/transactions/{own_entry}/edit",
+            data={
+                "account": [a["HDFC"], world.b_contact["id"]],
+                "side": ["credit", "debit"],
+                "amount": ["5", "5"],
+                "date": "2026-11-01",
+            },
+        )
         refused(
             "a transfer from A's account",
             "POST",

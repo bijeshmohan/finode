@@ -1,5 +1,5 @@
 import calendar
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -8,6 +8,7 @@ from urllib.parse import urlencode, urlparse
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
 from ...clock import local_today
@@ -443,6 +444,7 @@ def transaction_sheet(
     # An entry made through a person (a loan, a shared bill, a settlement) is looked after on that person's page.
     party = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
     with_person = contacts.read(party[0].contact_id) if party else None
+    loan_like = bool(party) and party[0].purpose in ("loan", "borrowing")
     index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     row = to_row(transaction, index)
     labels = {
@@ -465,6 +467,7 @@ def transaction_sheet(
             "related_to": related_info(transactions, index, transaction.related_id),
             "related": [to_row(r, index) for r in transactions.related(transaction_id)],
             "with_person": with_person,
+            "loan_like": loan_like,
         },
     )
 
@@ -525,12 +528,12 @@ def infer_kind(postings, roots: dict[UUID, str]) -> str:
     return "other"
 
 
-def people_group(accounts: Accounts, contacts: Contacts | None) -> PickGroups:
+def people_group(accounts: Accounts, contacts: Contacts | None, keep: Collection[UUID] = frozenset()) -> PickGroups:
     """The people a transfer can go to or come from, as one more group in the pickers. Nobody with no contacts pays a
     query for it: the contact accounts are known from the account list."""
     if contacts is None or not accounts.ar.contact_account_ids():
         return []
-    people = [PickOption(c.id, c.name) for c in contacts.cr.list() if c.archived_at is None]
+    people = [PickOption(c.id, c.name) for c in contacts.cr.list() if c.archived_at is None or c.id in keep]
     return [("People", sorted(people, key=lambda o: o.label.casefold()))] if people else []
 
 
@@ -540,6 +543,7 @@ def form_context(accounts: Accounts, categories: Categories, contacts: Contacts 
     used = getattr(extra.get("transaction"), "postings", ())
     keep = set(extra.pop("keep", ())) | {p.account_id for p in used}
     keep_categories = {p.category_id for p in used if p.category_id}
+    keep_people = set(extra.pop("keep_people", ()))
     roots = {n.account.id: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
     if "kind" not in extra:
         recorded = getattr(extra.get("transaction"), "postings", None)
@@ -549,7 +553,7 @@ def form_context(accounts: Accounts, categories: Categories, contacts: Contacts 
         "hide_fab": True,
         "groups": [
             *posting_groups(build_tree(all_accounts), keep),
-            *people_group(accounts, contacts),
+            *people_group(accounts, contacts, keep_people),
             *category_groups(categories.list(include_closed=True), keep_categories),
         ],
         "currency": accounts.currency().code,
@@ -703,7 +707,11 @@ def roots_by_id(accounts: Accounts) -> dict[UUID, str]:
 
 
 def form_rows(
-    postings, side: PostingSide, account_id: UUID | None = None, roots: dict[UUID, str] | None = None
+    postings,
+    side: PostingSide,
+    account_id: UUID | None = None,
+    roots: dict[UUID, str] | None = None,
+    person_of: Mapping[UUID, UUID] | None = None,
 ) -> list[dict]:
     """The rows of one side of the form: the transaction's own postings, or one blank row (maybe with an account).
     A line on Expenses or Income is picked by its category, which is what the row shows."""
@@ -712,7 +720,7 @@ def form_rows(
             "posting": p,
             "account": p.category_id
             if roots and p.category_id and roots.get(p.account_id) in ("Expenses", "Income")
-            else p.account_id,
+            else (person_of or {}).get(p.account_id, p.account_id),  # a person's account shows as the person
         }
         for p in postings
         if p.side == side
@@ -809,20 +817,11 @@ def new_transaction_page(
     )
 
 
-def _transfer_with_person(
-    contacts: Contacts,
-    transfers: Transfers,
-    people: set[UUID],
-    account: list[str],
-    side: list[str],
-    amount: list[str],
-    date_: str,
-    comment: str,
-    tags: list[str] | None,
-    related: str,
-) -> None:
-    """A Transfer with a person on one side is a loan (money to them) or a borrowing (money from them), recorded by the
-    contact services. It must be one of your accounts and one person, for one amount."""
+def _person_rows(
+    people: set[UUID], account: list[str], side: list[str], amount: list[str], date_: str, comment: str
+) -> tuple[UUID, TransferCreate]:
+    """The loan or borrowing the form describes: one person and one of your accounts, one amount. A person on the To side
+    is money lent to them, on the From side money borrowed from them."""
     rows = [
         (UUID(a), PostingSide(sd), parse_amount(am))
         for a, sd, am in zip(account, side, amount, strict=False)
@@ -834,21 +833,34 @@ def _transfer_with_person(
         raise ValueError("a person goes on one side, one of your accounts on the other, for one amount!")
     if theirs[0][2] != mine[0][2]:
         raise ValueError("the amount to or from a person must be the same on both sides!")
-    if tags or related.strip():
-        raise ValueError("tags and related entries are not available for money lent to or borrowed from a person!")
     person, person_side, value = theirs[0]
     sent = person_side == PostingSide.DEBIT  # the money goes to them
-    transfers.record(
-        person,
-        TransferCreate(
-            direction="sent" if sent else "received",
-            purpose="loan" if sent else "borrowing",
-            amount=value,
-            account_id=mine[0][0],
-            description=comment.strip() or None,
-            **({"date": date_} if date_ else {}),
-        ),
+    return person, TransferCreate(
+        direction="sent" if sent else "received",
+        purpose="loan" if sent else "borrowing",
+        amount=value,
+        account_id=mine[0][0],
+        description=comment.strip() or None,
+        **({"date": date_} if date_ else {}),
     )
+
+
+def _transfer_with_person(
+    transfers: Transfers,
+    people: set[UUID],
+    account: list[str],
+    side: list[str],
+    amount: list[str],
+    date_: str,
+    comment: str,
+    tags: list[str] | None,
+    related: str,
+) -> None:
+    """A new Transfer with a person on one side is a loan or a borrowing, recorded by the contact services."""
+    person, data = _person_rows(people, account, side, amount, date_, comment)
+    if tags or related.strip():
+        raise ValueError("tags and related entries are not available for money lent to or borrowed from a person!")
+    transfers.record(person, data)
 
 
 @router.post("/split")
@@ -874,7 +886,7 @@ def create_split_transaction(
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
     try:
         if people and any(a in {str(i) for i in people} for a in account):
-            _transfer_with_person(contacts, transfers, people, account, side, amount, date_, comment, tags, related)
+            _transfer_with_person(transfers, people, account, side, amount, date_, comment, tags, related)
             return htmx_redirect(safe_back(back), flash="transfer-recorded")
         transactions.create(
             TransactionCreate(
@@ -902,11 +914,20 @@ def edit_transaction_page(
     accounts: Accounts,
     categories: Categories,
     transactions: Transactions,
+    contacts: Contacts,
     back: str = "",
 ):
     transaction = transactions.read(transaction_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
+    # An entry made through a person: a loan or borrowing is edited here (the person shows on its side); anything else a
+    # person made (a gift, a shared bill, a settlement) is looked after on the person's page.
+    person_of: dict[UUID, UUID] = {}
+    party = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
+    if party:
+        if party[0].purpose not in ("loan", "borrowing"):
+            return RedirectResponse(f"/people/{party[0].contact_id}", status_code=303)
+        person_of = {link.account_id: link.contact_id for link in contacts.cr.links()}
     total = sum((p.amount for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
     return templates.TemplateResponse(
         request,
@@ -914,11 +935,17 @@ def edit_transaction_page(
         form_context(
             accounts,
             categories,
+            contacts,
+            keep_people={party[0].contact_id} if party else (),
             editing=True,
             transaction=transaction,
             total=total,
-            from_rows=form_rows(transaction.postings, PostingSide.CREDIT, roots=roots_by_id(accounts)),
-            to_rows=form_rows(transaction.postings, PostingSide.DEBIT, roots=roots_by_id(accounts)),
+            from_rows=form_rows(
+                transaction.postings, PostingSide.CREDIT, roots=roots_by_id(accounts), person_of=person_of
+            ),
+            to_rows=form_rows(
+                transaction.postings, PostingSide.DEBIT, roots=roots_by_id(accounts), person_of=person_of
+            ),
             related=related_info(
                 transactions,
                 AccountIndex.build(accounts.list(), categories.list(include_closed=True)),
@@ -969,6 +996,8 @@ def update_transaction(
     transactions: Transactions,
     accounts: Accounts,
     categories: Categories,
+    contacts: Contacts,
+    transfers: Transfers,
     date_: Annotated[str, Form(alias="date")] = "",
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
@@ -982,14 +1011,39 @@ def update_transaction(
     tags: Annotated[list[str] | None, Form()] = None,
 ):
     account, side, amount = account or [], side or [], amount or []
-    return _update(
-        transactions,
-        transaction_id,
-        date_,
-        payee,
-        comment,
-        lambda: split_postings(account, side, amount, category, category_places(accounts, categories), posted_on),
-        back,
-        related,
-        tags,
-    )
+    people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
+    if people and any(a in {str(i) for i in people} for a in account):
+        # A person on one side: the entry becomes (or stays) a loan or a borrowing with them, in place.
+        try:
+            person, data = _person_rows(people, account, side, amount, date_, comment)
+            transfers.convert(transaction_id, person, data, tags or [], parse_related(related))
+        except ValidationError as e:
+            return htmx_error(validation_message(e), "#form-error")
+        except ValueError as e:
+            if "not found" in str(e) and f"'{transaction_id}'" in str(e):
+                raise HTTPException(status_code=404, detail="transaction not found") from None
+            return htmx_error(str(e), "#form-error")
+        return htmx_redirect(safe_back(back), flash="transaction-updated")
+    detached = False
+    try:
+        detached = transfers.detach(transaction_id)  # a loan edited into an ordinary entry stops being one
+    except ValueError as e:
+        return htmx_error(str(e), "#form-error")
+    try:
+        result = _update(
+            transactions,
+            transaction_id,
+            date_,
+            payee,
+            comment,
+            lambda: split_postings(account, side, amount, category, category_places(accounts, categories), posted_on),
+            back,
+            related,
+            tags,
+        )
+    except HTTPException:
+        transactions.tr.db.rollback()
+        raise
+    if detached and result.status_code >= 400:
+        transactions.tr.db.rollback()  # it stays the loan it was
+    return result
