@@ -12,7 +12,16 @@ from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
 from ...clock import local_today
-from ...dependencies import Accounts, Categories, Contacts, Recurring, SharedExpenses, Transactions, Transfers
+from ...dependencies import (
+    Accounts,
+    Categories,
+    Contacts,
+    Recurring,
+    SharedExpenses,
+    SharedIncomes,
+    Transactions,
+    Transfers,
+)
 from ...models.transaction import PostingSide
 from ...repositories.obligation import ObligationRepository
 from ...repositories.transaction import SYSTEM_PAYEES
@@ -31,7 +40,7 @@ from ...templating import templates
 from .accounts import PickGroups, PickOption, build_tree, category_groups, posting_groups, without_contacts
 from .budget import parse_month
 from .categories import _month_context, category_tree
-from .people import expense_data
+from .people import expense_data, income_data
 from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
 
 router = APIRouter(prefix="/transactions")
@@ -448,14 +457,14 @@ def transaction_sheet(
     with_person = contacts.read(party[0].contact_id) if party else None
     purposes = {r.purpose for r in party}
     # A loan, a borrowing or a bill shared with people is edited here too; the rest of what people made is on their page.
-    loan_like = bool(party) and (purposes <= {"loan", "borrowing"} or purposes == {"expense"})
+    loan_like = bool(party) and (purposes <= {"loan", "borrowing"} or purposes in ({"expense"}, {"income"}))
     names = {c.id: c.name for c in contacts.cr.list()}
     with_names = sorted({names[r.contact_id] for r in party if r.contact_id in names})
     index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     row = to_row(transaction, index)
     labels = {
         "expense": ("Paid from", "Spent on"),
-        "income": ("From", "Received in"),
+        "income": ("Earned from", "Paid into"),
         "transfer": ("From", "To"),
     }[row.kind]
     return templates.TemplateResponse(
@@ -563,6 +572,18 @@ def editor_values(bill=None, with_id: UUID | None = None) -> dict:
     }
 
 
+def income_values(shared=None) -> dict:
+    """What the income Share editor starts with: the shared income being edited, or nothing."""
+    if shared is None:
+        return {"theirs": {}, "received": {}}
+    return {
+        "theirs": {p.contact_id: p.amount for p in shared.theirs},
+        "received": {p.contact_id: p.amount for p in shared.received_by},
+        "category_id": shared.category_id,
+        "account_id": next((d.account_id for d in shared.deposits), None),
+    }
+
+
 def form_context(accounts: Accounts, categories: Categories, contacts: Contacts | None = None, **extra) -> dict:
     all_accounts = accounts.list()
     people = (
@@ -591,8 +612,10 @@ def form_context(accounts: Accounts, categories: Categories, contacts: Contacts 
         "people": people,
         "money_groups": [g for g in posting_groups(build_tree(all_accounts)) if g[0] in ("Assets", "Liabilities")],
         "spending": category_tree(categories, "spending"),
+        "earning": category_tree(categories, "earning"),
         "mode": "simple",
         "ed": editor_values(),
+        "ei": income_values(),
         **extra,
     }
 
@@ -914,6 +937,7 @@ async def create_split_transaction(
     contacts: Contacts,
     transfers: Transfers,
     expenses: SharedExpenses,
+    incomes: SharedIncomes,
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
     amount: Annotated[list[str] | None, Form()] = None,
@@ -926,11 +950,22 @@ async def create_split_transaction(
     related: Annotated[str, Form()] = "",
     tags: Annotated[list[str] | None, Form()] = None,
     mode: Annotated[str, Form()] = "",
+    kind: Annotated[str, Form()] = "",
 ):
     account, side, amount = account or [], side or [], amount or []
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
     try:
-        if mode == "share":
+        if mode == "share" and kind == "income":
+            # Share on an income: money that came in, part of it theirs (what the form lists).
+            form = {k: str(v) for k, v in (await request.form()).items()}
+            incomes.create(
+                income_data(form, contacts.cr.list()),
+                comment=comment.strip() or None,
+                tags=tags or [],
+                related_id=parse_related(related),
+            )
+            return htmx_redirect(safe_back(back), flash="income-shared")
+        if mode == "share" and kind != "transfer":
             # Share: a bill shared by the shares and payments the form lists (the same one a person's page records).
             form = {k: str(v) for k, v in (await request.form()).items()}
             expenses.create(
@@ -944,6 +979,8 @@ async def create_split_transaction(
         if people and any(a in {str(i) for i in people} for a in account):
             _transfer_with_person(transfers, people, account, side, amount, date_, comment, tags, related)
             return htmx_redirect(safe_back(back), flash="transfer-recorded")
+        if mode == "share":
+            raise ValueError("put a person on one side, or choose Split!")
         transactions.create(
             TransactionCreate(
                 date=date_ or local_today(),
@@ -972,6 +1009,7 @@ def edit_transaction_page(
     transactions: Transactions,
     contacts: Contacts,
     expenses: SharedExpenses,
+    incomes: SharedIncomes,
     back: str = "",
 ):
     transaction = transactions.read(transaction_id)
@@ -983,12 +1021,14 @@ def edit_transaction_page(
     person_of: dict[UUID, UUID] = {}
     party = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
     purposes = {r.purpose for r in party}
-    bill = None
+    bill = shared_income = None
     if party:
         if purposes == {"expense"}:
             found = expenses.er.by_transaction(transaction_id)
             bill = expenses.read(found.id) if found is not None else None
-        if bill is None and not purposes <= {"loan", "borrowing"}:
+        if purposes == {"income"}:
+            shared_income = incomes.read(transaction_id)
+        if bill is None and shared_income is None and not purposes <= {"loan", "borrowing"}:
             return RedirectResponse(f"/people/{party[0].contact_id}", status_code=303)
         person_of = {link.account_id: link.contact_id for link in contacts.cr.links()}
     total = sum((p.amount for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
@@ -1003,6 +1043,15 @@ def edit_transaction_page(
             bill.total_amount,
             "share",
         )
+    elif shared_income is not None:
+        from_rows, to_rows, total, mode = (
+            form_rows([], PostingSide.CREDIT),
+            form_rows([], PostingSide.DEBIT),
+            shared_income.total_amount,
+            "share",
+        )
+    elif party:
+        mode = "share"  # a loan or a borrowing: the person is on one side
     elif len(from_rows) > 1 or len(to_rows) > 1:
         mode = "split"
     return templates.TemplateResponse(
@@ -1020,7 +1069,8 @@ def edit_transaction_page(
             to_rows=to_rows,
             mode=mode,
             ed=editor_values(bill),
-            **({"kind": "expense"} if bill is not None else {}),
+            ei=income_values(shared_income),
+            **({"kind": "expense"} if bill is not None else {"kind": "income"} if shared_income is not None else {}),
             related=related_info(
                 transactions,
                 AccountIndex.build(accounts.list(), categories.list(include_closed=True)),
@@ -1066,22 +1116,31 @@ def _update(
 
 
 def _release(
-    transaction_id: UUID, purposes: set[str], transfers: Transfers, expenses: SharedExpenses, keep: str
+    transaction_id: UUID,
+    purposes: set[str],
+    transfers: Transfers,
+    expenses: SharedExpenses,
+    incomes: SharedIncomes,
+    keep: str,
 ) -> None:
-    """Before an entry made through people is saved as something else, what it was goes: a loan or borrowing, or a bill
-    shared with people. `keep` names what it is about to become when that replaces the old records itself ("loan" or
-    "bill"). Anything else a person made is not edited here. The caller rolls back if what follows fails."""
+    """Before an entry made through people is saved as something else, what it was goes: a loan or borrowing, a bill
+    shared with people, or income shared with people. `keep` names what it is about to become when that replaces the old
+    records itself ("loan", "bill" or "income"). Anything else a person made is not edited here. The caller rolls back if
+    what follows fails."""
     if not purposes:
         return
     if purposes == {"expense"}:
         if keep != "bill":
             expenses.detach(transaction_id)
+    elif purposes == {"income"}:
+        if keep != "income":
+            incomes.detach(transaction_id)
     elif purposes <= {"loan", "borrowing"}:
         if keep != "loan":
             transfers.detach(transaction_id)
     else:
         raise ValueError(
-            "only a loan, a borrowing or a bill shared with people can be changed here: use the person's page!"
+            "only a loan, a borrowing, or a bill or income shared with people can be changed here: use the person's page!"
         )
 
 
@@ -1095,6 +1154,7 @@ async def update_transaction(
     contacts: Contacts,
     transfers: Transfers,
     expenses: SharedExpenses,
+    incomes: SharedIncomes,
     date_: Annotated[str, Form(alias="date")] = "",
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
@@ -1107,6 +1167,7 @@ async def update_transaction(
     related: Annotated[str, Form()] = "",
     tags: Annotated[list[str] | None, Form()] = None,
     mode: Annotated[str, Form()] = "",
+    kind: Annotated[str, Form()] = "",
 ):
     account, side, amount = account or [], side or [], amount or []
     db = transactions.tr.db
@@ -1116,9 +1177,21 @@ async def update_transaction(
     }
     with_people = bool(people) and any(a in {str(i) for i in people} for a in account)
     try:
-        if mode == "share":
+        if mode == "share" and kind == "income":
+            # Share on an income: the entry becomes (or stays) income shared with people, in place.
+            _release(transaction_id, purposes, transfers, expenses, incomes, "income")
+            form = {k: str(v) for k, v in (await request.form()).items()}
+            incomes.convert(
+                transaction_id,
+                income_data(form, contacts.cr.list()),
+                comment.strip() or None,
+                tags or [],
+                parse_related(related),
+            )
+            return htmx_redirect(safe_back(back), flash="transaction-updated")
+        if mode == "share" and kind != "transfer":
             # Share: the entry becomes (or stays) a bill shared by the shares and payments the form lists, in place.
-            _release(transaction_id, purposes, transfers, expenses, "bill")
+            _release(transaction_id, purposes, transfers, expenses, incomes, "bill")
             form = {k: str(v) for k, v in (await request.form()).items()}
             expenses.convert(
                 transaction_id,
@@ -1130,11 +1203,13 @@ async def update_transaction(
             return htmx_redirect(safe_back(back), flash="transaction-updated")
         if with_people:
             # A person on one side of a transfer: the entry becomes (or stays) a loan or a borrowing, in place.
-            _release(transaction_id, purposes, transfers, expenses, "loan")
+            _release(transaction_id, purposes, transfers, expenses, incomes, "loan")
             person, loan = _person_rows(people, account, side, amount, date_, comment)
             transfers.convert(transaction_id, person, loan, tags or [], parse_related(related))
             return htmx_redirect(safe_back(back), flash="transaction-updated")
-        _release(transaction_id, purposes, transfers, expenses, "")  # edited back into an ordinary entry
+        if mode == "share":
+            raise ValueError("put a person on one side, or choose Split!")
+        _release(transaction_id, purposes, transfers, expenses, incomes, "")  # edited back into an ordinary entry
         result = _update(
             transactions,
             transaction_id,

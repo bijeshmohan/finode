@@ -66,6 +66,18 @@ An expense split with contacts. A **draft** is only the plan; **confirming** rec
 | `POST` | `/shared-expenses/{expense_id}/confirm` | Record a draft (409 if already confirmed; `Idempotency-Key` returns the first result on a retry). |
 | `POST` | `/shared-expenses/{expense_id}/cancel` | Remove a draft, or reverse a confirmed expense for good. |
 
+## Shared income
+
+Money that came in, part of it not yours: rent collected for a co-owner, a refund for the whole group. One ordinary ledger entry records it: only your own part is income (under `category_id`, an income category). `theirs` are the parts that belong to contacts (you hold the money for them, so you owe them that much), `received_by` is money a contact received for you (they owe you), and `deposits` is what landed in your accounts. Your part is the total less `theirs`; `deposits` and `received_by` must add up to the total, a contact is on one side only, and at least one contact is named. There is no draft: it is recorded when sent. It is changed by sending it again (`PUT`), until anything was paid back against it.
+
+| Method | Path | What it does |
+|---|---|---|
+| `POST` | `/shared-incomes/preview` | Your income, what you hold for others and who received it for you, saving nothing. |
+| `POST` | `/shared-incomes/` | Record it. `Idempotency-Key` makes a retry safe. |
+| `GET` | `/shared-incomes/{transaction_id}` | One shared income as recorded (404 for any other entry). |
+| `PUT` | `/shared-incomes/{transaction_id}` | Record it again with new parts; the entry keeps its id. An ordinary income entry can be turned into shared income this way. 409 once anything was paid back. |
+| `POST` | `/shared-incomes/{transaction_id}/cancel` | Reverse it for good: the entry and what it left owed go too (409 once something was settled). |
+
 ## Contacts
 
 A contact is a person you lend to, borrow from or share costs with. It is not an account: its ledger side is two ordinary accounts made with it, **Due from X** (an asset: X owes you) and **Due to X** (a liability: you owe X), both outside the budget. They follow the contact (account responses carry `contact_account: true` for them) and can't be renamed, closed, deleted, merged or given sub-accounts on their own, and **nothing can be posted to them except through the contact routes** (the ordinary transaction routes answer 400): that keeps every debt tied to an obligation. An entry made through a contact can't be edited or deleted on the ordinary routes either; reverse it from the contact. Names are unique (capitals aside) and at most 30 characters.

@@ -11,7 +11,7 @@
   <div class="scope-seg modes" role="radiogroup" aria-label="How it is recorded" data-modes>
     <label><input type="radio" name="mode" value="simple" {{ "checked" if mode == "simple" }}><span>Simple</span></label>
     <label><input type="radio" name="mode" value="split" {{ "checked" if mode == "split" }}><span>Split</span></label>
-    <label data-mode-share><input type="radio" name="mode" value="share" {{ "checked" if mode == "share" }}><span>Share</span></label>
+    <label><input type="radio" name="mode" value="share" {{ "checked" if mode == "share" }}><span>Share</span></label>
   </div>
   {% endif %}
 
@@ -25,7 +25,7 @@
 
   {% if with_payee %}{% include "partials/txn_payee.html" %}{% endif %}
 
-  {% if with_modes %}{% include "partials/people_editor.html" %}{% endif %}
+  {% if with_modes %}{% include "partials/people_editor.html" %}{% include "partials/income_editor.html" %}{% endif %}
 
   {% for side, title, rows in (("credit", "From", from_rows), ("debit", "To", to_rows)) %}
   <section class="txn-side" data-side-section="{{ side }}">

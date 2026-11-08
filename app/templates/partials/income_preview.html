@@ -1,0 +1,15 @@
+{#- What shared income would do, as typed so far. Expects preview (IncomePreview or none) and message. -#}
+{% if message %}
+<p class="error">{{ message }}</p>
+{% elif preview %}
+<p class="preview-head">After this</p>
+<ul class="preview-list">
+  <li><span>Your income</span><b class="income">{{ preview.your_income|money }}</b></li>
+  {% for p in preview.theirs %}
+  <li><span>{{ p.name }} <span class="muted">(you hold it for them)</span></span><b class="out-amount">{{ p.amount|money }}</b></li>
+  {% endfor %}
+  {% for p in preview.received_by %}
+  <li><span>{{ p.name }} owes you</span><b class="income">{{ p.amount|money }}</b></li>
+  {% endfor %}
+</ul>
+{% endif %}

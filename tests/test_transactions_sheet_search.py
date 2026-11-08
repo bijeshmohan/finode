@@ -175,7 +175,7 @@ def test_a_date_is_not_said_twice(client, books, ledger):
 
 
 def test_the_labels_follow_the_kind(client, books, ledger):
-    assert "From Salary Received in HDFC" in flat(sheet(client, ledger["pay"]))
+    assert "Earned from Salary Paid into HDFC" in flat(sheet(client, ledger["pay"]))
     assert "+5,000.00" in flat(sheet(client, ledger["pay"]))
     move = flat(sheet(client, ledger["move"]))
     assert "From HDFC To Regalia Gold" in move

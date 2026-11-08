@@ -39,7 +39,7 @@ class ObligationService:
                     source_type=o.source_type,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
                     direction=o.direction,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
                     # a shared expense is named by its payee; a transfer has only the note it was given
-                    description=(entry.payee if o.source_type == "shared_expense" else entry.comment)
+                    description=(entry.payee if o.source_type in ("shared_expense", "shared_income") else entry.comment)
                     if entry
                     else None,
                     date=entry.date if entry else o.created.date(),

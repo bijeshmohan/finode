@@ -1,0 +1,32 @@
+{#- The Share tab of an income: which part is theirs, and who received some of it for you. Expects people (the active contacts), ei (income_values), mode, kind, money_groups, earning. -#}
+{% from "partials/icons.html" import icon %}
+{% from "partials/pickers.html" import account_pick, category_pick %}
+<div class="people-editor person-form stack" data-people-editor="income" {{ "hidden" if not (mode == "share" and kind == "income") }}>
+  {% if people %}
+  {{ category_pick("income_category_id", "Earned from", earning, selected=(ei.category_id|string if ei.category_id else "")) }}
+  {{ account_pick("income_account_id", "Paid into", money_groups, selected=(ei.account_id|string if ei.account_id else "")) }}
+  <fieldset class="plain">
+    <legend>Their part <span class="muted">(you hold it for them; only the rest is your income)</span></legend>
+    <div class="tile">
+      {% for p in people %}
+      <label class="r share-row"><span class="crow-main"><span class="crow-name">{{ p.name }}</span></span><input class="share-value" type="text" inputmode="decimal" name="theirs_{{ p.id }}" aria-label="{{ p.name }}'s part" autocomplete="off" value="{{ ei.theirs.get(p.id, '') }}"></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <details class="sheet-extra" {{ "open" if ei.received }}>
+    <summary><span>Someone else received some of it for you</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">
+      {% for p in people %}
+      <label>{{ p.name }} received
+        <input type="text" name="got_{{ p.id }}" inputmode="decimal" autocomplete="off" value="{{ ei.received.get(p.id, '') }}">
+      </label>
+      {% endfor %}
+    </div>
+  </details>
+  <div id="income-preview" class="preview" hx-post="/people/income/preview" hx-include="closest form"
+       hx-trigger="change[document.querySelector('form[data-txn-form]').dataset.mode==='share' && document.querySelector('form[data-txn-form]').dataset.txnKind==='income'] from:closest form, input[document.querySelector('form[data-txn-form]').dataset.mode==='share' && document.querySelector('form[data-txn-form]').dataset.txnKind==='income'] delay:400ms from:closest form, people-mode from:closest form"
+       hx-swap="innerHTML" aria-live="polite"></div>
+  {% else %}
+  <div class="card empty-state"><p>Add the people you share money with first.</p><a class="button" href="/people/new">Add a person</a></div>
+  {% endif %}
+</div>

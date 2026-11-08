@@ -175,7 +175,7 @@ class TransferRead(BaseModel):
     obligation_id: UUID | None
 
 
-ObligationSource = Literal["shared_expense", "loan", "borrowing", "advance", "opening"]
+ObligationSource = Literal["shared_expense", "shared_income", "loan", "borrowing", "advance", "opening"]
 
 
 class ObligationRead(BaseModel):
@@ -277,7 +277,9 @@ class SettlementRead(BaseModel):
     excess_obligation_id: UUID | None
 
 
-ActivityPurpose = Literal["loan", "borrowing", "advance", "gift", "expense", "settlement", "opening", "netoff"]
+ActivityPurpose = Literal[
+    "loan", "borrowing", "advance", "gift", "expense", "settlement", "opening", "netoff", "income"
+]
 
 
 class ActivityRead(BaseModel):

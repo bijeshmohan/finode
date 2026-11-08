@@ -39,6 +39,9 @@ class ContactSummaryService:
             for share in self.expenses.shares(expense.id):
                 if share.contact_id == contact_id and expense.transaction_id is not None:
                     shares[expense.transaction_id] = share.share_amount
+        owed: dict[UUID, list] = {}
+        for o in self.ob.obligations(contact_id=contact_id):
+            owed.setdefault(o.source_transaction_id, []).append(o)
         items = []
         for r in rows:
             entry = entries.get(r.transaction_id)
@@ -46,6 +49,8 @@ class ContactSummaryService:
                 continue
             if r.purpose == "expense":
                 amount = shares.get(r.transaction_id, ZERO)
+            elif r.purpose == "income":  # the part that is theirs, or what they received for the owner
+                amount = sum((o.original_amount for o in owed.get(r.transaction_id, [])), ZERO)
             else:  # what moved on the owner's side
                 side = PostingSide.DEBIT if r.direction == "received" else PostingSide.CREDIT
                 amount = sum((p.amount for p in postings.get(r.transaction_id, []) if p.side == side), ZERO)
@@ -56,7 +61,7 @@ class ContactSummaryService:
                     purpose=r.purpose,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
                     direction=r.direction,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
                     amount=amount,
-                    description=entry.payee if r.purpose == "expense" else entry.comment,
+                    description=entry.payee if r.purpose in ("expense", "income") else entry.comment,
                 )
             )
         return sorted(items, key=lambda i: (i.date, str(i.transaction_id)), reverse=True)

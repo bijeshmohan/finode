@@ -25,6 +25,7 @@ from ...dependencies import (
     Obligations,
     Settlements,
     SharedExpenses,
+    SharedIncomes,
     Transfers,
 )
 from ...schemas.contact import (
@@ -44,6 +45,7 @@ from ...schemas.shared_expense import (
     PaymentIn,
     SharedExpenseCreate,
 )
+from ...schemas.shared_income import IncomeDepositIn, IncomePartIn, SharedIncomeCreate
 from ...services.contact_errors import ContactNotFoundError
 from ...templating import grouping_for, money, templates
 from .accounts import build_tree, posting_groups, without_contacts
@@ -632,6 +634,47 @@ def expense_data(form: dict[str, str], people: Sequence) -> SharedExpenseCreate:
     )
 
 
+def income_data(form: dict[str, str], people: Sequence) -> SharedIncomeCreate:
+    """The shared income a form describes. A box left empty is not given: what landed in your account is whatever the
+    people did not receive."""
+    total = parse_amount(form.get("total_amount") or form.get("total"))
+
+    def value(key: str) -> Decimal | None:
+        raw = (form.get(key) or "").strip()
+        return parse_amount(raw) if raw else None
+
+    theirs = [
+        IncomePartIn(contact_id=p.id, amount=v) for p in people if (v := value(f"theirs_{p.id}")) is not None and v > 0
+    ]
+    got = [IncomePartIn(contact_id=p.id, amount=v) for p in people if (v := value(f"got_{p.id}")) is not None and v > 0]
+    landed = total - sum((g.amount for g in got), Decimal(0))
+    account = _uuid(form.get("income_account_id", ""))
+    if landed > 0 and not account:
+        raise ValueError("choose the account it was paid into!")
+    extra = {"date": form["date"]} if form.get("date") else {}
+    return SharedIncomeCreate(
+        description=(form.get("description") or form.get("payee") or "").strip() or "Shared income",
+        total_amount=total,
+        category_id=_uuid(form.get("income_category_id", "")),
+        theirs=theirs,
+        received_by=got,
+        deposits=[IncomeDepositIn(account_id=account, amount=landed)] if landed > 0 and account else [],
+        **extra,
+    )
+
+
+@router.post("/income/preview")
+async def income_preview(request: Request, contacts: Contacts, incomes: SharedIncomes):
+    form = {k: str(v) for k, v in (await request.form()).items()}
+    context: dict[str, Any] = {"preview": None, "message": None}
+    if (form.get("total_amount") or form.get("total") or "").strip():
+        try:
+            context["preview"] = incomes.preview(income_data(form, contacts.cr.list()))
+        except (ValueError, ValidationError) as e:
+            context["message"] = _message(e)
+    return templates.TemplateResponse(request, "partials/income_preview.html", context)
+
+
 @router.post("/expense/preview")
 async def expense_preview(request: Request, contacts: Contacts, expenses: SharedExpenses):
     form = {k: str(v) for k, v in (await request.form()).items()}
@@ -671,6 +714,7 @@ def reverse_entry(
     transfers: Transfers,
     settlements: Settlements,
     expenses: SharedExpenses,
+    incomes: SharedIncomes,
     net_offs: NetOffs,
 ):
     _person(contacts, contact_id)
@@ -682,6 +726,8 @@ def reverse_entry(
             settlements.reverse(transaction_id)
         elif found[0].purpose == "netoff":
             net_offs.reverse(transaction_id)
+        elif found[0].purpose == "income":
+            incomes.cancel(transaction_id)
         elif found[0].purpose == "expense":
             expense = next((e for e in expenses.list("confirmed") if e.transaction_id == transaction_id), None)
             if expense is None:

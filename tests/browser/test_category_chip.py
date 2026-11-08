@@ -16,7 +16,7 @@ def test_the_category_is_a_chip_after_the_accounts_for_expense_and_income(page: 
     expect(chip).to_have_text("Category…")
     assert top(page, '[data-side-section="credit"]') < top(page, '[data-side-section="debit"]')
     page.get_by_role("button", name="Income", exact=True).click()
-    # Income: the data has the category on the From side, the screen lists it after "Received in".
+    # Income: the data has the category on the From side, the screen lists it after "Paid into".
     assert top(page, '[data-side-section="debit"]') < top(page, '[data-side-section="credit"]')
     page.get_by_role("button", name="Transfer", exact=True).click()
     assert top(page, '[data-side-section="credit"]') < top(page, '[data-side-section="debit"]')

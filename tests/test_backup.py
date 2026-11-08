@@ -152,6 +152,19 @@ def rich(client, root_accounts):
         },
     )
     assert draft.status_code == 201, draft.text
+    rent = client.post("/api/categories/", json={"name": "Rent", "kind": "earning"}).json()
+    shared_income = client.post(
+        "/api/shared-incomes/",
+        json={
+            "description": "Rent, Flat 4B",
+            "total_amount": "1000",
+            "date": "2026-09-09",
+            "category_id": rent["id"],
+            "theirs": [{"contact_id": alice["id"], "amount": "400"}],
+            "deposits": [{"account_id": bank["id"], "amount": "1000"}],
+        },
+    )
+    assert shared_income.status_code == 201, shared_income.text
     client.put(f"/api/budget/categories/{groceries['id']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['id']}", json={"month": "2026-09-01", "amount": "15000"})
     return {"bank": bank, "groceries": groceries}
