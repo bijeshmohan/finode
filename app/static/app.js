@@ -1068,7 +1068,7 @@ function recomputeTxn(form) {
   syncRowCategories(form);
   syncRowPickers(form);
   // Typing less than the total in a row makes a split: the switch says so, instead of blocking it.
-  if (form.dataset.mode === "just" && [...form.querySelectorAll("[data-rows]")].some((l) => l.querySelectorAll("[data-row]").length > 1)) {
+  if (form.dataset.mode === "simple" && [...form.querySelectorAll("[data-rows]")].some((l) => l.querySelectorAll("[data-row]").length > 1)) {
     applyMode(form, "split");
   }
 }
@@ -1676,10 +1676,10 @@ function noteForPeople(target) {
 }
 document.body.addEventListener("change", (event) => noteForPeople(event.target));
 
-// ---- Just me, Split, With people: the three ways to record an expense (an income has the first two) ----
-// Just me is one row on each side with the whole total. Split is the rows that add up to it: typing less than the total in a row
-// switches to Split by itself. With people hides the rows and shows who the bill is for, how it is split and who paid; it is saved
-// as a shared bill. Switching never loses the total, the payee, the date or the note; choosing Just me keeps the first row of
+// ---- Simple, Split, Share: the three ways to record an expense (an income has the first two) ----
+// Simple is one row on each side with the whole total. Split is the rows that add up to it: typing less than the total in a row
+// switches to Split by itself. Share hides the rows and shows who the bill is for, how it is split and who paid; it is saved
+// as a shared bill. Switching never loses the total, the payee, the date or the note; choosing Simple keeps the first row of
 // each side.
 function collapseRows(list) {
   const rows = [...list.querySelectorAll("[data-row]")];
@@ -1693,7 +1693,7 @@ function applyMode(form, mode) {
   form.dataset.mode = mode;
   modes.querySelectorAll('input[name="mode"]').forEach((radio) => { radio.checked = radio.value === mode; });
   const editor = form.querySelector("[data-people-editor]");
-  const people = mode === "people";
+  const people = mode === "share";
   const was = form._peopleOpen === true;
   form._peopleOpen = people;
   if (editor) {
@@ -1726,13 +1726,13 @@ function syncModes(form, kind) {
   const wasSimple = form._simple !== false;
   form._simple = simple;
   modes.hidden = !simple;
-  modes.querySelector("[data-mode-people]").hidden = kind !== "expense";
-  let mode = form.dataset.mode || "just";
+  modes.querySelector("[data-mode-share]").hidden = kind !== "expense";
+  let mode = form.dataset.mode || "simple";
   if (!simple) mode = "split";
   else if (!wasSimple) {
     const many = [...form.querySelectorAll("[data-rows]")].some((list) => list.querySelectorAll("[data-row]").length > 1);
-    mode = many ? "split" : "just";
-  } else if (mode === "people" && kind !== "expense") mode = "just";
+    mode = many ? "split" : "simple";
+  } else if (mode === "share" && kind !== "expense") mode = "simple";
   applyMode(form, mode);
 }
 
@@ -1741,6 +1741,6 @@ document.body.addEventListener("change", (event) => {
   if (!(radio instanceof HTMLInputElement) || radio.name !== "mode") return;
   const form = radio.closest("form[data-txn-form]");
   if (!form) return;
-  if (radio.value === "just") form.querySelectorAll("[data-rows]").forEach(collapseRows);
+  if (radio.value === "simple") form.querySelectorAll("[data-rows]").forEach(collapseRows);
   applyMode(form, radio.value);
 });

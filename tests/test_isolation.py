@@ -512,7 +512,7 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             },
         )
         b_category = next(c["id"] for c in client.get("/api/categories/").json())
-        form = {"mode": "people", "total": "10", "category_id": b_category, "account_id": mine, "date": "2026-11-01"}
+        form = {"mode": "share", "total": "10", "category_id": b_category, "account_id": mine, "date": "2026-11-01"}
         refused(
             "a bill paid from A's account",
             "POST",
