@@ -1717,9 +1717,9 @@ body.bare .brand-title img { width: 44px; height: 44px; border-radius: 11px; }
 .preview-list li { display: flex; justify-content: space-between; gap: 1rem; padding: .3rem 0; font-variant-numeric: tabular-nums; }
 .warn-note { margin: .5rem 0 0; padding: .6rem .8rem; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn); font-size: .9rem; }
 
-/* ---------- The three ways to record an entry: Just me, Split, With people ---------- */
+/* ---------- The three ways to record an entry: Simple, Split, Share ---------- */
 .scope-seg.modes { margin-top: -.25rem; }
-form[data-mode="people"] [data-side-section], form[data-mode="people"] .txn-swap { display: none; }
-form[data-mode="just"] .side-status { display: none; }
-form[data-mode="just"] [data-remove-row] { display: none; }
+form[data-mode="share"] [data-side-section], form[data-mode="share"] .txn-swap { display: none; }
+form[data-mode="simple"] .side-status { display: none; }
+form[data-mode="simple"] [data-remove-row] { display: none; }
 .people-editor[hidden] { display: none; }

@@ -9,9 +9,9 @@
 
   {% if with_modes %}
   <div class="scope-seg modes" role="radiogroup" aria-label="How it is recorded" data-modes>
-    <label><input type="radio" name="mode" value="just" {{ "checked" if mode == "just" }}><span>Just me</span></label>
+    <label><input type="radio" name="mode" value="simple" {{ "checked" if mode == "simple" }}><span>Simple</span></label>
     <label><input type="radio" name="mode" value="split" {{ "checked" if mode == "split" }}><span>Split</span></label>
-    <label data-mode-people><input type="radio" name="mode" value="people" {{ "checked" if mode == "people" }}><span>With people</span></label>
+    <label data-mode-share><input type="radio" name="mode" value="share" {{ "checked" if mode == "share" }}><span>Share</span></label>
   </div>
   {% endif %}
 

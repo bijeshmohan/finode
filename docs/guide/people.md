@@ -27,17 +27,17 @@ An entry you already recorded can become a loan too: open it, choose **Transfer*
 
 ## Record an entry three ways
 
-Under **Expense**, **Income** and **Transfer** there is a second switch: **Just me**, **Split** and **With people**.
+Under **Expense**, **Income** and **Transfer** there is a second switch: **Simple**, **Split** and **Share**.
 
-- **Just me** is one account paying and one category, for the whole amount.
+- **Simple** is one account paying and one category, for the whole amount.
 - **Split** is several rows that add up to the amount, for example two categories. Typing less than the amount in a row moves you to Split by itself.
-- **With people** (Expense only) is for a bill you share. Choose the category and the account you paid from, choose **Equally**, **Amounts**, **%** or **Shares**, and tick the people who share it. A box next to each person takes their amount, percentage or weight. If someone else paid some of it, open **Someone else paid some of it**. Under the form you see each share, your own share (the only part your budget sees) and who owes whom.
+- **Share** (Expense only) is for a bill you share. Choose the category and the account you paid from, choose **Equally**, **Amounts**, **%** or **Shares**, and tick the people who share it. A box next to each person takes their amount, percentage or weight. If someone else paid some of it, open **Someone else paid some of it**. Under the form you see each share, your own share (the only part your budget sees) and who owes whom.
 
-An entry you already recorded can change between the three: open it, choose another way and save. It keeps its date, tags and related link. Editing a shared bill later opens on **With people** as you entered it. None of this works once a share has been paid back. **Add expense** on a person's page opens the same screen with that person ticked.
+An entry you already recorded can change between the three: open it, choose another way and save. It keeps its date, tags and related link. Editing a shared bill later opens on **Share** as you entered it. None of this works once a share has been paid back. **Add expense** on a person's page opens the same screen with that person ticked.
 
 ## How a shared bill is worked out
 
-The **With people** way splits the amount like this:
+The **Share** way splits the amount like this:
 
 - **Equally**,
 - **Amounts** (each person's amount; they must add up to the total),

@@ -227,7 +227,7 @@ def test_netting_off_what_two_people_owe_each_other(page: Page, books, api: Api)
 
 
 def pick(page: Page, index: int, label: str) -> None:
-    """Choose in the sheet behind the nth field of the With people tab (0: the category, 1: the account you paid from)."""
+    """Choose in the sheet behind the nth field of the Share tab (0: the category, 1: the account you paid from)."""
     page.locator(".people-editor .field-pick").nth(index).click()
     page.locator("#row-picker [data-pick-option]", has_text=label).first.click()
 
@@ -237,22 +237,22 @@ def test_the_three_ways_show_and_hide_what_they_should(page: Page, books, api: A
     page.goto("/transactions/new")
     modes = page.locator("[data-modes]")
     expect(modes).to_be_visible()
-    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "just")
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "simple")
     expect(page.locator("[data-people-editor]")).to_be_hidden()
     expect(page.locator('[data-side-section="credit"]')).to_be_visible()
-    modes.get_by_text("With people").click()
+    modes.get_by_text("Share", exact=True).click()
     expect(page.locator("[data-people-editor]")).to_be_visible()
     expect(page.locator('[data-side-section="credit"]')).to_be_hidden()
     expect(page.locator('[data-side-section="debit"]')).to_be_hidden()
     page.get_by_role("button", name="Income", exact=True).click()
-    expect(page.locator("[data-mode-people]")).to_be_hidden()
-    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "just")
+    expect(page.locator("[data-mode-share]")).to_be_hidden()
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "simple")
     expect(page.locator('[data-side-section="credit"]')).to_be_visible()
     page.get_by_role("button", name="Transfer", exact=True).click()
     expect(modes).to_be_hidden()
     page.get_by_role("button", name="Expense", exact=True).click()
     expect(modes).to_be_visible()
-    expect(page.locator("[data-mode-people]")).to_be_visible()
+    expect(page.locator("[data-mode-share]")).to_be_visible()
 
 
 def test_typing_less_than_the_total_switches_to_split_and_just_me_goes_back(page: Page, books, api: Api):
@@ -265,14 +265,14 @@ def test_typing_less_than_the_total_switches_to_split_and_just_me_goes_back(page
     expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "split")
     expect(page.locator('input[name="mode"][value="split"]')).to_be_checked()
     assert page.locator('[data-rows="debit"] [data-row]').count() == 2
-    page.locator("[data-modes]").get_by_text("Just me").click()
-    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "just")
-    assert page.locator('[data-rows="debit"] [data-row]').count() == 1, "Just me keeps the first row"
+    page.locator("[data-modes]").get_by_text("Simple", exact=True).click()
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "simple")
+    assert page.locator('[data-rows="debit"] [data-row]').count() == 1, "Simple keeps the first row"
 
 
 def test_a_bill_shared_from_the_with_people_tab_shows_its_result_as_you_type(page: Page, books, api: Api):
     who, bob = alice_of(api), alice_of(api, "Bob")
-    page.goto(f"/transactions/new?mode=people&with={who['id']}")
+    page.goto(f"/transactions/new?mode=share&with={who['id']}")
     expect(page.locator(f'input[name="with_{who["id"]}"]')).to_be_checked()
     page.locator('input[name="total"]').fill("900")
     page.locator('input[name="payee"]').fill("Dinner")
@@ -304,7 +304,7 @@ def test_switching_to_with_people_carries_over_what_the_rows_already_say(page: P
     page.locator('input[name="payee"]').fill("Dinner")
     add_row(page, "credit", "Checking")
     add_row(page, "debit", "Groceries")
-    page.locator("[data-modes]").get_by_text("With people").click()
+    page.locator("[data-modes]").get_by_text("Share", exact=True).click()
     expect(page.locator(".people-editor .field-pick").nth(0)).to_have_text("Groceries")
     expect(page.locator(".people-editor .field-pick").nth(1)).to_have_text("Checking")
     page.locator(f'input[name="with_{alice["id"]}"]').check()
@@ -318,7 +318,7 @@ def test_switching_to_with_people_carries_over_what_the_rows_already_say(page: P
 
 def test_a_friend_who_paid_can_be_recorded_from_the_tab(page: Page, books, api: Api):
     alice = alice_of(api)
-    page.goto(f"/transactions/new?mode=people&with={alice['id']}")
+    page.goto(f"/transactions/new?mode=share&with={alice['id']}")
     page.locator('input[name="total"]').fill("1000")
     pick(page, 0, "Groceries")
     page.locator(".people-editor summary", has_text="Someone else paid").click()
@@ -333,7 +333,7 @@ def test_a_friend_who_paid_can_be_recorded_from_the_tab(page: Page, books, api: 
 
 def test_the_with_people_rows_sit_in_a_line(page: Page, books, api: Api):
     who = alice_of(api)
-    page.goto(f"/transactions/new?mode=people&with={who['id']}")
+    page.goto(f"/transactions/new?mode=share&with={who['id']}")
     rows = page.locator(".share-row")
     assert rows.count() == 2
     for index in range(2):
@@ -363,8 +363,8 @@ def test_an_old_expense_can_be_edited_into_a_shared_bill(page: Page, books, api:
         ],
     )
     page.goto(f"/transactions/{entry['id']}/edit")
-    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "just")
-    page.locator("[data-modes]").get_by_text("With people").click()
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "simple")
+    page.locator("[data-modes]").get_by_text("Share", exact=True).click()
     expect(page.locator(".people-editor .field-pick").nth(0)).to_have_text("Groceries")
     page.locator(f'input[name="with_{alice["id"]}"]').check()
     page.locator(f'input[name="with_{bob["id"]}"]').check()
@@ -374,5 +374,5 @@ def test_an_old_expense_can_be_edited_into_a_shared_bill(page: Page, books, api:
     assert float(api.get(f"/contacts/{alice['id']}")["receivable"]) == 1000
     assert api.get(f"/transactions/{entry['id']}")["date"] == "2026-10-09"
     page.goto(f"/transactions/{entry['id']}/edit")
-    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "people")
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "share")
     expect(page.locator(f'input[name="with_{bob["id"]}"]')).to_be_checked()

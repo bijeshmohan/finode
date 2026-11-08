@@ -35,7 +35,7 @@
 
 {% if not person.archived %}
 <div class="actions person-actions">
-  <a class="button secondary" href="/transactions/new?mode=people&with={{ person.id }}">Add expense</a>
+  <a class="button secondary" href="/transactions/new?mode=share&with={{ person.id }}">Add expense</a>
   <a class="button secondary" href="/people/{{ person.id }}/transfer">Lend or borrow</a>
   {% if person.receivable or person.payable %}<a class="button secondary" href="/people/{{ person.id }}/settle">Settle up</a>{% endif %}
 </div>

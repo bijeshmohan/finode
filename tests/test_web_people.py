@@ -88,7 +88,7 @@ def test_a_persons_page(client, bank):
     text = flat(html)
     assert "Alice owes you" in text and "500.00" in text and "Settle up" in text and "Rent help" in text
     assert f'href="/people/{alice["id"]}/settle?obligation=' in html, "an open amount can be paid off on its own"
-    assert f'href="/transactions/new?mode=people&with={alice["id"]}"' in html
+    assert f'href="/transactions/new?mode=share&with={alice["id"]}"' in html
     assert page(client, "/people/00000000-0000-4000-8000-0000000000aa", status=404)
 
 
@@ -691,9 +691,9 @@ def converted_bill(client, bank, alice, bob):
 
 
 def people_form(bank, dining, who, method="equal", total="1500", **extra):
-    """What the With people tab posts: the total, who the bill is for, how it is split and who paid."""
+    """What the Share tab posts: the total, who the bill is for, how it is split and who paid."""
     data = {
-        "mode": "people",
+        "mode": "share",
         "total": total,
         "payee": "Dinner",
         "date": "2026-11-08",
@@ -714,16 +714,16 @@ def spent(client, name="Dining"):
 def test_the_new_screen_has_the_three_ways_and_opens_on_with_people_from_a_persons_page(client, bank):
     alice = person(client)
     html = page(client, "/transactions/new")
-    assert 'data-mode="just"' in html and 'name="mode" value="just" checked' in html
-    assert 'value="split"' in html and 'value="people"' in html and "data-people-editor" in html
-    assert re.search(r"data-people-editor\s+hidden", html), "the tab is closed until With people is chosen"
-    opened = page(client, "/transactions/new", mode="people", **{"with": alice["id"]})
-    assert 'data-mode="people"' in opened and re.search(rf'name="with_{alice["id"]}" value="1" checked', opened)
+    assert 'data-mode="simple"' in html and 'name="mode" value="simple" checked' in html
+    assert 'value="split"' in html and 'value="share"' in html and "data-people-editor" in html
+    assert re.search(r"data-people-editor\s+hidden", html), "the tab is closed until Share is chosen"
+    opened = page(client, "/transactions/new", mode="share", **{"with": alice["id"]})
+    assert 'data-mode="share"' in opened and re.search(rf'name="with_{alice["id"]}" value="1" checked', opened)
     assert "Alice" in opened and 'name="split_method"' in opened and "Someone else paid some of it" in opened
 
 
 def test_with_nobody_added_the_tab_says_so(client, bank):
-    html = page(client, "/transactions/new", mode="people")
+    html = page(client, "/transactions/new", mode="share")
     assert "Add the people you share costs with first" in html and 'href="/people/new"' in html
 
 
@@ -825,7 +825,7 @@ def test_the_edit_screen_of_a_shared_bill_opens_on_with_people_as_entered(client
     alice, bob = person(client), person(client, "Bob")
     entry, misc = converted(client, bank, [alice, bob])
     form = page(client, f"/transactions/{entry['id']}/edit")
-    assert 'data-mode="people"' in form and 'name="mode" value="people" checked' in form
+    assert 'data-mode="share"' in form and 'name="mode" value="share" checked' in form
     assert re.search(rf'name="with_{alice["id"]}" value="1" checked', form) and re.search(
         rf'name="with_{bob["id"]}" value="1" checked', form
     )
@@ -871,7 +871,7 @@ def test_a_shared_bill_can_be_reshared_and_made_ordinary_again(client, bank):
         "amount": ["3000", "3000"],
         "date": "2026-10-09",
         "payee": "Restaurant",
-        "mode": "just",
+        "mode": "simple",
     }
     assert client.post(f"/transactions/{entry['id']}/edit", data=ordinary).status_code == 200
     assert (
@@ -937,7 +937,7 @@ def test_nothing_changes_once_a_share_was_paid_back_or_when_the_edit_fails(clien
             "side": ["credit", "debit"],
             "amount": ["3000", "3000"],
             "date": "2026-10-09",
-            "mode": "just",
+            "mode": "simple",
         },
     )
     assert ordinary.status_code == 400 and "paid back" in ordinary.text

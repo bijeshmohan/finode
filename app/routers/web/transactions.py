@@ -545,7 +545,7 @@ def people_group(accounts: Accounts, contacts: Contacts | None, keep: Collection
 
 
 def editor_values(bill=None, with_id: UUID | None = None) -> dict:
-    """What the With people editor starts with: the shared bill being edited, or one person ticked (opened from their page)."""
+    """What the Share editor starts with: the shared bill being edited, or one person ticked (opened from their page)."""
     if bill is None:
         return {"checked": {with_id} if with_id else set(), "share_values": {}, "paid": {}}
     shares = {s.contact_id: s for s in bill.shares}
@@ -591,7 +591,7 @@ def form_context(accounts: Accounts, categories: Categories, contacts: Contacts 
         "people": people,
         "money_groups": [g for g in posting_groups(build_tree(all_accounts)) if g[0] in ("Assets", "Liabilities")],
         "spending": category_tree(categories, "spending"),
-        "mode": "just",
+        "mode": "simple",
         "ed": editor_values(),
         **extra,
     }
@@ -779,7 +779,7 @@ def new_transaction_page(
     pay: UUID
     | None = None,  # "pay bill": a payment into this card or loan, for `amount`; the account paid from is left to choose
     amount: str = "",
-    mode: str = "",  # "people": open on the With people tab (from a person's page)
+    mode: str = "",  # "share": open on the Share tab (from a person's page)
     with_person: Annotated[UUID | None, Query(alias="with")] = None,  # the person ticked on that tab
 ):
     all_accounts = accounts.list()
@@ -845,9 +845,9 @@ def new_transaction_page(
             transaction=None,
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
-            mode="people" if mode == "people" else "just",
+            mode="share" if mode == "share" else "simple",
             ed=editor_values(None, with_person),
-            kind="expense" if mode == "people" else kind,
+            kind="expense" if mode == "share" else kind,
             related=linked,
             total=total,
             account=account,
@@ -930,8 +930,8 @@ async def create_split_transaction(
     account, side, amount = account or [], side or [], amount or []
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
     try:
-        if mode == "people":
-            # With people: a bill shared by the shares and payments the form lists (the same one a person's page records).
+        if mode == "share":
+            # Share: a bill shared by the shares and payments the form lists (the same one a person's page records).
             form = {k: str(v) for k, v in (await request.form()).items()}
             expenses.create(
                 expense_data(form, contacts.cr.list()),
@@ -995,13 +995,13 @@ def edit_transaction_page(
     roots = roots_by_id(accounts)
     from_rows = form_rows(transaction.postings, PostingSide.CREDIT, roots=roots, person_of=person_of)
     to_rows = form_rows(transaction.postings, PostingSide.DEBIT, roots=roots, person_of=person_of)
-    mode = "just"
+    mode = "simple"
     if bill is not None:
         from_rows, to_rows, total, mode = (
             form_rows([], PostingSide.CREDIT),
             form_rows([], PostingSide.DEBIT),
             bill.total_amount,
-            "people",
+            "share",
         )
     elif len(from_rows) > 1 or len(to_rows) > 1:
         mode = "split"
@@ -1116,8 +1116,8 @@ async def update_transaction(
     }
     with_people = bool(people) and any(a in {str(i) for i in people} for a in account)
     try:
-        if mode == "people":
-            # With people: the entry becomes (or stays) a bill shared by the shares and payments the form lists, in place.
+        if mode == "share":
+            # Share: the entry becomes (or stays) a bill shared by the shares and payments the form lists, in place.
             _release(transaction_id, purposes, transfers, expenses, "bill")
             form = {k: str(v) for k, v in (await request.form()).items()}
             expenses.convert(
