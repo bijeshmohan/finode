@@ -484,7 +484,8 @@ def test_the_empty_suggestion_row_takes_no_space(page: Page, books, api: Api):
     page.goto("/transactions/new")
     payee = page.locator("#payee").bounding_box()
     side = page.locator('[data-side-section="credit"]').bounding_box()
-    assert side["y"] - (payee["y"] + payee["height"]) < 40, "no dead space between the payee and the account"
+    meta = page.locator(".meta-row").bounding_box()
+    assert meta["y"] - (payee["y"] + payee["height"]) < 40, "no dead space between the payee and the date"
     page.fill("#payee", "sw")
     expect(page.locator("#payee-chips .chip")).to_have_count(1)
     chosen = page.locator('[data-side-section="credit"]').bounding_box()["y"]

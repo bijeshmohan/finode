@@ -12,8 +12,8 @@
   <input type="hidden" name="back" value="{{ back }}">
 
   {% set with_payee = true %}{% set with_modes = true %}
-  {% include "partials/txn_rows.html" %}
 
+{% set after_payee %}
   {% set day = transaction.date if editing else today %}
   <div class="meta-row">
     <label class="chip date-chip" data-date-chip data-today="{{ today }}">{{ icon("calendar") }}<span data-date-label>{{ day|date_chip }}</span>
@@ -29,6 +29,8 @@
               hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.id if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">{{ icon("link") }}Related</button>
     </div>
   </div>
+  {% endset %}
+  {% include "partials/txn_rows.html" %}
 
   {% set chosen_tags = transaction.tags if editing else (copy_of.tags if copy_of else []) %}
   {% set note_value = (transaction.comment or '') if editing else (new_note or '') %}

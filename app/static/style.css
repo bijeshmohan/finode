@@ -1736,7 +1736,6 @@ body.bare .brand-title img { width: 44px; height: 44px; border-radius: 11px; }
 .warn-note { margin: .5rem 0 0; padding: .6rem .8rem; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn); font-size: .9rem; }
 
 /* ---------- The two ways to record an entry: Simple and Split ---------- */
-.scope-seg.modes { margin-top: -.25rem; }
 form[data-shared] [data-side-section], form[data-shared] .txn-swap { display: none; }
 form[data-layout="single"] .side-status { display: none; }
 form[data-layout="single"] [data-remove-row] { display: none; }
