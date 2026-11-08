@@ -1,5 +1,7 @@
 """The transaction form in a browser: the kind buttons, suggestions that follow the total, splitting, new accounts."""
 
+import re
+
 from playwright.sync_api import Page, expect
 
 from ..books import leg
@@ -54,7 +56,7 @@ def test_saving_an_expense(page: Page, books, api: Api):
     page.select_option('[data-rows="debit"] select', label="Groceries")
     page.fill('input[name="payee"]', "DMart")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     expect(page.locator("a.tx", has_text="DMart")).to_be_visible()
     [entry] = [t for t in api.get("/transactions/") if t["payee"] == "DMart"]
     assert {(p["side"], p["amount"]) for p in entry["postings"]} == {("debit", "250.00"), ("credit", "250.00")}
@@ -73,7 +75,7 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
     page.select_option('[data-rows="credit"] [data-row]:nth-child(2) select', label="Cash")
     page.select_option('[data-rows="debit"] select', label="Rent")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     [entry] = [t for t in api.get("/transactions/") if len(t["postings"]) == 3]
     assert sorted((p["side"], p["amount"]) for p in entry["postings"]) == [
         ("credit", "40.00"),
@@ -134,7 +136,7 @@ def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
     set_row(page, "credit", 0, amount="55")
     set_row(page, "debit", 0, amount="55")
     page.get_by_role("button", name="Save changes").click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     assert api.get(f"/transactions/{entry['id']}")["postings"][0]["amount"] == "55.00"
 
 
@@ -166,7 +168,7 @@ def test_a_payee_chip_fills_the_payee_only_and_moves_on_to_the_amount(page: Page
     page.select_option('[data-rows="credit"] select', label="Visa")
     page.select_option('[data-rows="debit"] select', label="Groceries")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     newest = api.get("/transactions/")[0]
     assert newest["payee"] == "Swiggy" and {p["amount"] for p in newest["postings"]} == {"250.00"}
 
@@ -305,7 +307,7 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books,
     page.select_option('[data-rows="debit"] select', label="Groceries")
     page.fill('input[name="payee"]', "Swiggy cash-back")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     [new] = [t for t in api.get("/transactions/") if t["payee"] == "Swiggy cash-back"]
     assert new["related_id"] == first["id"]
     page.goto("/transactions?month=2026-10")  # the original is dated in October, the cash-back is today

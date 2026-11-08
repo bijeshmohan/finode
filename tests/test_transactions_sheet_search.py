@@ -301,3 +301,38 @@ def test_the_sheet_leads_like_the_row_and_offers_words_not_glyphs(client, books,
     links = sheet.split('class="sheet-links"', 1)[1]
     assert ">Repeat</a>" in links and ">Related</a>" in links and "Delete" in links and "circ-button" not in sheet
     assert 'class="tx tx-system"' in page(client), "an opening balance is the quiet kind of row"
+
+
+def test_edit_from_a_filtered_list_returns_to_that_list(client, books, ledger):
+    here = f"/transactions?category={books['groceries']['id']}&merchant=DMart"
+    header = {"HX-Current-URL": f"http://testserver{here}"}
+    html = client.get(f"/transactions/{ledger['dmart']['id']}/sheet", headers=header).text
+    from urllib.parse import quote
+
+    wanted = quote(here, safe="/")
+    assert f'href="/transactions/{ledger["dmart"]["id"]}/edit?back={wanted}"' in html
+    assert (
+        f"/transactions/new?repeat={ledger['dmart']['id']}&amp;back={wanted}" in html
+        or f"repeat={ledger['dmart']['id']}&back={wanted}" in html
+    )
+    saved = client.post(
+        f"/transactions/{ledger['dmart']['id']}/edit",
+        data={
+            "account": [books["groceries"]["id"], books["hdfc"]["id"]],
+            "side": ["debit", "credit"],
+            "amount": ["1286", "1286"],
+            "date": "2026-11-01",
+            "back": here,
+        },
+    )
+    assert saved.status_code == 200 and saved.headers["HX-Redirect"] == here, "the filter is still there after saving"
+    home = client.get(
+        f"/transactions/{ledger['dmart']['id']}/sheet", headers={"HX-Current-URL": "http://testserver/?month=2026-10"}
+    ).text
+    assert f"edit?back={quote('/?month=2026-10', safe='/')}" in home, "Home brings you back to Home"
+    plain = client.get(f"/transactions/{ledger['dmart']['id']}/sheet").text
+    assert f'href="/transactions/{ledger["dmart"]["id"]}/edit"' in plain, "no page to return to: the default"
+    elsewhere = client.get(
+        f"/transactions/{ledger['dmart']['id']}/sheet", headers={"HX-Current-URL": "http://x/api/accounts"}
+    ).text
+    assert "/api" not in elsewhere.split("edit")[1][:40], "never back to a path outside the pages"

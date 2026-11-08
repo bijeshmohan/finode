@@ -437,7 +437,8 @@ def transaction_sheet(
     contacts: Contacts,
     back: str = "",
 ):
-    """The details of one transaction, for the sheet that opens over a list (the edit page has the rest)."""
+    """The details of one transaction, for the sheet that opens over a list (the edit page has the rest). Edit, Repeat and
+    Related bring you back to the page the sheet was opened on, filters and month included."""
     transaction = transactions.read(transaction_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
@@ -459,7 +460,7 @@ def transaction_sheet(
             "row": row,
             "t": transaction,
             "currency": accounts.currency().code,
-            "back": safe_back(back, ""),  # the page to return to after Edit, Repeat or Related (an account's page, say)
+            "back": safe_back(back or _here(request), ""),  # where to return after Edit, Repeat or Related
             "from_label": labels[0],
             "to_label": labels[1],
             "from_postings": [(index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
