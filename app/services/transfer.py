@@ -143,6 +143,77 @@ class TransferService:
             raise
         return self._read(entry, self.ob.party_rows(transaction_id=entry.id)[0], made.id)
 
+    def _loan_rows(self, transaction_id: UUID, lock: bool = False):
+        """The activity row and obligation of an entry that is already a loan or a borrowing (none for an ordinary entry).
+        Anything else a contact made (a gift, a shared bill, a settlement, an opening balance) is changed on its own
+        terms, not here; and nothing can change once something was settled against it."""
+        party = self.ob.party_rows(transaction_id=transaction_id)
+        if not party:
+            return None, None
+        if party[0].purpose not in ("loan", "borrowing"):
+            raise InvalidTransferPurposeError(
+                "only a loan or a borrowing can be changed here: change the rest on the person's page!"
+            )
+        owed = self.ob.obligations(source_transaction_id=transaction_id, lock=lock)
+        if any(self.ob.settled([o.id]).get(o.id) for o in owed):
+            raise ConflictError("something was paid back against this: reverse that first!")
+        return party[0], owed[0] if owed else None
+
+    def convert(
+        self,
+        transaction_id: UUID,
+        contact_id: UUID,
+        data: TransferCreate,
+        tags: list[str],
+        related_id: UUID | None,
+    ) -> TransferRead:
+        """Make an existing entry a loan or a borrowing with a person, in place: the entry keeps its id, tags and related
+        link; its lines move to the person's account, and it gets the activity row and the obligation. An entry that
+        already is a loan or borrowing may change person, side, amount, account, day or note, until anything is paid back."""
+        if data.purpose not in ("loan", "borrowing"):
+            raise InvalidTransferPurposeError("only a loan or a borrowing can be made from an entry!")
+        contact = self.contacts.active(contact_id)
+        account_id = self.contacts.own_account(data.account_id)
+        try:
+            party, obligation = self._loan_rows(transaction_id, lock=True)
+            self.transactions.update(
+                transaction_id,
+                TransactionUpdate(
+                    date=data.date,
+                    payee=contact.name,
+                    comment=data.description,
+                    postings=self._postings(contact.id, data, account_id),
+                    tags=tags,
+                    related_id=related_id,
+                ),
+                commit=False,
+            )
+            owed = RECEIVABLE if data.direction == "sent" else PAYABLE
+            if party is None:
+                self.ob.add_party(contact.id, transaction_id, data.purpose, data.direction)
+                self.ob.add_obligation(contact.id, transaction_id, data.purpose, owed, data.amount)
+            else:
+                party.contact_id, party.purpose, party.direction = contact.id, data.purpose, data.direction
+                self.db.add(party)
+                if obligation is not None:
+                    obligation.contact_id, obligation.source_type = contact.id, data.purpose
+                    obligation.direction, obligation.original_amount = owed, data.amount
+                    self.db.add(obligation)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        return self.read(transaction_id)
+
+    def detach(self, transaction_id: UUID) -> bool:
+        """Before a loan or borrowing is edited into an ordinary entry: its activity row and obligation go (the caller then
+        saves the ordinary lines, and rolls everything back if that fails). False for an entry that is not one."""
+        party, _ = self._loan_rows(transaction_id, lock=True)
+        if party is None:
+            return False
+        self.ob.purge(transaction_id)
+        return True
+
     def update_opening(self, transaction_id: UUID, data: OpeningBalanceUpdate) -> TransferRead:
         """Change an opening balance (the amount, the day, the note, who owes whom). The same entry is rewritten, so none
         of your accounts or budgets move. Once part of it was paid back the amount cannot go below that and the

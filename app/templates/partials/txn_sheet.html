@@ -55,7 +55,7 @@
 {% endif %}
 
 <p id="sheet-error" class="error" role="alert"></p>
-{% if with_person %}
+{% if with_person and not loan_like %}
 <p class="muted hint">This is part of what you did with {{ with_person.name }}. Change or reverse it from their page.</p>
 <div class="sheet-actions">
   <a class="button" href="/people/{{ with_person.id }}">Open {{ with_person.name }}</a>
@@ -64,6 +64,9 @@
 <div class="sheet-actions">
   <a class="button" href="/transactions/{{ t.id }}/edit{{ bq }}">Edit</a>
 </div>
+{% if with_person %}
+<p class="muted hint">This is money lent to or borrowed from {{ with_person.name }}. What has been paid back is on <a href="/people/{{ with_person.id }}">their page</a>.</p>
+{% else %}
 <div class="sheet-links">
   <a href="/transactions/new?repeat={{ t.id }}{{ bx }}">Repeat</a>
   <a href="/transactions/new?related={{ t.id }}{{ bx }}">Related</a>
@@ -71,4 +74,5 @@
           hx-post="/transactions/{{ t.id }}/delete" hx-vals='{"sheet": "1"}'
           hx-confirm="Delete this transaction? Account balances will change. This cannot be undone.">Delete</button>
 </div>
+{% endif %}
 {% endif %}
