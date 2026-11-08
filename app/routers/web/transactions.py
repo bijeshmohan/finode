@@ -446,7 +446,11 @@ def transaction_sheet(
     # An entry made through a person (a loan, a shared bill, a settlement) is looked after on that person's page.
     party = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
     with_person = contacts.read(party[0].contact_id) if party else None
-    loan_like = bool(party) and party[0].purpose in ("loan", "borrowing")
+    purposes = {r.purpose for r in party}
+    # A loan, a borrowing or a bill shared with people is edited here too; the rest of what people made is on their page.
+    loan_like = bool(party) and (purposes <= {"loan", "borrowing"} or purposes == {"expense"})
+    names = {c.id: c.name for c in contacts.cr.list()}
+    with_names = sorted({names[r.contact_id] for r in party if r.contact_id in names})
     index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     row = to_row(transaction, index)
     labels = {
@@ -470,6 +474,7 @@ def transaction_sheet(
             "related": [to_row(r, index) for r in transactions.related(transaction_id)],
             "with_person": with_person,
             "loan_like": loan_like,
+            "with_names": with_names,
         },
     )
 
@@ -730,6 +735,34 @@ def form_rows(
     return found or [{"posting": None, "account": account_id}]
 
 
+@dataclass
+class _RowAmount:
+    """Just enough of a posting for a form row: the amount a row starts with."""
+
+    amount: Decimal
+    posted_on: date | None = None
+    category_id: UUID | None = None
+
+
+def bill_rows(bill) -> tuple[list[dict], list[dict], Decimal]:
+    """The form's rows for a bill shared with people, as they were entered: Spent on is your share (the category) and each
+    person's share, Paid from is your accounts and anyone who paid."""
+    to_rows = []
+    if bill.user_share > 0 or not bill.shares:
+        to_rows.append({"posting": _RowAmount(bill.user_share), "account": bill.category_id})
+    by_name = {s.contact_id: s.name.casefold() for s in bill.shares if s.contact_id is not None}
+    to_rows += [
+        {"posting": _RowAmount(s.share_amount), "account": s.contact_id}
+        for s in sorted(bill.shares, key=lambda s: s.name.casefold())
+        if s.contact_id is not None and s.share_amount > 0
+    ]
+    paid = sorted(bill.contributions, key=lambda c: (not c.is_self, by_name.get(c.contact_id, "")))
+    from_rows = [
+        {"posting": _RowAmount(c.amount), "account": c.account_id if c.is_self else c.contact_id} for c in paid
+    ]
+    return from_rows or [{"posting": None, "account": None}], to_rows, bill.total_amount
+
+
 @router.get("/new")
 def new_transaction_page(
     request: Request,
@@ -876,14 +909,10 @@ def _shared_bill(
     amount: list[str],
     date_: str,
     payee: str,
-    tags: list[str] | None,
-    related: str,
 ) -> SharedExpenseCreate:
     """The shared bill an Expense form describes. "Spent on" is who the bill is for: one category row (your own share) and
     a row for each person with theirs. "Paid from" is who paid: your accounts and any person who paid. The same person may
     be on both sides. Both sides must add up to the same total."""
-    if tags or related.strip():
-        raise ValueError("tags and related entries are not available for a bill shared with people!")
     rows = []
     for a, sd, am in zip(account, side, amount, strict=False):
         if not a and not am.strip():
@@ -950,7 +979,9 @@ def create_split_transaction(
             if any(a in {str(i) for i in places} for a in account):
                 # A category row among the people: a bill shared with them.
                 names = {c.id: c.name for c in categories.list(include_closed=True)}
-                bill = _shared_bill(people, places, names, account, side, amount, date_, payee, tags, related)
+                if tags or related.strip():
+                    raise ValueError("tags and related entries are not available for a bill shared with people!")
+                bill = _shared_bill(people, places, names, account, side, amount, date_, payee)
                 expenses.create(bill, confirm=True, comment=comment.strip() or None)
                 return htmx_redirect(safe_back(back), flash="expense-shared")
             _transfer_with_person(transfers, people, account, side, amount, date_, comment, tags, related)
@@ -982,20 +1013,32 @@ def edit_transaction_page(
     categories: Categories,
     transactions: Transactions,
     contacts: Contacts,
+    expenses: SharedExpenses,
     back: str = "",
 ):
     transaction = transactions.read(transaction_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
-    # An entry made through a person: a loan or borrowing is edited here (the person shows on its side); anything else a
-    # person made (a gift, a shared bill, a settlement) is looked after on the person's page.
+    # An entry made through people: a loan or borrowing is edited here (the person shows on its side) and so is a bill
+    # shared with people (its rows are who it was for and who paid); anything else a person made (a gift, a settlement,
+    # an opening balance) is looked after on the person's page.
     person_of: dict[UUID, UUID] = {}
     party = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
+    purposes = {r.purpose for r in party}
+    bill = None
     if party:
-        if party[0].purpose not in ("loan", "borrowing"):
+        if purposes == {"expense"}:
+            found = expenses.er.by_transaction(transaction_id)
+            bill = expenses.read(found.id) if found is not None else None
+        if bill is None and not purposes <= {"loan", "borrowing"}:
             return RedirectResponse(f"/people/{party[0].contact_id}", status_code=303)
         person_of = {link.account_id: link.contact_id for link in contacts.cr.links()}
     total = sum((p.amount for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
+    from_rows = form_rows(transaction.postings, PostingSide.CREDIT, roots=roots_by_id(accounts), person_of=person_of)
+    to_rows = form_rows(transaction.postings, PostingSide.DEBIT, roots=roots_by_id(accounts), person_of=person_of)
+    keep_people = {r.contact_id for r in party}
+    if bill is not None:
+        from_rows, to_rows, total = bill_rows(bill)
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
@@ -1003,16 +1046,12 @@ def edit_transaction_page(
             accounts,
             categories,
             contacts,
-            keep_people={party[0].contact_id} if party else (),
+            keep_people=keep_people,
             editing=True,
             transaction=transaction,
             total=total,
-            from_rows=form_rows(
-                transaction.postings, PostingSide.CREDIT, roots=roots_by_id(accounts), person_of=person_of
-            ),
-            to_rows=form_rows(
-                transaction.postings, PostingSide.DEBIT, roots=roots_by_id(accounts), person_of=person_of
-            ),
+            from_rows=from_rows,
+            to_rows=to_rows,
             related=related_info(
                 transactions,
                 AccountIndex.build(accounts.list(), categories.list(include_closed=True)),
@@ -1057,6 +1096,26 @@ def _update(
     return htmx_redirect(safe_back(back), flash="transaction-updated")
 
 
+def _release(
+    transaction_id: UUID, purposes: set[str], transfers: Transfers, expenses: SharedExpenses, keep: str
+) -> None:
+    """Before an entry made through people is saved as something else, what it was goes: a loan or borrowing, or a bill
+    shared with people. `keep` names what it is about to become when that replaces the old records itself ("loan" or
+    "bill"). Anything else a person made is not edited here. The caller rolls back if what follows fails."""
+    if not purposes:
+        return
+    if purposes == {"expense"}:
+        if keep != "bill":
+            expenses.detach(transaction_id)
+    elif purposes <= {"loan", "borrowing"}:
+        if keep != "loan":
+            transfers.detach(transaction_id)
+    else:
+        raise ValueError(
+            "only a loan, a borrowing or a bill shared with people can be changed here: use the person's page!"
+        )
+
+
 @router.post("/{transaction_id}/edit")
 def update_transaction(
     transaction_id: UUID,
@@ -1065,6 +1124,7 @@ def update_transaction(
     categories: Categories,
     contacts: Contacts,
     transfers: Transfers,
+    expenses: SharedExpenses,
     date_: Annotated[str, Form(alias="date")] = "",
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
@@ -1078,30 +1138,27 @@ def update_transaction(
     tags: Annotated[list[str] | None, Form()] = None,
 ):
     account, side, amount = account or [], side or [], amount or []
+    db = transactions.tr.db
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
-    if people and any(a in {str(i) for i in people} for a in account):
-        # A person on one side: the entry becomes (or stays) a loan or a borrowing with them, in place.
-        if any(a in {str(i) for i in category_places(accounts, categories)} for a in account):
-            return htmx_error(
-                "a bill shared with people is recorded as a new entry: cancel the old one on its person's page and add it again!",
-                "#form-error",
-            )
-        try:
-            person, data = _person_rows(people, account, side, amount, date_, comment)
-            transfers.convert(transaction_id, person, data, tags or [], parse_related(related))
-        except ValidationError as e:
-            return htmx_error(validation_message(e), "#form-error")
-        except ValueError as e:
-            if "not found" in str(e) and f"'{transaction_id}'" in str(e):
-                raise HTTPException(status_code=404, detail="transaction not found") from None
-            return htmx_error(str(e), "#form-error")
-        return htmx_redirect(safe_back(back), flash="transaction-updated")
-    detached = False
+    purposes = {
+        r.purpose for r in ObligationRepository(db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
+    }
+    with_people = bool(people) and any(a in {str(i) for i in people} for a in account)
+    places = category_places(accounts, categories) if with_people else {}
+    bill = with_people and any(a in {str(i) for i in places} for a in account)
     try:
-        detached = transfers.detach(transaction_id)  # a loan edited into an ordinary entry stops being one
-    except ValueError as e:
-        return htmx_error(str(e), "#form-error")
-    try:
+        if with_people:
+            # People on a row: the entry becomes (or stays) a loan or borrowing, or a bill shared with them, in place.
+            _release(transaction_id, purposes, transfers, expenses, "bill" if bill else "loan")
+            if bill:
+                names = {c.id: c.name for c in categories.list(include_closed=True)}
+                data = _shared_bill(people, places, names, account, side, amount, date_, payee)
+                expenses.convert(transaction_id, data, comment.strip() or None, tags or [], parse_related(related))
+            else:
+                person, loan = _person_rows(people, account, side, amount, date_, comment)
+                transfers.convert(transaction_id, person, loan, tags or [], parse_related(related))
+            return htmx_redirect(safe_back(back), flash="transaction-updated")
+        _release(transaction_id, purposes, transfers, expenses, "")  # edited back into an ordinary entry
         result = _update(
             transactions,
             transaction_id,
@@ -1113,9 +1170,17 @@ def update_transaction(
             related,
             tags,
         )
+        if purposes and result.status_code >= 400:
+            db.rollback()  # it stays what it was
+        return result
+    except ValidationError as e:
+        db.rollback()
+        return htmx_error(validation_message(e), "#form-error")
+    except ValueError as e:
+        db.rollback()
+        if "not found" in str(e) and f"'{transaction_id}'" in str(e):
+            raise HTTPException(status_code=404, detail="transaction not found") from None
+        return htmx_error(str(e), "#form-error")
     except HTTPException:
-        transactions.tr.db.rollback()
+        db.rollback()
         raise
-    if detached and result.status_code >= 400:
-        transactions.tr.db.rollback()  # it stays the loan it was
-    return result

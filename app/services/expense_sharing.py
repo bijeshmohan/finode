@@ -11,6 +11,7 @@ Every difference becomes an obligation of that one contact; nobody owes a third 
 shares and the payments both add up to the total, which confirming insists on (a bill that is not fully paid for stays
 a draft)."""
 
+import builtins
 from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
@@ -30,7 +31,7 @@ from ..schemas.shared_expense import (
     SharedExpenseUpdate,
     ShareRead,
 )
-from ..schemas.transaction import PostingCreate, TransactionCreate
+from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionUpdate
 from .contact import PAYABLE, RECEIVABLE, ContactService
 from .contact_errors import (
     DuplicateRequestError,
@@ -400,8 +401,17 @@ class ExpenseSharingService:
             raise
         return self._read(expense)
 
-    def _confirm(self, expense: SharedExpense, key: str | None, comment: str | None = None) -> None:
-        """Record the ledger entry and everything about it (the caller commits)."""
+    def _confirm(
+        self,
+        expense: SharedExpense,
+        key: str | None,
+        comment: str | None = None,
+        onto: UUID | None = None,
+        tags: builtins.list[str] | None = None,
+        related_id: UUID | None = None,
+    ) -> None:
+        """Record the ledger entry and everything about it (the caller commits). With `onto`, an entry that already exists
+        becomes the bill, in place (it keeps its id; tags and related link are the ones given)."""
         plan = self._plan_of(expense)
         for person in plan.people:
             if person.contact_id is not None:
@@ -417,15 +427,32 @@ class ExpenseSharingService:
         lines = self._lines(plan)
         if len(lines) < 2:
             raise InvalidExpenseAllocationError("nothing is owed and nothing is spent: there is no entry to record!")
-        entry = self.transactions.create(
-            TransactionCreate(
-                date=expense.date,
-                payee=expense.description,
-                comment=comment,
-                postings=lines,
-            ),
-            commit=False,
-        )
+        if onto is None:
+            entry = self.transactions.create(
+                TransactionCreate(
+                    date=expense.date,
+                    payee=expense.description,
+                    comment=comment,
+                    postings=lines,
+                ),
+                commit=False,
+            )
+        else:
+            changed = self.transactions.update(
+                onto,
+                TransactionUpdate(
+                    date=expense.date,
+                    payee=expense.description,
+                    comment=comment,
+                    postings=lines,
+                    tags=tags or [],
+                    related_id=related_id,
+                ),
+                commit=False,
+            )
+            if changed is None:
+                raise SharedExpenseNotFoundError
+            entry = changed
         for person in plan.people:
             if person.contact_id is None:
                 continue
@@ -443,6 +470,52 @@ class ExpenseSharingService:
         if key:
             self.ob.add_request(key, entry.id)
         self.db.flush()
+
+    def detach(self, transaction_id: UUID) -> bool:
+        """Before a bill shared with people is edited into something else: its shares, payments, activity rows and
+        obligations go (the caller then saves the new lines and rolls everything back if that fails). False for an entry
+        that is not one; refused once anything was settled against what it left owed."""
+        expense = self.er.by_transaction(transaction_id)
+        if expense is None:
+            return False
+        owed = self.ob.obligations(source_transaction_id=transaction_id, lock=True)
+        if any(self.ob.settled([o.id]).get(o.id) for o in owed):
+            raise ReversalBlockedError("something was paid back against this: reverse that first!")
+        self.er.delete(expense)
+        self.ob.purge(transaction_id)
+        return True
+
+    def convert(
+        self,
+        transaction_id: UUID,
+        data: SharedExpenseCreate,
+        comment: str | None,
+        tags: builtins.list[str],
+        related_id: UUID | None,
+    ) -> SharedExpenseRead:
+        """Make an existing entry a bill shared with people, in place: it keeps its id, tags and related link, its lines
+        become the shared bill's, and the shares, payments and obligations are made. An entry that already is a shared bill
+        is re-recorded with the new rows (until something was paid back)."""
+        plan = self._plan(data)
+        try:
+            self.detach(transaction_id)
+            expense = self.er.add(
+                SharedExpense(
+                    user_id=self.er.uid,
+                    description=plan.description,
+                    date=plan.date,  # pyrefly: ignore[bad-argument-type]
+                    total_amount=plan.total,
+                    category_id=plan.category_id,
+                    split_method=plan.method,
+                )
+            )
+            self._store(expense, plan)
+            self._confirm(expense, None, comment, onto=transaction_id, tags=tags, related_id=related_id)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        return self._read(expense)
 
     def confirm(self, expense_id: UUID, key: str | None = None) -> SharedExpenseRead:
         """Record a draft: the ledger entry, what each contact owes or is owed, and their activity."""

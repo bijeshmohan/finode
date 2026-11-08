@@ -673,7 +673,7 @@ def test_only_a_loan_or_a_borrowing_is_edited_this_way(client, bank):
     assert moved.status_code == 303 and moved.headers["location"] == f"/people/{alice['id']}"
     entry, _ = ordinary_expense(client, bank)
     refused = client.post(f"/transactions/{gift['id']}/edit", data=rows(bank, alice))
-    assert refused.status_code == 400 and "only a loan or a borrowing" in refused.text
+    assert refused.status_code == 400 and "only a loan, a borrowing or a bill" in refused.text
     uneven = client.post(f"/transactions/{entry['id']}/edit", data={**rows(bank, alice), "amount": ["300", "200"]})
     assert uneven.status_code == 400 and "same on both sides" in uneven.text
     assert (
@@ -833,15 +833,140 @@ def test_the_rules_of_a_bill_with_people_on_the_add_screen(client, bank):
     assert len(client.get("/api/shared-expenses/").json()) == 1, "only the good one was recorded"
 
 
-def test_a_shared_bill_cannot_be_made_by_editing_an_entry(client, bank):
-    alice = person(client)
-    entry, misc = ordinary_expense(client, bank)
+def test_an_existing_entry_becomes_a_shared_bill_in_place(client, bank):
+    alice, bob = person(client), person(client, "Bob")
+    entry, misc = ordinary_expense(client, bank, tags=["trip"], amount="3000")
     rows = {
+        "account": [bank["id"], misc["id"], alice["id"], bob["id"]],
+        "side": ["credit", "debit", "debit", "debit"],
+        "amount": ["3000", "1000", "1000", "1000"],
+        "date": "2026-10-09",
+        "payee": "Restaurant",
+        "comment": "With Alice and Bob",
+        "tags": ["trip"],
+    }
+    done = client.post(f"/transactions/{entry['id']}/edit", data=rows)
+    assert done.status_code == 200 and done.headers["HX-Redirect"], done.text
+    same = client.get(f"/api/transactions/{entry['id']}").json()
+    assert (
+        same["id"] == entry["id"]
+        and same["date"] == "2026-10-09"
+        and same["tags"] == ["trip"]
+        and same["comment"] == "With Alice and Bob"
+    )
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 1000
+    assert float(client.get(f"/api/contacts/{bob['id']}").json()["receivable"]) == 1000
+    bills = client.get("/api/shared-expenses/").json()
+    assert len(bills) == 1 and bills[0]["transaction_id"] == entry["id"] and float(bills[0]["user_share"]) == 1000
+    lines = client.get("/api/reports/breakdown", params={"date_from": "2026-10-01", "date_to": "2026-10-31"}).json()[
+        "lines"
+    ]
+    assert float(lines[0]["amount"]) == 1000, "only your share is spending now"
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+
+
+def converted_bill(client, bank, alice, bob):
+    entry, misc = ordinary_expense(client, bank, amount="3000")
+    rows = {
+        "account": [bank["id"], misc["id"], alice["id"], bob["id"]],
+        "side": ["credit", "debit", "debit", "debit"],
+        "amount": ["3000", "1000", "1000", "1000"],
+        "date": "2026-10-09",
+        "payee": "Restaurant",
+    }
+    assert client.post(f"/transactions/{entry['id']}/edit", data=rows).status_code == 200
+    return entry, misc, rows
+
+
+def test_the_edit_screen_of_a_shared_bill_shows_the_rows_as_entered(client, bank):
+    alice, bob = person(client), person(client, "Bob")
+    entry, misc, _ = converted_bill(client, bank, alice, bob)
+    form = page(client, f"/transactions/{entry['id']}/edit")
+    for ident in (alice["id"], bob["id"], misc["id"], bank["id"]):
+        assert re.search(rf'<option value="{ident}"[^>]*selected', form), ident
+    assert len(re.findall(r'name="amount"[^>]*value="1000(\.00)?"', form)) == 3, "your share and two shares of 1,000"
+    assert re.search(r'name="amount"[^>]*value="3000(\.00)?"', form), "the bank paid 3,000"
+    sheet = page(client, f"/transactions/{entry['id']}/sheet")
+    assert f'href="/transactions/{entry["id"]}/edit"' in sheet and "Alice, Bob" in sheet
+
+
+def test_a_shared_bill_can_be_reshared_and_made_ordinary_again(client, bank):
+    alice, bob = person(client), person(client, "Bob")
+    entry, misc, rows = converted_bill(client, bank, alice, bob)
+    only_alice = {
+        **rows,
+        "account": [bank["id"], misc["id"], alice["id"]],
+        "side": ["credit", "debit", "debit"],
+        "amount": ["3000", "1500", "1500"],
+    }
+    assert client.post(f"/transactions/{entry['id']}/edit", data=only_alice).status_code == 200
+    assert float(client.get(f"/api/contacts/{bob['id']}").json()["net"]) == 0
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 1500
+    assert len(client.get("/api/shared-expenses/").json()) == 1, "re-recorded, not duplicated"
+    ordinary = {
+        "account": [bank["id"], misc["id"]],
+        "side": ["credit", "debit"],
+        "amount": ["3000", "3000"],
+        "date": "2026-10-09",
+        "payee": "Restaurant",
+    }
+    assert client.post(f"/transactions/{entry['id']}/edit", data=ordinary).status_code == 200
+    assert (
+        client.get("/api/shared-expenses/").json() == []
+        and float(client.get(f"/api/contacts/{alice['id']}").json()["net"]) == 0
+    )
+    assert client.get(f"/api/contacts/{alice['id']}/obligations").json() == []
+    assert client.delete(f"/api/transactions/{entry['id']}").status_code == 204, "an ordinary entry again"
+
+
+def test_a_loan_and_a_shared_bill_can_turn_into_each_other(client, bank):
+    alice, bob = person(client), person(client, "Bob")
+    entry, misc = ordinary_expense(client, bank, amount="300")
+    client.post(f"/transactions/{entry['id']}/edit", data=rows(bank, alice))
+    assert [t["purpose"] for t in client.get(f"/api/contacts/{alice['id']}/transfers").json()] == ["loan"]
+    bill_rows = {
         "account": [bank["id"], misc["id"], alice["id"]],
         "side": ["credit", "debit", "debit"],
         "amount": ["300", "100", "200"],
         "date": "2026-11-01",
+        "payee": "Cab",
     }
-    refused = client.post(f"/transactions/{entry['id']}/edit", data=rows)
-    assert refused.status_code == 400 and "new entry" in refused.text
-    assert float(client.get(f"/api/contacts/{alice['id']}").json()["net"]) == 0
+    assert client.post(f"/transactions/{entry['id']}/edit", data=bill_rows).status_code == 200
+    assert client.get(f"/api/contacts/{alice['id']}/transfers").json() == [], "no longer a loan"
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 200
+    assert client.post(f"/transactions/{entry['id']}/edit", data=rows(bank, bob)).status_code == 200
+    assert client.get("/api/shared-expenses/").json() == []
+    assert (
+        float(client.get(f"/api/contacts/{alice['id']}").json()["net"]) == 0
+        and float(client.get(f"/api/contacts/{bob['id']}").json()["receivable"]) == 300
+    )
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+
+
+def test_nothing_changes_once_a_share_was_paid_back_or_when_the_edit_fails(client, bank):
+    alice, bob = person(client), person(client, "Bob")
+    entry, misc, rows_ = converted_bill(client, bank, alice, bob)
+    broken = {**rows_, "amount": ["3000", "1000", "1000", "500"]}
+    assert client.post(f"/transactions/{entry['id']}/edit", data=broken).status_code == 400
+    assert float(client.get(f"/api/contacts/{bob['id']}").json()["receivable"]) == 1000, (
+        "a failed edit leaves the bill as it was"
+    )
+    assert len(client.get("/api/shared-expenses/").json()) == 1
+    client.post(
+        f"/api/contacts/{alice['id']}/settlements",
+        json={"direction": "received", "amount": "200", "account_id": bank["id"]},
+    )
+    again = client.post(f"/transactions/{entry['id']}/edit", data={**rows_, "amount": ["3000", "1500", "750", "750"]})
+    assert again.status_code == 400 and "paid back" in again.text
+    ordinary = client.post(
+        f"/transactions/{entry['id']}/edit",
+        data={
+            "account": [bank["id"], misc["id"]],
+            "side": ["credit", "debit"],
+            "amount": ["3000", "3000"],
+            "date": "2026-10-09",
+        },
+    )
+    assert ordinary.status_code == 400 and "paid back" in ordinary.text
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 800
+    assert float(client.get(f"/api/contacts/{bob['id']}").json()["receivable"]) == 1000
