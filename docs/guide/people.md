@@ -25,20 +25,26 @@ You can also start a loan from **+** (New transaction): choose **Transfer**, the
 
 An entry you already recorded can become a loan too: open it, choose **Transfer**, and pick a person on one side. It keeps its date, tags and related link. To turn a loan back into an ordinary entry, edit it and pick an ordinary account instead of the person. Neither works once something has been paid back against it.
 
-## Split a bill from the New transaction screen
+## Record an entry three ways
 
-On **Expense**, the **People** group is in both pickers. Under **Spent on**, add your own category row (your share) and a row for each person with their share. Under **Paid from**, add your account, and a person if they paid. A person can be on both sides: Alice paid the bill and is also in it. The note under the rows says your share and who owes whom, and both sides must add up to the same total. For an equal, percentage or shares split use **Add expense** on a person's page instead. An entry you already recorded can become a shared bill the same way: open it, add the people rows and save. It keeps its date, tags and related link. Editing a shared bill later shows the rows as you entered them; you can change them, or remove the people to make it an ordinary expense again. This doesn't work once a share has been paid back.
+Under **Expense**, **Income** and **Transfer** there is a second switch: **Just me**, **Split** and **With people**.
 
-## Share an expense
+- **Just me** is one account paying and one category, for the whole amount.
+- **Split** is several rows that add up to the amount, for example two categories. Typing less than the amount in a row moves you to Split by itself.
+- **With people** (Expense only) is for a bill you share. Choose the category and the account you paid from, choose **Equally**, **Amounts**, **%** or **Shares**, and tick the people who share it. A box next to each person takes their amount, percentage or weight. If someone else paid some of it, open **Someone else paid some of it**. Under the form you see each share, your own share (the only part your budget sees) and who owes whom.
 
-**Add expense** takes the total, what it was for, a category, the day and your account, and how to split it:
+An entry you already recorded can change between the three: open it, choose another way and save. It keeps its date, tags and related link. Editing a shared bill later opens on **With people** as you entered it. None of this works once a share has been paid back. **Add expense** on a person's page opens the same screen with that person ticked.
+
+## How a shared bill is worked out
+
+The **With people** way splits the amount like this:
 
 - **Equally**,
 - **Amounts** (each person's amount; they must add up to the total),
 - **%** (they must make 100),
 - **Shares** (weights: 2 and 1 means two thirds and one third).
 
-Tick the people who share it. Under the form you see each share, **your share** (the only part your budget sees), and who owes whom. If someone else paid some of the bill, open **Someone else paid some of it** and say how much each paid. The bill must be fully paid for before it can be recorded. Pennies that don't divide evenly go to the first people, so the shares always add up exactly.
+The bill must be fully paid for before it can be recorded. Pennies that don't divide evenly go to the first people, so the shares always add up exactly.
 
 If a friend paid for you and you hadn't paid anything, nothing leaves your accounts; the share counts against your budget when you pay them back.
 

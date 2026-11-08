@@ -7,7 +7,7 @@ from typing import Annotated
 from urllib.parse import urlencode, urlparse
 from uuid import UUID
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
@@ -19,7 +19,6 @@ from ...repositories.transaction import SYSTEM_PAYEES
 from ...schemas import AccountRead
 from ...schemas.category import CategoryRead
 from ...schemas.contact import TransferCreate
-from ...schemas.shared_expense import ContributionIn, ParticipantIn, PaymentIn, SharedExpenseCreate
 from ...schemas.transaction import (
     PostingCreate,
     RelatedRef,
@@ -31,7 +30,8 @@ from ...tags import clean_tag
 from ...templating import templates
 from .accounts import PickGroups, PickOption, build_tree, category_groups, posting_groups, without_contacts
 from .budget import parse_month
-from .categories import _month_context
+from .categories import _month_context, category_tree
+from .people import expense_data
 from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
 
 router = APIRouter(prefix="/transactions")
@@ -544,8 +544,32 @@ def people_group(accounts: Accounts, contacts: Contacts | None, keep: Collection
     return [("People", sorted(people, key=lambda o: o.label.casefold()))] if people else []
 
 
+def editor_values(bill=None, with_id: UUID | None = None) -> dict:
+    """What the With people editor starts with: the shared bill being edited, or one person ticked (opened from their page)."""
+    if bill is None:
+        return {"checked": {with_id} if with_id else set(), "share_values": {}, "paid": {}}
+    shares = {s.contact_id: s for s in bill.shares}
+    exact = bill.split_method != "equal"
+    paid_self = sum((c.amount for c in bill.contributions if c.is_self), Decimal(0))
+    others = {c.contact_id: c.amount for c in bill.contributions if not c.is_self}
+    return {
+        "checked": {c for c in shares if c is not None},
+        "share_values": {c: s.share_value for c, s in shares.items() if exact and s.share_value is not None},
+        "paid": others,
+        "paid_self": paid_self if others else "",
+        "method": bill.split_method,
+        "category_id": bill.category_id,
+        "account_id": next((c.account_id for c in bill.contributions if c.is_self), None),
+    }
+
+
 def form_context(accounts: Accounts, categories: Categories, contacts: Contacts | None = None, **extra) -> dict:
     all_accounts = accounts.list()
+    people = (
+        [c for c in contacts.cr.list() if c.archived_at is None]
+        if contacts and accounts.ar.contact_account_ids()
+        else []
+    )
     # Accounts and categories an entry being edited already uses stay offered even if they were closed since.
     used = getattr(extra.get("transaction"), "postings", ())
     keep = set(extra.pop("keep", ())) | {p.account_id for p in used}
@@ -564,6 +588,11 @@ def form_context(accounts: Accounts, categories: Categories, contacts: Contacts 
             *category_groups(categories.list(include_closed=True), keep_categories),
         ],
         "currency": accounts.currency().code,
+        "people": people,
+        "money_groups": [g for g in posting_groups(build_tree(all_accounts)) if g[0] in ("Assets", "Liabilities")],
+        "spending": category_tree(categories, "spending"),
+        "mode": "just",
+        "ed": editor_values(),
         **extra,
     }
 
@@ -735,34 +764,6 @@ def form_rows(
     return found or [{"posting": None, "account": account_id}]
 
 
-@dataclass
-class _RowAmount:
-    """Just enough of a posting for a form row: the amount a row starts with."""
-
-    amount: Decimal
-    posted_on: date | None = None
-    category_id: UUID | None = None
-
-
-def bill_rows(bill) -> tuple[list[dict], list[dict], Decimal]:
-    """The form's rows for a bill shared with people, as they were entered: Spent on is your share (the category) and each
-    person's share, Paid from is your accounts and anyone who paid."""
-    to_rows = []
-    if bill.user_share > 0 or not bill.shares:
-        to_rows.append({"posting": _RowAmount(bill.user_share), "account": bill.category_id})
-    by_name = {s.contact_id: s.name.casefold() for s in bill.shares if s.contact_id is not None}
-    to_rows += [
-        {"posting": _RowAmount(s.share_amount), "account": s.contact_id}
-        for s in sorted(bill.shares, key=lambda s: s.name.casefold())
-        if s.contact_id is not None and s.share_amount > 0
-    ]
-    paid = sorted(bill.contributions, key=lambda c: (not c.is_self, by_name.get(c.contact_id, "")))
-    from_rows = [
-        {"posting": _RowAmount(c.amount), "account": c.account_id if c.is_self else c.contact_id} for c in paid
-    ]
-    return from_rows or [{"posting": None, "account": None}], to_rows, bill.total_amount
-
-
 @router.get("/new")
 def new_transaction_page(
     request: Request,
@@ -778,6 +779,8 @@ def new_transaction_page(
     pay: UUID
     | None = None,  # "pay bill": a payment into this card or loan, for `amount`; the account paid from is left to choose
     amount: str = "",
+    mode: str = "",  # "people": open on the With people tab (from a person's page)
+    with_person: Annotated[UUID | None, Query(alias="with")] = None,  # the person ticked on that tab
 ):
     all_accounts = accounts.list()
     if repeat is not None:
@@ -842,7 +845,9 @@ def new_transaction_page(
             transaction=None,
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
-            kind=kind,
+            mode="people" if mode == "people" else "just",
+            ed=editor_values(None, with_person),
+            kind="expense" if mode == "people" else kind,
             related=linked,
             total=total,
             account=account,
@@ -900,59 +905,9 @@ def _transfer_with_person(
     transfers.record(person, data)
 
 
-def _shared_bill(
-    people: set[UUID],
-    places: Mapping[UUID, UUID],
-    names: Mapping[UUID, str],
-    account: list[str],
-    side: list[str],
-    amount: list[str],
-    date_: str,
-    payee: str,
-) -> SharedExpenseCreate:
-    """The shared bill an Expense form describes. "Spent on" is who the bill is for: one category row (your own share) and
-    a row for each person with theirs. "Paid from" is who paid: your accounts and any person who paid. The same person may
-    be on both sides. Both sides must add up to the same total."""
-    rows = []
-    for a, sd, am in zip(account, side, amount, strict=False):
-        if not a and not am.strip():
-            continue
-        if not a:
-            raise ValueError("every row needs a category, an account or a person!")
-        rows.append((UUID(a), PostingSide(sd), parse_amount(am)))
-    mine = [r for r in rows if r[0] in places]
-    persons = [r for r in rows if r[0] in people]
-    if len(mine) != 1 or mine[0][1] != PostingSide.DEBIT:
-        raise ValueError("a shared bill has one category row, under Spent on: your own share!")
-    if any(r[0] not in places and r[0] not in people and r[1] == PostingSide.DEBIT for r in rows):
-        raise ValueError("under Spent on, use the category and people only!")
-    for wanted in (PostingSide.DEBIT, PostingSide.CREDIT):
-        ids = [r[0] for r in persons if r[1] == wanted]
-        if len(set(ids)) != len(ids):
-            raise ValueError("a person is on the same side twice: add their amounts together!")
-    total = sum((r[2] for r in rows if r[1] == PostingSide.DEBIT), Decimal(0))
-    paid = sum((r[2] for r in rows if r[1] == PostingSide.CREDIT), Decimal(0))
-    if total != paid:
-        raise ValueError(f"who paid ({paid:f}) and who the bill is for ({total:f}) must add up to the same total!")
-    shares = {r[0]: r[2] for r in persons if r[1] == PostingSide.DEBIT}
-    paying = {r[0]: r[2] for r in persons if r[1] == PostingSide.CREDIT}
-    return SharedExpenseCreate(
-        description=(payee.strip() or names.get(mine[0][0], "Shared bill"))[:40],
-        total_amount=total,
-        category_id=mine[0][0],
-        split_method="exact",
-        participants=[ParticipantIn(is_self=True, value=mine[0][2])]
-        + [ParticipantIn(contact_id=c, value=shares.get(c, Decimal(0))) for c in sorted({*shares, *paying}, key=str)],
-        contributions=[ContributionIn(contact_id=c, amount=v) for c, v in paying.items()],
-        payments=[
-            PaymentIn(account_id=r[0], amount=r[2]) for r in rows if r[1] == PostingSide.CREDIT and r[0] not in people
-        ],
-        **({"date": date_} if date_ else {}),
-    )
-
-
 @router.post("/split")
-def create_split_transaction(
+async def create_split_transaction(
+    request: Request,
     transactions: Transactions,
     accounts: Accounts,
     categories: Categories,
@@ -970,20 +925,23 @@ def create_split_transaction(
     back: Annotated[str, Form()] = "",
     related: Annotated[str, Form()] = "",
     tags: Annotated[list[str] | None, Form()] = None,
+    mode: Annotated[str, Form()] = "",
 ):
     account, side, amount = account or [], side or [], amount or []
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
     try:
+        if mode == "people":
+            # With people: a bill shared by the shares and payments the form lists (the same one a person's page records).
+            form = {k: str(v) for k, v in (await request.form()).items()}
+            expenses.create(
+                expense_data(form, contacts.cr.list()),
+                confirm=True,
+                comment=comment.strip() or None,
+                tags=tags or [],
+                related_id=parse_related(related),
+            )
+            return htmx_redirect(safe_back(back), flash="expense-shared")
         if people and any(a in {str(i) for i in people} for a in account):
-            places = category_places(accounts, categories)
-            if any(a in {str(i) for i in places} for a in account):
-                # A category row among the people: a bill shared with them.
-                names = {c.id: c.name for c in categories.list(include_closed=True)}
-                if tags or related.strip():
-                    raise ValueError("tags and related entries are not available for a bill shared with people!")
-                bill = _shared_bill(people, places, names, account, side, amount, date_, payee)
-                expenses.create(bill, confirm=True, comment=comment.strip() or None)
-                return htmx_redirect(safe_back(back), flash="expense-shared")
             _transfer_with_person(transfers, people, account, side, amount, date_, comment, tags, related)
             return htmx_redirect(safe_back(back), flash="transfer-recorded")
         transactions.create(
@@ -1020,8 +978,8 @@ def edit_transaction_page(
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
     # An entry made through people: a loan or borrowing is edited here (the person shows on its side) and so is a bill
-    # shared with people (its rows are who it was for and who paid); anything else a person made (a gift, a settlement,
-    # an opening balance) is looked after on the person's page.
+    # shared with people (its shares and payments, as entered); anything else a person made (a gift, a settlement, an
+    # opening balance) is looked after on the person's page.
     person_of: dict[UUID, UUID] = {}
     party = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
     purposes = {r.purpose for r in party}
@@ -1034,11 +992,19 @@ def edit_transaction_page(
             return RedirectResponse(f"/people/{party[0].contact_id}", status_code=303)
         person_of = {link.account_id: link.contact_id for link in contacts.cr.links()}
     total = sum((p.amount for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
-    from_rows = form_rows(transaction.postings, PostingSide.CREDIT, roots=roots_by_id(accounts), person_of=person_of)
-    to_rows = form_rows(transaction.postings, PostingSide.DEBIT, roots=roots_by_id(accounts), person_of=person_of)
-    keep_people = {r.contact_id for r in party}
+    roots = roots_by_id(accounts)
+    from_rows = form_rows(transaction.postings, PostingSide.CREDIT, roots=roots, person_of=person_of)
+    to_rows = form_rows(transaction.postings, PostingSide.DEBIT, roots=roots, person_of=person_of)
+    mode = "just"
     if bill is not None:
-        from_rows, to_rows, total = bill_rows(bill)
+        from_rows, to_rows, total, mode = (
+            form_rows([], PostingSide.CREDIT),
+            form_rows([], PostingSide.DEBIT),
+            bill.total_amount,
+            "people",
+        )
+    elif len(from_rows) > 1 or len(to_rows) > 1:
+        mode = "split"
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
@@ -1046,12 +1012,15 @@ def edit_transaction_page(
             accounts,
             categories,
             contacts,
-            keep_people=keep_people,
+            keep_people={r.contact_id for r in party},
             editing=True,
             transaction=transaction,
             total=total,
             from_rows=from_rows,
             to_rows=to_rows,
+            mode=mode,
+            ed=editor_values(bill),
+            **({"kind": "expense"} if bill is not None else {}),
             related=related_info(
                 transactions,
                 AccountIndex.build(accounts.list(), categories.list(include_closed=True)),
@@ -1117,7 +1086,8 @@ def _release(
 
 
 @router.post("/{transaction_id}/edit")
-def update_transaction(
+async def update_transaction(
+    request: Request,
     transaction_id: UUID,
     transactions: Transactions,
     accounts: Accounts,
@@ -1136,6 +1106,7 @@ def update_transaction(
     back: Annotated[str, Form()] = "",
     related: Annotated[str, Form()] = "",
     tags: Annotated[list[str] | None, Form()] = None,
+    mode: Annotated[str, Form()] = "",
 ):
     account, side, amount = account or [], side or [], amount or []
     db = transactions.tr.db
@@ -1144,19 +1115,24 @@ def update_transaction(
         r.purpose for r in ObligationRepository(db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
     }
     with_people = bool(people) and any(a in {str(i) for i in people} for a in account)
-    places = category_places(accounts, categories) if with_people else {}
-    bill = with_people and any(a in {str(i) for i in places} for a in account)
     try:
+        if mode == "people":
+            # With people: the entry becomes (or stays) a bill shared by the shares and payments the form lists, in place.
+            _release(transaction_id, purposes, transfers, expenses, "bill")
+            form = {k: str(v) for k, v in (await request.form()).items()}
+            expenses.convert(
+                transaction_id,
+                expense_data(form, contacts.cr.list()),
+                comment.strip() or None,
+                tags or [],
+                parse_related(related),
+            )
+            return htmx_redirect(safe_back(back), flash="transaction-updated")
         if with_people:
-            # People on a row: the entry becomes (or stays) a loan or borrowing, or a bill shared with them, in place.
-            _release(transaction_id, purposes, transfers, expenses, "bill" if bill else "loan")
-            if bill:
-                names = {c.id: c.name for c in categories.list(include_closed=True)}
-                data = _shared_bill(people, places, names, account, side, amount, date_, payee)
-                expenses.convert(transaction_id, data, comment.strip() or None, tags or [], parse_related(related))
-            else:
-                person, loan = _person_rows(people, account, side, amount, date_, comment)
-                transfers.convert(transaction_id, person, loan, tags or [], parse_related(related))
+            # A person on one side of a transfer: the entry becomes (or stays) a loan or a borrowing, in place.
+            _release(transaction_id, purposes, transfers, expenses, "loan")
+            person, loan = _person_rows(people, account, side, amount, date_, comment)
+            transfers.convert(transaction_id, person, loan, tags or [], parse_related(related))
             return htmx_redirect(safe_back(back), flash="transaction-updated")
         _release(transaction_id, purposes, transfers, expenses, "")  # edited back into an ordinary entry
         result = _update(

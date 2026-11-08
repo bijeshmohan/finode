@@ -10,14 +10,14 @@
 </div>
 {% endmacro %}
 
-{% macro category_pick(name, label, nodes, empty="Uncategorised", extra="") %}
+{% macro category_pick(name, label, nodes, empty="Uncategorised", extra="", selected="") %}
 <div class="under-field" {{ extra|safe }}>
   <span>{{ label }}</span>
   <select name="{{ name }}" data-sheet-select data-allow-empty class="is-picked" aria-hidden="true" tabindex="-1">
     <option value="">{{ empty }}</option>
     {% for n in nodes %}
-    <option value="{{ n.category.id }}">{{ n.category.name }}</option>
-    {% for c in n.children %}<option value="{{ c.category.id }}">{{ n.category.name }} › {{ c.category.name }}</option>{% endfor %}
+    <option value="{{ n.category.id }}" {{ "selected" if n.category.id|string == selected }}>{{ n.category.name }}</option>
+    {% for c in n.children %}<option value="{{ c.category.id }}" {{ "selected" if c.category.id|string == selected }}>{{ n.category.name }} › {{ c.category.name }}</option>{% endfor %}
     {% endfor %}
   </select>
   <button type="button" class="field-pick" data-pick-generic data-title="{{ label }}" data-noun="categories" aria-haspopup="dialog" aria-label="{{ label }}"><span>{{ empty }}</span></button>

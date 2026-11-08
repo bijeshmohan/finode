@@ -340,8 +340,8 @@ function money(value) {
 // What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
 const KINDS = {
   expense: {
-    credit: { roots: ["Assets", "Liabilities", "People"], title: "Paid from" },
-    debit: { roots: ["Expenses", "People"], title: "Spent on" },
+    credit: { roots: ["Assets", "Liabilities"], title: "Paid from" },
+    debit: { roots: ["Expenses"], title: "Spent on" },
   },
   income: {
     credit: { roots: ["Income"], title: "From" },
@@ -418,6 +418,7 @@ function applyKind(form, kind) {
   else if (swap) { credit.after(swap); swap.after(debit); }
   if (swap) swap.hidden = categoryFirst || isCategorySide(KINDS[kind].debit.roots);
   recomputeTxn(form);
+  syncModes(form, kind);
 }
 
 // A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
@@ -621,11 +622,6 @@ function newRow(form, side) {
   select.value = "";
   return row;
 }
-
-const isPersonRow = (row) => {
-  const option = rowAccount(row).selectedOptions[0];
-  return Boolean(option && option.hasAttribute("data-person"));
-};
 
 function rowShare(row) {
   return parseDec(row.querySelector('[name="amount"]').value) || 0n;
@@ -914,7 +910,6 @@ function syncRowPickers(form) {
         : new Set(
             [...form.querySelectorAll("[data-row]")]
               .filter((r) => r.querySelector('[name="side"]').value !== side)
-              .filter((r) => !isPersonRow(r)) // a person can be both in the bill and the one who paid it
               .map((r) => rowAccount(r).value)
               .filter(Boolean),
           );
@@ -1072,6 +1067,10 @@ function recomputeTxn(form) {
   });
   syncRowCategories(form);
   syncRowPickers(form);
+  // Typing less than the total in a row makes a split: the switch says so, instead of blocking it.
+  if (form.dataset.mode === "just" && [...form.querySelectorAll("[data-rows]")].some((l) => l.querySelectorAll("[data-row]").length > 1)) {
+    applyMode(form, "split");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1657,45 +1656,91 @@ document.addEventListener("change", (event) => {
   if (hint && chip) hint.hidden = !input.value || input.value >= chip.dataset.today;
 });
 
-// People on a form: a transfer with a person on one side is a loan or a borrowing; on an expense the rows are who the bill
-// is for and who paid it. Say what it does to the budget and who owes whom.
-document.body.addEventListener("input", (event) => noteForPeople(event.target));
-document.body.addEventListener("change", (event) => noteForPeople(event.target));
+// A transfer with a person on one side is a loan or a borrowing: say so, and that the budget stays as it is.
 function noteForPeople(target) {
   const form = target.closest && target.closest("form[data-txn-form]");
   const note = form && form.querySelector("[data-person-note]");
   if (!note) return;
-  const people = [];
-  let yours = 0n;
-  const net = new Map();
+  let text = "";
   form.querySelectorAll("[data-row]").forEach((row) => {
     const option = rowAccount(row).selectedOptions[0];
-    if (!option || !option.value) return;
-    const debit = row.querySelector('[name="side"]').value === "debit";
-    const amount = rowShare(row);
-    if (option.hasAttribute("data-person")) {
-      const name = option.textContent.trim();
-      people.push({ name, debit });
-      // what they paid less what the bill is for them: above zero you owe them, below zero they owe you
-      net.set(name, (net.get(name) || 0n) + (debit ? -amount : amount));
-    } else if (debit && form.dataset.txnKind === "expense") {
-      yours += amount;
-    }
+    if (!option || !option.hasAttribute("data-person")) return;
+    const name = option.textContent.trim();
+    text =
+      row.querySelector('[name="side"]').value === "debit"
+        ? `${name} will owe you this. It is not spending, so your budgets stay as they are.`
+        : `You will owe ${name} this. It is not income, so your budgets stay as they are.`;
   });
-  let text = "";
-  if (form.dataset.txnKind === "expense" && people.length) {
-    const lines = [`Your share is ${money(yours)}, the part your budget sees.`];
-    net.forEach((value, name) => {
-      if (value > 0n) lines.push(`You owe ${name} ${money(value)}.`);
-      else if (value < 0n) lines.push(`${name} owes you ${money(-value)}.`);
-    });
-    text = lines.join(" ");
-  } else if (people.length === 1 && form.dataset.txnKind !== "expense") {
-    const { name, debit } = people[0];
-    text = debit
-      ? `${name} will owe you this. It is not spending, so your budgets stay as they are.`
-      : `You will owe ${name} this. It is not income, so your budgets stay as they are.`;
-  }
   note.textContent = text;
   note.hidden = !text;
 }
+document.body.addEventListener("change", (event) => noteForPeople(event.target));
+
+// ---- Just me, Split, With people: the three ways to record an expense (an income has the first two) ----
+// Just me is one row on each side with the whole total. Split is the rows that add up to it: typing less than the total in a row
+// switches to Split by itself. With people hides the rows and shows who the bill is for, how it is split and who paid; it is saved
+// as a shared bill. Switching never loses the total, the payee, the date or the note; choosing Just me keeps the first row of
+// each side.
+function collapseRows(list) {
+  const rows = [...list.querySelectorAll("[data-row]")];
+  rows.slice(1).forEach((row) => row.remove());
+  if (rows[0]) rows[0].removeAttribute("data-touched");
+}
+
+function applyMode(form, mode) {
+  const modes = form.querySelector("[data-modes]");
+  if (!modes) return;
+  form.dataset.mode = mode;
+  modes.querySelectorAll('input[name="mode"]').forEach((radio) => { radio.checked = radio.value === mode; });
+  const editor = form.querySelector("[data-people-editor]");
+  const people = mode === "people";
+  const was = form._peopleOpen === true;
+  form._peopleOpen = people;
+  if (editor) {
+    editor.hidden = !people;
+    editor.querySelectorAll("input, select").forEach((el) => { if (!el.hasAttribute("data-fixed")) el.disabled = !people; });
+  }
+  form.querySelectorAll("[data-side-section] input, [data-side-section] select, [data-side-section] button").forEach((el) => {
+    el.disabled = people;
+  });
+  if (people && !was && editor) {
+    // What the rows already say (the account that pays, the category) carries over to the tab, once.
+    [["credit", "account_id"], ["debit", "category_id"]].forEach(([side, name]) => {
+      const row = form.querySelector(`[data-rows="${side}"] [data-row]`);
+      const target = editor.querySelector(`select[name="${name}"]`);
+      const chosen = row && rowAccount(row).value;
+      if (target && chosen && !target.value && target.querySelector(`option[value="${chosen}"]`)) {
+        target.value = chosen;
+        target.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    editor.dispatchEvent(new CustomEvent("people-mode", { bubbles: true }));
+  }
+  recomputeTxn(form);
+}
+
+function syncModes(form, kind) {
+  const modes = form.querySelector("[data-modes]");
+  if (!modes) return;
+  const simple = kind === "expense" || kind === "income";
+  const wasSimple = form._simple !== false;
+  form._simple = simple;
+  modes.hidden = !simple;
+  modes.querySelector("[data-mode-people]").hidden = kind !== "expense";
+  let mode = form.dataset.mode || "just";
+  if (!simple) mode = "split";
+  else if (!wasSimple) {
+    const many = [...form.querySelectorAll("[data-rows]")].some((list) => list.querySelectorAll("[data-row]").length > 1);
+    mode = many ? "split" : "just";
+  } else if (mode === "people" && kind !== "expense") mode = "just";
+  applyMode(form, mode);
+}
+
+document.body.addEventListener("change", (event) => {
+  const radio = event.target;
+  if (!(radio instanceof HTMLInputElement) || radio.name !== "mode") return;
+  const form = radio.closest("form[data-txn-form]");
+  if (!form) return;
+  if (radio.value === "just") form.querySelectorAll("[data-rows]").forEach(collapseRows);
+  applyMode(form, radio.value);
+});

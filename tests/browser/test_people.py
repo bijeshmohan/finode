@@ -4,7 +4,7 @@ import re
 
 from playwright.sync_api import Page, expect
 
-from .conftest import Api, row_button, set_row
+from .conftest import Api, row_button
 
 
 def alice_of(api: Api, name: str = "Alice") -> dict:
@@ -43,27 +43,6 @@ def test_a_gift_asks_for_a_category_only_when_it_is_a_gift(page: Page, books, ap
     expect(page.locator('[data-gift="received"]')).to_be_visible()
     page.get_by_text("I lent money").click()
     expect(page.locator('[data-gift="received"]')).to_be_hidden()
-
-
-def test_sharing_a_bill_shows_the_result_as_you_type(page: Page, books, api: Api):
-    who = alice_of(api)
-    page.goto(f"/people/expense/new?with={who['id']}")
-    expect(page.locator(f'input[name="with_{who["id"]}"]')).to_be_checked()
-    page.locator('input[name="total_amount"]').fill("900")
-    page.locator('input[name="description"]').fill("Dinner")
-    page.locator(".field-pick").nth(1).click()  # the account (the category comes first)
-    page.locator("#row-picker [data-pick-option]", has_text="Checking").first.click()
-    preview = page.locator("#expense-preview")
-    expect(preview).to_contain_text("Alice owes you")
-    expect(preview).to_contain_text("450.00")
-    page.get_by_text("%", exact=True).click()
-    expect(page.locator(f'input[name="value_{who["id"]}"]')).to_be_visible()
-    page.locator('input[name="value_self"]').fill("75")
-    page.locator(f'input[name="value_{who["id"]}"]').fill("25")
-    expect(preview).to_contain_text("225.00")
-    page.get_by_role("button", name="Record expense").click()
-    page.wait_for_url(f"**/people/{who['id']}")
-    expect(page.locator(".hero-balance")).to_contain_text("225.00")
 
 
 def test_settling_up_shows_what_it_clears_and_asks_about_the_rest(page: Page, books, api: Api):
@@ -158,31 +137,6 @@ def test_a_new_person_can_start_with_an_opening_balance(page: Page, books, api: 
     assert float(next(a for a in api.get("/accounts/") if a["name"] == "Checking")["balance"]) == 5000
 
 
-def test_the_sharing_rows_sit_in_a_line(page: Page, books, api: Api):
-    who = alice_of(api)
-    page.goto(f"/people/expense/new?with={who['id']}")
-    rows = page.locator(".share-row")
-    assert rows.count() == 2
-    for index in range(2):
-        row = rows.nth(index)
-        box, check, name = (
-            row.bounding_box(),
-            row.locator('input[type="checkbox"]').bounding_box(),
-            row.locator(".crow-name").bounding_box(),
-        )
-        assert box and check and name
-        assert abs((check["y"] + check["height"] / 2) - (name["y"] + name["height"] / 2)) < 6, (
-            "the box and the name are on one line"
-        )
-        assert box["height"] < 70, "a row is one line tall"
-    expect(rows.first.locator('input[type="checkbox"]')).to_be_disabled()
-    page.get_by_text("%", exact=True).click()
-    inputs = rows.nth(1).locator(".share-value")
-    expect(inputs).to_be_visible()
-    value, name = inputs.bounding_box(), rows.nth(1).locator(".crow-name").bounding_box()
-    assert value and name and abs((value["y"] + value["height"] / 2) - (name["y"] + name["height"] / 2)) < 12
-
-
 def test_the_figures_carry_the_rupee_sign_and_the_page_has_no_stray_wrapping(page: Page, books, api: Api):
     who = alice_of(api)
     api.post(
@@ -272,48 +226,132 @@ def test_netting_off_what_two_people_owe_each_other(page: Page, books, api: Api)
     expect(page.locator('a[href$="/netoff"]')).to_have_count(0)
 
 
-def test_splitting_a_bill_with_people_from_the_add_screen(page: Page, books, api: Api):
+def pick(page: Page, index: int, label: str) -> None:
+    """Choose in the sheet behind the nth field of the With people tab (0: the category, 1: the account you paid from)."""
+    page.locator(".people-editor .field-pick").nth(index).click()
+    page.locator("#row-picker [data-pick-option]", has_text=label).first.click()
+
+
+def test_the_three_ways_show_and_hide_what_they_should(page: Page, books, api: Api):
+    alice_of(api)
+    page.goto("/transactions/new")
+    modes = page.locator("[data-modes]")
+    expect(modes).to_be_visible()
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "just")
+    expect(page.locator("[data-people-editor]")).to_be_hidden()
+    expect(page.locator('[data-side-section="credit"]')).to_be_visible()
+    modes.get_by_text("With people").click()
+    expect(page.locator("[data-people-editor]")).to_be_visible()
+    expect(page.locator('[data-side-section="credit"]')).to_be_hidden()
+    expect(page.locator('[data-side-section="debit"]')).to_be_hidden()
+    page.get_by_role("button", name="Income", exact=True).click()
+    expect(page.locator("[data-mode-people]")).to_be_hidden()
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "just")
+    expect(page.locator('[data-side-section="credit"]')).to_be_visible()
+    page.get_by_role("button", name="Transfer", exact=True).click()
+    expect(modes).to_be_hidden()
+    page.get_by_role("button", name="Expense", exact=True).click()
+    expect(modes).to_be_visible()
+    expect(page.locator("[data-mode-people]")).to_be_visible()
+
+
+def test_typing_less_than_the_total_switches_to_split_and_just_me_goes_back(page: Page, books, api: Api):
+    from .conftest import add_row
+
+    page.goto("/transactions/new")
+    page.locator('input[name="total"]').fill("1000")
+    add_row(page, "credit", "Checking")
+    add_row(page, "debit", "Groceries", amount="600")
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "split")
+    expect(page.locator('input[name="mode"][value="split"]')).to_be_checked()
+    assert page.locator('[data-rows="debit"] [data-row]').count() == 2
+    page.locator("[data-modes]").get_by_text("Just me").click()
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "just")
+    assert page.locator('[data-rows="debit"] [data-row]').count() == 1, "Just me keeps the first row"
+
+
+def test_a_bill_shared_from_the_with_people_tab_shows_its_result_as_you_type(page: Page, books, api: Api):
+    who, bob = alice_of(api), alice_of(api, "Bob")
+    page.goto(f"/transactions/new?mode=people&with={who['id']}")
+    expect(page.locator(f'input[name="with_{who["id"]}"]')).to_be_checked()
+    page.locator('input[name="total"]').fill("900")
+    page.locator('input[name="payee"]').fill("Dinner")
+    pick(page, 0, "Groceries")
+    pick(page, 1, "Checking")
+    preview = page.locator("#people-preview")
+    expect(preview).to_contain_text("Alice owes you")
+    expect(preview).to_contain_text("450.00")
+    page.locator(f'input[name="with_{bob["id"]}"]').check()
+    expect(preview).to_contain_text("Bob owes you")
+    expect(preview).to_contain_text("300.00")
+    page.locator(".people-editor").get_by_text("%", exact=True).click()
+    page.locator('input[name="value_self"]').fill("50")
+    page.locator(f'input[name="value_{who["id"]}"]').fill("30")
+    page.locator(f'input[name="value_{bob["id"]}"]').fill("20")
+    expect(preview).to_contain_text("270.00")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
+    assert float(api.get(f"/contacts/{who['id']}")["receivable"]) == 270
+    assert float(api.get(f"/contacts/{bob['id']}")["receivable"]) == 180
+
+
+def test_switching_to_with_people_carries_over_what_the_rows_already_say(page: Page, books, api: Api):
     from .conftest import add_row
 
     alice, bob = alice_of(api), alice_of(api, "Bob")
     page.goto("/transactions/new")
     page.locator('input[name="total"]').fill("1500")
+    page.locator('input[name="payee"]').fill("Dinner")
     add_row(page, "credit", "Checking")
-    add_row(page, "debit", "Groceries", amount="500")
-    add_row(page, "debit", "Alice", index=1, amount="500")
-    add_row(page, "debit", "Bob", index=2)
-    note = page.locator("[data-person-note]")
-    expect(note).to_contain_text("Your share is 500.00")
-    expect(note).to_contain_text("Alice owes you 500.00")
-    expect(note).to_contain_text("Bob owes you 500.00")
-    row_button(page, "credit", 0).click()
-    expect(page.locator("#row-picker .filter-group", has_text="People")).to_have_count(1)
-    page.keyboard.press("Escape")
+    add_row(page, "debit", "Groceries")
+    page.locator("[data-modes]").get_by_text("With people").click()
+    expect(page.locator(".people-editor .field-pick").nth(0)).to_have_text("Groceries")
+    expect(page.locator(".people-editor .field-pick").nth(1)).to_have_text("Checking")
+    page.locator(f'input[name="with_{alice["id"]}"]').check()
+    page.locator(f'input[name="with_{bob["id"]}"]').check()
+    expect(page.locator("#people-preview")).to_contain_text("500.00")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     assert float(api.get(f"/contacts/{alice['id']}")["receivable"]) == 500
-    assert float(api.get(f"/contacts/{bob['id']}")["receivable"]) == 500
     assert float(next(a for a in api.get("/accounts/") if a["name"] == "Checking")["balance"]) == 3500
 
 
-def test_a_friend_who_paid_can_also_be_in_the_bill(page: Page, books, api: Api):
-    from .conftest import add_row
-
+def test_a_friend_who_paid_can_be_recorded_from_the_tab(page: Page, books, api: Api):
     alice = alice_of(api)
-    page.goto("/transactions/new")
+    page.goto(f"/transactions/new?mode=people&with={alice['id']}")
     page.locator('input[name="total"]').fill("1000")
-    add_row(page, "credit", "Alice")
-    add_row(page, "debit", "Groceries", amount="500")
-    add_row(page, "debit", "Alice", index=1)
-    expect(page.locator("[data-person-note]")).to_contain_text("You owe Alice 500.00")
+    pick(page, 0, "Groceries")
+    page.locator(".people-editor summary", has_text="Someone else paid").click()
+    page.locator('input[name="paid_self"]').fill("0")
+    page.locator(f'input[name="paid_{alice["id"]}"]').fill("1000")
+    expect(page.locator("#people-preview")).to_contain_text("Alice")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    assert float(api.get(f"/contacts/{alice['id']}")["payable"]) == 500
+    got = api.get(f"/contacts/{alice['id']}")
+    assert float(got["payable"]) == 500 and float(got["receivable"]) == 0
+
+
+def test_the_with_people_rows_sit_in_a_line(page: Page, books, api: Api):
+    who = alice_of(api)
+    page.goto(f"/transactions/new?mode=people&with={who['id']}")
+    rows = page.locator(".share-row")
+    assert rows.count() == 2
+    for index in range(2):
+        row = rows.nth(index)
+        box, check, name = (
+            row.bounding_box(),
+            row.locator('input[type="checkbox"]').bounding_box(),
+            row.locator(".crow-name").bounding_box(),
+        )
+        assert box and check and name
+        assert abs((check["y"] + check["height"] / 2) - (name["y"] + name["height"] / 2)) < 6
+        assert box["height"] < 70
+    expect(rows.first.locator('input[type="checkbox"]')).to_be_disabled()
+    page.locator(".people-editor").get_by_text("%", exact=True).click()
+    expect(rows.nth(1).locator(".share-value")).to_be_visible()
 
 
 def test_an_old_expense_can_be_edited_into_a_shared_bill(page: Page, books, api: Api):
-    from .conftest import add_row
-
     alice, bob = alice_of(api), alice_of(api, "Bob")
     entry = api.post(
         "/transactions/",
@@ -325,15 +363,16 @@ def test_an_old_expense_can_be_edited_into_a_shared_bill(page: Page, books, api:
         ],
     )
     page.goto(f"/transactions/{entry['id']}/edit")
-    set_row(page, "debit", 0, amount="1000")  # your share; the rest is left to allocate
-    add_row(page, "debit", "Alice", index=1, amount="1000")
-    add_row(page, "debit", "Bob", index=2)
-    expect(page.locator("[data-person-note]")).to_contain_text("Alice owes you 1,000.00")
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "just")
+    page.locator("[data-modes]").get_by_text("With people").click()
+    expect(page.locator(".people-editor .field-pick").nth(0)).to_have_text("Groceries")
+    page.locator(f'input[name="with_{alice["id"]}"]').check()
+    page.locator(f'input[name="with_{bob["id"]}"]').check()
+    expect(page.locator("#people-preview")).to_contain_text("1,000.00")
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(lambda u: "/edit" not in u)
     assert float(api.get(f"/contacts/{alice['id']}")["receivable"]) == 1000
-    assert float(api.get(f"/contacts/{bob['id']}")["receivable"]) == 1000
-    same = api.get(f"/transactions/{entry['id']}")
-    assert same["date"] == "2026-10-09"
+    assert api.get(f"/transactions/{entry['id']}")["date"] == "2026-10-09"
     page.goto(f"/transactions/{entry['id']}/edit")
-    expect(row_button(page, "debit", 1)).to_contain_text("Alice")
+    expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "people")
+    expect(page.locator(f'input[name="with_{bob["id"]}"]')).to_be_checked()
