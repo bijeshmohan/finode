@@ -1,7 +1,7 @@
 {#- The Share tab of an expense in the transaction form: who the bill is for and how it is split, who paid. Expects people (the active contacts), ed (editor_values), mode, money_groups, spending. -#}
 {% from "partials/icons.html" import icon %}
 {% from "partials/pickers.html" import account_pick, category_pick %}
-<div class="people-editor person-form stack" data-people-editor="expense" {{ "hidden" if not (mode == "share" and kind == "expense") }}>
+<div class="people-editor person-form stack" data-people-editor="expense" {{ "hidden" if not (mode == "split" and kind == "expense") }}>
   {% if people %}
   {{ category_pick("category_id", "Category", spending, selected=(ed.category_id|string if ed.category_id else "")) }}
   {{ account_pick("account_id", "You paid from", money_groups, selected=(ed.account_id|string if ed.account_id else "")) }}
@@ -33,7 +33,7 @@
     </div>
   </details>
   <div id="people-preview" class="preview" hx-post="/people/expense/preview" hx-include="closest form"
-       hx-trigger="change[document.querySelector('form[data-txn-form]').dataset.mode==='share' && document.querySelector('form[data-txn-form]').dataset.txnKind==='expense'] from:closest form, input[document.querySelector('form[data-txn-form]').dataset.mode==='share' && document.querySelector('form[data-txn-form]').dataset.txnKind==='expense'] delay:400ms from:closest form, people-mode from:closest form"
+       hx-trigger="change[document.querySelector('form[data-txn-form]').dataset.mode==='split' && document.querySelector('form[data-txn-form]').dataset.txnKind==='expense'] from:closest form, input[document.querySelector('form[data-txn-form]').dataset.mode==='split' && document.querySelector('form[data-txn-form]').dataset.txnKind==='expense'] delay:400ms from:closest form, people-mode from:closest form"
        hx-swap="innerHTML" aria-live="polite"></div>
   {% else %}
   <div class="card empty-state"><p>Add the people you share costs with first.</p><a class="button" href="/people/new">Add a person</a></div>

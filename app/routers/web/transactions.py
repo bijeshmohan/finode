@@ -802,7 +802,7 @@ def new_transaction_page(
     pay: UUID
     | None = None,  # "pay bill": a payment into this card or loan, for `amount`; the account paid from is left to choose
     amount: str = "",
-    mode: str = "",  # "share": open on the Share tab (from a person's page)
+    mode: str = "",  # "split": open on the Split tab (from a person's page)
     with_person: Annotated[UUID | None, Query(alias="with")] = None,  # the person ticked on that tab
 ):
     all_accounts = accounts.list()
@@ -868,9 +868,9 @@ def new_transaction_page(
             transaction=None,
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
-            mode="share" if mode == "share" else "simple",
+            mode="split" if mode == "split" else "simple",
             ed=editor_values(None, with_person),
-            kind="expense" if mode == "share" else kind,
+            kind="expense" if mode == "split" else kind,
             related=linked,
             total=total,
             account=account,
@@ -955,7 +955,7 @@ async def create_split_transaction(
     account, side, amount = account or [], side or [], amount or []
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
     try:
-        if mode == "share" and kind == "income":
+        if mode == "split" and kind == "income":
             # Share on an income: money that came in, part of it theirs (what the form lists).
             form = {k: str(v) for k, v in (await request.form()).items()}
             incomes.create(
@@ -965,7 +965,7 @@ async def create_split_transaction(
                 related_id=parse_related(related),
             )
             return htmx_redirect(safe_back(back), flash="income-shared")
-        if mode == "share" and kind != "transfer":
+        if mode == "split" and kind != "transfer":
             # Share: a bill shared by the shares and payments the form lists (the same one a person's page records).
             form = {k: str(v) for k, v in (await request.form()).items()}
             expenses.create(
@@ -979,7 +979,7 @@ async def create_split_transaction(
         if people and any(a in {str(i) for i in people} for a in account):
             _transfer_with_person(transfers, people, account, side, amount, date_, comment, tags, related)
             return htmx_redirect(safe_back(back), flash="transfer-recorded")
-        if mode == "share":
+        if mode == "split":
             raise ValueError("put a person on one side, or choose Split!")
         transactions.create(
             TransactionCreate(
@@ -1041,19 +1041,17 @@ def edit_transaction_page(
             form_rows([], PostingSide.CREDIT),
             form_rows([], PostingSide.DEBIT),
             bill.total_amount,
-            "share",
+            "split",
         )
     elif shared_income is not None:
         from_rows, to_rows, total, mode = (
             form_rows([], PostingSide.CREDIT),
             form_rows([], PostingSide.DEBIT),
             shared_income.total_amount,
-            "share",
+            "split",
         )
     elif party:
-        mode = "share"  # a loan or a borrowing: the person is on one side
-    elif len(from_rows) > 1 or len(to_rows) > 1:
-        mode = "split"
+        mode = "split"  # a loan or a borrowing: the person is on one side
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
@@ -1177,7 +1175,7 @@ async def update_transaction(
     }
     with_people = bool(people) and any(a in {str(i) for i in people} for a in account)
     try:
-        if mode == "share" and kind == "income":
+        if mode == "split" and kind == "income":
             # Share on an income: the entry becomes (or stays) income shared with people, in place.
             _release(transaction_id, purposes, transfers, expenses, incomes, "income")
             form = {k: str(v) for k, v in (await request.form()).items()}
@@ -1189,7 +1187,7 @@ async def update_transaction(
                 parse_related(related),
             )
             return htmx_redirect(safe_back(back), flash="transaction-updated")
-        if mode == "share" and kind != "transfer":
+        if mode == "split" and kind != "transfer":
             # Share: the entry becomes (or stays) a bill shared by the shares and payments the form lists, in place.
             _release(transaction_id, purposes, transfers, expenses, incomes, "bill")
             form = {k: str(v) for k, v in (await request.form()).items()}
@@ -1207,7 +1205,7 @@ async def update_transaction(
             person, loan = _person_rows(people, account, side, amount, date_, comment)
             transfers.convert(transaction_id, person, loan, tags or [], parse_related(related))
             return htmx_redirect(safe_back(back), flash="transaction-updated")
-        if mode == "share":
+        if mode == "split":
             raise ValueError("put a person on one side, or choose Split!")
         _release(transaction_id, purposes, transfers, expenses, incomes, "")  # edited back into an ordinary entry
         result = _update(
