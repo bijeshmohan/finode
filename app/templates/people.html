@@ -30,7 +30,7 @@
   {% for r in rows %}
   <a class="r crow" href="/people/{{ r.person.id }}">
     <span class="crow-main"><span class="crow-name">{{ r.person.name }}</span><span class="crow-sub">{{ r.sub }}</span></span>
-    <span class="crow-amt">{% if r.person.net > 0 %}<span class="income">{{ r.person.net|money }}</span>{% elif r.person.net < 0 %}<span class="out-amount">{{ (-r.person.net)|money }}</span>{% elif r.person.receivable or r.person.payable %}<span>{{ r.person.receivable|money }}</span>{% else %}<span class="muted">–</span>{% endif %}</span>
+    <span class="crow-amt">{% if r.person.net > 0 %}<span class="income">{{ r.person.net|money }}</span>{% elif r.person.net < 0 %}<span class="out-amount">{{ (-r.person.net)|money }}</span>{% else %}<span class="muted">–</span>{% endif %}</span>
   </a>
   {% endfor %}
 </div>

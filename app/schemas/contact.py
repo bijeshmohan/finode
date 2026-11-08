@@ -277,7 +277,7 @@ class SettlementRead(BaseModel):
     excess_obligation_id: UUID | None
 
 
-ActivityPurpose = Literal["loan", "borrowing", "advance", "gift", "expense", "settlement", "opening"]
+ActivityPurpose = Literal["loan", "borrowing", "advance", "gift", "expense", "settlement", "opening", "netoff"]
 
 
 class ActivityRead(BaseModel):
@@ -308,3 +308,19 @@ class ContactSummary(BaseModel):
     total_settlements: Decimal
     open_obligations: int
     recent: list[ActivityRead]
+
+
+class NetOffRead(BaseModel):
+    """Clearing what a contact owes you against what you owe them: the same amount on both sides, no money moves."""
+
+    # The ledger entry that records it (none in a preview).
+    id: UUID | None = None
+    contact_id: UUID
+    date: Date
+    amount: Decimal
+    # What it clears of what they owe you, and of what you owe them, oldest first.
+    receivables: list[AllocationRead]
+    payables: list[AllocationRead]
+    # What is still owed on each side afterwards.
+    receivable_left: Decimal
+    payable_left: Decimal

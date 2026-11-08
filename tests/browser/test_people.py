@@ -245,3 +245,25 @@ def test_an_expense_can_be_edited_into_a_loan_and_back(page: Page, books, api: A
     page.get_by_role("button", name="Save").click()
     page.wait_for_url(lambda url: "/edit" not in url)
     assert float(api.get(f"/contacts/{who['id']}")["net"]) == 0
+
+
+def test_netting_off_what_two_people_owe_each_other(page: Page, books, api: Api):
+    who = alice_of(api)
+    checking = books["checking"]["id"]
+    api.post(f"/contacts/{who['id']}/transfers", direction="sent", purpose="loan", amount="23000", account_id=checking)
+    api.post(
+        f"/contacts/{who['id']}/transfers",
+        direction="received",
+        purpose="borrowing",
+        amount="23000",
+        account_id=checking,
+    )
+    page.goto("/people")
+    expect(page.locator("a.crow").first).to_contain_text("Even · 23,000.00 each way")
+    page.locator("a.crow").first.click()
+    page.get_by_role("link", name="Net off 23,000.00").click()
+    expect(page.locator("main")).to_contain_text("Afterwards neither owes the other anything")
+    page.get_by_role("button", name="Net off 23,000.00").click()
+    page.wait_for_url(f"**/people/{who['id']}")
+    expect(page.get_by_text("All settled up")).to_be_visible()
+    expect(page.locator('a[href$="/netoff"]')).to_have_count(0)

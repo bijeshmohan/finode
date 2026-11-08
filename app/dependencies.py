@@ -35,6 +35,7 @@ from .services.contact import ContactService
 from .services.contact_summary import ContactSummaryService
 from .services.erase import EraseService
 from .services.expense_sharing import ExpenseSharingService
+from .services.netting import NettingService
 from .services.oauth_grant import OAuthGrantService
 from .services.obligation import ObligationService
 from .services.settlement import SettlementService
@@ -160,6 +161,15 @@ def get_contact_summary_service(
     return ContactSummaryService(contacts, tr, ob, SharedExpenseRepository(db, user.id))
 
 
+def get_netting_service(
+    contacts: ContactService = Depends(get_contact_service),
+    transactions: TransactionService = Depends(get_contact_transactions),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+    obligations: ObligationService = Depends(get_obligation_service),
+) -> NettingService:
+    return NettingService(contacts, transactions, ob, obligations)
+
+
 def get_profile_service(
     pr: ProfileRepository = Depends(get_profile_repository),
     accounts: AccountService = Depends(get_account_service),
@@ -268,6 +278,7 @@ Accounts = Annotated[AccountService, Depends(get_account_service)]
 Categories = Annotated[CategoryService, Depends(get_category_service)]
 ContactSummaries = Annotated[ContactSummaryService, Depends(get_contact_summary_service)]
 Contacts = Annotated[ContactService, Depends(get_contact_service)]
+NetOffs = Annotated[NettingService, Depends(get_netting_service)]
 Obligations = Annotated[ObligationService, Depends(get_obligation_service)]
 Settlements = Annotated[SettlementService, Depends(get_settlement_service)]
 SharedExpenses = Annotated[ExpenseSharingService, Depends(get_expense_sharing_service)]

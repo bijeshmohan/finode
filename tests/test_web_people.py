@@ -680,3 +680,57 @@ def test_only_a_loan_or_a_borrowing_is_edited_this_way(client, bank):
         client.get(f"/api/transactions/{entry['id']}").json()["postings"][0]["account_id"]
         != alice["receivable_account_id"]
     )
+
+
+def both_ways(client, bank, alice, loan="23000", borrowed="23000"):
+    for direction, purpose, amount in (("sent", "loan", loan), ("received", "borrowing", borrowed)):
+        client.post(
+            f"/api/contacts/{alice['id']}/transfers",
+            json={"direction": direction, "purpose": purpose, "amount": amount, "account_id": bank["id"]},
+        )
+
+
+def test_the_list_says_even_instead_of_a_black_amount(client, bank):
+    alice = person(client)
+    both_ways(client, bank, alice)
+    html = page(client, "/people")
+    assert "Even · 23,000.00 each way" in flat(html)
+    row = html.split('href="/people/')[1].split("</a>")[0]
+    assert "23,000.00 each way" in flat(row) and "crow-amt" in row and "–" in row
+    assert 'class="income"' not in row and "out-amount" not in row
+
+
+def test_netting_off_from_the_persons_page(client, bank):
+    alice = person(client)
+    both_ways(client, bank, alice, borrowed="12000")
+    html = page(client, f"/people/{alice['id']}")
+    assert f'href="/people/{alice["id"]}/netoff"' in html and "Net off 12,000.00" in flat(html)
+    form = flat(page(client, f"/people/{alice['id']}/netoff"))
+    assert (
+        "Alice owes you 23,000.00" in form
+        and "you owe Alice 12,000.00" in form
+        and "Alice still owes you 11,000.00" in form
+    )
+    assert "Net off 12,000.00" in form
+    done = client.post(f"/people/{alice['id']}/netoff")
+    assert done.status_code == 200 and done.headers["HX-Redirect"] == f"/people/{alice['id']}"
+    now = client.get(f"/api/contacts/{alice['id']}").json()
+    assert (float(now["receivable"]), float(now["payable"])) == (11000, 0)
+    assert "/netoff" not in page(client, f"/people/{alice['id']}"), "only while it is owed both ways"
+    assert client.get(f"/people/{alice['id']}/netoff", follow_redirects=False).status_code == 303
+    again = client.post(f"/people/{alice['id']}/netoff")
+    assert again.status_code == 400 and again.headers["HX-Retarget"] == "#form-error"
+
+
+def test_a_net_off_is_in_the_activity_and_can_be_reversed(client, bank):
+    alice = person(client)
+    both_ways(client, bank, alice, borrowed="100")
+    client.post(f"/people/{alice['id']}/netoff")
+    entry = client.get(f"/api/contacts/{alice['id']}/activity", params={"purpose": "netoff"}).json()["items"][0][
+        "transaction_id"
+    ]
+    assert "Net off" in page(client, f"/people/{alice['id']}") and "Net off" in page(
+        client, f"/people/{alice['id']}/entry/{entry}/sheet"
+    )
+    assert client.post(f"/people/{alice['id']}/entry/{entry}/reverse").status_code == 200
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 100
