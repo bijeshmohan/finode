@@ -372,11 +372,11 @@ const isCategorySide = (roots) => {
   return own.length > 0 && own.every((root) => CATEGORY_ROOTS.includes(root));
 };
 
-// People are offered on a transfer only in Share (lending, borrowing, paying back); on an expense or income they are not
+// People are offered on a transfer only in Split (lending, borrowing, paying back); on an expense or income they are not
 // rows of a side.
 function sideRoots(form, side) {
   const roots = (KINDS[form.dataset.txnKind] || KINDS.other)[side].roots;
-  return roots && form.dataset.mode !== "share" ? roots.filter((root) => root !== "People") : roots;
+  return roots && form.dataset.mode !== "split" ? roots.filter((root) => root !== "People") : roots;
 }
 
 function optionsFor(all, roots) {
@@ -1078,10 +1078,9 @@ function recomputeTxn(form) {
   });
   syncRowCategories(form);
   syncRowPickers(form);
-  // Typing less than the total in a row makes a split: the switch says so, instead of blocking it.
-  if (form.dataset.mode === "simple" && [...form.querySelectorAll("[data-rows]")].some((l) => l.querySelectorAll("[data-row]").length > 1)) {
-    applyMode(form, "split");
-  }
+  // Typing less than the total in a row adds a row: with more than one on a side the allocation shows (what is left, Remove).
+  const many = [...form.querySelectorAll("[data-rows]")].some((l) => l.querySelectorAll("[data-row]").length > 1);
+  form.dataset.layout = many ? "multi" : "single";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1687,18 +1686,12 @@ function noteForPeople(target) {
 }
 document.body.addEventListener("change", (event) => noteForPeople(event.target));
 
-// ---- Simple, Split, Share: the three ways to record an entry ----
-// Simple is one row on each side with the whole total. Split is the rows that add up to it: typing less than the total in a row
-// switches to Split by itself. Share on an expense or an income hides the rows and shows who it is shared with (a shared bill,
-// or income part of which is theirs); on a transfer the rows stay and the pickers also list People (lending, borrowing, paying
-// back). Switching never loses the total, the payee, the date or the note; choosing Simple keeps the first row of each side.
-function collapseRows(list) {
-  const rows = [...list.querySelectorAll("[data-row]")];
-  rows.slice(1).forEach((row) => row.remove());
-  if (rows[0]) rows[0].removeAttribute("data-touched");
-}
-
-// What the rows already say carries over to a Share editor, once: the account and the category.
+// ---- Simple and Split: the two ways to record an entry ----
+// Simple is the rows on each side that add up to the total (one each, or more: typing less than the total in a row adds the next).
+// Split shares it with people: on an expense or an income the rows give way to who it is shared with (a shared bill, or income
+// part of which is theirs); on a transfer the rows stay and the pickers also list People (lending, borrowing, paying back).
+// Switching never loses the total, the payee, the date, the note or the rows.
+// What the rows already say carries over to a Split editor, once: the account and the category.
 const CARRY = {
   expense: [["credit", "account_id"], ["debit", "category_id"]],
   income: [["debit", "income_account_id"], ["credit", "income_category_id"]],
@@ -1711,7 +1704,7 @@ function applyMode(form, mode) {
   form.dataset.mode = mode;
   modes.querySelectorAll('input[name="mode"]').forEach((radio) => { radio.checked = radio.value === mode; });
   const kind = form.dataset.txnKind;
-  const shared = mode === "share" && (kind === "expense" || kind === "income") ? kind : null;
+  const shared = mode === "split" && (kind === "expense" || kind === "income") ? kind : null;
   const was = form._shared || null;
   form._shared = shared;
   if (shared) form.dataset.shared = shared;
@@ -1749,15 +1742,11 @@ function syncModes(form, kind) {
   form._offered = offered;
   modes.hidden = !offered;
   let mode = form.dataset.mode || "simple";
-  // Share on a transfer (people on a side) and Share on an expense or income (who it is shared with) are different things:
+  // Split on a transfer (people on a side) and Split on an expense or income (who it is shared with) are different things:
   // crossing between them goes back to the rows.
   const crossing = form._kind !== undefined && (form._kind === "transfer") !== (kind === "transfer");
   form._kind = kind;
-  if (!offered) mode = "split";
-  else if (!wasOffered || (crossing && mode === "share")) {
-    const many = [...form.querySelectorAll("[data-rows]")].some((list) => list.querySelectorAll("[data-row]").length > 1);
-    mode = many ? "split" : "simple";
-  }
+  if (!offered || !wasOffered || (crossing && mode === "split")) mode = "simple";
   applyMode(form, mode);
 }
 
@@ -1766,6 +1755,5 @@ document.body.addEventListener("change", (event) => {
   if (!(radio instanceof HTMLInputElement) || radio.name !== "mode") return;
   const form = radio.closest("form[data-txn-form]");
   if (!form) return;
-  if (radio.value === "simple") form.querySelectorAll("[data-rows]").forEach(collapseRows);
   applyMode(form, radio.value);
 });
