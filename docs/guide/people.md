@@ -42,6 +42,10 @@ If a friend paid for you and you hadn't paid anything, nothing leaves your accou
 
 Choose who pays (*Alice pays you* or *You pay Alice*), the amount and your account. finode shows which amounts it clears, oldest first, and what's still owed afterwards. You can pay more than is owed only by saying what the rest is (a loan, an advance or a gift); it never disappears silently. To pay off one particular amount, open it from **Open** on the person's page.
 
+## When you owe each other
+
+If someone owes you and you owe them (a loan and a borrowing, say), the page shows **Even** and the list says "Even · 23,000.00 each way". Tap **Net off** on their page to clear the two against each other: the smaller side is cleared in full and the same amount of the larger, oldest first. None of your accounts or budgets change, and you can reverse it from **Activity**.
+
 ## Undoing
 
 **Reverse** (in an entry's sheet) removes a loan, a shared expense or a settlement for good, as if it never happened. It can't be reversed while something has been paid back against it: reverse the payment first. Entries made this way can't be edited or deleted from Transactions; their sheet there points to the person's page instead.

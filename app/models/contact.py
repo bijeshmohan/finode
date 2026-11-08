@@ -52,7 +52,7 @@ class PartyTransaction(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("contact_id", "transaction_id", name="uq_party_transactions_contact_transaction"),
         CheckConstraint(
-            "purpose IN ('loan', 'borrowing', 'advance', 'gift', 'expense', 'settlement', 'opening')",
+            "purpose IN ('loan', 'borrowing', 'advance', 'gift', 'expense', 'settlement', 'opening', 'netoff')",
             name="ck_party_transactions_purpose",
         ),
         CheckConstraint("direction IN ('sent', 'received')", name="ck_party_transactions_direction"),

@@ -11,6 +11,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
 from ...clock import local_today
@@ -19,6 +20,7 @@ from ...dependencies import (
     Categories,
     Contacts,
     ContactSummaries,
+    NetOffs,
     Obligations,
     Settlements,
     SharedExpenses,
@@ -42,7 +44,7 @@ from ...schemas.shared_expense import (
     SharedExpenseCreate,
 )
 from ...services.contact_errors import ContactNotFoundError
-from ...templating import templates
+from ...templating import grouping_for, money, templates
 from .accounts import build_tree, posting_groups, without_contacts
 from .categories import category_tree
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
@@ -126,6 +128,8 @@ def people_page(request: Request, contacts: Contacts, show: str = "all"):
             sub = "Nothing yet"
         elif p.net == 0 and p.receivable == 0 and p.payable == 0:
             sub = "Settled up"
+        elif p.net == 0:
+            sub = f"Even · {money(p.receivable, grouping_for(request.state.currency))} each way"
         else:
             sub = f"Last {p.last_activity.strftime('%d %b').lstrip('0')}"
         rows.append(PersonRow(p, sub))
@@ -368,6 +372,38 @@ def change_opening(
     except (ValueError, ValidationError) as e:
         return htmx_error(_message(e), "#form-error")
     return htmx_redirect(f"/people/{contact_id}", flash="opening-updated")
+
+
+@router.get("/{contact_id}/netoff")
+def net_off_page(request: Request, contact_id: UUID, contacts: Contacts, net_offs: NetOffs, obligations: Obligations):
+    person = _person(contacts, contact_id)
+    try:
+        plan = net_offs.preview(contact_id)
+    except ValueError:
+        return RedirectResponse(f"/people/{contact_id}", status_code=303)  # nothing is owed both ways any more
+    names = {o.id: describe_obligation(o)[0] for o in obligations.list(contact_id)}
+    return templates.TemplateResponse(
+        request,
+        "person_netoff.html",
+        {
+            "active": "people",
+            "hide_fab": True,
+            "person": person,
+            "plan": plan,
+            "names": names,
+            "currency": request.state.currency,
+        },
+    )
+
+
+@router.post("/{contact_id}/netoff")
+def net_off(contact_id: UUID, contacts: Contacts, net_offs: NetOffs):
+    _person(contacts, contact_id)
+    try:
+        net_offs.net_off(contact_id)
+    except ValueError as e:
+        return htmx_error(_message(e), "#form-error")
+    return htmx_redirect(f"/people/{contact_id}", flash="net-off-done")
 
 
 # ---- lending, borrowing and gifts ----------------------------------------------------------------------------
@@ -673,6 +709,7 @@ def reverse_entry(
     transfers: Transfers,
     settlements: Settlements,
     expenses: SharedExpenses,
+    net_offs: NetOffs,
 ):
     _person(contacts, contact_id)
     found = [i for i in summaries.activity(contact_id, limit=200).items if i.transaction_id == transaction_id]
@@ -681,6 +718,8 @@ def reverse_entry(
     try:
         if found[0].purpose == "settlement":
             settlements.reverse(transaction_id)
+        elif found[0].purpose == "netoff":
+            net_offs.reverse(transaction_id)
         elif found[0].purpose == "expense":
             expense = next((e for e in expenses.list("confirmed") if e.transaction_id == transaction_id), None)
             if expense is None:

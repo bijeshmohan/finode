@@ -41,6 +41,10 @@
 </div>
 {% endif %}
 
+{% if person.receivable and person.payable and not person.archived %}
+<div class="tile"><a class="r crow" href="/people/{{ person.id }}/netoff"><span class="crow-main"><span class="crow-name">Net off {{ ([person.receivable, person.payable]|min)|money }}</span><span class="crow-sub">Clear what each owes the other</span></span>{{ icon("chevron-right") }}</a></div>
+{% endif %}
+
 {% if open_rows %}
 <h2 class="section-head">Open</h2>
 <div class="tile">
@@ -58,7 +62,7 @@
 <div class="tile">
   {% for a in activity %}
   <a class="r crow person-entry" href="/people/{{ person.id }}" hx-get="/people/{{ person.id }}/entry/{{ a.transaction_id }}/sheet" hx-target="#person-sheet-body" hx-swap="innerHTML" hx-push-url="false">
-    <span class="crow-main"><span class="crow-name">{{ {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "opening": "Opening balance", "expense": a.description or "Shared expense", "settlement": "Paid back" if a.direction == "received" else "You paid back"}[a.purpose] }}</span><span class="crow-sub">{{ a.date|friendly_date }}{% if a.purpose == "expense" %} · their share{% elif a.description %} · {{ a.description }}{% endif %}</span></span>
+    <span class="crow-main"><span class="crow-name">{{ {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "opening": "Opening balance", "netoff": "Net off", "expense": a.description or "Shared expense", "settlement": "Paid back" if a.direction == "received" else "You paid back"}[a.purpose] }}</span><span class="crow-sub">{{ a.date|friendly_date }}{% if a.purpose == "expense" %} · their share{% elif a.description %} · {{ a.description }}{% endif %}</span></span>
     <span class="crow-amt"><span class="{{ 'income' if a.direction == 'received' and a.purpose in ('settlement', 'gift') else '' }}">{{ a.amount|money }}</span></span>
   </a>
   {% endfor %}

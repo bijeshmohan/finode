@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from ..auth import require_authenticated_user
-from ..dependencies import Contacts, ContactSummaries, Obligations, Settlements, Transfers
+from ..dependencies import Contacts, ContactSummaries, NetOffs, Obligations, Settlements, Transfers
 from ..limits import LimitReached
 from ..schemas.contact import (
     ActivityPage,
@@ -14,6 +14,7 @@ from ..schemas.contact import (
     ContactRead,
     ContactSummary,
     ContactUpdate,
+    NetOffRead,
     ObligationRead,
     OpeningBalanceCreate,
     SettlementCreate,
@@ -223,5 +224,25 @@ def record_opening_balance(
     like any other amount. Undo it with `DELETE /transfers/{transaction_id}`."""
     try:
         return transfers.opening_balance(contact_id, data, idempotency_key)
+    except ValueError as e:
+        raise _refused(e) from None
+
+
+@router.get("/{contact_id}/net-off", response_model=NetOffRead)
+def preview_net_off(contact_id: UUID, net_offs: NetOffs):
+    """What netting off would clear: the same amount of what they owe you and of what you owe them, oldest first. Saves
+    nothing; 400 when it is not owed both ways."""
+    try:
+        return net_offs.preview(contact_id)
+    except ValueError as e:
+        raise _refused(e) from None
+
+
+@router.post("/{contact_id}/net-off", response_model=NetOffRead, status_code=201)
+def net_off(contact_id: UUID, net_offs: NetOffs, idempotency_key: IdempotencyKey = None):
+    """Clear what the contact owes you against what you owe them (the smaller side in full, the same amount of the
+    larger). No money moves in your accounts or budgets. Undo it with `DELETE /net-offs/{transaction_id}`."""
+    try:
+        return net_offs.net_off(contact_id, idempotency_key)
     except ValueError as e:
         raise _refused(e) from None

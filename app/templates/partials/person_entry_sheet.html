@@ -1,6 +1,6 @@
 {#- One entry in a person's activity: what it was, and the way to undo it. Expects person and item (ActivityRead). -#}
 {% from "partials/icons.html" import icon %}
-{% set names = {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "opening": "Opening balance", "expense": item.description or "Shared expense", "settlement": "Paid back" if item.direction == "received" else "You paid back"} %}
+{% set names = {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "opening": "Opening balance", "netoff": "Net off", "expense": item.description or "Shared expense", "settlement": "Paid back" if item.direction == "received" else "You paid back"} %}
 <div class="sheet-grab" aria-hidden="true"></div>
 <div class="sheet-title">
   <div>

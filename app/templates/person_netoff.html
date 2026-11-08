@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}Net off · finode{% endblock %}
+{% block content %}
+<a class="back" href="/people/{{ person.id }}">{{ icon("back") }}{{ person.name }}</a>
+<h1>Net off with {{ person.name }}</h1>
+<p class="muted">{{ person.name }} owes you {{ person.receivable|money }} and you owe {{ person.name }} {{ person.payable|money }}. Netting off clears {{ plan.amount|money }} on both sides, oldest first. Your accounts and budgets don't change.</p>
+<form class="card stack form-narrow" hx-post="/people/{{ person.id }}/netoff">
+  <p class="preview-head">{{ person.name }} owes you</p>
+  <ul class="preview-list">
+    {% for a in plan.receivables %}<li><span>{{ names.get(a.obligation_id, "Open amount") }}</span><b>{{ a.amount|money }}{% if a.outstanding_after > 0 %} <span class="muted">· {{ a.outstanding_after|money }} left</span>{% endif %}</b></li>{% endfor %}
+  </ul>
+  <p class="preview-head">You owe {{ person.name }}</p>
+  <ul class="preview-list">
+    {% for a in plan.payables %}<li><span>{{ names.get(a.obligation_id, "Open amount") }}</span><b>{{ a.amount|money }}{% if a.outstanding_after > 0 %} <span class="muted">· {{ a.outstanding_after|money }} left</span>{% endif %}</b></li>{% endfor %}
+  </ul>
+  {% if plan.receivable_left or plan.payable_left %}
+  <p class="muted">Afterwards {% if plan.receivable_left %}{{ person.name }} still owes you {{ plan.receivable_left|money }}{% else %}you still owe {{ person.name }} {{ plan.payable_left|money }}{% endif %}.</p>
+  {% else %}
+  <p class="muted">Afterwards neither owes the other anything.</p>
+  {% endif %}
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit">Net off {{ plan.amount|money }}</button></div>
+</form>
+{% endblock %}
