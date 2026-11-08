@@ -343,8 +343,11 @@ class ExpenseSharingService:
 
     # ---- writing -----------------------------------------------------------------------------------
 
-    def create(self, data: SharedExpenseCreate, confirm: bool = False, key: str | None = None) -> SharedExpenseRead:
-        """Save a draft; with `confirm` also record it, all in one commit."""
+    def create(
+        self, data: SharedExpenseCreate, confirm: bool = False, key: str | None = None, comment: str | None = None
+    ) -> SharedExpenseRead:
+        """Save a draft; with `confirm` also record it, all in one commit. `comment` is the entry's note (only when
+        confirming now: a draft keeps none)."""
         if confirm and key and (found := self.ob.request(key)) is not None:
             return self._replay(found.transaction_id, data)
         plan = self._plan(data)
@@ -361,7 +364,7 @@ class ExpenseSharingService:
             )
             self._store(expense, plan)
             if confirm:
-                self._confirm(expense, key)
+                self._confirm(expense, key, comment)
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -397,7 +400,7 @@ class ExpenseSharingService:
             raise
         return self._read(expense)
 
-    def _confirm(self, expense: SharedExpense, key: str | None) -> None:
+    def _confirm(self, expense: SharedExpense, key: str | None, comment: str | None = None) -> None:
         """Record the ledger entry and everything about it (the caller commits)."""
         plan = self._plan_of(expense)
         for person in plan.people:
@@ -418,6 +421,7 @@ class ExpenseSharingService:
             TransactionCreate(
                 date=expense.date,
                 payee=expense.description,
+                comment=comment,
                 postings=lines,
             ),
             commit=False,

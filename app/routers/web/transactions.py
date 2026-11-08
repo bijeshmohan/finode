@@ -12,13 +12,14 @@ from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
 from ...clock import local_today
-from ...dependencies import Accounts, Categories, Contacts, Recurring, Transactions, Transfers
+from ...dependencies import Accounts, Categories, Contacts, Recurring, SharedExpenses, Transactions, Transfers
 from ...models.transaction import PostingSide
 from ...repositories.obligation import ObligationRepository
 from ...repositories.transaction import SYSTEM_PAYEES
 from ...schemas import AccountRead
 from ...schemas.category import CategoryRead
 from ...schemas.contact import TransferCreate
+from ...schemas.shared_expense import ContributionIn, ParticipantIn, PaymentIn, SharedExpenseCreate
 from ...schemas.transaction import (
     PostingCreate,
     RelatedRef,
@@ -823,6 +824,8 @@ def _person_rows(
 ) -> tuple[UUID, TransferCreate]:
     """The loan or borrowing the form describes: one person and one of your accounts, one amount. A person on the To side
     is money lent to them, on the From side money borrowed from them."""
+    if any(not a and am.strip() for a, am in zip(account, amount, strict=False)):
+        raise ValueError("every row needs a category, an account or a person!")
     rows = [
         (UUID(a), PostingSide(sd), parse_amount(am))
         for a, sd, am in zip(account, side, amount, strict=False)
@@ -864,6 +867,61 @@ def _transfer_with_person(
     transfers.record(person, data)
 
 
+def _shared_bill(
+    people: set[UUID],
+    places: Mapping[UUID, UUID],
+    names: Mapping[UUID, str],
+    account: list[str],
+    side: list[str],
+    amount: list[str],
+    date_: str,
+    payee: str,
+    tags: list[str] | None,
+    related: str,
+) -> SharedExpenseCreate:
+    """The shared bill an Expense form describes. "Spent on" is who the bill is for: one category row (your own share) and
+    a row for each person with theirs. "Paid from" is who paid: your accounts and any person who paid. The same person may
+    be on both sides. Both sides must add up to the same total."""
+    if tags or related.strip():
+        raise ValueError("tags and related entries are not available for a bill shared with people!")
+    rows = []
+    for a, sd, am in zip(account, side, amount, strict=False):
+        if not a and not am.strip():
+            continue
+        if not a:
+            raise ValueError("every row needs a category, an account or a person!")
+        rows.append((UUID(a), PostingSide(sd), parse_amount(am)))
+    mine = [r for r in rows if r[0] in places]
+    persons = [r for r in rows if r[0] in people]
+    if len(mine) != 1 or mine[0][1] != PostingSide.DEBIT:
+        raise ValueError("a shared bill has one category row, under Spent on: your own share!")
+    if any(r[0] not in places and r[0] not in people and r[1] == PostingSide.DEBIT for r in rows):
+        raise ValueError("under Spent on, use the category and people only!")
+    for wanted in (PostingSide.DEBIT, PostingSide.CREDIT):
+        ids = [r[0] for r in persons if r[1] == wanted]
+        if len(set(ids)) != len(ids):
+            raise ValueError("a person is on the same side twice: add their amounts together!")
+    total = sum((r[2] for r in rows if r[1] == PostingSide.DEBIT), Decimal(0))
+    paid = sum((r[2] for r in rows if r[1] == PostingSide.CREDIT), Decimal(0))
+    if total != paid:
+        raise ValueError(f"who paid ({paid:f}) and who the bill is for ({total:f}) must add up to the same total!")
+    shares = {r[0]: r[2] for r in persons if r[1] == PostingSide.DEBIT}
+    paying = {r[0]: r[2] for r in persons if r[1] == PostingSide.CREDIT}
+    return SharedExpenseCreate(
+        description=(payee.strip() or names.get(mine[0][0], "Shared bill"))[:40],
+        total_amount=total,
+        category_id=mine[0][0],
+        split_method="exact",
+        participants=[ParticipantIn(is_self=True, value=mine[0][2])]
+        + [ParticipantIn(contact_id=c, value=shares.get(c, Decimal(0))) for c in sorted({*shares, *paying}, key=str)],
+        contributions=[ContributionIn(contact_id=c, amount=v) for c, v in paying.items()],
+        payments=[
+            PaymentIn(account_id=r[0], amount=r[2]) for r in rows if r[1] == PostingSide.CREDIT and r[0] not in people
+        ],
+        **({"date": date_} if date_ else {}),
+    )
+
+
 @router.post("/split")
 def create_split_transaction(
     transactions: Transactions,
@@ -871,6 +929,7 @@ def create_split_transaction(
     categories: Categories,
     contacts: Contacts,
     transfers: Transfers,
+    expenses: SharedExpenses,
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
     amount: Annotated[list[str] | None, Form()] = None,
@@ -887,6 +946,13 @@ def create_split_transaction(
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
     try:
         if people and any(a in {str(i) for i in people} for a in account):
+            places = category_places(accounts, categories)
+            if any(a in {str(i) for i in places} for a in account):
+                # A category row among the people: a bill shared with them.
+                names = {c.id: c.name for c in categories.list(include_closed=True)}
+                bill = _shared_bill(people, places, names, account, side, amount, date_, payee, tags, related)
+                expenses.create(bill, confirm=True, comment=comment.strip() or None)
+                return htmx_redirect(safe_back(back), flash="expense-shared")
             _transfer_with_person(transfers, people, account, side, amount, date_, comment, tags, related)
             return htmx_redirect(safe_back(back), flash="transfer-recorded")
         transactions.create(
@@ -1015,6 +1081,11 @@ def update_transaction(
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
     if people and any(a in {str(i) for i in people} for a in account):
         # A person on one side: the entry becomes (or stays) a loan or a borrowing with them, in place.
+        if any(a in {str(i) for i in category_places(accounts, categories)} for a in account):
+            return htmx_error(
+                "a bill shared with people is recorded as a new entry: cancel the old one on its person's page and add it again!",
+                "#form-error",
+            )
         try:
             person, data = _person_rows(people, account, side, amount, date_, comment)
             transfers.convert(transaction_id, person, data, tags or [], parse_related(related))

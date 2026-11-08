@@ -513,6 +513,18 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                 "allocations": [{"obligation_id": world.obligation_ids[0], "amount": "5"}],
             },
         )
+        b_category = next(c["id"] for c in client.get("/api/categories/").json())
+        refused(
+            "a bill shared with A's contact from the Add screen",
+            "POST",
+            "/transactions/split",
+            data={
+                "account": [mine, b_category, world.contact_ids[0]],
+                "side": ["credit", "debit", "debit"],
+                "amount": ["10", "5", "5"],
+                "date": "2026-11-01",
+            },
+        )
         own_entry = next(t["id"] for t in client.get("/api/transactions/").json() if t["payee"] == "Power")
         refused(
             "an entry of B's turned into a loan to A's contact",

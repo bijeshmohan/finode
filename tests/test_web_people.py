@@ -734,3 +734,114 @@ def test_a_net_off_is_in_the_activity_and_can_be_reversed(client, bank):
     )
     assert client.post(f"/people/{alice['id']}/entry/{entry}/reverse").status_code == 200
     assert float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 100
+
+
+def bill(bank, dining, rows, **extra):
+    """The Add screen's rows for an expense: (account or category or person, side, amount)."""
+    return {
+        "account": [r[0] for r in rows],
+        "side": [r[1] for r in rows],
+        "amount": [r[2] for r in rows],
+        "date": "2026-11-08",
+        **extra,
+    }
+
+
+def test_a_bill_you_paid_for_everyone_from_the_add_screen(client, bank):
+    alice, bob = person(client), person(client, "Bob")
+    dining = category(client, "Dining")
+    form = bill(
+        bank,
+        dining,
+        [
+            (bank["id"], "credit", "1500"),
+            (dining["id"], "debit", "500"),
+            (alice["id"], "debit", "500"),
+            (bob["id"], "debit", "500"),
+        ],
+        payee="Dinner",
+        comment="Friday",
+    )
+    done = client.post("/transactions/split", data=form)
+    assert done.status_code == 200, done.text
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 500
+    assert float(client.get(f"/api/contacts/{bob['id']}").json()["receivable"]) == 500
+    assert float(next(a for a in client.get("/api/accounts/").json() if a["name"] == "HDFC")["balance"]) == 8500
+    entry = next(t for t in client.get("/api/transactions/").json() if t["payee"] == "Dinner")
+    assert entry["comment"] == "Friday"
+    lines = client.get("/api/reports/breakdown").json()["lines"]
+    assert lines[0]["account"] == "Dining" and float(lines[0]["amount"]) == 500, "only your share is spending"
+    bills = client.get("/api/shared-expenses/").json()
+    assert len(bills) == 1 and bills[0]["status"] == "confirmed" and float(bills[0]["user_share"]) == 500
+
+
+def test_a_friend_paid_and_is_in_the_bill_too(client, bank):
+    alice, bob = person(client), person(client, "Bob")
+    dining = category(client, "Dining")
+    form = bill(
+        bank,
+        dining,
+        [
+            (alice["id"], "credit", "1500"),
+            (dining["id"], "debit", "500"),
+            (alice["id"], "debit", "500"),
+            (bob["id"], "debit", "500"),
+        ],
+    )
+    assert client.post("/transactions/split", data=form).status_code == 200
+    a, b = client.get(f"/api/contacts/{alice['id']}").json(), client.get(f"/api/contacts/{bob['id']}").json()
+    assert (float(a["payable"]), float(a["receivable"])) == (1000, 0), "you owe her what she paid beyond her own share"
+    assert (float(b["receivable"]), float(b["payable"])) == (500, 0)
+    assert float(next(x for x in client.get("/api/accounts/").json() if x["name"] == "HDFC")["balance"]) == 10000, (
+        "none of your money moved"
+    )
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+
+
+def test_the_rules_of_a_bill_with_people_on_the_add_screen(client, bank):
+    alice = person(client)
+    dining, fun = category(client, "Dining"), category(client, "Fun")
+
+    def attempt(rows, **extra):
+        return client.post("/transactions/split", data=bill(bank, dining, rows, **extra))
+
+    base = [(bank["id"], "credit", "100"), (dining["id"], "debit", "50"), (alice["id"], "debit", "50")]
+    assert attempt(base).status_code == 200
+    two_categories = attempt(
+        [
+            (bank["id"], "credit", "100"),
+            (dining["id"], "debit", "30"),
+            (fun["id"], "debit", "30"),
+            (alice["id"], "debit", "40"),
+        ]
+    )
+    assert two_categories.status_code == 400 and "one category row" in two_categories.text
+    uneven = attempt([(bank["id"], "credit", "100"), (dining["id"], "debit", "50"), (alice["id"], "debit", "40")])
+    assert uneven.status_code == 400 and "same total" in uneven.text
+    twice = attempt(
+        [
+            (bank["id"], "credit", "100"),
+            (dining["id"], "debit", "40"),
+            (alice["id"], "debit", "30"),
+            (alice["id"], "debit", "30"),
+        ]
+    )
+    assert twice.status_code == 400 and "same side twice" in twice.text
+    assert "tags" in attempt(base, tags=["trip"]).text
+    blank = attempt([(bank["id"], "credit", "100"), ("", "debit", "50"), (alice["id"], "debit", "50")])
+    assert blank.status_code == 400 and "every row" in blank.text
+    assert len(client.get("/api/shared-expenses/").json()) == 1, "only the good one was recorded"
+
+
+def test_a_shared_bill_cannot_be_made_by_editing_an_entry(client, bank):
+    alice = person(client)
+    entry, misc = ordinary_expense(client, bank)
+    rows = {
+        "account": [bank["id"], misc["id"], alice["id"]],
+        "side": ["credit", "debit", "debit"],
+        "amount": ["300", "100", "200"],
+        "date": "2026-11-01",
+    }
+    refused = client.post(f"/transactions/{entry['id']}/edit", data=rows)
+    assert refused.status_code == 400 and "new entry" in refused.text
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["net"]) == 0

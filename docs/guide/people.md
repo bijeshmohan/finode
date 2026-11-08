@@ -25,6 +25,10 @@ You can also start a loan from **+** (New transaction): choose **Transfer**, the
 
 An entry you already recorded can become a loan too: open it, choose **Transfer**, and pick a person on one side. It keeps its date, tags and related link. To turn a loan back into an ordinary entry, edit it and pick an ordinary account instead of the person. Neither works once something has been paid back against it.
 
+## Split a bill from the New transaction screen
+
+On **Expense**, the **People** group is in both pickers. Under **Spent on**, add your own category row (your share) and a row for each person with their share. Under **Paid from**, add your account, and a person if they paid. A person can be on both sides: Alice paid the bill and is also in it. The note under the rows says your share and who owes whom, and both sides must add up to the same total. For an equal, percentage or shares split use **Add expense** on a person's page instead. A bill recorded this way can't be edited into place: reverse it on the person's page and add it again.
+
 ## Share an expense
 
 **Add expense** takes the total, what it was for, a category, the day and your account, and how to split it:
