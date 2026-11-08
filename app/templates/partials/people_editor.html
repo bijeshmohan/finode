@@ -1,0 +1,41 @@
+{#- The With people tab of the transaction form: who the bill is for and how it is split, who paid. Expects people (the active contacts), ed (editor_values), mode, money_groups, spending. -#}
+{% from "partials/icons.html" import icon %}
+{% from "partials/pickers.html" import account_pick, category_pick %}
+<div class="people-editor person-form stack" data-people-editor {{ "hidden" if mode != "people" }}>
+  {% if people %}
+  {{ category_pick("category_id", "Category", spending, selected=(ed.category_id|string if ed.category_id else "")) }}
+  {{ account_pick("account_id", "You paid from", money_groups, selected=(ed.account_id|string if ed.account_id else "")) }}
+  <fieldset class="plain">
+    <legend>Split</legend>
+    <div class="scope-seg">
+      {% for key, name in (("equal", "Equally"), ("exact", "Amounts"), ("percentage", "%"), ("shares", "Shares")) %}
+      <label><input type="radio" name="split_method" value="{{ key }}" {{ "checked" if (ed.method or "equal") == key }}><span>{{ name }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <div class="tile">
+    <div class="r share-row"><input type="checkbox" checked disabled data-fixed aria-label="You are in it"><span class="crow-main"><span class="crow-name">You</span></span><input class="share-value" type="text" inputmode="decimal" name="value_self" aria-label="Your share value" autocomplete="off" value="{{ ed.share_values.get(none, '') }}"></div>
+    {% for p in people %}
+    <label class="r share-row"><input type="checkbox" name="with_{{ p.id }}" value="1" {{ "checked" if p.id in ed.checked }}><span class="crow-main"><span class="crow-name">{{ p.name }}</span></span><input class="share-value" type="text" inputmode="decimal" name="value_{{ p.id }}" aria-label="{{ p.name }}'s share value" autocomplete="off" value="{{ ed.share_values.get(p.id, '') }}"></label>
+    {% endfor %}
+  </div>
+  <details class="sheet-extra" {{ "open" if ed.paid }}>
+    <summary><span>Someone else paid some of it</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">
+      <label><span>You paid <span class="muted">(blank: whatever the others did not)</span></span>
+        <input type="text" name="paid_self" inputmode="decimal" autocomplete="off" value="{{ ed.paid_self if ed.paid_self is defined else '' }}">
+      </label>
+      {% for p in people %}
+      <label>{{ p.name }} paid
+        <input type="text" name="paid_{{ p.id }}" inputmode="decimal" autocomplete="off" value="{{ ed.paid.get(p.id, '') }}">
+      </label>
+      {% endfor %}
+    </div>
+  </details>
+  <div id="people-preview" class="preview" hx-post="/people/expense/preview" hx-include="closest form"
+       hx-trigger="change[document.querySelector('form[data-txn-form]').dataset.mode==='people'] from:closest form, input[document.querySelector('form[data-txn-form]').dataset.mode==='people'] delay:400ms from:closest form, people-mode from:closest form"
+       hx-swap="innerHTML" aria-live="polite"></div>
+  {% else %}
+  <div class="card empty-state"><p>Add the people you share costs with first.</p><a class="button" href="/people/new">Add a person</a></div>
+  {% endif %}
+</div>

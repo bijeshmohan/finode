@@ -5,12 +5,13 @@ The pages are thin: every rule lives in the contact services (`services/contact.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Form, HTTPException, Query, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
@@ -592,38 +593,11 @@ def record_settlement(
 # ---- sharing a bill ---------------------------------------------------------------------------------------------
 
 
-@router.get("/expense/new")
-def expense_page(
-    request: Request,
-    contacts: Contacts,
-    accounts: Accounts,
-    categories: Categories,
-    with_person: Annotated[str, Query(alias="with")] = "",
-):
-    people = contacts.list()
-    start = _uuid(with_person)
-    return templates.TemplateResponse(
-        request,
-        "person_expense.html",
-        {
-            "active": "people",
-            "hide_fab": True,
-            "people": people,
-            "start": start,
-            "back": f"/people/{start}" if start else "/people",
-            "account_groups": money_accounts(accounts),
-            "spending": category_tree(categories, "spending"),
-            "today": local_today().isoformat(),
-            "methods": [("equal", "Equally"), ("exact", "Amounts"), ("percentage", "%"), ("shares", "Shares")],
-        },
-    )
-
-
-def _expense_data(form: dict[str, str], people: list[ContactRead]) -> SharedExpenseCreate:
+def expense_data(form: dict[str, str], people: Sequence) -> SharedExpenseCreate:
     """The shared expense a form describes. A box left empty is not given: your own payment is whatever the others
     did not pay."""
     method = form.get("split_method", "equal")
-    total = parse_amount(form.get("total_amount"))
+    total = parse_amount(form.get("total_amount") or form.get("total"))
 
     def value(key: str) -> Decimal | None:
         raw = (form.get(key) or "").strip()
@@ -647,7 +621,7 @@ def _expense_data(form: dict[str, str], people: list[ContactRead]) -> SharedExpe
         raise ValueError("choose the account you paid from!")
     extra = {"date": form["date"]} if form.get("date") else {}
     return SharedExpenseCreate(
-        description=form.get("description", ""),
+        description=(form.get("description") or form.get("payee") or "").strip() or "Shared bill",
         total_amount=total,
         category_id=_uuid(form.get("category_id", "")),
         split_method=method,  # pyrefly: ignore[bad-argument-type]  # checked by the schema
@@ -662,24 +636,12 @@ def _expense_data(form: dict[str, str], people: list[ContactRead]) -> SharedExpe
 async def expense_preview(request: Request, contacts: Contacts, expenses: SharedExpenses):
     form = {k: str(v) for k, v in (await request.form()).items()}
     context: dict[str, Any] = {"preview": None, "message": None}
-    if form.get("total_amount", "").strip():
+    if (form.get("total_amount") or form.get("total") or "").strip():
         try:
-            context["preview"] = expenses.preview(_expense_data(form, contacts.list()))
+            context["preview"] = expenses.preview(expense_data(form, contacts.cr.list()))
         except (ValueError, ValidationError) as e:
             context["message"] = _message(e)
     return templates.TemplateResponse(request, "partials/expense_preview.html", context)
-
-
-@router.post("/expense")
-async def record_expense(request: Request, contacts: Contacts, expenses: SharedExpenses):
-    form = {k: str(v) for k, v in (await request.form()).items()}
-    try:
-        made = expenses.create(_expense_data(form, contacts.list()), confirm=True)
-    except (ValueError, ValidationError) as e:
-        return htmx_error(_message(e), "#form-error")
-    start = _uuid(form.get("back_to", ""))
-    other = next((s.contact_id for s in made.shares if s.contact_id), None)
-    return htmx_redirect(f"/people/{start or other}" if start or other else "/people", flash="expense-shared")
 
 
 # ---- an entry in the activity: what it was, and undoing it ---------------------------------------------------

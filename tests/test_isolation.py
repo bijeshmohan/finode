@@ -80,7 +80,6 @@ LISTS = {
     ("GET", "/api/contacts/"),
     ("GET", "/people"),
     ("GET", "/people/new"),
-    ("GET", "/people/expense/new"),
     ("GET", "/api/shared-expenses/"),
     ("GET", "/api/backup"),
     ("GET", "/api/budget/"),
@@ -131,7 +130,6 @@ REFERENCES = {
     ("POST", "/api/categories/"),
     ("POST", "/api/contacts/"),
     ("POST", "/people"),
-    ("POST", "/people/expense"),
     ("POST", "/people/expense/preview"),
     ("POST", "/api/shared-expenses/"),
     ("POST", "/api/shared-expenses/preview"),
@@ -514,16 +512,24 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             },
         )
         b_category = next(c["id"] for c in client.get("/api/categories/").json())
+        form = {"mode": "people", "total": "10", "category_id": b_category, "account_id": mine, "date": "2026-11-01"}
         refused(
-            "a bill shared with A's contact from the Add screen",
+            "a bill paid from A's account",
             "POST",
             "/transactions/split",
-            data={
-                "account": [mine, b_category, world.contact_ids[0]],
-                "side": ["credit", "debit", "debit"],
-                "amount": ["10", "5", "5"],
-                "date": "2026-11-01",
-            },
+            data={**form, "account_id": a["HDFC"], f"with_{world.b_contact['id']}": "1"},
+        )
+        refused(
+            "a bill under A's category",
+            "POST",
+            "/transactions/split",
+            data={**form, "category_id": a["Groceries"], f"with_{world.b_contact['id']}": "1"},
+        )
+        refused(
+            "a bill shared with A's contact",
+            "POST",
+            "/transactions/split",
+            data={**form, f"with_{world.contact_ids[0]}": "1"},
         )
         own_entry = next(t["id"] for t in client.get("/api/transactions/").json() if t["payee"] == "Power")
         refused(

@@ -345,10 +345,16 @@ class ExpenseSharingService:
     # ---- writing -----------------------------------------------------------------------------------
 
     def create(
-        self, data: SharedExpenseCreate, confirm: bool = False, key: str | None = None, comment: str | None = None
+        self,
+        data: SharedExpenseCreate,
+        confirm: bool = False,
+        key: str | None = None,
+        comment: str | None = None,
+        tags: builtins.list[str] | None = None,
+        related_id: UUID | None = None,
     ) -> SharedExpenseRead:
-        """Save a draft; with `confirm` also record it, all in one commit. `comment` is the entry's note (only when
-        confirming now: a draft keeps none)."""
+        """Save a draft; with `confirm` also record it, all in one commit. `comment`, `tags` and `related_id` belong to
+        the entry (only when confirming now: a draft keeps none)."""
         if confirm and key and (found := self.ob.request(key)) is not None:
             return self._replay(found.transaction_id, data)
         plan = self._plan(data)
@@ -365,7 +371,7 @@ class ExpenseSharingService:
             )
             self._store(expense, plan)
             if confirm:
-                self._confirm(expense, key, comment)
+                self._confirm(expense, key, comment, tags=tags, related_id=related_id)
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -434,6 +440,8 @@ class ExpenseSharingService:
                     payee=expense.description,
                     comment=comment,
                     postings=lines,
+                    tags=tags or [],
+                    related_id=related_id,
                 ),
                 commit=False,
             )

@@ -8,10 +8,10 @@
 <h1 class="sr-only">{{ "Edit transaction" if editing else "New transaction" }}</h1>
 
 {% set post_url = "/transactions/" ~ transaction.id ~ "/edit" if editing else "/transactions/split" %}
-<form class="stack txn-form" data-txn-form data-posting-dates {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
+<form class="stack txn-form" data-txn-form data-mode="{{ mode }}" data-posting-dates {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
   <input type="hidden" name="back" value="{{ back }}">
 
-  {% set with_payee = true %}
+  {% set with_payee = true %}{% set with_modes = true %}
   {% include "partials/txn_rows.html" %}
 
   {% set day = transaction.date if editing else today %}
