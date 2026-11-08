@@ -340,8 +340,8 @@ function money(value) {
 // What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
 const KINDS = {
   expense: {
-    credit: { roots: ["Assets", "Liabilities"], title: "Paid from" },
-    debit: { roots: ["Expenses"], title: "Spent on" },
+    credit: { roots: ["Assets", "Liabilities", "People"], title: "Paid from" },
+    debit: { roots: ["Expenses", "People"], title: "Spent on" },
   },
   income: {
     credit: { roots: ["Income"], title: "From" },
@@ -366,7 +366,11 @@ function withoutSelection(html) {
 
 // The account list for one side of a kind: the placeholder entries and the groups whose type it offers.
 const CATEGORY_ROOTS = ["Expenses", "Income"];
-const isCategorySide = (roots) => Boolean(roots) && roots.every((root) => CATEGORY_ROOTS.includes(root));
+// People can be rows on either side of an expense (who the bill is for, who paid): they do not make a side an account side.
+const isCategorySide = (roots) => {
+  const own = roots ? roots.filter((root) => root !== "People") : [];
+  return own.length > 0 && own.every((root) => CATEGORY_ROOTS.includes(root));
+};
 
 function optionsFor(all, roots) {
   if (!roots) return all;
@@ -618,6 +622,11 @@ function newRow(form, side) {
   return row;
 }
 
+const isPersonRow = (row) => {
+  const option = rowAccount(row).selectedOptions[0];
+  return Boolean(option && option.hasAttribute("data-person"));
+};
+
 function rowShare(row) {
   return parseDec(row.querySelector('[name="amount"]').value) || 0n;
 }
@@ -828,7 +837,7 @@ function syncRowPickers(form) {
       all.forEach((o) => {
         const [group] = o.textContent.split(" › ");
         const inGroup = o.textContent.includes(" › ");
-        const label = inGroup ? group : "";
+        const label = o.hasAttribute("data-person") ? "People" : inGroup ? group : "";
         if (label !== current) {
           current = label;
           if (label) list.append(heading(label));
@@ -894,9 +903,10 @@ function syncRowPickers(form) {
       target = open.previousElementSibling; // the hidden select this button stands for
       clearable = target.matches("[data-category-select]");
       noun = clearable || isCategorySide(kind[side].roots) ? "category" : "account";
-      title.textContent = noun === "category" ? "Category" : "Account";
+      const withPeople = !clearable && Boolean(target.querySelector('optgroup[label="People"]'));
+      title.textContent = (noun === "category" ? "Category" : "Account") + (withPeople ? " or person" : "");
       dialog.setAttribute("aria-label", title.textContent);
-      search.placeholder = `Search ${noun === "category" ? "categories" : "accounts"}`;
+      search.placeholder = `Search ${noun === "category" ? "categories" : "accounts"}${withPeople ? " and people" : ""}`;
       search.setAttribute("aria-label", search.placeholder);
       list.classList.toggle("grid", noun === "category");
       taken = clearable
@@ -904,6 +914,7 @@ function syncRowPickers(form) {
         : new Set(
             [...form.querySelectorAll("[data-row]")]
               .filter((r) => r.querySelector('[name="side"]').value !== side)
+              .filter((r) => !isPersonRow(r)) // a person can be both in the bill and the one who paid it
               .map((r) => rowAccount(r).value)
               .filter(Boolean),
           );
@@ -1646,22 +1657,45 @@ document.addEventListener("change", (event) => {
   if (hint && chip) hint.hidden = !input.value || input.value >= chip.dataset.today;
 });
 
-// A transfer with a person on one side is a loan or a borrowing: say so, and that the budget stays as it is.
-document.body.addEventListener("change", (event) => {
-  const form = event.target.closest && event.target.closest("form[data-txn-form]");
+// People on a form: a transfer with a person on one side is a loan or a borrowing; on an expense the rows are who the bill
+// is for and who paid it. Say what it does to the budget and who owes whom.
+document.body.addEventListener("input", (event) => noteForPeople(event.target));
+document.body.addEventListener("change", (event) => noteForPeople(event.target));
+function noteForPeople(target) {
+  const form = target.closest && target.closest("form[data-txn-form]");
   const note = form && form.querySelector("[data-person-note]");
   if (!note) return;
-  let text = "";
+  const people = [];
+  let yours = 0n;
+  const net = new Map();
   form.querySelectorAll("[data-row]").forEach((row) => {
-    const select = row.querySelector('select[name="account"]');
-    const option = select && select.selectedOptions[0];
-    if (!option || !option.hasAttribute("data-person")) return;
-    const name = option.textContent.trim();
-    text =
-      row.querySelector('[name="side"]').value === "debit"
-        ? `${name} will owe you this. It is not spending, so your budgets stay as they are.`
-        : `You will owe ${name} this. It is not income, so your budgets stay as they are.`;
+    const option = rowAccount(row).selectedOptions[0];
+    if (!option || !option.value) return;
+    const debit = row.querySelector('[name="side"]').value === "debit";
+    const amount = rowShare(row);
+    if (option.hasAttribute("data-person")) {
+      const name = option.textContent.trim();
+      people.push({ name, debit });
+      // what they paid less what the bill is for them: above zero you owe them, below zero they owe you
+      net.set(name, (net.get(name) || 0n) + (debit ? -amount : amount));
+    } else if (debit && form.dataset.txnKind === "expense") {
+      yours += amount;
+    }
   });
+  let text = "";
+  if (form.dataset.txnKind === "expense" && people.length) {
+    const lines = [`Your share is ${money(yours)}, the part your budget sees.`];
+    net.forEach((value, name) => {
+      if (value > 0n) lines.push(`You owe ${name} ${money(value)}.`);
+      else if (value < 0n) lines.push(`${name} owes you ${money(-value)}.`);
+    });
+    text = lines.join(" ");
+  } else if (people.length === 1 && form.dataset.txnKind !== "expense") {
+    const { name, debit } = people[0];
+    text = debit
+      ? `${name} will owe you this. It is not spending, so your budgets stay as they are.`
+      : `You will owe ${name} this. It is not income, so your budgets stay as they are.`;
+  }
   note.textContent = text;
   note.hidden = !text;
-});
+}

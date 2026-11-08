@@ -1,5 +1,7 @@
 """People in a real browser: adding someone, lending, sharing a bill with the live result, settling up and undoing."""
 
+import re
+
 from playwright.sync_api import Page, expect
 
 from .conftest import Api, row_button
@@ -121,8 +123,9 @@ def test_lending_from_the_add_screen_with_a_transfer(page: Page, books, api: Api
     who = alice_of(api)
     page.goto("/transactions/new")
     page.locator('input[name="total"]').fill("300")
-    # An expense does not offer people.
-    row_button(page, "credit").click()
+    # An income does not offer people; an expense does (a bill can be shared).
+    page.get_by_role("button", name="Income", exact=True).click()
+    row_button(page, "debit").click()
     expect(page.locator("#row-picker [data-pick-option]", has_text="Alice")).to_have_count(0)
     page.keyboard.press("Escape")
     page.get_by_role("button", name="Transfer").click()
@@ -267,3 +270,42 @@ def test_netting_off_what_two_people_owe_each_other(page: Page, books, api: Api)
     page.wait_for_url(f"**/people/{who['id']}")
     expect(page.get_by_text("All settled up")).to_be_visible()
     expect(page.locator('a[href$="/netoff"]')).to_have_count(0)
+
+
+def test_splitting_a_bill_with_people_from_the_add_screen(page: Page, books, api: Api):
+    from .conftest import add_row
+
+    alice, bob = alice_of(api), alice_of(api, "Bob")
+    page.goto("/transactions/new")
+    page.locator('input[name="total"]').fill("1500")
+    add_row(page, "credit", "Checking")
+    add_row(page, "debit", "Groceries", amount="500")
+    add_row(page, "debit", "Alice", index=1, amount="500")
+    add_row(page, "debit", "Bob", index=2)
+    note = page.locator("[data-person-note]")
+    expect(note).to_contain_text("Your share is 500.00")
+    expect(note).to_contain_text("Alice owes you 500.00")
+    expect(note).to_contain_text("Bob owes you 500.00")
+    row_button(page, "credit", 0).click()
+    expect(page.locator("#row-picker .filter-group", has_text="People")).to_have_count(1)
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
+    assert float(api.get(f"/contacts/{alice['id']}")["receivable"]) == 500
+    assert float(api.get(f"/contacts/{bob['id']}")["receivable"]) == 500
+    assert float(next(a for a in api.get("/accounts/") if a["name"] == "Checking")["balance"]) == 3500
+
+
+def test_a_friend_who_paid_can_also_be_in_the_bill(page: Page, books, api: Api):
+    from .conftest import add_row
+
+    alice = alice_of(api)
+    page.goto("/transactions/new")
+    page.locator('input[name="total"]').fill("1000")
+    add_row(page, "credit", "Alice")
+    add_row(page, "debit", "Groceries", amount="500")
+    add_row(page, "debit", "Alice", index=1)
+    expect(page.locator("[data-person-note]")).to_contain_text("You owe Alice 500.00")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
+    assert float(api.get(f"/contacts/{alice['id']}")["payable"]) == 500
