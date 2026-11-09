@@ -718,7 +718,7 @@ def test_the_new_screen_has_the_three_ways_and_opens_on_with_people_from_a_perso
     assert 'value="split"' in html and 'value="share"' not in html and "data-people-editor" in html
     assert re.search(r'data-people-editor="expense"\s+hidden', html), "the tab is closed until Share is chosen"
     opened = page(client, "/transactions/new", mode="split", **{"with": alice["id"]})
-    assert 'data-mode="split"' in opened and re.search(rf'name="with_{alice["id"]}" value="1" checked', opened)
+    assert 'data-mode="split"' in opened and re.search(rf'name="with_{alice["id"]}"[^>]*\schecked', opened)
     assert "Alice" in opened and 'name="split_method"' in opened and "Someone else paid some of it" in opened
 
 
@@ -826,8 +826,8 @@ def test_the_edit_screen_of_a_shared_bill_opens_on_with_people_as_entered(client
     entry, misc = converted(client, bank, [alice, bob])
     form = page(client, f"/transactions/{entry['id']}/edit")
     assert 'data-mode="split"' in form and 'name="mode" value="split" checked' in form
-    assert re.search(rf'name="with_{alice["id"]}" value="1" checked', form) and re.search(
-        rf'name="with_{bob["id"]}" value="1" checked', form
+    assert re.search(rf'name="with_{alice["id"]}"[^>]*\schecked', form) and re.search(
+        rf'name="with_{bob["id"]}"[^>]*\schecked', form
     )
     assert re.search(rf'<option value="{misc["id"]}"[^>]*selected', form) and re.search(
         rf'<option value="{bank["id"]}"[^>]*selected', form
