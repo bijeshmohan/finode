@@ -20,7 +20,7 @@ def test_with_no_accounts_the_page_shows_an_add_account_pill_and_no_kinds(client
     assert "Add account" in shown and 'href="/accounts/new"' in shown
     for name in ("Bank Accounts", "Cash", "Investments", "Credit Cards", "Loans"):
         assert f">{name}<" not in shown, name
-    assert "acc-gh" not in shown and "Built in" not in text and "lock" not in shown.lower()
+    assert "acc-head" not in shown and "Built in" not in text and "lock" not in shown.lower()
 
 
 def test_only_groups_with_accounts_are_shown(client):

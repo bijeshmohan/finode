@@ -504,8 +504,6 @@ details.filters .count {
 }
 .back:hover { color: var(--text); }
 
-.account-name { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-balance { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; text-align: right; justify-self: end; }
 
 
 .account-hero h1 { margin: .1rem 0 .25rem; }
@@ -911,8 +909,7 @@ dialog.sheet-bottom { width: min(28rem, calc(100vw - 2rem)); }
 .ready.over, .ready.over .figure { color: var(--danger); }
 .ready.over > span:last-child { color: var(--danger); }
 
-/* ---------- Accounts, the calm version: flat rows, quiet type headings, a pill search ---------- */
-.account-balance { font-weight: 500; }
+/* ---------- Lists: a hairline between rows ---------- */
 ul.list > li + li { border-top-color: var(--border); }
 
 /* An account's own page */
@@ -1084,17 +1081,7 @@ dd.auto, dd.auto a { color: var(--auto); }
 .month-pick:hover { background: var(--surface-2); }
 .month-pick .month-input { min-height: 0; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
 
-/* ---------- Accounts page: recently used as cards, every group open under its heading ---------- */
-.acc-block { margin-top: .35rem; }
-.acc-gh { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .45rem .25rem .3rem; font-size: .8125rem; font-weight: 600; color: var(--muted); text-decoration: none; font-variant-numeric: tabular-nums; }
 .add-pill { margin: 1.5rem 0; display: flex; justify-content: center; }
-.acc-gh.plain { padding-top: 0; padding-bottom: .4rem; }
-.acc-block > ul.tile { margin: 0; }
-.account-row { display: flex; align-items: center; gap: .75rem; min-height: 3.25rem; padding: .5rem 0; color: inherit; text-decoration: none; font-variant-numeric: tabular-nums; }
-@media (hover: hover) { .account-row:hover { background: var(--surface-2); } }
-.account-row .account-name { flex: 1; min-width: 0; }
-.account-row.system .account-name { color: var(--muted); font-weight: 400; }
-.mono { flex: none; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; font-style: normal; font-weight: 600; font-size: .875rem; }
 
 /* ---------- Budget: left to spend first, then a ranked list ---------- */
 .budget-hero { display: flex; flex-direction: column; gap: .15rem; padding: .25rem 0 .75rem; }
@@ -1402,7 +1389,6 @@ form[data-txn-kind="other"] .segmented.kinds::before { opacity: 0; }
 
 /* Budgets, Accounts and Categories share one row (2026-10-24): a name, one quiet second line, the figure at the right. Group headings on Accounts line up with the rows. */
 .crow-main { justify-content: center; }
-.acc-gh { padding-inline: calc(1rem + 1px); }
 
 /* Settings polish (2026-10-24): values sit beside the chevron, sign out is a red row, and the data and assistants pages use the
    same tiles as the rest of the app (a small gap, the heading close to its text, warnings as plain red rows). */
@@ -1751,12 +1737,14 @@ form[data-layout="single"] [data-remove-row] { display: none; }
 #people-picker button[aria-pressed="true"]::after { content: "✓"; color: var(--accent); font-weight: 600; }
 
 /* ---------- Accounts by kind: a row of cards that scrolls sideways under each kind's heading (2026-11-09) ---------- */
-.acc-kind { margin-top: .6rem; }
-.acc-kind > .acc-gh { padding-inline: .25rem; }
-.acc-count { margin-left: .4rem; font-weight: 500; opacity: .8; }
+.acc-kind { margin-top: 2.1rem; }
+.acc-kind:first-of-type { margin-top: .75rem; }
+.acc-head { padding: 0 .25rem .6rem; }
+.acc-head h2 { margin: 0; font-size: 1.25rem; font-weight: 700; line-height: 1.2; letter-spacing: -.005em; color: var(--text); }
+.acc-head p { margin: .15rem 0 0; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .acc-rail { display: flex; gap: .625rem; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -1.25rem; padding: .125rem 1.25rem .375rem; scroll-padding-inline: 1.25rem; scrollbar-width: none; overscroll-behavior-x: contain; }
 .acc-rail::-webkit-scrollbar { display: none; }
-.acc-card { flex: none; width: 13.25rem; min-height: 6.5rem; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: space-between; gap: .75rem; padding: .8rem .9rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); color: inherit; text-decoration: none; font-variant-numeric: tabular-nums; }
+.acc-card { flex: none; width: 13.25rem; min-height: 7rem; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: space-between; gap: .75rem; padding: .8rem .9rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); color: inherit; text-decoration: none; font-variant-numeric: tabular-nums; }
 @media (hover: hover) { .acc-card:hover { background: var(--surface-2); } }
 .acc-card-name { display: flex; align-items: center; min-width: 0; font-weight: 600; }
 .acc-card-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1767,7 +1755,7 @@ form[data-layout="single"] [data-remove-row] { display: none; }
 .acc-card-add { align-items: center; justify-content: center; flex-direction: row; gap: .35rem; background: none; border-style: dashed; border-color: var(--border); color: var(--accent); font-weight: 600; }
 .acc-track { height: 3px; margin: .125rem .25rem 0; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .acc-track i { display: block; height: 100%; width: 40%; border-radius: 3px; background: var(--text); opacity: .45; }
-.acc-track[hidden], .acc-count[hidden] { display: none; }
+.acc-track[hidden] { display: none; }
 .acc-card.closed-hidden { display: none; }
 .show-closed .acc-card.closed-hidden { display: flex; }
 .inside { font-size: 1rem; font-weight: 400; color: var(--text); }

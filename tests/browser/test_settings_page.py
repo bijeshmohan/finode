@@ -24,7 +24,7 @@ def test_a_touched_row_is_not_painted_grey(page: Page, books):
         )
     # and the hover colours that remain are only for devices that really hover
     css = page.request.get(page.evaluate("document.querySelector('link[rel=stylesheet]').href")).text()
-    assert "@media (hover: hover) { .account-row:hover" in css and ".setting > summary:hover" not in css
+    assert "@media (hover: hover) { .acc-card:hover" in css and ".setting > summary:hover" not in css
 
 
 def test_values_sit_beside_the_chevron_and_sign_out_is_a_red_row(page: Page, books):

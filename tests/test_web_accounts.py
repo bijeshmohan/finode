@@ -518,10 +518,10 @@ def test_groups_the_person_made_are_kinds_and_the_plain_accounts_come_last(
     zoo = post_account(client, {"name": "Zoo", "parent_id": assets}).json()
     make("Lion", zoo["id"])
     text = client.get("/accounts").text
-    heads = re.findall(r'<div class="acc-gh">\s*<span>([^<]+)<', text)
+    heads = re.findall(r"<h2>([^<]+)</h2>", text)
     assert heads == ["Banks", "Zoo", "Other"], heads
     assert text.count('<section class="acc-kind') == 3
-    assert re.search(r"Other.*?<span>20\.00</span>", text, re.S), "Apple and Cash, 10 each"
+    assert "20.00 · 2 accounts" in text, "Apple and Cash, 10 each"
 
 
 def test_equity_is_not_on_the_page(client: TestClient, root_accounts: dict[str, str]):

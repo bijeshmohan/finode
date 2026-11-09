@@ -1266,20 +1266,16 @@ document.body.addEventListener("click", (event) => {
     });
   }
 
-  // A row that runs past the screen says how many accounts it holds and shows a thin track of how far it has scrolled; a row
-  // that fits shows neither.
+  // A row that runs past the screen shows a thin track of how far it has scrolled; a row that fits shows none.
   function refresh(rail) {
     const kind = rail.closest(".acc-kind");
     const track = kind.querySelector("[data-track]");
-    const count = kind.querySelector("[data-count]");
     const cards = [...rail.querySelectorAll(".acc-card:not(.acc-card-add)")].filter((c) => c.offsetParent !== null);
     // It overflows when an account's own card runs past the edge (the Add account card at the end does not count).
     const last = cards[cards.length - 1];
     const end = last ? last.getBoundingClientRect().right - rail.getBoundingClientRect().left + rail.scrollLeft : 0;
     const overflows = end > rail.clientWidth + 1;
     track.hidden = !overflows;
-    count.hidden = !overflows;
-    count.textContent = String(cards.length);
     if (!overflows) return;
     const share = rail.clientWidth / rail.scrollWidth;
     const max = rail.scrollWidth - rail.clientWidth;
