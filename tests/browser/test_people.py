@@ -232,6 +232,14 @@ def test_netting_off_what_two_people_owe_each_other(page: Page, books, api: Api)
     expect(page.locator('a[href$="/netoff"]')).to_have_count(0)
 
 
+def add_people(page: Page, *names: str, kind: str = "expense") -> None:
+    """Add people to a Split from the sheet behind "Add people"."""
+    page.locator(f'[data-people-editor="{kind}"] [data-add-people]').click()
+    for name in names:
+        page.locator("#people-picker [data-people-option]", has_text=name).click()
+    page.locator("#people-picker [data-people-done]").click()
+
+
 def pick(page: Page, index: int, label: str) -> None:
     """Choose in the sheet behind the nth field of the Split tab (0: the category, 1: the account you paid from)."""
     page.locator(".people-editor .field-pick").nth(index).click()
@@ -294,7 +302,7 @@ def test_a_bill_shared_from_the_with_people_tab_shows_its_result_as_you_type(pag
     preview = page.locator("#people-preview")
     expect(preview).to_contain_text("Alice owes you")
     expect(preview).to_contain_text("450.00")
-    page.locator(f'input[name="with_{bob["id"]}"]').check()
+    add_people(page, "Bob")
     expect(preview).to_contain_text("Bob owes you")
     expect(preview).to_contain_text("300.00")
     page.locator(".people-editor").get_by_text("%", exact=True).click()
@@ -311,7 +319,8 @@ def test_a_bill_shared_from_the_with_people_tab_shows_its_result_as_you_type(pag
 def test_switching_to_with_people_carries_over_what_the_rows_already_say(page: Page, books, api: Api):
     from .conftest import add_row
 
-    alice, bob = alice_of(api), alice_of(api, "Bob")
+    alice = alice_of(api)
+    alice_of(api, "Bob")
     page.goto("/transactions/new")
     page.locator('input[name="total"]').fill("1500")
     page.locator('input[name="payee"]').fill("Dinner")
@@ -320,8 +329,7 @@ def test_switching_to_with_people_carries_over_what_the_rows_already_say(page: P
     page.locator("[data-modes]").get_by_text("Split", exact=True).click()
     expect(page.locator(".people-editor .field-pick").nth(0)).to_have_text("Groceries")
     expect(page.locator(".people-editor .field-pick").nth(1)).to_have_text("Checking")
-    page.locator(f'input[name="with_{alice["id"]}"]').check()
-    page.locator(f'input[name="with_{bob["id"]}"]').check()
+    add_people(page, "Alice", "Bob")
     expect(page.locator("#people-preview")).to_contain_text("500.00")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
@@ -349,16 +357,13 @@ def test_the_with_people_rows_sit_in_a_line(page: Page, books, api: Api):
     page.goto(f"/transactions/new?mode=split&with={who['id']}")
     rows = page.locator('[data-people-editor="expense"] .share-row')
     assert rows.count() == 2
+    names = [rows.nth(i).locator(".crow-name").bounding_box() for i in range(2)]
+    assert names[0] and names[1] and abs(names[0]["x"] - names[1]["x"]) < 2, "the names line up"
     for index in range(2):
-        row = rows.nth(index)
-        box, check, name = (
-            row.bounding_box(),
-            row.locator('input[type="checkbox"]').bounding_box(),
-            row.locator(".crow-name").bounding_box(),
-        )
-        assert box and check and name
-        assert abs((check["y"] + check["height"] / 2) - (name["y"] + name["height"] / 2)) < 6
-        assert box["height"] < 70
+        box = rows.nth(index).bounding_box()
+        assert box and box["height"] < 70
+    remove, name = rows.nth(1).locator("[data-person-remove]").bounding_box(), names[1]
+    assert remove and name and abs((remove["y"] + remove["height"] / 2) - (name["y"] + name["height"] / 2)) < 6
     expect(rows.first.locator('input[type="checkbox"]')).to_be_disabled()
     page.locator(".people-editor").get_by_text("%", exact=True).click()
     expect(rows.nth(1).locator(".share-value")).to_be_visible()
@@ -379,8 +384,7 @@ def test_an_old_expense_can_be_edited_into_a_shared_bill(page: Page, books, api:
     expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "simple")
     page.locator("[data-modes]").get_by_text("Split", exact=True).click()
     expect(page.locator(".people-editor .field-pick").nth(0)).to_have_text("Groceries")
-    page.locator(f'input[name="with_{alice["id"]}"]').check()
-    page.locator(f'input[name="with_{bob["id"]}"]').check()
+    add_people(page, "Alice", "Bob")
     expect(page.locator("#people-preview")).to_contain_text("1,000.00")
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(lambda u: "/edit" not in u)
@@ -406,6 +410,7 @@ def test_income_shared_with_a_person_from_the_add_screen(page: Page, books, api:
     page.locator("#row-picker [data-pick-option]", has_text="Salary").first.click()
     editor.locator(".field-pick").nth(1).click()
     page.locator("#row-picker [data-pick-option]", has_text="Checking").first.click()
+    add_people(page, "Alice", kind="income")
     page.locator(f'input[name="theirs_{who["id"]}"]').fill("4000")
     preview = page.locator("#income-preview")
     expect(preview).to_contain_text("Your income")
@@ -446,3 +451,30 @@ def test_the_mode_switch_looks_and_moves_like_the_kind_switch(page: Page, books,
         )
         != "matrix(1, 0, 0, 1, 0, 0)"
     )
+
+
+def test_only_the_people_added_are_listed_and_the_sheet_adds_and_removes_them(page: Page, books, api: Api):
+    alice_of(api)
+    bob = alice_of(api, "Bob")
+    carol = alice_of(api, "Carol")
+    page.goto("/transactions/new")
+    page.locator("[data-modes]").get_by_text("Split", exact=True).click()
+    rows = page.locator('[data-people-editor="expense"] .share-row:visible')
+    expect(rows).to_have_count(1)  # only you
+    page.locator('[data-people-editor="expense"] [data-add-people]').click()
+    sheet = page.locator("#people-picker")
+    expect(sheet.locator("[data-people-option]")).to_have_count(3)
+    sheet.locator("[data-people-search]").fill("bo")
+    expect(sheet.locator("[data-people-name]:visible")).to_have_count(1)
+    sheet.locator("[data-people-search]").fill("")
+    sheet.locator("[data-people-option]", has_text="Alice").click()
+    sheet.locator("[data-people-option]", has_text="Bob").click()
+    expect(sheet.locator("[data-people-done]")).to_have_text("Done · 2 people")
+    sheet.locator("[data-people-done]").click()
+    expect(rows).to_have_count(3)
+    expect(page.locator(f'input[name="with_{carol["id"]}"]')).not_to_be_checked()
+    page.locator(f'[data-person-row]:has(input[name="with_{bob["id"]}"]) [data-person-remove]').click()
+    expect(rows).to_have_count(2)
+    page.locator('[data-people-editor="expense"] summary', has_text="Someone else paid").click()
+    paid = page.locator('[data-people-editor="expense"] [data-for-person]:visible')
+    expect(paid).to_have_count(1)  # only Alice: the one who is in the bill

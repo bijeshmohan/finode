@@ -51,6 +51,7 @@
   </template>
 
   {% include "partials/pick_dialog.html" %}
+  {% if with_modes and people %}{% include "partials/people_sheet.html" %}{% endif %}
 
   {#- The settings of a row, opened by the glyph at its right: the amount and, on an account, the day it posts the line. -#}
   <dialog id="row-settings" class="sheet sheet-bottom" aria-label="Amount and date">

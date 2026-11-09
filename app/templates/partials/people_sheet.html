@@ -1,0 +1,14 @@
+{#- The sheet that adds people to a Split: tick the ones who are in it. Expects people (the active contacts). -#}
+<dialog id="people-picker" class="sheet sheet-bottom" aria-label="Split with">
+  <div class="sheet-body">
+    <div class="sheet-grab" aria-hidden="true"></div>
+    <h2 class="filter-title" tabindex="-1">Split with</h2>
+    <input type="search" class="filter-search" placeholder="Search people" aria-label="Search people" autocomplete="off" data-people-search>
+    <ul class="filter-options" data-people-list>
+      {% for p in people %}
+      <li data-people-name="{{ p.name|lower }}"><button type="button" data-people-option="{{ p.id }}" aria-pressed="false"><span>{{ p.name }}</span></button></li>
+      {% endfor %}
+    </ul>
+    <button type="button" class="row-done" data-people-done>Done</button>
+  </div>
+</dialog>

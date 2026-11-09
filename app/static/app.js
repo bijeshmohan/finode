@@ -1686,6 +1686,75 @@ function noteForPeople(target) {
 }
 document.body.addEventListener("change", (event) => noteForPeople(event.target));
 
+// ---- The people in a Split: only the ones added show; "Add people" opens a sheet to tick them ----
+// Each person has a checkbox in the editor (the state: for an expense it is the form field, for an income it only says the row
+// shows); the sheet and the cross on a row flip it. What depends on who is in it (who paid, who received) follows.
+function syncPeople(editor) {
+  editor.querySelectorAll("[data-for-person]").forEach((el) => {
+    const box = editor.querySelector(`[data-person-toggle][data-person="${el.dataset.forPerson}"]`);
+    el.hidden = !(box && box.checked);
+  });
+}
+document.addEventListener("DOMContentLoaded", () => document.querySelectorAll("[data-people-editor]").forEach(syncPeople));
+
+(() => {
+  const dialog = document.getElementById("people-picker");
+  if (!dialog) return;
+  const search = dialog.querySelector("[data-people-search]");
+  const done = dialog.querySelector("[data-people-done]");
+  let editor = null;
+  const toggleOf = (id) => editor && editor.querySelector(`[data-person-toggle][data-person="${id}"]`);
+  const refresh = () => {
+    let count = 0;
+    dialog.querySelectorAll("[data-people-option]").forEach((button) => {
+      const box = toggleOf(button.dataset.peopleOption);
+      const on = Boolean(box && box.checked);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+      if (on) count += 1;
+    });
+    done.textContent = count ? `Done · ${count} ${count === 1 ? "person" : "people"}` : "Done";
+  };
+  const flip = (box, checked) => {
+    if (box.checked === checked) return;
+    box.checked = checked;
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  document.body.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const add = target.closest("[data-add-people]");
+    if (add) {
+      editor = add.closest("[data-people-editor]");
+      search.value = "";
+      dialog.querySelectorAll("[data-people-name]").forEach((li) => { li.hidden = false; });
+      refresh();
+      dialog.showModal();
+      return;
+    }
+    const remove = target.closest("[data-person-remove]");
+    if (remove) {
+      flip(remove.closest("[data-person-row]").querySelector("[data-person-toggle]"), false);
+      return;
+    }
+    const option = target.closest("[data-people-option]");
+    if (option && dialog.contains(option)) {
+      const box = toggleOf(option.dataset.peopleOption);
+      if (box) flip(box, !box.checked);
+      refresh();
+      return;
+    }
+    if (target.closest("[data-people-done]")) dialog.close();
+  });
+  search.addEventListener("input", () => {
+    const wanted = search.value.trim().toLowerCase();
+    dialog.querySelectorAll("[data-people-name]").forEach((li) => { li.hidden = !li.dataset.peopleName.includes(wanted); });
+  });
+  document.body.addEventListener("change", (event) => {
+    const box = event.target;
+    if (box instanceof Element && box.matches("[data-person-toggle]")) syncPeople(box.closest("[data-people-editor]"));
+  });
+})();
+
 // ---- Simple and Split: the two ways to record an entry ----
 // Simple is the rows on each side that add up to the total (one each, or more: typing less than the total in a row adds the next).
 // Split shares it with people: on an expense or an income the rows give way to who it is shared with (a shared bill, or income

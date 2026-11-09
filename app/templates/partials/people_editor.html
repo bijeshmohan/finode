@@ -14,10 +14,16 @@
     </div>
   </fieldset>
   <div class="tile">
-    <div class="r share-row"><input type="checkbox" checked disabled data-fixed aria-label="You are in it"><span class="crow-main"><span class="crow-name">You</span></span><input class="share-value" type="text" inputmode="decimal" name="value_self" aria-label="Your share value" autocomplete="off" value="{{ ed.share_values.get(none, '') }}"></div>
+    <div class="r share-row"><input type="checkbox" class="sr-only" checked disabled data-fixed aria-label="You are in it"><span class="crow-main"><span class="crow-name">You</span></span><input class="share-value" type="text" inputmode="decimal" name="value_self" aria-label="Your share value" autocomplete="off" value="{{ ed.share_values.get(none, '') }}"></div>
     {% for p in people %}
-    <label class="r share-row"><input type="checkbox" name="with_{{ p.id }}" value="1" {{ "checked" if p.id in ed.checked }}><span class="crow-main"><span class="crow-name">{{ p.name }}</span></span><input class="share-value" type="text" inputmode="decimal" name="value_{{ p.id }}" aria-label="{{ p.name }}'s share value" autocomplete="off" value="{{ ed.share_values.get(p.id, '') }}"></label>
+    <div class="r share-row" data-person-row>
+      <input type="checkbox" class="sr-only" name="with_{{ p.id }}" value="1" data-person-toggle data-person="{{ p.id }}" aria-label="{{ p.name }} is in it" {{ "checked" if p.id in ed.checked }}>
+      <span class="crow-main"><span class="crow-name">{{ p.name }}</span></span>
+      <input class="share-value" type="text" inputmode="decimal" name="value_{{ p.id }}" aria-label="{{ p.name }}'s share value" autocomplete="off" value="{{ ed.share_values.get(p.id, '') }}">
+      <button type="button" class="link person-remove" data-person-remove aria-label="Remove {{ p.name }}">{{ icon("close") }}</button>
+    </div>
     {% endfor %}
+    <button type="button" class="r link add-people" data-add-people>+ Add people</button>
   </div>
   <details class="sheet-extra" {{ "open" if ed.paid }}>
     <summary><span>Someone else paid some of it</span>{{ icon("chevron-right") }}</summary>
@@ -26,7 +32,7 @@
         <input type="text" name="paid_self" inputmode="decimal" autocomplete="off" value="{{ ed.paid_self if ed.paid_self is defined else '' }}">
       </label>
       {% for p in people %}
-      <label>{{ p.name }} paid
+      <label data-for-person="{{ p.id }}" hidden>{{ p.name }} paid
         <input type="text" name="paid_{{ p.id }}" inputmode="decimal" autocomplete="off" value="{{ ed.paid.get(p.id, '') }}">
       </label>
       {% endfor %}
