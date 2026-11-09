@@ -7,6 +7,7 @@ import pytest
 
 from app.clock import local_today
 from app.models.account import Account
+from app.routers.web.accounts import STALE_DAYS
 from app.templating import short_date
 
 from .books import post_account
@@ -51,7 +52,7 @@ def card(page: str, account_id: str) -> str:
 
 def test_each_kind_is_a_heading_over_a_row_of_cards(client, tree):
     page = client.get("/accounts").text
-    heads = re.findall(r'<div class="acc-gh">\s*<span>([^<]+)<', page)
+    heads = re.findall(r"<h2>([^<]+)</h2>", page)
     assert heads == ["Banks", "Credit Cards", "Food", "Other"], heads
     assert f'href="/accounts/{tree["hdfc"]}"' in page and "<details" not in page
     assert page.count("data-rail") == len(heads), "one row of cards per kind"
@@ -60,7 +61,7 @@ def test_each_kind_is_a_heading_over_a_row_of_cards(client, tree):
 
 def test_the_plain_accounts_share_one_other_row_at_the_end(client, tree):
     page = client.get("/accounts").text
-    assert re.findall(r'<div class="acc-gh">\s*<span>([^<]+)<', page)[-1] == "Other"
+    assert re.findall(r"<h2>([^<]+)</h2>", page)[-1] == "Other"
     assert f'href="/accounts/{tree["rent"]}"' in page.split(">Other<", 1)[1]
 
 
@@ -103,8 +104,8 @@ def test_a_kind_with_only_closed_accounts_hides_whole(client, tree):
     for name in ("groceries", "snacks"):
         assert client.post(f"/api/accounts/{tree[name]}/close").status_code == 200
     page = client.get("/accounts").text
-    assert re.search(r'<section class="acc-kind closed-hidden">\s*<div class="acc-gh">\s*<span>Food<', page)
-    assert re.search(r'<section class="acc-kind">\s*<div class="acc-gh">\s*<span>Banks<', page)
+    assert re.search(r'<section class="acc-kind closed-hidden">\s*<div class="acc-head">\s*<h2>Food<', page)
+    assert re.search(r'<section class="acc-kind">\s*<div class="acc-head">\s*<h2>Banks<', page)
 
 
 def test_the_page_has_no_note_under_its_list(client, root_accounts):
@@ -156,12 +157,29 @@ def transfer(client, source, target, amount, day):
     )
 
 
-def test_a_card_says_when_its_last_entry_was_or_that_it_has_none(client, tree):
+def test_a_card_with_a_recent_entry_says_nothing_under_its_balance(client, tree):
     day = local_today() - timedelta(days=3)
     assert transfer(client, tree["hdfc"], tree["old"], "10", day).status_code == 201
+    line = card(client.get("/accounts").text, tree["old"])
+    assert "acc-card-line" not in line and "Last entry" not in line
+
+
+def test_a_card_untouched_for_a_month_says_since_when_and_one_with_none_says_so(client, tree):
+    day = local_today() - timedelta(days=STALE_DAYS + 1)
+    assert transfer(client, tree["hdfc"], tree["old"], "10", day).status_code == 201
     page = client.get("/accounts").text
-    assert f"Last entry {short_date(day)}" in card(page, tree["old"])
+    assert f"No entry since {short_date(day)}" in card(page, tree["old"])
     assert "No entries yet" in card(page, tree["rent"])
+    recent = local_today() - timedelta(days=STALE_DAYS - 1)
+    assert transfer(client, tree["hdfc"], tree["old"], "10", recent).status_code == 201
+    assert "No entry since" not in card(client.get("/accounts").text, tree["old"]), "the newest entry counts"
+
+
+def test_a_kinds_heading_says_the_total_and_how_many_accounts(client, tree):
+    page = client.get("/accounts").text
+    assert "5,000.00 · 2 accounts" in page, "Banks: HDFC and Old Savings"
+    assert "300.00 owed · 1 account<" in page
+    assert re.findall(r"<h2>([^<]+)</h2>", page), "each kind is a heading"
 
 
 def test_an_entry_dated_ahead_is_not_the_last_entry(client, tree):
@@ -201,6 +219,6 @@ def test_the_kinds_come_in_the_pages_order_with_owed_ones_marked(client, monkeyp
     make(client, "Wallet", "Cash", balance="30")
     make(client, "HDFC", "Bank Accounts", balance="10")
     page = client.get("/accounts").text
-    heads = re.findall(r'<div class="acc-gh">\s*<span>([^<]+)<', page)
+    heads = re.findall(r"<h2>([^<]+)</h2>", page)
     assert heads == ["Bank Accounts", "Cash", "Credit Cards", "Investments", "Loans"]
     assert "50.00 owed" in page and "900.00 owed" in page and "400.00 owed" not in page

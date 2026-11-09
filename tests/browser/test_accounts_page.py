@@ -36,12 +36,11 @@ def test_every_kind_is_a_row_of_cards_under_its_heading(page: Page, api, books):
     assert "Opening Balances" not in cards(page), "Equity is not listed"
     expect(page.locator(".cat-chips")).to_have_count(0)
     assert page.locator("details").count() == 0, "nothing folds"
-    expect(page.locator(".acc-gh > span:first-child").first).to_contain_text("Banks")
+    expect(page.locator(".acc-head h2").first).to_have_text("Banks")
+    expect(page.locator(".acc-head p").first).to_contain_text("2 accounts")
 
 
-def test_a_row_that_runs_past_the_screen_shows_its_count_and_a_track_and_a_short_one_shows_neither(
-    page: Page, api, books
-):
+def test_a_row_that_runs_past_the_screen_shows_a_track_and_a_short_one_shows_none(page: Page, api, books):
     long = api.post("/accounts/", name="Wallets", parent_id=books["roots"]["Assets"])
     for number in range(8):
         api.post("/accounts/", name=f"Wallet {number}", parent_id=long["id"])
@@ -51,9 +50,8 @@ def test_a_row_that_runs_past_the_screen_shows_its_count_and_a_track_and_a_short
     page.goto("/accounts")
     wallets = page.locator(".acc-kind", has_text="Wallets")
     funds = page.locator(".acc-kind", has_text="Funds")
-    expect(wallets.locator("[data-count]")).to_have_text("8")
+    expect(wallets.locator(".acc-head p")).to_contain_text("8 accounts")
     expect(wallets.locator("[data-track]")).to_be_visible()
-    expect(funds.locator("[data-count]")).to_be_hidden()
     expect(funds.locator("[data-track]")).to_be_hidden()
     bar = wallets.locator("[data-track] i")
     before = bar.bounding_box()["x"]
@@ -63,6 +61,20 @@ def test_a_row_that_runs_past_the_screen_shows_its_count_and_a_track_and_a_short
         ".querySelector('[data-track] i').getBoundingClientRect().x > b",
         arg=before,
     )
+
+
+def test_the_kinds_have_room_between_them_and_a_heading_larger_than_the_cards_name(page: Page, api, books):
+    nested(api, books)
+    page.goto("/accounts")
+    heads = page.locator(".acc-head h2")
+    size = heads.first.evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
+    name = page.locator(".acc-card-name").first.evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
+    assert size > name + 2, (size, name)
+    gaps = page.eval_on_selector_all(
+        ".acc-kind",
+        "els => els.slice(1).map((e, i) => Math.round(e.getBoundingClientRect().top - els[i].getBoundingClientRect().bottom))",
+    )
+    assert gaps and min(gaps) >= 24, f"space between kinds: {gaps}"
 
 
 def test_a_card_opens_the_account_and_the_add_card_opens_the_form_on_that_kind(page: Page, api, books):

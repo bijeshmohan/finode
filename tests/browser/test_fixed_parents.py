@@ -15,7 +15,7 @@ def with_groups(monkeypatch):
 
 def test_an_empty_page_offers_an_add_account_pill_and_shows_no_kinds(page: Page):
     page.goto("/accounts")
-    expect(page.locator(".acc-gh")).to_have_count(0)
+    expect(page.locator(".acc-head")).to_have_count(0)
     page.get_by_role("link", name="Add account").last.click()
     page.wait_for_url("**/accounts/new")
     expect(page.locator("[data-kind-chip][aria-pressed='true']")).to_have_count(0)  # nothing is chosen for the person
@@ -24,8 +24,8 @@ def test_an_empty_page_offers_an_add_account_pill_and_shows_no_kinds(page: Page)
     page.get_by_role("button", name="Add account").click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
     page.goto("/accounts")
-    expect(page.locator(".acc-gh")).to_have_count(1)
-    expect(page.locator(".acc-gh")).to_contain_text("Bank Accounts")
+    expect(page.locator(".acc-head")).to_have_count(1)
+    expect(page.locator(".acc-head")).to_contain_text("Bank Accounts")
 
 
 def test_a_groups_own_page_adds_inside_it(page: Page, api):

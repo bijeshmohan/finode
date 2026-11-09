@@ -1,5 +1,6 @@
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
+from datetime import timedelta
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -201,6 +202,9 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
 
 
+# An account whose newest entry is older than this says so on its card; a newer one has nothing to add.
+STALE_DAYS = 30
+
 # The kinds the Accounts page lists, in this order; a group the person made follows them, then the plain accounts.
 KIND_ORDER = ("assets.bank", "assets.cash", "liabilities.cards", "assets.investments", "liabilities.loans")
 
@@ -273,6 +277,7 @@ def accounts_page(request: Request, accounts: Accounts):
             "last_entry": last,
             "bills": bills,
             "due_soon_days": cards.DUE_SOON_DAYS,
+            "stale_before": local_today() - timedelta(days=STALE_DAYS),
             "currency": accounts.currency().code,
             "closed": any(n.closed for n in leaves),
             # What the quiet line under the figure counts: the open accounts.
