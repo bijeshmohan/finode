@@ -1,3 +1,4 @@
+import re
 from datetime import date
 
 from fastapi.testclient import TestClient
@@ -18,27 +19,30 @@ def _bank(client: TestClient, root_accounts: dict[str, str], balance: str = "100
 # --- accounts list ---------------------------------------------------------
 
 
-def test_accounts_page_groups_accounts_under_roots_in_order(
-    client: TestClient, root_accounts: dict[str, str], account: dict
-):
+def test_accounts_page_lists_accounts_by_kind(client: TestClient, root_accounts: dict[str, str], account: dict):
     response = client.get("/accounts")
     assert response.status_code == 200
     text = response.text
-    assert text.index(">Asset<") < text.index(">Liability<") and ">Equity<" not in text, "Equity has no chip"
+    assert ">Asset<" not in text and ">Liability<" not in text and "?tab=" not in text, "no chips: one page"
+    assert ">Equity<" not in text and "Opening Balances" not in text, "Equity is not on the page"
     assert ">Expenses<" not in text and ">Income<" not in text, "those are on the Categories page"
     assert f'href="/accounts/{account["id"]}"' in text
     assert "checking" in text
 
 
-def test_accounts_page_suggests_first_account_for_empty_roots(client: TestClient, root_accounts: dict[str, str]):
-    text = client.get("/accounts?tab=liabilities").text
-    assert ('href="/accounts/new?root=liabilities"') in text
-    assert 'class="button"' in text and "Add account" in text, "an empty type offers an Add account pill"
+def test_accounts_page_offers_an_add_account_pill_when_there_are_none(
+    client: TestClient, root_accounts: dict[str, str]
+):
+    text = client.get("/accounts").text
+    assert 'href="/accounts/new"' in text
+    assert 'class="button"' in text and "Add account" in text and "acc-kind" not in text
 
 
-def test_accounts_page_marks_system_account(client: TestClient, root_accounts: dict[str, str]):
+def test_an_old_link_to_a_tab_still_lands_on_the_page(client: TestClient, root_accounts: dict[str, str]):
     _bank(client, root_accounts)
-    assert '<span class="badge">system</span>' in client.get("/accounts?tab=equity").text
+    for tab in ("assets", "liabilities", "equity", "nonsense"):
+        page = client.get(f"/accounts?tab={tab}")
+        assert page.status_code == 200 and "Opening Balances" not in page.text
 
 
 # --- account page ----------------------------------------------------------
@@ -219,7 +223,7 @@ def test_update_missing_account_is_404(client: TestClient, root_accounts: dict[s
 def test_delete_account_from_ui(client: TestClient, account: dict):
     response = client.post(f"/accounts/{account['id']}/delete")
     assert response.status_code == 200
-    assert response.headers["HX-Redirect"] == "/accounts?tab=assets"
+    assert response.headers["HX-Redirect"] == "/accounts"
     assert client.get(f"/api/accounts/{account['id']}").status_code == 404
 
 
@@ -277,8 +281,8 @@ def test_the_top_is_a_title_with_its_menu_then_the_figure_and_no_add_button(clie
         < head.index('class="menu"')
         < head.index("hero-balance")
     )
-    assert "Assets · main account" not in head and ">Assets</p>" in head, (
-        "the small line is the type; the note is behind the i"
+    assert "Assets · main account" not in head and ">Other</p>" in head and ">Assets</p>" not in head, (
+        "the small line is the kind (never the type); the note is behind the i"
     )
     assert "acct-add" not in page and "Add transaction" not in head, "the docked + already adds one for this account"
 
@@ -382,7 +386,7 @@ def test_a_description_sits_behind_an_i_beside_the_name_not_under_it(client, roo
     plain = post_account(client, {"name": "Spare", "parent_id": root_accounts["Assets"]}).json()
     page = client.get(f"/accounts/{made['id']}").text
     sub = page.split('<p class="acct-sub">', 1)[1].split("</p>", 1)[0]
-    assert "Kept in the bag" not in sub and sub.strip() == "Assets", "the line under the name is just the type"
+    assert "Kept in the bag" not in sub and sub.strip() == "Other", "the line under the name is just the kind"
     info = page.split('<details class="note-info">', 1)[1].split("</details>", 1)[0]
     assert "Kept in the bag, for taxis" in info and 'aria-label="About Wallet"' in info
     assert 'class="note-info"' not in client.get(f"/accounts/{plain['id']}").text, "no description, no icon"
@@ -433,7 +437,7 @@ def test_the_new_account_form_asks_whether_it_is_part_of_the_budget(client: Test
     assert "data-budget-fields" in page and 'name="on_budget"' in page and 'name="budget_choice"' in page
     assert 'name="on_budget" value="1" checked' in page, "an asset starts in the budget"
     assert "Usual category" not in page and 'name="payment_category"' not in page, "nothing is chosen for payments"
-    assert 'data-root="Assets"' in page and 'data-root="Liabilities"' in page and 'data-root="Equity"' in page
+    assert 'data-root="Assets"' in page
     liability = client.get(f"/accounts/new?parent={root_accounts['Liabilities']}").text
     assert 'name="on_budget" value="1" checked' not in liability, "a card or loan starts outside it"
     assert "data-budget-fields" in client.get("/accounts/new").text, (
@@ -454,16 +458,17 @@ def test_creating_an_account_follows_the_budget_choice(client: TestClient, root_
     assert _made(client, "Wallet")["on_budget"] is True, "no choice sent: an asset defaults to in"
 
 
-def test_the_plus_on_a_type_tab_offers_only_that_type(client: TestClient, root_accounts: dict[str, str]):
-    page = client.get("/accounts?tab=liabilities").text
-    assert 'href="/accounts/new?root=liabilities"' in page
+def test_the_add_account_card_of_the_plain_accounts_opens_the_form_on_their_type(
+    client: TestClient, root_accounts: dict[str, str]
+):
+    post_account(client, {"name": "Visa", "parent_id": root_accounts["Liabilities"]})
+    page = client.get("/accounts").text
+    assert 'href="/accounts/new?root=liabilities"' in page and ">Other you owe<" in page
     form = client.get("/accounts/new?root=liabilities").text
-    assert 'data-root="Liabilities"' in form
-    assert 'data-root="Assets"' not in form and 'data-root="Equity"' not in form
+    assert 'data-root="Liabilities"' in form and 'data-root="Assets"' not in form
     assert f'value="{root_accounts["Liabilities"]}" selected' in form, "it starts on the type itself"
+    assert "Amount you owe now" in form
     assert 'data-root="Assets"' in client.get("/accounts/new?root=assets").text
-    assert 'data-root="Liabilities"' not in client.get("/accounts/new?root=assets").text
-    assert 'data-root="Liabilities"' in client.get("/accounts/new").text, "no tab: everything, as before"
 
 
 # --- going back keeps the chip ---------------------------------------------
@@ -473,34 +478,34 @@ def _under(client, root_accounts, root, name, **extra):
     return post_account(client, {"name": name, "parent_id": root_accounts[root], **extra}).json()
 
 
-def test_the_back_link_goes_to_the_chip_the_account_is_under(client: TestClient, root_accounts: dict[str, str]):
+def test_the_back_link_goes_to_the_accounts_page(client: TestClient, root_accounts: dict[str, str]):
     card = _under(client, root_accounts, "Liabilities", "Cards")
     inner = post_account(client, {"name": "Visa", "parent_id": card["id"]}).json()
     equity = _under(client, root_accounts, "Equity", "Capital")
     bank = _under(client, root_accounts, "Assets", "Bank")
-    for account, tab in ((card, "liabilities"), (inner, "liabilities"), (equity, "equity"), (bank, "assets")):
+    for account in (card, inner, equity, bank):
         text = client.get(f"/accounts/{account['id']}").text
-        assert f'class="back" href="/accounts?tab={tab}"' in text, (account["name"], tab)
+        assert 'class="back" href="/accounts"' in text, account["name"]
 
 
-def test_after_closing_or_deleting_you_land_on_the_chip_it_was_under(client: TestClient, root_accounts: dict[str, str]):
+def test_after_closing_or_deleting_you_land_on_the_accounts_page(client: TestClient, root_accounts: dict[str, str]):
     card = _under(client, root_accounts, "Liabilities", "Visa")
     gone = _under(client, root_accounts, "Liabilities", "Old loan")
-    assert client.post(f"/accounts/{card['id']}/close").headers["HX-Redirect"] == "/accounts?tab=liabilities"
-    assert client.post(f"/accounts/{gone['id']}/delete").headers["HX-Redirect"] == "/accounts?tab=liabilities"
+    assert client.post(f"/accounts/{card['id']}/close").headers["HX-Redirect"] == "/accounts"
+    assert client.post(f"/accounts/{gone['id']}/delete").headers["HX-Redirect"] == "/accounts"
 
 
-def test_the_new_account_page_goes_back_to_its_chip(client: TestClient, root_accounts: dict[str, str]):
+def test_the_new_account_page_goes_back_to_the_accounts_page(client: TestClient, root_accounts: dict[str, str]):
     text = client.get("/accounts/new?root=liabilities").text
-    assert 'class="back" href="/accounts?tab=liabilities"' in text
+    assert 'class="back" href="/accounts"' in text
     income = client.get("/categories/new?root=income").text
     assert 'class="back" href="/categories?tab=income"' in income
 
 
-def test_accounts_without_a_group_are_listed_together_after_all_the_groups(
+def test_groups_the_person_made_are_kinds_and_the_plain_accounts_come_last(
     client: TestClient, root_accounts: dict[str, str]
 ):
-    """Alphabetically Apple, Banks and Cash interleave; the page puts the plain ones (Apple, Cash) last, together."""
+    """Alphabetically Apple, Banks and Cash interleave; the page puts the groups first, then the plain ones together."""
 
     def make(name, parent):
         return post_account(client, {"name": name, "parent_id": parent, "balance": "10"}).json()
@@ -513,32 +518,16 @@ def test_accounts_without_a_group_are_listed_together_after_all_the_groups(
     zoo = post_account(client, {"name": "Zoo", "parent_id": assets}).json()
     make("Lion", zoo["id"])
     text = client.get("/accounts").text
-    order = [text.index(f'data-path="assets › {p}') for p in ("banks › hdfc", "zoo › lion", "apple", "cash")]
-    assert order == sorted(order), "the groups come first, then Apple and Cash"
-    assert text.count('class="acc-block') == 3, "two groups and one block of plain accounts"
-    assert "data-others" in text and text.index("data-others") > text.index('data-path="assets › zoo › lion"')
-    assert "<span>Others</span><span>20.00</span>" in text, "Apple and Cash, 10 each"
+    heads = re.findall(r'<div class="acc-gh">\s*<span>([^<]+)<', text)
+    assert heads == ["Banks", "Zoo", "Other"], heads
+    assert text.count('<section class="acc-kind') == 3
+    assert re.search(r"Other.*?<span>20\.00</span>", text, re.S), "Apple and Cash, 10 each"
 
 
-def test_equity_is_the_page_you_get_when_neither_chip_is_chosen(client: TestClient, root_accounts: dict[str, str]):
+def test_equity_is_not_on_the_page(client: TestClient, root_accounts: dict[str, str]):
     _bank(client, root_accounts)
-    assets = client.get("/accounts").text
-    assert 'href="/accounts?tab=equity"' in assets and 'aria-pressed="true"' in assets, (
-        "tapping the chosen chip again leaves none chosen"
-    )
-    assert 'href="/accounts?tab=liabilities"' in assets
-    equity = client.get("/accounts?tab=equity").text
-    assert 'aria-pressed="true"' not in equity, "neither chip is chosen"
-    assert 'href="/accounts?tab=assets"' in equity and 'href="/accounts?tab=liabilities"' in equity
-    assert "Opening Balances" in equity and "Equity" in equity
-    liabilities = client.get("/accounts?tab=liabilities").text
-    assert 'href="/accounts?tab=equity"' in liabilities and 'href="/accounts?tab=assets"' in liabilities
-
-
-def test_others_is_not_shown_when_there_are_no_groups_or_for_equity(client: TestClient, root_accounts: dict[str, str]):
-    post_account(client, {"name": "Apple", "parent_id": root_accounts["Assets"], "balance": "10"})
-    assert "data-others" not in client.get("/accounts").text, "nothing to tell apart from"
-    assert "data-others" not in client.get("/accounts?tab=equity").text
+    page = client.get("/accounts").text
+    assert "Opening Balances" not in page and "Equity" not in page and "?tab=" not in page
 
 
 def test_the_plus_in_the_bar_on_an_account_page_starts_an_entry_for_it_and_comes_back(

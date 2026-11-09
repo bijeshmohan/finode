@@ -3,30 +3,23 @@
 {% from "partials/money.html" import figure %}
 {% block title %}Accounts · finode{% endblock %}
 
-{#- One account: its name and its balance. -#}
-{% macro entry(node) %}
-<li data-path="{{ node.path|lower }}" class="{{ 'closed-hidden' if node.closed }}">
-  <a class="account-row {{ 'system' if node.kind == 'system' }}" href="/accounts/{{ node.account.id }}">
-    <span class="account-name">{{ node.account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if node.closed %} <span class="badge">closed</span>{% endif %}{% if node.account.on_budget and not node.closed %}<i class="budget-dot" title="In the budget"></i>{% endif %}</span>
-    <span class="account-balance">{{ node.account.balance|money }}</span>
-  </a>
-</li>
-{% endmacro %}
-
-{#- A type's accounts: every group is a heading (linking to the group's page) with its accounts under it, always open. -#}
-{% macro blocks_of(root) %}
-  {% for head, items in blocks %}
-  {#- A block with nothing left to show (a closed group, or plain accounts that all are closed) hides whole, so no empty tile is left. -#}
-  <div class="acc-block{{ ' closed-hidden' if (head and head.closed) or (not head and items|selectattr("closed")|list|length == items|length) }}">
-    {% if head %}
-    <a class="acc-gh" href="/accounts/{{ head.account.id }}" title="Open {{ head.account.name }}"><span>{{ head.account.name }}</span><span>{{ head.account.balance|money }}</span></a>
-    {% elif blocks|length > 1 %}
-    {#- The accounts that sit directly under the type, with no group of their own: a label with their total, not a page. -#}
-    <div class="acc-gh" data-others><span>Others</span><span>{{ items|sum(attribute="account.balance")|money }}</span></div>
-    {% endif %}
-    <ul class="tile list">{% for node in items %}{{ entry(node) }}{% endfor %}</ul>
-  </div>
-  {% endfor %}
+{#- One account as a card: its name, its balance and one quiet line (a card's bill when it has one, else the day of its last entry). -#}
+{% macro card(node) %}
+{% set account = node.account %}
+{% set bill = bills.get(account.id) %}
+<a class="acc-card {{ 'closed-hidden' if node.closed }}" href="/accounts/{{ account.id }}">
+  <span class="acc-card-name"><span>{{ account.name }}</span>{% if node.closed %}<span class="badge">closed</span>{% endif %}{% if account.on_budget and not node.closed %}<i class="budget-dot" title="In the budget"></i>{% endif %}</span>
+  <span class="acc-card-foot">
+    <span class="acc-card-balance">{{ account.balance|money }}</span>
+    {% if bill and bill.bill > 0 and not node.closed -%}
+    <span class="acc-card-line {{ 'due' if bill.days_to_due <= due_soon_days }}">{{ "Bill overdue" if bill.days_to_due < 0 else "Bill due " ~ (bill.due_date|short_date) }}</span>
+    {%- elif last_entry.get(account.id) -%}
+    <span class="acc-card-line">Last entry {{ last_entry[account.id]|short_date }}</span>
+    {%- else -%}
+    <span class="acc-card-line">No entries yet</span>
+    {%- endif %}
+  </span>
+</a>
 {% endmacro %}
 
 {% block content %}
@@ -34,29 +27,35 @@
   <h1>Accounts</h1>
 </div>
 
-<div class="cat-bar">
-  <div class="chips seg cat-chips" role="group" aria-label="What to show">
-    {#- Equity has no chip: almost nobody needs it. Tapping the chosen chip again leaves neither chosen, and that is the page of Equity. -#}
-    {% for key, name in tabs.items() if key != "equity" %}<a class="chip" href="/accounts?tab={{ 'equity' if tab == key else key }}" aria-pressed="{{ 'true' if tab == key else 'false' }}">{{ chip_names[key] }}</a>{% endfor %}
-  </div>
-</div>
-
 <div class="ready zero budget-hero ready-hero cat-hero">
-  <div class="hero-top"><div class="calc-row"><span class="muted">{{ {"assets": "What you own", "liabilities": "What you owe", "equity": "Equity"}[tab] }}</span></div></div>
-  <span class="figure">{{ figure(root.account.balance, currency) }}</span>
+  <div class="hero-top"><div class="calc-row"><span class="muted">Net worth</span></div></div>
+  <span class="figure">{{ figure(net_worth, currency) }}</span>
   <span class="glance-note hero-note"><span>{% if account_count %}{{ account_count }} account{{ "" if account_count == 1 else "s" }}{% else %}No accounts yet{% endif %}</span>{% if has_budget_accounts %}<span class="budget-key"><i class="budget-dot"></i>in the budget</span>{% endif %}</span>
 </div>
 
 <div data-accounts>
-  {% if blocks %}
-  {{ blocks_of(root) }}
-  {% else %}
-  <p class="add-pill"><a class="button" href="/accounts/new?root={{ tab }}">{{ icon("plus") }}Add account</a></p>
+  {% for kind in kinds %}
+  {#- A kind whose accounts are all closed hides whole, so no empty row is left. -#}
+  <section class="acc-kind{{ ' closed-hidden' if kind.items|selectattr("closed")|list|length == kind.items|length }}">
+    <div class="acc-gh">
+      <span>{{ kind.name }}<span class="acc-count" data-count hidden>{{ kind.items|rejectattr("closed")|list|length }}</span></span>
+      {% if kind.owed %}<span>{{ kind.total|money }} owed</span>{% else %}<span>{{ kind.total|money }}</span>{% endif %}
+    </div>
+    <div class="acc-rail" data-rail>
+      {% for node in kind.items %}{{ card(node) }}{% endfor %}
+      <a class="acc-card acc-card-add" href="{{ kind.add_url }}">{{ icon("plus") }}Add account</a>
+    </div>
+    <div class="acc-track" data-track hidden><i></i></div>
+  </section>
+  {% endfor %}
+
+  {% if not kinds %}
+  <p class="add-pill"><a class="button" href="/accounts/new">{{ icon("plus") }}Add account</a></p>
   {% endif %}
 
   {% if closed %}
   <p class="unused-toggle"><button type="button" class="link-button" data-load-more-accounts>Load more</button></p>
   {% endif %}
-  {% if blocks %}<a class="add-row" href="/accounts/new?root={{ tab }}">{{ icon("plus") }}Add account</a>{% endif %}
+  {% if kinds %}<a class="add-row" href="/accounts/new">{{ icon("plus") }}Add account</a>{% endif %}
 </div>
 {% endblock %}

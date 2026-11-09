@@ -201,58 +201,86 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
 
 
-# The chips on the accounts page, in this order (?tab=): each shows one type of account.
-ACCOUNT_TABS = {"assets": "Assets", "liabilities": "Liabilities", "equity": "Equity"}
-# What the chips say: one kind of account, in the singular (the roots themselves keep their names).
-ACCOUNT_CHIP_NAMES = {"assets": "Asset", "liabilities": "Liability", "equity": "Equity"}
+# The kinds the Accounts page lists, in this order; a group the person made follows them, then the plain accounts.
+KIND_ORDER = ("assets.bank", "assets.cash", "liabilities.cards", "assets.investments", "liabilities.loans")
+
+
+@dataclass
+class Kind:
+    """One row of cards on the Accounts page: a kind of account (Bank Accounts, Credit Cards...) and its accounts."""
+
+    name: str
+    root: str  # Assets or Liabilities: a liability reads "owed"
+    items: list[Node]
+    total: Decimal
+    group_id: UUID | None = None  # the group; none for the plain accounts that sit directly under a type
+
+    @property
+    def owed(self) -> bool:
+        return self.root == "Liabilities"
+
+    @property
+    def add_url(self) -> str:
+        return f"/accounts/new?parent={self.group_id}" if self.group_id else f"/accounts/new?root={self.root.lower()}"
+
+
+def kind_groups(roots: list[Node]) -> list[Node]:
+    """The groups an account can be made under (the form's Kind chips, the page's rows): the built-in ones in the page's
+    order, then the ones the person made."""
+    found = [
+        child
+        for root in roots
+        if root.account.name in ("Assets", "Liabilities")
+        for child in root.children
+        if child.kind == "fixed" or child.children
+    ]
+    place = {key: i for i, key in enumerate(KIND_ORDER)}
+    return sorted(found, key=lambda n: (place.get(n.account.system_key or "", len(place)), n.account.name.lower()))
+
+
+def kinds(roots: list[Node]) -> list[Kind]:
+    """The accounts as the page lists them: a kind per group, then the plain accounts that sit directly under Assets or
+    Liabilities. A kind with nothing in it is not shown."""
+    root_of = {id(n): r.account.name for r in roots for n in r.walk()}
+    found = [
+        Kind(g.account.name, root_of[id(g)], g.children, g.account.balance, g.account.id)
+        for g in kind_groups(roots)
+        if g.children
+    ]
+    for root in roots:
+        loose = [c for c in root.children if c.kind != "fixed" and not c.children]
+        if loose and root.account.name in ("Assets", "Liabilities"):
+            name = "Other" if root.account.name == "Assets" else "Other you owe"
+            found.append(Kind(name, root.account.name, loose, sum((n.account.balance for n in loose), Decimal("0.00"))))
+    return found
 
 
 @router.get("")
-def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
-    tab = tab.lower() if tab.lower() in ACCOUNT_TABS else "assets"
-    roots = [r for r in without_contacts(build_tree(accounts.list())) if r.account.name in ACCOUNT_ROOTS]
+def accounts_page(request: Request, accounts: Accounts):
+    roots = without_contacts(build_tree(accounts.list()))
     mark_closed(roots)
-    root = next(r for r in roots if r.account.name == ACCOUNT_TABS[tab])
+    shown = [r for r in roots if r.account.name in ("Assets", "Liabilities")]
+    balance = {r.account.name: r.account.balance for r in shown}
+    leaves = [n for r in shown for n in r.walk() if n.depth > 0 and not n.children and n.kind != "fixed"]
+    last, bills = accounts.glance(local_today())
     return templates.TemplateResponse(
         request,
         "accounts.html",
         {
             "active": "accounts",
-            "tab": tab,
-            "tabs": ACCOUNT_TABS,
-            "chip_names": ACCOUNT_CHIP_NAMES,
-            "root": root,
-            "blocks": page_blocks(root),
+            "kinds": kinds(shown),
+            "net_worth": balance.get("Assets", Decimal("0.00")) - balance.get("Liabilities", Decimal("0.00")),
+            "last_entry": last,
+            "bills": bills,
+            "due_soon_days": cards.DUE_SOON_DAYS,
             "currency": accounts.currency().code,
-            "closed": closed_count([root]),
-            # What the quiet line under the figure counts: the open accounts of the type (groups are only headings).
-            "account_count": sum(
-                1 for n in root.walk() if n.account.closed_on is None and n.depth > 0 and not n.children
-            ),
+            "closed": any(n.closed for n in leaves),
+            # What the quiet line under the figure counts: the open accounts.
+            "account_count": sum(1 for n in leaves if not n.closed),
             # Whether any open account feeds the budget: the line under the figure then explains the dot beside them.
-            "has_budget_accounts": any(
-                n.account.on_budget and n.account.closed_on is None and not n.children
-                for n in root.walk()
-                if n.depth > 0
-            ),
+            "has_budget_accounts": any(n.account.on_budget and not n.closed for n in leaves),
         },
     )
-
-
-def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
-    """A type's accounts as the page lists them: each group is a heading with its accounts under it, then **all** the plain
-    accounts that sit directly under the type together in one block without a heading, at the end. Accounts only go two
-    levels deep. A built-in group with nothing in it is not shown (the page offers "Add account" instead)."""
-    blocks: list[tuple[Node | None, list[Node]]] = []
-    plain: list[Node] = []
-    for child in root.children:
-        if child.children:
-            blocks.append((child, child.children))
-        elif child.kind != "fixed":
-            plain.append(child)
-    if plain:
-        blocks.append((None, plain))
-    return blocks
 
 
 def mark_closed(roots: list[Node]) -> None:
@@ -262,10 +290,6 @@ def mark_closed(roots: list[Node]) -> None:
             node.closed = node.account.closed_on is not None
 
 
-def closed_count(roots: list[Node]) -> int:
-    return sum(1 for root in roots for n in root.walk() if n.closed)
-
-
 @router.get("/new")
 def new_account_page(
     request: Request,
@@ -273,26 +297,18 @@ def new_account_page(
     parent: UUID | None = None,
     root: str = "",
 ):
-    """The form for a new account (under Assets, Liabilities or Equity)."""
+    """The form for a new account. It asks what kind it is (a built-in group or one the person made); nothing is chosen
+    until the person does, unless the link says (a kind's own "Add account", or a type's)."""
     everything = without_contacts(build_tree(accounts.list()))
     roots = [r for r in everything if r.account.name in ACCOUNT_ROOTS]
     root_of = {n.account.id: r.account.name for r in roots for n in r.walk()}
-    only = ACCOUNT_TABS.get(root.lower())
-    if only:
-        # Opened from a type's tab on the Accounts page: only that type's accounts can be made.
-        parent_roots = [r for r in roots if r.account.name == only]
-        if parent is None or root_of.get(parent) != only:
-            parent = parent_roots[0].account.id if parent_roots else None
-            first_group = (
-                next((c for c in parent_roots[0].children if c.kind == "fixed"), None) if parent_roots else None
-            )
-            if first_group is not None:
-                parent = (
-                    first_group.account.id
-                )  # the "+" on a type starts on its first built-in group (Bank Accounts, Credit Cards)
-    else:
-        parent_roots = roots
+    only = next((r.account.name for r in roots if r.account.name.lower() == root.lower()), None)
+    if only and (parent is None or root_of.get(parent) != only):
+        # Opened for plain accounts under a type: they sit directly under that type.
+        parent = next(r.account.id for r in roots if r.account.name == only)
+    groups = kind_groups(roots)
     starts = _starts(everything)
+    chosen_root = root_of.get(parent) if parent else None
     return templates.TemplateResponse(
         request,
         "account_form.html",
@@ -302,17 +318,38 @@ def new_account_page(
             "starts": starts,
             "node": None,
             "parent_id": parent,
-            "parent_options": _parent_options(parent_roots),
+            "kinds": groups,
+            "placed": _placed(groups, next((n for r in roots for n in r.walk() if n.account.id == parent), None)),
+            "parent_options": _with_parent(groups, roots, parent),
             "currency": accounts.currency().code,
-            "root_name": root_of.get(parent),
+            "root_name": chosen_root,
             "root_of": root_of,
-            "back_list": _list_for_root(root_of.get(parent)),
-            "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
-            "can_bill": root_of.get(parent) == "Liabilities",
+            "back_list": "/accounts",
+            "can_budget": chosen_root in ("Assets", "Liabilities"),
+            "can_bill": chosen_root == "Liabilities",
             # an asset starts in the budget; a card or loan, outside it; under a built-in group, as that group says
-            "on_budget": (starts.get(parent) == "budget") if parent in starts else root_of.get(parent) == "Assets",
+            "on_budget": (starts.get(parent) == "budget") if parent in starts else chosen_root == "Assets",
         },
     )
+
+
+def _with_parent(groups: list[Node], roots: list[Node], parent: UUID | None) -> list[Node]:
+    """The form's choices of where an account sits: the kinds, and the account's current parent when that is not a kind
+    (a type itself, or an account it is being made inside), so saving never moves it by accident."""
+    if parent is None or any(g.account.id == parent for g in groups):
+        return groups
+    found = next((n for r in roots for n in r.walk() if n.account.id == parent), None)
+    return [*groups, *([found] if found else [])]
+
+
+def _placed(groups: list[Node], parent: Node | None) -> tuple[str, str] | None:
+    """When a new account is opened for somewhere that is not a kind, what the form says instead of the kind chips: "Other"
+    for the plain accounts of a type, or the account it is made inside."""
+    if parent is None or any(g.account.id == parent.account.id for g in groups):
+        return None
+    if parent.kind == "root":
+        return ("Kind", "Other" if parent.account.name == "Assets" else "Other you owe")
+    return ("Inside", parent.account.name)
 
 
 @router.get("/quick")
@@ -412,7 +449,7 @@ def create_account(
 ):
     try:
         if not parent_id:
-            raise ValueError("choose where the account belongs!")
+            raise ValueError("choose what kind of account it is!")
         data = AccountCreate(
             name=name.strip(),
             details=details.strip() or None,
@@ -518,20 +555,9 @@ def account_page(request: Request, account_id: UUID, accounts: Accounts):
     return templates.TemplateResponse(request, "account.html", account_context(accounts, account_id))
 
 
-def _list_for_root(root: str | None) -> str:
-    """The list a root's accounts are on, on the chip they are under (so going back lands where the person came from)."""
-    return f"/accounts?tab={root.lower()}" if root and root in ACCOUNT_TABS.values() else "/accounts"
-
-
-def list_url(accounts: AccountService, account_id: UUID) -> str:
-    roots = build_tree(accounts.list())
-    node = _find(roots, account_id)
-    return _list_for_root(_root_of(roots, node).account.name if node is not None else None)
-
-
 @router.post("/{account_id}/close")
 def close_account(account_id: UUID, accounts: Accounts):
-    area = list_url(accounts, account_id)
+    area = "/accounts"
     try:
         accounts.close(account_id)
     except ValueError as e:
@@ -561,6 +587,7 @@ def edit_account_page(request: Request, account_id: UUID, accounts: Accounts):
     if node.kind != "user":
         raise HTTPException(status_code=404, detail="account not found")
     root = _root_of(roots, node)
+    mine = [g for g in kind_groups([root]) if node.is_leaf]
     return templates.TemplateResponse(
         request,
         "account_form.html",
@@ -575,11 +602,9 @@ def edit_account_page(request: Request, account_id: UUID, accounts: Accounts):
             "can_bill": root.account.name == "Liabilities" and node.is_leaf,
             "on_budget": node.account.on_budget,
             "starts": _starts(roots),
-            "parent_options": [
-                n
-                for n in _parent_options(roots, exclude=node, keep=node.account.parent_id)
-                if any(n is m for m in root.walk())
-            ],
+            # Where it sits is a kind; a group (an account with accounts inside) stays where it is.
+            "kinds": mine,
+            "parent_options": _with_parent(mine, [root], node.account.parent_id) if node.is_leaf else [],
         },
     )
 
@@ -636,7 +661,7 @@ def update_account(
 
 @router.post("/{account_id}/delete")
 def delete_account(account_id: UUID, accounts: Accounts):
-    where = list_url(accounts, account_id)
+    where = "/accounts"
     try:
         accounts.delete(account_id)
     except ValueError as e:

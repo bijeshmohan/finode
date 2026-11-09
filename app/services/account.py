@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -766,9 +766,14 @@ class AccountService:
             return None
         if account.statement_day is None or account.due_day is None:
             raise ValueError(f"'{account.name}' has no statement day and due day: set them first!")
-        statement = cards.last_statement(account.statement_day, day)
+        return self._bill_of(account, self.tr.posting_facts([account_id]), day)
+
+    def _bill_of(self, account: Account, facts: Sequence[Any], day: date) -> CardBill:
+        """One account's bill from its posting facts (the days are set)."""
+        statement_day, due_day = cast(int, account.statement_day), cast(int, account.due_day)
+        statement = cards.last_statement(statement_day, day)
         owed = paid = spent = total = Decimal("0.00")
-        for fact in self.tr.posting_facts([account_id]):
+        for fact in facts:
             # A line counts by the day the account posts it (an entry's own date when none was given).
             posted = fact.posted_on or fact.date
             if posted > day:
@@ -784,14 +789,14 @@ class AccountService:
                 paid += fact.amount
         owed = max(owed, Decimal("0.00"))
         billed = cards.round_bill(owed, account.bill_rounding)
-        due = cards.due_date(statement, account.statement_day, account.due_day)
+        due = cards.due_date(statement, statement_day, due_day)
         return CardBill(
-            account_id=account_id,
-            statement_day=account.statement_day,
-            due_day=account.due_day,
+            account_id=account.id,
+            statement_day=statement_day,
+            due_day=due_day,
             statement_date=statement,
             due_date=due,
-            next_statement_date=cards.next_statement(account.statement_day, day),
+            next_statement_date=cards.next_statement(statement_day, day),
             days_to_due=(due - day).days,
             statement_balance=owed,
             statement_due=billed,
@@ -801,6 +806,20 @@ class AccountService:
             bill=max(billed - paid, Decimal("0.00")),
             owed_total=max(total, Decimal("0.00")),
         )
+
+    def glance(self, today: date | None = None) -> tuple[dict[UUID, date], dict[UUID, CardBill]]:
+        """What the Accounts page's cards say under a balance, for every account in two queries: the day of each account's
+        newest entry, and the bill of each open account that has its statement and due days."""
+        day = today or local_today()
+        accounts = self._ensure_roots()
+        last = self.tr.last_entry_dates([a.id for a in accounts], day)
+        with_days = [
+            a for a in accounts if a.statement_day is not None and a.due_day is not None and a.closed_on is None
+        ]
+        facts: dict[UUID, list[Any]] = {a.id: [] for a in with_days}
+        for fact in self.tr.posting_facts(list(facts)):
+            facts[fact.account_id].append(fact)
+        return last, {a.id: self._bill_of(a, facts[a.id], day) for a in with_days}
 
     def bills_due(self, today: date | None = None) -> builtins.list[tuple[str, CardBill]]:
         """The open liability accounts with something left to pay that is due within `cards.DUE_SOON_DAYS` days or
@@ -835,7 +854,7 @@ class AccountService:
         normal_side = self._normal_side(account, accounts_by_id)
         changes: dict[UUID, Decimal] = {}
         when: dict[UUID, tuple] = {}
-        for transaction, side, amount, _posted_on, day, created in self.tr.posting_facts(target_ids):
+        for transaction, side, amount, _posted_on, day, created, _account in self.tr.posting_facts(target_ids):
             signed = amount if side == normal_side else -amount
             changes[transaction] = changes.get(transaction, Decimal("0.00")) + signed
             when[transaction] = (day, created)

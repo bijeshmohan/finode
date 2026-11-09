@@ -118,13 +118,13 @@ def test_account_page_offers_sub_accounts_only_where_there_is_room(client: TestC
     assert f"/categories/new?parent={food['id']}" in client.get(f"/categories/{food['id']}").text
 
 
-def test_edit_form_offers_only_parents_that_fit_the_moved_subtree(client: TestClient, root_accounts):
+def test_edit_form_of_a_group_offers_no_new_parent(client: TestClient, root_accounts):
     a = _make(client, "A", root_accounts["Assets"]).json()
     b = _make(client, "B", root_accounts["Assets"]).json()
     _make(client, "C", b["id"])
     text = client.get(f"/accounts/{b['id']}/edit").text
     assert f'value="{a["id"]}"' not in text  # B has a child, so under A it would be 3 deep
-    assert f'value="{root_accounts["Assets"]}"' in text
+    assert 'name="parent_id"' not in text, "a group stays where it is: it has no kind to change"
 
 
 def test_the_category_form_offers_only_categories_that_can_hold_subcategories(client: TestClient, root_accounts):
