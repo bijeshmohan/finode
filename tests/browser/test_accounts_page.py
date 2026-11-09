@@ -1,4 +1,4 @@
-"""The accounts page in a browser: a row of cards under each kind, its count and track, closed accounts."""
+"""The accounts page in a browser: a row of cards under each kind, its count, closed accounts."""
 
 import re
 from datetime import UTC, datetime, timedelta
@@ -40,7 +40,7 @@ def test_every_kind_is_a_row_of_cards_under_its_heading(page: Page, api, books):
     expect(page.locator(".acc-head p").first).to_contain_text("2 accounts")
 
 
-def test_a_row_that_runs_past_the_screen_shows_a_track_and_a_short_one_shows_none(page: Page, api, books):
+def test_a_long_row_scrolls_sideways_on_its_own_and_the_page_does_not(page: Page, api, books):
     long = api.post("/accounts/", name="Wallets", parent_id=books["roots"]["Assets"])
     for number in range(8):
         api.post("/accounts/", name=f"Wallet {number}", parent_id=long["id"])
@@ -51,16 +51,15 @@ def test_a_row_that_runs_past_the_screen_shows_a_track_and_a_short_one_shows_non
     wallets = page.locator(".acc-kind", has_text="Wallets")
     funds = page.locator(".acc-kind", has_text="Funds")
     expect(wallets.locator(".acc-head p")).to_contain_text("8 accounts")
-    expect(wallets.locator("[data-track]")).to_be_visible()
-    expect(funds.locator("[data-track]")).to_be_hidden()
-    bar = wallets.locator("[data-track] i")
-    before = bar.bounding_box()["x"]
-    wallets.locator("[data-rail]").evaluate("el => { el.scrollLeft = el.scrollWidth }")
-    page.wait_for_function(
-        "(b) => [...document.querySelectorAll('.acc-kind')].find((k) => k.textContent.includes('Wallets'))"
-        ".querySelector('[data-track] i').getBoundingClientRect().x > b",
-        arg=before,
+    runs_over = "el => el.scrollWidth > el.clientWidth + 1"
+    assert wallets.locator(".acc-rail").evaluate(runs_over), "eight cards run past the edge"
+    assert not page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth"), (
+        "only the row scrolls, never the page"
     )
+    wallets.locator(".acc-rail").evaluate("el => { el.scrollLeft = el.scrollWidth }")
+    assert wallets.locator(".acc-rail").evaluate("el => el.scrollLeft") > 0
+    assert funds.locator(".acc-rail").evaluate("el => el.scrollLeft") == 0
+    assert "track" not in page.content(), "no scroll indicator"
 
 
 def test_the_kinds_have_room_between_them_and_a_heading_larger_than_the_cards_name(page: Page, api, books):

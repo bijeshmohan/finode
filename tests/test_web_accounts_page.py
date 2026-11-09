@@ -55,7 +55,7 @@ def test_each_kind_is_a_heading_over_a_row_of_cards(client, tree):
     heads = re.findall(r"<h2>([^<]+)</h2>", page)
     assert heads == ["Banks", "Credit Cards", "Food", "Other"], heads
     assert f'href="/accounts/{tree["hdfc"]}"' in page and "<details" not in page
-    assert page.count("data-rail") == len(heads), "one row of cards per kind"
+    assert page.count('class="acc-rail"') == len(heads), "one row of cards per kind"
     assert 'class="mono"' not in page and "account-row" not in page, "cards, not rows"
 
 

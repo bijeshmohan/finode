@@ -1262,32 +1262,8 @@ document.body.addEventListener("click", (event) => {
     more.addEventListener("click", () => {
       page.classList.add("show-closed");
       more.closest(".unused-toggle").remove();
-      page.querySelectorAll("[data-rail]").forEach(refresh);
     });
   }
-
-  // A row that runs past the screen shows a thin track of how far it has scrolled; a row that fits shows none.
-  function refresh(rail) {
-    const kind = rail.closest(".acc-kind");
-    const track = kind.querySelector("[data-track]");
-    const cards = [...rail.querySelectorAll(".acc-card:not(.acc-card-add)")].filter((c) => c.offsetParent !== null);
-    // It overflows when an account's own card runs past the edge (the Add account card at the end does not count).
-    const last = cards[cards.length - 1];
-    const end = last ? last.getBoundingClientRect().right - rail.getBoundingClientRect().left + rail.scrollLeft : 0;
-    const overflows = end > rail.clientWidth + 1;
-    track.hidden = !overflows;
-    if (!overflows) return;
-    const share = rail.clientWidth / rail.scrollWidth;
-    const max = rail.scrollWidth - rail.clientWidth;
-    const bar = track.firstElementChild;
-    bar.style.width = `${share * 100}%`;
-    bar.style.transform = `translateX(${max ? (rail.scrollLeft / max) * (1 / share - 1) * 100 : 0}%)`;
-  }
-  page.querySelectorAll("[data-rail]").forEach((rail) => {
-    rail.addEventListener("scroll", () => refresh(rail), { passive: true });
-    refresh(rail);
-  });
-  window.addEventListener("resize", () => page.querySelectorAll("[data-rail]").forEach(refresh));
 })();
 
 // ---- Offline, failed requests and loading ----
