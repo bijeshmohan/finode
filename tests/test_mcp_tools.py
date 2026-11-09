@@ -401,6 +401,24 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
 
 
 @pytest.mark.anyio
+async def test_the_budget_lists_a_credit_card_with_its_id(session, root_accounts, client):
+    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    card = client.post(
+        "/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"], "on_budget": True}
+    ).json()
+    client.post(
+        "/api/transactions/",
+        json={"postings": [leg(food, "debit", "40"), leg(card, "credit", "40")]},
+    )
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
+        data = payload(await c.call_tool("get_budget", {}))
+        [listed] = data["credit_cards"]
+        assert listed["card_id"] == card["id"] and listed["card"] == "Liabilities:Visa"
+        assert (listed["to_pay"], listed["charged_this_month"]) == ("40.00", "40.00")
+
+
+@pytest.mark.anyio
 async def test_assistants_can_copy_last_months_budget(session, root_accounts, client):
     from datetime import date, timedelta
 

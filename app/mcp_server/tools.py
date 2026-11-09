@@ -1370,7 +1370,7 @@ def _budget(data) -> dict[str, Any]:
                 "reserved_for_card_bills": text(data.reserved_for_cards),
                 "credit_cards": [
                     {
-                        "card_id": str(c.id),
+                        "card_id": str(c.account_id),
                         "card": c.path,
                         "to_pay": text(c.owed),
                         "charged_this_month": text(c.charged),
