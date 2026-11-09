@@ -52,7 +52,9 @@ class RecurringService:
         rule = self.repo.read(recurring_id)
         return self._to_read(rule) if rule else None
 
-    def _transaction(self, rule_like, day: date) -> TransactionCreate:
+    def _transaction(
+        self, rule_like: RecurringRead | RecurringCreate | RecurringUpdate, day: date
+    ) -> TransactionCreate:
         if rule_like.postings:
             return TransactionCreate(
                 date=day,
@@ -64,6 +66,8 @@ class RecurringService:
                     for p in rule_like.postings
                 ],
             )
+        if rule_like.amount is None or rule_like.from_account_id is None or rule_like.to_account_id is None:
+            raise ValueError("a rule without rows needs an amount and both accounts!")
         postings = simple_postings(rule_like.amount, rule_like.from_account_id, rule_like.to_account_id)
         if rule_like.category_id is not None:
             label_simple({a.id: a for a in self.accounts.ar.list()}, postings, rule_like.category_id)
@@ -88,7 +92,7 @@ class RecurringService:
         return data.model_copy(update={"postings": rows})
 
     @staticmethod
-    def _rows(data) -> builtins.list[dict]:
+    def _rows(data: RecurringCreate | RecurringUpdate) -> builtins.list[dict]:
         return [
             {"account_id": p.account_id, "side": p.side.value, "amount": p.amount, "category_id": p.category_id}
             for p in data.postings
@@ -118,7 +122,7 @@ class RecurringService:
         return data.model_copy(update=update) if update else data
 
     @staticmethod
-    def _fields(data) -> dict:
+    def _fields(data: RecurringCreate | RecurringUpdate) -> dict:
         """A rule's own columns from what the client sent (the category is stored as `category_id`)."""
         return data.model_dump(exclude={"postings"})
 

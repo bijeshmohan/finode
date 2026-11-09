@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+from uuid import UUID
 
 import httpx
 
@@ -36,7 +37,7 @@ def _admin_headers() -> dict[str, str]:
     return headers
 
 
-def delete_user(user_id) -> None:
+def delete_user(user_id: UUID | str) -> None:
     """Delete a user's sign-in through Supabase's admin API (a user that is already gone counts as deleted)."""
     if not settings.can_delete_logins:
         raise AuthUnavailableError("deleting logins is not configured")

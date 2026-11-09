@@ -56,6 +56,7 @@ select = [
     "S",        # flake8-bandit (security)
     "T20",      # no stray print()
     "PT",       # pytest style
+    "ANN001",   # every parameter is typed, so the type checker can see what a rename breaks
 ]
 ignore = [
     "E501",     # the formatter wraps code; long strings and comments are allowed
@@ -67,6 +68,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
+    "ANN001",   # test helpers and fixtures are not typed
     "S101",     # assert is what tests do
     "S105", "S106", "S311",  # fake secrets and random data in tests
     "PT011", "RUF043",
@@ -76,7 +78,10 @@ ignore = [
     "SIM115", "SIM117",
     "F811",     # a fixture imported from another test module is used by its parameter name
 ]
-"migrations/**" = ["S608"]  # table names come from fixed lists
+"migrations/**" = [
+    "ANN001",   # past migrations are frozen history: their helpers stay as they were run
+    "S608",     # table names come from fixed lists
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

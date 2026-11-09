@@ -1,6 +1,7 @@
 """The person's profile and settings: names and currency."""
 
 from ..currencies import find as find_currency
+from ..models.profile import Profile
 from ..repositories import ProfileRepository
 from ..schemas.profile import ProfileRead, ProfileUpdate
 from .account import AccountService
@@ -11,7 +12,7 @@ class ProfileService:
         self.pr = pr
         self.accounts = accounts
 
-    def _to_read(self, profile) -> ProfileRead:
+    def _to_read(self, profile: Profile) -> ProfileRead:
         return ProfileRead(
             first_name=profile.first_name,
             last_name=profile.last_name,

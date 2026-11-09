@@ -1,6 +1,7 @@
 """Persistence for transactions and postings, always filtered by the user's id."""
 
 import builtins
+from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -16,7 +17,7 @@ from ..models.recurring import RecurringTransaction
 from ..models.tag import Tag, TransactionTag
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..models.utils import without_nul
-from ..schemas.transaction import RelatedRef, TransactionCreate, TransactionUpdate
+from ..schemas.transaction import PostingCreate, RelatedRef, TransactionCreate, TransactionUpdate
 from ..tags import clean_tag
 from .cache import remembered
 from .category import ROOT_KINDS, CategoryRepository
@@ -47,7 +48,7 @@ class TransactionRepository:
         self.set_tags(transaction.id, data.tags)
         return transaction
 
-    def _line_categories(self, postings) -> builtins.list[UUID | None]:
+    def _line_categories(self, postings: Sequence[PostingCreate]) -> builtins.list[UUID | None]:
         """The category of each line: the one given, else (on Expenses or Income) Uncategorised. Nothing else is filled
         in for the person: a payment into a loan or fund keeps the label it was given, or none."""
         ids = {p.account_id for p in postings}
@@ -70,7 +71,7 @@ class TransactionRepository:
             found.append(category)
         return found
 
-    def _add_postings(self, transaction: Transaction, postings) -> None:
+    def _add_postings(self, transaction: Transaction, postings: Iterable[PostingCreate]) -> None:
         postings = builtins.list(postings)
         for posting_data, category in zip(postings, self._line_categories(postings), strict=True):
             values = posting_data.model_dump(exclude={"category_id"})
@@ -678,7 +679,7 @@ class TransactionRepository:
         self.db.flush()
         return transaction
 
-    def _replace_postings(self, transaction: Transaction, postings) -> None:
+    def _replace_postings(self, transaction: Transaction, postings: Iterable[PostingCreate]) -> None:
         """Make the transaction's postings the given ones, keeping a posting's id when it lives on.
 
         A new posting takes over an existing one on the same account and side (then on the same

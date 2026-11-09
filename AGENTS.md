@@ -31,6 +31,7 @@ finode is a personal double-entry ledger with envelope budgeting: FastAPI + SQLM
 ## Code rules
 
 - **Never commit code that fails ruff or pyrefly.** The linter enforces: `raise … from None` inside `except`, no mutable defaults (form lists default to `None`, normalised at the top of the handler), no unused variables, no `assert` in `app/` (use a check or `cast`), every `# noqa` has a reason. `# pyrefly: ignore[code]` only with the code and a reason; SQLModel column typing is silenced only in `app.models.*` and `app.repositories.*`.
+- **Every function parameter in `app/` is typed** (ruff `ANN001` enforces it): an untyped one is `Any` to the type checker, so a rename that misses a reader goes unseen. A new read-only assistant tool gets a call in `tests/test_mcp_smoke.py`, which runs every one against a ledger that uses every feature.
 - Relative imports inside `app/`. Configuration goes in `app/config.py` (`settings`, `FINODE_*` env vars), never hardcoded.
 - Layers: `models/` (SQLModel tables; schema = models + Alembic), `schemas/` (`*Base`, `*Create`, `*Read`, `*Update`), `repositories/` (tenant-scoped, over a `Session`), `services/` (business rules), `routers/` (convert `None` into 404; **never touch the DB directly**), `routers/web/` (HTML UI; calls the same services, must not duplicate ledger rules). Type the session as `DBSession`.
 - No `SQLModel.metadata.create_all` at startup: Alembic only.

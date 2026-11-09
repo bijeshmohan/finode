@@ -1,4 +1,4 @@
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Annotated
@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from ...clock import local_today
 from ...dependencies import Accounts, Categories
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
+from ...schemas.account import RegisterEntry
 from ...schemas.category import CategoryRead
 from ...services import cards
 from ...services.account import (
@@ -435,7 +436,9 @@ def _is_inflow(root_name: str, change: Decimal) -> bool:
     return (root_name == "Assets" and change > 0) or (root_name == "Liabilities" and change < 0)
 
 
-def account_context(accounts: AccountService, account_id: UUID, entries=None, offset: int = 0) -> dict:
+def account_context(
+    accounts: AccountService, account_id: UUID, entries: Sequence[RegisterEntry] | None = None, offset: int = 0
+) -> dict:
     """What the account page needs; the category page (categories.py) reuses it with its month's entries."""
     roots, node = _load(accounts, account_id)
     root = _root_of(roots, node)

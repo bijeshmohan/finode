@@ -4,6 +4,8 @@ The cookie only ever holds a key from MESSAGES, so nothing user-supplied is
 rendered from it.
 """
 
+from collections.abc import Awaitable, Callable
+
 from fastapi import Request, Response
 
 FLASH_COOKIE = "finode_flash"
@@ -68,7 +70,7 @@ def flash_message(request: Request) -> str | None:
     return MESSAGES.get(request.cookies.get(FLASH_COOKIE, ""))
 
 
-async def clear_shown_flash_middleware(request: Request, call_next):
+async def clear_shown_flash_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]):
     """Drop the flash cookie once a full page (which displays it) has been served."""
     response = await call_next(request)
     if (

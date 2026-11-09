@@ -1,5 +1,5 @@
 import calendar
-from collections.abc import Collection, Mapping
+from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -27,8 +27,12 @@ from ...repositories.obligation import ObligationRepository
 from ...repositories.transaction import SYSTEM_PAYEES
 from ...schemas import AccountRead
 from ...schemas.category import CategoryRead
+from ...schemas.coming_up import ComingUpLine
 from ...schemas.contact import TransferCreate
+from ...schemas.shared_expense import SharedExpenseRead
+from ...schemas.shared_income import SharedIncomeRead
 from ...schemas.transaction import (
+    PostingBase,
     PostingCreate,
     RelatedRef,
     TransactionCreate,
@@ -95,7 +99,9 @@ def _summary(found: list, index: AccountIndex) -> dict:
     return {"count": len(rows), "total": sum((r.amount for r in rows), Decimal(0)) if word else None, "word": word}
 
 
-def _filter_options(all_accounts, categories: list[CategoryRead], transactions) -> dict:
+def _filter_options(
+    all_accounts: list[AccountRead], categories: list[CategoryRead], transactions: Transactions
+) -> dict:
     """The choices behind the Filter sheet: accounts (assets, liabilities, equity), categories, payees."""
     accounts: list[dict] = []
     for root in without_contacts(build_tree(all_accounts)):
@@ -139,7 +145,7 @@ class AccountIndex:
         roots = {node.account.id: root.account.name for root in build_tree(accounts) for node in root.walk()}
         return cls(names, roots, {c.id: c.name for c in categories or []})
 
-    def line_name(self, posting) -> str:
+    def line_name(self, posting: PostingBase | ComingUpLine) -> str:
         """What a line is called in a list: its category when it sits on Expenses or Income, else its account."""
         if self.roots.get(posting.account_id) in ("Expenses", "Income"):
             return self.categories.get(posting.category_id, "Uncategorised") if posting.category_id else "Uncategorised"
@@ -529,12 +535,17 @@ def safe_back(value: str | None, default: str = "/transactions") -> str:
 ASSET_LIKE = ("Assets", "Liabilities")
 
 
-def infer_kind(postings, roots: dict[UUID, str]) -> str:
+def _root(roots: Mapping[UUID, str], account_id: UUID | None) -> str | None:
+    """The top-level account (Assets, Expenses…) of a line's account; none for a line that names only a category."""
+    return roots.get(account_id) if account_id is not None else None
+
+
+def infer_kind(postings: Iterable[PostingBase | PostingCreate], roots: dict[UUID, str]) -> str:
     """What a set of postings is, for the form's Expense / Income / Transfer buttons: an expense is money from
     assets or liabilities into expenses, income comes from income into them, a transfer is between them;
     anything else (equity, refunds, mixed) is "other", which offers every account."""
-    credit = {roots.get(p.account_id) for p in postings if p.side == PostingSide.CREDIT}
-    debit = {roots.get(p.account_id) for p in postings if p.side == PostingSide.DEBIT}
+    credit = {_root(roots, p.account_id) for p in postings if p.side == PostingSide.CREDIT}
+    debit = {_root(roots, p.account_id) for p in postings if p.side == PostingSide.DEBIT}
     if debit == {"Expenses"} and credit and credit <= set(ASSET_LIKE):
         return "expense"
     if credit == {"Income"} and debit and debit <= set(ASSET_LIKE):
@@ -553,7 +564,7 @@ def people_group(accounts: Accounts, contacts: Contacts | None, keep: Collection
     return [("People", sorted(people, key=lambda o: o.label.casefold()))] if people else []
 
 
-def editor_values(bill=None, with_id: UUID | None = None) -> dict:
+def editor_values(bill: SharedExpenseRead | None = None, with_id: UUID | None = None) -> dict:
     """What the Share editor starts with: the shared bill being edited, or one person ticked (opened from their page)."""
     if bill is None:
         return {"checked": {with_id} if with_id else set(), "share_values": {}, "paid": {}}
@@ -572,7 +583,7 @@ def editor_values(bill=None, with_id: UUID | None = None) -> dict:
     }
 
 
-def income_values(shared=None) -> dict:
+def income_values(shared: SharedIncomeRead | None = None) -> dict:
     """What the income Share editor starts with: the shared income being edited, or nothing."""
     if shared is None:
         return {"theirs": {}, "received": {}}
@@ -682,14 +693,6 @@ def suggested_payees(names: list[str], query: str = "", limit: int = SUGGESTED_P
     return (exact + starting + containing)[:limit]
 
 
-@dataclass
-class _P:
-    """Just enough of a posting for infer_kind."""
-
-    account: UUID
-    side: PostingSide
-
-
 @router.get("/suggest")
 def suggest_payees(request: Request, transactions: Transactions, payee: str = ""):
     """The chips under the payee field: people you pay that match what is typed, the ones paid most first."""
@@ -766,7 +769,7 @@ def roots_by_id(accounts: Accounts) -> dict[UUID, str]:
 
 
 def form_rows(
-    postings,
+    postings: Iterable[PostingBase | PostingCreate],
     side: PostingSide,
     account_id: UUID | None = None,
     roots: dict[UUID, str] | None = None,
@@ -778,8 +781,10 @@ def form_rows(
         {
             "posting": p,
             "account": p.category_id
-            if roots and p.category_id and roots.get(p.account_id) in ("Expenses", "Income")
-            else (person_of or {}).get(p.account_id, p.account_id),  # a person's account shows as the person
+            if roots and p.category_id and _root(roots, p.account_id) in ("Expenses", "Income")
+            else (person_of or {}).get(p.account_id, p.account_id)  # a person's account shows as the person
+            if p.account_id is not None
+            else None,
         }
         for p in postings
         if p.side == side
@@ -1087,7 +1092,7 @@ def _update(
     date_: str,
     payee: str,
     comment: str,
-    postings_fn,
+    postings_fn: Callable[[], list[PostingCreate]],
     back: str,
     related: str = "",
     tags: list[str] | None = None,

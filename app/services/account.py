@@ -21,7 +21,7 @@ from ..repositories import AccountRepository, CategoryRepository, ProfileReposit
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.account import BalanceCheck, BillRounding, CardBill, MergeResult
-from ..schemas.transaction import PostingCreate, TransactionCreate
+from ..schemas.transaction import PostingBase, PostingCreate, TransactionCreate
 from . import cards
 
 # Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
@@ -651,7 +651,7 @@ class AccountService:
             )
         return entries
 
-    def _counter_name(self, posting, accounts_by_id: dict[UUID, Account]) -> str:
+    def _counter_name(self, posting: Posting | PostingBase, accounts_by_id: dict[UUID, Account]) -> str:
         """What the other side of an entry is called in an account's list: a line on Expenses or Income is named for
         its category (Groceries), not for the account every expense and income is posted to."""
         account = accounts_by_id[posting.account_id]

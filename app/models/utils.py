@@ -1,7 +1,10 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import DateTime, Numeric, event, inspect
+from sqlalchemy.engine import Dialect
+from sqlalchemy.orm.unitofwork import UOWTransaction
 from sqlalchemy.types import TypeDecorator
 from sqlmodel import Field, Session, SQLModel
 
@@ -16,7 +19,7 @@ def without_nul(text: str) -> str:
 
 
 @event.listens_for(Session, "before_flush")
-def _strip_nul_characters(session: Session, flush_context, instances) -> None:
+def _strip_nul_characters(session: Session, flush_context: UOWTransaction, instances: object) -> None:
     """Whatever is written (a payee, a note, an account name, from the web, the API or an assistant), a NUL is dropped
     first, so it can never turn into a server error."""
     for obj in (*session.new, *session.dirty):
@@ -62,5 +65,5 @@ class Amount(TypeDecorator):
     def __init__(self) -> None:
         super().__init__(24, 8)
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value: Any, dialect: Dialect):
         return None if value is None else normalize_amount(value)

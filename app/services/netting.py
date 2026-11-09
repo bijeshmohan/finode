@@ -6,6 +6,7 @@ each side, with one ledger entry between their two accounts ("Due to X" debited,
 own accounts or budgets move. Each obligation it touches gets a settlement row for the entry, so it is reversed, like
 any settlement, by deleting the entry."""
 
+from collections.abc import Sequence
 from decimal import Decimal
 from uuid import UUID
 
@@ -69,7 +70,7 @@ class NettingService:
         )
 
     @staticmethod
-    def _reads(taken) -> list[AllocationRead]:
+    def _reads(taken: Sequence[tuple[PartyObligation, Decimal, Decimal]]) -> list[AllocationRead]:
         return [
             AllocationRead(
                 obligation_id=row.id, outstanding_before=owed, amount=cleared, outstanding_after=owed - cleared

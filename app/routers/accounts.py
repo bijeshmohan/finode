@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -93,7 +94,7 @@ def delete_account(account_id: UUID, accounts: Accounts):
     return {"message": "account deleted successfully"}
 
 
-def _closing(action, account_id: UUID):
+def _closing(action: Callable[[UUID], Any], account_id: UUID):
     try:
         return action(account_id)
     except AccountInUseError as e:

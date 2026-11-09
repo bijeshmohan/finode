@@ -1,10 +1,13 @@
 """Cache headers (long-lived for fingerprinted assets, revalidate everything else) and compression."""
 
-from fastapi import Request
+from collections.abc import Awaitable, Callable
+
+from fastapi import Request, Response
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.types import Receive, Scope, Send
 
 
-async def cache_headers_middleware(request: Request, call_next):
+async def cache_headers_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]):
     response = await call_next(request)
     if "cache-control" in response.headers:
         return response
@@ -26,7 +29,7 @@ class Compression(GZipMiddleware):
 
     ALREADY_COMPRESSED = (".woff2", ".png", ".jpg", ".jpeg", ".webp", ".ico")
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] == "http" and scope["path"].endswith(self.ALREADY_COMPRESSED):
             await self.app(scope, receive, send)
         else:

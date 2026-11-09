@@ -3,12 +3,16 @@
 Both are shown the same way. Nothing is stored: an entry is read from the books, an occurrence is worked out from its rule
 (`schedule`), so the list is always what the rules and the books say now."""
 
+from collections.abc import Iterable
 from datetime import date, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 from ..clock import local_today
 from ..models.transaction import PostingSide
 from ..schemas.coming_up import ComingUpItem, ComingUpLine, ComingUpRead
+from ..schemas.recurring import RecurringPostingData
+from ..schemas.transaction import PostingBase, PostingCreate
 from . import schedule
 from .account import AccountService
 from .budget import BudgetError, month_end
@@ -37,7 +41,14 @@ class ComingUpService:
         roots = {a.id: AccountService.root_name(a, by_id) for a in accounts}
         items: list[ComingUpItem] = []
 
-        def item(day, payee, debits, credits, amount, **ids) -> None:
+        def item(
+            day: date,
+            payee: str | None,
+            debits: list[ComingUpLine],
+            credits: list[ComingUpLine],
+            amount: Decimal,
+            **ids: UUID | None,
+        ) -> None:
             if not any(line.account_id in in_budget for line in debits + credits):
                 return  # nothing here touches the budget's accounts
             income = any(roots.get(line.account_id) == "Income" for line in credits)
@@ -45,7 +56,9 @@ class ComingUpService:
                 ComingUpItem(date=day, payee=payee, amount=amount, income=income, debits=debits, credits=credits, **ids)
             )
 
-        def lines(postings, side) -> list[ComingUpLine]:
+        def lines(
+            postings: Iterable[PostingBase | PostingCreate | RecurringPostingData], side: PostingSide
+        ) -> list[ComingUpLine]:
             return [
                 ComingUpLine(account_id=p.account_id, category_id=p.category_id)
                 for p in postings
