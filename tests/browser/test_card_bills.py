@@ -10,17 +10,21 @@ from app.clock import local_today
 from ..books import leg
 
 
-def test_the_days_are_asked_only_for_a_card_or_loan(page: Page, books):
+def test_the_days_are_asked_only_for_a_card_or_loan(page: Page, books, api):
+    cards = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
+    api.post("/accounts/", name="Visa Gold", parent_id=cards["id"])
+    banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
+    api.post("/accounts/", name="HDFC", parent_id=banks["id"])
     page.goto("/accounts/new")
     days = page.locator("[data-bill-fields]")
     expect(days).to_be_hidden()
-    parent = page.locator('select[name="parent_id"]')
-    parent.select_option(label="Liabilities")
+    kind = page.locator("[data-kind-chip]")
+    kind.filter(has_text="Cards").click()
     expect(days).to_be_visible()
-    parent.select_option(label="Assets")
+    kind.filter(has_text="Banks").click()
     expect(days).to_be_hidden()
     assert page.locator('[data-bill-fields] input[name="statement_day"]').is_disabled(), "hidden: not sent"
-    parent.select_option(label="Liabilities")
+    kind.filter(has_text="Cards").click()
     page.fill('input[name="name"]', "Amex")
     page.fill('input[name="statement_day"]', "10")
     page.fill('input[name="due_day"]', "28")

@@ -32,8 +32,8 @@ The tokens are CSS variables at the top of `style.css`. Style with tokens only, 
 Every list page opens the same way:
 
 1. **Title row** (`.page-head.tall`): the title, and the month pill at the right where the page has a month. It is the same height on every page, so titles line up.
-2. **Switcher** (full width, `.chips.seg`): Asset · Liability, Expense · Income. Transactions and Settings have none.
-3. **Head** (`.ready-hero`): a small label above one large figure, and one quiet line under it. Budgets: Ready to assign. Accounts: What you own / What you owe / Equity. Categories: Spent so far / Earned.
+2. **Switcher** (full width, `.chips.seg`): Expense · Income on Categories. Accounts, Budgets, Transactions and Settings have none.
+3. **Head** (`.ready-hero`): a small label above one large figure, and one quiet line under it. Budgets: Ready to assign. Accounts: Net worth. Categories: Spent so far / Earned.
 4. **The list**, in tiles.
 5. **A dashed "+ Add …" row** (`.add-row`) at the end where something can be added.
 

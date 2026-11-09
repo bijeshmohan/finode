@@ -1749,3 +1749,25 @@ form[data-layout="single"] [data-remove-row] { display: none; }
 .add-people:first-child { border-top: 0; }
 #people-picker .row-done { width: 100%; }
 #people-picker button[aria-pressed="true"]::after { content: "✓"; color: var(--accent); font-weight: 600; }
+
+/* ---------- Accounts by kind: a row of cards that scrolls sideways under each kind's heading (2026-11-09) ---------- */
+.acc-kind { margin-top: .6rem; }
+.acc-kind > .acc-gh { padding-inline: .25rem; }
+.acc-count { margin-left: .4rem; font-weight: 500; opacity: .8; }
+.acc-rail { display: flex; gap: .625rem; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -1.25rem; padding: .125rem 1.25rem .375rem; scroll-padding-inline: 1.25rem; scrollbar-width: none; overscroll-behavior-x: contain; }
+.acc-rail::-webkit-scrollbar { display: none; }
+.acc-card { flex: none; width: 13.25rem; min-height: 6.5rem; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: space-between; gap: .75rem; padding: .8rem .9rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); color: inherit; text-decoration: none; font-variant-numeric: tabular-nums; }
+@media (hover: hover) { .acc-card:hover { background: var(--surface-2); } }
+.acc-card-name { display: flex; align-items: center; min-width: 0; font-weight: 600; }
+.acc-card-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-card-foot { display: flex; flex-direction: column; gap: .1rem; }
+.acc-card-balance { font-size: 1.15rem; font-weight: 700; }
+.acc-card-line { font-size: .75rem; color: var(--muted); white-space: nowrap; }
+.acc-card-line.due { color: var(--negative); }
+.acc-card-add { align-items: center; justify-content: center; flex-direction: row; gap: .35rem; background: none; border-style: dashed; border-color: var(--border); color: var(--accent); font-weight: 600; }
+.acc-track { height: 3px; margin: .125rem .25rem 0; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.acc-track i { display: block; height: 100%; width: 40%; border-radius: 3px; background: var(--text); opacity: .45; }
+.acc-track[hidden], .acc-count[hidden] { display: none; }
+.acc-card.closed-hidden { display: none; }
+.show-closed .acc-card.closed-hidden { display: flex; }
+.inside { font-size: 1rem; font-weight: 400; color: var(--text); }

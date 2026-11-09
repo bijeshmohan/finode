@@ -6,7 +6,7 @@
 {% set area = "/accounts" %}
 {% block title %}{{ account.name }} · finode{% endblock %}
 {% block content %}
-<a class="back" href="/accounts?tab={{ root.account.name|lower }}">{{ icon("back") }}Accounts</a>
+<a class="back" href="/accounts">{{ icon("back") }}Accounts</a>
 
 <header class="account-hero">
   <div class="acct-title">
@@ -21,7 +21,10 @@
         </details>
         {% endif %}
       </div>
-      <p class="acct-sub">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}</p>
+      {#- The kind it sits in (Bank Accounts, Credit Cards...), never the type's own name. -#}
+      {% set trail = node.path.split(" › ") %}
+      {% set kind_name = trail[1] if trail|length > 2 else ("" if node.children or node.kind == "fixed" else ("Other you owe" if root.account.name == "Liabilities" else "Other")) %}
+      {% if kind_name %}<p class="acct-sub">{{ kind_name }}</p>{% endif %}
     </div>
     {% if node.kind == "user" or (can_add_child and not account.closed_on) %}
     <details class="menu">

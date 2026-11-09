@@ -15,7 +15,7 @@ CEILING = {
     "/transactions/new": 4,  # + the categories
     "/transactions": 12,  # + the categories (their names for the rows) + the tags of the rows shown (one query, whatever the number of rows)
     "/": 15,  # + the categories (their own table) and what the month spent by category
-    "/accounts": 3,
+    "/accounts": 5,  # + the day of each account's last entry, + the postings of the cards that have bill days (one query each, whatever the number)
     "/budget": 6,  # + the categories
     "/categories": 4,
     "/categories?tab=income": 4,

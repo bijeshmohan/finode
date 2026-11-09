@@ -1197,6 +1197,10 @@ document.body.addEventListener("click", (event) => {
 (function budgetChoice() {
   const apply = (select) => {
     const days = select.form && select.form.querySelector("[data-bill-fields]");
+    const balanceLabel = select.form && select.form.querySelector("[data-balance-label]");
+    if (balanceLabel && select.selectedOptions[0] && "root" in select.selectedOptions[0].dataset) {
+      balanceLabel.textContent = select.selectedOptions[0].dataset.root === "Liabilities" ? "Amount you owe now" : "Current balance";
+    }
     if (days && select.selectedOptions[0] && "root" in select.selectedOptions[0].dataset) {
       const card = select.selectedOptions[0].dataset.root === "Liabilities";
       days.hidden = !card;
@@ -1219,6 +1223,18 @@ document.body.addEventListener("click", (event) => {
   document.body.addEventListener("change", (event) => {
     if (!event.target.matches) return;
     if (event.target.matches('form select[name="parent_id"]')) apply(event.target);
+  });
+  // The kind chips choose the account's group: they set the hidden select and let the form react to it.
+  document.body.addEventListener("click", (event) => {
+    const chip = event.target.closest && event.target.closest("[data-kind-chip]");
+    if (!chip) return;
+    const select = chip.form && chip.form.querySelector('select[name="parent_id"]');
+    if (!select) return;
+    select.value = chip.dataset.kindChip;
+    chip.closest("[data-kind-chips]").querySelectorAll("[data-kind-chip]").forEach((c) => {
+      c.setAttribute("aria-pressed", String(c === chip));
+    });
+    select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   document.querySelectorAll("[data-bill-fields]").forEach((days) => {
     days.querySelectorAll("input, select").forEach((el) => { el.disabled = days.hidden; });
@@ -1246,8 +1262,36 @@ document.body.addEventListener("click", (event) => {
     more.addEventListener("click", () => {
       page.classList.add("show-closed");
       more.closest(".unused-toggle").remove();
+      page.querySelectorAll("[data-rail]").forEach(refresh);
     });
   }
+
+  // A row that runs past the screen says how many accounts it holds and shows a thin track of how far it has scrolled; a row
+  // that fits shows neither.
+  function refresh(rail) {
+    const kind = rail.closest(".acc-kind");
+    const track = kind.querySelector("[data-track]");
+    const count = kind.querySelector("[data-count]");
+    const cards = [...rail.querySelectorAll(".acc-card:not(.acc-card-add)")].filter((c) => c.offsetParent !== null);
+    // It overflows when an account's own card runs past the edge (the Add account card at the end does not count).
+    const last = cards[cards.length - 1];
+    const end = last ? last.getBoundingClientRect().right - rail.getBoundingClientRect().left + rail.scrollLeft : 0;
+    const overflows = end > rail.clientWidth + 1;
+    track.hidden = !overflows;
+    count.hidden = !overflows;
+    count.textContent = String(cards.length);
+    if (!overflows) return;
+    const share = rail.clientWidth / rail.scrollWidth;
+    const max = rail.scrollWidth - rail.clientWidth;
+    const bar = track.firstElementChild;
+    bar.style.width = `${share * 100}%`;
+    bar.style.transform = `translateX(${max ? (rail.scrollLeft / max) * (1 / share - 1) * 100 : 0}%)`;
+  }
+  page.querySelectorAll("[data-rail]").forEach((rail) => {
+    rail.addEventListener("scroll", () => refresh(rail), { passive: true });
+    refresh(rail);
+  });
+  window.addEventListener("resize", () => page.querySelectorAll("[data-rail]").forEach(refresh));
 })();
 
 // ---- Offline, failed requests and loading ----

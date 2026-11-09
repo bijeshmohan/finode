@@ -14,14 +14,13 @@ def new_person(monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
 
 
-def test_with_no_accounts_the_page_shows_an_add_account_pill_and_no_groups(client):
-    for tab, _target in (("assets", "Bank Accounts"), ("liabilities", "Credit Cards")):
-        text = client.get(f"/accounts?tab={tab}").text
-        shown = text[text.index("data-accounts") :]
-        assert "Add account" in shown and f"/accounts/new?root={tab}" in shown
-        for name in ("Bank Accounts", "Cash", "Investments", "Credit Cards", "Loans"):
-            assert f">{name}<" not in shown, name
-        assert "acc-gh" not in shown and "Built in" not in text and "lock" not in shown.lower()
+def test_with_no_accounts_the_page_shows_an_add_account_pill_and_no_kinds(client):
+    text = client.get("/accounts").text
+    shown = text[text.index("data-accounts") :]
+    assert "Add account" in shown and 'href="/accounts/new"' in shown
+    for name in ("Bank Accounts", "Cash", "Investments", "Credit Cards", "Loans"):
+        assert f">{name}<" not in shown, name
+    assert "acc-gh" not in shown and "Built in" not in text and "lock" not in shown.lower()
 
 
 def test_only_groups_with_accounts_are_shown(client):
@@ -34,12 +33,15 @@ def test_only_groups_with_accounts_are_shown(client):
     assert "Nothing here yet" not in text
 
 
-def test_the_plus_on_a_type_starts_on_its_first_group(client):
-    page = client.get("/accounts/new?root=assets").text
-    bank = group(client, "Bank Accounts")["id"]
-    assert re.search(rf'<option value="{bank}"[^>]*selected', page)
-    liabilities = client.get("/accounts/new?root=liabilities").text
-    assert re.search(rf'<option value="{group(client, "Credit Cards")["id"]}"[^>]*selected', liabilities)
+def test_the_form_offers_the_five_kinds_in_the_pages_order_and_starts_on_none(client):
+    page = client.get("/accounts/new").text
+    chips = re.findall(r'data-kind-chip="[^"]+" aria-pressed="(\w+)">([^<]+)<', page)
+    assert [name for _state, name in chips] == ["Bank Accounts", "Cash", "Credit Cards", "Investments", "Loans"]
+    assert {state for state, _name in chips} == {"false"}, "nothing is chosen for the person"
+    assert ">Under<" not in page and ">Kind<" in page
+    loans = group(client, "Loans")["id"]
+    chosen = client.get(f"/accounts/new?parent={loans}").text
+    assert re.search(rf'data-kind-chip="{loans}" aria-pressed="true"', chosen)
 
 
 def test_the_form_starts_as_the_group_says(client):

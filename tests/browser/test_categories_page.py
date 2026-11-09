@@ -145,21 +145,9 @@ def test_the_month_in_the_pill_is_a_picker_that_goes_straight_to_that_month(page
     assert "month=2026-02" in page.url, "a month the page never shows is not taken"
 
 
-def test_accounts_and_categories_share_the_same_heights(page: Page, books):
-    spots = {}
-    for path in ("/accounts", "/categories"):
-        page.goto(path)
-        title, chips, hero = (
-            page.locator(s).first.bounding_box() for s in (".page-head h1", ".cat-chips", ".cat-hero")
-        )
-        assert page.locator(".cat-bar .head-icons").count() == 0, f"{path}: nothing beside the switcher"
-        spots[path] = (round(title["y"]), round(chips["y"]), round(chips["width"]), round(hero["y"]))
-    assert spots["/accounts"] == spots["/categories"], f"title, full-width switcher and figure line up: {spots}"
-
-
 def test_the_head_is_the_same_on_accounts_categories_and_budgets(page: Page, books):
-    """The title lines up on all three; Accounts and Categories share the switcher, label and figure, and Budgets (no
-    switcher since goals went) puts its label and figure right under the title."""
+    """The title lines up on all three; Accounts and Budgets (no switcher) put the label and figure right under the
+    title, and Categories has its switcher between them."""
     spots = {}
     for path in ("/accounts", "/categories", "/budget"):
         page.goto(path)
@@ -177,8 +165,6 @@ def test_the_head_is_the_same_on_accounts_categories_and_budgets(page: Page, boo
         )
         expect(page.locator(".ready-hero .hero-top .muted").first).to_be_visible()
     assert len({spot[0] for spot in spots.values()}) == 1, f"the titles line up: {spots}"
-    assert spots["/accounts"] == spots["/categories"], f"switcher, label and figure line up: {spots}"
-    assert spots["/budget"][1] is None and spots["/budget"][2] < spots["/accounts"][2], (
-        f"no switcher on Budgets: {spots}"
-    )
-    assert spots["/budget"][4] == spots["/accounts"][4], f"the figure is the same size: {spots}"
+    assert spots["/accounts"] == spots["/budget"], f"label and figure line up where there is no switcher: {spots}"
+    assert spots["/accounts"][1] is None and spots["/categories"][1] is not None
+    assert spots["/categories"][4] == spots["/accounts"][4], f"the figure is the same size: {spots}"

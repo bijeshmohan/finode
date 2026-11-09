@@ -610,7 +610,7 @@ class TransactionRepository:
         return postings
 
     def posting_facts(self, aids: builtins.list[UUID]):
-        """What an account's running balance needs from its postings (transaction, side, amount, date, created): no
+        """What an account's running balance needs from its postings (transaction, side, amount, date, created, account): no
         payees, notes or other accounts, so a long history costs little to read."""
         if not aids:
             return []
@@ -622,11 +622,29 @@ class TransactionRepository:
                 Posting.posted_on,
                 Transaction.date,
                 Transaction.created,
+                Posting.account_id,
             )
             .join(Transaction, Transaction.id == Posting.transaction_id)
             .where(col(Posting.account_id).in_(aids), Posting.user_id == self.uid, Transaction.user_id == self.uid)
         )
         return self.db.exec(statement).all()
+
+    def last_entry_dates(self, aids: builtins.list[UUID], date_to: date) -> dict[UUID, date]:
+        """The day of each account's newest entry up to `date_to`, in one query (an account with none is left out)."""
+        if not aids:
+            return {}
+        statement = (
+            select(Posting.account_id, func.max(Transaction.date))
+            .join(Transaction, Transaction.id == Posting.transaction_id)
+            .where(
+                col(Posting.account_id).in_(aids),
+                Posting.user_id == self.uid,
+                Transaction.user_id == self.uid,
+                Transaction.date <= date_to,
+            )
+            .group_by(Posting.account_id)
+        )
+        return dict(self.db.exec(statement).all())
 
     def postings_for_accounts(
         self,

@@ -13,18 +13,26 @@
     <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
            placeholder="e.g. HDFC Savings" {{ "autofocus" if not editing }}>
   </label>
+  {% if kinds or parent_options %}
   <div class="under-field">
-    <span>Under</span>
-    <select name="parent_id" data-sheet-select class="is-picked" aria-hidden="true" tabindex="-1">
+    {% if placed %}
+    <span>{{ placed[0] }}</span><span class="inside">{{ placed[1] }}</span>
+    {% else %}
+    <span>Kind</span>
+    <div class="chips kind-chips" data-kind-chips role="group" aria-label="Kind of account">
+      {% for g in kinds %}<button type="button" class="chip" data-kind-chip="{{ g.account.id }}" aria-pressed="{{ 'true' if g.account.id == parent_id else 'false' }}">{{ g.account.name }}</button>{% endfor %}
+    </div>
+    {% endif %}
+    <select name="parent_id" hidden>
       {% if not editing %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
-      <option value="{{ n.account.id }}" {{ "selected" if n.account.id == parent_id }}{% if root_of %} data-root="{{ root_of[n.account.id] }}"{% endif %}{% if starts and n.account.id in starts %} data-start="{{ starts[n.account.id] }}"{% endif %}>{{ n.path }}</option>
+      <option value="{{ n.account.id }}" {{ "selected" if n.account.id == parent_id }}{% if root_of %} data-root="{{ root_of[n.account.id] }}"{% endif %}{% if starts and n.account.id in starts %} data-start="{{ starts[n.account.id] }}"{% endif %}>{{ n.account.name }}</option>
       {% endfor %}
     </select>
-    <button type="button" class="field-pick" data-pick-generic data-title="Under" data-noun="accounts" aria-haspopup="dialog" aria-label="Under"><span>Choose…</span></button>
   </div>
+  {% endif %}
   {% if not editing or node.is_leaf %}
-  <label>{{ "Balance" if editing else "Current balance" }}
+  <label><span data-balance-label>{{ "Amount you owe now" if root_name == "Liabilities" else ("Balance" if editing else "Current balance") }}</span>
     <input type="text" name="balance" inputmode="decimal" placeholder="0.00"
            value="{{ node.account.balance if editing else '' }}">
     {% if editing %}<span class="hint">Changing this records an adjustment against Opening Balances.</span>{% endif %}
@@ -85,5 +93,4 @@
   <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
 </section>
 {% endif %}
-{% include "partials/pick_dialog.html" %}
 {% endblock %}

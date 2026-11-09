@@ -1,11 +1,13 @@
-"""The accounts page: every group open under its heading, unused accounts tucked away."""
+"""The accounts page: a row of cards under each kind, closed accounts tucked away."""
 
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
+from app.clock import local_today
 from app.models.account import Account
+from app.templating import short_date
 
 from .books import post_account
 
@@ -22,6 +24,7 @@ def tree(client, root_accounts, session):
         "old": make("Old Savings", banks),
     }
     cards = make("Credit Cards", root_accounts["Liabilities"])
+    ids["cards"] = cards
     ids["amex"] = make("Amex", cards, balance="300")
     food = make(
         "Food", root_accounts["Assets"]
@@ -40,61 +43,41 @@ def age(session, *names, days=30):
     session.commit()
 
 
-def item(page: str, account_id: str) -> str:
-    """The <li> of one account."""
-    start = page.index('<li data-path="', page.index(f'/accounts/{account_id}"') - 400)
-    return page[start : page.index("</li>", page.index(f'/accounts/{account_id}"'))]
+def card(page: str, account_id: str) -> str:
+    """The card of one account."""
+    start = page.rindex("<a ", 0, page.index(f'/accounts/{account_id}"'))
+    return page[start : page.index("</a>", start)]
 
 
-def test_a_group_is_a_heading_with_its_accounts_under_it_and_nothing_folds(client, tree):
+def test_each_kind_is_a_heading_over_a_row_of_cards(client, tree):
     page = client.get("/accounts").text
-    assert f'href="/accounts/{tree["food"]}" title="Open Food"' in page, "the heading opens the group's own page"
-    assert f'href="/accounts/{tree["hdfc"]}"' in page
-    assert "<details" not in page
-    assert page.count('<a class="acc-gh"') == 2, "Banks and Food"
-    assert 'class="mono"' not in page, "plain rows, like Budgets and Categories"
+    heads = re.findall(r'<div class="acc-gh">\s*<span>([^<]+)<', page)
+    assert heads == ["Banks", "Credit Cards", "Food", "Other"], heads
+    assert f'href="/accounts/{tree["hdfc"]}"' in page and "<details" not in page
+    assert page.count("data-rail") == len(heads), "one row of cards per kind"
+    assert 'class="mono"' not in page and "account-row" not in page, "cards, not rows"
 
 
-def test_plain_accounts_under_a_type_share_one_block_under_others(client, tree):
+def test_the_plain_accounts_share_one_other_row_at_the_end(client, tree):
     page = client.get("/accounts").text
-    assert page.count('<div class="acc-block') == 3, "Banks, Food and the plain ones"
-    assert page.count('<a class="acc-gh"') == 2, "the two groups open pages"
-    assert page.count("data-others") == 1 and ">Others</span>" in page, (
-        "the plain ones sit under Others, a label and not a link"
-    )
+    assert re.findall(r'<div class="acc-gh">\s*<span>([^<]+)<', page)[-1] == "Other"
+    assert f'href="/accounts/{tree["rent"]}"' in page.split(">Other<", 1)[1]
 
 
-def test_the_chips_pick_a_type_in_the_order_assets_liabilities_and_equity_has_none(client, tree):
+def test_a_row_ends_with_a_card_that_adds_an_account_of_that_kind(client, tree):
     page = client.get("/accounts").text
-    chips = re.findall(r'<a class="chip" href="/accounts\?tab=(\w+)" aria-pressed="(\w+)">(\w+)</a>', page)
-    # The chosen chip links to Equity (tapping it again leaves neither chosen); the other one links to itself.
-    assert chips == [("equity", "true", "Asset"), ("liabilities", "false", "Liability")]
-    assert client.get("/accounts?tab=nonsense").text.count('aria-pressed="true"') == 1 and client.get(
-        "/accounts?tab=nonsense"
-    ).text.split('aria-pressed="true">')[1].startswith("Asset<")
-    assert "Amex" not in page and "Opening Balances" not in page, "only the chosen type is listed"
-    liabilities = client.get("/accounts?tab=liabilities").text
-    assert "Amex" in liabilities and "HDFC" not in liabilities and 'aria-pressed="true">Liability<' in liabilities
-    assert "Opening Balances" in client.get("/accounts?tab=equity").text
-    assert "data-account-search" not in page and "Recently used" not in page and "Search accounts" not in page
-    assert "Net worth" not in page and 'class="add-row" href="/accounts/new?root=assets"' in page, (
-        "an Add account row ends the page"
-    )
-    assert "circ-button" not in page and "head-icons" not in page, "no round + or bin beside the switcher"
-    assert page.index('class="add-row"') > page.index('class="tile list"'), "after the accounts"
+    assert f'class="acc-card acc-card-add" href="/accounts/new?parent={tree["banks"]}"' in page
+    assert 'class="add-row" href="/accounts/new"' in page, "the page ends with one for a kind that has no row yet"
 
 
-def test_the_figure_is_the_chosen_types_total(client, tree):
+def test_the_figure_is_the_net_worth_and_credit_cards_read_owed(client, tree):
     page = client.get("/accounts").text
-    assert (
-        '<span class="muted">What you own</span>' in page
-        and "5,000.00" in page.split('cat-hero"', 1)[1].split("</span>\n</div>", 1)[0]
-    )
-    owed = client.get("/accounts?tab=liabilities").text
-    assert "What you owe" in owed and "300.00" in owed.split('cat-hero"', 1)[1].split("</span>\n</div>", 1)[0]
+    hero = page.split('cat-hero"', 1)[1].split("</span>\n</div>", 1)[0]
+    assert "Net worth" in hero and "4,700.00" in hero, "5,000 owned less 300 owed"
+    assert "300.00 owed" in page and "−" not in hero
 
 
-def test_the_quiet_line_counts_the_open_accounts_of_the_type(client, tree):
+def test_the_quiet_line_counts_the_open_accounts(client, tree):
     page = client.get("/accounts").text
     line = page.split('hero-note"><span>', 1)[1].split("</span>", 1)[0]
     assert line.endswith((" accounts", " account")), line
@@ -105,16 +88,23 @@ def test_every_open_account_shows_even_with_no_entries_and_no_balance(client, tr
     page = client.get("/accounts").text
     assert "unused" not in page and "Load more" not in page, "nothing is tucked away for being quiet"
     assert "closed-hidden" not in page
-    for name in ("old", "snacks", "rent", "food", "groceries", "hdfc"):
+    for name in ("old", "snacks", "rent", "groceries", "hdfc", "amex"):
         assert f'href="/accounts/{tree[name]}"' in page, name
-    assert f'href="/accounts/{tree["amex"]}"' in client.get("/accounts?tab=liabilities").text
 
 
 def test_closed_accounts_wait_behind_load_more(client, tree, session):
     assert client.post(f"/api/accounts/{tree['old']}/close").status_code == 200
     page = client.get("/accounts").text
-    assert "closed-hidden" in item(page, tree["old"]) and "closed-hidden" not in item(page, tree["hdfc"])
+    assert "closed-hidden" in card(page, tree["old"]) and "closed-hidden" not in card(page, tree["hdfc"])
     assert ">Load more</button>" in page
+
+
+def test_a_kind_with_only_closed_accounts_hides_whole(client, tree):
+    for name in ("groceries", "snacks"):
+        assert client.post(f"/api/accounts/{tree[name]}/close").status_code == 200
+    page = client.get("/accounts").text
+    assert re.search(r'<section class="acc-kind closed-hidden">\s*<div class="acc-gh">\s*<span>Food<', page)
+    assert re.search(r'<section class="acc-kind">\s*<div class="acc-gh">\s*<span>Banks<', page)
 
 
 def test_the_page_has_no_note_under_its_list(client, root_accounts):
@@ -134,17 +124,83 @@ def test_categories_end_with_an_add_row_and_an_empty_page_keeps_its_button(clien
 
 
 def test_accounts_in_the_budget_carry_a_dot_and_the_line_explains_it(client, tree):
-    html = client.get("/accounts?tab=assets").text
-    row = lambda name: re.search(
-        rf'<a class="account-row[^>]*>(?:(?!</a>).)*{name}(?:(?!</a>).)*</a>', html, re.S
-    ).group(0)
-    assert "budget-dot" in row("HDFC")
+    assert "budget-dot" in card(client.get("/accounts").text, tree["hdfc"])
     client.patch(f"/api/accounts/{tree['hdfc']}", json={"on_budget": False})
-    html = client.get("/accounts?tab=assets").text
-    assert "budget-dot" not in row("HDFC")
-    assert "budget-dot" in row("Rent")
+    html = client.get("/accounts").text
+    assert "budget-dot" not in card(html, tree["hdfc"])
+    assert "budget-dot" in card(html, tree["rent"])
 
 
-def test_the_key_shows_only_when_an_account_feeds_the_budget(client, tree):
-    assert "budget-key" in client.get("/accounts?tab=assets").text
-    assert "budget-key" not in client.get("/accounts?tab=liabilities").text
+def test_the_key_shows_only_when_an_account_feeds_the_budget(client, tree, root_accounts):
+    assert "budget-key" in client.get("/accounts").text
+    for account in client.get("/api/accounts/").json():
+        if account["on_budget"]:
+            client.patch(f"/api/accounts/{account['id']}", json={"on_budget": False})
+    assert "budget-key" not in client.get("/accounts").text
+
+
+# ---- the quiet line on a card -----------------------------------------------------------------------------------
+
+
+def transfer(client, source, target, amount, day):
+    return client.post(
+        "/api/transactions/",
+        json={
+            "date": day.isoformat(),
+            "payee": "move",
+            "postings": [
+                {"account_id": target, "side": "debit", "amount": amount},
+                {"account_id": source, "side": "credit", "amount": amount},
+            ],
+        },
+    )
+
+
+def test_a_card_says_when_its_last_entry_was_or_that_it_has_none(client, tree):
+    day = local_today() - timedelta(days=3)
+    assert transfer(client, tree["hdfc"], tree["old"], "10", day).status_code == 201
+    page = client.get("/accounts").text
+    assert f"Last entry {short_date(day)}" in card(page, tree["old"])
+    assert "No entries yet" in card(page, tree["rent"])
+
+
+def test_an_entry_dated_ahead_is_not_the_last_entry(client, tree):
+    ahead = local_today() + timedelta(days=9)
+    assert transfer(client, tree["hdfc"], tree["old"], "10", ahead).status_code == 201
+    assert "No entries yet" in card(client.get("/accounts").text, tree["old"])
+
+
+def test_a_credit_card_with_a_bill_says_when_it_is_due(client, tree, root_accounts):
+    made = post_account(
+        client,
+        {"name": "Visa", "parent_id": tree["cards"], "statement_day": 1, "due_day": 20},
+    ).json()
+    assert transfer(client, made["id"], tree["hdfc"], "700", local_today() - timedelta(days=60)).status_code == 201
+    line = card(client.get("/accounts").text, made["id"])
+    bill = client.get(f"/api/accounts/{made['id']}/bill").json()
+    due = date.fromisoformat(bill["due_date"])
+    assert bill["bill"] != "0.00" and (f"Bill due {short_date(due)}" in line or "Bill overdue" in line), line
+    assert "Last entry" not in line
+
+
+def test_a_card_with_nothing_to_pay_says_its_last_entry_instead(client, tree):
+    made = post_account(client, {"name": "Visa", "parent_id": tree["cards"], "statement_day": 1, "due_day": 20}).json()
+    assert transfer(client, made["id"], tree["hdfc"], "10", local_today()).status_code == 201
+    assert "Bill due" not in card(client.get("/accounts").text, made["id"])
+
+
+def test_the_kinds_come_in_the_pages_order_with_owed_ones_marked(client, monkeypatch):
+    from app.services import account as account_service
+
+    from .test_fixed_parents import make
+
+    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
+    make(client, "Home loan", "Loans", balance="900")
+    make(client, "Fund", "Investments", balance="400")
+    make(client, "Visa", "Credit Cards", balance="50")
+    make(client, "Wallet", "Cash", balance="30")
+    make(client, "HDFC", "Bank Accounts", balance="10")
+    page = client.get("/accounts").text
+    heads = re.findall(r'<div class="acc-gh">\s*<span>([^<]+)<', page)
+    assert heads == ["Bank Accounts", "Cash", "Credit Cards", "Investments", "Loans"]
+    assert "50.00 owed" in page and "900.00 owed" in page and "400.00 owed" not in page
