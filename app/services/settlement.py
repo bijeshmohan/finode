@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import NoReturn
 from uuid import UUID
 
-from ..models.contact import PartyObligation, PartyTransaction
+from ..models.contact import ObligationSettlement, PartyObligation, PartyTransaction
 from ..models.transaction import PostingSide
 from ..repositories.obligation import ObligationRepository
 from ..repositories.shared_expense import SharedExpenseRepository
@@ -321,7 +321,7 @@ class SettlementService:
             excess_obligation_id=made[0].id if made else None,
         )
 
-    def _settled_before(self, row, entry: TransactionRead) -> Decimal:
+    def _settled_before(self, row: ObligationSettlement, entry: TransactionRead) -> Decimal:
         """What had been cleared on the obligation by entries before this one (by date, then by when it was made)."""
         others = [r for r in self.ob.settlements(obligation_ids=[row.obligation_id]) if r.id != row.id]
         if not others:

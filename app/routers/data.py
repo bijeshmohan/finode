@@ -10,14 +10,15 @@ from ..dependencies import Backup, Data
 from ..limits import upload_limit_bytes
 from ..schemas.backup import RestoreSummary
 from ..schemas.data import ImportSummary
-from ..services.data import ImportRejected
+from ..services.backup import BackupService
+from ..services.data import DataService, ImportRejected
 
 MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
 router = APIRouter(tags=["data"], dependencies=[Depends(require_authenticated_user)])
 
 
-def export_response(data, kind: str) -> Response:
+def export_response(data: DataService, kind: str) -> Response:
     """The user's data as a downloadable file (`kind` is "ledger" or "csv")."""
     stamp = local_today().isoformat()
     if kind == "csv":
@@ -62,7 +63,7 @@ def import_data(data: Data, file: UploadFile | None = File(default=None), dry_ru
         raise HTTPException(status_code=400, detail=e.summary.model_dump(mode="json")) from None
 
 
-def backup_response(backup) -> Response:
+def backup_response(backup: BackupService) -> Response:
     """Everything the user recorded as one JSON file (see services/backup.py)."""
     body = json.dumps(backup.export(), indent=1, ensure_ascii=False).encode("utf-8")
     return Response(

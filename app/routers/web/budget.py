@@ -125,7 +125,7 @@ def _hint(node: Node, style: str = "western") -> str:
     return " · ".join(parts)
 
 
-def _glance(data) -> dict:
+def _glance(data: BudgetLine) -> dict:
     """The month (or a group) at a glance, worked out as Home does: what is left, and what was spent out of what there was to spend."""
     to_spend = data.activity + max(data.available, Decimal(0))
     return {

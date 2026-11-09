@@ -2,7 +2,7 @@
 
 import builtins
 from collections import Counter
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
@@ -23,6 +23,7 @@ from ..schemas.transaction import (
     BatchResult,
     PayeeDefaultRead,
     PayeeRouteRead,
+    PostingBase,
     PostingCreate,
     PostingRead,
     RouteAccount,
@@ -68,7 +69,7 @@ class DuplicateReferenceError(InvalidPostingError):
     """A source's reference is already used by another entry."""
 
 
-def _rows(postings) -> list[tuple[str, str, Decimal]]:
+def _rows(postings: Iterable[PostingBase | PostingCreate | Posting]) -> list[tuple[str, str, Decimal]]:
     return sorted((str(p.account_id), PostingSide(p.side).value, p.amount) for p in postings)
 
 
@@ -116,7 +117,7 @@ class TransactionService:
                 raise RuntimeError("the profile names a currency finode does not know")
         return self._currency
 
-    def _fill_accounts(self, postings, accounts: builtins.list[Account]) -> None:
+    def _fill_accounts(self, postings: Iterable[PostingCreate], accounts: builtins.list[Account]) -> None:
         """Where a line posts: a line that names only its category posts to Expenses (a spending category) or Income
         (an earning one)."""
         roots = {a.name: a.id for a in accounts if a.parent_id is None}
@@ -124,13 +125,16 @@ class TransactionService:
         for posting in postings:
             if posting.account_id is not None:
                 continue
-            category = categories.get(posting.category_id)
+            category = categories.get(posting.category_id) if posting.category_id is not None else None
             if category is None:
                 raise InvalidPostingError(f"category '{posting.category_id}' not found!")
             posting.account_id = roots["Expenses" if category.kind == "spending" else "Income"]
 
     def _check_categories(
-        self, postings, accounts_by_id: dict[UUID, Account], keep_categories: Collection[UUID] = frozenset()
+        self,
+        postings: Sequence[PostingCreate],
+        accounts_by_id: dict[UUID, Account],
+        keep_categories: Collection[UUID] = frozenset(),
     ) -> None:
         """A category named on a line is the person's own, open (unless the entry already used it) and fits the line:
         a spending category goes on Expenses (or an expense account) or on a payment out of the budget into an account
@@ -140,12 +144,12 @@ class TransactionService:
             return
         categories = {c.id: c for c in self.cr.list()}
         for posting in named:
-            category = categories.get(posting.category_id)
+            category = categories.get(posting.category_id) if posting.category_id is not None else None
             if category is None:
                 raise InvalidPostingError(f"category '{posting.category_id}' not found!")
             if category.closed_on is not None and category.id not in keep_categories:
                 raise InvalidPostingError(f"category '{category.name}' is closed: reopen it to use it!")
-            account = accounts_by_id[posting.account_id]
+            account = accounts_by_id[posting.target]
             root = AccountService.root_name(account, accounts_by_id)
             if root in GROUP_POSTING_ROOT_NAMES:
                 wanted = "spending" if root == "Expenses" else "earning"
@@ -223,9 +227,9 @@ class TransactionService:
 
         # Expenses and Income take many lines (one per category), so on them it is the same category on both sides that
         # moves money from itself to itself; any other account may not be on both sides at all.
-        def whole(p) -> tuple:
-            books = AccountService.root_name(accounts_by_id[p.account_id], accounts_by_id) in GROUP_POSTING_ROOT_NAMES
-            return (p.account_id, p.category_id if books else None)
+        def whole(p: PostingCreate) -> tuple[UUID, UUID | None]:
+            books = AccountService.root_name(accounts_by_id[p.target], accounts_by_id) in GROUP_POSTING_ROOT_NAMES
+            return (p.target, p.category_id if books else None)
 
         both = {whole(p) for p in postings if p.side == PostingSide.DEBIT} & {
             whole(p) for p in postings if p.side == PostingSide.CREDIT
@@ -573,7 +577,7 @@ class TransactionService:
             raise ValueError(f"category '{category_id}' not found!")
         return [c.id for c in categories if c.id == category_id or c.parent_id == category_id]
 
-    def _args(self, account, kind, also):
+    def _args(self, account: UUID | None, kind: str | None, also: UUID | None):
         account_ids = self._account_subtree(account) if account else None
         also_ids = self._category_subtree(also) if also else None
         if kind not in (None, "", "expense", "income", "transfer"):
@@ -645,7 +649,7 @@ class TransactionService:
         account_ids, kind_accounts, also_ids = self._args(account, kind, also)
         text, payee = (text or "").strip() or None, (payee or "").strip() or None
 
-        def read(first, last, limit, start):
+        def read(first: date | None, last: date | None, limit: int | None, start: int):
             return self.tr.list(
                 account_ids, first, last, limit, start, text, kind or None, kind_accounts, also_ids, payee, tag=tag
             )

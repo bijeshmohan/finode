@@ -343,7 +343,9 @@ class BudgetService:
             root = by_id[root.parent_id]
         return [root.name, *names]
 
-    def _lines(self, categories: dict[UUID, BudgetCategory], own) -> list[BudgetLine]:
+    def _lines(
+        self, categories: dict[UUID, BudgetCategory], own: dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]]
+    ) -> list[BudgetLine]:
         """The categories as a tree in display order: a group row (sums) before its subcategories;
         a group that was itself posted to or assigned money also gets an '(other)' row of its own."""
         children: dict[UUID | None, list[BudgetCategory]] = {}
@@ -370,7 +372,13 @@ class BudgetService:
                 or any(visible(c) for c in children.get(category.id, []))
             )
 
-        def line(category: BudgetCategory, name: str, depth: int, figures, group: bool = False) -> BudgetLine:
+        def line(
+            category: BudgetCategory,
+            name: str,
+            depth: int,
+            figures: tuple[Decimal, Decimal, Decimal, Decimal],
+            group: bool = False,
+        ) -> BudgetLine:
             a, s, v, o = figures
             return BudgetLine(
                 category_id=category.id,

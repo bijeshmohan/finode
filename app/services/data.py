@@ -3,6 +3,7 @@
 import csv
 import io
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date as Date
 from decimal import Decimal
@@ -15,8 +16,9 @@ from ..config import settings
 from ..ledger import AccountDecl, LedgerPosting, LedgerTransaction, parse, write
 from ..ledger.parse import _plain
 from ..limits import LimitReached, ensure_room
+from ..models import Account
 from ..models.category import BudgetCategory
-from ..models.transaction import PostingSide
+from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..schemas.account import AccountCreate
 from ..schemas.category import CategoryCreate
@@ -177,15 +179,18 @@ class DataService:
             found[category_id] = ":".join(reversed(names))
         return found
 
-    def _line_paths(self, accounts, paths: dict[UUID, str]):
+    def _line_paths(
+        self, accounts: Sequence[Account], paths: dict[UUID, str]
+    ) -> tuple[Callable[[Posting], str], set[UUID]]:
         """How a line is named in a journal: a line on Expenses or Income is written as the account of its category
         (`Expenses:Food:Groceries`, which is what other ledger tools expect); any other line by its account."""
         roots = {a.id for a in accounts if a.parent_id is None and a.name in CATEGORY_ROOTS}
         names = self._category_paths()
 
-        def path_of(p) -> str:
-            if p.account_id in roots and p.category_id in names:
-                return f"{paths[p.account_id]}:{':'.join(_segment(n) for n in names[p.category_id].split(':'))}"
+        def path_of(p: Posting) -> str:
+            category = p.category_id
+            if p.account_id in roots and category is not None and category in names:
+                return f"{paths[p.account_id]}:{':'.join(_segment(n) for n in names[category].split(':'))}"
             return paths[p.account_id]
 
         return path_of, roots

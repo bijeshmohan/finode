@@ -9,7 +9,7 @@ from ...services.account import AccountService
 from ...templating import templates
 from .budget import parse_month
 from .categories import _month_context
-from .transactions import HOME_FIRST, HOME_MORE, AccountIndex, _more, list_rows, to_row
+from .transactions import HOME_FIRST, HOME_MORE, AccountIndex, TransactionRow, _more, list_rows, to_row
 
 router = APIRouter()
 
@@ -57,7 +57,7 @@ def dashboard(
     used_roots = {index.roots[a.id] for a in all_accounts if a.parent_id is not None and a.id not in system_ids}
 
     # Opening balances are bookkeeping, not a transaction the user recorded.
-    def recorded(rows):
+    def recorded(rows: list[TransactionRow]) -> bool:
         return any(not any(p.account_id in system_ids for p in row.transaction.postings) for row in rows)
 
     has_recorded = recorded(recent)

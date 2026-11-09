@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, cast
 
+from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from .clock import local_day, local_today
@@ -109,7 +110,7 @@ def short_date(value: date) -> str:
     return f"{value.day} {value:%b %Y}"
 
 
-def date_chip(value) -> str:
+def date_chip(value: date | str) -> str:
     """The day on the Add screen's date chip: Today, 24 Oct / Wed, 21 Oct / 21 Oct 2025."""
     if isinstance(value, str):
         value = date.fromisoformat(value)
@@ -153,7 +154,7 @@ _globals["asset_url"] = asset_url
 _render = templates.TemplateResponse
 
 
-def _template_response(request, *args, **kwargs):
+def _template_response(request: Request, *args: Any, **kwargs: Any):
     code = getattr(request.state, "currency", None)
     token, places_token = _grouping.set(grouping_for(code)), _places.set(places(code))
     try:

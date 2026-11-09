@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from datetime import date
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -50,7 +52,7 @@ def assign(category_id: UUID, data: BudgetAssign, budget: Budget):
         raise HTTPException(status_code=400, detail=str(e)) from None
 
 
-def _run(action, *args):
+def _run(action: Callable[..., Any], *args: Any):
     """Run a budget action; its refusals are 400s (a missing category is a 404)."""
     try:
         return action(*args)

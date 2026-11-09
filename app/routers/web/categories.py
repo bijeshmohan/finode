@@ -7,7 +7,9 @@ nothing."""
 from __future__ import annotations
 
 import calendar
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -18,6 +20,7 @@ from pydantic import ValidationError
 
 from ...clock import local_today
 from ...dependencies import Categories, Reports
+from ...schemas.account import RegisterEntry
 from ...schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 from ...templating import templates
 from .budget import parse_month, shift
@@ -68,7 +71,7 @@ def _period(month: str):
     return when, min(last, local_today()), when == this_month
 
 
-def _month_context(when, is_current: bool) -> dict:
+def _month_context(when: date, is_current: bool) -> dict:
     return {
         "month": when,
         "month_key": when.strftime("%Y-%m"),
@@ -80,7 +83,7 @@ def _month_context(when, is_current: bool) -> dict:
     }
 
 
-def _figures(categories: Categories, reports: Reports, kind: str, when, end):
+def _figures(categories: Categories, reports: Reports, kind: str, when: date, end: date):
     """The month's amounts for one kind: (the tree with closed empty categories left out, what was labelled with each
     category itself, what each category and everything inside it came to)."""
     own = reports.category_totals(kind, when, end)
@@ -245,7 +248,7 @@ def category_page(request: Request, category_id: UUID, categories: Categories, r
 
     # The figure is the whole category's month; the list is what was labelled with this category itself (each
     # subcategory's entries are on its own page).
-    def in_month(rows):
+    def in_month(rows: Sequence[RegisterEntry] | None):
         return [e for e in (rows or []) if when <= e.date <= end]
 
     everything = in_month(categories.register(category_id))

@@ -19,6 +19,8 @@ from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate, AccountUpdate
+from ..schemas.account import RegisterEntry
+from ..schemas.budget import BudgetRead
 from ..schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import (
@@ -32,7 +34,7 @@ from ..schemas.transaction import (
 from ..services.simple import label_simple
 from ..tags import clean_name, clean_names, tags_in
 from ..version import VERSION
-from .accounts import AccountIndex, Place, Places
+from .accounts import AccountIndex, Entry, Place, Places
 from .categories import CategoryIndex
 from .context import Services, services
 
@@ -302,7 +304,7 @@ def list_accounts(
         }
 
 
-def _account_row(e, index: AccountIndex) -> dict[str, Any]:
+def _account_row(e: Entry, index: AccountIndex) -> dict[str, Any]:
     """One account as list_accounts and the account tools show it."""
     return {
         "id": str(e.account.id),
@@ -445,7 +447,7 @@ def _kind(t: TransactionRead, index: AccountIndex) -> str:
     return "transfer"
 
 
-def _net_change(matches: list[tuple[TransactionRead, Decimal]], entry, index: AccountIndex) -> Decimal:
+def _net_change(matches: list[tuple[TransactionRead, Decimal]], entry: Entry, index: AccountIndex) -> Decimal:
     """What the matches did to the account and everything inside it: up for its own kind of side, down for the other."""
     inside = {e.account.id for e in index.entries.values() if e.segments[: len(entry.segments)] == entry.segments}
     debit_normal = entry.root in ("Assets", "Expenses")
@@ -505,7 +507,7 @@ def check_balance(
         if check is None:
             raise ToolError("account not found")
 
-        def row(e) -> dict[str, Any]:
+        def row(e: RegisterEntry) -> dict[str, Any]:
             return {
                 "transaction_id": str(e.transaction_id),
                 "date": e.date.isoformat(),
@@ -1355,7 +1357,7 @@ def _spending(s: Services, text: str) -> CategoryRead:
     return _categories(s).find(name, kind="spending", open_only=True)
 
 
-def _budget(data) -> dict[str, Any]:
+def _budget(data: BudgetRead) -> dict[str, Any]:
     return {
         "month": data.month.strftime("%Y-%m"),
         "currency": data.currency,
@@ -1576,7 +1578,7 @@ def delete_tag(tag: Annotated[str, Field(description="The tag to remove")]) -> d
 # ---- categories ------------------------------------------------------------------------------------
 
 
-def _category_row(c) -> dict[str, Any]:
+def _category_row(c: CategoryRead) -> dict[str, Any]:
     return {
         "id": str(c.id),
         "path": c.path,
