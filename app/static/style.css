@@ -1753,9 +1753,6 @@ form[data-layout="single"] [data-remove-row] { display: none; }
 .acc-card-line { font-size: .75rem; color: var(--muted); white-space: nowrap; }
 .acc-card-line.due { color: var(--negative); }
 .acc-card-add { align-items: center; justify-content: center; flex-direction: row; gap: .35rem; background: none; border-style: dashed; border-color: var(--border); color: var(--accent); font-weight: 600; }
-.acc-track { height: 3px; margin: .125rem .25rem 0; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
-.acc-track i { display: block; height: 100%; width: 40%; border-radius: 3px; background: var(--text); opacity: .45; }
-.acc-track[hidden] { display: none; }
 .acc-card.closed-hidden { display: none; }
 .show-closed .acc-card.closed-hidden { display: flex; }
 .inside { font-size: 1rem; font-weight: 400; color: var(--text); }

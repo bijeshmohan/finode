@@ -44,11 +44,10 @@
       <h2>{{ kind.name }}</h2>
       <p>{{ kind.total|money }}{{ " owed" if kind.owed }} · {{ open_count }} account{{ "" if open_count == 1 else "s" }}</p>
     </div>
-    <div class="acc-rail" data-rail>
+    <div class="acc-rail">
       {% for node in kind.items %}{{ card(node) }}{% endfor %}
       <a class="acc-card acc-card-add" href="{{ kind.add_url }}">{{ icon("plus") }}Add account</a>
     </div>
-    <div class="acc-track" data-track hidden><i></i></div>
   </section>
   {% endfor %}
 
