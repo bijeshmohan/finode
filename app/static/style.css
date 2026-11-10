@@ -1748,8 +1748,10 @@ form[data-layout="single"] [data-remove-row] { display: none; }
 .acct-actions { display: flex; align-items: center; gap: .5rem; }
 .circ-button.pin-button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .circ-button.pin-button[aria-pressed="false"] .icon { color: var(--muted); }
-.pin-mark { display: inline-flex; margin-left: .4rem; color: var(--muted); flex: none; }
-.pin-mark .icon { width: .8em; height: .8em; }
+.acc-card { position: relative; }
+.pin-mark { position: absolute; top: .8rem; right: .9rem; display: inline-flex; color: var(--muted); }
+.pin-mark .icon { width: .8rem; height: .8rem; }
+.acc-card.pinned .acc-card-name { padding-right: 1.2rem; }
 .acc-card-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acc-card-foot { display: flex; flex-direction: column; gap: .1rem; }
 .acc-card-balance { font-size: 1.15rem; font-weight: 700; }
