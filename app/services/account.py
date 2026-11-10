@@ -364,6 +364,7 @@ class AccountService:
             bill_rounding=cast(BillRounding, account.bill_rounding),
             system_key=account.system_key,
             new_accounts_in_budget=account.new_accounts_in_budget,
+            pinned=account.pinned,
             contact_account=account.id in self.ar.contact_account_ids(),
             created=account.created,
             updated=account.updated,
@@ -496,6 +497,26 @@ class AccountService:
         """Only an asset or liability account can be part of the budget."""
         if parent is None or self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):
             raise ValueError("only asset and liability accounts can be part of the budget!")
+
+    def _check_pin(self, account: Account, pinned: bool | None, all_accounts: builtins.list[Account]) -> None:
+        """Pinning is for an open asset or liability account that holds entries: not a group, a root, a contact's account
+        or the system's. Taking a pin off is always allowed."""
+        if pinned is None:
+            raise ValueError("pinned must be true or false!")
+        if not pinned:
+            return
+        by_id = {a.id: a for a in all_accounts}
+        is_group = account.new_accounts_in_budget is not None or self.ar.has_children(account.id)
+        if (
+            account.parent_id is None
+            or is_group
+            or self.is_opening_balances(account, all_accounts)
+            or account.id in self.ar.contact_account_ids()
+            or self._get_root_name(account, by_id) not in ("Assets", "Liabilities")
+        ):
+            raise ValueError("only an account can be pinned, not a group!")
+        if account.closed_on is not None:
+            raise ValueError(f"'{account.name}' is closed: reopen it to pin it!")
 
     def _detect_cycle(self, account_id: UUID, proposed_parent_id: UUID | None) -> bool:
         if proposed_parent_id is None:
@@ -1014,6 +1035,9 @@ class AccountService:
             data.new_accounts_in_budget is None or account.new_accounts_in_budget is None
         ):
             raise ValueError("only a group has a choice for the accounts made in it!")
+
+        if "pinned" in data.model_fields_set:
+            self._check_pin(account, data.pinned, all_accounts)
 
         on_budget = None
         if data.on_budget is not None:

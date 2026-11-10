@@ -18,6 +18,8 @@ MESSAGES = {
     "restore-done": "Backup restored",
     "account-closed": "Account closed",
     "account-reopened": "Account reopened",
+    "account-pinned": "Pinned",
+    "account-unpinned": "Unpinned",
     "account-restored": "Account restored",
     "recurring-saved": "Recurring transaction saved. Anything already due has been recorded.",
     "recurring-paused": "Paused. Nothing will be recorded until you resume it.",

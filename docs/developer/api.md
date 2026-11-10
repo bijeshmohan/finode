@@ -28,7 +28,7 @@ Everything the web app and the assistants can do with your books can be done thr
 | `GET` | `/accounts/closed` | Accounts that were closed (and categories "deleted" while they had a history): the outermost of each closed |
 | `GET` | `/accounts/{account_id}` | The account with its balance as of a day (today by default: later entries do not count yet). |
 | `GET` | `/accounts/` | Accounts with their balances as of a day (today by default: later entries do not count yet). |
-| `PATCH` | `/accounts/{account_id}` | Change an account: name, note, place (`parent_id`) or budget flag (a group: `new_accounts_in_budget`). |
+| `PATCH` | `/accounts/{account_id}` | Change an account: name, note, place (`parent_id`) or budget flag (a group: `new_accounts_in_budget`) or `pinned` (true pins an open account that is not a group; the Accounts page lists it again in a Pinned row). |
 | `DELETE` | `/accounts/{account_id}` | Delete an account for good; refused when it has entries, sub-accounts or a recurring rule (close it instead). |
 | `POST` | `/accounts/{account_id}/close` | Close an account (and everything inside it): its history stays, nothing more can be posted to it. |
 | `POST` | `/accounts/{account_id}/reopen` | Reopen a closed account with everything inside it, and the groups above it. |

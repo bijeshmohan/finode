@@ -280,12 +280,15 @@ def accounts_page(request: Request, accounts: Accounts):
     balance = {r.account.name: r.account.balance for r in shown}
     leaves = [n for r in shown for n in r.walk() if n.depth > 0 and not n.is_group]
     last, bills = accounts.glance(local_today())
+    rows = kinds(shown)
     return templates.TemplateResponse(
         request,
         "accounts.html",
         {
             "active": "accounts",
-            "kinds": kinds(shown),
+            "kinds": rows,
+            # The accounts the person pinned, in the order of the rows below (the same cards again, no totals).
+            "pinned": [n for k in rows for n in k.items if n.account.pinned and not n.closed],
             "net_worth": balance.get("Assets", Decimal("0.00")) - balance.get("Liabilities", Decimal("0.00")),
             "last_entry": last,
             "bills": bills,
@@ -592,6 +595,12 @@ def account_context(
         "is_inflow": lambda change: _is_inflow(root.account.name, change),
         "currency": accounts.currency().code,
         "can_add_child": can_add_child,
+        # Pin or Unpin sits in the menu of an open account that holds entries; a group, a root or a closed account has none.
+        "can_pin": node.kind == "user"
+        and not node.is_group
+        and not node.account.closed_on
+        and not node.account.contact_account
+        and root.account.name in ("Assets", "Liabilities"),
         # Part of a group's balance that was posted to the group itself.
         "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
         if node.postable and node.children
@@ -612,6 +621,24 @@ def close_account(account_id: UUID, accounts: Accounts):
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
     return htmx_redirect(area, flash="account-closed")
+
+
+@router.post("/{account_id}/pin")
+def pin_account(account_id: UUID, accounts: Accounts):
+    try:
+        accounts.update(account_id, AccountUpdate(pinned=True))
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/accounts/{account_id}", flash="account-pinned")
+
+
+@router.post("/{account_id}/unpin")
+def unpin_account(account_id: UUID, accounts: Accounts):
+    try:
+        accounts.update(account_id, AccountUpdate(pinned=False))
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/accounts/{account_id}", flash="account-unpinned")
 
 
 @router.post("/{account_id}/reopen")

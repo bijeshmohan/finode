@@ -347,15 +347,37 @@ def test_restoring_rebuilds_the_same_books_for_someone_else(client, rich):
     assert not old_ids & {a["id"] for a in again["accounts"] if a["parent_id"]}
 
 
-def test_an_older_backup_with_pinned_accounts_still_restores(client, rich):
+def test_a_pinned_account_survives_a_backup_and_a_file_without_pins_restores(client, rich):
+    doc = client.get("/api/backup").json()
+    pinned = next(
+        a
+        for a in doc["accounts"]
+        if a["parent_id"]
+        and not a["closed_on"]
+        and client.patch(f"/api/accounts/{a['id']}", json={"pinned": True}).status_code == 200
+    )
+    doc = client.get("/api/backup").json()
+    assert [a["name"] for a in doc["accounts"] if a["pinned"]] == [pinned["name"]]
+    try:
+        as_user(OTHER)
+        assert (
+            client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")}).status_code
+            == 200
+        )
+        assert [a["name"] for a in client.get("/api/accounts/").json() if a["pinned"]] == [pinned["name"]]
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_a_backup_from_before_pins_restores_with_none_pinned(client, rich):
     doc = client.get("/api/backup").json()
     for account in doc["accounts"]:
-        account["pinned"] = True  # files from before pinning was removed carry the flag
+        del account["pinned"]
     try:
         as_user(OTHER)
         done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
-        assert done.status_code == 200, done.text
-        assert not any("pinned" in a for a in client.get("/api/backup").json()["accounts"]), "read, never written"
+        assert done.status_code == 200
+        assert not any(a["pinned"] for a in client.get("/api/accounts/").json())
     finally:
         as_user(TEST_USER_ID)
 
