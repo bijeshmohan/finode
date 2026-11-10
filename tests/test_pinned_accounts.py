@@ -74,28 +74,26 @@ def test_a_closed_account_leaves_the_pinned_row_and_comes_back_on_reopening(clie
     assert ">Pinned<" in client.get("/accounts").text
 
 
-def test_the_account_page_menu_pins_and_unpins(client):
+def test_the_account_pages_pin_button_pins_and_unpins(client):
     account = bank(client)
     page = client.get(f"/accounts/{account['id']}").text
-    assert f"/accounts/{account['id']}/pin" in page and "Pin to top" in page and "Unpin" not in page
+    assert f'hx-post="/accounts/{account["id"]}/pin"' in page and 'aria-pressed="false"' in page
+    assert "Pin to top" in page and "Unpin" not in page
     done = client.post(f"/accounts/{account['id']}/pin")
     assert done.headers["HX-Redirect"] == f"/accounts/{account['id']}"
     page = client.get(f"/accounts/{account['id']}").text
-    assert "Unpin" in page and 'class="pin-mark"' in page and "Pin to top" not in page
+    assert f'hx-post="/accounts/{account["id"]}/unpin"' in page and 'aria-pressed="true"' in page
+    assert "pin-mark" not in page, "the button shows the state"
     client.post(f"/accounts/{account['id']}/unpin")
-    assert (
-        client.get(f"/accounts/{account['id']}").json
-        if False
-        else "Pin to top" in client.get(f"/accounts/{account['id']}").text
-    )
+    assert 'aria-pressed="false"' in client.get(f"/accounts/{account['id']}").text
 
 
-def test_a_group_or_a_closed_account_has_no_pin_item(client):
+def test_a_group_or_a_closed_account_has_no_pin_button(client):
     mine = make_group(client).json()
-    assert "Pin to top" not in client.get(f"/accounts/{mine['id']}").text
+    assert "pin-button" not in client.get(f"/accounts/{mine['id']}").text
     account = bank(client)
     client.post(f"/api/accounts/{account['id']}/close")
-    assert "Pin to top" not in client.get(f"/accounts/{account['id']}").text
+    assert "pin-button" not in client.get(f"/accounts/{account['id']}").text
     refused = client.post(f"/accounts/{mine['id']}/pin")
     assert refused.headers.get("HX-Retarget") == "#page-error"
 

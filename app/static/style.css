@@ -1745,6 +1745,9 @@ form[data-layout="single"] [data-remove-row] { display: none; }
 .acc-card { flex: none; width: 13.25rem; min-height: 7rem; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: space-between; gap: .75rem; padding: .8rem .9rem; background: var(--surface); border: 1px solid var(--tile-border); border-radius: var(--radius); color: inherit; text-decoration: none; font-variant-numeric: tabular-nums; }
 @media (hover: hover) { .acc-card:hover { background: var(--surface-2); } }
 .acc-card-name { display: flex; align-items: center; min-width: 0; font-weight: 600; }
+.acct-actions { display: flex; align-items: center; gap: .5rem; }
+.circ-button.pin-button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.circ-button.pin-button[aria-pressed="false"] .icon { color: var(--muted); }
 .pin-mark { display: inline-flex; margin-left: .4rem; color: var(--muted); flex: none; }
 .pin-mark .icon { width: .8em; height: .8em; }
 .acc-card-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
