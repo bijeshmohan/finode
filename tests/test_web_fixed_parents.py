@@ -18,7 +18,7 @@ def test_with_no_accounts_every_built_in_shelf_shows_with_its_own_add_card(clien
     text = client.get("/accounts").text
     shown = text[text.index("data-accounts") :]
     for name in ("Bank Accounts", "Cash", "Investments", "Credit Cards", "Loans"):
-        assert f"<h2>{name}</h2>" in shown, name
+        assert f">{name}</a></h2>" in shown, name
     assert shown.count("acc-card-add") == 5 and "0.00 · 0 accounts" in shown
     assert 'href="/accounts/new"' not in shown and "Built in" not in text and "lock" not in shown.lower()
 
@@ -66,7 +66,7 @@ def test_a_groups_page_has_no_edit_or_menu_but_can_add_an_account(client):
     page = client.get(f"/accounts/{group(client, 'Cash')['id']}").text
     assert "/edit" not in page
     assert "Close account" not in page and "Delete" not in page
-    assert "Add sub-account" in page
+    assert "More actions" not in page and f"/accounts/new?parent={group(client, 'Cash')['id']}" in page
     assert client.get(f"/accounts/{group(client, 'Cash')['id']}/edit").status_code == 404
 
 
@@ -77,8 +77,8 @@ def test_the_empty_groups_are_not_offered_to_post_to(client):
     assert ">Investments<" not in form and ">Loans<" not in form
 
 
-def test_an_empty_groups_page_is_about_adding_accounts_not_transactions(client):
+def test_an_empty_groups_page_has_the_add_card_and_no_transactions_yet(client):
     page = client.get(f"/accounts/{group(client, 'Investments')['id']}").text
-    assert "Sub-accounts" in page and "Nothing here yet" in page
-    assert "<h2>Transactions</h2>" not in page and "No transactions yet" not in page
+    assert "<h2>Accounts</h2>" in page and "No transactions yet" in page
+    assert "Built in · money I own" in page and "More actions" not in page, "built in: nothing to change"
     assert f"/accounts/new?parent={group(client, 'Investments')['id']}" in page

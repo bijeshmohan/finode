@@ -34,7 +34,7 @@ Tap **+ Add account**, the dashed card at the end of a kind's row. The form asks
 
 An account page shows its balance (the **+** at the bottom adds an entry for this account), a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu (Edit, add a sub-account, close it), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
 
-An account that has sub-accounts (such as a *Banks* group) is not posted to itself, so its page shows a **Sub-accounts** list with each balance instead; open one to see its transactions. The **+** beside the heading adds another.
+Tap a group's name on the Accounts page (Bank Accounts, Cash, a group you made, and so on) to open the **group's page**. It shows the group's accounts as a row of cards you swipe, the dashed **+ Add account** card at the end, and below them the transactions of all the accounts in the group, each row naming its account. A group you made has a **…** menu with **Edit**, **Add account** and **Close group**; a built-in group has no menu, because nothing about it can be changed. A group is not posted to itself: open one of its accounts to record an entry for it.
 
 <img src="img/account-page.png" alt="An account page: balance, Add transaction, upcoming card, transactions" width="300">
 

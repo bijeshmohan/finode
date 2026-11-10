@@ -414,13 +414,13 @@ def test_an_account_with_sub_accounts_lists_them_not_their_transactions(
     )
 
     group = client.get(f"/accounts/{banks['id']}").text
-    assert "Gadget Store" not in group and "Opening balance" not in group, "their entries are on their own pages"
-    assert "<h2>Sub-accounts</h2>" in group and "<h2>Transactions</h2>" not in group
+    assert "<h2>Accounts</h2>" in group and "<h2>Sub-accounts</h2>" not in group and "acc-rail" in group
     assert f'href="/accounts/{hdfc["id"]}"' in group and "HDFC" in group and "ICICI" in group
-    assert "460.00" in group and "250.00" in group, "each sub-account's balance"
-    assert f"/accounts/new?parent={banks['id']}" in group, "the + adds another"
+    assert "460.00" in group and "250.00" in group, "each account's balance"
+    assert f"/accounts/new?parent={banks['id']}" in group, "the add card adds another"
+    assert "<h2>Transactions</h2>" in group and "Gadget Store" in group, "the entries of its accounts"
     leaf = client.get(f"/accounts/{hdfc['id']}").text
-    assert "Gadget Store" in leaf and "<h2>Sub-accounts</h2>" not in leaf
+    assert "Gadget Store" in leaf and "<h2>Accounts</h2>" not in leaf
 
 
 # --- the new-account form asks about the budget ---------------------------------------------------------------
@@ -516,7 +516,7 @@ def test_groups_the_person_made_are_kinds_and_the_plain_accounts_come_last(
     zoo = post_account(client, {"name": "Zoo", "parent_id": assets}).json()
     make("Lion", zoo["id"])
     text = client.get("/accounts").text
-    heads = re.findall(r"<h2>([^<]+)</h2>", text)
+    heads = re.findall(r"<h2>(?:<a [^>]*>)?([^<]+)(?:</a>)?</h2>", text)
     assert heads == ["Banks", "Zoo", "Other"], heads
     assert text.count('<section class="acc-kind') == 3
     assert "20.00 · 2 accounts" in text, "Apple and Cash, 10 each"
