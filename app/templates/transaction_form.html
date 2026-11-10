@@ -8,12 +8,12 @@
 <h1 class="sr-only">{{ "Edit transaction" if editing else "New transaction" }}</h1>
 
 {% set post_url = "/transactions/" ~ transaction.id ~ "/edit" if editing else "/transactions/split" %}
-<form class="stack txn-form" data-txn-form {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
+<form class="stack txn-form" data-txn-form data-mode="{{ mode }}" data-layout="{{ "multi" if from_rows|length > 1 or to_rows|length > 1 else "single" }}" {% if mode == "split" and kind in ("expense", "income") %}data-shared="{{ kind }}" {% endif %}data-posting-dates {{ "data-editing" if editing }} hx-post="{{ post_url }}" data-currency="{{ currency }}">
   <input type="hidden" name="back" value="{{ back }}">
 
-  {% set with_payee = true %}
-  {% include "partials/txn_rows.html" %}
+  {% set with_payee = true %}{% set with_modes = true %}
 
+{% set after_payee %}
   {% set day = transaction.date if editing else today %}
   <div class="meta-row">
     <label class="chip date-chip" data-date-chip data-today="{{ today }}">{{ icon("calendar") }}<span data-date-label>{{ day|date_chip }}</span>
@@ -26,18 +26,20 @@
         <button type="button" class="link" data-related-clear aria-label="Remove the link">✕</button>
       </div>
       <button type="button" class="date-chip related-add" data-related-add{% if related %} hidden{% endif %}
-              hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.id if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">{{ icon("link") }}Transaction</button>
+              hx-get="/transactions/related-picker{{ '?exclude=' ~ transaction.id if editing }}" hx-target="#related-picker-body" hx-swap="innerHTML">{{ icon("link") }}Related</button>
     </div>
   </div>
+  {% endset %}
+  {% include "partials/txn_rows.html" %}
 
   {% set chosen_tags = transaction.tags if editing else (copy_of.tags if copy_of else []) %}
   {% set note_value = (transaction.comment or '') if editing else (new_note or '') %}
   {% include "partials/tags_box.html" %}
 
+  <p class="person-note muted" data-person-note hidden></p>
   <p id="form-error" class="error" role="alert"></p>
   <div class="actions form-actions">
     <button type="submit">{{ "Save changes" if editing else "Save" }}</button>
-    {% if not editing %}<button type="submit" class="quiet" name="another" value="1">Save &amp; add another</button>{% endif %}
   </div>
 </form>
 {% include "partials/tags_dialog.html" %}
@@ -54,7 +56,8 @@
 <section class="danger-zone quiet">
   <p id="page-error" class="error" role="alert"></p>
   <button type="button" class="danger"
-          hx-post="/transactions/{{ transaction.id }}/delete{{ '?back=' ~ back|urlencode if back }}">{{ icon("trash") }}Delete transaction</button>
+          hx-post="/transactions/{{ transaction.id }}/delete{{ '?back=' ~ back|urlencode if back }}"
+          hx-confirm="Delete this transaction? Account balances will change. This cannot be undone.">{{ icon("trash") }}Delete transaction</button>
 </section>
 {% endif %}
 {% endblock %}

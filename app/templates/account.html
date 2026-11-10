@@ -2,17 +2,18 @@
 {% from "partials/icons.html" import icon %}
 {% from "partials/money.html" import figure %}
 {% from "partials/upcoming.html" import upcoming_card %}
+{% from "partials/account_card.html" import card with context %}
 {% set account = node.account %}
 {% set area = "/accounts" %}
 {% block title %}{{ account.name }} · finode{% endblock %}
 {% block content %}
-<a class="back" href="/accounts?tab={{ root.account.name|lower }}">{{ icon("back") }}Accounts</a>
+<a class="back" href="/accounts">{{ icon("back") }}Accounts</a>
 
 <header class="account-hero">
   <div class="acct-title">
     <div class="acct-names">
       <div class="acct-name-row">
-        <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
+        <h1>{{ account.name }}{% if account.pinned %}<span class="pin-mark" title="Pinned">{{ icon("pin") }}</span>{% endif %}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
         {% if account.details %}
         {# The description is behind an "i" beside the name: it is read once and would only take room on every visit. #}
         <details class="note-info">
@@ -21,22 +22,25 @@
         </details>
         {% endif %}
       </div>
-      <p class="acct-sub">{{ node.path.rsplit(" › ", 1)[0] if " › " in node.path else "Account type" }}</p>
+      {#- The kind it sits in (Bank Accounts, Credit Cards...), never the type's own name. -#}
+      {% set trail = node.path.split(" › ") %}
+      {% set kind_name = trail[1] if trail|length > 2 else ("" if node.is_group else ("Other you owe" if root.account.name == "Liabilities" else "Other")) %}
+      {% if kind_name %}<p class="acct-sub">{{ kind_name }}</p>
+      {% elif node.is_group %}<p class="acct-sub">{{ "Built in" if node.kind == "fixed" else "Group" }} · {{ "money I owe" if root.account.name == "Liabilities" else "money I own" }}</p>{% endif %}
     </div>
-    {% set has_menu = node.kind == "user" or (can_add_child and not account.closed_on) %}
-    {% if node.kind == "user" or has_menu %}
-    <div class="acct-icons">
-      {% if node.kind == "user" %}
-      <a class="circ-button" href="/accounts/{{ account.id }}/edit" title="Edit" aria-label="Edit {{ account.name }}">{{ icon("edit") }}</a>
-      {% endif %}
-      {% if has_menu %}
-            {% set menu_items = (can_add_child and not account.closed_on) or node.kind == "user" %}
-      {% if menu_items %}
-      <details class="menu">
+    {% if node.kind == "user" %}
+    <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
+        {% if node.kind == "user" %}
+        <a href="/accounts/{{ account.id }}/edit">{{ icon("edit") }}Edit</a>
+        {% endif %}
+        {% if can_pin %}
+        {% if account.pinned %}<button type="button" hx-post="/accounts/{{ account.id }}/unpin">{{ icon("pin") }}Unpin</button>
+        {% else %}<button type="button" hx-post="/accounts/{{ account.id }}/pin">{{ icon("pin") }}Pin to top</button>{% endif %}
+        {% endif %}
         {% if can_add_child and not account.closed_on %}
-        <a href="/accounts/new?parent={{ account.id }}">{{ icon("plus") }}Add sub-account</a>
+        <a href="/accounts/new?parent={{ account.id }}">{{ icon("plus") }}{{ "Add account" if node.is_group else "Add sub-account" }}</a>
         {% endif %}
         {% if node.kind == "user" %}
         {% if account.closed_on %}
@@ -48,38 +52,27 @@
         {% endif %}
         {% endif %}
       </div>
-      </details>
-      {% endif %}
-      {% endif %}
-    </div>
+    </details>
     {% endif %}
   </div>
   {% if account.closed_on %}<p class="muted">Closed on {{ account.closed_on.strftime("%d %b %Y") }}. Its history stays; nothing can be added to it until you reopen it.</p>{% endif %}
   <p class="hero-balance">{{ figure(account.balance, currency) }}</p>
+  {% if balance_after is not none and upcoming %}<p class="balance-after muted" data-balance-after>{{ balance_after|money|amount(currency) }} after the {{ upcoming|length }} coming up</p>{% endif %}
   {% if direct %}<p class="muted">{{ direct|money }} posted directly to {{ account.name }}; the rest is in its sub-accounts.</p>{% endif %}
-  {% if node.postable and not account.closed_on %}
-  <a class="button acct-add" href="/transactions/new?account={{ account.id }}&back={{ area }}/{{ account.id }}">{{ icon("plus") }}Add transaction</a>
-  {% endif %}
+  {% include "partials/card_bill.html" %}
   <p id="page-error" class="error" role="alert"></p>
 </header>
 
-{% if node.children or node.kind == "fixed" %}
-{% set subs = node.children|rejectattr("account.closed_on")|list %}
+{% if node.is_group %}
+{#- A group's accounts as the Accounts page draws them: a row of cards you swipe, ending with the add card. -#}
 <div class="section-head">
-  <h2>Sub-accounts</h2>
-  {% if can_add_child and not account.closed_on %}<a class="circ-button" href="/accounts/new?parent={{ account.id }}" title="Add sub-account" aria-label="Add sub-account">{{ icon("plus") }}</a>{% endif %}
+  <h2>Accounts</h2>
 </div>
-<div class="tile sub-tile">
-  {% for c in subs %}
-  <a class="r crow" href="/accounts/{{ c.account.id }}">
-    <span class="crow-main"><span class="crow-name">{{ c.account.name }}</span></span>
-    <span class="crow-amt"><span class="{{ 'negative' if c.account.balance < 0 }}">{{ c.account.balance|money }}</span></span>
-  </a>
-  {% else %}
-  <p class="muted sub-empty">Nothing here yet. Tap + to add one.</p>
-  {% endfor %}
+<div class="acc-rail">
+  {% for c in node.children|rejectattr("account.closed_on") %}{{ card(c) }}{% endfor %}
+  {% if can_add_child and not account.closed_on %}<a class="acc-card acc-card-add" href="/accounts/new?parent={{ account.id }}">{{ icon("plus") }}Add account</a>{% endif %}
 </div>
-{% else %}
+{% endif %}
 <div class="section-head">
   <h2>Transactions</h2>
 </div>
@@ -99,5 +92,4 @@
 <dialog id="txn-sheet" class="sheet sheet-bottom" aria-label="Transaction details">
   <div id="txn-sheet-body" class="sheet-body"></div>
 </dialog>
-{% endif %}
 {% endblock %}

@@ -63,9 +63,7 @@ def test_with_nothing_to_assign_and_nothing_planned_the_head_says_so(client, roo
     assert "Nothing to assign yet" in page
 
 
-def test_the_page_has_two_chips_spend_and_save_and_spend_is_chosen(client, books):
+def test_the_page_has_no_chips_it_is_the_budget_alone(client, books):
     page = client.get(f"/budget?month={MONTH}").text
-    assert 'aria-label="What to plan"' in page
-    assert re.search(r'aria-pressed="true">Spend</a>', page) and re.search(r'aria-pressed="false">Save</a>', page)
-    assert "/budget/configure" not in page
-    assert client.get("/budget/configure").status_code == 404
+    assert 'aria-label="What to plan"' not in page and "Save</a>" not in page
+    assert client.get("/budget/goal").status_code == 404 and client.get("/budget/configure").status_code == 404

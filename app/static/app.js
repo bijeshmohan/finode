@@ -100,7 +100,7 @@ function suggestedRoot(select) {
   const row = select.closest("[data-row]");
   const side = row ? row.querySelector('[name="side"]').value : "credit";
   const form = select.closest("form[data-txn-form]");
-  const roots = form && KINDS[form.dataset.txnKind] ? KINDS[form.dataset.txnKind][side].roots : null;
+  const roots = form && KINDS[form.dataset.txnKind] ? sideRoots(form, side) : null;
   if (roots) return roots[0];
   return side === "debit" ? "Expenses" : "Assets";
 }
@@ -340,20 +340,20 @@ function money(value) {
 // What each kind of entry offers on each side. iOS ignores hidden options, so the lists are rebuilt, not hidden.
 const KINDS = {
   expense: {
-    credit: { roots: ["Assets", "Liabilities"], title: "Paid from", hint: "the account you paid with" },
-    debit: { roots: ["Expenses"], title: "Category", hint: "what it was for" },
+    credit: { roots: ["Assets", "Liabilities"], title: "Paid from" },
+    debit: { roots: ["Expenses"], title: "Spent on" },
   },
   income: {
-    credit: { roots: ["Income"], title: "Category", hint: "who paid you" },
-    debit: { roots: ["Assets", "Liabilities"], title: "Received in", hint: "where it landed" },
+    credit: { roots: ["Income"], title: "Earned from" },
+    debit: { roots: ["Assets", "Liabilities"], title: "Paid into" },
   },
   transfer: {
-    credit: { roots: ["Assets", "Liabilities"], title: "From", hint: "the account the money leaves" },
-    debit: { roots: ["Assets", "Liabilities"], title: "To", hint: "the account it goes to" },
+    credit: { roots: ["Assets", "Liabilities", "People"], title: "From" },
+    debit: { roots: ["Assets", "Liabilities", "People"], title: "To" },
   },
   other: {
-    credit: { roots: null, title: "From", hint: "where the money comes from" },
-    debit: { roots: null, title: "To", hint: "where the money goes" },
+    credit: { roots: null, title: "From" },
+    debit: { roots: null, title: "To" },
   },
 };
 
@@ -366,7 +366,18 @@ function withoutSelection(html) {
 
 // The account list for one side of a kind: the placeholder entries and the groups whose type it offers.
 const CATEGORY_ROOTS = ["Expenses", "Income"];
-const isCategorySide = (roots) => Boolean(roots) && roots.every((root) => CATEGORY_ROOTS.includes(root));
+// People can be rows on either side of an expense (who the bill is for, who paid): they do not make a side an account side.
+const isCategorySide = (roots) => {
+  const own = roots ? roots.filter((root) => root !== "People") : [];
+  return own.length > 0 && own.every((root) => CATEGORY_ROOTS.includes(root));
+};
+
+// People are offered on a transfer only in Split (lending, borrowing, paying back); on an expense or income they are not
+// rows of a side.
+function sideRoots(form, side) {
+  const roots = (KINDS[form.dataset.txnKind] || KINDS.other)[side].roots;
+  return roots && form.dataset.mode !== "split" ? roots.filter((root) => root !== "People") : roots;
+}
 
 function optionsFor(all, roots) {
   if (!roots) return all;
@@ -384,6 +395,18 @@ function optionsFor(all, roots) {
   return holder.innerHTML;
 }
 
+function refreshRowOptions(form) {
+  form.querySelectorAll("[data-row]").forEach((row) => {
+    const select = rowAccount(row);
+    const side = row.querySelector('[name="side"]').value;
+    const current = select.value;
+    select.innerHTML = optionsFor(form._all, sideRoots(form, side));
+    select.value = current; // stays when the kind still offers it, else the empty choice
+    if (select.value !== current) select.value = "";
+    select.dataset.previous = select.value;
+  });
+}
+
 function applyKind(form, kind) {
   if (!KINDS[kind]) kind = "other";
   form.dataset.txnKind = kind;
@@ -391,18 +414,8 @@ function applyKind(form, kind) {
   form.querySelectorAll("[data-kind]").forEach((button) => {
     button.setAttribute("aria-pressed", button.dataset.kind === kind ? "true" : "false");
   });
-  form.querySelectorAll("[data-row]").forEach((row) => {
-    const select = rowAccount(row);
-    const side = row.querySelector('[name="side"]').value;
-    const current = select.value;
-    select.innerHTML = optionsFor(form._all, KINDS[kind][side].roots);
-    select.value = current; // stays when the kind still offers it, else the empty choice
-    if (select.value !== current) select.value = "";
-    select.dataset.previous = select.value;
-  });
+  refreshRowOptions(form);
   ["credit", "debit"].forEach((side) => {
-    const hint = form.querySelector(`[data-side-section="${side}"] [data-side-hint]`);
-    if (hint) hint.textContent = KINDS[kind][side].hint;
     const title = form.querySelector(`[data-side-section="${side}"] [data-side-title]`);
     if (title) title.textContent = KINDS[kind][side].title;
   });
@@ -416,11 +429,43 @@ function applyKind(form, kind) {
   else if (swap) { credit.after(swap); swap.after(debit); }
   if (swap) swap.hidden = categoryFirst || isCategorySide(KINDS[kind].debit.roots);
   recomputeTxn(form);
+  syncModes(form, kind);
 }
 
 // A sheet opens at once with grey placeholders in the shape of its content, which the real thing replaces when it arrives;
 // if it never does (an error, no connection) the sheet closes again.
-const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "todo-sheet-body"];
+// On a wide screen with a mouse the transaction's details open in a panel beside the list (not over it), so the list stays in
+// view and another row can be tapped at once; everywhere else it is the bottom sheet.
+const wideScreen = window.matchMedia("(min-width: 80rem) and (hover: hover) and (pointer: fine)");
+function openSheet(dialog) {
+  if (dialog.open) return;
+  const panel = (dialog.id === "txn-sheet" || dialog.id === "cat-sheet") && wideScreen.matches;
+  dialog.classList.toggle("side-panel", panel);
+  if (!panel) return dialog.showModal();
+  if (!dialog.querySelector(":scope > .panel-close")) {
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "panel-close";
+    close.setAttribute("aria-label", "Close");
+    close.textContent = "×";
+    dialog.prepend(close);
+  }
+  dialog.show();
+}
+document.addEventListener("click", (event) => {
+  const close = event.target.closest && event.target.closest(".panel-close");
+  if (close) close.closest("dialog").close();
+});
+document.addEventListener("keydown", (event) => {
+  const panel = event.key === "Escape" && document.querySelector("dialog.side-panel[open]");
+  if (panel && !document.querySelector("dialog:modal")) panel.close();
+});
+document.addEventListener("close", (event) => {
+  if (event.target.classList && event.target.classList.contains("side-panel")) {
+    document.querySelectorAll("a.tx.is-open, a.crow.is-open").forEach((row) => row.classList.remove("is-open"));
+  }
+}, true);
+const SHEET_BODIES = ["txn-sheet-body", "cat-sheet-body", "related-picker-body", "tag-sheet-body", "todo-sheet-body", "person-sheet-body"];
 const SHEET_SKELETON = '<div class="skeleton" aria-hidden="true"><i class="sk sk-title"></i><i class="sk sk-figure"></i><i class="sk sk-row"></i><i class="sk sk-row"></i><i class="sk sk-row"></i></div>';
 document.body.addEventListener("htmx:beforeRequest", (event) => {
   const body = event.detail && event.detail.target;
@@ -432,7 +477,12 @@ document.body.addEventListener("htmx:beforeRequest", (event) => {
   body.innerHTML = SHEET_SKELETON;
   dialog.dataset.loading = "1";
   loadingBy.set(dialog, event.detail.elt);
-  if (!dialog.open) dialog.showModal();
+  const row = event.detail.elt.closest && event.detail.elt.closest("a.tx, a.crow");
+  if (row && wideScreen.matches && (dialog.id === "txn-sheet" || dialog.id === "cat-sheet")) {
+    document.querySelectorAll("a.tx.is-open, a.crow.is-open").forEach((other) => other.classList.remove("is-open"));
+    row.classList.add("is-open");
+  }
+  openSheet(dialog);
 });
 // A sheet closed while its content is still on the way stays closed: the request is dropped, so nothing arrives to reopen it.
 const loadingBy = new WeakMap();
@@ -456,13 +506,14 @@ document.addEventListener("close", (event) => {
   });
 });
 
-// The details sheet over a list: it opens when its content arrives and closes on a tap outside it.
+// The details sheet over a list: it opens when its request starts (with placeholders) and closes on a tap outside it.
 document.body.addEventListener("htmx:afterSwap", (event) => {
   const id = event.target && event.target.id;
   if (!SHEET_BODIES.includes(id)) return;
   const dialog = document.getElementById(id.replace("-body", ""));
+  // The sheet was opened when the request started (above), so an answer only fills it: one that finds it closed (Esc in the
+  // gap between the answer and its being put on the page) must not bring it back.
   if (dialog) { delete dialog.dataset.loading; loadingBy.delete(dialog); }
-  if (dialog && !dialog.open) dialog.showModal();
   const first = dialog && dialog.querySelector("[data-autofocus]");
   if (first && window.matchMedia("(hover: hover) and (pointer: fine)").matches) first.focus();
 });
@@ -497,7 +548,7 @@ document.addEventListener("pointerdown", (event) => {
 }, true);
 document.body.addEventListener("click", (event) => {
   const dialog = event.target;
-  if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains("sheet-bottom")) return;
+  if (!(dialog instanceof HTMLDialogElement) || !dialog.classList.contains("sheet-bottom") || dialog.classList.contains("side-panel")) return;
   if (pressedInside) {
     pressedInside = false;
     return;
@@ -517,6 +568,10 @@ document.body.addEventListener("click", (event) => {
 // fits even on a small phone.
 (() => {
   const vv = window.visualViewport;
+  // Safari on iOS draws its translucent form bar (the arrows and Done) over the bottom of the page, above the keyboard, and
+  // the visual viewport does not count it: the last row of a short list sat under it. While typing, the sheet keeps that
+  // much room below its content (--kb-bar), on top of the safe area the sheet already keeps.
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const place = () => {
     if (!vv) return;
     const root = document.documentElement.style;
@@ -526,6 +581,7 @@ document.body.addEventListener("click", (event) => {
     const typing = !!field && field.matches && field.matches("input, select, textarea") && !!field.closest("dialog.sheet");
     root.setProperty("--kb", `${typing ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0}px`);
     root.setProperty("--vvh", `${Math.round(vv.height)}px`);
+    root.setProperty("--kb-bar", typing && ios ? ".75rem" : "0px");
   };
   if (vv) {
     vv.addEventListener("resize", place);
@@ -554,36 +610,14 @@ document.body.addEventListener("click", (event) => {
   });
 })();
 
-// A suggestion chip fills the payee and the accounts used the last time (the first row of each side).
-function applySuggestion(form, chip, focus = true) {
+// A suggestion chip fills the payee, nothing else, and moves on to the amount (or Save once it has one).
+function usePayee(form, chip) {
   const payee = form.querySelector("#payee");
-  if (payee && focus) payee.value = chip.dataset.payee; // never rewrite what is being typed
-  applyKind(form, chip.dataset.suggestKind);
-  [["credit", chip.dataset.from], ["debit", chip.dataset.to]].forEach(([side, id]) => {
-    const select = form.querySelector(`[data-rows="${side}"] select[name="account"]`);
-    if (!select) return;
-    select.value = id;
-    select.dataset.previous = select.value;
-  });
-  form.querySelectorAll("[data-suggest]").forEach((c) => c.setAttribute("aria-pressed", c === chip ? "true" : "false"));
-  recomputeTxn(form);
-  if (!focus) return;
+  if (payee) payee.value = chip.dataset.payee;
+  chip.parentElement.replaceChildren(); // the suggestions go once one is chosen
   const total = form.querySelector("#total");
   (total && !total.value.trim() ? total : form.querySelector('button[type="submit"]')).focus();
 }
-
-// Typing a payee you know in full fills the accounts too, once, while nothing is chosen yet; focus stays where it is.
-document.body.addEventListener("htmx:afterSwap", (event) => {
-  if (!event.target || event.target.id !== "payee-chips") return;
-  const form = event.target.closest("form[data-txn-form]");
-  const exact = event.target.querySelector("[data-suggest][data-exact]");
-  if (!form || !exact) return;
-  const nothingChosen = ["credit", "debit"].every((side) => {
-    const select = form.querySelector(`[data-rows="${side}"] select[name="account"]`);
-    return select && !select.value;
-  });
-  if (nothingChosen) applySuggestion(form, exact, false);
-});
 
 function rowAccount(row) {
   return row.querySelector('select[name="account"]');
@@ -595,7 +629,7 @@ function newRow(form, side) {
   row.querySelector('[name="side"]').value = side;
   // Copy the live account list: it may have gained accounts since the page loaded.
   const select = rowAccount(row);
-  select.innerHTML = optionsFor(form._all, (KINDS[form.dataset.txnKind] || KINDS.other)[side].roots);
+  select.innerHTML = optionsFor(form._all, sideRoots(form, side));
   select.value = "";
   return row;
 }
@@ -612,7 +646,7 @@ function setSuggestion(row, text) {
 }
 
 // A payment from the budget into an account outside it (a loan, a fund) can say what it was for: the Category
-// row of that line appears, filled with the account's usual category until the person picks another (or none).
+// row of that line appears, empty until the person picks one (nothing is filled in for them).
 const OUTSIDE_ROOTS = ["Assets", "Liabilities"];
 function syncRowCategories(form) {
   const rows = [...form.querySelectorAll("[data-row]")];
@@ -625,20 +659,10 @@ function syncRowCategories(form) {
     const option = chosen[index];
     const outside = option && option.value && option.dataset.budget === "0" && OUTSIDE_ROOTS.includes(root(option));
     const show = Boolean(inBudget && outside);
-    if (show && select.hidden && !select.value && option.dataset.usual && !select.dataset.chosen) {
-      select.value = option.dataset.usual;
-    }
     select.hidden = !show;
-    if (!show) {
-      select.value = "";
-      delete select.dataset.chosen;
-    }
+    if (!show) select.value = "";
   });
 }
-
-document.body.addEventListener("change", (event) => {
-  if (event.target.matches && event.target.matches("[data-category-select]")) event.target.dataset.chosen = "1";
-});
 
 // ---- Choosing an account or a category: a sheet instead of the browser's list, on every row of the form ----
 // The <select> stays (hidden) so everything that sets or reads the account keeps working; the button shows its choice.
@@ -650,7 +674,16 @@ function ensurePick(select) {
   button.className = "row-pick";
   button.dataset.pick = "";
   button.setAttribute("aria-haspopup", "dialog");
-  button.append(document.createElement("span"));
+  const name = document.createElement("span");
+  name.className = "rp-name";
+  button.append(name);
+  if (select.matches("[data-account-select]")) {  // an account or category row also says its date and amount, when they differ
+    ["rp-when", "rp-amt"].forEach((name) => {
+      const part = document.createElement("span");
+      part.className = name;
+      button.append(part);
+    });
+  }
   select.after(button);
   select.classList.add("is-picked");
   return button;
@@ -665,6 +698,45 @@ function leafLabel(select, option) {
   return twins > 1 ? `${leaf} (${group})` : leaf;
 }
 
+// A day as a row says it: "18 Oct", with the year when it is not this one's.
+function shortDay(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const text = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "short" });
+  return y === new Date().getFullYear() ? text : `${text} ${y}`;
+}
+
+// What an account's row says beside its name: the day it posts the line (only when that is not the entry's) and the
+// amount (only when it is not the whole total).
+function describeRow(form, row, button, chosen) {
+  const entry = form.querySelector('[name="date"]');
+  const posted = row.querySelector('[name="posted_on"]');
+  const when = button.querySelector(".rp-when");
+  const amt = button.querySelector(".rp-amt");
+  const day = posted && entry && posted.value && posted.value !== entry.value ? posted.value : "";
+  const total = parseDec(form.querySelector("#total").value) || 0n;
+  const share = rowShare(row);
+  const amount = share > 0n && share !== total ? `${money(share)}${chosen ? "" : " left"}` : "";
+  const whenText = day ? `Posts ${shortDay(day)}` : "";
+  if (when.textContent !== whenText) when.textContent = whenText;
+  if (amt.textContent !== amount) amt.textContent = amount;
+  when.hidden = !day;
+  amt.hidden = !amount;
+}
+
+// The settings glyph at the right of a chosen account or category: its amount and, on an account, the day it posts the line.
+function ensureGear(button) {
+  let gear = button.nextElementSibling;
+  if (gear && gear.matches("[data-row-settings]")) return gear;
+  gear = document.createElement("button");
+  gear.type = "button";
+  gear.className = "row-settings-open";
+  gear.dataset.rowSettings = "";
+  gear.setAttribute("aria-haspopup", "dialog");
+  gear.setAttribute("aria-label", "Amount and date");
+  button.after(gear);
+  return gear;
+}
+
 function syncRowPickers(form) {
   const kind = KINDS[form.dataset.txnKind] || KINDS.other;
   form.querySelectorAll("[data-row]").forEach((row) => {
@@ -674,8 +746,10 @@ function syncRowPickers(form) {
     [[rowAccount(row), onCategories], [row.querySelector("[data-category-select]"), true]].forEach(([select, category]) => {
       if (!select) return;
       const button = ensurePick(select);
+      const slim = select.matches("[data-account-select]");
       button.hidden = select.hidden;
-      button.classList.add("pill");
+      button.classList.toggle("pill", !slim);
+      button.classList.toggle("slim", slim);
       button.classList.toggle("account", !category);
       const option = select.selectedOptions[0];
       const chosen = Boolean(option && option.value && option.value !== NEW_ACCOUNT);
@@ -684,6 +758,12 @@ function syncRowPickers(form) {
       const label = chosen ? leafLabel(select, option) : empty;
       if (button.firstElementChild.textContent !== label) button.firstElementChild.textContent = label;
       button.classList.toggle("empty", !chosen);
+      if (slim) {
+        describeRow(form, row, button, chosen);
+        const gear = ensureGear(button);
+        gear.hidden = !chosen;
+        gear.classList.toggle("set", !button.querySelector(".rp-when").hidden || !button.querySelector(".rp-amt").hidden);
+      }
       const noun = category ? "Category" : "Account";
       button.setAttribute("aria-label", chosen ? `${noun}: ${option.textContent.replace(" › ", ", ")}` : `Choose ${category ? "a category" : "an account"}`);
     });
@@ -699,6 +779,8 @@ function syncRowPickers(form) {
   let noun = "category";
   let target = null;
   let clearable = false; // a payment's category can be none
+  let emptyLabel = "No category"; // what choosing nothing is called
+  let flat = false; // the Under field of a form: one plain list of accounts, each with the group it sits in
   let taken = new Set(); // what the other side of the entry already uses: an account cannot be on both
   const choices = () => [...target.options].filter((o) => o.value && o.value !== NEW_ACCOUNT);
   const row = (option, group) => {
@@ -741,7 +823,15 @@ function syncRowPickers(form) {
     const text = search.value.trim().toLowerCase();
     const all = choices();
     list.replaceChildren();
-    if (text) {
+    if (flat) {
+      all.filter((o) => o.textContent.toLowerCase().includes(text)).forEach((o) => list.append(row(o, "")));
+      if (!list.children.length) {
+        const li = document.createElement("li");
+        li.className = "filter-empty muted";
+        li.textContent = `No ${noun} matches.`;
+        list.append(li);
+      }
+    } else if (text) {
       all.filter((o) => o.textContent.toLowerCase().includes(text)).forEach((o) => list.append(row(o, "")));
       if (!list.children.length) {
         const li = document.createElement("li");
@@ -754,7 +844,7 @@ function syncRowPickers(form) {
       all.forEach((o) => {
         const [group] = o.textContent.split(" › ");
         const inGroup = o.textContent.includes(" › ");
-        const label = inGroup ? group : "";
+        const label = o.hasAttribute("data-person") ? "People" : inGroup ? group : "";
         if (label !== current) {
           current = label;
           if (label) list.append(heading(label));
@@ -769,7 +859,7 @@ function syncRowPickers(form) {
       button.type = "button";
       button.dataset.pickOption = "";
       button.setAttribute("aria-pressed", String(!target.value));
-      button.textContent = "No category";
+      button.textContent = emptyLabel;
       li.append(button);
       list.prepend(li);
     }
@@ -784,9 +874,35 @@ function syncRowPickers(form) {
       list.append(li);
     }
   };
+  // A press on an option must not take focus off the search: that puts the keyboard away, the sheet drops under the finger and
+  // the tap lands elsewhere, so nothing was chosen.
+  list.addEventListener("mousedown", (event) => {
+    if (event.target.closest && event.target.closest("button")) event.preventDefault();
+  });
   document.body.addEventListener("click", (event) => {
+    const under = event.target.closest && event.target.closest("[data-pick-generic]");
+    if (under) {
+      target = under.previousElementSibling; // the hidden select this button stands for
+      clearable = target.hasAttribute("data-allow-empty");
+      emptyLabel = target.querySelector('option[value=""]')?.textContent || "None";
+      flat = true;
+      const plural = under.dataset.noun || "accounts";
+      noun = plural.replace(/ies$/, "y").replace(/s$/, "");
+      title.textContent = under.dataset.title;
+      dialog.setAttribute("aria-label", title.textContent);
+      search.placeholder = `Search ${plural}`;
+      search.setAttribute("aria-label", search.placeholder);
+      list.classList.remove("grid");
+      taken = new Set();
+      search.value = "";
+      draw();
+      dialog.showModal();
+      return;
+    }
     const open = event.target.closest && event.target.closest("[data-pick]");
     if (open) {
+      flat = false;
+      emptyLabel = "No category";
       const rowEl = open.closest("[data-row]");
       const form = open.closest("form[data-txn-form]");
       const side = rowEl.querySelector('[name="side"]').value;
@@ -794,9 +910,10 @@ function syncRowPickers(form) {
       target = open.previousElementSibling; // the hidden select this button stands for
       clearable = target.matches("[data-category-select]");
       noun = clearable || isCategorySide(kind[side].roots) ? "category" : "account";
-      title.textContent = noun === "category" ? "Category" : "Account";
+      const withPeople = !clearable && Boolean(target.querySelector('optgroup[label="People"]'));
+      title.textContent = (noun === "category" ? "Category" : "Account") + (withPeople ? " or person" : "");
       dialog.setAttribute("aria-label", title.textContent);
-      search.placeholder = `Search ${noun === "category" ? "categories" : "accounts"}`;
+      search.placeholder = `Search ${noun === "category" ? "categories" : "accounts"}${withPeople ? " and people" : ""}`;
       search.setAttribute("aria-label", search.placeholder);
       list.classList.toggle("grid", noun === "category");
       taken = clearable
@@ -823,6 +940,88 @@ function syncRowPickers(form) {
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   search.addEventListener("input", draw);
+})();
+
+// A field that picks in the sheet (Under, Move money's From and To) shows its choice on a button; the select stays, hidden.
+(() => {
+  const show = (select) => {
+    const option = select.selectedOptions[0];
+    const chosen = option && (option.value || select.hasAttribute("data-allow-empty"));
+    const text = chosen ? option.textContent.split(" › ").pop().trim() : "Choose…";
+    const label = select.nextElementSibling.firstElementChild;
+    if (label.textContent !== text) label.textContent = text;
+    select.nextElementSibling.classList.toggle("empty", !chosen);
+  };
+  document.querySelectorAll("select[data-sheet-select]").forEach(show);
+  document.body.addEventListener("change", (event) => {
+    if (event.target.matches && event.target.matches("select[data-sheet-select]")) show(event.target);
+  });
+})();
+
+// The settings sheet of a row: its amount and the day its account posts the line. The tick puts them on the row.
+(() => {
+  const dialog = document.getElementById("row-settings");
+  if (!dialog) return;
+  const title = dialog.querySelector("[data-settings-title]");
+  const amount = dialog.querySelector("[data-config-amount]");
+  const date = dialog.querySelector("[data-config-date]");
+  const dateField = dialog.querySelector("[data-config-date-field]");
+  const remove = dialog.querySelector("[data-config-remove]");
+  let row = null;
+  let form = null;
+  let withDate = false;
+  document.body.addEventListener("click", (event) => {
+    const open = event.target.closest && event.target.closest("[data-row-settings]");
+    if (open) {
+      row = open.closest("[data-row]");
+      form = open.closest("form[data-txn-form]");
+      const side = row.querySelector('[name="side"]').value;
+      const select = rowAccount(row);
+      title.textContent = leafLabel(select, select.selectedOptions[0]);
+      const day = form.querySelector('[name="date"]');
+      const posted = row.querySelector('[name="posted_on"]');
+      withDate = !isCategorySide((KINDS[form.dataset.txnKind] || KINDS.other)[side].roots) && form.hasAttribute("data-posting-dates") && !!day && !!day.value;
+      amount.value = row.querySelector('[name="amount"]').value;
+      dateField.hidden = !withDate;
+      if (withDate) {
+        date.min = day.value;
+        date.value = (posted && posted.value) || day.value;
+      }
+      dialog.showModal();
+      return;
+    }
+    if (!row || !dialog.contains(event.target)) return;
+    if (event.target.closest("[data-config-ok]")) apply();
+    else if (event.target.closest("[data-config-remove]")) {
+      const own = row;
+      row = null;
+      dialog.close();
+      own.querySelector("[data-remove-row]").click();
+    }
+  });
+  const apply = () => {
+    const own = row;
+    const day = form.querySelector('[name="date"]');
+    const posted = own.querySelector('[name="posted_on"]');
+    const rowAmount = own.querySelector('[name="amount"]');
+    const amountText = amount.value.trim();
+    row = null;
+    dialog.close();
+    if (posted) posted.value = withDate && date.value && date.value !== day.value ? date.value : "";
+    if (parseDec(amountText) !== parseDec(rowAmount.value)) {
+      rowAmount.value = amountText;
+      rowAmount.classList.remove("suggested");
+      rowAmount.dispatchEvent(new Event("input", { bubbles: true }));
+      tidyField(rowAmount);
+    }
+    rowAccount(own).dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.target.matches && event.target.matches("[data-config-amount], [data-config-date]")) {
+      event.preventDefault();
+      apply();
+    }
+  });
 })();
 
 function recomputeTxn(form) {
@@ -879,6 +1078,9 @@ function recomputeTxn(form) {
   });
   syncRowCategories(form);
   syncRowPickers(form);
+  // Typing less than the total in a row adds a row: with more than one on a side the allocation shows (what is left, Remove).
+  const many = [...form.querySelectorAll("[data-rows]")].some((l) => l.querySelectorAll("[data-row]").length > 1);
+  form.dataset.layout = many ? "multi" : "single";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -957,7 +1159,7 @@ document.body.addEventListener("click", (event) => {
     if (list.querySelectorAll("[data-row]").length > 1) row.remove();
     else {
       rowAccount(row).value = "";
-      row.querySelectorAll('[name="amount"]').forEach((f) => { f.value = ""; });
+      row.querySelectorAll('[name="amount"], [name="posted_on"]').forEach((f) => { f.value = ""; });
       row.removeAttribute("data-touched");
     }
     const left = list.querySelectorAll("[data-row]");
@@ -979,7 +1181,7 @@ document.body.addEventListener("click", (event) => {
   }
   const chip = event.target.closest("[data-suggest]");
   if (chip) {
-    applySuggestion(form, chip);
+    usePayee(form, chip);
     return;
   }
   const kindButton = event.target.closest("[data-kind]");
@@ -990,25 +1192,20 @@ document.body.addEventListener("click", (event) => {
   }
 });
 
-// Account form: a payment category goes only with an account that is not part of the budget. A new account asks only under
-// Assets and Liabilities (the options carry their root in `data-root`): an asset starts in the budget, a card or loan outside
-// it. Hidden fields are disabled so they are not sent.
+// Account form: a new account asks about the budget only under Assets and Liabilities (the options carry their root in
+// `data-root`): an asset starts in the budget, a card or loan outside it. Hidden fields are disabled so they are not sent.
 (function budgetChoice() {
-  const sync = (fields) => {
-    const box = fields.querySelector('input[name="on_budget"]');
-    const payment = fields.querySelector("[data-payment-category]");
-    if (!box) return;
-    const out = !box.checked;
-    const now = fields.querySelector("[data-budget-summary]");
-    if (now) {
-      const choice = payment && payment.querySelector("select");
-      now.textContent = !out ? "Part of the budget"
-        : choice && choice.value ? "Outside the budget · payments have a usual category"
-        : "Outside the budget";
-    }
-    if (payment) payment.hidden = !out;
-  };
   const apply = (select) => {
+    const days = select.form && select.form.querySelector("[data-bill-fields]");
+    const balanceLabel = select.form && select.form.querySelector("[data-balance-label]");
+    if (balanceLabel && select.selectedOptions[0] && "root" in select.selectedOptions[0].dataset) {
+      balanceLabel.textContent = select.selectedOptions[0].dataset.root === "Liabilities" ? "Amount you owe now" : "Current balance";
+    }
+    if (days && select.selectedOptions[0] && "root" in select.selectedOptions[0].dataset) {
+      const card = select.selectedOptions[0].dataset.root === "Liabilities";
+      days.hidden = !card;
+      days.querySelectorAll("input, select").forEach((el) => { el.disabled = !card; });
+    }
     const fields = select.form && select.form.querySelector("[data-budget-fields]");
     if (!fields || !select.options.length || !select.selectedOptions[0] || !("root" in select.selectedOptions[0].dataset)) return;
     const root = select.selectedOptions[0].dataset.root;
@@ -1022,15 +1219,25 @@ document.body.addEventListener("click", (event) => {
     // Under a built-in group (Bank Accounts, Investments, Loans...) the account starts as that group says.
     const start = select.selectedOptions[0].dataset.start;
     if (start) box.checked = start === "budget";
-    sync(fields);
   };
   document.body.addEventListener("change", (event) => {
     if (!event.target.matches) return;
     if (event.target.matches('form select[name="parent_id"]')) apply(event.target);
-    if (event.target.matches('input[name="on_budget"], select[name="payment_category"]')) {
-      const fields = event.target.closest("[data-budget-fields]");
-      if (fields) sync(fields);
-    }
+  });
+  // The kind chips choose the account's group: they set the hidden select and let the form react to it.
+  document.body.addEventListener("click", (event) => {
+    const chip = event.target.closest && event.target.closest("[data-kind-chip]");
+    if (!chip) return;
+    const select = chip.form && chip.form.querySelector('select[name="parent_id"]');
+    if (!select) return;
+    select.value = chip.dataset.kindChip;
+    chip.closest("[data-kind-chips]").querySelectorAll("[data-kind-chip]").forEach((c) => {
+      c.setAttribute("aria-pressed", String(c === chip));
+    });
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  document.querySelectorAll("[data-bill-fields]").forEach((days) => {
+    days.querySelectorAll("input, select").forEach((el) => { el.disabled = days.hidden; });
   });
   const first = document.querySelector('[data-budget-fields]');
   const form = first && first.closest("form");
@@ -1181,16 +1388,6 @@ document.addEventListener("click", (event) => {
 
 // Bars fill from zero once, when a page loads; after that (an amount assigned, a sheet saved) they are only replaced.
 setTimeout(() => { document.documentElement.dataset.live = "1"; }, 900);
-
-// After saving an entry the toast carries Undo for it; the saved entry's row, when the page lists it, settles in with a short tint.
-(() => {
-  const undo = document.querySelector('.toast [hx-post^="/transactions/"][hx-post$="/delete"]');
-  const transactionId = undo && undo.getAttribute("hx-post").split("/")[2];
-  if (!transactionId) return;
-  document.querySelectorAll("a.tx").forEach((row) => {
-    if ((row.getAttribute("href") || "").startsWith(`/transactions/${transactionId}/`)) row.classList.add("tx-new");
-  });
-})();
 
 // ---- The Transactions filter sheet: three fields, each opens a searchable list ----
 (() => {
@@ -1464,4 +1661,184 @@ document.addEventListener("click", (event) => {
   if (input instanceof HTMLInputElement && input.closest("[data-date-chip]") && typeof input.showPicker === "function") {
     try { input.showPicker(); } catch (e) { /* not allowed here: the browser's own control remains */ }
   }
+});
+
+// Moving the entry's date past a line's posting date puts that line back on the entry's own day (a line cannot post before it).
+document.addEventListener("change", (event) => {
+  const field = event.target;
+  const form = field instanceof HTMLInputElement && field.name === "date" && field.closest("form[data-txn-form]");
+  if (!form) return;
+  form.querySelectorAll('[name="posted_on"]').forEach((posted) => {
+    if (posted.value && posted.value < field.value) posted.value = "";
+  });
+  recomputeTxn(form);
+});
+
+// The recurring form says a past start date is recorded at once only while the start date is in the past.
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  const hint = input instanceof HTMLInputElement && input.name === "start" ? document.querySelector("[data-past-hint]") : null;
+  const chip = hint && input.closest("[data-date-chip]");
+  if (hint && chip) hint.hidden = !input.value || input.value >= chip.dataset.today;
+});
+
+// A transfer with a person on one side is a loan or a borrowing: say so, and that the budget stays as it is.
+function noteForPeople(target) {
+  const form = target.closest && target.closest("form[data-txn-form]");
+  const note = form && form.querySelector("[data-person-note]");
+  if (!note) return;
+  let text = "";
+  form.querySelectorAll("[data-row]").forEach((row) => {
+    const option = rowAccount(row).selectedOptions[0];
+    if (!option || !option.hasAttribute("data-person")) return;
+    const name = option.textContent.trim();
+    text =
+      row.querySelector('[name="side"]').value === "debit"
+        ? `${name} will owe you this. It is not spending, so your budgets stay as they are.`
+        : `You will owe ${name} this. It is not income, so your budgets stay as they are.`;
+  });
+  note.textContent = text;
+  note.hidden = !text;
+}
+document.body.addEventListener("change", (event) => noteForPeople(event.target));
+
+// ---- The people in a Split: only the ones added show; "Add people" opens a sheet to tick them ----
+// Each person has a checkbox in the editor (the state: for an expense it is the form field, for an income it only says the row
+// shows); the sheet and the cross on a row flip it. What depends on who is in it (who paid, who received) follows.
+function syncPeople(editor) {
+  editor.querySelectorAll("[data-for-person]").forEach((el) => {
+    const box = editor.querySelector(`[data-person-toggle][data-person="${el.dataset.forPerson}"]`);
+    el.hidden = !(box && box.checked);
+  });
+}
+document.addEventListener("DOMContentLoaded", () => document.querySelectorAll("[data-people-editor]").forEach(syncPeople));
+
+(() => {
+  const dialog = document.getElementById("people-picker");
+  if (!dialog) return;
+  const search = dialog.querySelector("[data-people-search]");
+  const done = dialog.querySelector("[data-people-done]");
+  let editor = null;
+  const toggleOf = (id) => editor && editor.querySelector(`[data-person-toggle][data-person="${id}"]`);
+  const refresh = () => {
+    let count = 0;
+    dialog.querySelectorAll("[data-people-option]").forEach((button) => {
+      const box = toggleOf(button.dataset.peopleOption);
+      const on = Boolean(box && box.checked);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+      if (on) count += 1;
+    });
+    done.textContent = count ? `Done · ${count} ${count === 1 ? "person" : "people"}` : "Done";
+  };
+  const flip = (box, checked) => {
+    if (box.checked === checked) return;
+    box.checked = checked;
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  document.body.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const add = target.closest("[data-add-people]");
+    if (add) {
+      editor = add.closest("[data-people-editor]");
+      search.value = "";
+      dialog.querySelectorAll("[data-people-name]").forEach((li) => { li.hidden = false; });
+      refresh();
+      dialog.showModal();
+      return;
+    }
+    const remove = target.closest("[data-person-remove]");
+    if (remove) {
+      flip(remove.closest("[data-person-row]").querySelector("[data-person-toggle]"), false);
+      return;
+    }
+    const option = target.closest("[data-people-option]");
+    if (option && dialog.contains(option)) {
+      const box = toggleOf(option.dataset.peopleOption);
+      if (box) flip(box, !box.checked);
+      refresh();
+      return;
+    }
+    if (target.closest("[data-people-done]")) dialog.close();
+  });
+  search.addEventListener("input", () => {
+    const wanted = search.value.trim().toLowerCase();
+    dialog.querySelectorAll("[data-people-name]").forEach((li) => { li.hidden = !li.dataset.peopleName.includes(wanted); });
+  });
+  document.body.addEventListener("change", (event) => {
+    const box = event.target;
+    if (box instanceof Element && box.matches("[data-person-toggle]")) syncPeople(box.closest("[data-people-editor]"));
+  });
+})();
+
+// ---- Simple and Split: the two ways to record an entry ----
+// Simple is the rows on each side that add up to the total (one each, or more: typing less than the total in a row adds the next).
+// Split shares it with people: on an expense or an income the rows give way to who it is shared with (a shared bill, or income
+// part of which is theirs); on a transfer the rows stay and the pickers also list People (lending, borrowing, paying back).
+// Switching never loses the total, the payee, the date, the note or the rows.
+// What the rows already say carries over to a Split editor, once: the account and the category.
+const CARRY = {
+  expense: [["credit", "account_id"], ["debit", "category_id"]],
+  income: [["debit", "income_account_id"], ["credit", "income_category_id"]],
+};
+
+function applyMode(form, mode) {
+  const modes = form.querySelector("[data-modes]");
+  if (!modes) return;
+  const before = form.dataset.mode;
+  form.dataset.mode = mode;
+  modes.querySelectorAll('input[name="mode"]').forEach((radio) => { radio.checked = radio.value === mode; });
+  const kind = form.dataset.txnKind;
+  const shared = mode === "split" && (kind === "expense" || kind === "income") ? kind : null;
+  const was = form._shared || null;
+  form._shared = shared;
+  if (shared) form.dataset.shared = shared;
+  else delete form.dataset.shared;
+  form.querySelectorAll("[data-people-editor]").forEach((editor) => {
+    const open = editor.dataset.peopleEditor === shared;
+    editor.hidden = !open;
+    editor.querySelectorAll("input, select").forEach((el) => { if (!el.hasAttribute("data-fixed")) el.disabled = !open; });
+  });
+  form.querySelectorAll("[data-side-section] input, [data-side-section] select, [data-side-section] button").forEach((el) => {
+    el.disabled = shared !== null;
+  });
+  if (kind === "transfer" && before !== mode) refreshRowOptions(form);
+  if (shared && was !== shared) {
+    const editor = form.querySelector(`[data-people-editor="${shared}"]`);
+    (CARRY[shared] || []).forEach(([side, name]) => {
+      const row = form.querySelector(`[data-rows="${side}"] [data-row]`);
+      const target = editor && editor.querySelector(`select[name="${name}"]`);
+      const chosen = row && rowAccount(row).value;
+      if (target && chosen && !target.value && target.querySelector(`option[value="${chosen}"]`)) {
+        target.value = chosen;
+        target.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    if (editor) editor.dispatchEvent(new CustomEvent("people-mode", { bubbles: true }));
+  }
+  recomputeTxn(form);
+}
+
+function syncModes(form, kind) {
+  const modes = form.querySelector("[data-modes]");
+  if (!modes) return;
+  const offered = kind !== "other";
+  const wasOffered = form._offered !== false;
+  form._offered = offered;
+  modes.hidden = !offered;
+  let mode = form.dataset.mode || "simple";
+  // Split on a transfer (people on a side) and Split on an expense or income (who it is shared with) are different things:
+  // crossing between them goes back to the rows.
+  const crossing = form._kind !== undefined && (form._kind === "transfer") !== (kind === "transfer");
+  form._kind = kind;
+  if (!offered || !wasOffered || (crossing && mode === "split")) mode = "simple";
+  applyMode(form, mode);
+}
+
+document.body.addEventListener("change", (event) => {
+  const radio = event.target;
+  if (!(radio instanceof HTMLInputElement) || radio.name !== "mode") return;
+  const form = radio.closest("form[data-txn-form]");
+  if (!form) return;
+  applyMode(form, radio.value);
 });

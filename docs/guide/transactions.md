@@ -8,21 +8,25 @@ Tap **+** (phone) or **New transaction** (wide screen).
 
 1. **Amount**: type it at the top. The amount field cleans itself as you type: only digits, one decimal point and a leading minus are kept, so `42.00.00` cannot happen. On a phone, tap the amount to open the keyboard. Amounts are grouped as you type (1,24,500 for rupees).
 2. **Kind**: **Expense** (the default), **Income** or **Transfer**. The kind only narrows the lists:
-   - Expense: **Paid from** an account or card, for a **Category**.
-   - Income: a **Category** (such as Salary), **Received in** an account.
+   - Expense: **Paid from** an account or card, **Spent on** a category.
+   - Income: a **Category** (such as Salary) it is **Earned from**, the account it is **Paid into**.
    - Transfer: **From** and **To** your own accounts (including paying a card or a loan).
    - Tap the selected kind again to select *none*: every account is offered. Use this for anything unusual.
-3. **Accounts and category**: pick the accounts: each row opens a sheet (groups with their balances, with a search). The category comes after the accounts as a chip that opens a grid of tiles to choose from (*＋ New category* makes one). The amount sits beside it: type less than the total and the rest moves to a new row, so a split needs no extra step. When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional; a loan can have a *usual category* that fills it in. Several categories on one entry make it a split.
+3. **Accounts and category**: each side shows a **Choose account…** row (a **Category…** row for the category). Tap it and a sheet lists the accounts (groups with their balances, with a search). Tap the one you want and the sheet closes. A chosen row has a small **settings** glyph at its right: tap it to change the **Amount** or the **Date** (both already filled in: the whole total, and the entry's date) and tap **Done**; **Remove** (in red, below it) takes the row off. A row shows the account's name; its amount appears beside it only when it is not the whole total, and a date ("Posts 18 Oct") only when it is not the entry's, and the glyph is filled in then. Tap the name to change the account. When you pay *into* a loan or a fund from your budget, a **Category** line appears under it too (EMI, SIP). It is optional and starts empty. Several accounts or categories on one entry make it a split.
 4. **Payee**, **note** and **date** (a chip that reads "Today, 24 Oct"; tap it to pick another day).
-5. **Save**, or **Save & add another** to keep entering.
+5. **Save**. To enter a similar one next, open the saved entry and tap **Repeat**.
 
 ### Payee chips
 
-Under the payee field, finode suggests the payees you use most. Tapping one fills the payee, the kind and the accounts you used last time for that payee and moves you to the amount. Typing a payee in full does the same quietly.
+Under the payee field, finode suggests the payees you use most. Tapping one fills the payee and moves you to the amount; typing narrows the chips. Only the name is filled in: you choose the account and the category yourself.
 
 ### Splitting across accounts
 
-When you need more than one account on a side (a bill paid half by cash and half by card, or a shop receipt with Food and Household), add rows. Each side starts with one row; when you type a different amount in a row, a new row appears with the remainder suggested, until the side adds up to the total. Both sides must add up to the same total. The same account cannot be on both sides of one entry (money cannot move from an account to itself); it can appear on several rows of the same side.
+When you need more than one account on a side (a bill paid half by cash and half by card, or a shop receipt with Food and Household), change the amount in a row's sheet: a new **Choose account…** row appears by itself with what is left ("450.00 left"), until the side adds up to the total. Both sides must add up to the same total. The same account cannot be on both sides of one entry (money cannot move from an account to itself); it can appear on several rows of the same side.
+
+### The date a card posts a line
+
+Some cards bill an entry in a later statement than its date (for example a tax line recorded on the 16th that the card posts on the 17th). In that account's settings (the glyph on its row) set its **Date** to the day the card posts it. The entry keeps its own date everywhere, and only the card's bill counts the line by the posting date (see *A card's bill* under Accounts). The posting date is never before the entry's date, and it goes back to the entry's date if you move the entry past it.
 
 ### Repeat
 
@@ -38,7 +42,7 @@ Open a transaction and tap **Repeat** (under Edit) to start a new one pre-filled
 
 A refund, a reversal or a cash-back belongs with the purchase it follows. Open the original and tap **Related** (under Edit): a new, empty entry opens with a "Related to…" line above Save, and you fill it in as usual. From any form you can also tap **Transaction** (next to the date) and pick one from a searchable list, which is how to link something you have already recorded (the ✕ on the line takes the link off, on a new entry or when editing).
 
-Both entries show the link in their details sheet: the new one says "Related to" the original, the original lists what is related to it, and tapping either opens the other. A link is only a link: it changes no amounts, balances or budget, and deleting the original simply drops it.
+In the lists the linked entry (the refund) carries a small grey pill after its payee with a link glyph and the original's date and amount; tap the pill to open the original, tap the row to open the refund itself. The original has no marker. Both entries show the link in their details sheet: the new one says "Related to" the original, the original lists what is related to it, and tapping either opens the other. A link is only a link: it changes no amounts, balances or budget, and deleting the original simply drops it.
 
 ## The Transactions page
 
@@ -57,12 +61,8 @@ An entry dated in the future (a loan instalment, a bill you entered ahead) is **
 
 ## Editing and deleting
 
-Open a row and tap **Edit**.  **Delete** removes it at once and the toast offers **Undo** for a few seconds (the entry also waits in Recently deleted).
+Open a row and tap **Edit**.  **Delete** asks first, then removes the entry for good: finode keeps no history, so there is no Undo and no list of deleted entries.
 
-
-### Recently deleted
-
-Deleted by accident? Open **Settings › Your data › Recently deleted** (it also lists accounts and categories): it lists what was deleted, newest first, each with **Restore**. A restored entry comes back with its old details (it is checked again, so a closed account will stop it, and tell you why). Only the latest deletion of an entry can be restored, and a restored entry is no longer linked to the recurring rule that made it. Its **related** links come back: to the earlier entry it was related to, and from the entries that were related to it (unless that entry is gone, got another link meanwhile, or the link would make a circle).
 
 ## How amounts look
 

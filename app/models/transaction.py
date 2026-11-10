@@ -71,6 +71,9 @@ class Posting(TimestampMixin, table=True):
     # What this line was for (a budget category). Any line may carry one; the budget counts it when the entry touches
     # a budget account and the line's own account is not part of the budget.
     category_id: UUID | None = Field(default=None, foreign_key="budget_categories.id", nullable=True, index=True)
+    # The day the account posts this line, when that is not the entry's own date (a card that bills a purchase in a
+    # later statement). Never before the entry's date. Only a card's bill reads it; everything else uses the date.
+    posted_on: Date | None = Field(default=None)
 
     @field_validator("amount")
     @classmethod

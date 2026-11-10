@@ -59,7 +59,7 @@ def earn(client, books, amount, tags):
 
 
 def titles(page: str) -> list[str]:
-    return re.findall(r'<span class="tx-title">([^<]*)</span>', page)
+    return re.findall(r'<span class="tx-title-text">([^<]*)</span>', page)
 
 
 def form_fields(**extra):

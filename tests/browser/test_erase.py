@@ -10,7 +10,7 @@ from .conftest import Api
 def test_erasing_the_books(page: Page, books, api: Api):
     assert api.get("/accounts/"), "there are accounts to erase"
     page.goto("/profile/data")
-    page.locator("#erase summary", has_text="Erase my books").click()
+    page.locator("#erase summary").click()
     form = page.locator('form[hx-post="/profile/data/erase"]')
     page.once("dialog", lambda dialog: dialog.accept())
     form.locator('input[name="confirm"]').fill("nobody@example.com")
@@ -33,7 +33,7 @@ def test_deleting_the_account(page: Page, books, api: Api, monkeypatch):
     monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
     monkeypatch.setattr(profile_router, "delete_user", lambda user_id: removed.append(user_id))
     page.goto("/profile/data")
-    page.locator("#erase summary", has_text="Delete my account").click()
+    page.locator("#delete-account summary").click()
     form = page.locator('form[hx-post="/profile/data/delete-account"]')
     page.once("dialog", lambda dialog: dialog.accept())
     form.locator('input[name="confirm"]').fill("test@example.com")

@@ -6,7 +6,7 @@ finode looks the way it does on purpose: **calm, minimal and quick to enter**. T
 
 1. **Phones first.** Every page is one column that works on a phone; from 60rem up a fixed sidebar replaces the top bar and tab bar and the column is centred in the space beside it. Nothing floats over the page.
 2. **Fewer boxes.** Removing something or adding whitespace is preferred to adding a border, badge or card. A box earns its place only when it groups things that need telling apart.
-3. **Colour means money.** Green and red appear only for money coming in or going out (and for an overspent category or an error). Actions are ink-coloured (near black in light, near white in dark). Blue marks what was added automatically (an assistant or a recurring rule).
+3. **Colour means money.** Green and red appear only for money coming in or going out (and for an overspent category or an error). Actions are royal-blue ink (`#2b3a9e` in light, periwinkle in dark), and so are the progress bars. Violet marks what was added automatically (an assistant or a recurring rule).
 4. **One of each part.** There is one switcher, one row, one tile, one sheet, one empty state. New pages reuse them; they do not draw their own.
 5. **Calm motion.** Short, quiet transitions that explain a change (a chip gliding, a sheet rising). All of it switches off under `prefers-reduced-motion`.
 6. **Nothing is lost on a failed save.** Forms are never cleared on an error, and the page says the entry is still there.
@@ -21,19 +21,19 @@ The tokens are CSS variables at the top of `style.css`. Style with tokens only, 
 | Lines | `--border`, `--field-border` (stronger in dark so empty fields show), `--tile-border` |
 | Action | `--accent`, `--accent-hover`, `--accent-soft`, `--on-accent` |
 | Meaning | `--positive`, `--negative`, `--danger`, `--danger-soft`, `--warn`, `--warn-soft`, `--auto` |
-| Shape and size | `--radius` (16px), `--radius-sm` (12px), `--tap` (44px), `--topbar-h`, `--tabbar-h`, `--sidebar-w`, `--bar-h` (3px, every progress bar) |
+| Shape and size | `--radius` (20px, tiles and sheets), `--radius-sm` (14px, fields), `--tap` (44px), `--topbar-h`, `--tabbar-h`, `--sidebar-w`, `--bar-h` (3px, every progress bar) |
 
-**Dark mode.** There are three blocks: the light tokens on `:root`, an automatic `prefers-color-scheme: dark` block, and a manual `[data-theme="dark"]` block. The two dark blocks must define the same tokens (a test compares them). The choice is per browser, in the `finode_theme` cookie that `base.html` reads. `favicon.svg` switches between ink and paper; `apple-touch-icon.png` is still the older blue mark.
+**Dark mode.** There are three blocks: the light tokens on `:root`, an automatic `prefers-color-scheme: dark` block, and a manual `[data-theme="dark"]` block. The two dark blocks must define the same tokens (a test compares them). The choice is per browser, in the `finode_theme` cookie that `base.html` reads. `favicon.svg` is royal ink, periwinkle in dark; `apple-touch-icon.png` is still the older blue mark.
 
-**Type.** Figtree, self-hosted (`static/fonts`, the `@font-face` is inline in `base.html` with a hashed URL and a preload). Figtree's rupee sign is not in the Latin subset, so `figtree-rupee.woff2` (about 1 KB, only U+20B9) carries it; without it each phone would draw its own sign. Text inputs are 16px or more so iOS does not zoom.
+**Type.** Anek Latin, self-hosted (`static/fonts/anek-latin.woff2`, one variable file with weight 400–700 and width 75–100 %, Latin plus the rupee sign; the `@font-face` is inline in `base.html` with a hashed URL and a preload). The big figures use the condensed width (`font-stretch: 75%`); see "The passbook look" in `reference/ui-look.md`. Text inputs are 16px or more so iOS does not zoom.
 
 ## Page anatomy
 
 Every list page opens the same way:
 
 1. **Title row** (`.page-head.tall`): the title, and the month pill at the right where the page has a month. It is the same height on every page, so titles line up.
-2. **Switcher** (full width, `.chips.seg`): Spend · Save, Asset · Liability, Expense · Income. Transactions and Settings have none.
-3. **Head** (`.ready-hero`): a small label above one large figure, and one quiet line under it. Budgets: Ready to assign. Accounts: What you own / What you owe / Equity. Categories: Spent so far / Earned.
+2. **Switcher** (full width, `.chips.seg`): Expense · Income on Categories. Accounts, Budgets, Transactions and Settings have none.
+3. **Head** (`.ready-hero`): a small label above one large figure, and one quiet line under it. Budgets: Ready to assign. Accounts: Net worth. Categories: Spent so far / Earned.
 4. **The list**, in tiles.
 5. **A dashed "+ Add …" row** (`.add-row`) at the end where something can be added.
 
@@ -43,11 +43,11 @@ Home is the exception by design: one number ("Left to spend"), a thin bar and th
 
 | Part | What it is |
 |---|---|
-| **Tile** (`.tile`, `ul.card.list`) | A soft rounded surface with a hairline border and a hairline between rows. One tile per day in transaction lists, per group on Accounts and Budgets, per section in Settings. The tile rule is one block at the end of `style.css`. |
+| **Tile** (`.tile`, `ul.card.list`) | A soft rounded white slip (a hairline border in dark only) with a hairline between rows. One tile per day in transaction lists, per group on Accounts and Budgets, per section in Settings. The tile rule is one block at the end of `style.css`. |
 | **Row** | A name, one quiet second line, the figure at the right. Budgets rows add a bar under it; Categories show the biggest subcategories and the share; Accounts rows have no initials. Rows are links; destructive actions live on the detail page, not on rows. |
 | **Month pill** | `‹ Oct 2026 ›` as plain text: two arrows around a native month picker laid invisibly over the month name (`partials/month_pill.html`). Pages that never look ahead pass `max`. |
-| **Bottom sheet** | A `<dialog>` that slides up (a transaction's details, a category's budget, a goal, the Filter). It opens at once with grey placeholders and the content fades in over them. A press that starts inside never closes it. |
-| **Toast** | A flash after saving. After saving or deleting an entry it carries **Undo**. |
+| **Bottom sheet** | A `<dialog>` that slides up (a transaction's details, a category's budget, the Filter). It opens at once with grey placeholders and the content fades in over them. A press that starts inside never closes it. |
+| **Toast** | A short message after saving or deleting. |
 | **Empty state** | A sentence and one pill button (`.empty-state`), without a box. |
 | **Form** | Boxed fields in one card and **one full-width primary button, no Cancel** (the back link is the cancel; sheets keep theirs). |
 | **Progress bar** | 3 px, full width of its row. Bars of the current month carry a small triangle under them showing how far through the month today is (`.pace`): a fill ahead of it is spending faster than the month passes. Over the plan is red. |
@@ -60,8 +60,8 @@ The new-transaction page is the most used and the most designed:
 - A large **amount** at the top. Its width follows what is typed (`--n`, a comma counts as about half a digit) and the rupee sign sits in front. On a phone nothing is focused (a script cannot open the keyboard); the grey `0.00` stays visible until the first digit, also while focused.
 - A kind switcher, **Expense · Income · Transfer**, whose pill glides to the chosen button. The kind only narrows the account pickers.
 - **From** and **To** tiles with the swap button on the seam between them. A side with one row has no ×; a split shows it on every row. Only "left to allocate" and "over" speak under a side.
-- The **date is a chip** ("Today, 24 Oct"), the note a plain field, **Save & add another** a quiet underlined link under Save.
-- **Payee chips**: one row on any width, chips that would not fit are hidden.
+- The **date is a chip** ("Today, 24 Oct"), the note a plain field, and the form ends with Save alone.
+- **Payee chips**: only while typing (nothing for an empty field), one row on any width, chips that would not fit are hidden; they go once one is chosen.
 
 ## Amounts
 
@@ -95,6 +95,6 @@ The browser tests run with reduced motion so measured positions never catch a pa
 2. Use tokens, and define any new token in all three blocks.
 3. Keep tap targets at `--tap` and text inputs at 16px.
 4. Put anything that depends on `app.js` under a browser test in `tests/browser/` (run Chromium and WebKit; WebKit is the closest to iOS Safari).
-5. Update this page and `CLAUDE.md` when a part changes.
+5. Update this page and `docs/developer/reference/ui-look.md` when a part changes.
 
 Next: [MCP and authentication](mcp-and-auth.md).

@@ -11,7 +11,6 @@ from sqlmodel import select
 from app.models.budget import BudgetAllocation
 from app.models.category import BudgetCategory
 from app.models.transaction import Posting
-from app.models.transaction_history import TransactionHistory
 from app.schemas.category import CategoryCreate, CategoryUpdate
 
 from .books import leg, post_account
@@ -123,14 +122,14 @@ def test_a_line_to_a_category_posts_to_expenses_and_carries_it(client, session, 
     assert made.json()["postings"][0]["account_id"] == str(roots(client)["Expenses"]), "it posts to Expenses"
 
 
-def test_a_payment_into_a_loan_carries_its_payment_category_only_when_it_touches_the_budget(client, session, books):
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["emi"]["id"]})
-    paid = entry(client, [(books["loan"]["id"], "debit", "1000", None), (books["bank"]["id"], "credit", "1000", None)])
-    assert lines(session, paid.json()["id"])[(UUID(books["loan"]["id"]), "debit")] == UUID(books["emi"]["id"])
-    payout = entry(
-        client, [(books["bank"]["id"], "debit", "5000", None), (books["loan"]["id"], "credit", "5000", None)]
+def test_a_payment_into_a_loan_keeps_the_label_it_was_given_or_none(client, session, books):
+    plain = entry(client, [(books["loan"]["id"], "debit", "1000", None), (books["bank"]["id"], "credit", "1000", None)])
+    assert lines(session, plain.json()["id"])[(UUID(books["loan"]["id"]), "debit")] is None, "nothing is filled in"
+    labelled = entry(
+        client,
+        [(books["loan"]["id"], "debit", "1000", books["emi"]["id"]), (books["bank"]["id"], "credit", "1000", None)],
     )
-    assert lines(session, payout.json()["id"])[(UUID(books["loan"]["id"]), "credit")] is None
+    assert lines(session, labelled.json()["id"])[(UUID(books["loan"]["id"]), "debit")] == UUID(books["emi"]["id"])
 
 
 def test_a_line_can_name_its_category_and_a_split_can_use_several(client, session, books):
@@ -203,106 +202,6 @@ def test_a_closed_category_cannot_be_used_but_an_entry_that_already_has_it_can_b
     assert again.status_code == 200, again.text
 
 
-# ---- history and restoring ---------------------------------------------------------------------
-
-
-def test_history_remembers_the_categories_and_an_unchanged_save_adds_nothing(client, session, books):
-    made = entry(
-        client, [(books["groceries"]["id"], "debit", "400", None), (books["bank"]["id"], "credit", "400", None)]
-    )
-    transaction_id = made.json()["id"]
-    snapshot = (
-        session.exec(select(TransactionHistory).where(TransactionHistory.transaction_id == UUID(transaction_id)))
-        .one()
-        .snapshot
-    )
-    assert {p["category"] for p in snapshot["postings"]} == {books["groceries"]["id"], None}
-    resave = {"postings": [p | {"category_id": p.get("category_id")} for p in made.json()["postings"]]}
-    client.patch(f"/api/transactions/{transaction_id}", json=resave)
-    rows = session.exec(
-        select(TransactionHistory).where(TransactionHistory.transaction_id == UUID(transaction_id))
-    ).all()
-    assert len(rows) == 1
-
-
-def test_an_old_snapshot_without_categories_does_not_make_a_resave_look_like_a_change(client, session, books):
-    made = entry(
-        client, [(books["groceries"]["id"], "debit", "400", None), (books["bank"]["id"], "credit", "400", None)]
-    )
-    transaction_id = made.json()["id"]
-    row = session.exec(
-        select(TransactionHistory).where(TransactionHistory.transaction_id == UUID(transaction_id))
-    ).one()
-    row.snapshot = {
-        **row.snapshot,
-        "postings": [{k: v for k, v in p.items() if k != "category"} for p in row.snapshot["postings"]],
-    }
-    session.add(row)
-    session.commit()
-    client.patch(
-        f"/api/transactions/{transaction_id}",
-        json={
-            "postings": [
-                {
-                    "account_id": p["account_id"],
-                    "side": p["side"],
-                    "amount": p["amount"],
-                    "category_id": p["category_id"],
-                }
-                for p in made.json()["postings"]
-            ]
-        },
-    )
-    assert (
-        len(
-            session.exec(
-                select(TransactionHistory).where(TransactionHistory.transaction_id == UUID(transaction_id))
-            ).all()
-        )
-        == 1
-    )
-
-
-def test_a_changed_category_is_told_in_the_changes(client, books):
-    made = entry(
-        client,
-        [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)],
-    )
-    transaction_id = made.json()["id"]
-    client.patch(
-        f"/api/transactions/{transaction_id}",
-        json={
-            "postings": [
-                {
-                    "account_id": books["loan"]["id"],
-                    "side": "debit",
-                    "amount": "10",
-                    "category_id": books["food"]["id"],
-                },
-                leg(books["bank"], "credit", "10"),
-            ]
-        },
-    )
-    steps = client.get(f"/api/transactions/{transaction_id}/changes").json()
-    relabelled = steps[-1]["changes"]["postings"]["relabelled"]
-    assert relabelled[0]["category_from"] == [books["emi"]["id"]] and relabelled[0]["category_to"] == [
-        books["food"]["id"]
-    ]
-
-
-def test_a_restored_entry_gets_its_categories_back(client, session, books):
-    made = entry(
-        client,
-        [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)],
-    )
-    transaction_id = made.json()["id"]
-    client.delete(f"/api/transactions/{transaction_id}")
-    history_id = client.get("/api/transactions/deleted").json()[0]["id"]
-    restored = client.post(f"/api/transactions/deleted/{history_id}/restore")
-    assert restored.status_code in (200, 201), restored.text
-    assert lines(session, transaction_id)[(UUID(books["loan"]["id"]), "debit")] == UUID(books["emi"]["id"])
-
-
 # ---- deleting, merging and the plan ------------------------------------------------------------
 
 
@@ -320,8 +219,9 @@ def test_a_category_that_labels_entries_cannot_be_deleted_only_closed(client, se
 
 
 def test_merging_two_expense_categories_moves_lines_labels_and_plan(client, session, books):
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["emi"]["id"]})
-    entry(client, [(books["loan"]["id"], "debit", "10", None), (books["bank"]["id"], "credit", "10", None)])
+    entry(
+        client, [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)]
+    )
     spent = entry(client, [(books["emi"]["id"], "debit", "7", None), (books["bank"]["id"], "credit", "7", None)])
     assign(client, books["emi"], "500")
     assign(client, books["food"], "300")

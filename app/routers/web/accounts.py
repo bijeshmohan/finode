@@ -1,18 +1,20 @@
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
+from datetime import timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import ValidationError
 
-from ...clock import local_day, local_today
-from ...dependencies import Accounts, Categories, Profiles
+from ...clock import local_today
+from ...dependencies import Accounts, Categories
 from ...schemas import AccountCreate, AccountRead, AccountUpdate
+from ...schemas.account import GroupCreate, RegisterEntry
 from ...schemas.category import CategoryRead
+from ...services import cards
 from ...services.account import (
-    FIXED_DEFAULTS,
     GROUP_POSTING_ROOT_NAMES,
     MAX_ACCOUNT_DEPTH,
     AccountService,
@@ -44,6 +46,11 @@ class Node:
     def is_leaf(self) -> bool:
         return not self.children
 
+    @property
+    def is_group(self) -> bool:
+        """A shelf for accounts: a built-in group or one the person made (even empty), or an account with accounts in it."""
+        return self.account.new_accounts_in_budget is not None or bool(self.children)
+
     def walk(self):
         yield self
         for child in self.children:
@@ -68,7 +75,11 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
 
     def finish(node: Node, depth: int, parent_path: str = "", root_name: str = "") -> None:
         node.depth = depth
-        node.postable = node.kind not in ("root", "fixed") and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
+        node.postable = (
+            node.kind not in ("root", "fixed")
+            and node.account.new_accounts_in_budget is None
+            and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
+        )
         node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
         node.children.sort(key=lambda n: AccountService.order_key(n.account))
         for child in node.children:
@@ -83,16 +94,24 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
 @dataclass
 class PickOption:
     """One choice in an account or category picker: what it is called (below its type: "Banks › HDFC",
-    "Food › Groceries"), and for an account its budget flag, balance and usual category for payments."""
+    "Food › Groceries"), and for an account its budget flag and balance."""
 
     id: UUID
     label: str
     budget: bool = False
     balance: Decimal | None = None
-    usual: UUID | None = None
 
 
 PickGroups = list[tuple[str, list[PickOption]]]
+
+
+def without_contacts(roots: list[Node]) -> list[Node]:
+    """The tree without a contact's "Due from" and "Due to" accounts: they belong to the People pages, not to the Accounts
+    page or the pickers."""
+    for node in roots:
+        node.children = [c for c in node.children if not c.account.contact_account]
+        without_contacts(node.children)
+    return roots
 
 
 def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> PickGroups:
@@ -106,10 +125,9 @@ def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> P
                 n.path.split(" › ", 1)[1] if " › " in n.path else n.path,
                 budget=n.account.on_budget,
                 balance=n.account.balance,
-                usual=n.account.payment_category_id,
             )
             for n in root.walk()
-            if n.postable and (n.account.closed_on is None or n.account.id in keep)
+            if n.postable and not n.account.contact_account and (n.account.closed_on is None or n.account.id in keep)
         ]
         if options:
             groups.append((root.account.name, options))
@@ -167,12 +185,12 @@ def _parent_options(
 
 
 def _starts(roots: list[Node]) -> dict[UUID, str]:
-    """For each built-in group, how an account made under it starts: "budget" (part of the budget) or "outside" it."""
+    """For each group, how an account made in it starts: "budget" (part of the budget) or "outside" it."""
     return {
-        n.account.id: FIXED_DEFAULTS[n.account.system_key]
+        n.account.id: "budget" if n.account.new_accounts_in_budget else "outside"
         for r in roots
         for n in r.walk()
-        if n.account.system_key in FIXED_DEFAULTS
+        if n.account.new_accounts_in_budget is not None
     }
 
 
@@ -184,11 +202,6 @@ def _load(accounts: AccountService, account_id: UUID) -> tuple[list[Node], Node]
     return roots, node
 
 
-def spending_options(categories: Categories) -> list[tuple[UUID, str]]:
-    """The spending categories a payment-category choice may name: (id, "Group › Category")."""
-    return [(c.id, c.path.replace(":", " › ")) for c in categories.list("spending")]
-
-
 def _root_of(roots: list[Node], node: Node) -> Node:
     return next(r for r in roots if any(n is node for n in r.walk()))
 
@@ -197,52 +210,98 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
 
 
-# The chips on the accounts page, in this order (?tab=): each shows one type of account.
-ACCOUNT_TABS = {"assets": "Assets", "liabilities": "Liabilities", "equity": "Equity"}
-# What the chips say: one kind of account, in the singular (the roots themselves keep their names).
-ACCOUNT_CHIP_NAMES = {"assets": "Asset", "liabilities": "Liability", "equity": "Equity"}
+# What a new group can hold, as the form words it, and the type it sits under.
+HOLDS: dict[str, Literal["Assets", "Liabilities"]] = {"own": "Assets", "owe": "Liabilities"}
+
+# An account whose newest entry is older than this says so on its card; a newer one has nothing to add.
+STALE_DAYS = 30
+
+# The kinds the Accounts page lists, in this order; a group the person made follows them, then the plain accounts.
+KIND_ORDER = ("assets.bank", "assets.cash", "liabilities.cards", "assets.investments", "liabilities.loans")
+
+
+@dataclass
+class Kind:
+    """One row of cards on the Accounts page: a kind of account (Bank Accounts, Credit Cards...) and its accounts."""
+
+    name: str
+    root: str  # Assets or Liabilities: a liability reads "owed"
+    items: list[Node]
+    total: Decimal
+    group_id: UUID | None = None  # the group; none for the plain accounts that sit directly under a type
+    closed: bool = False  # the group itself was closed
+
+    @property
+    def owed(self) -> bool:
+        return self.root == "Liabilities"
+
+    @property
+    def add_url(self) -> str:
+        return f"/accounts/new?parent={self.group_id}" if self.group_id else f"/accounts/new?root={self.root.lower()}"
+
+
+def kind_groups(roots: list[Node]) -> list[Node]:
+    """The groups an account can be made under (the form's Kind chips, the page's rows): the built-in ones in the page's
+    order, then the ones the person made."""
+    found = [
+        child
+        for root in roots
+        if root.account.name in ("Assets", "Liabilities")
+        for child in root.children
+        if child.is_group
+    ]
+    place = {key: i for i, key in enumerate(KIND_ORDER)}
+    return sorted(found, key=lambda n: (place.get(n.account.system_key or "", len(place)), n.account.name.lower()))
+
+
+def kinds(roots: list[Node]) -> list[Kind]:
+    """The accounts as the page lists them: a kind per group (an empty one too), then the plain accounts that sit
+    directly under Assets or Liabilities."""
+    root_of = {id(n): r.account.name for r in roots for n in r.walk()}
+    found = [
+        Kind(
+            g.account.name, root_of[id(g)], g.children, g.account.balance, g.account.id, g.account.closed_on is not None
+        )
+        for g in kind_groups(roots)
+    ]
+    for root in roots:
+        loose = [c for c in root.children if c.kind != "fixed" and not c.children]
+        if loose and root.account.name in ("Assets", "Liabilities"):
+            name = "Other" if root.account.name == "Assets" else "Other you owe"
+            found.append(Kind(name, root.account.name, loose, sum((n.account.balance for n in loose), Decimal("0.00"))))
+    return found
 
 
 @router.get("")
-def accounts_page(request: Request, accounts: Accounts, tab: str = "assets"):
-    tab = tab.lower() if tab.lower() in ACCOUNT_TABS else "assets"
-    roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
+def accounts_page(request: Request, accounts: Accounts):
+    roots = without_contacts(build_tree(accounts.list()))
     mark_closed(roots)
-    root = next(r for r in roots if r.account.name == ACCOUNT_TABS[tab])
+    shown = [r for r in roots if r.account.name in ("Assets", "Liabilities")]
+    balance = {r.account.name: r.account.balance for r in shown}
+    leaves = [n for r in shown for n in r.walk() if n.depth > 0 and not n.is_group]
+    last, bills = accounts.glance(local_today())
+    rows = kinds(shown)
     return templates.TemplateResponse(
         request,
         "accounts.html",
         {
             "active": "accounts",
-            "tab": tab,
-            "tabs": ACCOUNT_TABS,
-            "chip_names": ACCOUNT_CHIP_NAMES,
-            "root": root,
-            "blocks": page_blocks(root),
+            "kinds": rows,
+            # The accounts the person pinned, in the order of the rows below (the same cards again, no totals).
+            "pinned": [n for k in rows for n in k.items if n.account.pinned and not n.closed],
+            "net_worth": balance.get("Assets", Decimal("0.00")) - balance.get("Liabilities", Decimal("0.00")),
+            "last_entry": last,
+            "bills": bills,
+            "due_soon_days": cards.DUE_SOON_DAYS,
+            "stale_before": local_today() - timedelta(days=STALE_DAYS),
             "currency": accounts.currency().code,
-            "closed": closed_count([root]),
-            # What the quiet line under the figure counts: the open accounts of the type (groups are only headings).
-            "account_count": sum(
-                1 for n in root.walk() if n.account.closed_on is None and n.depth > 0 and not n.children
-            ),
+            "closed": any(n.closed for n in leaves),
+            # What the quiet line under the figure counts: the open accounts.
+            "account_count": sum(1 for n in leaves if not n.closed),
+            # Whether any open account feeds the budget: the line under the figure then explains the dot beside them.
+            "has_budget_accounts": any(n.account.on_budget and not n.closed for n in leaves),
         },
     )
-
-
-def page_blocks(root: Node) -> list[tuple[Node | None, list[Node]]]:
-    """A type's accounts as the page lists them: each group is a heading with its accounts under it, then **all** the plain
-    accounts that sit directly under the type together in one block without a heading, at the end. Accounts only go two
-    levels deep. A built-in group with nothing in it is not shown (the page offers "Add account" instead)."""
-    blocks: list[tuple[Node | None, list[Node]]] = []
-    plain: list[Node] = []
-    for child in root.children:
-        if child.children:
-            blocks.append((child, child.children))
-        elif child.kind != "fixed":
-            plain.append(child)
-    if plain:
-        blocks.append((None, plain))
-    return blocks
 
 
 def mark_closed(roots: list[Node]) -> None:
@@ -252,38 +311,53 @@ def mark_closed(roots: list[Node]) -> None:
             node.closed = node.account.closed_on is not None
 
 
-def closed_count(roots: list[Node]) -> int:
-    return sum(1 for root in roots for n in root.walk() if n.closed)
+@router.get("/new-group")
+def new_group_page(request: Request):
+    """The form for a new group: a name, whether it holds money the person owns or owes, and what the accounts made in it
+    start as. Nothing is chosen until the person does."""
+    return templates.TemplateResponse(request, "group_form.html", {"active": "accounts", "hide_fab": True})
+
+
+@router.post("/new-group")
+def create_group(
+    accounts: Accounts,
+    name: Annotated[str, Form()] = "",
+    holds: Annotated[str, Form()] = "",
+    new_accounts_in_budget: Annotated[str | None, Form()] = None,
+):
+    try:
+        root = HOLDS.get(holds)
+        if root is None:
+            raise ValueError("choose whether it holds money you own or money you owe!")
+        accounts.create_group(
+            GroupCreate(name=name, root=root, new_accounts_in_budget=new_accounts_in_budget is not None)
+        )
+    except ValidationError as e:
+        return htmx_error(validation_message(e), "#form-error")
+    except ValueError as e:
+        return htmx_error(str(e), "#form-error")
+    return htmx_redirect("/accounts", flash="group-created")
 
 
 @router.get("/new")
 def new_account_page(
     request: Request,
     accounts: Accounts,
-    categories: Categories,
     parent: UUID | None = None,
     root: str = "",
 ):
-    """The form for a new account (under Assets, Liabilities or Equity)."""
-    everything = build_tree(accounts.list())
+    """The form for a new account. It asks what kind it is (a built-in group or one the person made); nothing is chosen
+    until the person does, unless the link says (a kind's own "Add account", or a type's)."""
+    everything = without_contacts(build_tree(accounts.list()))
     roots = [r for r in everything if r.account.name in ACCOUNT_ROOTS]
     root_of = {n.account.id: r.account.name for r in roots for n in r.walk()}
-    only = ACCOUNT_TABS.get(root.lower())
-    if only:
-        # Opened from a type's tab on the Accounts page: only that type's accounts can be made.
-        parent_roots = [r for r in roots if r.account.name == only]
-        if parent is None or root_of.get(parent) != only:
-            parent = parent_roots[0].account.id if parent_roots else None
-            first_group = (
-                next((c for c in parent_roots[0].children if c.kind == "fixed"), None) if parent_roots else None
-            )
-            if first_group is not None:
-                parent = (
-                    first_group.account.id
-                )  # the "+" on a type starts on its first built-in group (Bank Accounts, Credit Cards)
-    else:
-        parent_roots = roots
+    only = next((r.account.name for r in roots if r.account.name.lower() == root.lower()), None)
+    if only and (parent is None or root_of.get(parent) != only):
+        # Opened for plain accounts under a type: they sit directly under that type.
+        parent = next(r.account.id for r in roots if r.account.name == only)
+    groups = [g for g in kind_groups(roots) if g.account.closed_on is None]
     starts = _starts(everything)
+    chosen_root = root_of.get(parent) if parent else None
     return templates.TemplateResponse(
         request,
         "account_form.html",
@@ -293,30 +367,49 @@ def new_account_page(
             "starts": starts,
             "node": None,
             "parent_id": parent,
-            "parent_options": _parent_options(parent_roots),
+            "kinds": groups,
+            "placed": _placed(groups, next((n for r in roots for n in r.walk() if n.account.id == parent), None)),
+            "parent_options": _with_parent(groups, roots, parent),
             "currency": accounts.currency().code,
-            "root_name": root_of.get(parent),
+            "root_name": chosen_root,
             "root_of": root_of,
-            "back_list": _list_for_root(root_of.get(parent)),
-            "can_budget": root_of.get(parent) in ("Assets", "Liabilities"),
+            "back_list": "/accounts",
+            "can_budget": chosen_root in ("Assets", "Liabilities"),
+            "can_bill": chosen_root == "Liabilities",
             # an asset starts in the budget; a card or loan, outside it; under a built-in group, as that group says
-            "on_budget": (starts.get(parent) == "budget") if parent in starts else root_of.get(parent) == "Assets",
-            "category_options": spending_options(categories),
+            "on_budget": (starts.get(parent) == "budget") if parent in starts else chosen_root == "Assets",
         },
     )
 
 
+def _with_parent(groups: list[Node], roots: list[Node], parent: UUID | None) -> list[Node]:
+    """The form's choices of where an account sits: the kinds, and the account's current parent when that is not a kind
+    (a type itself, or an account it is being made inside), so saving never moves it by accident."""
+    if parent is None or any(g.account.id == parent for g in groups):
+        return groups
+    found = next((n for r in roots for n in r.walk() if n.account.id == parent), None)
+    return [*groups, *([found] if found else [])]
+
+
+def _placed(groups: list[Node], parent: Node | None) -> tuple[str, str] | None:
+    """When a new account is opened for somewhere that is not a kind, what the form says instead of the kind chips: "Other"
+    for the plain accounts of a type, or the account it is made inside."""
+    if parent is None or any(g.account.id == parent.account.id for g in groups):
+        return None
+    if parent.kind == "root":
+        return ("Kind", "Other" if parent.account.name == "Assets" else "Other you owe")
+    return ("Inside", parent.account.name)
+
+
 @router.get("/quick")
-def quick_account_sheet(
-    request: Request, accounts: Accounts, categories: Categories, profiles: Profiles, hint: str = ""
-):
+def quick_account_sheet(request: Request, accounts: Accounts, categories: Categories, hint: str = ""):
     """The "new account" sheet shown over the transaction form (a "new category" sheet where the picker lists
     categories: the Expenses and Income kinds)."""
     if hint in ("Expenses", "Income"):
         kind = "spending" if hint == "Expenses" else "earning"
         groups = [c for c in categories.list(kind) if c.parent_id is None]
         return templates.TemplateResponse(request, "partials/quick_category.html", {"kind": kind, "groups": groups})
-    roots = [r for r in build_tree(accounts.list()) if r.account.name in ACCOUNT_ROOTS]
+    roots = [r for r in without_contacts(build_tree(accounts.list())) if r.account.name in ACCOUNT_ROOTS]
     suggested = next((r.account.id for r in roots if r.account.name == hint), None)
     return templates.TemplateResponse(
         request,
@@ -380,6 +473,15 @@ def quick_create_account(
     return htmx_trigger("account-added", {"id": str(created.id), "name": created.name})
 
 
+def _bill_days(statement_day: str, due_day: str, bill_rounding: str = "none") -> dict:
+    """The form's two days as numbers (both empty means none) and how the bill is rounded. Anything else is refused."""
+    try:
+        days = [int(v) if v.strip() else None for v in (statement_day, due_day)]
+    except ValueError:
+        raise ValueError("the statement day and the due day are numbers from 1 to 31!") from None
+    return {"statement_day": days[0], "due_day": days[1], "bill_rounding": bill_rounding or "none"}
+
+
 @router.post("")
 def create_account(
     accounts: Accounts,
@@ -389,11 +491,14 @@ def create_account(
     balance: Annotated[str, Form()] = "",
     on_budget: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
-    payment_category: Annotated[str, Form()] = "",
+    bill_choice: Annotated[str | None, Form()] = None,
+    statement_day: Annotated[str, Form()] = "",
+    due_day: Annotated[str, Form()] = "",
+    bill_rounding: Annotated[str, Form()] = "none",
 ):
     try:
         if not parent_id:
-            raise ValueError("choose where the account belongs!")
+            raise ValueError("choose what kind of account it is!")
         data = AccountCreate(
             name=name.strip(),
             details=details.strip() or None,
@@ -401,9 +506,7 @@ def create_account(
             balance=parse_amount(balance, Decimal("0.00")),
             # The form asked (budget_choice): its box says yes or no. Without it the default applies (an asset: yes).
             on_budget=None if budget_choice is None else on_budget is not None,
-            payment_category_id=None
-            if on_budget is not None or not payment_category.strip()
-            else UUID(payment_category.strip()),
+            **(_bill_days(statement_day, due_day, bill_rounding) if bill_choice is not None else {}),
         )
         created = accounts.create(data)
     except ValidationError as e:
@@ -419,17 +522,17 @@ def _is_inflow(root_name: str, change: Decimal) -> bool:
     return (root_name == "Assets" and change > 0) or (root_name == "Liabilities" and change < 0)
 
 
-def account_context(accounts: AccountService, profiles, account_id: UUID, entries=None, offset: int = 0) -> dict:
+def account_context(
+    accounts: AccountService, account_id: UUID, entries: Sequence[RegisterEntry] | None = None, offset: int = 0
+) -> dict:
     """What the account page needs; the category page (categories.py) reuses it with its month's entries."""
     roots, node = _load(accounts, account_id)
     root = _root_of(roots, node)
     today = local_today()
     page = None
-    if entries is None and (node.children or node.kind == "fixed"):
-        # An account with sub-accounts cannot be posted to: its page lists the sub-accounts, whose entries are on their own pages.
-        history, ahead, has_any = [], [], False
-    elif entries is None:
+    if entries is None:
         # An account's own page reads only its newest entries (and what is dated ahead); a category passes its month's.
+        # A group's page does the same over every account in it.
         page = accounts.register_page(account_id, today, offset) or RegisterPage([], [], 0, 0, False, False)
         history, ahead, has_any = page.entries, page.upcoming, page.has_any
     else:
@@ -451,6 +554,8 @@ def account_context(accounts: AccountService, profiles, account_id: UUID, entrie
     ]
     signs = {e.change > 0 for e in ahead}
     upcoming_total = sum((u.amount for u in upcoming), Decimal("0.00")) if upcoming and len(signs) == 1 else None
+    # With entries dated ahead, the balance they leave (the running balance of the last one); a category has its own month.
+    balance_after = ahead[-1].balance if ahead and page is not None else None
     at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
     # Asset and liability accounts with their own postings cannot gain sub-accounts.
     has_own_postings = node.is_leaf and has_any and node.kind != "root"
@@ -459,8 +564,26 @@ def account_context(accounts: AccountService, profiles, account_id: UUID, entrie
         and not at_limit
         and (not has_own_postings or root.account.name in GROUP_POSTING_ROOT_NAMES)
     )
+    bill = None
+    can_set_days = False
+    if entries is None and root.account.name == "Liabilities" and node.kind == "user" and node.postable:
+        if not node.account.closed_on and node.account.statement_day is not None:
+            bill = accounts.bill(account_id, today)
+        can_set_days = node.account.statement_day is None and not node.account.closed_on
+    # A group's page shows its open accounts as the Accounts page does: cards, with a bill or an idle account noted.
+    last, bills = accounts.glance(today) if node.is_group and entries is None else ({}, {})
     return {
         "active": "accounts",
+        "last_entry": last,
+        "bills": bills,
+        "stale_before": today - timedelta(days=STALE_DAYS),
+        "bill": bill,
+        "due_soon_days": cards.DUE_SOON_DAYS,
+        "can_set_days": can_set_days,
+        # The "+" in the bar starts an entry for this account and comes back here (a group, a closed account: the usual one).
+        "new_transaction_url": f"/transactions/new?account={account_id}&back=/accounts/{account_id}"
+        if node.postable and not node.account.closed_on
+        else None,
         "node": node,
         "root": root,
         "entries": history,
@@ -468,9 +591,16 @@ def account_context(accounts: AccountService, profiles, account_id: UUID, entrie
         "next_offset": page.next_offset if page else 0,
         "upcoming": upcoming,
         "upcoming_total": upcoming_total,
+        "balance_after": balance_after,
         "is_inflow": lambda change: _is_inflow(root.account.name, change),
         "currency": accounts.currency().code,
         "can_add_child": can_add_child,
+        # Pin or Unpin sits in the menu of an open account that holds entries; a group, a root or a closed account has none.
+        "can_pin": node.kind == "user"
+        and not node.is_group
+        and not node.account.closed_on
+        and not node.account.contact_account
+        and root.account.name in ("Assets", "Liabilities"),
         # Part of a group's balance that was posted to the group itself.
         "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
         if node.postable and node.children
@@ -478,60 +608,37 @@ def account_context(accounts: AccountService, profiles, account_id: UUID, entrie
     }
 
 
-def deleted_page(request: Request, accounts: Accounts):
-    """Closed and deleted accounts, newest first, each with Restore."""
-    closed = [dict(c, kind="closed", when=c["closed_on"]) for c in accounts.closed() if c["root"] in ACCOUNT_ROOTS]
-    gone = [
-        dict(d, kind="deleted", when=local_day(d["at"])) for d in accounts.restorable() if d["root"] in ACCOUNT_ROOTS
-    ]
-    entries = sorted(closed + gone, key=lambda e: e["when"], reverse=True)
-    return templates.TemplateResponse(
-        request,
-        "accounts_deleted.html",
-        {"active": "settings", "area": "accounts", "entries": entries},
-    )
-
-
-@router.get("/deleted")
-def deleted_accounts_page(request: Request, accounts: Accounts):
-    return deleted_page(request, accounts)
-
-
-@router.post("/deleted/{deletion_id}/restore")
-def restore_deleted_account(deletion_id: UUID, accounts: Accounts):
-    try:
-        restored = accounts.restore_deleted(deletion_id)
-    except LookupError:
-        return htmx_error("That deleted account is not there any more.", "#restore-error", status_code=404)
-    except ValueError as e:
-        return htmx_error(str(e), "#restore-error")
-    return htmx_redirect(f"/accounts/{restored.id}", flash="account-restored")
-
-
 @router.get("/{account_id}")
-def account_page(request: Request, account_id: UUID, accounts: Accounts, profiles: Profiles):
-    return templates.TemplateResponse(request, "account.html", account_context(accounts, profiles, account_id))
-
-
-def _list_for_root(root: str | None) -> str:
-    """The list a root's accounts are on, on the chip they are under (so going back lands where the person came from)."""
-    return f"/accounts?tab={root.lower()}" if root and root in ACCOUNT_TABS.values() else "/accounts"
-
-
-def list_url(accounts: AccountService, account_id: UUID) -> str:
-    roots = build_tree(accounts.list())
-    node = _find(roots, account_id)
-    return _list_for_root(_root_of(roots, node).account.name if node is not None else None)
+def account_page(request: Request, account_id: UUID, accounts: Accounts):
+    return templates.TemplateResponse(request, "account.html", account_context(accounts, account_id))
 
 
 @router.post("/{account_id}/close")
 def close_account(account_id: UUID, accounts: Accounts):
-    area = list_url(accounts, account_id)
+    area = "/accounts"
     try:
         accounts.close(account_id)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
     return htmx_redirect(area, flash="account-closed")
+
+
+@router.post("/{account_id}/pin")
+def pin_account(account_id: UUID, accounts: Accounts):
+    try:
+        accounts.update(account_id, AccountUpdate(pinned=True))
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/accounts/{account_id}", flash="account-pinned")
+
+
+@router.post("/{account_id}/unpin")
+def unpin_account(account_id: UUID, accounts: Accounts):
+    try:
+        accounts.update(account_id, AccountUpdate(pinned=False))
+    except ValueError as e:
+        return htmx_error(str(e), "#page-error")
+    return htmx_redirect(f"/accounts/{account_id}", flash="account-unpinned")
 
 
 @router.post("/{account_id}/reopen")
@@ -544,18 +651,19 @@ def reopen_account(account_id: UUID, accounts: Accounts):
 
 
 @router.get("/{account_id}/more")
-def account_more(request: Request, account_id: UUID, accounts: Accounts, profiles: Profiles, offset: int = 0):
+def account_more(request: Request, account_id: UUID, accounts: Accounts, offset: int = 0):
     """The next chunk of an account's transactions (htmx replaces the "Load more" button with it)."""
-    context = account_context(accounts, profiles, account_id, None, offset=max(offset, 0))
+    context = account_context(accounts, account_id, None, offset=max(offset, 0))
     return templates.TemplateResponse(request, "partials/account_entries.html", {**context, "area": "/accounts"})
 
 
 @router.get("/{account_id}/edit")
-def edit_account_page(request: Request, account_id: UUID, accounts: Accounts, categories: Categories):
+def edit_account_page(request: Request, account_id: UUID, accounts: Accounts):
     roots, node = _load(accounts, account_id)
     if node.kind != "user":
         raise HTTPException(status_code=404, detail="account not found")
     root = _root_of(roots, node)
+    mine = [g for g in kind_groups([root]) if not node.is_group and g.account.closed_on is None]
     return templates.TemplateResponse(
         request,
         "account_form.html",
@@ -566,16 +674,13 @@ def edit_account_page(request: Request, account_id: UUID, accounts: Accounts, ca
             "parent_id": node.account.parent_id,
             "currency": accounts.currency().code,
             "root_name": root.account.name,
-            "can_budget": root.account.name in ("Assets", "Liabilities") and node.is_leaf,
+            "can_budget": root.account.name in ("Assets", "Liabilities") and not node.is_group,
+            "can_bill": root.account.name == "Liabilities" and not node.is_group,
             "on_budget": node.account.on_budget,
-            "payment_category_id": node.account.payment_category_id,
             "starts": _starts(roots),
-            "category_options": spending_options(categories),
-            "parent_options": [
-                n
-                for n in _parent_options(roots, exclude=node, keep=node.account.parent_id)
-                if any(n is m for m in root.walk())
-            ],
+            # Where it sits is a kind; a group (an account with accounts inside) stays where it is.
+            "kinds": mine,
+            "parent_options": [] if node.is_group else _with_parent(mine, [root], node.account.parent_id),
         },
     )
 
@@ -590,7 +695,12 @@ def update_account(
     balance: Annotated[str | None, Form()] = None,
     on_budget: Annotated[str | None, Form()] = None,
     budget_choice: Annotated[str | None, Form()] = None,
-    payment_category: Annotated[str, Form()] = "",
+    bill_choice: Annotated[str | None, Form()] = None,
+    statement_day: Annotated[str, Form()] = "",
+    due_day: Annotated[str, Form()] = "",
+    bill_rounding: Annotated[str, Form()] = "none",
+    group_choice: Annotated[str | None, Form()] = None,
+    new_accounts_in_budget: Annotated[str | None, Form()] = None,
 ):
     current = accounts.read(account_id)
     if current is None:
@@ -610,10 +720,16 @@ def update_account(
                 changes["balance"] = new_balance
         if budget_choice is not None and (on_budget is not None) != current.on_budget:
             changes["on_budget"] = on_budget is not None
-        if budget_choice is not None:
-            wanted = None if on_budget is not None or not payment_category.strip() else UUID(payment_category.strip())
-            if wanted != current.payment_category_id:
-                changes["payment_category_id"] = wanted
+        if group_choice is not None and (new_accounts_in_budget is not None) != current.new_accounts_in_budget:
+            changes["new_accounts_in_budget"] = new_accounts_in_budget is not None
+        if bill_choice is not None:
+            days = _bill_days(statement_day, due_day, bill_rounding)
+            if days != {
+                "statement_day": current.statement_day,
+                "due_day": current.due_day,
+                "bill_rounding": current.bill_rounding,
+            }:
+                changes.update(days)
         if changes:
             accounts.update(account_id, AccountUpdate(**changes))
     except ValidationError as e:
@@ -625,7 +741,7 @@ def update_account(
 
 @router.post("/{account_id}/delete")
 def delete_account(account_id: UUID, accounts: Accounts):
-    where = list_url(accounts, account_id)
+    where = "/accounts"
     try:
         accounts.delete(account_id)
     except ValueError as e:

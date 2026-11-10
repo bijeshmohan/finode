@@ -1,6 +1,9 @@
-"""Paying a loan that is outside the budget: the EMI spends the category the loan points at."""
+"""Paying a loan that is outside the budget: an EMI labelled with a category spends it; one without a label does not.
+Nothing is filled in for the person: the label is whatever the line was given."""
 
 import pytest
+
+from app.services import account as account_service
 
 from .books import leg, post_account
 from .test_budget import account, assign, budget, line, move
@@ -15,14 +18,6 @@ def books(client, root_accounts):
     return {"bank": bank, "loan": loan, "emi": emi, "interest": interest}
 
 
-def point(client, loan, category):
-    response = client.patch(
-        f"/api/accounts/{loan['id']}", json={"payment_category_id": category["id"] if category else None}
-    )
-    assert response.status_code == 200, response.text
-    return response.json()
-
-
 def test_without_a_category_the_emi_just_lowers_ready_to_assign(client, books):
     assign(client, books["emi"], "15000")
     move(client, books["bank"], books["loan"], "15000")  # EMI: debits the loan, credits the bank
@@ -32,37 +27,68 @@ def test_without_a_category_the_emi_just_lowers_ready_to_assign(client, books):
 
 
 def test_with_a_category_the_emi_spends_it(client, books):
-    point(client, books["loan"], books["emi"])
     assign(client, books["emi"], "15000")
-    move(client, books["bank"], books["loan"], "15000")
+    move(client, books["bank"], books["loan"], "15000", category=books["emi"])
     data = budget(client)
     emi = line(data, "EMI")
     assert emi["activity"] == "15000.00" and emi["available"] == "0.00"
     assert data["ready_to_assign"] == "85000.00", "assigned and spent: nothing else changes"
 
 
-def test_interest_the_lender_charges_stays_outside_the_budget(client, books):
-    point(client, books["loan"], books["emi"])
+def test_a_loan_has_no_usual_category_to_fill_in(client, books):
+    loan = client.get(f"/api/accounts/{books['loan']['id']}").json()
+    assert "payment_category_id" not in loan
+    move(client, books["bank"], books["loan"], "100")
+    made = client.get("/api/transactions/").json()[0]
+    assert {p["category_id"] for p in made["postings"]} == {None}, "the payment stays without a label"
+    assert (
+        client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["emi"]["id"]}).json()[
+            "name"
+        ]
+        == "Home Loan"
+    ), "an old client sending the removed field is ignored, not an error"
+    assert {p["category_id"] for p in client.get("/api/transactions/").json()[0]["postings"]} == {None}
+
+
+def test_interest_the_lender_charges_is_not_budget_spending(client, books):
     move(client, books["loan"], books["interest"], "900")  # the lender charges interest to the loan
-    data = budget(client)
-    assert line(data, "Interest")["activity"] == "0.00"
-    assert data["left_out_accounts"] == [] and data["left_out"] == "0.00", "no nudge to add the loan to the budget"
+    assert line(budget(client), "Interest")["activity"] == "0.00"
+
+
+def test_interest_charged_to_a_loan_in_the_loans_group_makes_no_nudge(monkeypatch, client):
+    """A loan under the built-in Loans group (or anything under Investments) is outside the budget by design: no nudge to
+    add it, however often it is charged. A card outside the budget is offered."""
+    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
+    listed = client.get("/api/accounts/").json()
+    by_key = {a["system_key"]: a["id"] for a in listed if a["system_key"]}
+    expenses = next(a["id"] for a in listed if a["name"] == "Expenses" and a["parent_id"] is None)
+    car = post_account(client, {"name": "Car loan", "parent_id": by_key["liabilities.loans"]}).json()
+    card = post_account(
+        client, {"name": "Old card", "parent_id": by_key["liabilities.cards"], "on_budget": False}
+    ).json()
+    fees = post_account(client, {"name": "Fees", "parent_id": expenses}).json()
+    for payer in (car, card):
+        client.post(
+            "/api/transactions/",
+            json={"postings": [leg(fees, "debit", "50"), leg(payer, "credit", "50")]},
+        )
+    assert [a["path"].split(":")[-1] for a in budget(client)["left_out_accounts"]] == ["Old card"]
 
 
 def test_borrowing_into_the_bank_is_not_spending(client, books):
-    point(client, books["loan"], books["emi"])
-    move(client, books["loan"], books["bank"], "50000")  # the loan pays out: credit the loan, debit the bank
+    move(
+        client, books["loan"], books["bank"], "50000", category=None
+    )  # the loan pays out: credit the loan, debit the bank
     data = budget(client)
     assert line(data, "EMI")["activity"] == "0.00" and data["ready_to_assign"] == "150000.00"
 
 
 def test_a_split_emi_counts_both_parts(client, books):
-    point(client, books["loan"], books["emi"])
     client.post(
         "/api/transactions/",
         json={
             "postings": [
-                leg(books["loan"], "debit", "8000"),
+                leg(books["loan"], "debit", "8000", category_id=books["emi"]["id"]),
                 leg(books["interest"], "debit", "2000"),
                 leg(books["bank"], "credit", "10000"),
             ]
@@ -75,71 +101,21 @@ def test_a_split_emi_counts_both_parts(client, books):
     )
 
 
-def test_the_rules_for_choosing_a_category(client, books, root_accounts):
-    url = f"/api/accounts/{books['loan']['id']}"
-    assert client.patch(url, json={"payment_category_id": books["bank"]["id"]}).status_code == 400
-    assert (
-        client.patch(
-            f"/api/accounts/{books['bank']['id']}", json={"payment_category_id": books["emi"]["id"]}
-        ).status_code
-        == 400
-    ), "already part of the budget"
-    assert client.patch(url, json={"payment_category_id": root_accounts["Expenses"]}).status_code == 400
-
-
-def test_joining_the_budget_drops_the_category_and_it_can_be_cleared(client, books):
-    point(client, books["loan"], books["emi"])
-    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] == books["emi"]["id"]
-    assert point(client, books["loan"], None)["payment_category_id"] is None
-    point(client, books["loan"], books["emi"])
-    joined = client.patch(f"/api/accounts/{books['loan']['id']}", json={"on_budget": True}).json()
-    assert joined["on_budget"] and joined["payment_category_id"] is None
-
-
-def test_deleting_the_category_clears_the_link(client, books):
-    point(client, books["loan"], books["emi"])
-    assert client.post(f"/api/categories/{books['emi']['id']}/delete").status_code == 200
-    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] is None
-
-
-def test_the_edit_page_offers_and_saves_it(client, books):
+def test_the_edit_page_has_no_usual_category(client, books):
     page = client.get(f"/accounts/{books['loan']['id']}/edit").text
-    assert "Usual category for payments" in page and ">EMI</option>" in page
+    assert "Usual category" not in page and 'name="payment_category"' not in page and "Part of the budget" in page
     saved = client.post(
         f"/accounts/{books['loan']['id']}/edit",
-        data={
-            "name": "Home Loan",
-            "budget_choice": "1",
-            "payment_category": books["emi"]["id"],
-        },
+        data={"name": "Home Loan", "budget_choice": "1", "payment_category": books["emi"]["id"]},
     )
     assert saved.status_code == 200 and saved.headers["HX-Redirect"].startswith("/accounts/")
-    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] == books["emi"]["id"]
-    assert f'value="{books["emi"]["id"]}" selected' in client.get(f"/accounts/{books['loan']['id']}/edit").text
-    client.post(
-        f"/accounts/{books['loan']['id']}/edit",
-        data={"name": "Home Loan", "budget_choice": "1", "payment_category": ""},
-    )
-    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] is None
-    assert (
-        client.post(
-            f"/accounts/{books['loan']['id']}/edit",
-            data={
-                "name": "Home Loan",
-                "budget_choice": "1",
-                "payment_category": books["bank"]["id"],
-            },
-        ).status_code
-        == 400
-    )
 
 
 # ---- the Categories page sees them too ---------------------------------------------------------------------------------
 
 
 def test_the_categories_page_and_the_category_page_count_payments_into_the_loan(client, books):
-    point(client, books["loan"], books["emi"])
-    move(client, books["bank"], books["loan"], "15000")
+    move(client, books["bank"], books["loan"], "15000", category=books["emi"])
     move(
         client, books["loan"], books["interest"], "900"
     )  # interest charged by the lender: spending on Interest, not a payment
@@ -150,19 +126,10 @@ def test_the_categories_page_and_the_category_page_count_payments_into_the_loan(
     assert "Home Loan" in emi
 
 
-def test_a_payment_not_from_the_budget_is_not_spending(client, books, root_accounts):
-    point(client, books["loan"], books["emi"])
-    income = account(client, root_accounts, "Discount", "Income")
-    move(client, income, books["loan"], "20")  # money that never touched a budget account
-    assert "20.00" not in client.get("/categories").text
-    assert client.get(f"/categories/{books['emi']['id']}").text.count('class="tx"') == 0
-
-
 def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root_accounts):
     debts = account(client, root_accounts, "Debts", "Expenses")
     sub = post_account(client, {"name": "Car EMI", "parent_id": debts["id"]}).json()
-    point(client, books["loan"], sub)
-    move(client, books["bank"], books["loan"], "7000")
+    move(client, books["bank"], books["loan"], "7000", category=sub)
     assert "7,000.00" in client.get("/categories").text
     assert "7,000.00" in client.get(f"/categories/{debts['id']}").text, "the group's figure"
     assert client.get(f"/categories/{sub['id']}").text.count('class="tx"') == 1, "listed on the category itself"
@@ -170,12 +137,11 @@ def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root
 
 def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, books, svc):
     """The Categories page, the breakdown by category and the overview's `spent` count the EMI once, as spending in the
-    loan's payment category, and the interest the lender charges as the spending it is; borrowing is not spending. The
-    books' own view (`expenses`, the breakdown by account) has only the interest: paying into a loan is no expense.
+    category it was labelled with, and the interest the lender charges as the spending it is; borrowing is not spending.
+    The books' own view (`expenses`, the breakdown by account) has only the interest: paying into a loan is no expense.
     (The Budget counts only what budget money paid, so interest, which no budget account paid, is not in it.)"""
-    point(client, books["loan"], books["emi"])
     assign(client, books["emi"], "15000")
-    move(client, books["bank"], books["loan"], "15000")  # the EMI
+    move(client, books["bank"], books["loan"], "15000", category=books["emi"])  # the EMI
     move(client, books["loan"], books["interest"], "900")  # interest the lender charges
     move(client, books["loan"], books["bank"], "5000")  # borrowing more: not spending
 
@@ -190,7 +156,7 @@ def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, b
     assert "15,000.00" in categories and "900.00" in categories
 
 
-def test_without_a_payment_category_no_report_counts_the_emi(client, books, svc):
+def test_without_a_label_no_report_counts_the_emi(client, books, svc):
     move(client, books["bank"], books["loan"], "15000")
     assert str(svc.reports.summary().expenses) == "0.00" and str(svc.reports.summary().spent) == "0.00"
     assert str(svc.reports.breakdown("Expenses").total) == "0.00"

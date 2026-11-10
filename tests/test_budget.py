@@ -17,10 +17,12 @@ def account(client, root, name, parent, **extra):
     return response.json()
 
 
-def move(client, source, target, amount, on=None):
+def move(client, source, target, amount, on=None, category=None):
+    """Money goes from the source to the target; `category` labels the target's line (a payment into a loan: EMI)."""
+    label = {"category_id": category["id"]} if category else {}
     body = {
         "postings": [
-            leg(target, "debit", amount),
+            leg(target, "debit", amount, **label),
             leg(source, "credit", amount),
         ]
     }
@@ -68,7 +70,7 @@ def move_budget(client, source, target, amount, month=None):
 
 
 def line(data, name):
-    return next(l for l in [*data["lines"], *data["goals"]] if l["name"] == name)
+    return next(l for l in data["lines"] if l["name"] == name)
 
 
 @pytest.fixture
@@ -480,7 +482,7 @@ def test_copying_never_overwrites_what_is_assigned(client, setup):
     assign(client, setup["food"], "300", LAST_MONTH)
     assign(client, setup["rent"], "500", LAST_MONTH)
     assign(client, setup["food"], "50")
-    assert budget(client)["copyable"] == "500.00"
+    assert budget(client)["copyable"] == "0.00", "a started month is not offered a copy"
     data = press(client, "copy").json()
     assert line(data, "Food")["assigned"] == "50.00" and line(data, "Rent")["assigned"] == "500.00"
 
@@ -520,11 +522,10 @@ def card_books(client, root_accounts):
 
 def identity(data):
     """Ready to assign is always what is in the accounts, minus the card bills, minus the categories."""
-    money, reserved, available, saved, later = (
-        Decimal(data[k])
-        for k in ("money_in_accounts", "reserved_for_cards", "available", "goal_available", "assigned_to_later_months")
+    money, reserved, available, later = (
+        Decimal(data[k]) for k in ("money_in_accounts", "reserved_for_cards", "available", "assigned_to_later_months")
     )
-    assert Decimal(data["ready_to_assign"]) == money - reserved - available - saved - later, data
+    assert Decimal(data["ready_to_assign"]) == money - reserved - available - later, data
 
 
 def test_a_card_shows_what_is_set_aside_for_its_bill(client, card_books):

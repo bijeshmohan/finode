@@ -46,6 +46,28 @@ def test_the_sheet_closes_with_escape_and_with_a_tap_outside(page: Page, books, 
     expect(page.locator("#txn-sheet")).to_be_hidden()
 
 
+def test_a_sheet_closed_between_its_answer_and_its_arrival_stays_closed(page: Page, books, api: Api):
+    """Esc in the gap after the answer is in and before it is put on the page (the real cause of an occasional failure under
+    load) must not bring the sheet back: the close happens in `htmx:beforeSwap`, the moment that gap is in."""
+    add(api, books, "Swiggy", "food", "card")
+    page.goto("/transactions")
+    page.evaluate(
+        """() => {
+            const close = (event) => {
+                if (event.detail.target.id !== "txn-sheet-body") return;  // not the to-do badge's own swap
+                document.body.removeEventListener("htmx:beforeSwap", close);
+                document.getElementById("txn-sheet").close();
+            };
+            document.body.addEventListener("htmx:beforeSwap", close);
+        }"""
+    )
+    page.locator("a.tx", has_text="Swiggy").click()
+    page.wait_for_timeout(600)  # the answer arrives and is swapped in
+    expect(page.locator("#txn-sheet")).to_be_hidden()
+    page.locator("a.tx", has_text="Swiggy").click()  # and it opens again as usual
+    expect(page.locator("#txn-sheet")).to_contain_text("Paid from")
+
+
 def test_the_sheet_opens_from_home_too(page: Page, books, api: Api):
     add(api, books, "Swiggy", "food", "card")
     page.goto("/")
@@ -59,12 +81,12 @@ def test_add_again_opens_the_form_filled_in(page: Page, books, api: Api):
     page.goto("/transactions")
     page.locator("a.tx", has_text="DMart").click()
     page.get_by_role("link", name="Repeat").click()
-    page.wait_for_url("**/transactions/new?repeat=*")
+    page.wait_for_url(re.compile(r"/transactions/new\?repeat="))
     assert page.input_value("#total") == "1,286.00" and page.input_value("#payee") == "DMart"
     assert page.input_value('[data-rows="credit"] select') == books["checking"]["id"]
     assert page.input_value('[data-rows="debit"] select') == books["food"]["id"]
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     assert len([t for t in api.get("/transactions/") if t["payee"] == "DMart"]) == 2
 
 
@@ -73,7 +95,7 @@ def test_edit_from_the_sheet_goes_to_the_edit_page(page: Page, books, api: Api):
     page.goto("/transactions")
     page.locator("a.tx", has_text="Swiggy").click()
     page.get_by_role("link", name="Edit", exact=True).click()
-    page.wait_for_url("**/edit")
+    page.wait_for_url(re.compile(r"/edit(\?|$)"))
     assert page.input_value("#payee") == "Swiggy"
 
 
@@ -82,8 +104,9 @@ def test_deleting_from_the_sheet(page: Page, books, api: Api):
     add(api, books, "DMart", "food", "checking")
     page.goto("/transactions")
     page.locator("a.tx", has_text="Swiggy").click()
+    page.once("dialog", lambda d: d.accept())
     page.locator("#txn-sheet").get_by_role("button", name="Delete").click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(0)
     expect(page.locator("a.tx", has_text="DMart")).to_have_count(1)
     assert [t["payee"] for t in api.get("/transactions/") if t["payee"] and t["payee"] != "Opening balance"] == [
@@ -117,15 +140,21 @@ def test_a_sheet_closed_while_loading_stays_closed(page: Page, books, api: Api):
     expect(page.locator("#txn-sheet")).to_be_hidden()
 
 
-def test_undo_in_the_toast_brings_a_deleted_entry_back(page: Page, books, api: Api):
+def test_deleting_an_entry_asks_first_and_it_is_gone_for_good(page: Page, books, api: Api):
     add(api, books, "Swiggy", "food", "card")
     page.goto("/transactions")
     page.locator("a.tx", has_text="Swiggy").click()
+    asked = []
+    page.once("dialog", lambda d: (asked.append(d.message), d.dismiss()))
+    page.locator("#txn-sheet").get_by_role("button", name="Delete").click()
+    assert "cannot be undone" in asked[0]
+    assert any(t["payee"] == "Swiggy" for t in api.get("/transactions/")), "dismissing the question deletes nothing"
+    page.once("dialog", lambda d: d.accept())
     page.locator("#txn-sheet").get_by_role("button", name="Delete").click()
     expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(0)
-    page.locator(".toast .toast-undo").click()
-    expect(page.locator("a.tx", has_text="Swiggy")).to_have_count(1)
-    assert any(t["payee"] == "Swiggy" for t in api.get("/transactions/"))
+    expect(page.locator(".toast")).to_contain_text("Transaction deleted")
+    assert not any(t["payee"] == "Swiggy" for t in api.get("/transactions/"))
+    assert "Undo" not in page.content()
 
 
 def pick(page: Page, field: str, choice: str):
@@ -286,7 +315,7 @@ def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(page: Pag
         ],
     )
     page.goto("/transactions")
-    page.locator("a.tx", has_text="Swiggy refund").click()
+    page.locator("a.tx", has_text="Swiggy refund").locator(".tx-title-text").click()  # not the pill
     sheet = page.locator("#txn-sheet")
     more = sheet.locator(".sheet-extra > summary")
     expect(more).to_have_text("More")
@@ -305,3 +334,57 @@ def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(page: Pag
     assert "/edit" not in page.url
     more.click()
     expect(sheet.locator(".sheet-related-row")).to_be_hidden()
+
+
+def test_the_pill_opens_the_original_and_the_row_opens_its_own_sheet(page: Page, books, api: Api):
+    first = add(api, books, "Amazon", "food", "card", "4998")
+    api.post(
+        "/transactions/",
+        payee="Amazon refund",
+        related_id=first["id"],
+        postings=[leg(books["card"], "debit", "1000"), leg(books["food"], "credit", "1000")],
+    )
+    page.goto("/transactions")
+    refund = page.locator("a.tx", has_text="Amazon refund")
+    pill = refund.locator(".tx-pill")
+    expect(pill).to_contain_text("4,998.00")
+    expect(page.locator(".tx-pill")).to_have_count(1)  # the original has none
+    pill.click()
+    sheet = page.locator("#txn-sheet")
+    expect(sheet).to_be_visible()
+    expect(sheet).to_contain_text("4,998.00")
+    expect(sheet.locator("h2")).to_have_text("Amazon")
+    page.keyboard.press("Escape")
+    expect(sheet).to_be_hidden()
+    refund.locator(".tx-title-text").click()
+    expect(sheet.locator("h2")).to_have_text("Amazon refund")
+
+
+def test_editing_after_filtering_keeps_the_filter(page: Page, books, api: Api):
+    api.post(
+        "/transactions/",
+        payee="Cab",
+        postings=[
+            {"category_id": books["food"]["id"], "side": "debit", "amount": "40"},
+            {"account_id": books["checking"]["id"], "side": "credit", "amount": "40"},
+        ],
+    )
+    api.post(
+        "/transactions/",
+        payee="Rent",
+        postings=[
+            {"category_id": books["rent"]["id"], "side": "debit", "amount": "900"},
+            {"account_id": books["checking"]["id"], "side": "credit", "amount": "900"},
+        ],
+    )
+    url = f"/transactions?category={books['food']['id']}"
+    page.goto(url)
+    expect(page.locator("a.tx", has_text="Rent")).to_have_count(0)
+    page.locator("a.tx", has_text="Cab").click()
+    page.locator("#txn-sheet").get_by_role("link", name="Edit").click()
+    page.locator('input[name="payee"]').fill("Taxi")
+    page.get_by_role("button", name="Save").click()
+    page.wait_for_url(lambda u: "/edit" not in u)
+    assert f"category={books['food']['id']}" in page.url
+    expect(page.locator("a.tx", has_text="Taxi")).to_have_count(1)
+    expect(page.locator("a.tx", has_text="Rent")).to_have_count(0)

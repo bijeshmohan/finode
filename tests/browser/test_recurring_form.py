@@ -2,18 +2,18 @@
 
 from playwright.sync_api import Page, expect
 
-from .conftest import Api
+from .conftest import Api, set_row
 
 
 def test_a_split_rule_from_the_form(page: Page, books, api: Api):
     page.goto("/recurring/new")
     page.fill("#total", "1000")
     page.select_option('[data-rows="credit"] select', label="Checking")
-    page.fill('[data-rows="debit"] [name="amount"]', "700")
     page.select_option('[data-rows="debit"] [data-row]:nth-child(1) select', label="Rent")
+    set_row(page, "debit", 0, amount="700")
     page.select_option('[data-rows="debit"] [data-row]:nth-child(2) select', label="Groceries")
     assert page.eval_on_selector_all('[data-rows="debit"] [name="amount"]', "e => e.map(x => x.value)") == [
-        "700",
+        "700.00",
         "300.00",
     ]
     page.fill('input[name="payee"]', "Landlord")
@@ -112,3 +112,13 @@ def test_the_recurring_list_is_flat_rows_in_a_tile(touch_page: Page, books, api:
     box = row.bounding_box()
     assert box and box["height"] < 80, "one title line and one quiet line, no extra padding"
     expect(row).to_contain_text("next 1 Jan 2999")
+
+
+def test_the_past_start_hint_shows_only_for_a_past_start(page: Page, books):
+    page.goto("/recurring/new")
+    hint = page.locator("[data-past-hint]")
+    expect(hint).to_be_hidden()
+    page.locator('input[name="start"]').fill("2020-01-15")
+    expect(hint).to_be_visible()
+    page.locator('input[name="start"]').fill("2999-01-15")
+    expect(hint).to_be_hidden()

@@ -22,7 +22,7 @@ A new Home screen shows **Get started** with three steps:
 
 Steps tick off as you do them, and the card disappears when all are done. It stays on Home after your first entry until the third step is done.
 
-The Budgets page has a short welcome until you assign the first amount. On the new-account form the budget choices are folded into one **Budget options** line that says where the account stands.
+The Budgets page has a short welcome until you assign the first amount. On the new-account form one box, **Part of the budget**, says where the account stands.
 
 ## 4. Find your way around
 
@@ -31,7 +31,7 @@ On a phone, the bottom bar has four tabs with a **+** in the middle:
 | Tab | What it is for |
 |---|---|
 | **Home** | one number (what is left to spend this month) and your recent transactions |
-| **Budgets** | give every rupee a job (Budgets), save for a trip or a bike (Goals); see what is Ready to assign |
+| **Budgets** | give every rupee a job (Budgets); see what is Ready to assign |
 | **Accounts** | where your money is: banks, cash, cards, loans |
 | **Categories** | what you spend on and earn from, and how much, month by month |
 | **+** | add a transaction |
@@ -45,13 +45,13 @@ On a wide screen a sidebar replaces the bar and the **+** (it has a *New transac
 1. Tap **+**.
 2. Type the **amount** at the top.
 3. Optionally type a **payee** (who you paid).
-4. Keep **Expense** selected (the default), then choose **Paid from** (the account you paid with) and **Category** (what it was for, such as Groceries). You can create an account or category right there with *+ New category…*.
+4. Keep **Expense** selected (the default), then choose **Paid from** (the account you paid with) and **Spent on** (the category, such as Groceries). You can create an account or category right there with *+ New category…*.
 5. Change the **date** if it was not today, and add a **note** if you like.
-6. **Save**, or **Save & add another** to keep entering.
+6. **Save**.
 
 <img src="img/new-transaction.png" alt="The new transaction form: amount, payee, Expense, Income and Transfer, Paid from and Category, date" width="300">
 
-After a few entries, tapping a payee chip under the payee field fills in the same accounts as last time.
+After a few entries, tapping a payee chip under the payee field fills in the payee.
 
 ## Where next
 
@@ -59,4 +59,5 @@ After a few entries, tapping a payee chip under the payee field fills in the sam
 - [Transactions](transactions.md)
 - [Budgeting](budgeting.md)
 - [Recurring transactions, settings and backup](recurring-and-settings.md)
+- [People: lending, sharing a bill and settling up](people.md)
 - [Using finode from an AI assistant](mcp.md)

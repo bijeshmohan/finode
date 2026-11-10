@@ -7,10 +7,12 @@ import pytest
 
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
+from app.schemas.backup import BackupFile
 
 from .books import into, leg, post_account
 from .conftest import TEST_USER_ID
 
+MISSING_ID = "00000000-0000-4000-8000-0000000000ff"
 OTHER = UUID("00000000-0000-4000-8000-0000000000bb")
 
 
@@ -37,13 +39,12 @@ def rich(client, root_accounts):
     banks = acct(client, "Banks", root_accounts["Assets"])
     bank = acct(client, "HDFC", banks["id"], balance="50000", details="main account")
     old = acct(client, "Old Savings", banks["id"])
-    card = acct(client, "Visa", root_accounts["Liabilities"], on_budget=True)
+    card = acct(client, "Visa", root_accounts["Liabilities"], on_budget=True, statement_day=22, due_day=15)
     loan = acct(client, "Home Loan", root_accounts["Liabilities"], on_budget=False)
     food = acct(client, "Food", root_accounts["Expenses"])
     groceries = acct(client, "Groceries", food["id"])
     emi = acct(client, "EMI", root_accounts["Expenses"])
     salary = acct(client, "Salary", root_accounts["Income"])
-    client.patch(f"/api/accounts/{loan['id']}", json={"payment_category_id": emi["id"]})
     assert client.post(f"/api/accounts/{old['id']}/close").status_code == 200
 
     dmart = tx(
@@ -97,14 +98,75 @@ def rich(client, root_accounts):
     assert (
         client.post(f"/api/recurring/{recurring_id}/skip").status_code == 200
     )  # a skipped occurrence is part of the rule's state
+    alice = client.post("/api/contacts/", json={"name": "Alice", "email": "a@example.com", "notes": "friend"}).json()
+    bob = client.post("/api/contacts/", json={"name": "Bob"}).json()
+    assert client.post(f"/api/contacts/{bob['id']}/archive").status_code == 200
+    lent = client.post(
+        f"/api/contacts/{alice['id']}/transfers",
+        json={"direction": "sent", "purpose": "loan", "amount": "300", "account_id": bank["id"], "date": "2026-09-07"},
+    )
+    assert lent.status_code == 201, lent.text
+    paid = client.post(
+        f"/api/contacts/{alice['id']}/settlements",
+        json={"direction": "received", "amount": "100", "account_id": bank["id"], "date": "2026-09-08"},
+    )
+    assert paid.status_code == 201, paid.text
+    dinner = client.post(
+        "/api/shared-expenses/",
+        params={"confirm": True},
+        json={
+            "description": "Dinner",
+            "total_amount": "900",
+            "date": "2026-09-08",
+            "category_id": groceries["id"],
+            "participants": [{"is_self": True}, {"contact_id": alice["id"]}, {"contact_id": bob["id"]}],
+            "payments": [{"account_id": bank["id"], "amount": "900"}],
+        },
+    )
+    assert dinner.status_code == 400, "Bob is archived"
+    assert client.post(f"/api/contacts/{bob['id']}/restore").status_code == 200
+    dinner = client.post(
+        "/api/shared-expenses/",
+        params={"confirm": True},
+        json={
+            "description": "Dinner",
+            "total_amount": "900",
+            "date": "2026-09-08",
+            "category_id": groceries["id"],
+            "participants": [{"is_self": True}, {"contact_id": alice["id"]}, {"contact_id": bob["id"]}],
+            "payments": [{"account_id": bank["id"], "amount": "900"}],
+        },
+    )
+    assert dinner.status_code == 201, dinner.text
+    draft = client.post(
+        "/api/shared-expenses/",
+        json={
+            "description": "Trip",
+            "total_amount": "100",
+            "split_method": "percentage",
+            "participants": [
+                {"is_self": True, "value": "60"},
+                {"contact_id": alice["id"], "value": "40"},
+            ],
+            "payments": [{"account_id": bank["id"], "amount": "100"}],
+        },
+    )
+    assert draft.status_code == 201, draft.text
+    rent = client.post("/api/categories/", json={"name": "Rent", "kind": "earning"}).json()
+    shared_income = client.post(
+        "/api/shared-incomes/",
+        json={
+            "description": "Rent, Flat 4B",
+            "total_amount": "1000",
+            "date": "2026-09-09",
+            "category_id": rent["id"],
+            "theirs": [{"contact_id": alice["id"], "amount": "400"}],
+            "deposits": [{"account_id": bank["id"], "amount": "1000"}],
+        },
+    )
+    assert shared_income.status_code == 201, shared_income.text
     client.put(f"/api/budget/categories/{groceries['id']}", json={"month": "2026-09-01", "amount": "3000"})
     client.put(f"/api/budget/categories/{emi['id']}", json={"month": "2026-09-01", "amount": "15000"})
-    assert (
-        client.post(
-            "/budget/goal", data={"name": "Emergency fund", "amount": "100000", "by": "2999-12", "assign_now": "1"}
-        ).status_code
-        == 200
-    )
     return {"bank": bank, "groceries": groceries}
 
 
@@ -145,7 +207,8 @@ def canonical(doc: dict) -> dict:
                 a["details"],
                 a["on_budget"],
                 a["closed_on"] is not None,
-                paths.get(a["payment_category_id"]),
+                a.get("statement_day"),
+                a.get("due_day"),
             )
             for a in doc["accounts"]
         )
@@ -185,9 +248,33 @@ def canonical(doc: dict) -> dict:
             for r in doc["recurring"]
         ),
         "allocations": sorted((a["month"], paths[a["category_id"]], a["amount"]) for a in doc["allocations"]),
-        "goals": sorted(
-            (g["name"], g["amount"], g["target_date"], sorted((r["month"], r["amount"]) for r in g["allocations"]))
-            for g in doc["goals"]
+        "obligations": sorted(
+            (o["amount"], o["source_type"], o["direction"], entries[o["transaction"]]) for o in doc["obligations"]
+        ),
+        "party": sorted((p["purpose"], p["direction"], entries[p["transaction"]]) for p in doc["party_transactions"]),
+        "settlements": sorted(s["amount"] for s in doc["settlements"]),
+        "shared_expenses": sorted(
+            (
+                e["description"],
+                e["status"],
+                e["split_method"],
+                e["total_amount"],
+                tuple(sorted((s["is_self"], s["share_amount"], s["share_value"]) for s in e["shares"])),
+                tuple(sorted((c["is_self"], c["amount"]) for c in e["contributions"])),
+            )
+            for e in doc["shared_expenses"]
+        ),
+        "contacts": sorted(
+            (
+                c["name"],
+                c["email"],
+                c["phone"],
+                c["notes"],
+                c["archived_at"] is not None,
+                paths[c["receivable_account"]],
+                paths[c["payable_account"]],
+            )
+            for c in doc["contacts"]
         ),
     }
 
@@ -199,7 +286,7 @@ def test_the_backup_has_everything(client, rich):
         and 'attachment; filename="finode-backup-' in response.headers["content-disposition"]
     )
     doc = response.json()
-    assert doc["format"] == "finode-backup" and doc["version"] == 5
+    assert doc["format"] == "finode-backup" and doc["version"] == 6
     assert doc["profile"]["first_name"] == "Ada" and doc["profile"]["default_currency"] == "INR"
     names = {a["name"] for a in doc["accounts"]}
     assert {
@@ -212,14 +299,11 @@ def test_the_backup_has_everything(client, rich):
         "Assets",
     } <= names
     assert {"Groceries", "EMI"} <= {c["name"] for c in doc["categories"]} and "Groceries" not in names
-    assert any(a["closed_on"] for a in doc["accounts"]) and any(a["payment_category_id"] for a in doc["accounts"])
+    assert any(a["closed_on"] for a in doc["accounts"])
     assert any(a["on_budget"] for a in doc["accounts"])
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
     assert len(doc["allocations"]) == 2
-    assert [g["name"] for g in doc["goals"]] == ["Emergency fund"] and len(doc["goals"][0]["allocations"]) == 1, (
-        "goals are their own records"
-    )
     assert set(doc) == {
         "format",
         "version",
@@ -227,10 +311,14 @@ def test_the_backup_has_everything(client, rich):
         "profile",
         "accounts",
         "categories",
+        "contacts",
+        "party_transactions",
+        "obligations",
+        "settlements",
+        "shared_expenses",
         "transactions",
         "recurring",
         "allocations",
-        "goals",
     }, "no tokens or connected apps"
     assert not any("commodity" in a for a in doc["accounts"]) and not any(
         "value" in p for t in doc["transactions"] for p in t["postings"]
@@ -259,15 +347,37 @@ def test_restoring_rebuilds_the_same_books_for_someone_else(client, rich):
     assert not old_ids & {a["id"] for a in again["accounts"] if a["parent_id"]}
 
 
-def test_an_older_backup_with_pinned_accounts_still_restores(client, rich):
+def test_a_pinned_account_survives_a_backup_and_a_file_without_pins_restores(client, rich):
+    doc = client.get("/api/backup").json()
+    pinned = next(
+        a
+        for a in doc["accounts"]
+        if a["parent_id"]
+        and not a["closed_on"]
+        and client.patch(f"/api/accounts/{a['id']}", json={"pinned": True}).status_code == 200
+    )
+    doc = client.get("/api/backup").json()
+    assert [a["name"] for a in doc["accounts"] if a["pinned"]] == [pinned["name"]]
+    try:
+        as_user(OTHER)
+        assert (
+            client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")}).status_code
+            == 200
+        )
+        assert [a["name"] for a in client.get("/api/accounts/").json() if a["pinned"]] == [pinned["name"]]
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_a_backup_from_before_pins_restores_with_none_pinned(client, rich):
     doc = client.get("/api/backup").json()
     for account in doc["accounts"]:
-        account["pinned"] = True  # files from before pinning was removed carry the flag
+        del account["pinned"]
     try:
         as_user(OTHER)
         done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
-        assert done.status_code == 200, done.text
-        assert not any("pinned" in a for a in client.get("/api/backup").json()["accounts"]), "read, never written"
+        assert done.status_code == 200
+        assert not any(a["pinned"] for a in client.get("/api/accounts/").json())
     finally:
         as_user(TEST_USER_ID)
 
@@ -358,7 +468,7 @@ def test_a_broken_file_is_refused_and_saves_nothing(client, rich):
 
 def test_the_data_page_offers_backup_and_restore(client, rich):
     page = client.get("/profile/data").text
-    assert 'href="/backup"' in page and "Full backup" in page
+    assert 'href="/backup"' in page and "Backup" in page
     assert "only works on an empty ledger" in page
     assert client.get("/backup").headers["content-type"].startswith("application/json")
 
@@ -484,5 +594,101 @@ def test_a_backup_with_a_bad_tag_is_refused(client, rich):
         as_user(OTHER)
         refused = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
         assert refused.status_code == 400 and "cannot be a tag" in refused.text
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_a_backup_from_before_goals_were_removed_restores_without_them(client, rich):
+    doc = client.get("/api/backup").json()
+    doc["goals"] = [{"name": "Emergency fund", "amount": "100000", "target_date": "2999-12-01", "allocations": []}]
+    assert "goals" not in client.get("/api/backup").json(), "no longer written"
+    body = BackupFile.model_validate(doc)
+    assert not hasattr(body, "goals"), "no longer read"
+
+
+def test_a_backup_carries_contacts_and_their_accounts(client, rich):
+    doc = client.get("/api/backup").json()
+    alice, bob = sorted(doc["contacts"], key=lambda c: c["name"])
+    assert alice["email"] == "a@example.com" and alice["archived_at"] is None and bob["archived_at"] is None
+    names = {a["id"]: a["name"] for a in doc["accounts"]}
+    assert names[alice["receivable_account"]] == "Due from Alice" and names[alice["payable_account"]] == "Due to Alice"
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert done.status_code == 200 and done.json()["contacts"] == 2, done.text
+        restored = {c["name"]: c for c in client.get("/api/contacts/", params={"include_archived": True}).json()}
+        assert not restored["Bob"]["archived"] and not restored["Alice"]["archived"]
+        due = client.get(f"/api/accounts/{restored['Alice']['receivable_account_id']}").json()
+        assert due["name"] == "Due from Alice" and float(due["balance"]) == 500, "the debt came back with its account"
+        assert client.patch(f"/api/accounts/{due['id']}", json={"name": "x"}).status_code == 400, "still the contact's"
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_a_backup_before_contacts_restores_without_them(client, rich):
+    doc = client.get("/api/backup").json()
+    doc["version"] = 5
+    for key in ("contacts", "party_transactions", "obligations", "settlements", "shared_expenses"):
+        del doc[key]
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert done.status_code == 200 and done.json()["contacts"] == 0
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_a_backup_with_a_broken_contact_is_refused(client, rich):
+    doc = client.get("/api/backup").json()
+    try:
+        as_user(OTHER)
+
+        def post(body):
+            return client.post("/api/restore", files={"file": ("b.json", json.dumps(body), "application/json")})
+
+        shared = json.loads(json.dumps(doc))
+        shared["contacts"][1]["receivable_account"] = shared["contacts"][0]["receivable_account"]
+        assert "needs its own account" in str(post(shared).json())
+        wrong = json.loads(json.dumps(doc))
+        wrong["contacts"][0]["payable_account"] = wrong["contacts"][0]["receivable_account"]
+        assert "needs its own account under Liabilities" in str(post(wrong).json())
+        twice = json.loads(json.dumps(doc))
+        twice["contacts"][1]["name"] = twice["contacts"][0]["name"].upper()
+        assert "appears twice" in str(post(twice).json())
+        assert client.get("/api/contacts/").json() == [], "nothing was saved"
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_a_backup_with_broken_contact_activity_is_refused(client, rich):
+    doc = client.get("/api/backup").json()
+    try:
+        as_user(OTHER)
+
+        def post(body):
+            return client.post("/api/restore", files={"file": ("b.json", json.dumps(body), "application/json")})
+
+        def change(edit):
+            copy = json.loads(json.dumps(doc))
+            edit(copy)
+            return str(post(copy).json())
+
+        assert "not in the file" in change(lambda d: d["party_transactions"][0].update(contact=MISSING_ID))
+        assert "not in the file" in change(lambda d: d["obligations"][0].update(transaction=MISSING_ID))
+        assert "appears twice" in change(lambda d: d["obligations"].append(d["obligations"][0]))
+        assert "clears more than was owed" in change(
+            lambda d: d["settlements"].append(
+                {
+                    "obligation": d["obligations"][0]["id"],
+                    "transaction": d["obligations"][0]["transaction"],
+                    "amount": "99999",
+                }
+            )
+        )
+        assert "is not sound" in change(
+            lambda d: next(e for e in d["shared_expenses"] if e["status"] == "confirmed").update(status="draft")
+        )
+        assert "is not sound" in change(lambda d: d["shared_expenses"][0]["shares"][0].update(contact=MISSING_ID))
+        assert client.get("/api/contacts/").json() == [], "nothing was saved"
     finally:
         as_user(TEST_USER_ID)

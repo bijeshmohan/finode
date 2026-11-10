@@ -8,13 +8,15 @@ from uuid import UUID
 from pydantic import AliasChoices, BaseModel, Field
 
 from ..models.transaction import PostingSide
+from .account import BillRounding
 from .day import Day
 
 FORMAT = "finode-backup"
-VERSION = 5
+VERSION = 6
 # Files of version 1 (before finode kept one currency) are still read; what they carry beyond that is below.
 # Before version 5 a category was an Income or Expenses account: a restore turns those accounts into categories.
-READS = (1, 2, 3, 4, 5)
+# Version 6 adds contacts.
+READS = (1, 2, 3, 4, 5, 6)
 
 
 class BackupProfile(BaseModel):
@@ -32,10 +34,19 @@ class BackupAccount(BaseModel):
     commodity: str | None = Field(default=None, exclude=True)
     on_budget: bool = False
     closed_on: Day | None = None
-    payment_category_id: UUID | None = None
-    # Older backups: accounts could be pinned. Read, never written.
+    # A card's or loan's bill days (files from before have none).
+    statement_day: int | None = Field(default=None, ge=1, le=31)
+    due_day: int | None = Field(default=None, ge=1, le=31)
+    bill_rounding: BillRounding = "none"
+    payment_category_id: UUID | None = Field(
+        default=None, exclude=True
+    )  # a setting that was removed: read, never written
+    # Whether the account is pinned to the top of the Accounts page (older files may carry it too, or leave it out).
+    pinned: bool = False
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); a restore maps them onto the person's own.
     system_key: str | None = None
+    # Set on a group: whether an account made in it starts in the budget (files from before have none).
+    new_accounts_in_budget: bool | None = None
     # Version 4 only: the built-in key of the category this Income or Expenses account stood for.
     category_key: str | None = Field(default=None, exclude=True)
 
@@ -60,6 +71,8 @@ class BackupPosting(BaseModel):
     # What the line was for: a category of the file. Before version 5 this was the id of an Income or Expenses
     # account (the same id the category got), and a line to one of those had none: a restore sorts it out.
     category: UUID | None = None
+    # The day the account posts the line, when not the entry's own date (files from before have none).
+    posted_on: Day | None = None
     # Version 1 only: the worth in the transaction's currency; must equal the amount.
     value: Decimal | None = Field(default=None, exclude=True)
 
@@ -123,17 +136,68 @@ class BackupAllocation(BaseModel):
     amount: Decimal
 
 
-class BackupGoalMonth(BaseModel):
-    month: Day
-    amount: Decimal
-
-
-class BackupGoal(BaseModel):
+class BackupContact(BaseModel):
+    id: UUID
     name: str
+    email: str | None = None
+    phone: str | None = None
+    notes: str | None = None
+    archived_at: datetime | None = None
+    # The ids of its "Due from" and "Due to" accounts, which are in the file's accounts.
+    receivable_account: UUID
+    payable_account: UUID
+
+
+class BackupPartyTransaction(BaseModel):
+    contact: UUID
+    transaction: UUID
+    purpose: str
+    direction: str
+
+
+class BackupObligation(BaseModel):
+    id: UUID
+    contact: UUID
+    # The entry that made it (a loan, a shared expense...).
+    transaction: UUID
+    source_type: str
+    direction: str
     amount: Decimal
-    target_date: Day
-    # What was set aside for it, month by month.
-    allocations: list[BackupGoalMonth] = []
+
+
+class BackupSettlement(BaseModel):
+    obligation: UUID
+    # The entry that cleared (part of) it.
+    transaction: UUID
+    amount: Decimal
+
+
+class BackupShare(BaseModel):
+    contact: UUID | None = None
+    is_self: bool = False
+    share_amount: Decimal
+    share_value: Decimal | None = None
+
+
+class BackupContribution(BaseModel):
+    contact: UUID | None = None
+    is_self: bool = False
+    account: UUID | None = None
+    amount: Decimal
+
+
+class BackupSharedExpense(BaseModel):
+    id: UUID
+    # The entry, once confirmed; a draft has none.
+    transaction: UUID | None = None
+    description: str
+    date: Day
+    total_amount: Decimal
+    category: UUID | None = None
+    split_method: str
+    status: str
+    shares: list[BackupShare] = []
+    contributions: list[BackupContribution] = []
 
 
 class BackupFile(BaseModel):
@@ -146,11 +210,14 @@ class BackupFile(BaseModel):
     prices: list[dict] = Field(default=[], exclude=True)
     accounts: list[BackupAccount]
     categories: list[BackupCategory] = []
+    contacts: list[BackupContact] = []
+    party_transactions: list[BackupPartyTransaction] = []
+    obligations: list[BackupObligation] = []
+    settlements: list[BackupSettlement] = []
+    shared_expenses: list[BackupSharedExpense] = []
     transactions: list[BackupTransaction] = []
     recurring: list[BackupRecurring] = []
     allocations: list[BackupAllocation] = []
-    # Goals (their own records since the goals table; a file from before has its goals as plain categories).
-    goals: list[BackupGoal] = []
 
 
 class RestoreSummary(BaseModel):
@@ -159,10 +226,11 @@ class RestoreSummary(BaseModel):
     errors: list[str] = Field(default_factory=list)
     accounts: int = 0
     categories: int = 0
+    contacts: int = 0
+    shared_expenses: int = 0
     transactions: int = 0
     recurring: int = 0
     allocations: int = 0
-    goals: int = 0
     tags: int = 0
     date_from: Date | None = None
     date_to: Date | None = None

@@ -12,8 +12,8 @@
 </div>
 
 <dl class="sheet-facts">
-  <div><dt>{{ from_label }}</dt><dd>{% for name, p in from_postings %}<span>{{ name }}{% if from_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
-  <div><dt>{{ to_label }}</dt><dd>{% for name, p in to_postings %}<span>{{ name }}{% if to_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}</span>{% endfor %}</dd></div>
+  <div><dt>{{ from_label }}</dt><dd>{% for name, p in from_postings %}<span>{{ name }}{% if from_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}{% if p.posted_on and p.posted_on != t.date %} <small class="muted">posts {{ p.posted_on|short_date }}</small>{% endif %}</span>{% endfor %}</dd></div>
+  <div><dt>{{ to_label }}</dt><dd>{% for name, p in to_postings %}<span>{{ name }}{% if to_postings|length > 1 %} <small class="muted">{{ p.amount|money }}</small>{% endif %}{% if p.posted_on and p.posted_on != t.date %} <small class="muted">posts {{ p.posted_on|short_date }}</small>{% endif %}</span>{% endfor %}</dd></div>
   {% if t.comment %}<div><dt>Note</dt><dd>{{ t.comment }}</dd></div>{% endif %}
   {% if t.tags %}<div><dt>Tags</dt><dd class="sheet-tags">{% for tag in t.tags %}<a href="/transactions?month={{ t.date.strftime('%Y-%m') }}&amp;tag={{ tag }}">#{{ tag }}</a>{% endfor %}</dd></div>{% endif %}
 </dl>
@@ -55,12 +55,24 @@
 {% endif %}
 
 <p id="sheet-error" class="error" role="alert"></p>
+{% if with_person and not loan_like %}
+<p class="muted hint">This is part of what you did with {{ with_person.name }}. Change or reverse it from their page.</p>
+<div class="sheet-actions">
+  <a class="button" href="/people/{{ with_person.id }}">Open {{ with_person.name }}</a>
+</div>
+{% else %}
 <div class="sheet-actions">
   <a class="button" href="/transactions/{{ t.id }}/edit{{ bq }}">Edit</a>
 </div>
+{% if with_person %}
+<p class="muted hint">This is part of what you did with {{ with_names|join(", ") }}. What has been paid back is on <a href="/people/{{ with_person.id }}">{{ "their page" if with_names|length == 1 else with_person.name ~ "'s page" }}</a>.</p>
+{% else %}
 <div class="sheet-links">
   <a href="/transactions/new?repeat={{ t.id }}{{ bx }}">Repeat</a>
   <a href="/transactions/new?related={{ t.id }}{{ bx }}">Related</a>
   <button type="button" class="sheet-delete"
-          hx-post="/transactions/{{ t.id }}/delete" hx-vals='{"sheet": "1"}'>Delete</button>
+          hx-post="/transactions/{{ t.id }}/delete" hx-vals='{"sheet": "1"}'
+          hx-confirm="Delete this transaction? Account balances will change. This cannot be undone.">Delete</button>
 </div>
+{% endif %}
+{% endif %}

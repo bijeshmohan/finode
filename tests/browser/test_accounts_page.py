@@ -1,5 +1,6 @@
-"""The accounts page in a browser: the type chips, groups under their headings and closed accounts."""
+"""The accounts page in a browser: a row of cards under each kind, its count, closed accounts."""
 
+import re
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -11,16 +12,12 @@ from ..books import leg
 from .conftest import Api
 
 
-def visible(page: Page) -> list[str]:
+def cards(page: Page) -> list[str]:
+    """The names on the cards that can be seen (a closed account's card is hidden until Load more)."""
     return page.eval_on_selector_all(
-        "[data-accounts] li[data-path]",
-        "els => els.filter(e => e.checkVisibility() && !e.closest('details:not([open])')).map(e => e.dataset.path)",
+        "[data-accounts] a.acc-card:not(.acc-card-add)",
+        "els => els.filter(e => e.checkVisibility()).map(e => e.querySelector('.acc-card-name > span').textContent)",
     )
-
-
-def open_options(page: Page) -> None:
-    """The budget choices are folded away on the form; open them (the details element works even while its parent is hidden)."""
-    page.evaluate("document.querySelectorAll('details.budget-options').forEach(d => d.open = true)")
 
 
 def nested(api: Api, books):
@@ -32,42 +29,62 @@ def nested(api: Api, books):
     return banks, food
 
 
-def test_every_group_is_open_under_its_heading_and_nothing_folds(page: Page, api, books):
+def test_every_kind_is_a_row_of_cards_under_its_heading(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
-    shown = visible(page)
-    assert "assets › banks › hdfc" in shown and "assets › savings › rainy" in shown and "assets › checking" in shown
-    assert page.locator("details").count() == 0, "nothing folds, not even Equity"
-    assert "equity › opening balances" not in shown, "Equity is not listed on the other chips"
+    assert {"HDFC", "SBI", "Rainy", "Checking", "Cash"} <= set(cards(page))
+    assert "Opening Balances" not in cards(page), "Equity is not listed"
+    expect(page.locator(".cat-chips")).to_have_count(0)
+    assert page.locator("details").count() == 0, "nothing folds"
+    expect(page.locator(".acc-head h2").first).to_have_text("Banks")
+    expect(page.locator(".acc-head p").first).to_contain_text("2 accounts")
 
 
-def test_the_chips_switch_between_assets_and_liabilities_and_equity_is_neither(page: Page, api, books):
+def test_a_long_row_scrolls_sideways_on_its_own_and_the_page_does_not(page: Page, api, books):
+    long = api.post("/accounts/", name="Wallets", parent_id=books["roots"]["Assets"])
+    for number in range(8):
+        api.post("/accounts/", name=f"Wallet {number}", parent_id=long["id"])
+    short = api.post("/accounts/", name="Funds", parent_id=books["roots"]["Assets"])
+    api.post("/accounts/", name="Fund A", parent_id=short["id"])
+    page.set_viewport_size({"width": 390, "height": 800})
+    page.goto("/accounts")
+    wallets = page.locator(".acc-kind", has_text="Wallets")
+    funds = page.locator(".acc-kind", has_text="Funds")
+    expect(wallets.locator(".acc-head p")).to_contain_text("8 accounts")
+    runs_over = "el => el.scrollWidth > el.clientWidth + 1"
+    assert wallets.locator(".acc-rail").evaluate(runs_over), "eight cards run past the edge"
+    assert not page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth"), (
+        "only the row scrolls, never the page"
+    )
+    wallets.locator(".acc-rail").evaluate("el => { el.scrollLeft = el.scrollWidth }")
+    assert wallets.locator(".acc-rail").evaluate("el => el.scrollLeft") > 0
+    assert funds.locator(".acc-rail").evaluate("el => el.scrollLeft") == 0
+    assert "track" not in page.content(), "no scroll indicator"
+
+
+def test_the_kinds_have_room_between_them_and_a_heading_larger_than_the_cards_name(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
-    chips = page.locator(".cat-chips .chip")
-    assert chips.all_inner_texts() == ["Asset", "Liability"], "Equity has no chip"
-    expect(chips.nth(0)).to_have_attribute("aria-pressed", "true")
-    page.get_by_role("link", name="Liability").click()
-    page.wait_for_url("**/accounts?tab=liabilities")
-    shown = visible(page)
-    assert shown == ["liabilities › visa"], shown
-    expect(page.locator(".cat-chips .chip").nth(1)).to_have_attribute("aria-pressed", "true")
-    page.get_by_role(
-        "link", name="Liability"
-    ).click()  # tapping the chosen chip again leaves neither chosen: that is Equity
-    page.wait_for_url("**/accounts?tab=equity")
-    assert visible(page) == ["equity › opening balances"]
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_count(0)
-    page.get_by_role("link", name="Asset", exact=True).click()
-    page.wait_for_url("**/accounts?tab=assets")
+    heads = page.locator(".acc-head h2")
+    size = heads.first.evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
+    name = page.locator(".acc-card-name").first.evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
+    assert size > name + 2, (size, name)
+    gaps = page.eval_on_selector_all(
+        ".acc-kind",
+        "els => els.slice(1).map((e, i) => Math.round(e.getBoundingClientRect().top - els[i].getBoundingClientRect().bottom))",
+    )
+    assert gaps and min(gaps) >= 24, f"space between kinds: {gaps}"
 
 
-def test_a_groups_heading_goes_to_its_page(page: Page, api, books):
+def test_a_card_opens_the_account_and_the_add_card_opens_the_form_on_that_kind(page: Page, api, books):
     banks, _ = nested(api, books)
     page.goto("/accounts")
-    page.locator(f'a.acc-gh[href="/accounts/{banks["id"]}"]').click()
-    page.wait_for_url(f"**/accounts/{banks['id']}")
-    expect(page.get_by_role("heading", name="Banks")).to_be_visible()
+    page.locator(".acc-card-add").first.click()
+    page.wait_for_url(f"**/accounts/new?parent={banks['id']}")
+    expect(page.locator("[data-kind-chip][aria-pressed='true']")).to_have_text("Banks")
+    page.go_back()
+    page.locator("a.acc-card", has_text="HDFC").click()
+    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
 
 
 def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(page: Page, api, books, session):
@@ -80,13 +97,12 @@ def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(page: Pag
     )
     session.commit()
     page.goto("/accounts")
-    assert "assets › old wallet" in visible(page), "no entries, no balance and old: still listed"
-    page.goto("/accounts?tab=liabilities")
-    assert "liabilities › old card" not in visible(page)
+    assert "Old Wallet" in cards(page), "no entries, no balance and old: still listed"
+    assert "Old Card" not in cards(page)
     page.get_by_role("button", name="Load more").click()
-    assert "liabilities › old card" in visible(page)
+    assert "Old Card" in cards(page)
     expect(page.get_by_role("button", name="Load more")).to_have_count(0)
-    expect(page.locator("li", has_text="Old Card").locator(".badge")).to_have_text("closed")
+    expect(page.locator("a.acc-card", has_text="Old Card").locator(".badge")).to_have_text("closed")
 
 
 def test_closing_an_account_from_its_page(page: Page, api, books):
@@ -94,30 +110,26 @@ def test_closing_an_account_from_its_page(page: Page, api, books):
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_label("More actions").click()
     page.get_by_role("button", name="Close account").click()
-    page.wait_for_url("**/accounts?tab=assets")
-    assert "assets › cash" not in visible(page)
+    page.wait_for_url("**/accounts")
+    assert "Cash" not in cards(page)
     page.get_by_role("button", name="Load more").click()
-    assert "assets › cash" in visible(page)
+    assert "Cash" in cards(page)
 
 
-def test_names_and_amounts_line_up_in_every_row(page: Page, api, books):
+def test_the_cards_of_a_row_are_the_same_size(page: Page, api, books):
     nested(api, books)
     page.goto("/accounts")
-    rights = page.eval_on_selector_all(
-        ".account-row .account-balance",
-        "els => els.filter(e => e.checkVisibility()).map(e => Math.round(e.getBoundingClientRect().right))",
+    sizes = page.eval_on_selector_all(
+        "a.acc-card:not(.acc-card-add)",
+        "els => els.filter(e => e.checkVisibility()).map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)].join('x') })",
     )
-    lefts = page.eval_on_selector_all(
-        ".account-row .account-name",
-        "els => els.filter(e => e.checkVisibility()).map(e => Math.round(e.getBoundingClientRect().left))",
-    )
-    assert len(rights) >= 5 and len(set(rights)) == 1, f"amounts end at the same edge: {rights}"
-    assert len(lefts) >= 5 and len(set(lefts)) == 1, f"names start at the same edge: {lefts}"
+    assert len(sizes) >= 4 and len(set(sizes)) == 1, sizes
 
 
-def test_the_edit_button_on_an_account_is_one_tap_away(page: Page, books):
+def test_edit_on_an_account_is_in_its_menu(page: Page, books):
     page.goto(f"/accounts/{books['checking']['id']}")
-    page.get_by_role("link", name="Edit Checking").click()
+    page.get_by_label("More actions").click()
+    page.get_by_role("link", name="Edit", exact=True).click()
     page.wait_for_url(f"**/accounts/{books['checking']['id']}/edit")
 
 
@@ -149,79 +161,124 @@ def test_show_earlier_loads_the_next_chunk_in_place(page: Page, books, api: Api)
     expect(page.get_by_text("Shop 69")).to_be_visible()
 
 
-def test_the_new_account_form_asks_about_the_budget_by_where_it_belongs(page: Page, api, books):
+def test_the_new_account_form_asks_about_the_budget_by_its_kind(page: Page, api, books):
+    banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
+    api.post("/accounts/", name="HDFC", parent_id=banks["id"])
+    loans = api.post("/accounts/", name="Loans", parent_id=books["roots"]["Liabilities"])
+    api.post("/accounts/", name="Old loan", parent_id=loans["id"])
     page.goto("/accounts/new")
-    open_options(page)
     fields = page.locator("[data-budget-fields]")
-    expect(fields).to_be_hidden()  # nothing chosen yet
-    parent = page.locator('select[name="parent_id"]')
+    expect(fields).to_be_hidden()  # no kind chosen yet
+    expect(page.locator("[data-kind-chip][aria-pressed='true']")).to_have_count(0)
     box = page.locator('input[name="on_budget"]')
-    payment = page.locator("[data-payment-category]")
-    parent.select_option(label="Assets")
+    label = page.locator("[data-balance-label]")
+    kind = page.locator("[data-kind-chip]")
+    kind.filter(has_text="Banks").click()
     expect(fields).to_be_visible()
     expect(box).to_be_checked()
-    expect(payment).to_be_hidden()
-    parent.select_option(label="Liabilities")
-    expect(box).not_to_be_checked()
-    expect(payment).to_be_visible()  # outside the budget: the expense category can be chosen
-    parent.select_option(label="Equity")
-    expect(fields).to_be_hidden()
-    assert page.locator('[data-budget-fields] input[name="on_budget"]').is_disabled(), "hidden fields are not sent"
-    parent.select_option(label="Liabilities")
+    expect(label).to_have_text("Current balance")
+    kind.filter(has_text="Loans").click()
+    expect(box).not_to_be_checked()  # a loan or card starts outside the budget
+    expect(label).to_have_text("Amount you owe now")
+    expect(kind.filter(has_text="Loans")).to_have_attribute("aria-pressed", "true")
+    expect(kind.filter(has_text="Banks")).to_have_attribute("aria-pressed", "false")
     page.locator('input[name="name"]').fill("Car loan")
-    page.locator('select[name="payment_category"]').select_option(label="Rent")
     page.get_by_role("button", name="Add account").click()
-    page.wait_for_url("**/accounts/*")
+    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))  # not /accounts/new, where the form already is
     loan = next(a for a in api.get("/accounts/") if a["name"] == "Car loan")
-    assert loan["on_budget"] is False and loan["payment_category_id"] == books["rent"]["id"]
+    assert loan["on_budget"] is False and loan["parent_id"] == loans["id"]
 
 
-def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_group(page: Page, api, books):
+def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_kind(page: Page, api, books):
     for url in ("/accounts/new?root=assets", f"/accounts/new?parent={books['checking']['id']}"):
         page.goto(url)
-        open_options(page)
         box = page.locator('input[name="on_budget"]')
         expect(box).to_be_checked()
         box.uncheck()
         expect(box).not_to_be_checked()
-        expect(page.locator("[data-payment-category]")).to_be_visible()
 
 
-def test_the_payment_category_shows_only_for_an_account_outside_the_budget(page: Page, api, books):
-    page.goto("/accounts/new?root=assets")
-    open_options(page)
-    box = page.locator('input[name="on_budget"]')
-    payment = page.locator("[data-payment-category]")
-    expect(payment).to_be_hidden()  # an asset starts in the budget
-    box.uncheck()
-    expect(payment).to_be_visible()
-    box.check()
-    expect(payment).to_be_hidden()
-    page.goto("/accounts/new")
-    open_options(page)
-    page.locator('select[name="parent_id"]').select_option(label="Liabilities")
-    expect(payment).to_be_visible()  # a loan starts outside the budget
-
-
-def test_going_back_from_an_account_keeps_the_chip(page: Page, api, books):
-    cards = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
-    api.post("/accounts/", name="Visa", parent_id=cards["id"], balance="50")
+def test_going_back_from_an_account_lands_on_the_accounts_page(page: Page, api, books):
+    cards_group = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
+    api.post("/accounts/", name="Visa Gold", parent_id=cards_group["id"], balance="50")
     page.goto("/accounts")
-    page.locator(".cat-chips .chip", has_text="Liability").click()
-    page.wait_for_url("**/accounts?tab=liabilities")
-    page.get_by_role("link", name="Cards").first.click()
-    page.wait_for_url(f"**/accounts/{cards['id']}")
+    page.locator("a.acc-card", has_text="Visa Gold").click()
+    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
+    expect(page.locator(".acct-sub")).to_have_text("Cards")
     page.locator("a.back").click()
-    page.wait_for_url("**/accounts?tab=liabilities")
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Liability")
+    page.wait_for_url("**/accounts")
 
 
-def test_budget_options_are_folded_and_say_where_the_account_stands(page: Page, api, books):
-    page.goto("/accounts/new?root=assets")
-    details = page.locator("details.budget-options")
-    expect(details).to_be_visible()
-    assert details.get_attribute("open") is None, "folded away at first"
-    expect(page.locator("[data-budget-summary]")).to_have_text("Part of the budget")
-    page.locator("details.budget-options summary").click()
-    page.locator('input[name="on_budget"]').uncheck()
-    expect(page.locator("[data-budget-summary]")).to_have_text("Outside the budget")
+def test_saving_an_entry_started_from_an_accounts_page_comes_back_to_it(page: Page, api, books):
+    account = books["checking"]["id"]
+    page.goto(f"/accounts/{account}")
+    page.locator("a.fab").click()  # the bar's plus, not the page's own Add button
+    page.wait_for_url("**/transactions/new**")
+    page.fill("#total", "75")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url(re.compile(rf"/accounts/{account}$"))
+    expect(page.locator("a.tx", has_text="Groceries").first).to_be_visible()
+
+
+def test_a_group_is_made_from_the_foot_of_the_page_and_its_accounts_start_as_it_says(page: Page, api, books):
+    page.goto("/accounts")
+    page.get_by_role("link", name="New group").click()
+    expect(page).to_have_url(re.compile(r"/accounts/new-group$"))
+    page.fill('input[name="name"]', "Family")
+    page.get_by_role("button", name="Create group").click()
+    expect(page.locator("#form-error")).to_contain_text("choose")  # nothing was chosen for the person
+    page.get_by_text("Money I own").click()
+    page.get_by_text("Part of the budget").click()
+    page.get_by_role("button", name="Create group").click()
+    expect(page).to_have_url(re.compile(r"/accounts$"))
+    shelf = page.locator("section.acc-kind", has=page.get_by_role("heading", name="Family"))
+    expect(shelf.locator(".acc-head p")).to_have_text("0.00 · 0 accounts")
+    expect(shelf.locator("a.acc-card")).to_have_count(1)  # only the add card
+    shelf.get_by_role("link", name="Add account").click()
+    expect(page.locator('[data-kind-chip][aria-pressed="true"]')).to_have_text("Family")
+    expect(page.locator('input[name="on_budget"]')).to_be_checked()
+    page.fill('input[name="name"]', "Mom's wallet")
+    page.get_by_role("button", name="Add account").click()
+    expect(page.get_by_role("heading", name="Mom's wallet")).to_be_visible()
+    assert next(a for a in api.get("/accounts/") if a["name"] == "Mom's wallet")["on_budget"] is True
+
+
+def test_a_groups_heading_opens_its_page_with_its_accounts_in_a_row_and_their_transactions(page: Page, api, books):
+    banks, _food = nested(api, books)
+    hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
+    api.post(
+        "/transactions/",
+        payee="Gadget Store",
+        postings=[leg(books["cash"], "debit", "10"), leg(hdfc, "credit", "10")],
+    )
+    page.goto("/accounts")
+    page.locator(".acc-head h2 a", has_text="Banks").click()
+    expect(page).to_have_url(re.compile(rf"/accounts/{banks['id']}$"))
+    expect(page.get_by_role("heading", name="Accounts")).to_be_visible()
+    expect(page.locator(".acc-rail a.acc-card:not(.acc-card-add)")).to_have_count(2)
+    expect(page.locator(".acc-rail a.acc-card-add")).to_have_attribute("href", f"/accounts/new?parent={banks['id']}")
+    expect(page.get_by_role("heading", name="Transactions")).to_be_visible()
+    expect(page.locator(".tx-list")).to_contain_text("Gadget Store")
+    expect(page.locator(".tx-list .tx-sub").first).to_contain_text("HDFC")
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "only the row scrolls sideways"
+    page.locator(".acc-rail a.acc-card", has_text="SBI").click()
+    expect(page.get_by_role("heading", name="SBI")).to_be_visible()
+
+
+def test_pinning_from_the_menu_lists_the_account_in_a_pinned_row_at_the_top(page: Page, api, books):
+    nested(api, books)
+    hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
+    page.goto(f"/accounts/{hdfc['id']}")
+    page.get_by_label("More actions").click()
+    page.get_by_role("button", name="Pin to top").click()
+    expect(page.locator("h1 .pin-mark")).to_be_visible()
+    page.goto("/accounts")
+    expect(page.locator(".acc-head h2").first).to_have_text("Pinned")
+    expect(page.locator("section.acc-kind").first.locator("a.acc-card")).to_have_text(re.compile(r"HDFC"))
+    page.locator("section.acc-kind").first.locator("a.acc-card").click()
+    page.get_by_label("More actions").click()
+    page.get_by_role("button", name="Unpin").click()
+    expect(page.locator("h1 .pin-mark")).to_have_count(0)
+    page.goto("/accounts")
+    expect(page.locator(".acc-head h2").first).not_to_have_text("Pinned")

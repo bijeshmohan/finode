@@ -1,0 +1,8 @@
+{#- A row's title. An entry related to an earlier one (a refund, a reversal) carries a grey pill after the payee with a link
+    glyph and that entry's date and amount; tapping the pill opens the earlier entry's sheet, tapping the row opens its own.
+    `back` is the query string the sheet is opened with on an account's or category's page ("?back=…"). -#}
+{% from "partials/icons.html" import icon %}
+{% macro tx_title(text, related, back="") -%}
+<span class="tx-title{{ ' has-link' if related }}"><span class="tx-title-text">{{ text }}</span>
+{%- if related %}<span class="tx-pill" role="link" hx-get="/transactions/{{ related.id }}/sheet{{ back }}" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false" hx-on:click="event.stopPropagation(); event.preventDefault()" title="Related to an entry of {{ related.date|short_date }}">{{ icon("link") }}<span>{{ related.date|short_date }} · {{ related.amount|money }}</span></span>{% endif %}</span>
+{%- endmacro %}

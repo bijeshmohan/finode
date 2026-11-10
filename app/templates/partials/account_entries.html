@@ -1,3 +1,5 @@
+{% from "partials/icons.html" import icon %}
+{% from "partials/tx_title.html" import tx_title %}
 {#- The days of an account's transactions (newest first) and, when there are more, the button that fetches the next chunk and
     replaces itself with it. Included by account.html and returned by GET /accounts/{account_id}/more. -#}
 {% set account = node.account %}
@@ -9,8 +11,11 @@
     <li>
       <a class="tx" href="/transactions/{{ e.transaction_id }}/edit?back={{ area }}/{{ account.id }}" hx-get="/transactions/{{ e.transaction_id }}/sheet?back={{ (area ~ '/' ~ account.id)|urlencode }}" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
         <span class="tx-main">
-          <span class="tx-title">{{ e.payee or e.counter_accounts|join(", ") }}</span>
-          <span class="tx-sub">{% if e.payee %}{{ e.counter_accounts|join(", ") }}{% endif %}{% if e.payee and e.comment %} · {% endif %}{{ e.comment or "" }}</span>
+          {{ tx_title(e.payee or e.counter_accounts|join(", ") or e.accounts|join(", "), e.related, "?back=" ~ (area ~ "/" ~ account.id)|urlencode) }}
+          {#- The accounts of a group the entry touches come first, so rows of different accounts are told apart. -#}
+          {% set parts = e.accounts + ([e.counter_accounts|join(", ")] if e.payee and e.counter_accounts else []) + ([e.comment] if e.comment else []) %}
+          <span class="tx-sub">{{ parts|join(" · ") }}</span>
+          {% if e.posted_on and e.posted_on != e.date %}<span class="tx-via">{{ icon("calendar") }}Posts {{ e.posted_on|short_date }}</span>{% endif %}
         </span>
         {#- Green and "+" mean money coming in: what raises an asset account, and a payment into a card or loan (it lowers what you owe). A charge is plain; the running balance shows which way it went. -#}
         {% set inflow = is_inflow(e.change) %}

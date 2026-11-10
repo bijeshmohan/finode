@@ -7,9 +7,11 @@ from . import (
     auth,
     budget,
     categories,
+    coming_up,
     dashboard,
     data,
     oauth,
+    people,
     profile,
     recurring,
     settings,
@@ -24,10 +26,12 @@ router.include_router(auth.router)
 protected = APIRouter(dependencies=[Depends(web_login_required), Depends(load_currency)])
 protected.include_router(dashboard.router)
 protected.include_router(accounts.router)
+protected.include_router(coming_up.router)
 protected.include_router(budget.router)
 protected.include_router(categories.router)
 protected.include_router(recurring.router)
 protected.include_router(tags.router)
+protected.include_router(people.router)
 protected.include_router(todo.router)
 protected.include_router(transactions.router)
 protected.include_router(profile.router)

@@ -26,7 +26,7 @@ def test_the_page_shows_what_is_left_to_assign(client, setup):
     assert "Left to spend" not in page, "Home has it; the Budgets head is Ready to assign"
     assert 'class="ready zero budget-hero ready-hero budget-head"' in page
     assert "Food" in page and "Rent" in page and THIS_MONTH.strftime("%b %Y") in page, "the pill says which month"
-    assert 'href="/budget?tab=spend&amp;month=' in page
+    assert 'href="/budget?month=' in page
 
 
 def test_an_empty_budget_says_how_to_start(client, root_accounts):
@@ -84,7 +84,8 @@ def test_every_unit_with_a_job_is_celebrated(client, setup):
 def test_the_move_page_lists_the_categories_and_moves_money(client, setup):
     assign(client, setup["food"], "300")
     page = client.get(f"/budget/move?source={setup['food']['id']}").text
-    assert "Move money" in page and f'value="{setup["food"]["id"]}" selected' in page
+    assert "Move money" in page and re.search(rf'value="{setup["food"]["id"]}"[^>]* selected', page)
+    assert "300.00 left" in page, "what each category has left is in the sheet"
     done = client.post(
         "/budget/move",
         data={"from_category": setup["food"]["id"], "to_category": setup["rent"]["id"], "amount": "100", "month": ""},
@@ -350,7 +351,6 @@ def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
         ("", "In your accounts", "₹1,000.00"),
         ("minus", "Set aside for card bills", "₹0.00"),
         ("minus", "Left in your categories", "₹300.00"),
-        ("minus", "Set aside for goals", "₹0.00"),
         ("minus", "Assigned to later months", "₹0.00"),
         ("total", "Ready to assign", "₹700.00"),
     ]
@@ -392,7 +392,7 @@ def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_
 def test_the_month_pill_is_in_the_title_row_and_what_needs_you_is_under_the_bell(client, root_accounts, setup):
     page = client.get("/budget").text
     head = page.split('<div class="page-head tall">', 1)[1].split('<div id="budget">', 1)[0]
-    assert "<h1>Budgets</h1>" in head and 'class="month-pill"' in head and 'href="/budget?tab=spend&amp;month=' in head
+    assert "<h1>Budgets</h1>" in head and 'class="month-pill"' in head and 'href="/budget?month=' in head
     body = page.split('<div id="budget">', 1)[1]
     assert 'class="month-pill"' not in body and "bud-bar" not in body, "the second row is gone"
     assert "data-toggle-attn" not in page, "nothing needs a decision yet"
@@ -411,3 +411,36 @@ def test_the_month_pill_is_in_the_title_row_and_what_needs_you_is_under_the_bell
     assert "data-toggle-attn" not in page and "attn-panel" not in page, "no line on the page any more"
     assert client.get("/api/todo/").json()["count"] == 1 and "is not in the budget" in client.get("/todo/sheet").text
     assert 'hx-get="/todo/badge"' in page and 'id="todo-sheet"' in page, "the bell and its sheet are on every page"
+
+
+def test_a_row_says_all_spent_or_overspent_and_otherwise_nothing(client, setup):
+    assign(client, setup["food"], "100")
+    assign(client, setup["rent"], "100")
+    move(client, setup["bank"], setup["food"], "100")  # Food spent all of it
+    move(client, setup["bank"], setup["rent"], "130")  # Rent is 30 over
+    page = client.get("/budget").text
+    food = page.split("Food", 1)[1].split("</a>", 1)[0]
+    rent = page.split("Rent", 1)[1].split("</a>", 1)[0]
+    assert "all spent" in food and "overspent" not in food
+    assert '<span class="negative">overspent</span>' in rent and "all spent" not in rent
+    assert "over by" not in page, "the red figure already says how much"
+    assign(client, setup["food"], "300")
+    assert "all spent" not in client.get("/budget").text.split("Food", 1)[1].split("</a>", 1)[0], "money is left"
+
+
+def test_a_budget_with_no_account_says_one_thing_with_one_button(client, root_accounts):
+    page = client.get("/budget").text
+    assert "No account is part of the budget yet" in page and 'href="/accounts">Choose accounts</a>' in page
+    assert "data-plan-intro" not in page, "nothing to assign yet: no intro box"
+
+
+def test_the_first_steps_are_tappable_rows_with_the_next_one_marked(client):
+    page = client.get("/").text
+    assert page.count('class="step-link"') == 3 and page.count("step-mark now") == 1
+    assert page.index("step-mark now") < page.index("Record your first spend")
+
+
+def test_moving_money_without_both_categories_is_a_message_not_a_crash(client, setup):
+    response = client.post("/budget/move", data={"amount": "10", "from_category": "", "to_category": ""})
+    assert response.status_code == 400 and response.headers["HX-Retarget"] == "#form-error"
+    assert "Choose the category" in response.text

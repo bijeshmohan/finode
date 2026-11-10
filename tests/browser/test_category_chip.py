@@ -3,7 +3,7 @@ splits it naturally. Its sheet is a grid of tiles."""
 
 from playwright.sync_api import Page, expect
 
-from .conftest import Api
+from .conftest import Api, row_gear, set_row
 
 
 def top(page: Page, selector: str) -> float:
@@ -16,7 +16,7 @@ def test_the_category_is_a_chip_after_the_accounts_for_expense_and_income(page: 
     expect(chip).to_have_text("Category…")
     assert top(page, '[data-side-section="credit"]') < top(page, '[data-side-section="debit"]')
     page.get_by_role("button", name="Income", exact=True).click()
-    # Income: the data has the category on the From side, the screen lists it after "Received in".
+    # Income: the data has the category on the From side, the screen lists it after "Paid into".
     assert top(page, '[data-side-section="debit"]') < top(page, '[data-side-section="credit"]')
     page.get_by_role("button", name="Transfer", exact=True).click()
     assert top(page, '[data-side-section="credit"]') < top(page, '[data-side-section="debit"]')
@@ -28,11 +28,10 @@ def test_typing_less_than_the_total_splits_it_and_removing_a_row_goes_back_to_on
     page.select_option('[data-rows="credit"] select', label="Checking")
     page.select_option('[data-rows="debit"] select', label="Groceries")
     amount = page.locator('[data-rows="debit"] [data-row]:nth-child(1) [name="amount"]')
-    expect(amount).to_be_visible()
-    assert amount.input_value() == "100.00", "the chip carries the whole amount, in grey"
+    assert amount.input_value() == "100.00", "the row carries the whole amount, in grey"
     page.fill("#total", "120")
     assert amount.input_value() == "120.00", "and follows the total"
-    amount.fill("80")
+    set_row(page, "debit", 0, amount="80")
     expect(page.locator('[data-rows="debit"] [data-row]')).to_have_count(2)
     assert page.input_value('[data-rows="debit"] [data-row]:nth-child(2) [name="amount"]') == "40.00"
     page.select_option('[data-rows="debit"] [data-row]:nth-child(2) select', label="Rent")
@@ -45,11 +44,14 @@ def test_typing_less_than_the_total_splits_it_and_removing_a_row_goes_back_to_on
 def test_removing_a_row_brings_one_category_back(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "100")
-    page.fill('[data-rows="debit"] [data-row]:nth-child(1) [name="amount"]', "30")
-    page.click('[data-rows="debit"] [data-row]:nth-child(2) [data-remove-row]')
+    page.select_option('[data-rows="debit"] [data-row]:nth-child(1) select', label="Groceries")
+    set_row(page, "debit", 0, amount="30")
+    page.select_option('[data-rows="debit"] [data-row]:nth-child(2) select', label="Rent")
+    expect(page.locator('[data-rows="debit"] [data-row]')).to_have_count(2)
+    row_gear(page, "debit", 1).click()
+    page.locator("#row-settings [data-config-remove]").click()
     expect(page.locator('[data-rows="debit"] [data-row]')).to_have_count(1)
     assert page.input_value('[data-rows="debit"] [name="amount"]') == "100.00"
-    expect(page.locator('[data-rows="debit"] [data-remove-row]:visible')).to_have_count(0)
 
 
 def test_the_category_sheet_is_a_grid_of_tiles_and_the_account_sheet_a_list(page: Page, books):

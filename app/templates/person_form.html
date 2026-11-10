@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% set editing = person is not none %}
+{% block title %}{{ "Edit " ~ person.name if editing else "Add person" }} · finode{% endblock %}
+{% block content %}
+<a class="back" href="{{ ('/people/' ~ person.id) if editing else '/people' }}">{{ icon("back") }}{{ person.name if editing else "People" }}</a>
+<h1>{{ "Edit person" if editing else "Add person" }}</h1>
+<form class="card stack form-narrow" hx-post="{{ '/people/' ~ person.id ~ '/edit' if editing else '/people' }}">
+  <label>Name
+    <input type="text" name="name" maxlength="30" required value="{{ person.name if editing else '' }}" placeholder="e.g. Alice" {{ "autofocus" if not editing }}>
+  </label>
+  <label><span>Phone <span class="muted">(optional)</span></span>
+    <input type="tel" name="phone" maxlength="30" value="{{ (person.phone or '') if editing else '' }}" autocomplete="off">
+  </label>
+  <label><span>Email <span class="muted">(optional)</span></span>
+    <input type="email" name="email" maxlength="254" value="{{ (person.email or '') if editing else '' }}" autocomplete="off">
+  </label>
+  <label><span>Note <span class="muted">(optional)</span></span>
+    <input type="text" name="notes" maxlength="500" value="{{ (person.notes or '') if editing else '' }}">
+  </label>
+  {% if not editing %}
+  <details class="sheet-extra">
+    <summary><span>Already owes you, or is owed?</span>{{ icon("chevron-right") }}</summary>
+    <div class="stack">
+      <div class="scope-seg" role="radiogroup" aria-label="Who owes whom">
+        <label><input type="radio" name="opening_direction" value="receivable" checked><span>They owe you</span></label>
+        <label><input type="radio" name="opening_direction" value="payable"><span>You owe them</span></label>
+      </div>
+      <label>Amount
+        <input type="text" name="opening_amount" inputmode="decimal" placeholder="0.00" autocomplete="off">
+      </label>
+      <label>Since
+        <input type="date" name="opening_since" value="{{ today }}">
+      </label>
+      <p class="muted hint">Added to your opening balances. Your accounts and budgets don't change. It can be paid back with Settle up.</p>
+    </div>
+  </details>
+  {% endif %}
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions"><button type="submit">{{ "Save changes" if editing else "Add person" }}</button></div>
+</form>
+{% endblock %}

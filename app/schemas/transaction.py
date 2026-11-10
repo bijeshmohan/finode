@@ -1,7 +1,7 @@
 from datetime import date as Date
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -19,6 +19,9 @@ class _PostingFields(BaseModel):
     # What the line was for (a budget category). Leave it out and a payment into a loan or fund that has a payment
     # category takes that one, and a line on Expenses or Income with none is Uncategorised.
     category_id: UUID | None = None
+    # The day the account posts the line, when it is not the entry's own date (never before it). Only a card's bill
+    # reads it.
+    posted_on: Day | None = None
 
     @field_validator("amount")
     @classmethod
@@ -83,6 +86,14 @@ def _tidy_url(value: str | None) -> str | None:
     if value is not None and not value.lower().startswith(("http://", "https://")):
         raise ValueError("source_url must be a web address starting with http:// or https://!")
     return value
+
+
+class RelatedRef(BaseModel):
+    """The earlier entry another is related to, as a list shows it: which one, when, and what it came to."""
+
+    id: UUID
+    date: Date
+    amount: Decimal
 
 
 class ReferenceFields(BaseModel):
@@ -251,49 +262,6 @@ def validate_balanced_postings(postings: list[PostingCreate]) -> None:
     credit_total = sum(posting.amount for posting in postings if posting.side == PostingSide.CREDIT)
     if debit_total != credit_total:
         raise ValueError("transaction debits and credits must balance!")
-
-
-class HistoryPosting(BaseModel):
-    # Account path, e.g. "Expenses:Food:Groceries".
-    account: str
-    side: PostingSide
-    amount: Decimal
-    # The name of the category the line was for, when it had one.
-    category: str | None = None
-
-
-class HistoryRead(BaseModel):
-    """The transaction as it stood after one change (as it stood when deleted, for a deletion)."""
-
-    id: UUID
-    transaction_id: UUID
-    action: Literal["created", "updated", "deleted"]
-    at: datetime
-    # "web", "api", "import", "recurring" or "mcp:<token name>"; None if unknown.
-    via: str | None = None
-    date: Date
-    payee: str | None = None
-    comment: str | None = None
-    source: str | None = None
-    external_id: str | None = None
-    source_url: str | None = None
-    postings: list[HistoryPosting]
-
-
-class ChangeRead(BaseModel):
-    """One step in an entry's life, with what it changed compared with the step before."""
-
-    id: UUID
-    transaction_id: UUID
-    action: Literal["created", "updated", "deleted"]
-    at: datetime
-    # "web", "api", "import", "recurring" or "mcp:<token name>"; None if unknown.
-    via: str | None = None
-    # The entry as it stood after this step.
-    entry: HistoryRead
-    # For an update: {field: {"from", "to"}} for date, payee, note and reference, and "postings" with the rows
-    # "added", "removed" and "changed" (amount from/to). Empty for a creation or a deletion.
-    changes: dict[str, Any] = Field(default_factory=dict)
 
 
 class TagRead(BaseModel):

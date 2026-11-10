@@ -24,9 +24,8 @@ For a month and an expense category:
 - **Available** — what you can still spend:
   `max(0, last month's available) + assigned − activity`
 - **Ready to assign** — money in budget accounts that has no job yet:
-  `ready to assign = money in accounts − reserved for cards − Σ available − Σ goal available − assigned to later months`
+  `ready to assign = money in accounts − reserved for cards − Σ available − assigned to later months`
 
-A **goal** is not a category: it has its own table `goals` (name, amount, month) and `goal_allocations` (what was set aside, month by month, negative when taken back or handed over), and **goal available** is the sum of its allocations up to the month's end. Nothing is posted to a goal: spending is recorded on an ordinary category, and `BudgetService.use_goal` moves the goal's money across (a negative goal allocation and an equal positive category allocation in the same month), so Ready to assign does not change. A goal never holds less than nothing in any month (`_check_saved`). The by-date rule that funds a goal is the same `funding()` function the category targets use.
 
 `BudgetRead` always satisfies that sum, and the page and the `get_budget` tool show it.
 
@@ -52,7 +51,7 @@ flowchart LR
 
 ## What Budgets is not
 
-The Budgets page (then Plans) was once three sections, Spend, Build (money moved into funds and loans paid down) and Earn (expected income). Build and Earn were removed on 2026-10-22: moving money between accounts does not change net worth, only income does, and the envelopes already covered the rest. Migration `c4e6a8b0d2f4` dropped `accounts.saving` and the profile's section switches and deleted the plan rows of funds, loans and income accounts (the ledger was not touched). A fund or loan payment is budgeted as spending through the account's **payment category**. A savings goal is its own record (the `goals` and `goal_allocations` tables, not an account). It has its own chip (**Goals**) and is kept out of the Budgets figures: `BudgetRead.goals`, `goal_assigned`, `goal_available`, with the identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − Σ goal available − assigned to later months`. It is made in one step by the **New goal** form (`BudgetService.create_goal`; the monthly share is `funding()` for a by-date target, so the form and the target agree).
+The Budgets page (then Plans) was once three sections, Spend, Build (money moved into funds and loans paid down) and Earn (expected income). Build and Earn were removed on 2026-10-22: moving money between accounts does not change net worth, only income does, and the envelopes already covered the rest. Migration `c4e6a8b0d2f4` dropped `accounts.saving` and the profile's section switches and deleted the plan rows of funds, loans and income accounts (the ledger was not touched). A fund or loan payment is budgeted as spending through the **category on its line** (nothing is filled in for the person). A savings goal is its own record (the `goals` and `goal_allocations` tables, not an account). It has its own chip (**Goals**) and is kept out of the Budgets figures: `BudgetRead.goals`, `goal_assigned`, `goal_available`, with the identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − assigned to later months`. It is made in one step by the **New goal** form (`BudgetService.create_goal`; the monthly share is `funding()` for a by-date target, so the form and the target agree).
 
 ## Budget accounts, tracking accounts and liabilities
 
@@ -61,7 +60,7 @@ The Budgets page (then Plans) was once three sections, Spend, Build (money moved
 | Asset (bank, cash, wallet) flagged `on_budget` | Yes (default for new asset accounts holding a currency) | Its balance is the cash you can assign. |
 | Asset **not** flagged | Tracking only | Appears in net worth, not in the budget. |
 | Credit card (liability) flagged `on_budget` | Yes, opted in | Purchases count as category spending; the debt is subtracted from cash and shown under **Cards to pay**. |
-| Loan or other liability **not** in the budget | Tracking | A payment into it carries a **category** on its line (EMI, SIP): in a transaction touching a budget account it counts as spending in that category. The account can name a *usual category* that fills the line in; credits, such as the loan paying out, carry none. |
+| Loan or other liability **not** in the budget | Tracking | A payment into it carries a **category** on its line (EMI, SIP): in a transaction touching a budget account it counts as spending in that category. Nothing fills the category in: it is the person's choice on the Add screen, a recurring rule's, an assistant's or an import's; credits, such as the loan paying out, carry none. A payment left without one is listed in the bell. |
 
 Reports: the breakdown, the Categories page and the overview's `spent` are **by category** (a payment into a loan is spending in its category, as the Budget does); the overview's `expenses` is the books' view, where paying into a loan is no expense and only the interest the lender charges is.
 
@@ -75,7 +74,7 @@ Two-level categories (`Food › Groceries`) show **the sum of their children**. 
 
 ## Targets and notes (removed)
 
-Budget targets (monthly, weekly, refill, by-date and yearly wishes per category, "Assign what is needed", the week-by-week view) and a category's short note on the budget were taken out on 2026-10-24: nobody used them. Migration `f2c4e6a8b0d1` drops `budget_targets`; the API's target routes, the web target page and the assistants' `set_budget_target` and `fund_budget_targets` went with them. A goal still spreads what it needs evenly over the months left (`funding` in `services/budget.py`). Older backups that carry `targets` are read and the targets ignored.
+Budget targets (monthly, weekly, refill, by-date and yearly wishes per category, "Assign what is needed", the week-by-week view) and a category's short note on the budget were taken out on 2026-10-24: nobody used them. Migration `f2c4e6a8b0d1` drops `budget_targets`; the API's target routes, the web target page and the assistants' `set_budget_target` and `fund_budget_targets` went with them. Older backups that carry `targets` are read and the targets ignored.
 
 ## Setting up a month
 
@@ -92,4 +91,4 @@ Next: [The web UI](web-ui.md).
 
 ## Categories apart from the books (2026-10-29)
 
-The plan is kept against **budget categories** (`budget_categories`: spending or earning, two levels), not against Expenses accounts. A category is a label on the lines of a transaction (`postings.category_id`); the budget's activity is the lines that carry a spending category in entries that touch a budget account, where the line's own account is not part of the budget. The books are pure: an expense debits the root Expenses account and an income credits Income, and the line itself carries the category, so there is no account behind a category. A payment into a loan or fund carries the category it was labelled with, which is how an EMI or a SIP is budgeted without an account made up for it. A payment saved without a category is listed in the bell's To do sheet. The identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − Σ goal available − assigned to later months` is unchanged.
+The plan is kept against **budget categories** (`budget_categories`: spending or earning, two levels), not against Expenses accounts. A category is a label on the lines of a transaction (`postings.category_id`); the budget's activity is the lines that carry a spending category in entries that touch a budget account, where the line's own account is not part of the budget. The books are pure: an expense debits the root Expenses account and an income credits Income, and the line itself carries the category, so there is no account behind a category. A payment into a loan or fund carries the category it was labelled with, which is how an EMI or a SIP is budgeted without an account made up for it. A payment saved without a category is listed in the bell's To do sheet. The identity `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − assigned to later months` is unchanged.

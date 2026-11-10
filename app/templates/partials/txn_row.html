@@ -9,7 +9,10 @@
   <select name="category" class="row-category" aria-label="Category" data-category-select hidden>
     {{ category_options(groups, posting.category_id if posting else none) }}
   </select>
+  {#- The day the account posts this line, when it is not the entry's date (set from the picker sheet). -#}
+  <input type="hidden" name="posted_on" value="{{ posting.posted_on.isoformat() if posting and posting.posted_on and not copy_of else '' }}" data-posted-on>
+  {#- Typed in the picker sheet, never on the row: the row only shows it when it differs from the total. -#}
   <input type="text" name="amount" class="row-amount" inputmode="decimal" data-group placeholder="0.00" autocomplete="off"
-         aria-label="Amount" value="{{ posting.amount if posting else '' }}">
+         aria-label="Amount" value="{{ posting.amount if posting else '' }}" hidden>
   <button type="button" class="icon-button" data-remove-row title="Remove" aria-label="Remove">×</button>
 </div>

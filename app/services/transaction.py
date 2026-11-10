@@ -1,8 +1,8 @@
-"""Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits), plus history, deleted entries and restoring."""
+"""Transactions and postings: the one place that validates and writes them (balanced, the person's own open accounts, limits)."""
 
 import builtins
 from collections import Counter
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
@@ -17,16 +17,13 @@ from ..limits import ensure_room
 from ..models import Account
 from ..models.transaction import Posting, PostingSide, Transaction
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
-from ..repositories.transaction import comparable_snapshot
 from ..schemas.transaction import (
     MAX_BATCH,
     BatchEntryResult,
     BatchResult,
-    ChangeRead,
-    HistoryPosting,
-    HistoryRead,
     PayeeDefaultRead,
     PayeeRouteRead,
+    PostingBase,
     PostingCreate,
     PostingRead,
     RouteAccount,
@@ -36,7 +33,7 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
-from ..tags import clean_name, clean_names, clean_tag
+from ..tags import clean_name, clean_tag
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 
 # How many recent entries the payee suggestions look at.
@@ -58,10 +55,6 @@ class PayeeRoute:
     others: builtins.list[tuple[UUID, UUID, int]] = field(default_factory=list)
 
 
-# How many deleted entries the recently-deleted page lists.
-RESTORABLE_LIMIT = 50
-
-
 class InvalidPostingError(ValueError): ...
 
 
@@ -76,72 +69,8 @@ class DuplicateReferenceError(InvalidPostingError):
     """A source's reference is already used by another entry."""
 
 
-def _rows(postings) -> list[tuple[str, str, Decimal]]:
+def _rows(postings: Iterable[PostingBase | PostingCreate | Posting]) -> list[tuple[str, str, Decimal]]:
     return sorted((str(p.account_id), PostingSide(p.side).value, p.amount) for p in postings)
-
-
-def _where(p: dict, paths: dict[UUID, str], categories: dict[UUID, str]) -> str:
-    """Where a snapshot's line posted, as a journal would write it: a line on Expenses or Income by its category
-    (Expenses:Food:Groceries), any other line by its account."""
-    path = paths.get(UUID(p["account"]), p["account"])
-    if path in ("Expenses", "Income") and p.get("category") and UUID(p["category"]) in categories:
-        return categories[UUID(p["category"])]
-    return path
-
-
-def _diff(before: dict, after: dict, paths: dict[UUID, str], categories: dict[UUID, str] | None = None) -> dict:
-    """What an update changed between two snapshots: fields as {"from", "to"}, rows added, removed or changed."""
-    categories = categories or {}
-    before, after = comparable_snapshot(before), comparable_snapshot(after)
-    changes: dict = {}
-    for key, label in (("date", "date"), ("payee", "payee"), ("comment", "note")):
-        if before.get(key) != after.get(key):
-            changes[label] = {"from": before.get(key), "to": after.get(key)}
-    keys = ("source", "external_id", "source_url")
-    if any(before.get(k) != after.get(k) for k in keys):
-        changes["reference"] = {
-            "from": {k: before.get(k) for k in keys},
-            "to": {k: after.get(k) for k in keys},
-        }
-
-    def rows(snapshot: dict) -> dict[tuple[str, str], Decimal]:
-        found: dict[tuple[str, str], Decimal] = {}
-        for p in snapshot.get("postings", []):
-            key = (_where(p, paths, categories), p["side"])
-            found[key] = found.get(key, Decimal(0)) + Decimal(p["amount"])
-        return found
-
-    def labels(snapshot: dict) -> dict[tuple[str, str], tuple[str | None, ...]]:
-        found: dict[tuple[str, str], list[str | None]] = {}
-        for p in snapshot.get("postings", []):
-            key = (_where(p, paths, categories), p["side"])
-            found.setdefault(key, []).append(p.get("category"))
-        return {key: tuple(sorted(value, key=str)) for key, value in found.items()}
-
-    old, new = rows(before), rows(after)
-    old_labels, new_labels = labels(before), labels(after)
-    added = [{"account": a, "side": s, "amount": new[a, s]} for a, s in new if (a, s) not in old]
-    removed = [{"account": a, "side": s, "amount": old[a, s]} for a, s in old if (a, s) not in new]
-    changed = [
-        {"account": a, "side": s, "from": old[a, s], "to": new[a, s]}
-        for a, s in new
-        if (a, s) in old and old[a, s] != new[a, s]
-    ]
-    # A line moved to another category (only when both snapshots recorded categories at all).
-    relabelled = [
-        {"account": a, "side": s, "category_from": old_labels[a, s], "category_to": new_labels[a, s]}
-        for a, s in new
-        if (a, s) in old
-        and old[a, s] == new[a, s]
-        and old_labels[a, s] != new_labels[a, s]
-        and all(c is not None for c in old_labels[a, s] + new_labels[a, s])
-    ]
-    if added or removed or changed or relabelled:
-        rows_changed: dict[str, Any] = {"added": added, "removed": removed, "changed": changed}
-        if relabelled:
-            rows_changed["relabelled"] = relabelled
-        changes["postings"] = rows_changed
-    return changes
 
 
 def _different_content(data: TransactionCreate, transaction_id: UUID) -> str:
@@ -168,9 +97,13 @@ class TransactionService:
         ar: AccountRepository,
         pr: ProfileRepository | None = None,
         origin: str | None = None,
+        contacts: bool = False,
     ):
         # Recorded on what this service creates or changes: "web", "api" or "mcp:<token name>".
         self.origin = origin
+        # Only the contact services may post to a contact's accounts and change the entries they made: anything else
+        # would leave a debt in the books without its obligation.
+        self.contacts = contacts
         self.tr = tr
         self.ar = ar
         self.pr = pr or ProfileRepository(tr.db, tr.uid)
@@ -184,7 +117,7 @@ class TransactionService:
                 raise RuntimeError("the profile names a currency finode does not know")
         return self._currency
 
-    def _fill_accounts(self, postings, accounts: builtins.list[Account]) -> None:
+    def _fill_accounts(self, postings: Iterable[PostingCreate], accounts: builtins.list[Account]) -> None:
         """Where a line posts: a line that names only its category posts to Expenses (a spending category) or Income
         (an earning one)."""
         roots = {a.name: a.id for a in accounts if a.parent_id is None}
@@ -192,13 +125,16 @@ class TransactionService:
         for posting in postings:
             if posting.account_id is not None:
                 continue
-            category = categories.get(posting.category_id)
+            category = categories.get(posting.category_id) if posting.category_id is not None else None
             if category is None:
                 raise InvalidPostingError(f"category '{posting.category_id}' not found!")
             posting.account_id = roots["Expenses" if category.kind == "spending" else "Income"]
 
     def _check_categories(
-        self, postings, accounts_by_id: dict[UUID, Account], keep_categories: Collection[UUID] = frozenset()
+        self,
+        postings: Sequence[PostingCreate],
+        accounts_by_id: dict[UUID, Account],
+        keep_categories: Collection[UUID] = frozenset(),
     ) -> None:
         """A category named on a line is the person's own, open (unless the entry already used it) and fits the line:
         a spending category goes on Expenses (or an expense account) or on a payment out of the budget into an account
@@ -208,12 +144,12 @@ class TransactionService:
             return
         categories = {c.id: c for c in self.cr.list()}
         for posting in named:
-            category = categories.get(posting.category_id)
+            category = categories.get(posting.category_id) if posting.category_id is not None else None
             if category is None:
                 raise InvalidPostingError(f"category '{posting.category_id}' not found!")
             if category.closed_on is not None and category.id not in keep_categories:
                 raise InvalidPostingError(f"category '{category.name}' is closed: reopen it to use it!")
-            account = accounts_by_id[posting.account_id]
+            account = accounts_by_id[posting.target]
             root = AccountService.root_name(account, accounts_by_id)
             if root in GROUP_POSTING_ROOT_NAMES:
                 wanted = "spending" if root == "Expenses" else "earning"
@@ -238,11 +174,16 @@ class TransactionService:
         data: TransactionCreate | TransactionUpdate,
         keep_closed: Collection[UUID] = frozenset(),
         keep_categories: Collection[UUID] = frozenset(),
+        on: date | None = None,
     ) -> None:
-        """Check the postings: the accounts can be posted to, the amounts fit the currency and the entry balances."""
+        """Check the postings: the accounts can be posted to, the amounts fit the currency and the entry balances.
+        `on` is the entry's date, which no line may post before."""
         postings = data.postings
         if postings is None:
             return
+        for posting in postings:
+            if on is not None and posting.posted_on is not None and posting.posted_on < on:
+                raise InvalidPostingError("an account cannot post a line before the entry's own date!")
 
         if settings.max_postings_per_transaction and len(postings) > settings.max_postings_per_transaction:
             raise InvalidPostingError(
@@ -255,20 +196,25 @@ class TransactionService:
         accounts_by_id = {a.id: a for a in every_account}
         self._fill_accounts(postings, every_account)
         has_children = {a.parent_id for a in accounts_by_id.values() if a.parent_id is not None}
+        contact_accounts = self.ar.contact_account_ids()
         for posting in postings:
             account = accounts_by_id.get(posting.target)
             if not account:
                 raise ValueError(f"account '{posting.account_id}' not found!")
             if account.parent_id is None and account.name not in GROUP_POSTING_ROOT_NAMES:
                 raise InvalidPostingAccountError(f"cannot post to root account '{account.name}'!")
+            if not self.contacts and account.id in contact_accounts:
+                raise InvalidPostingAccountError(
+                    f"'{account.name}' belongs to a contact: lend, borrow, share an expense or settle up "
+                    "from the contact instead!"
+                )
             if account.closed_on is not None and account.id not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
-            if (
-                account.id in has_children
-                and AccountService.root_name(account, accounts_by_id) not in GROUP_POSTING_ROOT_NAMES
-            ):
+            if (account.id in has_children or account.new_accounts_in_budget is not None) and AccountService.root_name(
+                account, accounts_by_id
+            ) not in GROUP_POSTING_ROOT_NAMES:
                 raise InvalidPostingAccountError(
-                    f"cannot post to account '{account.name}' because it has sub-accounts!"
+                    f"cannot post to account '{account.name}' because it is a group of accounts!"
                 )
             if decimal_places(posting.amount) > currency.decimals:
                 raise InvalidPostingError(
@@ -280,9 +226,9 @@ class TransactionService:
 
         # Expenses and Income take many lines (one per category), so on them it is the same category on both sides that
         # moves money from itself to itself; any other account may not be on both sides at all.
-        def whole(p) -> tuple:
-            books = AccountService.root_name(accounts_by_id[p.account_id], accounts_by_id) in GROUP_POSTING_ROOT_NAMES
-            return (p.account_id, p.category_id if books else None)
+        def whole(p: PostingCreate) -> tuple[UUID, UUID | None]:
+            books = AccountService.root_name(accounts_by_id[p.target], accounts_by_id) in GROUP_POSTING_ROOT_NAMES
+            return (p.target, p.category_id if books else None)
 
         both = {whole(p) for p in postings if p.side == PostingSide.DEBIT} & {
             whole(p) for p in postings if p.side == PostingSide.CREDIT
@@ -309,6 +255,7 @@ class TransactionService:
             side=posting.side,
             amount=posting.amount,
             category_id=posting.category_id,
+            posted_on=posting.posted_on,
             created=posting.created,
             updated=posting.updated,
         )
@@ -354,33 +301,6 @@ class TransactionService:
             )
         return paths
 
-    def _history_read(self, row, paths: dict[UUID, str]) -> HistoryRead:
-        snap = row.snapshot
-        names = {c.id: c.name for c in self.cr.list()}
-        where = self._category_paths()
-        return HistoryRead(
-            id=row.id,
-            transaction_id=row.transaction_id,
-            action=row.action,
-            at=row.at,
-            via=row.via,
-            date=date.fromisoformat(snap["date"]),
-            payee=snap.get("payee"),
-            comment=snap.get("comment"),
-            source=snap.get("source"),
-            external_id=snap.get("external_id"),
-            source_url=snap.get("source_url"),
-            postings=[
-                HistoryPosting(
-                    account=_where(p, paths, where),
-                    side=p["side"],
-                    amount=Decimal(p["amount"]),
-                    category=names.get(UUID(p["category"])) if p.get("category") else None,
-                )
-                for p in snap["postings"]
-            ],
-        )
-
     def _account_paths(self) -> dict[UUID, str]:
         accounts = {a.id: a for a in self.ar.list()}
         paths: dict[UUID, str] = {}
@@ -395,135 +315,9 @@ class TransactionService:
             paths[account_id] = ":".join(reversed(chain))
         return paths
 
-    def history(self, transaction_id: UUID) -> list[HistoryRead]:
-        """What happened to a transaction, oldest first; works for a deleted one too."""
-        paths = self._account_paths()
-        return [self._history_read(row, paths) for row in self.tr.history(transaction_id)]
-
-    def changes(self, transaction_id: UUID) -> builtins.list[ChangeRead]:
-        """An entry's history, oldest first, each step with what it changed (works for a deleted entry too)."""
-        paths = self._account_paths()
-        rows = self.tr.history(transaction_id)
-        return [self._change(row, rows[i - 1] if i else None, paths) for i, row in enumerate(rows)]
-
-    def recent_changes(
-        self, since: datetime | None = None, via: str | None = None, limit: int = 50
-    ) -> builtins.list[ChangeRead]:
-        """The latest steps across every entry, newest first, each with what it changed."""
-        newest = self.tr.history_since(since, via, limit)
-        paths = self._account_paths()
-        by_entry: dict[UUID, builtins.list] = {}
-        for row in self.tr.histories_for(list({r.transaction_id for r in newest})):
-            by_entry.setdefault(row.transaction_id, []).append(row)
-        result = []
-        for row in newest:
-            steps = by_entry[row.transaction_id]
-            position = next(i for i, step in enumerate(steps) if step.id == row.id)
-            result.append(self._change(row, steps[position - 1] if position else None, paths))
-        return result
-
-    def _change(self, row, before, paths: dict[UUID, str]) -> ChangeRead:
-        return ChangeRead(
-            id=row.id,
-            transaction_id=row.transaction_id,
-            action=row.action,
-            at=row.at,
-            via=row.via,
-            entry=self._history_read(row, paths),
-            changes=_diff(before.snapshot, row.snapshot, paths, self._category_paths())
-            if before is not None and row.action == "updated"
-            else {},
-        )
-
-    def deleted(self) -> list[HistoryRead]:
-        """Transactions that were deleted, as they were when deleted, newest first."""
-        paths = self._account_paths()
-        return [self._history_read(row, paths) for row in self.tr.deleted()]
-
-    def restorable(self, limit: int = RESTORABLE_LIMIT) -> list[HistoryRead]:
-        """Entries that were deleted and are not back, newest deletion first (one per entry, as it stood when it went)."""
-        latest: dict[UUID, object] = {}
-        for row in self.tr.deleted():
-            latest.setdefault(row.transaction_id, row)
-        alive = self.tr.read_many(list(latest))
-        paths = self._account_paths()
-        rows = [row for transaction_id, row in latest.items() if transaction_id not in alive]
-        return [self._history_read(row, paths) for row in rows[:limit]]
-
-    def restore(self, history_id: UUID) -> TransactionRead:
-        """Bring a deleted entry back as it was, with its old id (so its history carries on). It becomes an
-        ordinary entry: the link to a recurring rule is not restored, so the rule cannot record the day twice. Its
-        related links come back (to an earlier entry that is still there, and from the entries that were linked to it)."""
-        row = self.tr.deleted_row(history_id)
-        if row is None:
-            raise LookupError("deleted transaction not found!")
-        if self.tr.read(row.transaction_id) is not None:
-            raise ValueError("this transaction is already back!")
-        if self.tr.history(row.transaction_id)[-1].id != row.id:
-            raise ValueError("this transaction was changed after it was deleted; restore the latest deletion!")
-        snapshot = row.snapshot
-        known = {a.id for a in self.ar.list()}
-        if any(UUID(p["account"]) not in known for p in snapshot["postings"]):
-            raise ValueError("an account this transaction used no longer exists, so it cannot be restored!")
-        data = TransactionCreate(
-            date=date.fromisoformat(snapshot["date"]),
-            payee=snapshot.get("payee"),
-            comment=snapshot.get("comment"),
-            source=snapshot.get("source"),
-            external_id=snapshot.get("external_id"),
-            source_url=snapshot.get("source_url"),
-            postings=[
-                {
-                    "account_id": UUID(p["account"]),
-                    "side": p["side"],
-                    "amount": Decimal(p["amount"]),
-                    "category_id": self._known_category(p.get("category")),
-                }
-                for p in snapshot["postings"]
-            ],
-            related_id=self._restorable_link(snapshot.get("related_id")),
-            tags=clean_names(snapshot.get("tags", [])),
-        )
-        self._check_limits()
-        self._resolve(data)
-        self._check_reference(data.source, data.external_id)
-        transaction = self.tr.create(data, self.origin, None, transaction_id=row.transaction_id)
-        self._relink(transaction.id, snapshot.get("related_from", []))
-        self.tr.db.commit()
-        self.tr.db.refresh(transaction)
-        return self._to_read(transaction)
-
-    def _known_category(self, value: str | None) -> UUID | None:
-        """The category a restored line had, if it is still there and open (otherwise the account decides)."""
-        if not value:
-            return None
-        category = self.cr.read(UUID(value))
-        return category.id if category is not None and category.closed_on is None else None
-
-    def _restorable_link(self, value: str | None) -> UUID | None:
-        """The entry a restored one was related to, if it is still there (otherwise the link is simply not restored)."""
-        if not value:
-            return None
-        target = UUID(value)
-        return target if self.tr.read(target) is not None else None
-
-    def _relink(self, restored: UUID, former: list[str]) -> None:
-        """Point the entries that were related to a restored one at it again, unless they have a link of their own by
-        now or it would make a circle."""
-        for value in former:
-            other = self.tr.read(UUID(value))
-            if other is None or other.related_id is not None:
-                continue
-            try:
-                self._check_related(restored, other.id)
-            except InvalidPostingError:
-                continue
-            other.related_id = restored
-            self.tr.db.add(other)
-
     def validate(self, data: TransactionCreate) -> None:
         """Raise what create would raise, without saving anything."""
-        self._resolve(data)
+        self._resolve(data, on=data.date)
 
     def _check_related(self, related_id: UUID | None, transaction_id: UUID | None = None) -> None:
         """The entry this one is related to must be the person's own, and following the links must never lead back here."""
@@ -571,10 +365,16 @@ class TransactionService:
                 f"source '{source}' reference '{external_id}' is already used by the entry {found.id}!"
             )
 
+    def _refuse_contact_entry(self, transaction_id: UUID, what: str) -> None:
+        if not self.contacts and self.tr.owned_by_contacts(transaction_id):
+            raise InvalidPostingError(
+                f"this entry belongs to a contact and can't be {what} here: reverse it from the contact's page!"
+            )
+
     def _check_new(self, data: TransactionCreate) -> None:
         """Everything creating an entry checks before it saves."""
         self._check_limits()
-        self._resolve(data)
+        self._resolve(data, on=data.date)
         self._check_related(data.related_id)
         self._check_reference(data.source, data.external_id)
         self._check_tags(data.tags)
@@ -687,7 +487,7 @@ class TransactionService:
             data.postings
             if data.postings is not None
             else [
-                PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount)
+                PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount, posted_on=p.posted_on)
                 for p in self.tr.postings(transaction_id)
             ]
         )
@@ -707,7 +507,10 @@ class TransactionService:
             source=existing.source,
             external_id=existing.external_id,
             source_url=existing.source_url,
-            postings=[PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount) for p in existing.postings],
+            postings=[
+                PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount, posted_on=p.posted_on)
+                for p in existing.postings
+            ],
         )
 
     def create_once(
@@ -726,11 +529,15 @@ class TransactionService:
                 raise DuplicateReferenceError(_different_content(data, found.id))
         return self.create(data, recurring), True
 
-    def create(self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None) -> TransactionRead:
+    def create(
+        self, data: TransactionCreate, recurring: tuple[UUID, date] | None = None, *, commit: bool = True
+    ) -> TransactionRead:
+        """Record an entry. `commit=False` leaves the commit to the caller (a workflow that saves more with it)."""
         self._check_new(data)
         transaction = self.tr.create(data, self.origin, recurring)
-        self.tr.db.commit()
-        self.tr.db.refresh(transaction)
+        if commit:
+            self.tr.db.commit()
+            self.tr.db.refresh(transaction)
         return self._to_read(transaction)
 
     def read(self, transaction_id: UUID) -> TransactionRead | None:
@@ -769,7 +576,7 @@ class TransactionService:
             raise ValueError(f"category '{category_id}' not found!")
         return [c.id for c in categories if c.id == category_id or c.parent_id == category_id]
 
-    def _args(self, account, kind, also):
+    def _args(self, account: UUID | None, kind: str | None, also: UUID | None):
         account_ids = self._account_subtree(account) if account else None
         also_ids = self._category_subtree(also) if also else None
         if kind not in (None, "", "expense", "income", "transfer"):
@@ -841,7 +648,7 @@ class TransactionService:
         account_ids, kind_accounts, also_ids = self._args(account, kind, also)
         text, payee = (text or "").strip() or None, (payee or "").strip() or None
 
-        def read(first, last, limit, start):
+        def read(first: date | None, last: date | None, limit: int | None, start: int):
             return self.tr.list(
                 account_ids, first, last, limit, start, text, kind or None, kind_accounts, also_ids, payee, tag=tag
             )
@@ -1011,11 +818,19 @@ class TransactionService:
         existing = self.tr.read(transaction_id)
         if not existing:
             raise ValueError(f"transaction '{transaction_id}' not found!")
+        self._refuse_contact_entry(transaction_id, "changed")
         # Postings an entry already has on an account that was closed since stay allowed, so it can still be edited.
         existing_lines = self.tr.postings(transaction_id)
         kept = {p.account_id for p in existing_lines}
         kept_categories = {p.category_id for p in existing_lines if p.category_id is not None}
-        self._resolve(data, kept, kept_categories)
+        day = data.date if "date" in data.model_fields_set and data.date is not None else existing.date
+        self._resolve(data, kept, kept_categories, on=day)
+        if data.postings is None and "date" in data.model_fields_set:
+            for line in existing_lines:
+                if line.posted_on is not None and line.posted_on < day:
+                    raise InvalidPostingError(
+                        "move the lines' posting dates too: one would post before the entry's date!"
+                    )
         if "related_id" in data.model_fields_set:
             self._check_related(data.related_id, transaction_id)
         if data.tags:
@@ -1032,13 +847,16 @@ class TransactionService:
         self,
         transaction_id: UUID,
         data: TransactionUpdate,
+        *,
+        commit: bool = True,
     ) -> TransactionRead | None:
         self._check_update(transaction_id, data)
         transaction = self.tr.update(transaction_id, data, self.origin)
         if not transaction:
             raise RuntimeError(f"failed to update transaction '{transaction_id}'!")
-        self.tr.db.commit()
-        self.tr.db.refresh(transaction)
+        if commit:
+            self.tr.db.commit()
+            self.tr.db.refresh(transaction)
         return self._to_read(transaction)
 
     def label_payment(self, transaction_id: UUID, category_id: UUID) -> TransactionRead:
@@ -1063,6 +881,7 @@ class TransactionService:
                     side=p.side,
                     amount=p.amount,
                     category_id=category_id if waiting else p.category_id,
+                    posted_on=p.posted_on,
                 )
             )
         if not changed:
@@ -1072,10 +891,12 @@ class TransactionService:
             raise ValueError(f"transaction '{transaction_id}' not found!")
         return updated
 
-    def delete(self, transaction_id: UUID) -> TransactionRead | None:
+    def delete(self, transaction_id: UUID, *, commit: bool = True) -> TransactionRead | None:
+        self._refuse_contact_entry(transaction_id, "deleted")
         transaction = self.read(transaction_id)
         deleted = self.tr.delete(transaction_id, self.origin)
         if not deleted:
             raise ValueError(f"transaction '{transaction_id}' not found!")
-        self.tr.db.commit()
+        if commit:
+            self.tr.db.commit()
         return transaction

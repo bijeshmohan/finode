@@ -38,8 +38,7 @@ def test_the_tab_bar_has_categories_and_no_transactions_(page: Page, books):
 
 def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside(page: Page, books, api: Api):
     food = tree(api, books)
-    delivery = next(c for c in api.get("/categories/") if c["name"] == "Delivery") | {}
-    delivery["id"] = delivery["id"]
+    delivery = next(c for c in api.get("/categories/") if c["name"] == "Delivery")
     spend(api, books, delivery, "120")
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
@@ -55,7 +54,7 @@ def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside
     expect(page.locator(".hero-balance")).to_have_text("₹120.00")
     expect(page.locator("a.crow", has_text="Delivery")).to_be_visible()
     page.locator("a.crow", has_text="Delivery").click()
-    page.wait_for_url("**/categories/*")
+    page.wait_for_url(f"**/categories/{delivery['id']}**")  # not the page the tap started on
     expect(page.locator("a.tx").first).to_be_visible()
 
 
@@ -89,7 +88,7 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(pag
     page.locator("a.crow", has_text="Rent").click()
     page.wait_for_url(f"**/categories/{books['rent']['id']}**")
     expect(page.locator(".hero-balance")).to_have_text("₹900.00")
-    expect(page.get_by_role("link", name="Add transaction")).to_have_attribute(
+    expect(page.locator("a.fab")).to_have_attribute(
         "href", f"/transactions/new?category={books['rent']['id']}&back=/categories/{books['rent']['id']}"
     )
     page.get_by_label("More actions").click()
@@ -146,32 +145,26 @@ def test_the_month_in_the_pill_is_a_picker_that_goes_straight_to_that_month(page
     assert "month=2026-02" in page.url, "a month the page never shows is not taken"
 
 
-def test_accounts_and_categories_share_the_same_heights(page: Page, books):
-    spots = {}
-    for path in ("/accounts", "/categories"):
-        page.goto(path)
-        title, chips, hero = (
-            page.locator(s).first.bounding_box() for s in (".page-head h1", ".cat-chips", ".cat-hero")
-        )
-        assert page.locator(".cat-bar .head-icons").count() == 0, f"{path}: nothing beside the switcher"
-        spots[path] = (round(title["y"]), round(chips["y"]), round(chips["width"]), round(hero["y"]))
-    assert spots["/accounts"] == spots["/categories"], f"title, full-width switcher and figure line up: {spots}"
-
-
 def test_the_head_is_the_same_on_accounts_categories_and_budgets(page: Page, books):
+    """The title lines up on all three; Accounts and Budgets (no switcher) put the label and figure right under the
+    title, and Categories has its switcher between them."""
     spots = {}
     for path in ("/accounts", "/categories", "/budget"):
         page.goto(path)
-        title, chips, label, figure = (
+        title, label, figure = (
             page.locator(s).first.bounding_box()
-            for s in (".page-head h1", ".cat-chips", ".ready-hero .hero-top", ".ready-hero .figure")
+            for s in (".page-head h1", ".ready-hero .hero-top", ".ready-hero .figure")
         )
+        chips = page.locator(".cat-chips").first
         spots[path] = (
             round(title["y"]),
-            round(chips["y"]),
+            round(chips.bounding_box()["y"]) if chips.count() else None,
             round(label["y"]),
             round(figure["y"]),
             round(figure["height"]),
         )
         expect(page.locator(".ready-hero .hero-top .muted").first).to_be_visible()
-    assert len(set(spots.values())) == 1, f"title, switcher, label and figure line up on all three pages: {spots}"
+    assert len({spot[0] for spot in spots.values()}) == 1, f"the titles line up: {spots}"
+    assert spots["/accounts"] == spots["/budget"], f"label and figure line up where there is no switcher: {spots}"
+    assert spots["/accounts"][1] is None and spots["/categories"][1] is not None
+    assert spots["/categories"][4] == spots["/accounts"][4], f"the figure is the same size: {spots}"

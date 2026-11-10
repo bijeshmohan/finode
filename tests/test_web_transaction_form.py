@@ -313,31 +313,6 @@ def test_return_path_must_stay_inside_the_app(client: TestClient, account: dict,
         assert response.headers["HX-Redirect"] == "/transactions", back
 
 
-def test_save_and_add_another_reopens_the_form(client: TestClient, account: dict, expense_account: dict):
-    simple = client.post(
-        "/transactions/split",
-        data={
-            "account": [expense_account["id"], account["id"]],
-            "side": ["debit", "credit"],
-            "amount": ["1", "1"],
-            "another": "1",
-        },
-    )
-    assert simple.headers["HX-Redirect"] == "/transactions/new"
-
-    split = client.post(
-        "/transactions/split",
-        data={
-            "account": [expense_account["id"], account["id"]],
-            "side": ["debit", "credit"],
-            "amount": ["2.00", "2.00"],
-            "another": "1",
-            "back": "/accounts",
-        },
-    )
-    assert split.headers["HX-Redirect"] == "/transactions/new?back=%2Faccounts"
-
-
 def test_update_transaction_to_other_accounts(
     client: TestClient, account: dict, other_account: dict, expense_account: dict
 ):
@@ -453,7 +428,7 @@ def test_a_new_entry_starts_as_an_expense_with_three_buttons_in_order(
     order = [page.index(f">{label}</button>") for label in ("Expense", "Income", "Transfer")]
     assert order == sorted(order), "Expense, Income, Transfer"
     assert ">Other</button>" not in page, "no button for it: selecting nothing offers every account"
-    assert "data-side-hint" in page
+    assert "data-side-hint" not in page and "the account you paid with" not in page, "the headings are enough"
 
 
 def test_an_entry_that_fits_no_kind_has_nothing_selected(
@@ -530,3 +505,55 @@ def test_a_split_across_expenses_is_still_an_expense(
         },
     ).json()["id"]
     assert _kind(client.get(f"/transactions/{transaction_id}/edit").text) == "expense"
+
+
+def test_the_form_sends_a_posting_date_for_a_line_and_the_edit_page_shows_it(
+    client: TestClient, account: dict, expense_account: dict
+):
+    made = client.post(
+        "/transactions/split",
+        data={
+            "date": "2026-05-04",
+            "account": [expense_account["id"], account["id"]],
+            "side": ["debit", "credit"],
+            "amount": ["42.50", "42.50"],
+            "posted_on": ["", "2026-05-06"],
+        },
+    )
+    assert made.status_code == 200, made.text
+    [entry] = client.get("/api/transactions/").json()
+    assert {p["side"]: p["posted_on"] for p in entry["postings"]} == {"debit": None, "credit": "2026-05-06"}
+    page = client.get(f"/transactions/{entry['id']}/edit").text
+    assert 'name="posted_on" value="2026-05-06"' in page
+
+
+def test_a_posting_date_before_the_entry_is_refused_on_the_form(
+    client: TestClient, account: dict, expense_account: dict
+):
+    refused = client.post(
+        "/transactions/split",
+        data={
+            "date": "2026-05-04",
+            "account": [expense_account["id"], account["id"]],
+            "side": ["debit", "credit"],
+            "amount": ["10", "10"],
+            "posted_on": ["", "2026-05-01"],
+        },
+    )
+    assert "before the entry" in refused.text
+    assert client.get("/api/transactions/").json() == []
+
+
+def test_repeating_an_entry_does_not_copy_its_posting_dates(client: TestClient, account: dict, expense_account: dict):
+    made = client.post(
+        "/api/transactions/",
+        json={
+            "date": "2026-05-04",
+            "postings": [
+                leg(expense_account, "debit", "10"),
+                {**leg(account, "credit", "10"), "posted_on": "2026-05-06"},
+            ],
+        },
+    ).json()
+    page = client.get("/transactions/new", params={"repeat": made["id"]}).text
+    assert 'name="posted_on" value="2026-05-06"' not in page

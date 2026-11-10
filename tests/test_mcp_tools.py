@@ -401,26 +401,21 @@ async def test_the_budget_tool_reports_last_months_overspending(session, root_ac
 
 
 @pytest.mark.anyio
-async def test_assistants_can_set_money_aside_for_a_goal_and_hand_it_to_a_category(session, root_accounts, client):
+async def test_the_budget_lists_a_credit_card_with_its_id(session, root_accounts, client):
     post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1000"})
-    post_account(client, {"name": "Hospital", "parent_id": root_accounts["Expenses"]})
-    client.post("/budget/goal", data={"name": "Emergency fund", "amount": "600", "by": "2999-12"})
-    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
-        data = payload(await c.call_tool("assign_to_goal", {"goal": "emergency FUND", "amount": "300"}))
-        assert (
-            data["saved_for_goals"] == "300.00"
-            and data["goals"][0]["goal"] == "Emergency fund"
-            and data["ready_to_assign"] == "700.00"
-        )
-        used = payload(
-            await c.call_tool("use_goal", {"goal": "Emergency fund", "category": "Hospital", "amount": "120"})
-        )
-        assert used["goals"][0]["saved"] == "180.00" and used["ready_to_assign"] == "700.00"
-        assert used["categories"][0]["category"] == "Hospital" and used["categories"][0]["available"] == "120.00"
-        with pytest.raises(ToolFailed, match="no goal is called 'Bike'.*Emergency fund"):
-            payload(await c.call_tool("assign_to_goal", {"goal": "Bike", "amount": "5"}))
-        with pytest.raises(ToolFailed, match="only 180"):
-            payload(await c.call_tool("use_goal", {"goal": "Emergency fund", "category": "Hospital", "amount": "500"}))
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    card = client.post(
+        "/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"], "on_budget": True}
+    ).json()
+    client.post(
+        "/api/transactions/",
+        json={"postings": [leg(food, "debit", "40"), leg(card, "credit", "40")]},
+    )
+    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
+        data = payload(await c.call_tool("get_budget", {}))
+        [listed] = data["credit_cards"]
+        assert listed["card_id"] == card["id"] and listed["card"] == "Liabilities:Visa"
+        assert (listed["to_pay"], listed["charged_this_month"]) == ("40.00", "40.00")
 
 
 @pytest.mark.anyio
@@ -515,7 +510,7 @@ async def test_only_expense_categories_can_be_planned(session, root_accounts, cl
                 payload(await c.call_tool("assign_to_category", {"category": name, "amount": "5"}))
 
 
-# ---- related entries, deleted entries, resuming, goals -------------------------------------------------------------
+# ---- related entries, deleted entries, resuming -------------------------------------------------------------
 
 
 async def test_assistants_can_link_a_refund_to_the_purchase(session, books, secret):
@@ -569,31 +564,6 @@ async def test_assistants_can_link_a_refund_to_the_purchase(session, books, secr
             )
 
 
-async def test_assistants_can_list_and_restore_deleted_transactions(session, books, secret):
-    async with running_app(session), mcp_client(secret) as c:
-        assert (await call(c, "list_deleted_transactions"))["deleted"] == []
-        made = (
-            await call(c, "record_transaction", amount="75", from_account="HDFC", to_account="Groceries", payee="Milk")
-        )["recorded"]
-        await call(c, "delete_transaction", transaction_id=made["id"])
-        gone = (await call(c, "list_deleted_transactions"))["deleted"]
-        assert (
-            len(gone) == 1
-            and gone[0]["payee"] == "Milk"
-            and gone[0]["total"] == "75.00"
-            and gone[0]["transaction_id"] == made["id"]
-        )
-        back = (await call(c, "restore_transaction", deleted_id=gone[0]["deleted_id"]))["restored"]
-        assert back["id"] == made["id"] and back["total"] == "75.00"
-        assert (await call(c, "list_deleted_transactions"))["deleted"] == []
-        with pytest.raises(ToolFailed, match="already back"):
-            await call(c, "restore_transaction", deleted_id=gone[0]["deleted_id"])
-        with pytest.raises(ToolFailed, match="no deleted transaction"):
-            await call(c, "restore_transaction", deleted_id="00000000-0000-4000-8000-0000000000aa")
-        with pytest.raises(ToolFailed, match="not a deleted-transaction id"):
-            await call(c, "restore_transaction", deleted_id="abc")
-
-
 async def test_assistants_can_resume_a_paused_recurring_transaction(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         made = (
@@ -615,39 +585,12 @@ async def test_assistants_can_resume_a_paused_recurring_transaction(session, boo
             await call(c, "resume_recurring", recurring_id="00000000-0000-4000-8000-0000000000aa")
 
 
-async def test_assistants_can_create_change_and_delete_a_goal(session, books, secret):
-    async with running_app(session), mcp_client(secret) as c:
-        made = await call(c, "create_goal", name="Laptop", amount="60000", by="2999-12")
-        goal = next(g for g in made["goals"] if g["goal"] == "Laptop")
-        assert goal["target"] == "60000.00" and goal["by"] == "2999-12-01"
-        changed = await call(c, "update_goal", goal="laptop", name="New laptop", amount="70000")
-        goal = next(g for g in changed["goals"] if g["goal"] == "New laptop")
-        assert goal["target"] == "70000.00" and goal["by"] == "2999-12-01"
-        with pytest.raises(ToolFailed, match="nothing to change"):
-            await call(c, "update_goal", goal="New laptop")
-        with pytest.raises(ToolFailed, match="already have a goal"):
-            await call(c, "create_goal", name="new LAPTOP", amount="1", by="2999-12")
-        with pytest.raises(ToolFailed, match="YYYY-MM"):
-            await call(c, "create_goal", name="Trip", amount="1", by="soon")
-        gone = await call(c, "delete_goal", goal="New laptop")
-        assert gone["deleted"] == "New laptop"
-        assert "goals" not in await call(c, "get_budget")
-        with pytest.raises(ToolFailed, match="no goal is called"):
-            await call(c, "delete_goal", goal="New laptop")
-
-
 async def test_a_read_only_connection_refuses_the_new_tools(session, books):
     read_only = make_token(session, TEST_USER_ID, scope="read")
     async with running_app(session), mcp_client(read_only) as c:
-        assert "list_deleted_transactions" in {t.name for t in (await c.list_tools()).tools}
-        assert (await call(c, "list_deleted_transactions"))["deleted"] == []
-        for tool, args in (
-            ("restore_transaction", {"deleted_id": "x"}),
-            ("resume_recurring", {"recurring_id": "x"}),
-            ("create_goal", {"name": "a", "amount": "1", "by": "2999-12"}),
-            ("update_goal", {"goal": "a", "name": "b"}),
-            ("delete_goal", {"goal": "a"}),
-        ):
+        names = {t.name for t in (await c.list_tools()).tools}
+        assert not {"list_deleted_transactions", "restore_transaction", "recent_changes"} & names, "no history tools"
+        for tool, args in (("resume_recurring", {"recurring_id": "x"}),):
             with pytest.raises(ToolFailed, match="read-only"):
                 await call(c, tool, **args)
 

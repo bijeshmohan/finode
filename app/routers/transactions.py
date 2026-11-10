@@ -5,13 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from ..auth import require_authenticated_user
-from ..clock import local_start_utc
 from ..dependencies import Transactions
 from ..limits import LimitReached
 from ..schemas.transaction import (
     BatchResult,
-    ChangeRead,
-    HistoryRead,
     PayeeDefaultRead,
     PayeeRead,
     TransactionBatch,
@@ -85,35 +82,6 @@ def payee_defaults(transactions: Transactions, payee: str = "", limit: int = Que
     return transactions.payee_defaults(payee, limit)
 
 
-@router.get("/deleted", response_model=list[HistoryRead])
-def deleted_transactions(transactions: Transactions):
-    """Entries that were deleted and are not back, newest deletion first; `id` is what to restore."""
-    return transactions.restorable()
-
-
-@router.get("/changes", response_model=list[ChangeRead])
-def recent_changes(
-    transactions: Transactions,
-    since: date | None = None,
-    by: str | None = None,
-    limit: int = Query(default=50, ge=1, le=200),
-):
-    """The latest steps across all entries (made, edited, deleted), newest first, each with what it changed.
-    `since` is a day; `by` is `assistant` (any), `web`, `api`, `import`, `recurring` or `mcp:<connection name>`."""
-    return transactions.recent_changes(local_start_utc(since) if since else None, (by or "").strip() or None, limit)
-
-
-@router.post("/deleted/{history_id}/restore", response_model=TransactionRead)
-def restore_transaction(history_id: UUID, transactions: Transactions):
-    """Bring a deleted entry back as it was, with its old id (checked again like any new entry)."""
-    try:
-        return transactions.restore(history_id)
-    except LookupError:
-        raise HTTPException(status_code=404, detail="deleted transaction not found") from None
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
-
-
 @router.get("/{transaction_id}", response_model=TransactionRead, status_code=200)
 def get_transaction(transaction_id: UUID, transactions: Transactions):
     """One transaction with its postings."""
@@ -175,7 +143,7 @@ def update_transaction(
 
 @router.delete("/{transaction_id}", status_code=204, response_model=None)
 def delete_transaction(transaction_id: UUID, transactions: Transactions, response: Response, dry_run: bool = False):
-    """Delete a transaction; it waits in /transactions/deleted and can be restored.
+    """Delete a transaction for good.
     With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go."""
     try:
         if dry_run:
@@ -189,24 +157,6 @@ def delete_transaction(transaction_id: UUID, transactions: Transactions, respons
     if not transaction:
         raise HTTPException(status_code=404, detail="transaction not found")
     return {"message": "transaction deleted successfully"}
-
-
-@router.get("/{transaction_id}/changes", response_model=list[ChangeRead])
-def transaction_changes(transaction_id: UUID, transactions: Transactions):
-    """What happened to an entry, oldest first, each step with what it changed (works for a deleted one too)."""
-    steps = transactions.changes(transaction_id)
-    if not steps:
-        raise HTTPException(status_code=404, detail="transaction not found")
-    return steps
-
-
-@router.get("/{transaction_id}/history", response_model=list[HistoryRead])
-def transaction_history(transaction_id: UUID, transactions: Transactions):
-    """What happened to an entry, oldest first (works for a deleted one too)."""
-    history = transactions.history(transaction_id)
-    if not history:
-        raise HTTPException(status_code=404, detail="transaction not found")
-    return history
 
 
 @router.get("/{transaction_id}/related", response_model=list[TransactionRead])

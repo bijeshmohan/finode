@@ -1,5 +1,6 @@
 """Web sign-in through Supabase's password grant, with the tokens kept in HttpOnly cookies and refreshed when they expire."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
@@ -140,7 +141,7 @@ def login_required_handler(request: Request, exc: LoginRequired) -> Response:
     return RedirectResponse(LOGIN_PATH, status_code=303)
 
 
-async def refreshed_cookies_middleware(request: Request, call_next):
+async def refreshed_cookies_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]):
     response = await call_next(request)
     tokens = getattr(request.state, "refreshed_tokens", None)
     if tokens is not None:

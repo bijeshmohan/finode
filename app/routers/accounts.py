@@ -1,21 +1,21 @@
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
-from ..clock import local_start_utc
 from ..dependencies import Accounts
 from ..schemas.account import (
-    AccountChangeRead,
     AccountCreate,
     AccountRead,
     AccountUpdate,
     BalanceCheck,
+    CardBill,
     ClosedAccount,
-    DeletedAccount,
+    GroupCreate,
     MergeRequest,
     MergeResult,
     RegisterEntry,
@@ -38,40 +38,20 @@ def create_account(account: AccountCreate, accounts: Accounts):
         raise HTTPException(status_code=400, detail=str(e)) from None
 
 
+@router.post("/groups", response_model=AccountRead, status_code=201)
+def create_group(group: GroupCreate, accounts: Accounts):
+    """Make a group, a shelf for accounts: under Assets (money you own) or Liabilities (money you owe). `new_accounts_in_budget` is what an account made in it starts as. A group has no balance and can be empty."""
+    try:
+        return accounts.create_group(group)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+
+
 @router.get("/closed", response_model=list[ClosedAccount])
 def closed_accounts(accounts: Accounts):
     """Accounts that were closed (and categories "deleted" while they had a history): the outermost of each closed
     branch, newest first. Reopen one with POST /accounts/{account_id}/reopen."""
     return accounts.closed()
-
-
-@router.get("/deleted", response_model=list[DeletedAccount])
-def deleted_accounts(accounts: Accounts):
-    """Accounts and categories deleted for good that can still be restored, newest first."""
-    return accounts.restorable()
-
-
-@router.get("/changes", response_model=list[AccountChangeRead])
-def recent_changes(
-    accounts: Accounts,
-    since: date | None = None,
-    by: str | None = None,
-    limit: int = Query(default=50, ge=1, le=200),
-):
-    """The latest steps across all accounts and categories (made, renamed, moved, closed, reopened, deleted), newest
-    first, each with what it changed. `since` is a day; `by` is `assistant` (any), `web`, `api` or `mcp:<name>`."""
-    return accounts.recent_changes(local_start_utc(since) if since else None, (by or "").strip() or None, limit)
-
-
-@router.post("/deleted/{deletion_id}/restore", response_model=AccountRead)
-def restore_deleted_account(deletion_id: UUID, accounts: Accounts):
-    """Bring back a deleted account or category (with its old id, plan and payment links)."""
-    try:
-        return accounts.restore_deleted(deletion_id)
-    except LookupError:
-        raise HTTPException(status_code=404, detail="deleted account not found") from None
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.get("/{account_id}", response_model=AccountRead, status_code=200)
@@ -95,7 +75,7 @@ def get_accounts(
 
 @router.patch("/{account_id}", response_model=AccountRead, status_code=200)
 def update_account(account_id: UUID, data: AccountUpdate, accounts: Accounts):
-    """Change an account: name, note, place (`parent_id`), budget flag or payment category."""
+    """Change an account: name, note, place (`parent_id`) or budget flag."""
     try:
         account = accounts.update(account_id, data)
     except ValueError as e:
@@ -124,7 +104,7 @@ def delete_account(account_id: UUID, accounts: Accounts):
     return {"message": "account deleted successfully"}
 
 
-def _closing(action, account_id: UUID):
+def _closing(action: Callable[[UUID], Any], account_id: UUID):
     try:
         return action(account_id)
     except AccountInUseError as e:
@@ -161,14 +141,18 @@ def merge_account(account_id: UUID, data: MergeRequest, accounts: Accounts, dry_
         raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e)) from None
 
 
-@router.get("/{account_id}/changes", response_model=list[AccountChangeRead])
-def account_changes(account_id: UUID, accounts: Accounts):
-    """What happened to an account or category, oldest first, each step with what it changed and who did it (works for a
-    deleted one too)."""
-    steps = accounts.changes(account_id)
-    if not steps:
+@router.get("/{account_id}/bill", response_model=CardBill)
+def bill(account_id: UUID, accounts: Accounts):
+    """A card's or loan's bill, worked out from its statement day and due day: what was owed when the latest statement
+    closed, less the payments and refunds since, when it is due, and what was spent since. Nothing is stored. 400 while
+    the account has no days."""
+    try:
+        found = accounts.bill(account_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    if found is None:
         raise HTTPException(status_code=404, detail="account not found")
-    return steps
+    return found
 
 
 @router.get("/{account_id}/check-balance", response_model=BalanceCheck)

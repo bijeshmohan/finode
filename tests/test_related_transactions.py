@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from app.auth import CurrentUser, require_authenticated_user
+from app.clock import local_today
 from app.main import app
 
 from .books import leg, post_account
@@ -120,7 +121,7 @@ def test_related_opens_a_blank_form_with_the_link(client, account, expense_accou
 
 def test_a_plain_new_form_offers_the_dashed_row(client, account, expense_account):
     page = client.get("/transactions/new").text
-    assert "Transaction</button>" in page and "Related to an earlier entry" not in page
+    assert "Related</button>" in page and "Related to an earlier entry" not in page
     assert "data-related-chip hidden" in page
     assert 'name="related" value=""' in page
 
@@ -208,7 +209,9 @@ def test_the_backup_and_the_service_see_the_links(session, client, account, expe
 
 
 def test_account_and_category_pages_open_the_sheet_and_come_back(client, account, expense_account):
-    made = make(client, expense_account, account, "250", "DMart")
+    made = make(
+        client, expense_account, account, "250", "DMart", on=local_today().isoformat()
+    )  # a category lists this month
     for page_url, back in (
         (f"/accounts/{account['id']}", f"/accounts/{account['id']}"),
         (f"/categories/{expense_account['id']}", f"/categories/{expense_account['id']}"),
@@ -239,3 +242,16 @@ def test_an_upcoming_entry_on_an_account_page_opens_the_sheet(client, account, e
     ahead = make(client, expense_account, account, "99", "Later", on=(date.today() + timedelta(days=5)).isoformat())
     page = client.get(f"/accounts/{account['id']}").text
     assert f'hx-get="/transactions/{ahead["id"]}/sheet?back=' in page and 'id="txn-sheet-body"' in page
+
+
+def test_only_the_related_entry_carries_a_pill_with_the_originals_date_and_amount(client, account, expense_account):
+    first = make(client, expense_account, account, "1000", "Amazon", on="2026-10-12")
+    second = make(client, account, expense_account, "300", "Amazon refund", on="2026-10-20", related_id=first["id"])
+    for url in ("/transactions?month=2026-10", f"/accounts/{account['id']}"):
+        page = client.get(url).text
+        assert page.count('class="tx-pill"') == 1, url
+        marked = [r for r in page.split("<li>") if "tx-pill" in r]
+        assert len(marked) == 1 and "Amazon refund" in marked[0], url
+        assert "12 Oct" in marked[0] and "1,000.00" in marked[0], url
+        assert f"/transactions/{first['id']}/sheet" in marked[0], "the pill opens the original, the row its own"
+        assert f"/transactions/{second['id']}/sheet" in marked[0]

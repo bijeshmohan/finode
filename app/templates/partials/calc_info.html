@@ -8,7 +8,7 @@
 </details>
 {%- endmacro %}
 
-{% macro calc_panel(rows, total_label, total, currency, note) -%}
+{% macro calc_panel(rows, total_label, total, currency, note, coming=False) -%}
 <div class="calc-panel">
   <h3>How this is worked out</h3>
   {% for label, amount, sign in rows %}
@@ -18,5 +18,6 @@
   {% endfor %}
   <p class="calc-row-line total"><span>{{ total_label }}</span><b>{{ total|money|amount(currency) }}</b></p>
   <p class="calc-note">{{ note }}</p>
+  {% if coming %}<div class="calc-coming" hx-get="/budget/coming-up/note" hx-trigger="load" hx-swap="innerHTML"></div>{% endif %}
 </div>
 {%- endmacro %}

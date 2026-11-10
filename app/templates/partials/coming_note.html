@@ -1,0 +1,5 @@
+{#- The line under the sum behind Ready to assign: what is coming up this month, with a link to the list. -#}
+<a class="coming-note" href="/budget/coming-up">
+  <span>{{ data.count }} {{ "payment" if data.count == 1 else "payments" }} coming up by {{ data.through|short_date }}{% if data.total is not none %} · <b>{{ data.total|money }}</b>{% endif %}</span>
+  <span aria-hidden="true">›</span>
+</a>

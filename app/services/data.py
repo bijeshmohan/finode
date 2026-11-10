@@ -3,6 +3,7 @@
 import csv
 import io
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date as Date
 from decimal import Decimal
@@ -15,8 +16,9 @@ from ..config import settings
 from ..ledger import AccountDecl, LedgerPosting, LedgerTransaction, parse, write
 from ..ledger.parse import _plain
 from ..limits import LimitReached, ensure_room
+from ..models import Account
 from ..models.category import BudgetCategory
-from ..models.transaction import PostingSide
+from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..schemas.account import AccountCreate
 from ..schemas.category import CategoryCreate
@@ -77,6 +79,8 @@ class _Planned:
     tags: list[str] = field(default_factory=list)
     # The category each line names (the key of its Expenses account), or None; parallel to `postings`.
     categories: list[Key | None] = field(default_factory=list)
+    # The day each line posts when it is not the entry's date, or None; parallel to `postings`.
+    posted: list[Date | None] = field(default_factory=list)
 
 
 @dataclass
@@ -175,15 +179,18 @@ class DataService:
             found[category_id] = ":".join(reversed(names))
         return found
 
-    def _line_paths(self, accounts, paths: dict[UUID, str]):
+    def _line_paths(
+        self, accounts: Sequence[Account], paths: dict[UUID, str]
+    ) -> tuple[Callable[[Posting], str], set[UUID]]:
         """How a line is named in a journal: a line on Expenses or Income is written as the account of its category
         (`Expenses:Food:Groceries`, which is what other ledger tools expect); any other line by its account."""
         roots = {a.id for a in accounts if a.parent_id is None and a.name in CATEGORY_ROOTS}
         names = self._category_paths()
 
-        def path_of(p) -> str:
-            if p.account_id in roots and p.category_id in names:
-                return f"{paths[p.account_id]}:{':'.join(_segment(n) for n in names[p.category_id].split(':'))}"
+        def path_of(p: Posting) -> str:
+            category = p.category_id
+            if p.account_id in roots and category is not None and category in names:
+                return f"{paths[p.account_id]}:{':'.join(_segment(n) for n in names[category].split(':'))}"
             return paths[p.account_id]
 
         return path_of, roots
@@ -214,6 +221,7 @@ class DataService:
                     p.amount if p.side == PostingSide.DEBIT else -p.amount,
                     # Only a label the account does not say itself (a payment into a loan: EMI) is written.
                     category=names.get(p.category_id) if p.account_id not in roots and p.category_id else None,
+                    posted=p.posted_on if p.posted_on and p.posted_on != t.date else None,
                 )
                 for p in postings.get(t.id, [])
             ]
@@ -485,6 +493,7 @@ class DataService:
 
         postings = []
         categories: list[Key | None] = []
+        posted: list[Date | None] = []
         for posting, key in zip(lines, keys, strict=False):
             amount = abs(posting.amount)
             side = PostingSide.DEBIT if posting.amount > 0 else PostingSide.CREDIT
@@ -494,7 +503,11 @@ class DataService:
                     f"decimal place{'' if decimals == 1 else 's'}, which is what your currency allows"
                 )
                 return None
+            if posting.posted is not None and posting.posted < transaction.date:
+                errors.append(f"line {posting.line}: a line cannot post before the entry's own date")
+                return None
             postings.append((key, side, amount))
+            posted.append(posting.posted)
             before = len(errors)
             categories.append(self._line_category(posting, key, known or set(), errors))
             if len(errors) > before:
@@ -516,7 +529,7 @@ class DataService:
         except ValidationError as e:
             errors.append(f"line {transaction.line}: {_message(e)}")
             return None
-        return _Planned(transaction.date, payee, comment, postings, tags or [], categories)
+        return _Planned(transaction.date, payee, comment, postings, tags or [], categories, posted)
 
     @staticmethod
     def _line_category(posting: LedgerPosting, key: Key, known: set[Key], errors: list[str]) -> Key | None:
@@ -569,11 +582,19 @@ class DataService:
                 )
                 categories[key] = made.id
 
-            def line(key: Key, side: PostingSide, amount: Decimal, label: Key | None) -> PostingCreate:
+            def line(
+                key: Key, side: PostingSide, amount: Decimal, label: Key | None, posted: Date | None
+            ) -> PostingCreate:
                 if _is_category(key):  # an expense or an income: the root account, labelled with the category
-                    return PostingCreate(account_id=ids[key[:1]], side=side, amount=amount, category_id=categories[key])
+                    return PostingCreate(
+                        account_id=ids[key[:1]], side=side, amount=amount, category_id=categories[key], posted_on=posted
+                    )
                 return PostingCreate(
-                    account_id=ids[key], side=side, amount=amount, category_id=categories[label] if label else None
+                    account_id=ids[key],
+                    side=side,
+                    amount=amount,
+                    category_id=categories[label] if label else None,
+                    posted_on=posted,
                 )
 
             for planned in plan.transactions:
@@ -583,7 +604,10 @@ class DataService:
                         payee=planned.payee,
                         comment=planned.comment,
                         postings=[
-                            line(k, s, a, c) for (k, s, a), c in zip(planned.postings, planned.categories, strict=True)
+                            line(k, s, a, c, d)
+                            for (k, s, a), c, d in zip(
+                                planned.postings, planned.categories, planned.posted, strict=True
+                            )
                         ],
                         tags=planned.tags,
                     ),

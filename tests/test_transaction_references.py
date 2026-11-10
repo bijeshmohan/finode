@@ -79,18 +79,11 @@ def test_a_reference_can_be_added_changed_cleared_but_not_taken(client, account,
     assert no_source.status_code == 400, "an entry with no source cannot gain a bare reference"
 
 
-def test_deleting_frees_the_reference_and_restoring_gives_it_back(client, account, expense_account):
+def test_deleting_frees_the_reference(client, account, expense_account):
     first = client.post("/api/transactions/", json=body(expense_account, account, **PAY)).json()
     assert client.delete(f"/api/transactions/{first['id']}").status_code == 204
-    history_id = client.get("/api/transactions/deleted").json()[0]["id"]
     second = client.post("/api/transactions/", json=body(expense_account, account, **PAY))
     assert second.status_code == 201, "the reference was free again"
-    refused = client.post(f"/api/transactions/deleted/{history_id}/restore")
-    assert refused.status_code == 400 and "already used" in refused.json()["detail"]
-    client.delete(f"/api/transactions/{second.json()['id']}")
-    newest = client.get("/api/transactions/deleted").json()[0]["id"]
-    back = client.post(f"/api/transactions/deleted/{newest}/restore")
-    assert back.status_code == 200 and back.json()["external_id"] == "msg-1"
 
 
 def test_the_details_sheet_names_the_source(client, account, expense_account):

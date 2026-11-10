@@ -10,12 +10,9 @@ erDiagram
     ACCOUNTS ||--o{ ACCOUNTS : "parent_id"
     ACCOUNTS ||--o{ POSTINGS : receives
     TRANSACTIONS ||--|{ POSTINGS : has
-    TRANSACTIONS ||--o{ TRANSACTION_HISTORY : "append-only trace"
     ACCOUNTS ||--o{ BUDGET_ALLOCATIONS : "plan per month"
-    GOALS ||--o{ GOAL_ALLOCATIONS : "set aside per month"
     RECURRING_TRANSACTIONS ||--o{ RECURRING_POSTINGS : "split rules"
     RECURRING_TRANSACTIONS ||--o{ TRANSACTIONS : "records"
-    ACCOUNTS ||--o{ ACCOUNT_DELETIONS : "snapshot when deleted"
     PROFILES ||--o{ API_TOKENS : has
     PROFILES ||--o{ OAUTH_GRANTS : has
 ```
@@ -25,9 +22,7 @@ erDiagram
 | `profiles` | one row per person: names and currency. Per-person settings are typed columns here, not a key-value store. |
 | `accounts` | the account tree (parent, `on_budget`, `closed_on`, `payment_category_id`, `system_key` for the built-in groups, note) |
 | `transactions`, `postings` | the ledger (see [The ledger](ledger.md)) |
-| `transaction_history` | append-only snapshots after every create, update and delete |
-| `account_deletions` | append-only snapshots of accounts deleted for good, used by *Recently deleted* |
-| `budget_allocations`, `goals`, `goal_allocations` | the plan and the goals (see [The budget](budget.md)) |
+| `budget_allocations` | the plan (see [The budget](budget.md)) |
 | `recurring_transactions`, `recurring_postings` | recurring rules, simple or split |
 | `api_tokens`, `oauth_grants` | assistant access (see [MCP and authentication](mcp-and-auth.md)) |
 
@@ -56,7 +51,7 @@ Main groups: database (`database_url`, `database_echo`), Supabase (`supabase_url
 |---|---|---|
 | **Export** | plain-text ledger journal (`/export`, `/api/export`) or CSV | always allowed |
 | **Import** | the same journal format (`app/ledger/` parses it, `services/data.py` maps it to accounts and transactions) | only while you have no transactions; preview first; all-or-nothing; unsupported input (conversions, prices, include, …) is an error with its line number |
-| **Backup** | one JSON file, `finode-backup` version 2 (`services/backup.py`) | everything you recorded: settings, accounts, transactions, recurring rules, budget plan and goals. Access tokens, connected apps and the audit history are deliberately left out |
+| **Backup** | one JSON file, `finode-backup` version 6 (`services/backup.py`) | everything you recorded: settings, accounts, contacts, transactions, recurring rules, budget plan. Access tokens, connected apps and the audit history are deliberately left out |
 | **Restore** | that file | only into an empty ledger; validated first; all-or-nothing; everything gets new ids |
 
 When you add a model or an account/budget flag, add it to the backup and to `tests/test_backup.py`, or it will silently be missing from backups.

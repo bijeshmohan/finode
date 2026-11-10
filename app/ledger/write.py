@@ -28,7 +28,12 @@ def write(accounts: list[AccountDecl], transactions: list[LedgerTransaction], ge
                 out.append(f"    ; {_one_line(note)}")
         width = max(len(p.account) for p in transaction.postings)
         for posting in transaction.postings:
-            label = f"  ; category: {_one_line(posting.category).replace(';', ',')}" if posting.category else ""
+            notes = []
+            if posting.category:
+                notes.append(f"category: {_one_line(posting.category).replace(';', ',')}")
+            if posting.posted:
+                notes.append(f"posted: {posting.posted.isoformat()}")
+            label = f"  ; {', '.join(notes)}" if notes else ""
             out.append(f"    {posting.account:<{width}}  {posting.amount:>12.2f}{label}")
         out.append("")
     return "\n".join(out)

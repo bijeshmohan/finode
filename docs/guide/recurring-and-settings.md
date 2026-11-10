@@ -22,7 +22,7 @@ What to know:
 - Renaming, merging or deleting a tag on the **Tags** page changes the rules that use it too, so a rule never brings an old tag back.
 - **Delete** a rule and the transactions it already recorded stay.
 - If a rule cannot be recorded (an account was closed, for example), it keeps the reason and retries.
-- Entries a rule records are marked *Recurring* in blue, and are not linked back after a restore from *Recently deleted*.
+- Entries a rule records are marked *Recurring* in blue.
 
 For a fixed set of future payments such as an **EMI schedule**, you can also enter the future-dated transactions directly: they wait in the *upcoming* card until their date.
 
@@ -34,7 +34,7 @@ Settings is about how the application works (your name and your data are on Prof
 |---|---|
 | **Preferences › Currency** | the one currency of your ledger. Changing it relabels; nothing is converted |
 | **Preferences › Appearance** | match the device, light or dark (kept per browser) |
-| **Your data** | backup, export and import, **Tags**, **Recurring transactions**, **Recently deleted** and **AI assistants** (connect Claude or another assistant, see [the MCP guide](mcp.md)) |
+| **Your data** | backup, export and import, **Tags**, **Recurring transactions** and **AI assistants** (connect Claude or another assistant, see [the MCP guide](mcp.md)) |
 | **About** | *Send feedback* (when the installation has an address for it), *About this test*, and *Sign out* (the red row at the end) |
 
 ## Profile and your data
@@ -45,7 +45,7 @@ There is no separate Profile page: the header of Settings is you (tap it to chan
 
 - **Export**: a plain-text ledger file (readable by ledger and hledger) or a CSV for spreadsheets. Always available.
 - **Import**: bring in a ledger file. Only possible while you have **no transactions** yet. You see a preview first, and it is all-or-nothing. Anything finode cannot represent (another currency, prices, conversions) is refused with the line number.
-- **Full backup**: one JSON file with everything you recorded (settings, accounts, transactions, recurring rules, budget plan and goals). **Restore** puts it back, but only into an empty ledger. Access tokens and connected apps are not included; set those up again.
+- **Full backup**: one JSON file with everything you recorded (settings, accounts, transactions, recurring rules, budget plan). **Restore** puts it back, but only into an empty ledger. Access tokens and connected apps are not included; set those up again.
 - **Erase my books**: removes every account, transaction, rule and budget but keeps your profile, tokens and connections. You type your email to confirm.
 - **Delete my account**: removes everything including your sign-in (offered only when the installation allows it).
 

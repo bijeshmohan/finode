@@ -13,16 +13,26 @@
     <input type="text" name="name" maxlength="40" required value="{{ node.account.name if editing else '' }}"
            placeholder="e.g. HDFC Savings" {{ "autofocus" if not editing }}>
   </label>
-  <label>Under
-    <select name="parent_id" required>
+  {% if kinds or parent_options %}
+  <div class="under-field">
+    {% if placed %}
+    <span>{{ placed[0] }}</span><span class="inside">{{ placed[1] }}</span>
+    {% else %}
+    <span>Kind</span>
+    <div class="chips kind-chips" data-kind-chips role="group" aria-label="Kind of account">
+      {% for g in kinds %}<button type="button" class="chip" data-kind-chip="{{ g.account.id }}" aria-pressed="{{ 'true' if g.account.id == parent_id else 'false' }}">{{ g.account.name }}</button>{% endfor %}
+    </div>
+    {% endif %}
+    <select name="parent_id" hidden>
       {% if not editing %}<option value="">Choose…</option>{% endif %}
       {% for n in parent_options %}
-      <option value="{{ n.account.id }}" {{ "selected" if n.account.id == parent_id }}{% if root_of %} data-root="{{ root_of[n.account.id] }}"{% endif %}{% if starts and n.account.id in starts %} data-start="{{ starts[n.account.id] }}"{% endif %}>{{ "   " * n.depth }}{{ n.account.name }}</option>
+      <option value="{{ n.account.id }}" {{ "selected" if n.account.id == parent_id }}{% if root_of %} data-root="{{ root_of[n.account.id] }}"{% endif %}{% if starts and n.account.id in starts %} data-start="{{ starts[n.account.id] }}"{% endif %}>{{ n.account.name }}</option>
       {% endfor %}
     </select>
-  </label>
-  {% if not editing or node.is_leaf %}
-  <label>{{ "Balance" if editing else "Current balance" }}
+  </div>
+  {% endif %}
+  {% if not editing or not node.is_group %}
+  <label><span data-balance-label>{{ "Amount you owe now" if root_name == "Liabilities" else ("Balance" if editing else "Current balance") }}</span>
     <input type="text" name="balance" inputmode="decimal" placeholder="0.00"
            value="{{ node.account.balance if editing else '' }}">
     {% if editing %}<span class="hint">Changing this records an adjustment against Opening Balances.</span>{% endif %}
@@ -31,22 +41,41 @@
   {% if editing and can_budget or not editing %}
   <div class="stack" data-budget-fields data-root="{{ root_name }}" {{ "hidden" if not can_budget }}>
   <input type="hidden" name="budget_choice" value="1">
-  <details class="budget-options">
-  <summary><span>Budget options</span><span class="bo-now" data-budget-summary>{% if on_budget %}Part of the budget{% elif payment_category_id %}Outside the budget · payments have a usual category{% else %}Outside the budget{% endif %}</span></summary>
-  <div class="stack">
-  <label class="check">
-    <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
+  <label class="check-row">
     <span>Part of the budget <span class="hint">Money you assign to categories</span></span>
-  </label>
-  <label data-payment-category {{ "hidden" if on_budget }}>Usual category for payments
-    <select name="payment_category">
-      <option value="">No category</option>
-      {% for category_id, path in category_options %}<option value="{{ category_id }}" {{ "selected" if category_id == payment_category_id }}>{{ path }}</option>{% endfor %}
-    </select>
-    <span class="hint">Fills in the Category when you pay into this account (an EMI, a monthly SIP); each payment keeps its own</span>
+    <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
   </label>
   </div>
-  </details>
+  {% endif %}
+  {% if editing and node.account.new_accounts_in_budget is not none %}
+  <input type="hidden" name="group_choice" value="1">
+  <label class="check-row">
+    <span>Part of the budget <span class="hint">Accounts you add here start with this choice. Existing accounts keep theirs</span></span>
+    <input type="checkbox" name="new_accounts_in_budget" value="1" {{ "checked" if node.account.new_accounts_in_budget }}>
+  </label>
+  {% endif %}
+  {% if editing and can_bill or not editing %}
+  <div class="stack bill-days" data-bill-fields {{ "hidden" if not can_bill }}>
+  <input type="hidden" name="bill_choice" value="1">
+  <label>Statement day
+    <input type="text" name="statement_day" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="22"
+           value="{{ node.account.statement_day or '' if editing else '' }}">
+    <span class="hint">The day of the month your bank closes the bill</span>
+  </label>
+  <label>Payment due day
+    <input type="text" name="due_day" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="15"
+           value="{{ node.account.due_day or '' if editing else '' }}">
+    <span class="hint">The day it must be paid by. 31 means the last day of the month</span>
+  </label>
+  <label>Round the bill
+    {% set sign = currency|symbol %}
+    <select name="bill_rounding">
+      {% for value, label in (("none", "Exactly, to the paisa"), ("nearest", "To the nearest " ~ sign ~ "1"), ("up", "Up to the next " ~ sign ~ "1")) %}
+      <option value="{{ value }}" {{ "selected" if editing and node.account.bill_rounding == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <span class="hint">How your bank rounds what you owe</span>
+  </label>
   </div>
   {% endif %}
   {% set note = (node.account.details or '') if editing else '' %}
@@ -68,7 +97,7 @@
   <button type="button" class="danger"
           hx-post="/accounts/{{ node.account.id }}/delete"
           hx-confirm="Delete {{ noun }} '{{ node.account.name }}'?">{{ icon("trash") }}Delete {{ noun }}</button>
-  <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
+  <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted. A group can be deleted while it is empty.</p>
 </section>
 {% endif %}
 {% endblock %}

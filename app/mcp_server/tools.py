@@ -12,19 +12,19 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field, ValidationError
 
-from ..clock import local_start_utc, local_today
+from ..clock import local_today
 from ..config import settings
 from ..models.api_token import TokenScope
 from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate, AccountUpdate
-from ..schemas.account import AccountChangeRead
+from ..schemas.account import RegisterEntry
+from ..schemas.budget import BudgetRead
 from ..schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import (
     MAX_BATCH,
-    ChangeRead,
     PostingCreate,
     TransactionCreate,
     TransactionPreview,
@@ -34,7 +34,7 @@ from ..schemas.transaction import (
 from ..services.simple import label_simple
 from ..tags import clean_name, clean_names, tags_in
 from ..version import VERSION
-from .accounts import AccountIndex, Place, Places
+from .accounts import AccountIndex, Entry, Place, Places
 from .categories import CategoryIndex
 from .context import Services, services
 
@@ -65,12 +65,9 @@ finode is the user's personal double-entry ledger.
   record_transaction, or on a row of record_split: that is what the budget counts. A row may name only a category
   instead of an account. create_category makes one; renaming, moving, closing and merging categories need access to
   manage accounts.
+- get_card_bill gives a card's bill (what is due and when) from its statement day and due day.
 - check_balance sets a statement's balance against the books and points at the entries that could explain a gap.
 - payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
-- get_account_history shows what happened to one account and who did it (renames, moves, closings); recent_changes(what='accounts') lists the latest across all of them.
-- get_transaction_history shows what happened to one transaction and who did it, with each edit's exact changes;
-  recent_changes lists the latest changes of all of them (by='assistant' for what assistants did). Look there
-  before assuming who changed something.
 - Entries that come from outside finode (a bank SMS, a mail, a UPI app) should carry source (a short kind: gmail,
   upi...) and external_id (the reference that source gave it) when you record them. Recording the same pair again
   returns the entry already made (already_recorded) instead of a copy, so retrying is safe; search_transactions
@@ -92,15 +89,13 @@ finode is the user's personal double-entry ledger.
   record the same payment by hand; give postings instead of from/to/amount for a split), stop_recurring
   pauses one and skip_recurring_occurrence leaves out just the next occurrence.
 - A refund, reversal or cash-back can be linked to the earlier transaction with related_to (its id); it is a link
-  only and changes no amount. Deleted transactions can be listed (list_deleted_transactions) and brought back
-  (restore_transaction); resume_recurring restarts a paused recurring transaction.
+  only and changes no amount. resume_recurring restarts a paused recurring transaction. Deleting a transaction is for good
+  (finode keeps no history), so confirm with the user first.
 - Dates are YYYY-MM-DD; today's date is used when you leave the date out. Balances count entries
   up to today: an entry dated in the future shows once its day comes.
 - The budget gives every unit of money a job (envelopes): get_budget shows what is ready to assign and each
-  expense category's assigned, spent and available amounts (goals, money being saved for something by a month, are listed
-  under `goals`, not in `categories`, and are not counted in assigned/spent/available_total); assign_to_category plans a month's money and
-  move_budget_money shifts it between categories; create_goal, update_goal and delete_goal manage goals; assign_to_goal sets money aside for a goal and use_goal hands what a goal saved to a
-  category that paid for something. These only change the plan, never the ledger, and the
+  expense category's assigned, spent and available amounts; assign_to_category plans a month's money and
+  move_budget_money shifts it between categories. These only change the plan, never the ledger, and the
   user chooses which accounts are part of the budget. Never assign more than is ready to assign unless asked.
 - check_books confirms that debits equal credits in every transaction and overall; use it when the
   user doubts their numbers.
@@ -142,8 +137,8 @@ CategoryParam = Annotated[
     str | None,
     Field(
         description="What the money was for, a spending category such as EMI or Food:Groceries (see list_categories). "
-        "Only needed when the account does not say it: a payment into a loan or fund is labelled EMI or SIP, "
-        "while an expense account already stands for its own category"
+        "Say it for an expense or an income, and for a payment into a loan or fund (EMI, SIP); nothing is filled in for "
+        "you: an expense or income left without one is Uncategorised, a payment into a loan stays without"
     ),
 ]
 DryRun = Annotated[
@@ -197,6 +192,7 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
                 "side": p.side.value,
                 "amount": text(p.amount),
                 **({"category": names.path(p.category_id), "category_id": str(p.category_id)} if p.category_id else {}),
+                **({"posted_on": p.posted_on.isoformat()} if p.posted_on else {}),
             }
             for p in t.postings
         ],
@@ -295,8 +291,7 @@ def list_accounts(
     ] = False,
 ) -> dict[str, Any]:
     """Every account with its id, path, type, balance and what it is for (details). Top-level accounts show the total of everything inside.
-    Assets and liabilities say whether they are part of the budget (on_budget) and, when not, which expense category
-    their payments are budgeted under."""
+    Assets and liabilities say whether they are part of the budget (on_budget)."""
     with services() as s:
         index = _index(s)
         return {
@@ -309,7 +304,7 @@ def list_accounts(
         }
 
 
-def _account_row(e, index: AccountIndex) -> dict[str, Any]:
+def _account_row(e: Entry, index: AccountIndex) -> dict[str, Any]:
     """One account as list_accounts and the account tools show it."""
     return {
         "id": str(e.account.id),
@@ -319,17 +314,19 @@ def _account_row(e, index: AccountIndex) -> dict[str, Any]:
         "can_post": e.postable and e.account.closed_on is None,
         "details": None if e.is_root else e.account.details,
         **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
-        **(_budget_facts(e, index) if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
+        **({"on_budget": e.account.on_budget} if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
+        **({"pinned": True} if e.account.pinned else {}),
         **({"group": e.account.system_key} if e.account.system_key else {}),
+        **(
+            {
+                "statement_day": e.account.statement_day,
+                "due_day": e.account.due_day,
+                "bill_rounding": e.account.bill_rounding,
+            }
+            if e.account.statement_day is not None
+            else {}
+        ),
     }
-
-
-def _budget_facts(e, index: AccountIndex) -> dict[str, Any]:
-    """Whether an asset or liability is part of the budget, and where its payments are budgeted when it is not."""
-    facts: dict[str, Any] = {"on_budget": e.account.on_budget}
-    if e.account.payment_category_id:
-        facts["payment_category"] = index.category_paths.get(e.account.payment_category_id, "?")
-    return facts
 
 
 @_tool_errors
@@ -451,7 +448,7 @@ def _kind(t: TransactionRead, index: AccountIndex) -> str:
     return "transfer"
 
 
-def _net_change(matches: list[tuple[TransactionRead, Decimal]], entry, index: AccountIndex) -> Decimal:
+def _net_change(matches: list[tuple[TransactionRead, Decimal]], entry: Entry, index: AccountIndex) -> Decimal:
     """What the matches did to the account and everything inside it: up for its own kind of side, down for the other."""
     inside = {e.account.id for e in index.entries.values() if e.segments[: len(entry.segments)] == entry.segments}
     debit_normal = entry.root in ("Assets", "Expenses")
@@ -492,35 +489,6 @@ def _plain(value: Any) -> Any:
     return value
 
 
-def _step(c: ChangeRead, full: bool) -> dict[str, Any]:
-    e = c.entry
-    debits = sum((p.amount for p in e.postings if p.side == PostingSide.DEBIT), Decimal(0))
-    step: dict[str, Any] = {
-        "at": c.at.isoformat(),
-        "action": c.action,
-        "by": _via(c.via),
-        "transaction_id": str(c.transaction_id),
-    }
-    if full or c.action != "updated":
-        step["entry"] = _plain(
-            {
-                "date": e.date.isoformat(),
-                "payee": e.payee,
-                "note": e.comment,
-                "total": e.postings and debits,
-                "postings": [{"account": p.account, "side": p.side.value, "amount": p.amount} for p in e.postings],
-                "reference": {"source": e.source, "external_id": e.external_id, "url": e.source_url}
-                if e.source or e.external_id or e.source_url
-                else None,
-            }
-        )
-    else:
-        step["entry"] = {"date": e.date.isoformat(), "payee": e.payee, "total": text(debits)}
-    if c.changes:
-        step["changes"] = _plain(c.changes)
-    return step
-
-
 @_tool_errors
 def check_balance(
     account: AccountRef,
@@ -540,7 +508,7 @@ def check_balance(
         if check is None:
             raise ToolError("account not found")
 
-        def row(e) -> dict[str, Any]:
+        def row(e: RegisterEntry) -> dict[str, Any]:
             return {
                 "transaction_id": str(e.transaction_id),
                 "date": e.date.isoformat(),
@@ -559,6 +527,36 @@ def check_balance(
             "difference": text(check.difference),
             "recent": [row(e) for e in check.recent],
             "same_size_as_difference": [row(e) for e in check.same_size_as_difference],
+        }
+
+
+@_tool_errors
+def get_card_bill(account: AccountRef) -> dict[str, Any]:
+    """A card's (or loan's) bill: what was owed when its latest statement closed, less the payments and refunds since,
+    when it is due, and what has been spent since. Worked out from the account's statement day and due day (set them
+    with update_account or create_account); nothing is stored. To pay it, record a transfer from a bank account."""
+    with services() as s:
+        entry = _index(s).find(account)
+        try:
+            bill = s.accounts.bill(entry.account.id)
+        except ValueError as e:
+            raise ToolError(str(e)) from None
+        if bill is None:
+            raise ToolError("account not found")
+        return {
+            "account": entry.path,
+            "account_id": str(bill.account_id),
+            "statement_date": bill.statement_date.isoformat(),
+            "due_date": bill.due_date.isoformat(),
+            "days_to_due": bill.days_to_due,
+            "next_statement_date": bill.next_statement_date.isoformat(),
+            "statement_balance": text(bill.statement_balance),
+            "paid_since": text(bill.paid_since),
+            "spent_since": text(bill.spent_since),
+            "statement_due": text(bill.statement_due),
+            "rounded_by": text(bill.rounded_by),
+            "bill": text(bill.bill),
+            "owed_total": text(bill.owed_total),
         }
 
 
@@ -604,94 +602,6 @@ def payee_defaults(
                 for d in s.transactions.payee_defaults(payee, limit)
             ]
         }
-
-
-@_tool_errors
-def get_transaction_history(
-    transaction_id: Annotated[str, Field(description="Id from search_transactions or list_deleted_transactions")],
-) -> dict[str, Any]:
-    """Everything that happened to one transaction, oldest first: when it was made, each edit with exactly what
-    changed (date, payee, note, reference, rows added, removed or changed) and who did it (web, api, import,
-    recurring or an assistant), and its deletion. Works for a deleted transaction too."""
-    transaction_uuid = _transaction_id(transaction_id)
-    with services() as s:
-        steps = s.transactions.changes(transaction_uuid)
-        if not steps:
-            raise ToolError("no history for that transaction: check the id")
-        return {
-            "transaction_id": str(transaction_uuid),
-            "exists": s.transactions.read(transaction_uuid) is not None,
-            "history": [_step(c, full=True) for c in steps],
-        }
-
-
-def _account_step(c: AccountChangeRead) -> dict[str, Any]:
-    step: dict[str, Any] = {
-        "at": c.at.isoformat(),
-        "action": c.action,
-        "by": _via(c.via),
-        "account_id": str(c.account_id),
-        "entry": _plain(c.entry),
-    }
-    if c.changes:
-        step["changes"] = _plain(c.changes)
-    return step
-
-
-@_tool_errors
-def get_account_history(
-    account: Annotated[str, Field(description="Account path or id; the id for one that was deleted or merged away")],
-) -> dict[str, Any]:
-    """Everything that happened to one account or category, oldest first: when it was made, each rename, move,
-    closing or reopening with what changed, who did it (web, api or an assistant), and its deletion if any.
-    Changes made before finode kept this history are not listed."""
-    with services() as s:
-        index = _index(s)
-        try:
-            account_id = index.find(account, allow_root=True).account.id
-        except ValueError:
-            try:
-                account_id = UUID(account.strip())
-            except ValueError:
-                raise ToolError(
-                    f"no account matches '{account}': use list_accounts, or the id of a deleted one!"
-                ) from None
-        steps = s.accounts.changes(account_id)
-        if not steps:
-            raise ToolError("no history for that account: changes before finode kept one are not listed")
-        return {
-            "account_id": str(account_id),
-            "exists": account_id in index.entries,
-            "history": [_account_step(c) for c in steps],
-        }
-
-
-@_tool_errors
-def recent_changes(
-    since: Annotated[date | None, Field(description="From this day on (YYYY-MM-DD); no limit by default")] = None,
-    by: Annotated[
-        str | None,
-        Field(
-            description="Only changes made by: assistant (any), web, api, import, recurring, or mcp:<connection name>"
-        ),
-    ] = None,
-    limit: Annotated[int, Field(ge=1, le=200)] = 50,
-    what: Annotated[
-        Literal["transactions", "accounts"], Field(description="Changes to transactions, or to accounts")
-    ] = "transactions",
-) -> dict[str, Any]:
-    """The latest changes across all transactions (or, with what='accounts', all accounts and categories), newest
-    first: what was made, edited (with what changed) or deleted, when, and by whom. Use it to see what you or the
-    user changed lately."""
-    with services() as s:
-        if what == "accounts":
-            since_at = local_start_utc(since) if since else None
-            changes = s.accounts.recent_changes(since_at, (by or "").strip() or None, limit)
-            return {"changes": [_account_step(c) for c in changes], "count": len(changes), "limit": limit}
-        steps = s.transactions.recent_changes(
-            local_start_utc(since) if since else None, (by or "").strip() or None, limit
-        )
-        return {"changes": [_step(c, full=False) for c in steps], "count": len(steps), "limit": limit}
 
 
 @_tool_errors
@@ -870,6 +780,11 @@ class PostingIn(BaseModel):
         description="debit: money into an asset or expense (or paying down a liability); credit: the other way"
     )
     amount: Amount
+    posted_on: date | None = Field(
+        default=None,
+        description="Cards: the day the account posts this row when it is not the entry's date (YYYY-MM-DD, never "
+        "before it). A card's bill counts the row by this day",
+    )
 
 
 def _postings(rows: list[PostingIn], s: Services) -> list[PostingCreate]:
@@ -886,6 +801,7 @@ def _postings(rows: list[PostingIn], s: Services) -> list[PostingCreate]:
                 side=PostingSide(row.side),
                 amount=row.amount,
                 category_id=category or (place.category if place else None),
+                posted_on=row.posted_on,
             )
         )
     return found
@@ -1098,7 +1014,7 @@ def delete_transaction(
     transaction_id: Annotated[str, Field(description="Id from search_transactions")],
     dry_run: DryRun = False,
 ) -> dict[str, Any]:
-    """Delete a transaction (it waits in the user's recently deleted list and can be restored). Ask the user to confirm first."""
+    """Delete a transaction for good. Ask the user to confirm first."""
     transaction_uuid = _transaction_id(transaction_id)
     with services() as s:
         index = _index(s)
@@ -1122,8 +1038,16 @@ def create_account(
     on_budget: Annotated[
         bool | None, Field(description="Assets and liabilities: whether the money is part of the budget")
     ] = None,
-    payment_category: Annotated[
-        str | None, Field(description="An account outside the budget: the expense category its payments count under")
+    statement_day: Annotated[
+        int | None,
+        Field(ge=1, le=31, description="Cards and loans: the day of the month the bill closes (31 = last day)"),
+    ] = None,
+    due_day: Annotated[
+        int | None, Field(ge=1, le=31, description="Cards and loans: the day of the month the bill must be paid by")
+    ] = None,
+    bill_rounding: Annotated[
+        Literal["none", "nearest", "up"] | None,
+        Field(description="Cards and loans: how the bank rounds the bill (to the paisa, nearest rupee, or up)"),
     ] = None,
 ) -> dict[str, Any]:
     """Add an account. Check list_accounts first so you don't create a duplicate."""
@@ -1146,7 +1070,9 @@ def create_account(
                 parent_id=parent_entry.account.id,
                 balance=opening_balance or Decimal("0.00"),
                 on_budget=on_budget,
-                payment_category_id=_spending(s, payment_category).id if payment_category else None,
+                statement_day=statement_day,
+                due_day=due_day,
+                bill_rounding=bill_rounding or "none",
             )
         )
         return {
@@ -1169,12 +1095,23 @@ def update_account(
         str | None, Field(description="Move it under this account (same top-level account; at most two levels deep)")
     ] = None,
     on_budget: Annotated[bool | None, Field(description="Assets and liabilities: part of the budget or not")] = None,
-    payment_category: Annotated[
-        str | None,
-        Field(description="Outside the budget: the expense category its payments count under; empty removes it"),
+    pinned: Annotated[
+        bool | None,
+        Field(description="Pin an open asset or liability account to the top of the Accounts page, or unpin it"),
+    ] = None,
+    statement_day: Annotated[
+        int | None,
+        Field(ge=1, le=31, description="Cards and loans: the day of the month the bill closes (31 = last day)"),
+    ] = None,
+    due_day: Annotated[
+        int | None, Field(ge=1, le=31, description="Cards and loans: the day of the month the bill must be paid by")
+    ] = None,
+    bill_rounding: Annotated[
+        Literal["none", "nearest", "up"] | None,
+        Field(description="Cards and loans: how the bank rounds the bill (to the paisa, nearest rupee, or up)"),
     ] = None,
 ) -> dict[str, Any]:
-    """Rename an account, change its note, move it under another account, or change its budget settings. Its history
+    """Rename an account, change its note, move it under another account, pin it, or change its budget settings. Its history
     stays with it and its id never changes (only its path does). The built-in groups, the top-level accounts and
     Opening Balances cannot be changed. Tell the user what you are changing first."""
     with services() as s:
@@ -1189,10 +1126,17 @@ def update_account(
             changes["parent_id"] = index.find(parent, allow_root=True).account.id
         if on_budget is not None:
             changes["on_budget"] = on_budget
-        if payment_category is not None:
-            changes["payment_category_id"] = _spending(s, payment_category).id if payment_category.strip() else None
+        if pinned is not None:
+            changes["pinned"] = pinned
+        if statement_day is not None or due_day is not None:
+            changes["statement_day"] = statement_day if statement_day is not None else entry.account.statement_day
+            changes["due_day"] = due_day if due_day is not None else entry.account.due_day
+        if bill_rounding is not None:
+            changes["bill_rounding"] = bill_rounding
         if not changes:
-            raise ToolError("nothing to change: pass a name, details, parent, on_budget or payment_category!")
+            raise ToolError(
+                "nothing to change: pass a name, details, parent, on_budget, pinned, a bill day or bill_rounding!"
+            )
         before = entry.path
         s.accounts.update(entry.account.id, AccountUpdate(**changes))
         fresh = _index(s)
@@ -1228,7 +1172,7 @@ def merge_accounts(
     dry_run: DryRun = False,
 ) -> dict[str, Any]:
     """Make one account part of another, e.g. two categories that mean the same: all its entries, planned amounts,
-    recurring rules and payment links become the other's, its balance moves with them, and it is deleted. Both
+    recurring rules become the other's, its balance moves with them, and it is deleted. Both
     must be plain accounts under the same top-level account. It cannot be undone, so call it with dry_run=true
     first, tell the user what would move, and only merge after their go-ahead."""
     with services() as s:
@@ -1245,7 +1189,6 @@ def merge_accounts(
             "entries_moved": done.entries_moved,
             "plan_months_moved": done.plan_months_moved,
             "recurring_rules_moved": done.recurring_rules_moved,
-            "payment_links_moved": done.payment_links_moved,
         }
         if done.merged:
             out["into_id"] = str(target.account.id)
@@ -1423,7 +1366,7 @@ def _spending(s: Services, text: str) -> CategoryRead:
     return _categories(s).find(name, kind="spending", open_only=True)
 
 
-def _budget(data) -> dict[str, Any]:
+def _budget(data: BudgetRead) -> dict[str, Any]:
     return {
         "month": data.month.strftime("%Y-%m"),
         "currency": data.currency,
@@ -1438,7 +1381,7 @@ def _budget(data) -> dict[str, Any]:
                 "reserved_for_card_bills": text(data.reserved_for_cards),
                 "credit_cards": [
                     {
-                        "card_id": str(c.id),
+                        "card_id": str(c.account_id),
                         "card": c.path,
                         "to_pay": text(c.owed),
                         "charged_this_month": text(c.charged),
@@ -1452,25 +1395,6 @@ def _budget(data) -> dict[str, Any]:
         ),
         "overspent_last_month": text(data.overspent_last_month),
         "budget_accounts": data.budget_accounts,
-        **(
-            {
-                "saved_for_goals": text(data.goal_available),
-                "goals": [
-                    {
-                        "goal_id": str(g.id),
-                        "goal": g.name,
-                        "saved": text(g.available),
-                        "target": text(g.amount),
-                        "by": g.target_date.isoformat(),
-                        "assigned_this_month": text(g.assigned),
-                        **({"needs_this_month": text(g.underfunded)} if g.underfunded else {}),
-                    }
-                    for g in data.goals
-                ],
-            }
-            if data.goals
-            else {}
-        ),
         "categories": [
             {
                 "category_id": str(line.category_id),
@@ -1526,46 +1450,6 @@ def assign_to_category(
     with services() as s:
         entry = _spending(s, category)
         return _budget(s.budget.assign(_month(month), entry.id, amount))
-
-
-def _goal(s, name: str):
-    """The goal called `name` (capitals aside), or an explanation of the ones there are."""
-    goals = s.budget.view(None).goals
-    for goal in goals:
-        if goal.name.lower() == name.strip().lower():
-            return goal
-    raise ValueError(f"no goal is called '{name}'. Goals: {', '.join(g.name for g in goals) or 'none yet'}.")
-
-
-@_tool_errors
-def assign_to_goal(
-    goal: Annotated[str, Field(description="The goal's name, e.g. Emergency fund (see `goals` in get_budget)")],
-    amount: Annotated[
-        Decimal,
-        Field(
-            description="The month's total set aside for the goal (replaces it; 0 clears it; negative takes back what was saved before)"
-        ),
-    ],
-    month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
-) -> dict[str, Any]:
-    """Set money aside for a goal in a month. This is a plan only; no transaction is recorded. It lowers what is
-    ready to assign, so check get_budget first."""
-    with services() as s:
-        return _budget(s.budget.assign_goal(_month(month), _goal(s, goal).id, amount))
-
-
-@_tool_errors
-def use_goal(
-    goal: Annotated[str, Field(description="The goal whose saved money is used")],
-    category: Annotated[str, Field(description="The expense category that paid for the thing, e.g. Health:Hospital")],
-    amount: Annotated[Decimal, Field(gt=0, description="At most what is saved in the goal")],
-    month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
-) -> dict[str, Any]:
-    """Hand money a goal saved to a category, so spending recorded there is covered. It does not change what is
-    ready to assign."""
-    with services() as s:
-        entry = _spending(s, category)
-        return _budget(s.budget.use_goal(_month(month), _goal(s, goal).id, entry.id, amount))
 
 
 @_tool_errors
@@ -1651,48 +1535,6 @@ def check_books(as_of: str | None = None) -> dict[str, Any]:
 
 
 @_tool_errors
-def list_deleted_transactions() -> dict[str, Any]:
-    """Transactions that were deleted and can still be brought back, newest deletion first (up to 50). Use the
-    `deleted_id` with restore_transaction."""
-    with services() as s:
-        rows = []
-        for h in s.transactions.restorable():
-            total = sum((p.amount for p in h.postings if p.side == PostingSide.DEBIT), Decimal(0))
-            rows.append(
-                {
-                    "deleted_id": str(h.id),
-                    "transaction_id": str(h.transaction_id),
-                    "deleted_at": h.at.isoformat(),
-                    "date": h.date.isoformat(),
-                    "payee": h.payee,
-                    "note": h.comment,
-                    "total": text(total),
-                }
-            )
-        return {"deleted": rows}
-
-
-@_tool_errors
-def restore_transaction(
-    deleted_id: Annotated[str, Field(description="The deleted_id from list_deleted_transactions")],
-) -> dict[str, Any]:
-    """Bring a deleted transaction back as it was. It returns as an ordinary entry (a link to a recurring rule is not
-    restored; its related links are, where the other entry is still there)."""
-    try:
-        history_id = UUID(deleted_id.strip())
-    except ValueError:
-        raise ToolError(
-            f"'{deleted_id}' is not a deleted-transaction id: use the deleted_id from list_deleted_transactions!"
-        ) from None
-    with services() as s:
-        try:
-            restored = s.transactions.restore(history_id)
-        except LookupError:
-            raise ToolError("no deleted transaction has that id!") from None
-        return {"restored": _transaction(restored, _index(s), s)}
-
-
-@_tool_errors
 def resume_recurring(
     recurring_id: Annotated[str, Field(description="The id from list_recurring")],
 ) -> dict[str, Any]:
@@ -1709,58 +1551,6 @@ def resume_recurring(
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
         return {"resumed": str(rule.id), "next_due": rule.next_date.isoformat() if rule.active else None}
-
-
-def _goal_month(value: str) -> date:
-    month = _month(value)
-    if month is None:
-        raise ToolError("pass the month the goal is needed by, YYYY-MM!")
-    return month
-
-
-@_tool_errors
-def create_goal(
-    name: Annotated[str, Field(description="What it is for, e.g. Emergency fund (at most 80 characters)")],
-    amount: Annotated[Decimal, Field(gt=0, description="How much to save in all")],
-    by: Annotated[str, Field(description="The month it is needed by, YYYY-MM; after this month")],
-    set_aside_now: Annotated[
-        bool, Field(description="Also set aside this month's share (it lowers ready to assign)")
-    ] = False,
-) -> dict[str, Any]:
-    """Create a savings goal. Goals are listed under `goals` in get_budget."""
-    with services() as s:
-        return _budget(s.budget.create_goal(name, amount, _goal_month(by), set_aside_now))
-
-
-@_tool_errors
-def update_goal(
-    goal: Annotated[str, Field(description="The goal's current name")],
-    name: Annotated[str | None, Field(description="New name; leave out to keep it")] = None,
-    amount: Annotated[Decimal | None, Field(gt=0, description="New target amount; leave out to keep it")] = None,
-    by: Annotated[str | None, Field(description="New month it is needed by, YYYY-MM; leave out to keep it")] = None,
-) -> dict[str, Any]:
-    """Change a goal's name, target amount or month. What is saved in it stays."""
-    with services() as s:
-        current = _goal(s, goal)
-        if name is None and amount is None and by is None:
-            raise ToolError("nothing to change: pass a name, amount or by!")
-        return _budget(
-            s.budget.update_goal(
-                current.id,
-                name if name is not None else current.name,
-                amount if amount is not None else current.amount,
-                _goal_month(by) if by else current.target_date,
-            )
-        )
-
-
-@_tool_errors
-def delete_goal(goal: Annotated[str, Field(description="The goal's name")]) -> dict[str, Any]:
-    """Delete a goal for good: what was saved in it goes back to ready to assign. Ask the user to confirm first."""
-    with services() as s:
-        found = _goal(s, goal)
-        s.budget.delete_goal(found.id)
-        return {"deleted": found.name, "returned_to_ready_to_assign": text(found.available)}
 
 
 # Changing accounts: only on a connection allowed to manage them (the others list these tools but they refuse).
@@ -1797,7 +1587,7 @@ def delete_tag(tag: Annotated[str, Field(description="The tag to remove")]) -> d
 # ---- categories ------------------------------------------------------------------------------------
 
 
-def _category_row(c) -> dict[str, Any]:
+def _category_row(c: CategoryRead) -> dict[str, Any]:
     return {
         "id": str(c.id),
         "path": c.path,
@@ -1922,18 +1712,15 @@ READ_TOOLS = [
     get_account,
     search_transactions,
     get_transaction,
-    get_transaction_history,
-    get_account_history,
-    recent_changes,
     list_tags,
     list_categories,
     payee_defaults,
     check_balance,
+    get_card_bill,
     spending_breakdown,
     list_recurring,
     check_books,
     get_budget,
-    list_deleted_transactions,
 ]
 WRITE_TOOLS = [
     (record_transaction, WRITE),
@@ -1947,13 +1734,7 @@ WRITE_TOOLS = [
     (stop_recurring, IDEMPOTENT_WRITE),
     (skip_recurring_occurrence, WRITE),
     (resume_recurring, IDEMPOTENT_WRITE),
-    (restore_transaction, WRITE),
-    (create_goal, WRITE),
-    (update_goal, IDEMPOTENT_WRITE),
-    (delete_goal, DESTRUCTIVE),
     (assign_to_category, IDEMPOTENT_WRITE),
-    (assign_to_goal, IDEMPOTENT_WRITE),
-    (use_goal, WRITE),
     (move_budget_money, WRITE),
     (copy_budget_from_previous_month, IDEMPOTENT_WRITE),
 ]

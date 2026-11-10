@@ -24,10 +24,10 @@
       <p class="acct-sub">{{ group.name if group else ("Earning" if earning else "Spending") }}</p>
     </div>
     <div class="acct-icons">
-      <a class="circ-button" href="/categories/{{ category.id }}/edit" title="Edit" aria-label="Edit {{ category.name }}">{{ icon("edit") }}</a>
       <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
+        <a href="/categories/{{ category.id }}/edit">{{ icon("edit") }}Edit</a>
         {% if not earning %}<a href="/budget">{{ icon("budget") }}See in Budgets</a>{% endif %}
         {% if can_add_child %}<a href="/categories/new?parent={{ category.id }}">{{ icon("plus") }}Add subcategory</a>{% endif %}
         {% if category.closed_on %}
@@ -49,7 +49,6 @@
 {% if subs or own_here %}
 <div class="section-head">
   <h2>Subcategories</h2>
-  {% if can_add_child %}<a class="circ-button" href="/categories/new?parent={{ category.id }}" title="Add subcategory" aria-label="Add subcategory">{{ icon("plus") }}</a>{% endif %}
 </div>
 <div class="tile sub-tile">
   {% for c, amount in subs %}
@@ -65,17 +64,20 @@
   </div>
   {% endif %}
 </div>
+{% if can_add_child %}<a class="add-row" href="/categories/new?parent={{ category.id }}">{{ icon("plus") }}Add subcategory</a>{% endif %}
 {% endif %}
 
+{#- A group's entries live on its subcategories' own pages: with none of its own there is nothing to say here. -#}
+{% if entries or not subs %}
 <div class="section-head">
   <h2>Transactions</h2>
-  {% if not category.closed_on %}<a class="circ-button" href="/transactions/new?category={{ category.id }}&back=/categories/{{ category.id }}" title="Add transaction" aria-label="Add transaction">{{ icon("plus") }}</a>{% endif %}
 </div>
+{% endif %}
 {% if entries %}
 <div class="tx-list">
   {% include "partials/category_entries.html" %}
 </div>
-{% else %}
+{% elif not subs %}
 <div class="card empty-state">
   <p>Nothing in {{ month_name.split(" ")[0] }}.</p>
 </div>

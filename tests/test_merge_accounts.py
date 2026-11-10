@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.clock import local_today
 from app.repositories.category import CategoryRepository
 
 from .books import into, post_account
@@ -63,7 +64,6 @@ def test_everything_moves_and_the_category_goes(client, books):
     ).json()
     for category, amount in ((books["swiggy"], "100"), (books["zomato"], "50")):
         client.put(f"/api/budget/categories/{category['id']}", json={"month": "2026-10-01", "amount": amount})
-    client.patch(f"/api/accounts/{books['loan']['id']}", json={"payment_category_id": books["swiggy"]["id"]})
     ready_before = client.get("/api/budget/", params={"month": "2026-10-01"}).json()["ready_to_assign"]
 
     done = merge_category(client, books["swiggy"], books["zomato"])
@@ -71,13 +71,12 @@ def test_everything_moves_and_the_category_goes(client, books):
     result = done.json()
     assert (result["source"], result["into"]) == ("Swiggy", "Zomato")
     assert (result["entries_moved"], result["plan_months_moved"], result["recurring_rules_moved"]) == (1, 1, 1)
-    assert result["payment_links_moved"] == 1 and result["balance_moved"] == "30.00" and result["merged"] is True
+    assert result["balance_moved"] == "30.00" and result["merged"] is True
 
     assert client.get(f"/api/categories/{books['swiggy']['id']}").status_code == 404
     moved = client.get(f"/api/transactions/{one['id']}").json()
     assert books["zomato"]["id"] in {p["category_id"] for p in moved["postings"]}
     assert client.get(f"/api/recurring/{rule['id']}").json()["category_id"] == books["zomato"]["id"]
-    assert client.get(f"/api/accounts/{books['loan']['id']}").json()["payment_category_id"] == books["zomato"]["id"]
     assert client.get("/api/budget/", params={"month": "2026-10-01"}).json()["ready_to_assign"] == ready_before
     assert client.get("/api/reports/trial-balance").json()["balanced"] is True
 
@@ -91,12 +90,12 @@ def test_the_plan_of_both_is_added(client, books):
     assert zomato["assigned"] == "150.00"
 
 
-def test_the_entries_history_remembers_the_merge(client, books):
+def test_a_merged_entry_records_who_did_it(client, books):
     one = spend(client, books, books["swiggy"], "30")
     merge_category(client, books["swiggy"], books["zomato"])
-    entry = client.get(f"/api/transactions/{one['id']}/changes").json()
-    assert [s["action"] for s in entry] == ["created", "updated"] and entry[-1]["via"] == "api"
-    assert {p["account"] for p in entry[-1]["entry"]["postings"]} == {"Assets:Bank", "Expenses:Zomato"}
+    entry = client.get(f"/api/transactions/{one['id']}").json()
+    assert entry["updated_via"] == "api"
+    assert {p["category_id"] for p in entry["postings"]} >= {books["zomato"]["id"]}
 
 
 def test_a_dry_run_changes_nothing(client, books):
@@ -130,7 +129,7 @@ def test_unknown_categories(client, books):
 
 
 def test_a_failure_part_way_leaves_everything_as_it_was(client, books, monkeypatch):
-    spend(client, books, books["swiggy"], "30")
+    spend(client, books, books["swiggy"], "30", on=local_today().isoformat())  # the breakdown below is this month's
 
     def broken(self, *args, **kwargs):
         raise RuntimeError("the database went away")

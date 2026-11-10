@@ -10,13 +10,12 @@ from sqlalchemy import event
 PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/categories", "/categories?tab=income"]
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
-# Home asks 13 since goals became their own table: the budget reads them (with what is set aside) in one more query.
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
 CEILING = {
     "/transactions/new": 4,  # + the categories
     "/transactions": 12,  # + the categories (their names for the rows) + the tags of the rows shown (one query, whatever the number of rows)
     "/": 15,  # + the categories (their own table) and what the month spent by category
-    "/accounts": 3,
+    "/accounts": 5,  # + the day of each account's last entry, + the postings of the cards that have bill days (one query each, whatever the number)
     "/budget": 6,  # + the categories
     "/categories": 4,
     "/categories?tab=income": 4,
@@ -108,3 +107,28 @@ def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_account
 
     short, long = save(2), save(7)
     assert long <= short + 1, (short, long)
+
+
+def test_the_people_pages_do_not_ask_per_person_or_per_row(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=4, transactions=4)
+    bank = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Acct1")
+
+    def add_people(count: int, start: int) -> str:
+        first = ""
+        for i in range(start, start + count):
+            who = client.post("/api/contacts/", json={"name": f"Person {i}"}).json()
+            first = first or who["id"]
+            client.post(
+                f"/api/contacts/{who['id']}/transfers",
+                json={"direction": "sent", "purpose": "loan", "amount": "5", "account_id": bank["id"]},
+            )
+        return first
+
+    first = add_people(3, 0)
+    pages = ["/people", f"/people/{first}", "/api/contacts/", f"/api/contacts/{first}/summary"]
+    small = {p: count_queries(lambda p=p: client.get(p)) for p in pages}
+    add_people(25, 3)
+    large = {p: count_queries(lambda p=p: client.get(p)) for p in pages}
+    for page in pages:
+        assert large[page] <= small[page] + 1, f"{page} asks more as the people grow: {small[page]} -> {large[page]}"
+        assert large[page] <= 25, f"{page} makes {large[page]} queries"

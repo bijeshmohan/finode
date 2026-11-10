@@ -1,9 +1,11 @@
 """The transaction form in a browser: the kind buttons, suggestions that follow the total, splitting, new accounts."""
 
+import re
+
 from playwright.sync_api import Page, expect
 
 from ..books import leg
-from .conftest import Api
+from .conftest import Api, row_button, row_gear, set_row
 
 
 def groups(page: Page, side: str) -> list[str]:
@@ -54,10 +56,8 @@ def test_saving_an_expense(page: Page, books, api: Api):
     page.select_option('[data-rows="debit"] select', label="Groceries")
     page.fill('input[name="payee"]', "DMart")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     expect(page.locator("a.tx", has_text="DMart")).to_be_visible()
-    expect(page.locator("a.tx.tx-new")).to_have_count(1)  # the saved entry's row settles in; only that one
-    expect(page.locator("a.tx.tx-new")).to_contain_text("DMart")
     [entry] = [t for t in api.get("/transactions/") if t["payee"] == "DMart"]
     assert {(p["side"], p["amount"]) for p in entry["postings"]} == {("debit", "250.00"), ("credit", "250.00")}
     assert api.get(f"/categories/{books['food']['id']}/register")[-1]["balance"] == "250.00"
@@ -67,9 +67,7 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
     page.goto("/transactions/new")
     page.fill("#total", "100")
     page.select_option('[data-rows="credit"] select', label="Checking")
-    page.click('[data-rows="credit"] [name="amount"]')  # a suggestion is selected on entry: typing replaces it
-    page.keyboard.type("60")
-    page.keyboard.press("Tab")
+    set_row(page, "credit", 0, amount="60")  # the amount is typed in the row's sheet
     assert amounts(page, "credit") == ["60.00", "40.00"]
     assert page.eval_on_selector_all(
         '[data-rows="credit"] [name="amount"]', "e => e.map(x => x.classList.contains('suggested'))"
@@ -77,7 +75,7 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
     page.select_option('[data-rows="credit"] [data-row]:nth-child(2) select', label="Cash")
     page.select_option('[data-rows="debit"] select', label="Rent")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     [entry] = [t for t in api.get("/transactions/") if len(t["postings"]) == 3]
     assert sorted((p["side"], p["amount"]) for p in entry["postings"]) == [
         ("credit", "40.00"),
@@ -89,9 +87,11 @@ def test_typing_less_adds_a_row_with_the_remainder(page: Page, books, api: Api):
 def test_removing_a_row_brings_the_remainder_back(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "100")
-    page.fill('[data-rows="debit"] [name="amount"]', "30")
-    assert amounts(page, "debit") == ["30", "70.00"]
-    page.click('[data-rows="debit"] [data-row]:nth-child(1) [data-remove-row]')
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    set_row(page, "debit", 0, amount="30")
+    assert amounts(page, "debit") == ["30.00", "70.00"]
+    row_gear(page, "debit", 0).click()
+    page.locator("#row-settings [data-config-remove]").click()  # a row is removed from its own sheet
     assert amounts(page, "debit") == ["100.00"]
 
 
@@ -133,10 +133,10 @@ def test_editing_keeps_what_was_recorded(page: Page, books, api: Api):
     expect(page.locator('[data-kind="expense"]')).to_have_attribute("aria-pressed", "true")
     assert page.input_value("#total") == "40.00" and amounts(page, "credit") == ["40.00"]
     page.fill("#total", "55")
-    page.fill('[data-rows="credit"] [name="amount"]', "55")
-    page.fill('[data-rows="debit"] [name="amount"]', "55")
+    set_row(page, "credit", 0, amount="55")
+    set_row(page, "debit", 0, amount="55")
     page.get_by_role("button", name="Save changes").click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     assert api.get(f"/transactions/{entry['id']}")["postings"][0]["amount"] == "55.00"
 
 
@@ -151,59 +151,50 @@ def history(api: Api, books, payee="Swiggy", source="card", target="food"):
     )
 
 
-def test_a_payee_chip_fills_both_accounts_and_the_entry_saves_in_three_actions(page: Page, books, api: Api):
+def test_a_payee_chip_fills_the_payee_only_and_moves_on_to_the_amount(page: Page, books, api: Api):
     history(api, books)
     page.goto("/transactions/new")
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)  # nothing is suggested until something is typed
+    page.fill("#payee", "sw")
     chip = page.locator("#payee-chips .chip", has_text="Swiggy")
     expect(chip).to_be_visible()
-    page.fill("#total", "250")  # 1. the amount
-    chip.click()  # 2. who
-    assert page.input_value('[data-rows="credit"] select') == books["card"]["id"]
-    assert page.input_value('[data-rows="debit"] select') == books["food"]["id"]
+    chip.click()
     assert page.input_value("#payee") == "Swiggy"
-    expect(page.locator('[data-kind="expense"]')).to_have_attribute("aria-pressed", "true")
-    expect(page.get_by_role("button", name="Save", exact=True)).to_be_focused()
-    page.get_by_role("button", name="Save", exact=True).click()  # 3. save
-    page.wait_for_url("**/transactions")
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)  # and the row goes once one is chosen
+    assert page.input_value('[data-rows="credit"] select') == "", "no account is chosen for you"
+    assert page.input_value('[data-rows="debit"] select') == "", "and no category"
+    expect(page.locator("#total")).to_be_focused()
+    page.fill("#total", "250")
+    page.select_option('[data-rows="credit"] select', label="Visa")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     newest = api.get("/transactions/")[0]
     assert newest["payee"] == "Swiggy" and {p["amount"] for p in newest["postings"]} == {"250.00"}
-    assert {(p["category_id"] or p["account_id"], p["side"]) for p in newest["postings"]} == {
-        (books["card"]["id"], "credit"),
-        (books["food"]["id"], "debit"),
-    }
 
 
-def test_a_chip_still_lets_you_split_the_amount_afterwards(page: Page, books, api: Api):
+def test_typing_a_known_payee_fills_nothing_but_keeps_the_chips_in_step(page: Page, books, api: Api):
     history(api, books)
     page.goto("/transactions/new")
-    page.fill("#total", "900")
-    page.locator("#payee-chips .chip", has_text="Swiggy").click()
-    page.fill('[data-rows="debit"] [data-row]:nth-child(1) [name="amount"]', "600")
-    assert page.locator('[data-rows="debit"] [data-row]').count() == 2, "a row for the rest appears"
-    assert page.input_value('[data-rows="debit"] [data-row]:nth-child(2) [name="amount"]') == "300.00"
-
-
-def test_typing_a_known_payee_fills_the_accounts_without_taking_the_focus(page: Page, books, api: Api):
-    history(api, books)
-    page.goto("/transactions/new")
-    page.select_option('[data-rows="credit"] select', "")
     page.click("#payee")
     page.keyboard.type("swiggy")
-    expect(page.locator("#payee-chips .chip[data-exact]")).to_be_visible()
-    assert page.input_value('[data-rows="debit"] select') == books["food"]["id"]
+    expect(page.locator("#payee-chips .chip", has_text="Swiggy")).to_be_visible()
+    assert (
+        page.input_value('[data-rows="debit"] select') == "" and page.input_value('[data-rows="credit"] select') == ""
+    )
     assert page.evaluate("document.activeElement.id") == "payee", "typing can go on"
-    page.keyboard.type(" instamart")
-    assert page.input_value("#payee") == "swiggy instamart"
 
 
 def test_the_chips_narrow_as_you_type(page: Page, books, api: Api):
     history(api, books, "Swiggy")
     history(api, books, "DMart", "checking")
     page.goto("/transactions/new")
-    expect(page.locator("#payee-chips .chip")).to_have_count(2)
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)
     page.fill("#payee", "dm")
     expect(page.locator("#payee-chips .chip")).to_have_count(1)
     expect(page.locator("#payee-chips .chip")).to_have_text("DMart")
+    page.fill("#payee", "")
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)
 
 
 def test_the_cursor_is_ink_coloured_and_the_grey_zero_stays_while_empty(page: Page, books):
@@ -280,9 +271,10 @@ def test_the_budget_sheet_and_other_amount_fields_are_clean_too(page: Page, book
 def test_the_allocation_status_groups_rupees_in_lakhs(page: Page, books):
     page.goto("/transactions/new")
     page.fill("#total", "1500000")
-    page.fill('[data-rows="debit"] [name="amount"]', "2000000")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    set_row(page, "debit", 0, amount="2000000")
     expect(page.locator('[data-status="debit"]')).to_contain_text("5,00,000.00 INR over")
-    page.fill('[data-rows="debit"] [name="amount"]', "1500000")
+    set_row(page, "debit", 0, amount="1500000")
     expect(page.locator('[data-status="debit"]')).to_have_text("")  # balanced: nothing is said
     assert page.evaluate("document.documentElement.dataset.grouping") == "indian"
 
@@ -302,7 +294,7 @@ def _spend(api: Api, books, payee: str, amount: str, on: str, **extra):
 
 def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books, api: Api):
     first = _spend(api, books, "Swiggy", "1000", "2026-10-10")
-    page.goto("/transactions")
+    page.goto("/transactions?month=2026-10")  # the entry is dated in October, whatever month it is now
     page.locator("a.tx", has_text="Swiggy").click()
     page.get_by_role("link", name="Related").click()
     expect(page.locator("[data-related-chip]")).to_contain_text("Swiggy · 10 Oct · 1,000.00")
@@ -315,9 +307,10 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(page: Page, books,
     page.select_option('[data-rows="debit"] select', label="Groceries")
     page.fill('input[name="payee"]', "Swiggy cash-back")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_url("**/transactions")
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     [new] = [t for t in api.get("/transactions/") if t["payee"] == "Swiggy cash-back"]
     assert new["related_id"] == first["id"]
+    page.goto("/transactions?month=2026-10")  # the original is dated in October, the cash-back is today
     page.locator(
         "a.tx", has_text="Swiggy"
     ).last.click()  # the original now lists it, and the sheet of one opens the other
@@ -419,6 +412,7 @@ def test_the_payee_suggestions_stay_on_one_row_on_a_phone_and_a_wide_screen(page
     for width in (390, 1280):
         page.set_viewport_size({"width": width, "height": 800})
         page.goto("/transactions/new")
+        page.fill("#payee", "a")
         expect(page.locator("#payee-chips .chip").first).to_be_visible()
         tops = page.eval_on_selector_all(
             "#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).map(e => e.offsetTop)"
@@ -427,9 +421,10 @@ def test_the_payee_suggestions_stay_on_one_row_on_a_phone_and_a_wide_screen(page
     expect(page.locator("#payee")).to_have_attribute("placeholder", "Payee or Merchant?")
     page.set_viewport_size({"width": 390, "height": 800})
     page.goto("/transactions/new")
+    page.fill("#payee", "a")
     expect(page.locator("#payee-chips .chip").first).to_be_visible()  # the chips arrive by htmx
     shown = page.eval_on_selector_all("#payee-chips .chip", "els => els.filter(e => e.offsetParent !== null).length")
-    assert 0 < shown < 7, "a phone fits fewer chips than there are habits"
+    assert 0 < shown < 5, "a phone fits fewer chips than there are matches"
 
 
 def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(page: Page, books):
@@ -448,24 +443,30 @@ def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(page: Page, b
     page.keyboard.press("Tab")
     assert total.input_value() == "12,34,567.50"
     assert page.input_value('[data-rows="debit"] [name="amount"]') == "12,34,567.50", "the rows are grouped too"
-    page.fill('[data-rows="debit"] [name="amount"]', "")
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    row_gear(page, "debit").click()
+    amount = page.locator(
+        "#row-settings [data-config-amount]"
+    )  # the sheet's amount is cleaned and grouped as it is typed
+    amount.fill("")
+    amount.click()
     page.keyboard.type("1000")
-    assert page.input_value('[data-rows="debit"] [name="amount"]') == "1,000"
+    assert amount.input_value() == "1,000"
 
 
-def test_a_lone_row_has_no_cross_and_a_split_has_one_on_every_row(page: Page, books):
+def test_a_row_shows_its_amount_only_when_it_differs_from_the_total(page: Page, books):
     page.goto("/transactions/new")
-    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
     page.fill("#total", "100")
-    page.locator('[data-rows="debit"] select').first.select_option(books["food"]["id"])
-    page.fill('[data-rows="debit"] [name="amount"]', "60")
-    expect(page.locator('[data-rows="debit"] [data-remove-row]:visible')).to_have_count(2)
-    (
-        expect(page.locator('[data-rows="credit"] [data-remove-row]:visible')).to_have_count(0),
-        "the other side is still one row",
-    )
-    page.fill('[data-rows="debit"] [name="amount"]', "100")
-    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)
+    page.select_option('[data-rows="debit"] select', label="Groceries")
+    expect(row_button(page, "debit", 0)).to_have_text("Groceries")  # the whole total: nothing beside the name
+    set_row(page, "debit", 0, amount="60")
+    expect(row_button(page, "debit", 0)).to_have_text("Groceries60.00")
+    expect(row_button(page, "debit", 1)).to_contain_text("Category…")
+    expect(row_button(page, "debit", 1)).to_contain_text("40.00 left")  # a row for what is left appears by itself
+    expect(page.locator("[data-remove-row]:visible")).to_have_count(0)  # a row is removed from its sheet
+    set_row(page, "debit", 0, amount="100")
+    expect(page.locator('[data-rows="debit"] [data-row]')).to_have_count(1)
+    expect(row_button(page, "debit", 0)).to_have_text("Groceries")
 
 
 def test_the_date_is_a_chip_that_names_the_day(page: Page, books):
@@ -476,3 +477,19 @@ def test_the_date_is_a_chip_that_names_the_day(page: Page, books):
     expect(chip).to_have_text("4 Mar 2020")
     page.fill('input[name="date"]', page.locator("[data-date-chip]").get_attribute("data-today"))
     expect(chip).to_contain_text("Today, ")
+
+
+def test_the_empty_suggestion_row_takes_no_space(page: Page, books, api: Api):
+    history(api, books)
+    page.goto("/transactions/new")
+    payee = page.locator("#payee").bounding_box()
+    side = page.locator('[data-side-section="credit"]').bounding_box()
+    meta = page.locator(".meta-row").bounding_box()
+    assert meta["y"] - (payee["y"] + payee["height"]) < 40, "no dead space between the payee and the date"
+    page.fill("#payee", "sw")
+    expect(page.locator("#payee-chips .chip")).to_have_count(1)
+    chosen = page.locator('[data-side-section="credit"]').bounding_box()["y"]
+    page.locator("#payee-chips .chip").click()
+    expect(page.locator("#payee-chips .chip")).to_have_count(0)
+    assert abs(page.locator('[data-side-section="credit"]').bounding_box()["y"] - side["y"]) < 2, "back where it was"
+    assert chosen > side["y"], "the row took room only while it was there"

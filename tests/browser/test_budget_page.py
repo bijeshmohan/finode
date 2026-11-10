@@ -1,6 +1,5 @@
 """The budget page in a browser: assigning in place, copying last month, what is ready to assign."""
 
-import re
 from datetime import date, timedelta
 
 import pytest
@@ -249,78 +248,6 @@ def test_save_works_after_the_keyboard_is_put_away_with_its_own_button(page: Pag
     page.request.put(f"/api/budget/categories/{books['food']['id']}", data={"amount": "0"})
 
 
-def test_a_new_goal_is_made_from_the_save_chip_and_shows_its_share_as_you_type(page: Page, books):
-    index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
-    by = f"{index // 12}-{index % 12 + 1:02d}"
-    page.goto("/budget")
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Spend")
-    page.locator(".cat-chips .chip", has_text="Save").click()
-    page.wait_for_url(re.compile(r"tab=save"))
-    page.get_by_role("link", name="New goal").click()
-    page.wait_for_url(re.compile(r"/budget/goal$"))
-    expect(page.locator("#goal-calc")).to_contain_text("—")
-    page.locator('input[name="name"]').fill("Goa trip")
-    page.locator('input[name="amount"]').fill("1,00,000")
-    page.locator('input[name="by"]').fill(by)
-    expect(page.locator("#goal-calc")).to_contain_text("16,666.67 a month")
-    expect(page.locator("#goal-calc")).to_contain_text("6 months")
-    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
-        "no sideways scrolling on a phone"
-    )
-    page.get_by_role("button", name="Create goal").click()
-    page.wait_for_url(re.compile(r"/budget\?tab=save$"))
-    row = page.locator("a.goalrow", has_text="Goa trip")
-    expect(row).to_be_visible()
-    expect(row).to_contain_text("16,666.67")
-    expect(row).to_contain_text("This month done")
-    expect(page.locator(".toast")).to_contain_text("Goal created")
-    expect(page.locator("[data-budget-head='save']")).to_contain_text("16,666.67")
-
-
-def test_a_goals_sheet_sets_money_aside_and_deletes_the_goal(page: Page, books, api: Api):
-    index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
-    page.request.post(
-        "/budget/goal", form={"name": "Bike", "amount": "60000", "by": f"{index // 12}-{index % 12 + 1:02d}"}
-    )
-    page.goto("/budget?tab=save")
-    expect(page.locator("a.goalrow", has_text="Bike")).to_contain_text("10,000.00 to go this month")
-    page.locator("a.goalrow", has_text="Bike").click()
-    sheet = page.locator("#cat-sheet")
-    expect(sheet).to_be_visible()
-    sheet.get_by_role("button", name=re.compile(r"Set aside .*10,000.00 this month")).click()
-    expect(sheet).not_to_be_visible()
-    expect(page.locator("a.goalrow", has_text="Bike")).to_contain_text("This month done")
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Save")
-    page.locator("a.goalrow", has_text="Bike").click()
-    page.on("dialog", lambda d: d.accept())
-    sheet.get_by_role("button", name="Delete goal").click()
-    page.wait_for_url(re.compile(r"/budget\?tab=save$"))
-    expect(page.locator("a.goalrow")).to_have_count(0)
-    expect(page.locator(".toast")).to_contain_text("Goal deleted")
-
-
-def test_a_goal_hands_its_money_to_a_category_from_its_sheet(page: Page, books, api: Api):
-    index = THIS_MONTH.year * 12 + THIS_MONTH.month - 1 + 5
-    page.request.post(
-        "/budget/goal",
-        form={"name": "Bike", "amount": "60000", "by": f"{index // 12}-{index % 12 + 1:02d}", "assign_now": "1"},
-    )
-    page.goto("/budget?tab=save")
-    page.locator("a.goalrow", has_text="Bike").click()
-    sheet = page.locator("#cat-sheet")
-    expect(sheet).to_be_visible()
-    sheet.get_by_role("button", name="Use it for…").click()
-    expect(sheet.locator("h2")).to_have_text("Use Bike for…")
-    sheet.locator("select[name=category]").select_option(books["rent"]["id"])
-    sheet.locator("input[name=amount]").fill("4,000")
-    sheet.get_by_role("button", name="Use it").click()
-    expect(sheet).not_to_be_visible()
-    expect(page.locator("a.goalrow", has_text="Bike")).to_contain_text("6,000.00")
-    expect(page.locator(".cat-chips .chip[aria-pressed='true']")).to_have_text("Save")
-    page.locator(".cat-chips .chip", has_text="Spend").click()
-    expect(page.locator(".crow", has_text="Rent")).to_contain_text("4,000.00")
-
-
 @pytest.mark.parametrize("width", [390, 1280])
 def test_the_month_pill_sits_on_the_same_line_on_home_and_the_other_pages(page: Page, books, api: Api, width):
     api.post(
@@ -398,3 +325,35 @@ def test_home_is_centred_beside_the_sidebar_and_its_day_label_lines_up(page: Pag
     heading = page.locator(".home-recent .section-head h2").bounding_box()["x"]
     day = page.locator(".tx-day-head").first.bounding_box()["x"]
     assert abs(heading - day) <= 1, "the day label starts where the heading does"
+
+
+def test_move_money_picks_in_our_sheet_with_what_each_has_left(page: Page, books, api: Api):
+    api.put(f"/budget/categories/{books['food']['id']}", amount="300")
+    api.put(f"/budget/categories/{books['rent']['id']}", amount="50")
+    page.goto("/budget/move")
+    page.locator('input[name="amount"]').fill("120")
+    page.locator(".field-pick").first.click()  # From
+    sheet = page.locator("#row-picker")
+    expect(sheet.locator("[data-pick-option]", has_text="Groceries")).to_contain_text("300.00 left")
+    sheet.locator("[data-pick-option]", has_text="Groceries").click()
+    expect(page.locator(".field-pick").first).to_have_text("Groceries")
+    page.locator(".field-pick").nth(1).click()  # To
+    sheet.locator("[data-pick-option]", has_text="Rent").click()
+    page.get_by_role("button", name="Move money").click()
+    page.wait_for_url("**/budget**")
+    expect(page.locator("a.crow", has_text="Rent")).to_contain_text("170.00")
+    expect(page.locator("a.crow", has_text="Groceries")).to_contain_text("180.00")
+
+
+def test_move_money_without_both_categories_says_so(page: Page, books):
+    page.goto("/budget/move")
+    page.locator('input[name="amount"]').fill("10")
+    page.get_by_role("button", name="Move money").click()
+    expect(page.locator("#form-error")).to_contain_text("Choose the category")
+
+
+def test_a_yes_no_setting_is_a_drawn_switch_not_a_box(page: Page, books):
+    page.goto("/accounts/new?root=assets")
+    switch = page.locator('input[name="on_budget"]')
+    expect(switch).to_be_checked()
+    assert switch.evaluate("e => getComputedStyle(e).borderRadius") != "0px", "drawn as a switch, not a native box"

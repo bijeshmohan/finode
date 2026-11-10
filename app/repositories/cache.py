@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy import event
+from sqlalchemy.orm import ORMExecuteState
 from sqlmodel import Session
 
 
@@ -21,7 +22,7 @@ def _forget(session: Session, *_: Any) -> None:
     session.info.pop("read_memory", None)
 
 
-def _forget_unless_select(state) -> None:
+def _forget_unless_select(state: ORMExecuteState) -> None:
     if not state.is_select:
         _forget(state.session)
 
@@ -47,3 +48,10 @@ def remembered(db: Session, key: tuple, load: Callable[[], Any]) -> Any:
     if not (db.new or db.dirty or db.deleted):
         db.info.setdefault("read_memory", {})[key] = value
     return value
+
+
+def remember(db: Session, key: tuple, value: Any) -> None:
+    """Hand over something a query already brought along (the same rules as `remembered`: nothing is kept while the
+    session holds unwritten changes)."""
+    if not (db.new or db.dirty or db.deleted):
+        db.info.setdefault("read_memory", {})[key] = value

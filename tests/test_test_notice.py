@@ -50,7 +50,7 @@ def test_without_settings_the_profile_is_as_before(client, monkeypatch):
     assert "About this test" not in page and "Send feedback" not in page
 
 
-def test_the_first_run_card_names_the_currency_and_the_backup(client):
+def test_the_first_run_card_points_at_the_import_and_nothing_else(client):
     page = client.get("/").text
-    assert "Get started" in page and "Amounts are in <strong>INR</strong>" in page
-    assert 'href="/settings#currency"' in page and 'href="/profile/data#backup"' in page
+    assert "Get started" in page and 'href="/profile/data#import"' in page
+    assert "Amounts are in" not in page and "backup" not in page, "currency and backup live in Settings"

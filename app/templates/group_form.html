@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}New group · finode{% endblock %}
+{% block content %}
+<a class="back" href="/accounts">{{ icon("back") }}Accounts</a>
+<h1>New group</h1>
+
+<form class="card stack form-narrow" hx-post="/accounts/new-group">
+  <label>Name
+    <input type="text" name="name" maxlength="40" required placeholder="e.g. Family" autofocus>
+  </label>
+  <div class="stack">
+    <span>What it holds</span>
+    <div class="scope-seg" role="radiogroup" aria-label="What the group holds">
+      <label><input type="radio" name="holds" value="own"><span>Money I own</span></label>
+      <label><input type="radio" name="holds" value="owe"><span>Money I owe</span></label>
+    </div>
+  </div>
+  <label class="check-row">
+    <span>Part of the budget <span class="hint">Accounts you add here start with this choice. You can change it for any account</span></span>
+    <input type="checkbox" name="new_accounts_in_budget" value="1">
+  </label>
+  <p id="form-error" class="error" role="alert"></p>
+  <div class="actions">
+    <button type="submit">Create group</button>
+  </div>
+</form>
+{% endblock %}

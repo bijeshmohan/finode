@@ -1,4 +1,4 @@
-"""The built-in groups in a browser: the round + on a group's heading and the form following the group chosen."""
+"""The built-in groups in a browser: the form following the kind chosen."""
 
 import re
 
@@ -13,45 +13,44 @@ def with_groups(monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
 
 
-def test_an_empty_page_offers_an_add_account_pill_and_shows_no_groups(page: Page):
+def test_an_empty_page_shows_the_five_shelves_and_each_starts_an_account_of_its_kind(page: Page):
     page.goto("/accounts")
-    expect(page.locator(".acc-gh")).to_have_count(0)
-    page.get_by_role("link", name="Add account").last.click()
-    page.wait_for_url("**/accounts/new?root=assets")
-    expect(page.locator('select[name="parent_id"] option:checked')).to_have_text(re.compile("Bank Accounts"))
+    expect(page.locator(".acc-head h2")).to_have_text(["Bank Accounts", "Cash", "Credit Cards", "Investments", "Loans"])
+    page.locator("section.acc-kind").first.get_by_role("link", name="Add account").click()
+    page.wait_for_url(re.compile(r"/accounts/new\?parent="))
+    expect(page.locator("[data-kind-chip][aria-pressed='true']")).to_have_text("Bank Accounts")
     page.locator('input[name="name"]').fill("HDFC")
     page.get_by_role("button", name="Add account").click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
     page.goto("/accounts")
-    expect(page.locator(".acc-gh")).to_have_count(1)
-    expect(page.locator(".acc-gh")).to_contain_text("Bank Accounts")
+    expect(page.locator(".acc-head p").first).to_contain_text("1 account")
 
 
 def test_a_groups_own_page_adds_inside_it(page: Page, api):
     group = next(a for a in api.get("/accounts/") if a["name"] == "Investments")
     page.goto(f"/accounts/{group['id']}")
-    page.locator(".section-head .circ-button").click()
+    page.get_by_role("link", name="Add account").click()
     page.wait_for_url("**/accounts/new?parent=*")
-    expect(page.locator('select[name="parent_id"] option:checked')).to_have_text(re.compile("Investments"))
-    expect(page.locator("[data-budget-summary]")).to_have_text("Outside the budget")
+    expect(page.locator("[data-kind-chip][aria-pressed='true']")).to_have_text("Investments")
+    expect(page.locator('input[name="on_budget"]')).not_to_be_checked()  # Investments: outside the budget
 
 
 def choose(page: Page, name: str) -> None:
-    """Pick a parent by its name (the options are indented by depth, so the label alone does not match)."""
-    value = page.locator("select[name=parent_id] option", has_text=name).first.get_attribute("value")
-    page.locator('select[name="parent_id"]').select_option(value=value)
+    """Pick a kind by its chip."""
+    page.locator("[data-kind-chip]", has_text=name).click()
 
 
 def test_the_budget_line_follows_the_group_chosen(page: Page):
-    page.goto("/accounts/new?root=assets")
-    summary = page.locator("[data-budget-summary]")
-    expect(summary).to_have_text("Part of the budget")  # Bank Accounts
+    page.goto("/accounts/new")
+    box = page.locator('input[name="on_budget"]')
+    choose(page, "Bank Accounts")
+    expect(box).to_be_checked()
     choose(page, "Investments")
-    expect(summary).to_have_text("Outside the budget")
+    expect(box).not_to_be_checked()
     choose(page, "Cash")
-    expect(summary).to_have_text("Part of the budget")
+    expect(box).to_be_checked()
     page.locator('input[name="name"]').fill("Wallet")
     page.get_by_role("button", name="Add account").click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
     page.goto("/accounts")
-    expect(page.locator("li[data-path='assets › cash › wallet']")).to_be_visible()
+    expect(page.locator("a.acc-card", has_text="Wallet")).to_be_visible()

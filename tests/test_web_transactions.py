@@ -148,12 +148,12 @@ def test_the_filter_word_counts_what_is_set(client: TestClient, account: dict):
     assert "Nothing matches." in listed(opened)
 
 
-def test_nothing_sits_beside_the_kind_chips_recurring_and_deleted_are_in_settings(client):
+def test_nothing_sits_beside_the_kind_chips_and_recurring_is_in_settings(client):
     page = client.get("/transactions").text
     head = page[page.index('<div class="tx-filterbar">') : page.index("</dialog>")]
-    assert "head-icons" not in head and 'href="/recurring"' not in page and 'href="/transactions/deleted"' not in page
+    assert "head-icons" not in head and 'href="/recurring"' not in page and "/deleted" not in page
     settings = client.get("/settings").text
-    assert 'href="/recurring"' in settings and 'href="/accounts/deleted"' in settings
+    assert 'href="/recurring"' in settings and "Recently deleted" not in settings
 
 
 def test_the_month_pill_lists_one_month_and_has_no_search_box(client: TestClient, account: dict, expense_account: dict):

@@ -142,7 +142,7 @@ def test_a_category_page_shows_its_month_and_its_transactions(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     entry(client, books["groceries"], books["bank"], "70", LAST_MONTH.replace(day=3))
     page = client.get(f"/categories/{books['groceries']['id']}").text
-    assert "300.00" in page and "Add transaction" in page and "/budget" in page
+    assert "300.00" in page and f"/transactions/new?category={books['groceries']['id']}" in page and "/budget" in page
     assert page.count('class="tx"') == 1, "only this month's"
     assert "Add subcategory" not in page, "a subcategory is as deep as it gets"
     assert "Add subcategory" in client.get(f"/categories/{books['food']['id']}").text
@@ -291,19 +291,16 @@ def test_a_category_page_lists_only_what_was_posted_to_it_not_its_sub_categories
     assert client.get(f"/categories/{books['groceries']['id']}").text.count('class="tx"') == 1
 
 
-def test_each_list_heading_on_a_category_page_has_its_own_plus(client, books):
+def test_subcategories_end_in_a_dashed_add_row_and_the_transactions_heading_has_no_plus(client, books):
     entry(client, books["groceries"], books["bank"], "30", THIS_MONTH)
     group = client.get(f"/categories/{books['food']['id']}").text
-    assert f'href="/categories/new?parent={books["food"]["id"]}"' in group and 'title="Add subcategory"' in group
-    assert f'href="/transactions/new?category={books["food"]["id"]}' in group and 'title="Add transaction"' in group
+    assert f'href="/categories/new?parent={books["food"]["id"]}"' in group and 'class="add-row"' in group
+    assert 'title="Add transaction"' not in group, "the docked + adds one for this category"
+    assert f'class="fab" href="/transactions/new?category={books["food"]["id"]}' in group
     leaf = client.get(f"/categories/{books['groceries']['id']}").text
-    assert (
-        'title="Add transaction"' in leaf and "Subcategories" not in leaf and 'title="Add subcategory"' not in leaf
-    ), "as deep as it gets"
+    assert "Subcategories" not in leaf and 'class="add-row"' not in leaf, "as deep as it gets"
     empty = client.get(f"/categories/{books['rent']['id']}").text
-    assert "Subcategories" not in empty and 'title="Add subcategory"' not in empty, (
-        "no empty row: the … menu adds the first"
-    )
+    assert "Subcategories" not in empty and 'class="add-row"' not in empty, "no empty row: the … menu adds the first"
     assert "Add subcategory" in empty, "the menu still does"
 
 
@@ -333,3 +330,19 @@ def test_the_plus_on_a_categories_tab_offers_only_that_kind(client, books):
     assert 'name="kind" value="earning"' in income and f'value="{books["food"]["id"]}"' not in income
     expense = client.get("/categories/new?root=expense").text
     assert 'name="kind" value="spending"' in expense and f'value="{books["food"]["id"]}"' in expense
+
+
+def test_the_plus_in_the_bar_on_a_category_page_starts_an_entry_for_it_and_comes_back(client, books):
+    food = books["food"]["id"]
+    page = client.get(f"/categories/{food}").text
+    assert f'class="fab" href="/transactions/new?category={food}&amp;back=/categories/{food}"' in page
+
+
+def test_a_group_with_nothing_of_its_own_has_no_transactions_section(client, books):
+    entry(client, books["groceries"], books["bank"], "30", THIS_MONTH)
+    group = client.get(f"/categories/{books['food']['id']}").text
+    assert "Subcategories" in group and "Nothing in" not in group and "<h2>Transactions</h2>" not in group
+    leaf = client.get(f"/categories/{books['groceries']['id']}").text
+    assert "<h2>Transactions</h2>" in leaf, "a category with no subcategories keeps its list"
+    empty = client.get(f"/categories/{books['rent']['id']}").text
+    assert "<h2>Transactions</h2>" in empty and "Nothing in" in empty

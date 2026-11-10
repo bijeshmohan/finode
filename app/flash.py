@@ -4,7 +4,7 @@ The cookie only ever holds a key from MESSAGES, so nothing user-supplied is
 rendered from it.
 """
 
-from uuid import UUID
+from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
 
@@ -17,10 +17,9 @@ MESSAGES = {
     "your-account-deleted": "Your account was deleted. Goodbye!",
     "restore-done": "Backup restored",
     "account-closed": "Account closed",
-    "goal-created": "Goal created",
-    "goal-saved": "Goal saved",
-    "goal-deleted": "Goal deleted",
     "account-reopened": "Account reopened",
+    "account-pinned": "Pinned",
+    "account-unpinned": "Unpinned",
     "account-restored": "Account restored",
     "recurring-saved": "Recurring transaction saved. Anything already due has been recorded.",
     "recurring-paused": "Paused. Nothing will be recorded until you resume it.",
@@ -28,11 +27,11 @@ MESSAGES = {
     "recurring-resumed": "Resumed. Occurrences missed while it was paused are skipped.",
     "recurring-deleted": "Recurring transaction deleted. What it recorded is kept.",
     "transaction-saved": "Transaction saved",
-    "transaction-saved-next": "Transaction saved. Add the next one.",
     "transaction-updated": "Transaction updated",
     "transaction-deleted": "Transaction deleted",
     "transaction-restored": "Transaction restored",
     "account-created": "Account added",
+    "group-created": "Group added",
     "account-updated": "Account updated",
     "account-deleted": "Account deleted",
     "category-created": "Category added",
@@ -43,6 +42,19 @@ MESSAGES = {
     "tag-renamed": "Tag renamed",
     "tag-merged": "Tags merged",
     "tag-deleted": "Tag deleted",
+    "person-added": "Person added",
+    "person-updated": "Person saved",
+    "person-archived": "Person archived. Their history stays.",
+    "person-restored": "Person restored",
+    "person-deleted": "Person removed",
+    "transfer-recorded": "Recorded",
+    "opening-added": "Opening balance added",
+    "opening-updated": "Opening balance saved",
+    "expense-shared": "Expense recorded",
+    "income-shared": "Income recorded",
+    "settled-up": "Settled up",
+    "net-off-done": "Netted off. What each owed the other is cleared.",
+    "entry-reversed": "Reversed. It is as if it never happened.",
     "import-done": "Import complete",
     "currency-updated": "Currency saved",
     "app-disconnected": "App disconnected. It can no longer reach your books.",
@@ -51,37 +63,17 @@ MESSAGES = {
 }
 
 
-UNDO_KINDS = {"restore": "/transactions/deleted/{}/restore", "delete": "/transactions/{}/delete"}
-
-
-def set_flash(response: Response, key: str, undo: tuple[str, UUID] | None = None) -> None:
-    """`undo` is ("restore", history_id) or ("delete", transaction_id): the toast then carries an Undo button for that one action."""
+def set_flash(response: Response, key: str) -> None:
     if key not in MESSAGES:
         raise ValueError(f"unknown flash message '{key}'")
-    value = key if undo is None else f"{key}|{undo[0]}|{undo[1]}"
-    response.set_cookie(FLASH_COOKIE, value, max_age=60, httponly=True, samesite="lax", path="/")
-
-
-def _parts(request: Request) -> list[str]:
-    return request.cookies.get(FLASH_COOKIE, "").split("|")
+    response.set_cookie(FLASH_COOKIE, key, max_age=60, httponly=True, samesite="lax", path="/")
 
 
 def flash_message(request: Request) -> str | None:
-    return MESSAGES.get(_parts(request)[0])
+    return MESSAGES.get(request.cookies.get(FLASH_COOKIE, ""))
 
 
-def flash_undo(request: Request) -> str | None:
-    """The address the toast's Undo button posts to, rebuilt from a kind and a UUID (nothing else is ever trusted)."""
-    parts = _parts(request)
-    if len(parts) != 3 or parts[0] not in MESSAGES or parts[1] not in UNDO_KINDS:
-        return None
-    try:
-        return UNDO_KINDS[parts[1]].format(UUID(parts[2]))
-    except ValueError:
-        return None
-
-
-async def clear_shown_flash_middleware(request: Request, call_next):
+async def clear_shown_flash_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]):
     """Drop the flash cookie once a full page (which displays it) has been served."""
     response = await call_next(request)
     if (

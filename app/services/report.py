@@ -2,10 +2,12 @@
 
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 
 from ..clock import local_today
 from ..models.transaction import PostingSide
 from ..repositories import CategoryRepository, TransactionRepository
+from ..schemas.account import AccountRead
 from ..schemas.report import (
     BreakdownLine,
     BreakdownRead,
@@ -58,7 +60,9 @@ class ReportService:
             net_income=income - expenses,
         )
 
-    def _period_totals(self, roots, period_start, period_end) -> tuple[Decimal, Decimal]:
+    def _period_totals(
+        self, roots: dict[str, AccountRead], period_start: date, period_end: date
+    ) -> tuple[Decimal, Decimal]:
         """(income, expenses) for a period from one query: what came in on the Income accounts and went out on the Expenses ones."""
         income_ids = set(self.accounts.subtree_ids(roots["Income"].id))
         expense_ids = set(self.accounts.subtree_ids(roots["Expenses"].id))
@@ -105,7 +109,7 @@ class ReportService:
 
         by_id = {c.id: c for c in self.accounts_categories()}
 
-        def group_of(category_id) -> str:
+        def group_of(category_id: UUID) -> str:
             chain = []
             current = by_id[category_id]
             while True:
@@ -146,7 +150,7 @@ class ReportService:
         accounts = {a.id: a for a in self.accounts.ar.list()}
         paths: dict = {}
 
-        def path_of(account_id) -> str:
+        def path_of(account_id: UUID) -> str:
             if account_id not in paths:
                 account = accounts.get(account_id)
                 chain, seen = [], set()
@@ -201,7 +205,7 @@ class ReportService:
 
         categories = {c.id: c for c in self.cr.list()}
 
-        def category_path(category_id) -> str:
+        def category_path(category_id: UUID) -> str:
             names, current, seen = [], categories.get(category_id), set()
             while current is not None and current.id not in seen:
                 seen.add(current.id)
