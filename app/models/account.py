@@ -54,6 +54,9 @@ class Account(TimestampMixin, table=True):
     # Set on the built-in groups under Assets and Liabilities (Bank Accounts, Cash, Investments, Credit Cards, Loans):
     # they cannot be renamed, moved, closed or deleted, and what is made under them starts as the key says.
     system_key: str | None = Field(default=None, max_length=40)
+    # Set on a group (a built-in one or one the person made): whether an account made in it starts in the budget.
+    # Empty on everything else; a group needs no accounts in it to exist.
+    new_accounts_in_budget: bool | None = Field(default=None)
 
     @field_validator("name")
     @classmethod

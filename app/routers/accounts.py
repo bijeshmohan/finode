@@ -15,6 +15,7 @@ from ..schemas.account import (
     BalanceCheck,
     CardBill,
     ClosedAccount,
+    GroupCreate,
     MergeRequest,
     MergeResult,
     RegisterEntry,
@@ -33,6 +34,15 @@ def create_account(account: AccountCreate, accounts: Accounts):
     """Create an account under Assets, Liabilities or Equity (Expenses and Income hold categories: see /categories); `balance` sets an opening balance on an asset or liability."""
     try:
         return accounts.create(account)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+
+
+@router.post("/groups", response_model=AccountRead, status_code=201)
+def create_group(group: GroupCreate, accounts: Accounts):
+    """Make a group, a shelf for accounts: under Assets (money you own) or Liabilities (money you owe). `new_accounts_in_budget` is what an account made in it starts as. A group has no balance and can be empty."""
+    try:
+        return accounts.create_group(group)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
 

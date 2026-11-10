@@ -31,7 +31,7 @@
     </select>
   </div>
   {% endif %}
-  {% if not editing or node.is_leaf %}
+  {% if not editing or not node.is_group %}
   <label><span data-balance-label>{{ "Amount you owe now" if root_name == "Liabilities" else ("Balance" if editing else "Current balance") }}</span>
     <input type="text" name="balance" inputmode="decimal" placeholder="0.00"
            value="{{ node.account.balance if editing else '' }}">
@@ -46,6 +46,13 @@
     <input type="checkbox" name="on_budget" value="1" {{ "checked" if on_budget }}>
   </label>
   </div>
+  {% endif %}
+  {% if editing and node.account.new_accounts_in_budget is not none %}
+  <input type="hidden" name="group_choice" value="1">
+  <label class="check-row">
+    <span>Part of the budget <span class="hint">Accounts you add here start with this choice. Existing accounts keep theirs</span></span>
+    <input type="checkbox" name="new_accounts_in_budget" value="1" {{ "checked" if node.account.new_accounts_in_budget }}>
+  </label>
   {% endif %}
   {% if editing and can_bill or not editing %}
   <div class="stack bill-days" data-bill-fields {{ "hidden" if not can_bill }}>
@@ -90,7 +97,7 @@
   <button type="button" class="danger"
           hx-post="/accounts/{{ node.account.id }}/delete"
           hx-confirm="Delete {{ noun }} '{{ node.account.name }}'?">{{ icon("trash") }}Delete {{ noun }}</button>
-  <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted.</p>
+  <p class="hint muted">Only accounts without transactions or sub-accounts can be deleted. A group can be deleted while it is empty.</p>
 </section>
 {% endif %}
 {% endblock %}

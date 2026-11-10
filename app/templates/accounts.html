@@ -38,7 +38,7 @@
 <div data-accounts>
   {% for kind in kinds %}
   {#- A kind whose accounts are all closed hides whole, so no empty row is left. -#}
-  <section class="acc-kind{{ ' closed-hidden' if kind.items|selectattr("closed")|list|length == kind.items|length }}">
+  <section class="acc-kind{{ ' closed-hidden' if kind.closed or (kind.items and kind.items|selectattr("closed")|list|length == kind.items|length) }}">
     {% set open_count = kind.items|rejectattr("closed")|list|length %}
     <div class="acc-head">
       <h2>{{ kind.name }}</h2>
@@ -51,13 +51,9 @@
   </section>
   {% endfor %}
 
-  {% if not kinds %}
-  <p class="add-pill"><a class="button" href="/accounts/new">{{ icon("plus") }}Add account</a></p>
-  {% endif %}
-
   {% if closed %}
   <p class="unused-toggle"><button type="button" class="link-button" data-load-more-accounts>Load more</button></p>
   {% endif %}
-  {% if kinds %}<a class="add-row" href="/accounts/new">{{ icon("plus") }}Add account</a>{% endif %}
+  <a class="add-row" href="/accounts/new-group">{{ icon("plus") }}New group</a>
 </div>
 {% endblock %}

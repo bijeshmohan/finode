@@ -12,7 +12,7 @@ from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, CategoryRepository, TransactionRepository
 from ..schemas.account import AccountUpdate
 from ..schemas.budget import BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetUncategorised
-from .account import FIXED_DEFAULTS, AccountService
+from .account import AccountService
 from .transaction import decimal_places
 
 ZERO = Decimal("0.00")
@@ -125,10 +125,11 @@ class BudgetService:
                 if (
                     home is not None
                     and a.id not in parents
+                    and a.new_accounts_in_budget is None
                     and a.id not in owed
                     and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
-                    # Loans and investments sit outside the budget by design: no nudge to add them.
-                    and FIXED_DEFAULTS.get(home.system_key or "") != "outside"
+                    # A group whose accounts start outside the budget (loans, investments) is outside by design: no nudge to add them.
+                    and home.new_accounts_in_budget is not False
                 ):
                     candidates[a.id] = a
                 continue

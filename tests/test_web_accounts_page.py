@@ -68,7 +68,8 @@ def test_the_plain_accounts_share_one_other_row_at_the_end(client, tree):
 def test_a_row_ends_with_a_card_that_adds_an_account_of_that_kind(client, tree):
     page = client.get("/accounts").text
     assert f'class="acc-card acc-card-add" href="/accounts/new?parent={tree["banks"]}"' in page
-    assert 'class="add-row" href="/accounts/new"' in page, "the page ends with one for a kind that has no row yet"
+    assert 'class="add-row" href="/accounts/new-group"' in page, "the page ends with a way to make a group"
+    assert 'class="add-row" href="/accounts/new"' not in page
 
 
 def test_the_figure_is_the_net_worth_and_credit_cards_read_owed(client, tree):

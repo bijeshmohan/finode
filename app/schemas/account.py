@@ -59,6 +59,21 @@ class AccountCreate(AccountBase):
     on_budget: bool | None = None
 
 
+class GroupCreate(BaseModel):
+    """A group the person makes: a shelf on the Accounts page that holds accounts (it has no balance of its own)."""
+
+    name: str = Field(max_length=40)
+    # Whether it holds money the person owns (Assets) or owes (Liabilities); it cannot change afterwards.
+    root: Literal["Assets", "Liabilities"]
+    # Whether an account made in it starts in the budget (each account can still choose for itself).
+    new_accounts_in_budget: bool
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_empty(cls, v: str) -> str:
+        return clean_name(v)
+
+
 class AccountRead(AccountBase):
     id: UUID
     balance: Decimal  # a sum: no digit limits, see schemas/budget.py
@@ -68,6 +83,8 @@ class AccountRead(AccountBase):
     closed_on: Date | None = None
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); they cannot be changed or removed.
     system_key: str | None = None
+    # Set on a group (a built-in one or one the person made): whether an account made in it starts in the budget.
+    new_accounts_in_budget: bool | None = None
     # True for a contact's "Due from" and "Due to" accounts: they follow the contact and only its page uses them.
     contact_account: bool = False
     created: datetime
@@ -84,6 +101,8 @@ class AccountUpdate(BaseModel):
         max_digits=24,
     )
     on_budget: bool | None = None
+    # A group's own choice (see AccountRead): only a group takes it.
+    new_accounts_in_budget: bool | None = None
     statement_day: int | None = Field(default=None, ge=1, le=31)
     due_day: int | None = Field(default=None, ge=1, le=31)
     bill_rounding: BillRounding | None = None

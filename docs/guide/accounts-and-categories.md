@@ -11,7 +11,7 @@ Every transaction moves an amount *from* one place *to* another, and the books s
 
 ## The built-in groups
 
-If you signed up recently, your accounts start in five groups that are **built in**: under Assets, **Bank Accounts**, **Cash** and **Investments**; under Liabilities, **Credit Cards** and **Loans**. A kind appears on the Accounts page once it has an account in it; until then the page shows an **Add account** button. You cannot rename, move, close or delete the five kinds, but you can add as many accounts as you like in each, and you can still make groups of your own beside them (they show as kinds too).
+If you signed up recently, your accounts start in five groups that are **built in**: under Assets, **Bank Accounts**, **Cash** and **Investments**; under Liabilities, **Credit Cards** and **Loans**. All five always show on the Accounts page, even before they hold an account. You cannot rename, move, close or delete the five kinds, but you can add as many accounts as you like in each, and you can still make groups of your own beside them (they show as kinds too).
 
 The group tells finode what an account is, so you do not have to answer the budget questions: an account in Bank Accounts, Cash or Credit Cards starts **part of the budget**; one in Investments or Loans starts **outside the budget**. You can change either choice for one account with the **Part of the budget** box on its form. Accounts you made before this existed are not moved or renamed. Use **Kind** on an account's edit page to move it to another kind. Accounts are listed alphabetically.
 
@@ -22,9 +22,13 @@ The group tells finode what an account is, so you do not have to answer the budg
 - Every open account is listed, used or not. Closed ones are tucked behind one **Load more** button at the bottom (they carry a *closed* badge).
 - Accounts go **two levels** deep, at most: a group and the accounts in it.
 
+### Make a group
+
+Tap **+ New group**, the dashed row at the end of the Accounts page. The form asks for a **Name**, **What it holds** (**Money I own** or **Money I owe**; it cannot be changed later) and **Part of the budget**: an account you make in the group starts with this choice, and you can still change it for any account. Nothing is chosen for you. A group has no balance of its own, so there is no balance field. The new group appears at once as its own row, even before it holds an account. On the group's page, **…** › **Edit** changes its name and the budget choice (accounts that already exist keep theirs), and **Delete group** removes it while it is empty.
+
 ### Add an account
 
-Tap **+ Add account**, the dashed card at the end of a kind's row or the dashed row at the end of the page. The form asks for a **Name**, the **Kind** (Bank Accounts, Cash, Credit Cards, Investments, Loans or a group you made; nothing is chosen for you), an optional **Current balance** (**Amount you owe now** for a card or loan) and an optional note (behind *+ Add a note*). The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
+Tap **+ Add account**, the dashed card at the end of a kind's row. The form asks for a **Name**, the **Kind** (Bank Accounts, Cash, Credit Cards, Investments, Loans or a group you made; nothing is chosen for you), an optional **Current balance** (**Amount you owe now** for a card or loan) and an optional note (behind *+ Add a note*). The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
 
 <img src="img/accounts.png" alt="The Accounts page: a row of cards under each kind" width="300">
 

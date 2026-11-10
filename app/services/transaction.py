@@ -210,12 +210,11 @@ class TransactionService:
                 )
             if account.closed_on is not None and account.id not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
-            if (
-                account.id in has_children
-                and AccountService.root_name(account, accounts_by_id) not in GROUP_POSTING_ROOT_NAMES
-            ):
+            if (account.id in has_children or account.new_accounts_in_budget is not None) and AccountService.root_name(
+                account, accounts_by_id
+            ) not in GROUP_POSTING_ROOT_NAMES:
                 raise InvalidPostingAccountError(
-                    f"cannot post to account '{account.name}' because it has sub-accounts!"
+                    f"cannot post to account '{account.name}' because it is a group of accounts!"
                 )
             if decimal_places(posting.amount) > currency.decimals:
                 raise InvalidPostingError(
