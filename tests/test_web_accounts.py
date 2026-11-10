@@ -256,7 +256,8 @@ def test_edit_is_the_first_row_of_the_one_menu(client, root_accounts):
     page = client.get(f"/accounts/{bank['id']}").text
     head, menu = page.split('<details class="menu">', 1)
     menu = menu.split("</details>", 1)[0]
-    assert "circ-button" not in head.split("<h1>", 1)[1] and "/edit" not in head, "no pencil of its own"
+    assert head.split("<h1>", 1)[1].count("circ-button") == 1, "the pin button is the only one beside the menu"
+    assert "/edit" not in head, "no pencil of its own"
     assert menu.index(f'href="/accounts/{bank["id"]}/edit"') < menu.index("Close account")
     food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
     cat = client.get(f"/categories/{food['id']}").text

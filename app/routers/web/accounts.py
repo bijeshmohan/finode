@@ -595,7 +595,7 @@ def account_context(
         "is_inflow": lambda change: _is_inflow(root.account.name, change),
         "currency": accounts.currency().code,
         "can_add_child": can_add_child,
-        # Pin or Unpin sits in the menu of an open account that holds entries; a group, a root or a closed account has none.
+        # The pin button in the header: an open account that holds entries; a group, a root or a closed account has none.
         "can_pin": node.kind == "user"
         and not node.is_group
         and not node.account.closed_on

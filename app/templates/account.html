@@ -13,7 +13,7 @@
   <div class="acct-title">
     <div class="acct-names">
       <div class="acct-name-row">
-        <h1>{{ account.name }}{% if account.pinned %}<span class="pin-mark" title="Pinned">{{ icon("pin") }}</span>{% endif %}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
+        <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
         {% if account.details %}
         {# The description is behind an "i" beside the name: it is read once and would only take room on every visit. #}
         <details class="note-info">
@@ -28,16 +28,17 @@
       {% if kind_name %}<p class="acct-sub">{{ kind_name }}</p>
       {% elif node.is_group %}<p class="acct-sub">{{ "Built in" if node.kind == "fixed" else "Group" }} · {{ "money I owe" if root.account.name == "Liabilities" else "money I own" }}</p>{% endif %}
     </div>
+    <div class="acct-actions">
+    {#- One tap pins or unpins; the button shows the state. -#}
+    {% if can_pin %}
+    <button type="button" class="circ-button pin-button" aria-pressed="{{ 'true' if account.pinned else 'false' }}" aria-label="{{ 'Unpin' if account.pinned else 'Pin to top' }}" title="{{ 'Unpin' if account.pinned else 'Pin to top' }}" hx-post="/accounts/{{ account.id }}/{{ 'unpin' if account.pinned else 'pin' }}">{{ icon("pin") }}</button>
+    {% endif %}
     {% if node.kind == "user" %}
     <details class="menu">
       <summary class="circ-button" title="More" aria-label="More actions">{{ icon("more") }}</summary>
       <div class="menu-panel">
         {% if node.kind == "user" %}
         <a href="/accounts/{{ account.id }}/edit">{{ icon("edit") }}Edit</a>
-        {% endif %}
-        {% if can_pin %}
-        {% if account.pinned %}<button type="button" hx-post="/accounts/{{ account.id }}/unpin">{{ icon("pin") }}Unpin</button>
-        {% else %}<button type="button" hx-post="/accounts/{{ account.id }}/pin">{{ icon("pin") }}Pin to top</button>{% endif %}
         {% endif %}
         {% if can_add_child and not account.closed_on %}
         <a href="/accounts/new?parent={{ account.id }}">{{ icon("plus") }}{{ "Add account" if node.is_group else "Add sub-account" }}</a>
@@ -54,6 +55,7 @@
       </div>
     </details>
     {% endif %}
+    </div>
   </div>
   {% if account.closed_on %}<p class="muted">Closed on {{ account.closed_on.strftime("%d %b %Y") }}. Its history stays; nothing can be added to it until you reopen it.</p>{% endif %}
   <p class="hero-balance">{{ figure(account.balance, currency) }}</p>
