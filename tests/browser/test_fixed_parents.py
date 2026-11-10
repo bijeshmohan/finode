@@ -29,7 +29,7 @@ def test_an_empty_page_shows_the_five_shelves_and_each_starts_an_account_of_its_
 def test_a_groups_own_page_adds_inside_it(page: Page, api):
     group = next(a for a in api.get("/accounts/") if a["name"] == "Investments")
     page.goto(f"/accounts/{group['id']}")
-    page.get_by_role("link", name="Add sub-account").click()
+    page.get_by_role("link", name="Add account").click()
     page.wait_for_url("**/accounts/new?parent=*")
     expect(page.locator("[data-kind-chip][aria-pressed='true']")).to_have_text("Investments")
     expect(page.locator('input[name="on_budget"]')).not_to_be_checked()  # Investments: outside the budget

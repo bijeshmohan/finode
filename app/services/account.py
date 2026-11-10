@@ -917,6 +917,9 @@ class AccountService:
                 balance=balances[transaction_id],
                 related=related.get(transaction.related_id) if transaction.related_id else None,
                 posted_on=next((p.posted_on for p in own if p.posted_on), None),
+                accounts=list(dict.fromkeys(accounts_by_id[p.account_id].name for p in own))
+                if len(target_ids) > 1
+                else [],
             )
 
         return RegisterPage(

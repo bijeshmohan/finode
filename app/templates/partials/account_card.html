@@ -1,0 +1,20 @@
+{#- One account as a card: its name, its balance and, only when there is something to say, one quiet line: a card's bill, an account
+    untouched for a month, or one with no entries. -#}
+{% macro card(node) %}
+{% set account = node.account %}
+{% set bill = bills.get(account.id) %}
+{% set last = last_entry.get(account.id) %}
+{% set line = namespace(text="", due=false) %}
+{% if node.closed %}
+{% elif bill and bill.bill > 0 %}{% set line.text = "Bill overdue" if bill.days_to_due < 0 else "Bill due " ~ (bill.due_date|short_date) %}{% set line.due = bill.days_to_due <= due_soon_days %}
+{% elif not last %}{% set line.text = "No entries yet" %}
+{% elif last < stale_before %}{% set line.text = "No entry since " ~ (last|short_date) %}
+{% endif %}
+<a class="acc-card {{ 'closed-hidden' if node.closed }}" href="/accounts/{{ account.id }}">
+  <span class="acc-card-name"><span>{{ account.name }}</span>{% if node.closed %}<span class="badge">closed</span>{% endif %}{% if account.on_budget and not node.closed %}<i class="budget-dot" title="In the budget"></i>{% endif %}</span>
+  <span class="acc-card-foot">
+    <span class="acc-card-balance">{{ account.balance|money }}</span>
+    {% if line.text %}<span class="acc-card-line {{ 'due' if line.due }}">{{ line.text }}</span>{% endif %}
+  </span>
+</a>
+{% endmacro %}

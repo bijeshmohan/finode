@@ -138,15 +138,15 @@ def test_creating_a_group_from_the_form_and_its_errors(client):
 def test_an_empty_group_is_a_shelf_with_only_the_add_card(client):
     group = make_group(client).json()
     page = client.get("/accounts").text
-    assert "<h2>Family</h2>" in page and "0.00 · 0 accounts" in page
-    shelf = page.split("<h2>Family</h2>", 1)[1].split("</section>", 1)[0]
+    assert "Family</a></h2>" in page and "0.00 · 0 accounts" in page
+    shelf = page.split("Family</a></h2>", 1)[1].split("</section>", 1)[0]
     assert shelf.count('class="acc-card') == 1 and f'href="/accounts/new?parent={group["id"]}"' in shelf
     assert 'class="add-row" href="/accounts/new-group"' in page
     assert 'class="add-row" href="/accounts/new"' not in page
 
 
 def test_the_five_built_in_shelves_always_show(client):
-    heads = re.findall(r"<h2>([^<]+)</h2>", client.get("/accounts").text)
+    heads = re.findall(r"<h2>(?:<a [^>]*>)?([^<]+)(?:</a>)?</h2>", client.get("/accounts").text)
     assert heads == ["Bank Accounts", "Cash", "Credit Cards", "Investments", "Loans"]
 
 
@@ -160,7 +160,7 @@ def test_an_account_form_opened_for_a_group_starts_as_the_group_says(client):
 def test_a_groups_page_edits_its_name_and_choice_and_deletes_it_when_empty(client):
     group = make_group(client).json()
     page = client.get(f"/accounts/{group['id']}").text
-    assert "Group · money I own" in page and "Sub-accounts" in page and "Nothing here yet" in page
+    assert "Group · money I own" in page and "<h2>Accounts</h2>" in page and "More actions" in page
     form = client.get(f"/accounts/{group['id']}/edit").text
     assert 'name="new_accounts_in_budget"' in form and 'name="balance"' not in form
     saved = client.post(f"/accounts/{group['id']}/edit", data={"name": "Kin", "group_choice": "1"})
@@ -173,3 +173,46 @@ def test_a_groups_page_edits_its_name_and_choice_and_deletes_it_when_empty(clien
 def test_a_group_never_appears_where_entries_are_posted(client):
     group = make_group(client).json()
     assert group["id"] not in client.get("/transactions/new").text
+
+
+def test_a_groups_page_lists_the_transactions_of_its_accounts_with_the_account_named(client, root_accounts):
+    group = make_group(client).json()
+    wallet = in_group(client, group, "Mom's wallet", balance="100").json()
+    other = in_group(client, group, "Dad's wallet").json()
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "500"}).json()
+
+    def move(source, target, payee, amount="10"):
+        legs = [
+            {"account_id": target["id"], "side": "debit", "amount": amount},
+            {"account_id": source["id"], "side": "credit", "amount": amount},
+        ]
+        return client.post("/api/transactions/", json={"date": "2026-11-01", "payee": payee, "postings": legs})
+
+    assert move(bank, wallet, "Pocket money").status_code == 201
+    assert move(wallet, other, "Between us").status_code == 201
+    spare = post_account(client, {"name": "Spare", "parent_id": root_accounts["Assets"]}).json()
+    assert move(bank, spare, "Not ours").status_code == 201
+    page = client.get(f"/accounts/{group['id']}").text
+    rows = page.split("<h2>Transactions</h2>", 1)[1]
+    assert "Pocket money" in rows and "Between us" in rows and "Not ours" not in rows
+    assert "Mom&#39;s wallet · Bank" in rows, "the account first, then the other side"
+    assert rows.count("Between us") == 1, "a transfer inside the group shows once"
+    assert f"/accounts/{group['id']}/more" not in page, "a few entries need no Load more"
+
+
+def test_every_group_heading_opens_its_page_but_the_other_row_has_none(client, root_accounts):
+    group = make_group(client).json()
+    post_account(client, {"name": "Loose", "parent_id": root_accounts["Assets"]})
+    page = client.get("/accounts").text
+    assert f'<h2><a href="/accounts/{group["id"]}">Family</a></h2>' in page
+    assert "<h2>Other</h2>" in page
+    cash = next(a for a in client.get("/api/accounts/").json() if a["system_key"] == "assets.cash")
+    assert f'<h2><a href="/accounts/{cash["id"]}">Cash</a></h2>' in page, "built-in groups too"
+
+
+def test_only_a_group_you_made_has_a_menu(client):
+    group = make_group(client).json()
+    cash = next(a for a in client.get("/api/accounts/").json() if a["system_key"] == "assets.cash")
+    assert "More actions" in client.get(f"/accounts/{group['id']}").text
+    assert "More actions" not in client.get(f"/accounts/{cash['id']}").text
+    assert client.get(f"/accounts/{cash['id']}/edit").status_code == 404

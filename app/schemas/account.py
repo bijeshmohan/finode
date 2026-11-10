@@ -125,6 +125,8 @@ class RegisterEntry(BaseModel):
     related: RelatedRef | None = None
     # The day this account posts the entry, when that is not the entry's own date.
     posted_on: Date | None = None
+    # A group's register: the accounts of the group the entry touches (empty on an account's own).
+    accounts: list[str] = []
 
 
 class CardBill(BaseModel):

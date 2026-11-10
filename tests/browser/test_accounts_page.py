@@ -242,3 +242,25 @@ def test_a_group_is_made_from_the_foot_of_the_page_and_its_accounts_start_as_it_
     page.get_by_role("button", name="Add account").click()
     expect(page.get_by_role("heading", name="Mom's wallet")).to_be_visible()
     assert next(a for a in api.get("/accounts/") if a["name"] == "Mom's wallet")["on_budget"] is True
+
+
+def test_a_groups_heading_opens_its_page_with_its_accounts_in_a_row_and_their_transactions(page: Page, api, books):
+    banks, _food = nested(api, books)
+    hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
+    api.post(
+        "/transactions/",
+        payee="Gadget Store",
+        postings=[leg(books["cash"], "debit", "10"), leg(hdfc, "credit", "10")],
+    )
+    page.goto("/accounts")
+    page.locator(".acc-head h2 a", has_text="Banks").click()
+    expect(page).to_have_url(re.compile(rf"/accounts/{banks['id']}$"))
+    expect(page.get_by_role("heading", name="Accounts")).to_be_visible()
+    expect(page.locator(".acc-rail a.acc-card:not(.acc-card-add)")).to_have_count(2)
+    expect(page.locator(".acc-rail a.acc-card-add")).to_have_attribute("href", f"/accounts/new?parent={banks['id']}")
+    expect(page.get_by_role("heading", name="Transactions")).to_be_visible()
+    expect(page.locator(".tx-list")).to_contain_text("Gadget Store")
+    expect(page.locator(".tx-list .tx-sub").first).to_contain_text("HDFC")
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "only the row scrolls sideways"
+    page.locator(".acc-rail a.acc-card", has_text="SBI").click()
+    expect(page.get_by_role("heading", name="SBI")).to_be_visible()

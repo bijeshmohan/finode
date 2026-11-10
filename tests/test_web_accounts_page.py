@@ -52,7 +52,7 @@ def card(page: str, account_id: str) -> str:
 
 def test_each_kind_is_a_heading_over_a_row_of_cards(client, tree):
     page = client.get("/accounts").text
-    heads = re.findall(r"<h2>([^<]+)</h2>", page)
+    heads = re.findall(r"<h2>(?:<a [^>]*>)?([^<]+)(?:</a>)?</h2>", page)
     assert heads == ["Banks", "Credit Cards", "Food", "Other"], heads
     assert f'href="/accounts/{tree["hdfc"]}"' in page and "<details" not in page
     assert page.count('class="acc-rail"') == len(heads), "one row of cards per kind"
@@ -61,7 +61,7 @@ def test_each_kind_is_a_heading_over_a_row_of_cards(client, tree):
 
 def test_the_plain_accounts_share_one_other_row_at_the_end(client, tree):
     page = client.get("/accounts").text
-    assert re.findall(r"<h2>([^<]+)</h2>", page)[-1] == "Other"
+    assert re.findall(r"<h2>(?:<a [^>]*>)?([^<]+)(?:</a>)?</h2>", page)[-1] == "Other"
     assert f'href="/accounts/{tree["rent"]}"' in page.split(">Other<", 1)[1]
 
 
@@ -105,8 +105,8 @@ def test_a_kind_with_only_closed_accounts_hides_whole(client, tree):
     for name in ("groceries", "snacks"):
         assert client.post(f"/api/accounts/{tree[name]}/close").status_code == 200
     page = client.get("/accounts").text
-    assert re.search(r'<section class="acc-kind closed-hidden">\s*<div class="acc-head">\s*<h2>Food<', page)
-    assert re.search(r'<section class="acc-kind">\s*<div class="acc-head">\s*<h2>Banks<', page)
+    assert re.search(r'<section class="acc-kind closed-hidden">\s*<div class="acc-head">\s*<h2><a [^>]*>Food<', page)
+    assert re.search(r'<section class="acc-kind">\s*<div class="acc-head">\s*<h2><a [^>]*>Banks<', page)
 
 
 def test_the_page_has_no_note_under_its_list(client, root_accounts):
@@ -180,7 +180,7 @@ def test_a_kinds_heading_says_the_total_and_how_many_accounts(client, tree):
     page = client.get("/accounts").text
     assert "5,000.00 · 2 accounts" in page, "Banks: HDFC and Old Savings"
     assert "300.00 owed · 1 account<" in page
-    assert re.findall(r"<h2>([^<]+)</h2>", page), "each kind is a heading"
+    assert re.findall(r"<h2>(?:<a [^>]*>)?([^<]+)(?:</a>)?</h2>", page), "each kind is a heading"
 
 
 def test_an_entry_dated_ahead_is_not_the_last_entry(client, tree):
@@ -220,6 +220,6 @@ def test_the_kinds_come_in_the_pages_order_with_owed_ones_marked(client, monkeyp
     make(client, "Wallet", "Cash", balance="30")
     make(client, "HDFC", "Bank Accounts", balance="10")
     page = client.get("/accounts").text
-    heads = re.findall(r"<h2>([^<]+)</h2>", page)
+    heads = re.findall(r"<h2>(?:<a [^>]*>)?([^<]+)(?:</a>)?</h2>", page)
     assert heads == ["Bank Accounts", "Cash", "Credit Cards", "Investments", "Loans"]
     assert "50.00 owed" in page and "900.00 owed" in page and "400.00 owed" not in page

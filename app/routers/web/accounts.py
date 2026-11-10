@@ -527,11 +527,9 @@ def account_context(
     root = _root_of(roots, node)
     today = local_today()
     page = None
-    if entries is None and node.is_group:
-        # An account with sub-accounts cannot be posted to: its page lists the sub-accounts, whose entries are on their own pages.
-        history, ahead, has_any = [], [], False
-    elif entries is None:
+    if entries is None:
         # An account's own page reads only its newest entries (and what is dated ahead); a category passes its month's.
+        # A group's page does the same over every account in it.
         page = accounts.register_page(account_id, today, offset) or RegisterPage([], [], 0, 0, False, False)
         history, ahead, has_any = page.entries, page.upcoming, page.has_any
     else:
@@ -569,8 +567,13 @@ def account_context(
         if not node.account.closed_on and node.account.statement_day is not None:
             bill = accounts.bill(account_id, today)
         can_set_days = node.account.statement_day is None and not node.account.closed_on
+    # A group's page shows its open accounts as the Accounts page does: cards, with a bill or an idle account noted.
+    last, bills = accounts.glance(today) if node.is_group and entries is None else ({}, {})
     return {
         "active": "accounts",
+        "last_entry": last,
+        "bills": bills,
+        "stale_before": today - timedelta(days=STALE_DAYS),
         "bill": bill,
         "due_soon_days": cards.DUE_SOON_DAYS,
         "can_set_days": can_set_days,
