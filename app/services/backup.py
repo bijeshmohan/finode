@@ -115,6 +115,7 @@ class BackupService:
                     bill_rounding=cast(BillRounding, a.bill_rounding),
                     system_key=a.system_key,
                     new_accounts_in_budget=a.new_accounts_in_budget,
+                    pinned=a.pinned,
                 )
                 for a in accounts
             ],
@@ -775,6 +776,7 @@ class BackupService:
                     ),
                     on_budget=a.on_budget,
                     new_accounts_in_budget=a.new_accounts_in_budget,
+                    pinned=a.pinned,
                 )
                 ids[a.id] = created.id
             for a in file.accounts:

@@ -41,7 +41,8 @@ class BackupAccount(BaseModel):
     payment_category_id: UUID | None = Field(
         default=None, exclude=True
     )  # a setting that was removed: read, never written
-    # Older backups: accounts could be pinned. Read, never written.
+    # Whether the account is pinned to the top of the Accounts page (older files may carry it too, or leave it out).
+    pinned: bool = False
     # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); a restore maps them onto the person's own.
     system_key: str | None = None
     # Set on a group: whether an account made in it starts in the budget (files from before have none).

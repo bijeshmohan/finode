@@ -13,7 +13,7 @@
   <div class="acct-title">
     <div class="acct-names">
       <div class="acct-name-row">
-        <h1>{{ account.name }}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
+        <h1>{{ account.name }}{% if account.pinned %}<span class="pin-mark" title="Pinned">{{ icon("pin") }}</span>{% endif %}{% if node.kind == "system" %} <span class="badge">system</span>{% endif %}{% if account.closed_on %} <span class="badge">closed</span>{% endif %}</h1>
         {% if account.details %}
         {# The description is behind an "i" beside the name: it is read once and would only take room on every visit. #}
         <details class="note-info">
@@ -34,6 +34,10 @@
       <div class="menu-panel">
         {% if node.kind == "user" %}
         <a href="/accounts/{{ account.id }}/edit">{{ icon("edit") }}Edit</a>
+        {% endif %}
+        {% if can_pin %}
+        {% if account.pinned %}<button type="button" hx-post="/accounts/{{ account.id }}/unpin">{{ icon("pin") }}Unpin</button>
+        {% else %}<button type="button" hx-post="/accounts/{{ account.id }}/pin">{{ icon("pin") }}Pin to top</button>{% endif %}
         {% endif %}
         {% if can_add_child and not account.closed_on %}
         <a href="/accounts/new?parent={{ account.id }}">{{ icon("plus") }}{{ "Add account" if node.is_group else "Add sub-account" }}</a>

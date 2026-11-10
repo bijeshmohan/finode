@@ -85,6 +85,8 @@ class AccountRead(AccountBase):
     system_key: str | None = None
     # Set on a group (a built-in one or one the person made): whether an account made in it starts in the budget.
     new_accounts_in_budget: bool | None = None
+    # True when the person pinned the account: it is also listed in the Pinned row at the top of the Accounts page.
+    pinned: bool = False
     # True for a contact's "Due from" and "Due to" accounts: they follow the contact and only its page uses them.
     contact_account: bool = False
     created: datetime
@@ -103,6 +105,8 @@ class AccountUpdate(BaseModel):
     on_budget: bool | None = None
     # A group's own choice (see AccountRead): only a group takes it.
     new_accounts_in_budget: bool | None = None
+    # Pin an open asset or liability account that is not a group, or unpin one.
+    pinned: bool | None = None
     statement_day: int | None = Field(default=None, ge=1, le=31)
     due_day: int | None = Field(default=None, ge=1, le=31)
     bill_rounding: BillRounding | None = None

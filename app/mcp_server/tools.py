@@ -315,6 +315,7 @@ def _account_row(e: Entry, index: AccountIndex) -> dict[str, Any]:
         "details": None if e.is_root else e.account.details,
         **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
         **({"on_budget": e.account.on_budget} if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
+        **({"pinned": True} if e.account.pinned else {}),
         **({"group": e.account.system_key} if e.account.system_key else {}),
         **(
             {
@@ -1094,6 +1095,10 @@ def update_account(
         str | None, Field(description="Move it under this account (same top-level account; at most two levels deep)")
     ] = None,
     on_budget: Annotated[bool | None, Field(description="Assets and liabilities: part of the budget or not")] = None,
+    pinned: Annotated[
+        bool | None,
+        Field(description="Pin an open asset or liability account to the top of the Accounts page, or unpin it"),
+    ] = None,
     statement_day: Annotated[
         int | None,
         Field(ge=1, le=31, description="Cards and loans: the day of the month the bill closes (31 = last day)"),
@@ -1106,7 +1111,7 @@ def update_account(
         Field(description="Cards and loans: how the bank rounds the bill (to the paisa, nearest rupee, or up)"),
     ] = None,
 ) -> dict[str, Any]:
-    """Rename an account, change its note, move it under another account, or change its budget settings. Its history
+    """Rename an account, change its note, move it under another account, pin it, or change its budget settings. Its history
     stays with it and its id never changes (only its path does). The built-in groups, the top-level accounts and
     Opening Balances cannot be changed. Tell the user what you are changing first."""
     with services() as s:
@@ -1121,13 +1126,17 @@ def update_account(
             changes["parent_id"] = index.find(parent, allow_root=True).account.id
         if on_budget is not None:
             changes["on_budget"] = on_budget
+        if pinned is not None:
+            changes["pinned"] = pinned
         if statement_day is not None or due_day is not None:
             changes["statement_day"] = statement_day if statement_day is not None else entry.account.statement_day
             changes["due_day"] = due_day if due_day is not None else entry.account.due_day
         if bill_rounding is not None:
             changes["bill_rounding"] = bill_rounding
         if not changes:
-            raise ToolError("nothing to change: pass a name, details, parent, on_budget, a bill day or bill_rounding!")
+            raise ToolError(
+                "nothing to change: pass a name, details, parent, on_budget, pinned, a bill day or bill_rounding!"
+            )
         before = entry.path
         s.accounts.update(entry.account.id, AccountUpdate(**changes))
         fresh = _index(s)

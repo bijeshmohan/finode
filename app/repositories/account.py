@@ -20,11 +20,19 @@ class AccountRepository:
         self.origin = origin
 
     def create(
-        self, data: AccountCreate, on_budget: bool = False, new_accounts_in_budget: bool | None = None
+        self,
+        data: AccountCreate,
+        on_budget: bool = False,
+        new_accounts_in_budget: bool | None = None,
+        pinned: bool = False,
     ) -> Account:
         values = data.model_dump(exclude={"balance", "on_budget"})
         account = Account(
-            **values, on_budget=on_budget, new_accounts_in_budget=new_accounts_in_budget, user_id=self.uid
+            **values,
+            on_budget=on_budget,
+            new_accounts_in_budget=new_accounts_in_budget,
+            pinned=pinned,
+            user_id=self.uid,
         )
         self.db.add(account)
         self.db.flush()

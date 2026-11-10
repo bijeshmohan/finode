@@ -16,6 +16,18 @@
 </div>
 
 <div data-accounts>
+  {#- Pinned: the same cards again, with no total (adding them up would count the same money twice) and no add card. -#}
+  {% if pinned %}
+  <section class="acc-kind">
+    <div class="acc-head">
+      <h2>Pinned</h2>
+      <p>{{ pinned|length }} account{{ "" if pinned|length == 1 else "s" }}</p>
+    </div>
+    <div class="acc-rail">
+      {% for node in pinned %}{{ card(node, false) }}{% endfor %}
+    </div>
+  </section>
+  {% endif %}
   {% for kind in kinds %}
   {#- A kind whose accounts are all closed hides whole, so no empty row is left. -#}
   <section class="acc-kind{{ ' closed-hidden' if kind.closed or (kind.items and kind.items|selectattr("closed")|list|length == kind.items|length) }}">

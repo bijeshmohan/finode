@@ -57,6 +57,8 @@ class Account(TimestampMixin, table=True):
     # Set on a group (a built-in one or one the person made): whether an account made in it starts in the budget.
     # Empty on everything else; a group needs no accounts in it to exist.
     new_accounts_in_budget: bool | None = Field(default=None)
+    # Whether the person pinned this account: the Accounts page lists pinned ones again in a row at its top.
+    pinned: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
 
     @field_validator("name")
     @classmethod

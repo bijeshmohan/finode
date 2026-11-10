@@ -62,7 +62,7 @@ Never call `date.today()`: use `clock.local_today()` (and `local_now()`, `local_
 
 ## Recent and ordered accounts
 
-**Order (2026-10-25):** accounts are listed alphabetically, the five built-in groups first in their fixed order (`AccountService.order_key`, `FIXED_ORDER`), by the accounts page, the pickers (`build_tree`) and the budget's category lines. There is no Move up/down and no stored order: `accounts.position` was dropped (migration `b2d4f6a8c0e3`; older backups' `position` is read and ignored). `accounts.pinned` was dropped earlier (`b6d8f0a2c4e7`).
+**Order (2026-10-25):** accounts are listed alphabetically, the five built-in groups first in their fixed order (`AccountService.order_key`, `FIXED_ORDER`), by the accounts page, the pickers (`build_tree`) and the budget's category lines. There is no Move up/down and no stored order: `accounts.position` was dropped (migration `b2d4f6a8c0e3`; older backups' `position` is read and ignored). `accounts.pinned` was dropped earlier (`b6d8f0a2c4e7`) and came back as a different feature on 2026-11-10 (below).
 
 ## Built-in groups under Assets and Liabilities (2026-10-21)
 
@@ -73,6 +73,10 @@ Every **new** person starts with five groups that cannot be renamed, moved, clos
 A group is an account that holds accounts instead of entries, and it can stand empty. `accounts.new_accounts_in_budget` (migration `c6d8f0a2b4e7`) marks one: **set on a group, empty on every other account**. The value is what an account made in the group starts as (`create`, when the request gave no `on_budget`); the built-in groups carry what `FIXED_PARENTS` says. It is a column of its own, not the group's `on_budget`, because the budget code reads `on_budget` of every account and would count a group. A plain account that gained accounts of its own (made with "Add sub-account", the API or a restore) is still a group while it has them, but has no mark and keeps the type's default; `Node.is_group` (web) and `AccountService` treat both as groups.
 
 `AccountService.create_group(GroupCreate)` / `POST /api/accounts/groups` / `GET|POST /accounts/new-group`: a name, the type it sits under (`Assets` for money the person owns, `Liabilities` for money they owe; fixed for life, so the form words it "Money I own / Money I owe"), and the choice. No balance, no note. Names are unique among siblings (so a group cannot be called Cash). `PATCH` changes the name and `new_accounts_in_budget` (the choice of an existing account is not touched; only a group takes it, and it cannot be cleared; built-in groups stay locked). A group takes no entries (`transaction.py` refuses a posting to anything marked or with accounts in it), is not offered in the posting pickers (`Node.postable`), and is not a budget candidate (`budget.py`). It is deleted like any account: while empty. Backup carries the field (files from before have none); a restore recreates empty groups.
+
+### Pinned accounts (2026-11-10)
+
+`accounts.pinned` (migration `d7e9a1c3b5f8`, false by default) lists an account again in a **Pinned** row at the top of the Accounts page; it changes no balance, budget or entry. Only an open asset or liability account that is not a group, a root, a contact's account or Opening Balances can be pinned (`AccountService._check_pin`, a 400 otherwise); taking a pin off is always allowed, and closing an account keeps its flag (the Pinned row hides closed accounts, so reopening brings it back). There is no order of its own: the row follows the order of the rows below it (no Move up/down). It is set by `PATCH /api/accounts/{account_id}` (`pinned`), the assistants' `update_account` (`pinned`; `list_accounts` shows `"pinned": true`) and the account page's menu (`POST /accounts/{account_id}/pin` and `/unpin`). The backup carries it (files from before may leave it out). The first version of this column (dropped by `b6d8f0a2c4e7`) kept no data; the old pins are gone.
 
 ## A card's bill (2026-11-01, `feature/card-bills`)
 
