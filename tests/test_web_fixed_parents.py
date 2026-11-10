@@ -14,22 +14,20 @@ def new_person(monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
 
 
-def test_with_no_accounts_the_page_shows_an_add_account_pill_and_no_kinds(client):
+def test_with_no_accounts_every_built_in_shelf_shows_with_its_own_add_card(client):
     text = client.get("/accounts").text
     shown = text[text.index("data-accounts") :]
-    assert "Add account" in shown and 'href="/accounts/new"' in shown
     for name in ("Bank Accounts", "Cash", "Investments", "Credit Cards", "Loans"):
-        assert f">{name}<" not in shown, name
-    assert "acc-head" not in shown and "Built in" not in text and "lock" not in shown.lower()
+        assert f"<h2>{name}</h2>" in shown, name
+    assert shown.count("acc-card-add") == 5 and "0.00 · 0 accounts" in shown
+    assert 'href="/accounts/new"' not in shown and "Built in" not in text and "lock" not in shown.lower()
 
 
-def test_only_groups_with_accounts_are_shown(client):
+def test_a_shelf_with_accounts_shows_them_beside_the_add_card(client):
     make(client, "HDFC", "Bank Accounts", balance="500")
     text = client.get("/accounts").text
     shown = text[text.index("data-accounts") :]
-    assert "Bank Accounts" in shown and "HDFC" in shown and "add-pill" not in shown
-    for name in ("Cash", "Investments"):
-        assert f">{name}<" not in shown, name
+    assert "HDFC" in shown and "500.00 · 1 account<" in shown
     assert "Nothing here yet" not in text
 
 

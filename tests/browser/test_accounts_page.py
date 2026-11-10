@@ -219,3 +219,26 @@ def test_saving_an_entry_started_from_an_accounts_page_comes_back_to_it(page: Pa
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(rf"/accounts/{account}$"))
     expect(page.locator("a.tx", has_text="Groceries").first).to_be_visible()
+
+
+def test_a_group_is_made_from_the_foot_of_the_page_and_its_accounts_start_as_it_says(page: Page, api, books):
+    page.goto("/accounts")
+    page.get_by_role("link", name="New group").click()
+    expect(page).to_have_url(re.compile(r"/accounts/new-group$"))
+    page.fill('input[name="name"]', "Family")
+    page.get_by_role("button", name="Create group").click()
+    expect(page.locator("#form-error")).to_contain_text("choose")  # nothing was chosen for the person
+    page.get_by_text("Money I own").click()
+    page.get_by_text("Part of the budget").click()
+    page.get_by_role("button", name="Create group").click()
+    expect(page).to_have_url(re.compile(r"/accounts$"))
+    shelf = page.locator("section.acc-kind", has=page.get_by_role("heading", name="Family"))
+    expect(shelf.locator(".acc-head p")).to_have_text("0.00 · 0 accounts")
+    expect(shelf.locator("a.acc-card")).to_have_count(1)  # only the add card
+    shelf.get_by_role("link", name="Add account").click()
+    expect(page.locator('[data-kind-chip][aria-pressed="true"]')).to_have_text("Family")
+    expect(page.locator('input[name="on_budget"]')).to_be_checked()
+    page.fill('input[name="name"]', "Mom's wallet")
+    page.get_by_role("button", name="Add account").click()
+    expect(page.get_by_role("heading", name="Mom's wallet")).to_be_visible()
+    assert next(a for a in api.get("/accounts/") if a["name"] == "Mom's wallet")["on_budget"] is True

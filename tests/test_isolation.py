@@ -73,6 +73,7 @@ LISTS = {
     ("GET", "/"),
     ("GET", "/accounts"),
     ("GET", "/accounts/new"),
+    ("GET", "/accounts/new-group"),
     ("GET", "/accounts/options"),
     ("GET", "/accounts/quick"),
     ("GET", "/api/accounts/"),
@@ -162,7 +163,12 @@ REFERENCES = {
 
 
 # Actions on the caller's own data (their whole account): they take no id, so B's use of them must leave A alone.
-OWN_DATA = {("POST", "/profile/data/erase"), ("POST", "/profile/data/delete-account")}
+OWN_DATA = {
+    ("POST", "/profile/data/erase"),
+    ("POST", "/profile/data/delete-account"),
+    ("POST", "/accounts/new-group"),
+    ("POST", "/api/accounts/groups"),
+}
 
 
 def routes() -> set[tuple[str, str]]:

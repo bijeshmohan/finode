@@ -23,8 +23,9 @@
       </div>
       {#- The kind it sits in (Bank Accounts, Credit Cards...), never the type's own name. -#}
       {% set trail = node.path.split(" › ") %}
-      {% set kind_name = trail[1] if trail|length > 2 else ("" if node.children or node.kind == "fixed" else ("Other you owe" if root.account.name == "Liabilities" else "Other")) %}
-      {% if kind_name %}<p class="acct-sub">{{ kind_name }}</p>{% endif %}
+      {% set kind_name = trail[1] if trail|length > 2 else ("" if node.is_group else ("Other you owe" if root.account.name == "Liabilities" else "Other")) %}
+      {% if kind_name %}<p class="acct-sub">{{ kind_name }}</p>
+      {% elif node.is_group and node.kind == "user" %}<p class="acct-sub">Group · {{ "money I owe" if root.account.name == "Liabilities" else "money I own" }}</p>{% endif %}
     </div>
     {% if node.kind == "user" or (can_add_child and not account.closed_on) %}
     <details class="menu">
@@ -57,7 +58,7 @@
   <p id="page-error" class="error" role="alert"></p>
 </header>
 
-{% if node.children or node.kind == "fixed" %}
+{% if node.is_group %}
 {% set subs = node.children|rejectattr("account.closed_on")|list %}
 <div class="section-head">
   <h2>Sub-accounts</h2>

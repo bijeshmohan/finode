@@ -29,6 +29,7 @@ MESSAGES = {
     "transaction-deleted": "Transaction deleted",
     "transaction-restored": "Transaction restored",
     "account-created": "Account added",
+    "group-created": "Group added",
     "account-updated": "Account updated",
     "account-deleted": "Account deleted",
     "category-created": "Category added",

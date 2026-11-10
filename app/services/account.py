@@ -20,7 +20,7 @@ from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
-from ..schemas.account import BalanceCheck, BillRounding, CardBill, MergeResult
+from ..schemas.account import BalanceCheck, BillRounding, CardBill, GroupCreate, MergeResult
 from ..schemas.transaction import PostingBase, PostingCreate, TransactionCreate
 from . import cards
 
@@ -36,18 +36,17 @@ DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
 # Assets and liabilities are real holdings and stay leaf-only.
 GROUP_POSTING_ROOT_NAMES = frozenset({"Income", "Expenses"})
 
-# The built-in groups every new person starts with under Assets and Liabilities: (root, name, key, what an account made
-# under it starts as: "budget" or "outside" the budget). They cannot be renamed, moved, closed or deleted; what is made
-# under them gets its budget behaviour from here, so a new person does not have to decide it. Rules read the key, never
-# the name.
+# The built-in groups every new person starts with under Assets and Liabilities: (root, name, key, whether an account
+# made under it starts in the budget). They cannot be renamed, moved, closed or deleted; what is made under them gets
+# its budget behaviour from the group (`accounts.new_accounts_in_budget`), so a new person does not have to decide it.
+# Rules read the key, never the name.
 FIXED_PARENTS = (
-    ("Assets", "Bank Accounts", "assets.bank", "budget"),
-    ("Assets", "Cash", "assets.cash", "budget"),
-    ("Assets", "Investments", "assets.investments", "outside"),
-    ("Liabilities", "Credit Cards", "liabilities.cards", "budget"),
-    ("Liabilities", "Loans", "liabilities.loans", "outside"),
+    ("Assets", "Bank Accounts", "assets.bank", True),
+    ("Assets", "Cash", "assets.cash", True),
+    ("Assets", "Investments", "assets.investments", False),
+    ("Liabilities", "Credit Cards", "liabilities.cards", True),
+    ("Liabilities", "Loans", "liabilities.loans", False),
 )
-FIXED_DEFAULTS = {key: start for _, _, key, start in FIXED_PARENTS}
 FIXED_ORDER = {key: place for place, (_, _, key, _) in enumerate(FIXED_PARENTS)}
 # New people get the groups; tests switch this off (most of them build their own accounts) and a few switch it on.
 NEW_PROFILE_FIXED_PARENTS = True
@@ -220,8 +219,16 @@ class AccountService:
             self.ar.db.add(new_roots[name])
         if len(missing) == len(ROOT_ACCOUNT_NAMES) and NEW_PROFILE_FIXED_PARENTS:
             # A brand-new person: the built-in groups come with the roots (same transaction, so a lost race makes none twice).
-            for root, name, key, _ in FIXED_PARENTS:
-                self.ar.db.add(Account(name=name, parent_id=new_roots[root].id, user_id=self.ar.uid, system_key=key))
+            for root, name, key, starts_in_budget in FIXED_PARENTS:
+                self.ar.db.add(
+                    Account(
+                        name=name,
+                        parent_id=new_roots[root].id,
+                        user_id=self.ar.uid,
+                        system_key=key,
+                        new_accounts_in_budget=starts_in_budget,
+                    )
+                )
         try:
             self.ar.db.commit()
         except IntegrityError:
@@ -356,6 +363,7 @@ class AccountService:
             due_day=account.due_day,
             bill_rounding=cast(BillRounding, account.bill_rounding),
             system_key=account.system_key,
+            new_accounts_in_budget=account.new_accounts_in_budget,
             contact_account=account.id in self.ar.contact_account_ids(),
             created=account.created,
             updated=account.updated,
@@ -551,11 +559,9 @@ class AccountService:
         self._check_bill_days(
             self._get_root_name(parent, accounts_by_id), False, account.statement_day, account.due_day
         )
-        start = FIXED_DEFAULTS.get(parent.system_key or "")
-        if start and account.on_budget is None:
-            # Made under a built-in group without saying how: it starts as the group says (a bank in the budget, a loan outside it).
-            account = account.model_copy(update={"on_budget": start == "budget"})
         in_budget = account.on_budget
+        if in_budget is None:  # made in a group without saying how: it starts as the group says
+            in_budget = parent.new_accounts_in_budget
         if in_budget is None:  # money in an asset account is budgeted unless said otherwise
             in_budget = self._get_root_name(parent, accounts_by_id) == "Assets"
         elif in_budget:
@@ -578,6 +584,21 @@ class AccountService:
             self.ar.db.commit()
             self.ar.db.refresh(created)
         return self._to_read(created, all_accounts_with_created)
+
+    def create_group(self, data: GroupCreate, *, commit: bool = True) -> AccountRead:
+        """Make a group: a shelf for accounts under Assets (money the person owns) or Liabilities (money they owe). It
+        has no balance of its own and can stand empty."""
+        all_accounts = self._ensure_roots()
+        root = next(a for a in all_accounts if a.parent_id is None and a.name == data.root)
+        ensure_room(len(all_accounts), settings.max_accounts, "accounts")
+        self._check_name_free(data.name, root.id, all_accounts)
+        created = self.ar.create(
+            AccountCreate(name=data.name, parent_id=root.id), new_accounts_in_budget=data.new_accounts_in_budget
+        )
+        if commit:
+            self.ar.db.commit()
+            self.ar.db.refresh(created)
+        return self._to_read(created, [*all_accounts, created])
 
     def read(self, account_id: UUID, as_of: date | None = None) -> AccountRead | None:
         all_accounts = self._ensure_roots()
@@ -985,6 +1006,11 @@ class AccountService:
                 statement_day,
                 due_day,
             )
+
+        if "new_accounts_in_budget" in data.model_fields_set and (
+            data.new_accounts_in_budget is None or account.new_accounts_in_budget is None
+        ):
+            raise ValueError("only a group has a choice for the accounts made in it!")
 
         on_budget = None
         if data.on_budget is not None:

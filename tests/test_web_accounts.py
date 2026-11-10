@@ -30,12 +30,10 @@ def test_accounts_page_lists_accounts_by_kind(client: TestClient, root_accounts:
     assert "checking" in text
 
 
-def test_accounts_page_offers_an_add_account_pill_when_there_are_none(
-    client: TestClient, root_accounts: dict[str, str]
-):
+def test_accounts_page_with_no_groups_still_offers_a_new_group(client: TestClient, root_accounts: dict[str, str]):
     text = client.get("/accounts").text
-    assert 'href="/accounts/new"' in text
-    assert 'class="button"' in text and "Add account" in text and "acc-kind" not in text
+    assert 'class="add-row" href="/accounts/new-group"' in text and "New group" in text
+    assert "acc-kind" not in text and 'href="/accounts/new"' not in text
 
 
 def test_an_old_link_to_a_tab_still_lands_on_the_page(client: TestClient, root_accounts: dict[str, str]):

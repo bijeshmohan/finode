@@ -13,19 +13,17 @@ def with_groups(monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
 
 
-def test_an_empty_page_offers_an_add_account_pill_and_shows_no_kinds(page: Page):
+def test_an_empty_page_shows_the_five_shelves_and_each_starts_an_account_of_its_kind(page: Page):
     page.goto("/accounts")
-    expect(page.locator(".acc-head")).to_have_count(0)
-    page.get_by_role("link", name="Add account").last.click()
-    page.wait_for_url("**/accounts/new")
-    expect(page.locator("[data-kind-chip][aria-pressed='true']")).to_have_count(0)  # nothing is chosen for the person
-    page.locator("[data-kind-chip]", has_text="Bank Accounts").click()
+    expect(page.locator(".acc-head h2")).to_have_text(["Bank Accounts", "Cash", "Credit Cards", "Investments", "Loans"])
+    page.locator("section.acc-kind").first.get_by_role("link", name="Add account").click()
+    page.wait_for_url(re.compile(r"/accounts/new\?parent="))
+    expect(page.locator("[data-kind-chip][aria-pressed='true']")).to_have_text("Bank Accounts")
     page.locator('input[name="name"]').fill("HDFC")
     page.get_by_role("button", name="Add account").click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
     page.goto("/accounts")
-    expect(page.locator(".acc-head")).to_have_count(1)
-    expect(page.locator(".acc-head")).to_contain_text("Bank Accounts")
+    expect(page.locator(".acc-head p").first).to_contain_text("1 account")
 
 
 def test_a_groups_own_page_adds_inside_it(page: Page, api):

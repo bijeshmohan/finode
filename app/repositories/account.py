@@ -19,9 +19,13 @@ class AccountRepository:
         # Who is making the changes ("web", "api", "mcp:<token name>"): the origin a merge writes on the entries it moves.
         self.origin = origin
 
-    def create(self, data: AccountCreate, on_budget: bool = False) -> Account:
+    def create(
+        self, data: AccountCreate, on_budget: bool = False, new_accounts_in_budget: bool | None = None
+    ) -> Account:
         values = data.model_dump(exclude={"balance", "on_budget"})
-        account = Account(**values, on_budget=on_budget, user_id=self.uid)
+        account = Account(
+            **values, on_budget=on_budget, new_accounts_in_budget=new_accounts_in_budget, user_id=self.uid
+        )
         self.db.add(account)
         self.db.flush()
         return account
