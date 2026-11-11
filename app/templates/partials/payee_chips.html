@@ -1,4 +1,8 @@
-{#- The chips under the payee field: people you pay. Tapping one fills the payee only (see usePayee in app.js). -#}
+{#- The chips under the payee field: people you pay (tapping one fills the payee only, see usePayee in app.js), or after an "@"
+    your people (tapping one names the person on the entry). -#}
 {% for name in names %}
 <button type="button" class="chip" data-suggest data-payee="{{ name }}">{{ name }}</button>
+{% endfor %}
+{% for id, name in people %}
+<button type="button" class="chip link-person" data-suggest data-payee="{{ name }}" data-contact="{{ id }}">{{ name }}</button>
 {% endfor %}

@@ -75,5 +75,12 @@ class ObligationService:
         entries = self.tr.read_many(list({o.source_transaction_id for o in rows}))
         found = [(o, outstanding(o, settled.get(o.id, ZERO))) for o in rows]
         found = [(o, left) for o, left in found if left > 0]
-        found.sort(key=lambda pair: (entries[pair[0].source_transaction_id].date, pair[0].created, str(pair[0].id)))
+        # SQLite hands datetimes back without their zone: compare them without it (all are UTC).
+        found.sort(
+            key=lambda pair: (
+                entries[pair[0].source_transaction_id].date,
+                pair[0].created.replace(tzinfo=None),
+                str(pair[0].id),
+            )
+        )
         return found

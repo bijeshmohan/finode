@@ -372,11 +372,9 @@ const isCategorySide = (roots) => {
   return own.length > 0 && own.every((root) => CATEGORY_ROOTS.includes(root));
 };
 
-// People are offered on a transfer only in Split (lending, borrowing, paying back); on an expense or income they are not
-// rows of a side.
+// People are offered on a transfer (lending, borrowing, paying back); on an expense or income they are not rows of a side.
 function sideRoots(form, side) {
-  const roots = (KINDS[form.dataset.txnKind] || KINDS.other)[side].roots;
-  return roots && form.dataset.mode !== "split" ? roots.filter((root) => root !== "People") : roots;
+  return (KINDS[form.dataset.txnKind] || KINDS.other)[side].roots;
 }
 
 function optionsFor(all, roots) {
@@ -428,6 +426,7 @@ function applyKind(form, kind) {
   if (categoryFirst) debit.after(credit);
   else if (swap) { credit.after(swap); swap.after(debit); }
   if (swap) swap.hidden = categoryFirst || isCategorySide(KINDS[kind].debit.roots);
+  if (kind !== "expense" && kind !== "income") setPayeePerson(form, "", "");
   recomputeTxn(form);
   syncModes(form, kind);
 }
@@ -614,10 +613,30 @@ document.body.addEventListener("click", (event) => {
 function usePayee(form, chip) {
   const payee = form.querySelector("#payee");
   if (payee) payee.value = chip.dataset.payee;
+  setPayeePerson(form, chip.dataset.contact || "", chip.dataset.payee);
   chip.parentElement.replaceChildren(); // the suggestions go once one is chosen
   const total = form.querySelector("#total");
   (total && !total.value.trim() ? total : form.querySelector('button[type="submit"]')).focus();
 }
+
+// Typing "@" in the payee lists your people; choosing one names them on the entry (a gift, with nothing owed). The name in the
+// field is theirs: changing it, or leaving expense and income, takes the person off again.
+function setPayeePerson(form, id, name) {
+  const hidden = form.querySelector("[data-payee-contact]");
+  const note = form.querySelector("[data-payee-person]");
+  if (!hidden || !note) return;
+  hidden.value = id;
+  note.hidden = !id;
+  note.querySelector("[data-payee-person-name]").textContent = id ? name : "";
+  note.dataset.name = id ? name : "";
+}
+
+document.addEventListener("input", (event) => {
+  const input = event.target;
+  const form = input instanceof HTMLInputElement && input.id === "payee" ? input.closest("form[data-txn-form]") : null;
+  const note = form && form.querySelector("[data-payee-person]");
+  if (note && !note.hidden && input.value !== note.dataset.name) setPayeePerson(form, "", "");
+});
 
 function rowAccount(row) {
   return row.querySelector('select[name="account"]');
@@ -1184,6 +1203,10 @@ document.body.addEventListener("click", (event) => {
     usePayee(form, chip);
     return;
   }
+  if (event.target.closest("[data-payee-unlink]")) {
+    setPayeePerson(form, "", "");
+    return;
+  }
   const kindButton = event.target.closest("[data-kind]");
   if (kindButton) {
     // Tapping the selected kind again selects nothing: every account is offered ("other").
@@ -1682,7 +1705,8 @@ document.addEventListener("change", (event) => {
   if (hint && chip) hint.hidden = !input.value || input.value >= chip.dataset.today;
 });
 
-// A transfer with a person on one side is a loan or a borrowing: say so, and that the budget stays as it is.
+// A transfer with a person on one side: say what it does. Money from someone who owes you pays that back first, and money to
+// someone you owe does the same; only the rest is a new borrowing or loan, which is not income or spending (so the budgets stay).
 function noteForPeople(target) {
   const form = target.closest && target.closest("form[data-txn-form]");
   const note = form && form.querySelector("[data-person-note]");
@@ -1692,15 +1716,36 @@ function noteForPeople(target) {
     const option = rowAccount(row).selectedOptions[0];
     if (!option || !option.hasAttribute("data-person")) return;
     const name = option.textContent.trim();
-    text =
-      row.querySelector('[name="side"]').value === "debit"
+    const owes = (option.dataset.owes || "0").startsWith("-") ? -(parseDec(option.dataset.owes.slice(1)) || 0n) : parseDec(option.dataset.owes) || 0n;
+    const field = row.querySelector('[name="amount"]');
+    const amount = parseDec(field && field.value) || parseDec(form.querySelector("#total").value) || 0n;
+    const toThem = row.querySelector('[name="side"]').value === "debit";
+    const owed = toThem ? (owes < 0n ? -owes : 0n) : owes > 0n ? owes : 0n;
+    if (owed === 0n) {
+      text = toThem
         ? `${name} will owe you this. It is not spending, so your budgets stay as they are.`
         : `You will owe ${name} this. It is not income, so your budgets stay as they are.`;
+    } else if (amount === 0n) {
+      text = toThem ? `You owe ${name} ${money(owed)}. This pays it back first.` : `${name} owes you ${money(owed)}. This pays it back first.`;
+    } else if (amount < owed) {
+      text = toThem
+        ? `You pay back ${money(amount)} of the ${money(owed)} you owe ${name}.`
+        : `${name} pays back ${money(amount)} of the ${money(owed)} owed to you.`;
+    } else if (amount === owed) {
+      text = toThem ? `You pay back ${name} in full.` : `${name} pays back in full.`;
+    } else {
+      const rest = money(amount - owed);
+      text = toThem
+        ? `You pay back ${money(owed)}. The other ${rest} is lent: ${name} will owe you it.`
+        : `${name} pays back ${money(owed)}. The other ${rest} is borrowed: you will owe ${name} it.`;
+    }
   });
   note.textContent = text;
   note.hidden = !text;
 }
 document.body.addEventListener("change", (event) => noteForPeople(event.target));
+document.body.addEventListener("input", (event) => noteForPeople(event.target));
+document.addEventListener("DOMContentLoaded", () => document.querySelectorAll("form[data-txn-form]").forEach((form) => noteForPeople(form)));
 
 // ---- The people in a Split: only the ones added show; "Add people" opens a sheet to tick them ----
 // Each person has a checkbox in the editor (the state: for an expense it is the form field, for an income it only says the row
@@ -1785,8 +1830,8 @@ const CARRY = {
 function applyMode(form, mode) {
   const modes = form.querySelector("[data-modes]");
   if (!modes) return;
-  const before = form.dataset.mode;
   form.dataset.mode = mode;
+  if (mode === "split") setPayeePerson(form, "", "");
   modes.querySelectorAll('input[name="mode"]').forEach((radio) => { radio.checked = radio.value === mode; });
   const kind = form.dataset.txnKind;
   const shared = mode === "split" && (kind === "expense" || kind === "income") ? kind : null;
@@ -1802,7 +1847,6 @@ function applyMode(form, mode) {
   form.querySelectorAll("[data-side-section] input, [data-side-section] select, [data-side-section] button").forEach((el) => {
     el.disabled = shared !== null;
   });
-  if (kind === "transfer" && before !== mode) refreshRowOptions(form);
   if (shared && was !== shared) {
     const editor = form.querySelector(`[data-people-editor="${shared}"]`);
     (CARRY[shared] || []).forEach(([side, name]) => {
@@ -1822,16 +1866,13 @@ function applyMode(form, mode) {
 function syncModes(form, kind) {
   const modes = form.querySelector("[data-modes]");
   if (!modes) return;
-  const offered = kind !== "other";
+  // Split shares an expense or an income with people; a transfer and the other kinds have no such choice.
+  const offered = kind === "expense" || kind === "income";
   const wasOffered = form._offered !== false;
   form._offered = offered;
   modes.hidden = !offered;
   let mode = form.dataset.mode || "simple";
-  // Split on a transfer (people on a side) and Split on an expense or income (who it is shared with) are different things:
-  // crossing between them goes back to the rows.
-  const crossing = form._kind !== undefined && (form._kind === "transfer") !== (kind === "transfer");
-  form._kind = kind;
-  if (!offered || !wasOffered || (crossing && mode === "split")) mode = "simple";
+  if (!offered || !wasOffered) mode = "simple";
   applyMode(form, mode);
 }
 
