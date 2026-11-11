@@ -1,6 +1,6 @@
 {#- One entry in a person's activity: what it was, and the way to undo it. Expects person and item (ActivityRead). -#}
 {% from "partials/icons.html" import icon %}
-{% set names = {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "opening": "Opening balance", "netoff": "Net off", "income": item.description or "Shared income", "expense": item.description or "Shared expense", "settlement": "Paid back" if item.direction == "received" else "You paid back"} %}
+{% set names = {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "gift": "Gift", "opening": "Opening balance", "netoff": "Evened out", "income": item.description or "Shared income", "expense": item.description or "Shared expense", "settlement": "Paid back" if item.direction == "received" else "You paid back"} %}
 <div class="sheet-grab" aria-hidden="true"></div>
 <div class="sheet-title">
   <div>
@@ -12,10 +12,13 @@
 {% if item.description and item.purpose not in ("expense", "income") %}<p class="muted">{{ item.description }}</p>{% endif %}
 {% if item.purpose == "expense" %}<p class="muted">{{ person.name }}'s share of the bill.</p>{% endif %}
 {% if item.purpose == "income" %}<p class="muted">{% if item.direction == "received" %}{{ person.name }}'s part of what came in: you hold it for them.{% else %}What {{ person.name }} received for you.{% endif %}</p>{% endif %}
-<p class="muted hint">Reversing removes it for good, as if it had never happened. It can't be reversed while something has been paid back against it.</p>
+{% if item.purpose == "netoff" %}<p class="muted">What each owed the other was cleared against each other. It goes by itself if one of them is undone.</p>{% endif %}
 <p id="person-sheet-error" class="error" role="alert"></p>
 {% if item.purpose == "opening" %}
 <div class="sheet-actions"><a class="button" href="/people/{{ person.id }}/opening/{{ item.transaction_id }}/edit">Edit</a></div>
 {% endif %}
+{% if item.purpose != "netoff" %}
+<p class="muted hint">Reversing removes it for good, as if it had never happened. It can't be reversed while something has been paid back against it.</p>
 <button type="button" class="danger-text" hx-post="/people/{{ person.id }}/entry/{{ item.transaction_id }}/reverse"
         hx-confirm="Reverse this? It is removed for good.">{{ icon("trash") }}Reverse</button>
+{% endif %}

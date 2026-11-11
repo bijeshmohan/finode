@@ -14,7 +14,13 @@ from uuid import UUID
 from ..models.contact import PartyTransaction
 from ..models.transaction import PostingSide
 from ..repositories.obligation import ObligationRepository
-from ..schemas.contact import OpeningBalanceCreate, OpeningBalanceUpdate, TransferCreate, TransferRead
+from ..schemas.contact import (
+    OpeningBalanceCreate,
+    OpeningBalanceUpdate,
+    SettlementCreate,
+    TransferCreate,
+    TransferRead,
+)
 from ..schemas.transaction import PostingCreate, TransactionCreate, TransactionRead, TransactionUpdate
 from .contact import PAYABLE, RECEIVABLE, ContactService
 from .contact_errors import (
@@ -24,6 +30,7 @@ from .contact_errors import (
     InvalidTransferPurposeError,
     ReversalBlockedError,
 )
+from .settlement import SettlementService
 from .transaction import TransactionService
 
 TRANSFER_PURPOSES = ("loan", "borrowing", "advance", "gift", "opening")
@@ -34,12 +41,20 @@ ALLOWED = {
 
 
 class TransferService:
-    def __init__(self, contacts: ContactService, transactions: TransactionService, ob: ObligationRepository):
+    def __init__(
+        self,
+        contacts: ContactService,
+        transactions: TransactionService,
+        ob: ObligationRepository,
+        settlements: SettlementService,
+    ):
         self.contacts = contacts
         self.accounts = contacts.accounts
         self.transactions = transactions  # made with contacts=True: it may post to a contact's accounts
         self.ob = ob
         self.db = ob.db
+        self.settlements = settlements
+        self.netting = settlements.netting
 
     # ---- shared with the other contact services ----------------------------------------------------
 
@@ -97,11 +112,49 @@ class TransferService:
                 owed = RECEIVABLE if data.direction == "sent" else PAYABLE
                 obligation_id = self.ob.add_obligation(contact.id, entry.id, data.purpose, owed, data.amount).id
             self.remember(key, entry.id)
+            self.netting.even_out([contact.id])
             self.db.commit()
         except Exception:
             self.db.rollback()
             raise
         return self._read(entry, self.ob.party_rows(transaction_id=entry.id)[0], obligation_id)
+
+    def move(self, contact_id: UUID, data: TransferCreate) -> UUID:
+        """Money that went to or came from a person, as the "+" screen records it. Money coming from someone who owes you
+        pays that back first (and going to someone you owe pays what you owe first); only the rest, or all of it when
+        nothing is owed that way, is a new borrowing (from them) or loan (to them). Returns the entry's id."""
+        if data.purpose not in ("loan", "borrowing"):
+            raise InvalidTransferPurposeError("money moved with a person is a loan or a borrowing here!")
+        owes = RECEIVABLE if data.direction == "received" else PAYABLE
+        owed = sum((left for _, left in self.settlements.obligations.open_rows(contact_id, owes)), Decimal(0))
+        if owed <= 0:
+            return self.record(contact_id, data).id
+        return self.settlements.record(
+            contact_id,
+            SettlementCreate(
+                direction=data.direction,
+                amount=data.amount,
+                date=data.date,
+                account_id=data.account_id,
+                description=data.description,
+                excess_as=data.purpose if data.amount > owed else None,
+            ),
+        ).id
+
+    def name_gift(self, transaction_id: UUID, contact_id: UUID | None, direction: str) -> None:
+        """The person an ordinary expense (`sent`) or income (`received`) was a gift to or from: it shows in their activity and
+        nothing is owed. The caller saves it with the entry; None takes the name off."""
+        for row in self.ob.party_rows(transaction_id=transaction_id):
+            if row.purpose == "gift":
+                self.db.delete(row)
+        self.db.flush()
+        if contact_id is not None:
+            self.ob.add_party(self.contacts.active(contact_id).id, transaction_id, "gift", direction)
+
+    def gift_of(self, transaction_id: UUID) -> UUID | None:
+        """The person an entry was a gift to or from, if it names one."""
+        found = [r for r in self.ob.party_rows(transaction_id=transaction_id) if r.purpose == "gift"]
+        return found[0].contact_id if found else None
 
     def opening_balance(self, contact_id: UUID, data: OpeningBalanceCreate, key: str | None = None) -> TransferRead:
         """What the person already owed before finode: against the system's Opening Balances account, so none of your own
@@ -137,6 +190,7 @@ class TransferService:
             self.ob.add_party(contact.id, entry.id, "opening", "sent" if receivable else "received")
             made = self.ob.add_obligation(contact.id, entry.id, "opening", data.direction, data.amount)
             self.remember(key, entry.id)
+            self.netting.even_out([contact.id])
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -155,6 +209,7 @@ class TransferService:
                 "only a loan or a borrowing can be changed here: change the rest on the person's page!"
             )
         owed = self.ob.obligations(source_transaction_id=transaction_id, lock=lock)
+        self.netting.release([o.id for o in owed])
         if any(self.ob.settled([o.id]).get(o.id) for o in owed):
             raise ConflictError("something was paid back against this: reverse that first!")
         return party[0], owed[0] if owed else None
@@ -199,6 +254,7 @@ class TransferService:
                     obligation.contact_id, obligation.source_type = contact.id, data.purpose
                     obligation.direction, obligation.original_amount = owed, data.amount
                     self.db.add(obligation)
+            self.netting.even_out([contact.id])
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -212,6 +268,7 @@ class TransferService:
         if party is None:
             return False
         self.ob.purge(transaction_id)
+        self.netting.even_out([party.contact_id])
         return True
 
     def update_opening(self, transaction_id: UUID, data: OpeningBalanceUpdate) -> TransferRead:
@@ -223,37 +280,39 @@ class TransferService:
             raise InvalidTransferPurposeError("only an opening balance can be changed: reverse it and record it again!")
         contact = self.contacts.active(party.contact_id)
         obligation = self.ob.obligations(source_transaction_id=transaction_id, lock=True)[0]
-        paid = self.ob.settled([obligation.id]).get(obligation.id, Decimal(0))
         sent = data.model_fields_set
-        direction = data.direction if "direction" in sent and data.direction else obligation.direction
-        amount = data.amount if "amount" in sent and data.amount else obligation.original_amount
-        if paid > 0 and direction != obligation.direction:
-            raise ConflictError("part of this has been paid back: who owes whom can't change!")
-        if amount < paid:
-            raise InsufficientOutstandingBalanceError(
-                f"{paid:f} of this has been paid back: the amount can't go below that!"
-            )
-        ids = self.contacts.account_ids(contact.id)
-        opening = self.accounts.opening_balances_account().id
-        receivable = direction == "receivable"
-        debit, credit = (ids[RECEIVABLE], opening) if receivable else (opening, ids[PAYABLE])
-        changes: dict = {
-            "postings": [
-                PostingCreate(account_id=debit, side=PostingSide.DEBIT, amount=amount),
-                PostingCreate(account_id=credit, side=PostingSide.CREDIT, amount=amount),
-            ]
-        }
-        if "date" in sent and data.date:
-            changes["date"] = data.date
-        if "description" in sent:
-            changes["comment"] = data.description
         try:
+            self.netting.release([obligation.id])
+            paid = self.ob.settled([obligation.id]).get(obligation.id, Decimal(0))
+            direction = data.direction if "direction" in sent and data.direction else obligation.direction
+            amount = data.amount if "amount" in sent and data.amount else obligation.original_amount
+            if paid > 0 and direction != obligation.direction:
+                raise ConflictError("part of this has been paid back: who owes whom can't change!")
+            if amount < paid:
+                raise InsufficientOutstandingBalanceError(
+                    f"{paid:f} of this has been paid back: the amount can't go below that!"
+                )
+            ids = self.contacts.account_ids(contact.id)
+            opening = self.accounts.opening_balances_account().id
+            receivable = direction == "receivable"
+            debit, credit = (ids[RECEIVABLE], opening) if receivable else (opening, ids[PAYABLE])
+            changes: dict = {
+                "postings": [
+                    PostingCreate(account_id=debit, side=PostingSide.DEBIT, amount=amount),
+                    PostingCreate(account_id=credit, side=PostingSide.CREDIT, amount=amount),
+                ]
+            }
+            if "date" in sent and data.date:
+                changes["date"] = data.date
+            if "description" in sent:
+                changes["comment"] = data.description
             entry = self.transactions.update(transaction_id, TransactionUpdate(**changes), commit=False)
             if entry is None:
                 raise InvalidTransferPurposeError("transfer not found!")
             obligation.original_amount, obligation.direction = amount, direction
             party.direction = "sent" if receivable else "received"
             self.db.add_all([obligation, party])
+            self.netting.even_out([contact.id])
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -318,13 +377,15 @@ class TransferService:
     def reverse(self, transaction_id: UUID) -> None:
         """Undo a transfer for good: the entry, the obligation and the activity row go. Refused once anything has been
         settled against what it left owed (reverse that settlement first)."""
-        self._party(transaction_id)
+        party = self._party(transaction_id)
         obligations = self.ob.obligations(source_transaction_id=transaction_id, lock=True)
-        if any(self.ob.settled([o.id]).get(o.id) for o in obligations):
-            raise ReversalBlockedError("something was settled against this: reverse the settlement first!")
         try:
+            self.netting.release([o.id for o in obligations])
+            if any(self.ob.settled([o.id]).get(o.id) for o in obligations):
+                raise ReversalBlockedError("something was settled against this: reverse the settlement first!")
             self.ob.purge(transaction_id)
             self.transactions.delete(transaction_id, commit=False)
+            self.netting.even_out([party.contact_id])
             self.db.commit()
         except Exception:
             self.db.rollback()

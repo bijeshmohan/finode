@@ -57,10 +57,11 @@ def test_borrowing_credits_due_to_and_leaves_a_payable(client, bank, alice):
 def test_an_advance_goes_either_way(client, bank, alice):
     sent = send(client, alice, bank, purpose="advance", amount="100").json()
     got = send(client, alice, bank, direction="received", purpose="advance", amount="40").json()
-    assert balance(client, alice["receivable_account_id"]) == 100 and balance(client, alice["payable_account_id"]) == 40
+    # What Alice put in is evened out against what you put in: she owes you the difference, not 100 and 40 at once.
+    assert balance(client, alice["receivable_account_id"]) == 60 and balance(client, alice["payable_account_id"]) == 0
     assert sent["obligation_id"] and got["obligation_id"]
-    kinds = {o["direction"]: o["source_type"] for o in client.get(f"/api/contacts/{alice['id']}/obligations").json()}
-    assert kinds == {"receivable": "advance", "payable": "advance"}
+    open_ones = client.get(f"/api/contacts/{alice['id']}/obligations", params={"open_only": True}).json()
+    assert [(o["direction"], o["source_type"]) for o in open_ones] == [("receivable", "advance")]
 
 
 def test_a_gift_is_spending_or_income_and_owes_nothing(client, bank, alice):
@@ -148,7 +149,8 @@ def test_an_entry_a_contact_owns_is_not_edited_or_deleted_on_the_ordinary_screen
     refused = client.delete(f"/api/transactions/{loan['id']}")
     assert refused.status_code == 400 and "belongs to a contact" in refused.json()["detail"]
     gift = send(client, alice, bank, purpose="gift", amount="5").json()
-    assert client.delete(f"/api/transactions/{gift['id']}").status_code == 400, "gifts too: they are in the activity"
+    assert client.delete(f"/api/transactions/{gift['id']}").status_code == 204, "a gift is an ordinary entry"
+    assert client.get(f"/api/contacts/{alice['id']}/activity").json()["total"] == 1, "and it left the activity with it"
     assert balance(client, alice["receivable_account_id"]) == 5000
 
 

@@ -619,7 +619,9 @@ def test_a_backup_carries_contacts_and_their_accounts(client, rich):
         restored = {c["name"]: c for c in client.get("/api/contacts/", params={"include_archived": True}).json()}
         assert not restored["Bob"]["archived"] and not restored["Alice"]["archived"]
         due = client.get(f"/api/accounts/{restored['Alice']['receivable_account_id']}").json()
-        assert due["name"] == "Due from Alice" and float(due["balance"]) == 500, "the debt came back with its account"
+        assert due["name"] == "Due from Alice" and float(due["balance"]) == 100, (
+            "the debt came back with its account (what was evened out stays so)"
+        )
         assert client.patch(f"/api/accounts/{due['id']}", json={"name": "x"}).status_code == 400, "still the contact's"
     finally:
         as_user(TEST_USER_ID)

@@ -41,6 +41,7 @@ from .contact_errors import (
     SharedExpenseAlreadyConfirmedError,
     SharedExpenseNotFoundError,
 )
+from .netting import NettingService
 from .splits import split
 from .transaction import TransactionService, decimal_places
 
@@ -84,6 +85,7 @@ class ExpenseSharingService:
         self.ob = ob
         self.er = er
         self.db = er.db
+        self.netting = NettingService.within(contacts, transactions, ob)
 
     # ---- working out a plan ------------------------------------------------------------------------
 
@@ -478,6 +480,7 @@ class ExpenseSharingService:
         if key:
             self.ob.add_request(key, entry.id)
         self.db.flush()
+        self.netting.even_out(p.contact_id for p in plan.people if p.contact_id is not None)
 
     def detach(self, transaction_id: UUID) -> bool:
         """Before a bill shared with people is edited into something else: its shares, payments, activity rows and
@@ -487,10 +490,12 @@ class ExpenseSharingService:
         if expense is None:
             return False
         owed = self.ob.obligations(source_transaction_id=transaction_id, lock=True)
+        self.netting.release([o.id for o in owed])
         if any(self.ob.settled([o.id]).get(o.id) for o in owed):
             raise ReversalBlockedError("something was paid back against this: reverse that first!")
         self.er.delete(expense)
         self.ob.purge(transaction_id)
+        self.netting.even_out(o.contact_id for o in owed)
         return True
 
     def convert(
@@ -549,14 +554,16 @@ class ExpenseSharingService:
         expense = self._get(expense_id, lock=True)
         entry_id = expense.transaction_id
         try:
+            obligations = self.ob.obligations(source_transaction_id=entry_id, lock=True) if entry_id else []
             if entry_id is not None:
-                obligations = self.ob.obligations(source_transaction_id=entry_id, lock=True)
+                self.netting.release([o.id for o in obligations])
                 if any(self.ob.settled([o.id]).get(o.id) for o in obligations):
                     raise ReversalBlockedError("something was settled against this: reverse the settlement first!")
             self.er.delete(expense)
             if entry_id is not None:
                 self.ob.purge(entry_id)
                 self.transactions.delete(entry_id, commit=False)
+                self.netting.even_out(o.contact_id for o in obligations)
             self.db.commit()
         except Exception:
             self.db.rollback()

@@ -53,18 +53,20 @@ def test_the_summary_and_the_activity(client, bank):
         },
     )
     summary = client.get(f"/api/contacts/{alice['id']}/summary").json()
-    assert float(summary["total_receivable"]) == 1800 and float(summary["total_payable"]) == 300
+    # The borrowing was evened out against the loan as soon as it was recorded: nobody is owed both ways.
+    assert float(summary["total_receivable"]) == 1500 and float(summary["total_payable"]) == 0
     assert float(summary["net_balance"]) == 1500
     assert float(summary["total_lent"]) == 2000 and float(summary["total_borrowed"]) == 300
     assert float(summary["total_expenses_shared"]) == 300 and float(summary["total_settlements"]) == 500
-    assert summary["open_obligations"] == 3, "the rest of the loan, the borrowing and Alice's share of the dinner"
-    assert [r["purpose"] for r in summary["recent"]] == ["expense", "settlement", "gift", "borrowing", "loan"]
+    assert summary["open_obligations"] == 2, "the rest of the loan and Alice's share of the dinner"
+    recent = [r["purpose"] for r in summary["recent"]]
+    assert recent[:3] == ["expense", "settlement", "gift"] and set(recent[3:]) == {"netoff", "borrowing"}
     page = client.get(f"/api/contacts/{alice['id']}/activity").json()
-    assert page["total"] == 5 and page["items"][0]["purpose"] == "expense"
+    assert page["total"] == 6 and page["items"][0]["purpose"] == "expense"
     only = client.get(f"/api/contacts/{alice['id']}/activity", params={"purpose": "loan"}).json()
     assert only["total"] == 1 and float(only["items"][0]["amount"]) == 2000 and only["items"][0]["direction"] == "sent"
     two = client.get(f"/api/contacts/{alice['id']}/activity", params={"limit": 2, "offset": 1}).json()
-    assert two["total"] == 5 and [i["purpose"] for i in two["items"]] == ["settlement", "gift"]
+    assert two["total"] == 6 and [i["purpose"] for i in two["items"]] == ["settlement", "gift"]
     assert client.get(f"/api/contacts/{alice['id']}/summary").status_code == 200
     assert client.get(f"/api/contacts/{MISSING}/summary").status_code == 404
     assert client.get(f"/api/contacts/{MISSING}/activity").status_code == 404

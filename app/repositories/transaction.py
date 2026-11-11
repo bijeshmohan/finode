@@ -86,11 +86,14 @@ class TransactionRepository:
         return transaction
 
     def owned_by_contacts(self, transaction_id: UUID) -> bool:
-        """Whether a contact's activity (a loan, a shared expense, a settlement) is built on this entry."""
+        """Whether a contact's activity (a loan, a shared expense, a settlement) is built on this entry. A gift is an
+        ordinary entry that only names the person, so it is not."""
         return (
             self.db.exec(
                 select(PartyTransaction.id).where(
-                    PartyTransaction.user_id == self.uid, PartyTransaction.transaction_id == transaction_id
+                    PartyTransaction.user_id == self.uid,
+                    PartyTransaction.transaction_id == transaction_id,
+                    PartyTransaction.purpose != "gift",
                 )
             ).first()
             is not None
@@ -742,6 +745,12 @@ class TransactionRepository:
             self.db.add(other)
         for posting in self.postings(transaction_id):
             self.db.delete(posting)
+        for link in self.db.exec(  # the person a gift named
+            select(PartyTransaction).where(
+                PartyTransaction.user_id == self.uid, PartyTransaction.transaction_id == transaction_id
+            )
+        ).all():
+            self.db.delete(link)
         self.set_tags(transaction_id, [])
         self.db.delete(transaction)
         self.db.flush()

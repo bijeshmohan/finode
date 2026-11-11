@@ -72,7 +72,7 @@ def test_a_persons_page(client, bank):
     html = page(client, f"/people/{alice['id']}")
     text = flat(html)
     assert "Alice" in text and "99" in text and "a@example.com" in text and "All settled up" in text
-    assert "Settle up" not in text.split("Activity")[0].split("Add expense")[1], "nothing to settle yet"
+    assert "Settle" not in text.split("Activity")[0], "nothing to settle yet"
     assert "Nothing yet with Alice" in text
     client.post(
         f"/api/contacts/{alice['id']}/transfers",
@@ -86,9 +86,10 @@ def test_a_persons_page(client, bank):
     )
     html = page(client, f"/people/{alice['id']}")
     text = flat(html)
-    assert "Alice owes you" in text and "500.00" in text and "Settle up" in text and "Rent help" in text
-    assert f'href="/people/{alice["id"]}/settle?obligation=' in html, "an open amount can be paid off on its own"
-    assert f'href="/transactions/new?mode=split&with={alice["id"]}"' in html
+    assert "Alice owes you" in text and "500.00" in text and "Rent help" in text
+    assert "Settle" in text.split("Activity")[0], "now something is owed"
+    assert "/settle" not in html and "/transfer" not in html, "nothing is recorded on the person's page"
+    assert f"/people/{alice['id']}/entry/" in html, "an open amount opens the entry it came from"
     assert page(client, "/people/00000000-0000-4000-8000-0000000000aa", status=404)
 
 
@@ -114,110 +115,6 @@ def test_editing_removing_and_archiving_a_person(client, bank):
     assert "archived" in page(client, f"/people/{carol['id']}")
     assert client.post(f"/people/{carol['id']}/restore").status_code == 200
     assert "Carol" in page(client, "/people")
-
-
-def test_lending_from_the_page(client, bank):
-    alice = person(client)
-    html = page(client, f"/people/{alice['id']}/transfer")
-    assert "I lent money" in html and "I borrowed money" in html and 'name="account_id"' in html
-    assert f'<option value="{bank["id"]}"' in html and "Due from" not in html, "a contact's accounts are not offered"
-    done = client.post(
-        f"/people/{alice['id']}/transfer",
-        data={
-            "kind": "loan_sent",
-            "amount": "300",
-            "account_id": bank["id"],
-            "date": "2026-10-01",
-            "description": "Cab",
-        },
-    )
-    assert done.status_code == 200 and done.headers["HX-Redirect"] == f"/people/{alice['id']}"
-    assert float(client.get(f"/api/contacts/{alice['id']}").json()["net"]) == 300
-    treat = category(client, "Treats")
-    gift = client.post(
-        f"/people/{alice['id']}/transfer",
-        data={"kind": "gift_sent", "amount": "50", "account_id": bank["id"], "spending_category_id": treat["id"]},
-    )
-    assert gift.status_code == 200
-    assert client.get("/api/reports/breakdown").json()["lines"][0]["account"] == "Treats"
-    for data in (
-        {"kind": "", "amount": "5", "account_id": bank["id"]},
-        {"kind": "loan_sent", "amount": "x", "account_id": bank["id"]},
-        {"kind": "loan_sent", "amount": "5", "account_id": ""},
-    ):
-        bad = client.post(f"/people/{alice['id']}/transfer", data=data)
-        assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#form-error", data
-
-
-def test_settling_up_from_the_page(client, bank):
-    alice = person(client)
-    client.post(
-        f"/api/contacts/{alice['id']}/transfers",
-        json={
-            "direction": "sent",
-            "purpose": "loan",
-            "amount": "500",
-            "account_id": bank["id"],
-            "description": "Rent help",
-        },
-    )
-    html = page(client, f"/people/{alice['id']}/settle")
-    assert 'value="500.00"' in html and "Alice pays you" in html and 'hx-post="/people/' in html
-    preview = client.post(
-        f"/people/{alice['id']}/settle/preview",
-        data={"direction": "received", "amount": "200", "account_id": bank["id"]},
-    )
-    text = flat(preview.text)
-    assert "Rent help" in text and "200.00" in text and "300.00 left" in text
-    more = flat(
-        client.post(
-            f"/people/{alice['id']}/settle/preview",
-            data={"direction": "received", "amount": "800", "account_id": bank["id"]},
-        ).text
-    )
-    assert "300.00 is more than is owed" in more and "They lent me this" in more
-    assert "Nothing" not in flat(
-        client.post(
-            f"/people/{alice['id']}/settle/preview", data={"direction": "received", "amount": "", "account_id": ""}
-        ).text
-    )
-    refused = client.post(
-        f"/people/{alice['id']}/settle", data={"direction": "received", "amount": "800", "account_id": bank["id"]}
-    )
-    assert refused.status_code == 400 and "say what the rest is" in refused.text
-    done = client.post(
-        f"/people/{alice['id']}/settle",
-        data={"direction": "received", "amount": "800", "account_id": bank["id"], "excess_as": "borrowing"},
-    )
-    assert done.status_code == 200 and done.headers["HX-Redirect"] == f"/people/{alice['id']}"
-    now = client.get(f"/api/contacts/{alice['id']}").json()
-    assert float(now["receivable"]) == 0 and float(now["payable"]) == 300
-
-
-def test_paying_off_one_open_amount(client, bank):
-    alice = person(client)
-    first = client.post(
-        f"/api/contacts/{alice['id']}/transfers",
-        json={"direction": "sent", "purpose": "loan", "amount": "500", "account_id": bank["id"], "date": "2026-10-01"},
-    ).json()
-    client.post(
-        f"/api/contacts/{alice['id']}/transfers",
-        json={"direction": "sent", "purpose": "loan", "amount": "100", "account_id": bank["id"], "date": "2026-09-01"},
-    )
-    html = page(client, f"/people/{alice['id']}/settle", obligation=first["obligation_id"])
-    assert f'name="obligation_id" value="{first["obligation_id"]}"' in html and 'value="500.00"' in html
-    done = client.post(
-        f"/people/{alice['id']}/settle",
-        data={
-            "direction": "received",
-            "amount": "500",
-            "account_id": bank["id"],
-            "obligation_id": first["obligation_id"],
-        },
-    )
-    assert done.status_code == 200
-    left = client.get(f"/api/contacts/{alice['id']}/obligations", params={"open_only": True}).json()
-    assert [float(o["outstanding_amount"]) for o in left] == [100.0], "the older one was left alone"
 
 
 def test_the_activity_and_undoing_an_entry(client, bank):
@@ -294,7 +191,7 @@ def test_an_entry_made_through_a_person_is_looked_after_on_their_page(client, ba
         json={"direction": "sent", "purpose": "gift", "amount": "5", "account_id": bank["id"]},
     ).json()
     gift_sheet = page(client, f"/transactions/{gift['id']}/sheet")
-    assert "Open Alice" in gift_sheet and "/edit" not in gift_sheet
+    assert "Open Alice" not in gift_sheet and "/edit" in gift_sheet, "a gift is an ordinary entry"
     ordinary = client.post(
         "/api/transactions/",
         json={
@@ -330,7 +227,11 @@ def test_a_transfer_to_or_from_a_person_on_the_add_screen(client, bank):
         data={"account": [alice["id"], bank["id"]], "side": ["credit", "debit"], "amount": ["50", "50"]},
     )
     assert borrow.status_code == 200
-    assert float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 50
+    now = client.get(f"/api/contacts/{alice['id']}").json()
+    assert (float(now["receivable"]), float(now["payable"])) == (250, 0), (
+        "money from someone who owes you pays that back"
+    )
+    assert client.get(f"/api/contacts/{alice['id']}/activity", params={"purpose": "settlement"}).json()["total"] == 1
     assert float(next(a for a in client.get("/api/accounts/").json() if a["name"] == "HDFC")["balance"]) == 9750
 
 
@@ -606,14 +507,13 @@ def test_nothing_changes_once_something_was_paid_back_or_if_the_edit_fails(clien
 
 def test_only_a_loan_or_a_borrowing_is_edited_this_way(client, bank):
     alice = person(client)
-    gift = client.post(
-        f"/api/contacts/{alice['id']}/transfers",
-        json={"direction": "sent", "purpose": "gift", "amount": "5", "account_id": bank["id"]},
+    opening = client.post(
+        f"/api/contacts/{alice['id']}/opening-balance", json={"direction": "receivable", "amount": "5"}
     ).json()
-    moved = client.get(f"/transactions/{gift['id']}/edit", follow_redirects=False)
+    moved = client.get(f"/transactions/{opening['id']}/edit", follow_redirects=False)
     assert moved.status_code == 303 and moved.headers["location"] == f"/people/{alice['id']}"
     entry, _ = ordinary_expense(client, bank)
-    refused = client.post(f"/transactions/{gift['id']}/edit", data=rows(bank, alice))
+    refused = client.post(f"/transactions/{opening['id']}/edit", data=rows(bank, alice))
     assert refused.status_code == 400 and "only a loan, a borrowing, or a bill or income" in refused.text
     uneven = client.post(f"/transactions/{entry['id']}/edit", data={**rows(bank, alice), "amount": ["300", "200"]})
     assert uneven.status_code == 400 and "same on both sides" in uneven.text
@@ -621,60 +521,6 @@ def test_only_a_loan_or_a_borrowing_is_edited_this_way(client, bank):
         client.get(f"/api/transactions/{entry['id']}").json()["postings"][0]["account_id"]
         != alice["receivable_account_id"]
     )
-
-
-def both_ways(client, bank, alice, loan="23000", borrowed="23000"):
-    for direction, purpose, amount in (("sent", "loan", loan), ("received", "borrowing", borrowed)):
-        client.post(
-            f"/api/contacts/{alice['id']}/transfers",
-            json={"direction": direction, "purpose": purpose, "amount": amount, "account_id": bank["id"]},
-        )
-
-
-def test_the_list_says_even_instead_of_a_black_amount(client, bank):
-    alice = person(client)
-    both_ways(client, bank, alice)
-    html = page(client, "/people")
-    assert "Even · 23,000.00 each way" in flat(html)
-    row = html.split('href="/people/')[1].split("</a>")[0]
-    assert "23,000.00 each way" in flat(row) and "crow-amt" in row and "–" in row
-    assert 'class="income"' not in row and "out-amount" not in row
-
-
-def test_netting_off_from_the_persons_page(client, bank):
-    alice = person(client)
-    both_ways(client, bank, alice, borrowed="12000")
-    html = page(client, f"/people/{alice['id']}")
-    assert f'href="/people/{alice["id"]}/netoff"' in html and "Net off 12,000.00" in flat(html)
-    form = flat(page(client, f"/people/{alice['id']}/netoff"))
-    assert (
-        "Alice owes you 23,000.00" in form
-        and "you owe Alice 12,000.00" in form
-        and "Alice still owes you 11,000.00" in form
-    )
-    assert "Net off 12,000.00" in form
-    done = client.post(f"/people/{alice['id']}/netoff")
-    assert done.status_code == 200 and done.headers["HX-Redirect"] == f"/people/{alice['id']}"
-    now = client.get(f"/api/contacts/{alice['id']}").json()
-    assert (float(now["receivable"]), float(now["payable"])) == (11000, 0)
-    assert "/netoff" not in page(client, f"/people/{alice['id']}"), "only while it is owed both ways"
-    assert client.get(f"/people/{alice['id']}/netoff", follow_redirects=False).status_code == 303
-    again = client.post(f"/people/{alice['id']}/netoff")
-    assert again.status_code == 400 and again.headers["HX-Retarget"] == "#form-error"
-
-
-def test_a_net_off_is_in_the_activity_and_can_be_reversed(client, bank):
-    alice = person(client)
-    both_ways(client, bank, alice, borrowed="100")
-    client.post(f"/people/{alice['id']}/netoff")
-    entry = client.get(f"/api/contacts/{alice['id']}/activity", params={"purpose": "netoff"}).json()["items"][0][
-        "transaction_id"
-    ]
-    assert "Net off" in page(client, f"/people/{alice['id']}") and "Net off" in page(
-        client, f"/people/{alice['id']}/entry/{entry}/sheet"
-    )
-    assert client.post(f"/people/{alice['id']}/entry/{entry}/reverse").status_code == 200
-    assert float(client.get(f"/api/contacts/{alice['id']}").json()["payable"]) == 100
 
 
 def converted_bill(client, bank, alice, bob):
@@ -1091,7 +937,7 @@ def test_shared_income_shows_on_the_persons_page_and_can_be_reversed_there(clien
     assert earned(client) == 0
 
 
-def test_a_transfer_in_share_needs_a_person(client, bank, root_accounts):
+def test_a_transfer_with_a_person_is_a_loan_whatever_the_mode_says(client, bank, root_accounts):
     alice = person(client)
     cash = client.post("/api/accounts/", json={"name": "Cash", "parent_id": root_accounts["Assets"]}).json()
     plain = {
@@ -1102,8 +948,6 @@ def test_a_transfer_in_share_needs_a_person(client, bank, root_accounts):
         "side": ["credit", "debit"],
         "amount": ["300", "300"],
     }
-    refused = client.post("/transactions/split", data=plain)
-    assert refused.status_code == 400 and "person" in refused.text
     lent = client.post("/transactions/split", data={**plain, "account": [bank["id"], alice["id"]]})
     assert lent.status_code == 200, lent.text
     assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 300
