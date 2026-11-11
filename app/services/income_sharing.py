@@ -32,6 +32,7 @@ from .contact_errors import (
     ReversalBlockedError,
     SharedIncomeNotFoundError,
 )
+from .netting import NettingService
 from .transaction import TransactionService, decimal_places
 
 ZERO = Decimal(0)
@@ -44,6 +45,7 @@ class IncomeSharingService:
         self.transactions = transactions  # made with contacts=True
         self.ob = ob
         self.db = ob.db
+        self.netting = NettingService.within(contacts, transactions, ob)
 
     # ---- working out the entry ---------------------------------------------------------------------
 
@@ -216,6 +218,7 @@ class IncomeSharingService:
         if key:
             self.ob.add_request(key, entry.id)
         self.db.flush()
+        self.netting.even_out(part.contact_id for part in (*data.theirs, *data.received_by))
         return entry.id
 
     def create(
@@ -247,9 +250,11 @@ class IncomeSharingService:
         if not party or {r.purpose for r in party} != {"income"}:
             return False
         owed = self.ob.obligations(source_transaction_id=transaction_id, lock=True)
+        self.netting.release([o.id for o in owed])
         if any(self.ob.settled([o.id]).get(o.id) for o in owed):
             raise ReversalBlockedError("something was paid back against this: reverse that first!")
         self.ob.purge(transaction_id)
+        self.netting.even_out(o.contact_id for o in owed)
         return True
 
     def convert(

@@ -807,6 +807,7 @@ button.chip {
   color: var(--text); background: var(--surface); border: 1px solid var(--border);
 }
 @media (hover: hover) { button.chip:hover { background: var(--surface-2); } }
+button.chip.link-person { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 button.chip[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
 
 .segmented.kinds { gap: 4px; padding: 3px; background: var(--surface-2); border-radius: 999px; }
@@ -1700,11 +1701,6 @@ body.bare .brand-title img { width: 44px; height: 44px; border-radius: 11px; }
 .out-amount { color: var(--negative); }
 .person-actions { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: .5rem; margin: .75rem 0 1rem; }
 .person-actions .button { min-width: 0; padding-inline: .4rem; font-size: .9rem; text-align: center; white-space: nowrap; }
-.kind-list label.r { cursor: pointer; }
-.kind-list label.r input { margin: 0 0 0 auto; flex: none; }
-.person-form [data-gift] { display: none; }
-.person-form:has(input[value="gift_sent"]:checked) [data-gift="sent"],
-.person-form:has(input[value="gift_received"]:checked) [data-gift="received"] { display: flex; }
 /* A row that is also a label: the form's labels stack, these sit in a line. */
 .person-form label.r { flex-direction: row; align-items: center; gap: .75rem; color: inherit; font-size: inherit; font-weight: inherit; }
 .share-row { display: flex; align-items: center; gap: .75rem; }

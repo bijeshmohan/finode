@@ -5,7 +5,7 @@
   {% if allow_new %}<option value="__new__">+ New account…</option>{% endif %}
   {% for root, options in groups %}
   <optgroup label="{{ root }}">
-    {% for o in options %}<option value="{{ o.id }}" data-budget="{{ 1 if o.budget else 0 }}"{% if root in ("Assets", "Liabilities") %} data-balance="{{ o.balance|money }}"{% endif %}{% if root == "People" %} data-person="1"{% endif %} {{ "selected" if o.id == selected }}>{{ o.label }}</option>{% endfor %}
+    {% for o in options %}<option value="{{ o.id }}" data-budget="{{ 1 if o.budget else 0 }}"{% if root in ("Assets", "Liabilities") %} data-balance="{{ o.balance|money }}"{% endif %}{% if root == "People" %} data-person="1" data-owes="{{ o.balance }}"{% endif %} {{ "selected" if o.id == selected }}>{{ o.label }}</option>{% endfor %}
   </optgroup>
   {% endfor %}
 {%- endmacro %}

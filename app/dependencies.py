@@ -36,7 +36,6 @@ from .services.contact_summary import ContactSummaryService
 from .services.erase import EraseService
 from .services.expense_sharing import ExpenseSharingService
 from .services.income_sharing import IncomeSharingService
-from .services.netting import NettingService
 from .services.oauth_grant import OAuthGrantService
 from .services.obligation import ObligationService
 from .services.settlement import SettlementService
@@ -123,12 +122,24 @@ def get_contact_transactions(
     return TransactionService(tr, ar, pr, origin=origin, contacts=True)
 
 
+def get_settlement_service(
+    contacts: ContactService = Depends(get_contact_service),
+    transactions: TransactionService = Depends(get_contact_transactions),
+    ob: ObligationRepository = Depends(get_obligation_repository),
+    obligations: ObligationService = Depends(get_obligation_service),
+    db: Session = Depends(get_db_session),
+    user: CurrentUser = Depends(require_authenticated_user),
+) -> SettlementService:
+    return SettlementService(contacts, transactions, ob, obligations, SharedExpenseRepository(db, user.id))
+
+
 def get_transfer_service(
     contacts: ContactService = Depends(get_contact_service),
     transactions: TransactionService = Depends(get_contact_transactions),
     ob: ObligationRepository = Depends(get_obligation_repository),
+    settlements: SettlementService = Depends(get_settlement_service),
 ) -> TransferService:
-    return TransferService(contacts, transactions, ob)
+    return TransferService(contacts, transactions, ob, settlements)
 
 
 def get_expense_sharing_service(
@@ -149,17 +160,6 @@ def get_income_sharing_service(
     return IncomeSharingService(contacts, transactions, ob)
 
 
-def get_settlement_service(
-    contacts: ContactService = Depends(get_contact_service),
-    transactions: TransactionService = Depends(get_contact_transactions),
-    ob: ObligationRepository = Depends(get_obligation_repository),
-    obligations: ObligationService = Depends(get_obligation_service),
-    db: Session = Depends(get_db_session),
-    user: CurrentUser = Depends(require_authenticated_user),
-) -> SettlementService:
-    return SettlementService(contacts, transactions, ob, obligations, SharedExpenseRepository(db, user.id))
-
-
 def get_contact_summary_service(
     contacts: ContactService = Depends(get_contact_service),
     tr: TransactionRepository = Depends(get_transaction_repository),
@@ -168,15 +168,6 @@ def get_contact_summary_service(
     user: CurrentUser = Depends(require_authenticated_user),
 ) -> ContactSummaryService:
     return ContactSummaryService(contacts, tr, ob, SharedExpenseRepository(db, user.id))
-
-
-def get_netting_service(
-    contacts: ContactService = Depends(get_contact_service),
-    transactions: TransactionService = Depends(get_contact_transactions),
-    ob: ObligationRepository = Depends(get_obligation_repository),
-    obligations: ObligationService = Depends(get_obligation_service),
-) -> NettingService:
-    return NettingService(contacts, transactions, ob, obligations)
 
 
 def get_profile_service(
@@ -287,7 +278,6 @@ Accounts = Annotated[AccountService, Depends(get_account_service)]
 Categories = Annotated[CategoryService, Depends(get_category_service)]
 ContactSummaries = Annotated[ContactSummaryService, Depends(get_contact_summary_service)]
 Contacts = Annotated[ContactService, Depends(get_contact_service)]
-NetOffs = Annotated[NettingService, Depends(get_netting_service)]
 Obligations = Annotated[ObligationService, Depends(get_obligation_service)]
 Settlements = Annotated[SettlementService, Depends(get_settlement_service)]
 SharedExpenses = Annotated[ExpenseSharingService, Depends(get_expense_sharing_service)]

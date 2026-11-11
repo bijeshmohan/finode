@@ -1,10 +1,10 @@
-"""People in a real browser: adding someone, lending, sharing a bill with the live result, settling up and undoing."""
+"""People in a real browser: adding someone, the pills that open the new screen, the note under the form, sharing a bill with the live result and undoing."""
 
 import re
 
 from playwright.sync_api import Page, expect
 
-from .conftest import Api, row_button
+from .conftest import Api, add_row, row_button
 
 
 def alice_of(api: Api, name: str = "Alice") -> dict:
@@ -19,12 +19,12 @@ def test_add_a_person_and_lend_them_money(page: Page, books, api: Api):
     page.wait_for_url("**/people/*")
     expect(page.locator("h1")).to_have_text("Alice")
     expect(page.get_by_text("All settled up")).to_be_visible()
-    page.get_by_role("link", name="Lend or borrow").click()
-    page.locator('input[name="amount"]').fill("500")
-    page.locator(".field-pick").first.click()
-    page.locator("#row-picker [data-pick-option]", has_text="Checking").first.click()
-    expect(page.locator(".field-pick").first).to_have_text("Checking")
-    page.get_by_role("button", name="Record").click()
+    page.get_by_role("link", name="Lend", exact=True).click()
+    page.locator('input[name="total"]').fill("500")
+    expect(row_button(page, "debit")).to_contain_text("Alice")  # the pill filled the person in
+    add_row(page, "credit", "Checking")
+    expect(page.locator("[data-person-note]")).to_contain_text("Alice will owe you this")
+    page.get_by_role("button", name="Save").click()
     page.wait_for_url("**/people/*")
     expect(page.get_by_text("Alice owes you")).to_be_visible()
     expect(page.locator(".hero-balance")).to_contain_text("500.00")
@@ -32,44 +32,57 @@ def test_add_a_person_and_lend_them_money(page: Page, books, api: Api):
     assert float(next(a for a in api.get("/accounts/") if a["name"] == "Checking")["balance"]) == 4500
 
 
-def test_a_gift_asks_for_a_category_only_when_it_is_a_gift(page: Page, books, api: Api):
+def test_settle_opens_the_new_screen_with_what_is_owed_and_the_note_follows_the_amount(page: Page, books, api: Api):
     who = alice_of(api)
-    page.goto(f"/people/{who['id']}/transfer")
-    expect(page.locator('[data-gift="sent"]')).to_be_hidden()
-    page.get_by_text("I gave a gift").click()
-    expect(page.locator('[data-gift="sent"]')).to_be_visible()
-    expect(page.locator('[data-gift="received"]')).to_be_hidden()
-    page.get_by_text("They gave me a gift").click()
-    expect(page.locator('[data-gift="received"]')).to_be_visible()
-    page.get_by_text("I lent money").click()
-    expect(page.locator('[data-gift="received"]')).to_be_hidden()
-
-
-def test_settling_up_shows_what_it_clears_and_asks_about_the_rest(page: Page, books, api: Api):
-    who = alice_of(api)
-    checking = books["checking"]["id"]
     api.post(
         f"/contacts/{who['id']}/transfers",
         direction="sent",
         purpose="loan",
         amount="500",
-        account_id=checking,
-        description="Rent help",
+        account_id=books["checking"]["id"],
     )
-    page.goto(f"/people/{who['id']}/settle")
-    page.locator(".field-pick").first.click()
-    page.locator("#row-picker [data-pick-option]", has_text="Checking").first.click()
-    page.locator('input[name="amount"]').fill("200")
-    expect(page.locator("#settle-preview")).to_contain_text("Rent help")
-    expect(page.locator("#settle-preview")).to_contain_text("300.00 left")
-    page.locator('input[name="amount"]').fill("800")
-    expect(page.locator("#settle-preview")).to_contain_text("is more than is owed")
-    page.get_by_role("button", name="Settle up").click()
-    expect(page.locator("#form-error")).to_contain_text("say what the rest is")
-    page.get_by_text("A gift").click()
-    page.get_by_role("button", name="Settle up").click()
+    page.goto(f"/people/{who['id']}")
+    page.get_by_role("link", name="Settle", exact=True).click()
+    page.wait_for_url("**/transactions/new**")
+    expect(page.locator('input[name="total"]')).to_have_value("500.00")
+    expect(row_button(page, "credit")).to_contain_text("Alice")  # they pay you back
+    expect(page.locator("[data-person-note]")).to_contain_text("Alice pays back in full")
+    page.locator('input[name="total"]').fill("200")
+    expect(page.locator("[data-person-note]")).to_contain_text("Alice pays back 200.00 of the 500.00")
+    page.locator('input[name="total"]').fill("800")
+    expect(page.locator("[data-person-note]")).to_contain_text("The other 300.00 is borrowed")
+    add_row(page, "debit", "Checking")
+    page.get_by_role("button", name="Save").click()
     page.wait_for_url(f"**/people/{who['id']}")
-    expect(page.get_by_text("All settled up")).to_be_visible()
+    expect(page.get_by_text("You owe Alice")).to_be_visible()
+    expect(page.locator(".hero-balance")).to_contain_text("300.00")
+
+
+def test_an_at_sign_in_the_payee_names_a_person_and_typing_over_it_takes_them_off(page: Page, books, api: Api):
+    who = alice_of(api)
+    page.goto("/transactions/new")
+    page.locator('input[name="payee"]').fill("@Al")
+    page.locator("#payee-chips .chip", has_text="Alice").click()
+    expect(page.locator('input[name="payee"]')).to_have_value("Alice")
+    expect(page.locator("[data-payee-person]")).to_contain_text("Saved in Alice's activity")
+    page.locator('input[name="payee"]').press("End")
+    page.locator('input[name="payee"]').type("x")
+    expect(page.locator("[data-payee-person]")).to_be_hidden()
+    page.locator('input[name="payee"]').fill("@Al")
+    page.locator("#payee-chips .chip", has_text="Alice").click()
+    page.locator('input[name="total"]').fill("250")
+    add_row(page, "credit", "Checking")
+    add_row(page, "debit", "Groceries")
+    page.get_by_role("button", name="Transfer", exact=True).click()
+    expect(page.locator("[data-payee-person]")).to_be_hidden()  # only an expense or an income can name a person
+    page.get_by_role("button", name="Expense", exact=True).click()
+    page.locator('input[name="payee"]').fill("@A")
+    page.locator("#payee-chips .chip", has_text="Alice").click()
+    add_row(page, "debit", "Groceries")
+    page.get_by_role("button", name="Save").click()
+    page.wait_for_url("**/transactions")
+    gifts = api.get(f"/contacts/{who['id']}/activity?purpose=gift")
+    assert gifts["total"] == 1 and float(api.get(f"/contacts/{who['id']}")["net"]) == 0
 
 
 def test_reversing_an_entry_asks_first(page: Page, books, api: Api):
@@ -97,8 +110,6 @@ def test_reversing_an_entry_asks_first(page: Page, books, api: Api):
 
 
 def test_lending_from_the_add_screen_with_a_transfer(page: Page, books, api: Api):
-    from .conftest import add_row
-
     who = alice_of(api)
     page.goto("/transactions/new")
     page.locator('input[name="total"]').fill("300")
@@ -108,11 +119,8 @@ def test_lending_from_the_add_screen_with_a_transfer(page: Page, books, api: Api
     expect(page.locator("#row-picker [data-pick-option]", has_text="Alice")).to_have_count(0)
     page.keyboard.press("Escape")
     page.get_by_role("button", name="Transfer").click()
-    # People are offered on a transfer only in Split.
-    row_button(page, "debit").click()
-    expect(page.locator("#row-picker [data-pick-option]", has_text="Alice")).to_have_count(0)
-    page.keyboard.press("Escape")
-    page.locator("[data-modes]").get_by_text("Split", exact=True).click()
+    # People are offered on a transfer, with no Split to choose.
+    expect(page.locator("[data-modes]")).to_be_hidden()
     add_row(page, "credit", "Checking")
     add_row(page, "debit", "Alice")
     expect(page.locator("[data-person-note]")).to_contain_text("Alice will owe you this")
@@ -156,16 +164,9 @@ def test_the_figures_carry_the_rupee_sign_and_the_page_has_no_stray_wrapping(pag
     page.goto(f"/people/{who['id']}")
     expect(page.locator(".hero-balance")).to_contain_text("₹")
     buttons = page.locator(".person-actions .button")
-    assert buttons.count() == 3
-    tops = {round(buttons.nth(i).bounding_box()["y"]) for i in range(3)}
-    assert len(tops) == 1, "Add expense, Lend or borrow and Settle up are on one row"
-    page.goto(f"/people/{who['id']}/settle")
-    label = page.locator("label", has_text="Note").first
-    assert label.bounding_box()["height"] < 80, "the label's '(optional)' stays beside it, not under it"
-    page.locator('input[name="amount"]').fill("100")
-    heading = page.locator(".preview-head").first
-    expect(heading).to_be_visible()
-    assert heading.evaluate("e => getComputedStyle(e).textTransform") == "none"
+    assert buttons.count() == 4
+    tops = {round(buttons.nth(i).bounding_box()["y"]) for i in range(4)}
+    assert len(tops) == 1, "Expense, Lend, Borrow and Settle are on one row"
 
 
 def test_an_opening_balance_can_be_edited_from_its_sheet(page: Page, books, api: Api):
@@ -193,7 +194,6 @@ def test_an_expense_can_be_edited_into_a_loan_and_back(page: Page, books, api: A
     )
     page.goto(f"/transactions/{entry['id']}/edit")
     page.get_by_role("button", name="Transfer", exact=True).click()
-    page.locator("[data-modes]").get_by_text("Split", exact=True).click()
     row_button(page, "debit").click()
     page.locator("#row-picker [data-pick-option]", has_text="Alice").first.click()
     expect(page.locator("[data-person-note]")).to_contain_text("Alice will owe you this")
@@ -210,7 +210,7 @@ def test_an_expense_can_be_edited_into_a_loan_and_back(page: Page, books, api: A
     assert float(api.get(f"/contacts/{who['id']}")["net"]) == 0
 
 
-def test_netting_off_what_two_people_owe_each_other(page: Page, books, api: Api):
+def test_what_two_people_owe_each_other_evens_out_by_itself(page: Page, books, api: Api):
     who = alice_of(api)
     checking = books["checking"]["id"]
     api.post(f"/contacts/{who['id']}/transfers", direction="sent", purpose="loan", amount="23000", account_id=checking)
@@ -222,14 +222,10 @@ def test_netting_off_what_two_people_owe_each_other(page: Page, books, api: Api)
         account_id=checking,
     )
     page.goto("/people")
-    expect(page.locator("a.crow").first).to_contain_text("Even · 23,000.00 each way")
+    expect(page.locator("a.crow").first).not_to_contain_text("each way")
     page.locator("a.crow").first.click()
-    page.get_by_role("link", name="Net off 23,000.00").click()
-    expect(page.locator("main")).to_contain_text("Afterwards neither owes the other anything")
-    page.get_by_role("button", name="Net off 23,000.00").click()
-    page.wait_for_url(f"**/people/{who['id']}")
     expect(page.get_by_text("All settled up")).to_be_visible()
-    expect(page.locator('a[href$="/netoff"]')).to_have_count(0)
+    expect(page.locator("main")).to_contain_text("Evened out")
 
 
 def add_people(page: Page, *names: str, kind: str = "expense") -> None:
@@ -262,15 +258,13 @@ def test_the_two_ways_show_and_hide_what_they_should(page: Page, books, api: Api
     expect(page.locator('[data-people-editor="income"]')).to_be_visible()  # Split stays, with the income's own tab
     expect(page.locator('[data-people-editor="expense"]')).to_be_hidden()
     page.get_by_role("button", name="Transfer", exact=True).click()
-    expect(modes).to_be_visible()
+    expect(modes).to_be_hidden()  # a transfer has no Split: people are simply on its rows
     expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "simple")  # back to the rows
     expect(page.locator("[data-people-editor]")).to_have_count(2)
     expect(page.locator('[data-people-editor="income"]')).to_be_hidden()
     expect(page.locator('[data-side-section="credit"]')).to_be_visible()
-    modes.get_by_text("Split", exact=True).click()
-    expect(page.locator('[data-people-editor="expense"]')).to_be_hidden()  # a transfer in Split keeps its rows
-    expect(page.locator('[data-side-section="credit"]')).to_be_visible()
     page.get_by_role("button", name="Expense", exact=True).click()
+    expect(modes).to_be_visible()
     expect(page.locator("form[data-txn-form]")).to_have_attribute("data-mode", "simple")
 
 

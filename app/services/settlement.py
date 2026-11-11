@@ -37,6 +37,7 @@ from .contact_errors import (
     ObligationNotFoundError,
     ReversalBlockedError,
 )
+from .netting import NettingService
 from .obligation import ObligationService, outstanding
 from .transaction import TransactionService
 
@@ -76,6 +77,7 @@ class SettlementService:
         self.obligations = obligations
         self.expenses = expenses
         self.db = ob.db
+        self.netting = NettingService(contacts, transactions, ob, obligations)
 
     # ---- working out what is cleared ---------------------------------------------------------------
 
@@ -261,6 +263,7 @@ class SettlementService:
                 self.ob.add_obligation(contact.id, entry.id, data.excess_as, owed, plan.excess)
             if key:
                 self.ob.add_request(key, entry.id)
+            self.netting.even_out([contact.id])
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -361,13 +364,15 @@ class SettlementService:
     def reverse(self, transaction_id: UUID) -> None:
         """Undo a settlement for good: the obligations it cleared are owed again. Refused once what its excess left owed
         has been settled in turn."""
-        self._party(transaction_id)
+        party = self._party(transaction_id)
         made = self.ob.obligations(source_transaction_id=transaction_id, lock=True)
-        if any(self.ob.settled([o.id]).get(o.id) for o in made):
-            raise ReversalBlockedError("something was settled against what this left over: reverse that first!")
         try:
+            self.netting.release([o.id for o in made])
+            if any(self.ob.settled([o.id]).get(o.id) for o in made):
+                raise ReversalBlockedError("something was settled against what this left over: reverse that first!")
             self.ob.purge(transaction_id)
             self.transactions.delete(transaction_id, commit=False)
+            self.netting.even_out([party.contact_id])
             self.db.commit()
         except Exception:
             self.db.rollback()

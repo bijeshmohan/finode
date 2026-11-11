@@ -1,11 +1,14 @@
-{#- The payee field with the chips of people you pay (names only). They appear only while the person types (/transactions/suggest answers nothing for an empty field) and go when one is chosen. -#}
+{#- The payee field with the chips of people you pay (names only). They appear only while the person types (/transactions/suggest answers nothing for an empty field) and go when one is chosen. Typing "@" lists your people instead: choosing one names them on the entry (a gift, or anything else with no debt). -#}
 <div class="payee-field">
   <label class="payee-label">Payee
     <input type="text" id="payee" name="payee" maxlength="40" placeholder="Payee or Merchant?" autocomplete="off" autocapitalize="words"
            value="{{ payee_value if payee_value is defined else ((transaction.payee or '') if editing else (new_payee or '')) }}">
   </label>
-  {% if not editing %}
-  <div class="chips" id="payee-chips" role="group" aria-label="People you pay" hx-get="/transactions/suggest"
+  <input type="hidden" name="payee_contact" value="{{ payee_person.id if payee_person }}" data-payee-contact>
+  <div class="related-chip" data-payee-person data-name="{{ payee_person.name if payee_person }}"{% if not payee_person %} hidden{% endif %}>
+    <span><small>Saved in <b data-payee-person-name>{{ payee_person.name if payee_person }}</b>'s activity. Nothing is owed.</small></span>
+    <button type="button" class="link" data-payee-unlink aria-label="Take the person off">✕</button>
+  </div>
+  <div class="chips" id="payee-chips" role="group" aria-label="People you pay" hx-get="/transactions/suggest{{ '?only=people' if editing }}"
        hx-trigger="input changed delay:150ms from:#payee" hx-include="#payee" hx-swap="innerHTML"></div>
-  {% endif %}
 </div>

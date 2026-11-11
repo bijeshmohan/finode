@@ -97,7 +97,7 @@ def test_the_chips_are_html_escaped(client, books):
     assert "<b>x</b>" not in html and "&lt;b&gt;" in html
 
 
-def test_the_add_page_asks_for_chips_as_you_type_not_on_load_and_edit_has_none(client, books):
+def test_the_add_page_asks_for_chips_as_you_type_not_on_load_and_edit_offers_only_people(client, books):
     pay(client, "Swiggy", books["hdfc"], books["delivery"])
     page = client.get("/transactions/new").text
     assert 'id="payee-chips"' in page and 'hx-get="/transactions/suggest"' in page
@@ -105,7 +105,9 @@ def test_the_add_page_asks_for_chips_as_you_type_not_on_load_and_edit_has_none(c
         "nothing is asked for before the person types"
     )
     transaction_id = client.get("/api/transactions/").json()[0]["id"]
-    assert 'id="payee-chips"' not in client.get(f"/transactions/{transaction_id}/edit").text
+    edit = client.get(f"/transactions/{transaction_id}/edit").text
+    assert 'hx-get="/transactions/suggest?only=people"' in edit, "editing offers people after an @, never payee names"
+    assert client.get("/transactions/suggest", params={"payee": "sw", "only": "people"}).text.strip() == ""
 
 
 def test_the_form_starts_with_no_account_chosen_however_often_you_pay_from_one(client, books):

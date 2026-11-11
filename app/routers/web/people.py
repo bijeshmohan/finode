@@ -12,16 +12,13 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
 from ...clock import local_today
 from ...dependencies import (
     Accounts,
-    Categories,
     Contacts,
     ContactSummaries,
-    NetOffs,
     Obligations,
     Settlements,
     SharedExpenses,
@@ -29,15 +26,12 @@ from ...dependencies import (
     Transfers,
 )
 from ...schemas.contact import (
-    AllocationIn,
     ContactCreate,
     ContactRead,
     ContactUpdate,
     ObligationRead,
     OpeningBalanceCreate,
     OpeningBalanceUpdate,
-    SettlementCreate,
-    TransferCreate,
 )
 from ...schemas.shared_expense import (
     ContributionIn,
@@ -46,27 +40,12 @@ from ...schemas.shared_expense import (
     SharedExpenseCreate,
 )
 from ...schemas.shared_income import IncomeDepositIn, IncomePartIn, SharedIncomeCreate
-from ...services.contact_errors import ContactNotFoundError
 from ...templating import grouping_for, money, templates
 from .accounts import build_tree, posting_groups, without_contacts
-from .categories import category_tree
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
 
 router = APIRouter(prefix="/people")
 
-# The six things money can be between two people: (key, direction, purpose, what it is called, what it does).
-TRANSFER_KINDS = [
-    ("loan_sent", "sent", "loan", "I lent money", "They owe it back. Not spending."),
-    ("borrowing_received", "received", "borrowing", "I borrowed money", "You owe it back. Not income."),
-    ("advance_sent", "sent", "advance", "I paid an advance", "Money you put in for them; they owe it back."),
-    ("advance_received", "received", "advance", "They paid an advance", "Money they put in for you; you owe it back."),
-    ("gift_sent", "sent", "gift", "I gave a gift", "Spending under a category. Nothing is owed."),
-    ("gift_received", "received", "gift", "They gave me a gift", "Income under a category. Nothing is owed."),
-]
-EXCESS_CHOICES = {
-    "received": [("borrowing", "They lent me this"), ("advance", "An advance from them"), ("gift", "A gift")],
-    "sent": [("loan", "I lent them this"), ("advance", "An advance to them"), ("gift", "A gift")],
-}
 SHOWS = {"all": "All", "owed": "Owe you", "owe": "You owe"}
 SOURCE_NAMES = {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "opening": "Opening balance"}
 
@@ -377,221 +356,6 @@ def change_opening(
     return htmx_redirect(f"/people/{contact_id}", flash="opening-updated")
 
 
-@router.get("/{contact_id}/netoff")
-def net_off_page(request: Request, contact_id: UUID, contacts: Contacts, net_offs: NetOffs, obligations: Obligations):
-    person = _person(contacts, contact_id)
-    try:
-        plan = net_offs.preview(contact_id)
-    except ValueError:
-        return RedirectResponse(f"/people/{contact_id}", status_code=303)  # nothing is owed both ways any more
-    names = {o.id: describe_obligation(o)[0] for o in obligations.list(contact_id)}
-    return templates.TemplateResponse(
-        request,
-        "person_netoff.html",
-        {
-            "active": "people",
-            "hide_fab": True,
-            "person": person,
-            "plan": plan,
-            "names": names,
-            "currency": request.state.currency,
-        },
-    )
-
-
-@router.post("/{contact_id}/netoff")
-def net_off(contact_id: UUID, contacts: Contacts, net_offs: NetOffs):
-    _person(contacts, contact_id)
-    try:
-        net_offs.net_off(contact_id)
-    except ValueError as e:
-        return htmx_error(_message(e), "#form-error")
-    return htmx_redirect(f"/people/{contact_id}", flash="net-off-done")
-
-
-# ---- lending, borrowing and gifts ----------------------------------------------------------------------------
-
-
-@router.get("/{contact_id}/transfer")
-def transfer_page(request: Request, contact_id: UUID, contacts: Contacts, accounts: Accounts, categories: Categories):
-    person = _person(contacts, contact_id)
-    return templates.TemplateResponse(
-        request,
-        "person_transfer.html",
-        {
-            "active": "people",
-            "hide_fab": True,
-            "person": person,
-            "kinds": TRANSFER_KINDS,
-            "account_groups": money_accounts(accounts),
-            "spending": category_tree(categories, "spending"),
-            "earning": category_tree(categories, "earning"),
-            "today": local_today().isoformat(),
-        },
-    )
-
-
-@router.post("/{contact_id}/transfer")
-def record_transfer(
-    contact_id: UUID,
-    transfers: Transfers,
-    kind: Annotated[str, Form()] = "",
-    amount: Annotated[str, Form()] = "",
-    account_id: Annotated[str, Form()] = "",
-    date: Annotated[str, Form()] = "",
-    description: Annotated[str, Form()] = "",
-    spending_category_id: Annotated[str, Form()] = "",
-    earning_category_id: Annotated[str, Form()] = "",
-):
-    chosen = next((k for k in TRANSFER_KINDS if k[0] == kind), None)
-    if chosen is None:
-        return htmx_error("choose what kind of money this is.", "#form-error")
-    _, direction, purpose, _, _ = chosen
-    category = earning_category_id if direction == "received" else spending_category_id
-    try:
-        data = TransferCreate(
-            direction=direction,  # pyrefly: ignore[bad-argument-type]  # one of the two
-            purpose=purpose,  # pyrefly: ignore[bad-argument-type]  # one of the four
-            amount=parse_amount(amount),
-            account_id=_uuid(account_id),  # pyrefly: ignore[bad-argument-type]  # a missing one fails validation
-            description=description,
-            category_id=_uuid(category) if purpose == "gift" else None,
-            **({"date": date} if date else {}),
-        )
-        transfers.record(contact_id, data)
-    except ContactNotFoundError:
-        raise HTTPException(status_code=404, detail="person not found") from None
-    except (ValueError, ValidationError) as e:
-        return htmx_error(_message(e), "#form-error")
-    return htmx_redirect(f"/people/{contact_id}", flash="transfer-recorded")
-
-
-# ---- settling up ---------------------------------------------------------------------------------------------
-
-
-def _settle_data(
-    direction: str,
-    amount: str,
-    account_id: str,
-    date: str,
-    description: str,
-    obligation_id: str,
-    excess_as: str,
-    excess_category_id: str,
-) -> SettlementCreate:
-    manual = _uuid(obligation_id)
-    value = parse_amount(amount)
-    return SettlementCreate(
-        direction=direction,  # pyrefly: ignore[bad-argument-type]  # checked by the schema
-        amount=value,
-        account_id=_uuid(account_id),  # pyrefly: ignore[bad-argument-type]  # a missing one fails validation
-        allocation_method="manual" if manual else "fifo",
-        allocations=[AllocationIn(obligation_id=manual, amount=value)] if manual else [],
-        description=description,
-        excess_as=excess_as or None,  # pyrefly: ignore[bad-argument-type]  # checked by the schema
-        excess_category_id=_uuid(excess_category_id),
-        **({"date": date} if date else {}),
-    )
-
-
-@router.get("/{contact_id}/settle")
-def settle_page(
-    request: Request,
-    contact_id: UUID,
-    contacts: Contacts,
-    obligations: Obligations,
-    accounts: Accounts,
-    obligation: str = "",
-):
-    person = _person(contacts, contact_id)
-    chosen: ObligationRead | None = None
-    if obligation_id := _uuid(obligation):
-        found = [o for o in obligations.list(contact_id, open_only=True) if o.id == obligation_id]
-        chosen = found[0] if found else None
-    if chosen is not None:
-        direction, amount = ("received" if chosen.direction == "receivable" else "sent"), chosen.outstanding_amount
-    else:
-        direction = "received" if person.receivable > 0 or person.payable == 0 else "sent"
-        amount = person.receivable if direction == "received" else person.payable
-    return templates.TemplateResponse(
-        request,
-        "person_settle.html",
-        {
-            "active": "people",
-            "hide_fab": True,
-            "person": person,
-            "direction": direction,
-            "amount": amount if amount > 0 else "",
-            "chosen": chosen,
-            "account_groups": money_accounts(accounts),
-            "today": local_today().isoformat(),
-        },
-    )
-
-
-@router.post("/{contact_id}/settle/preview")
-def settle_preview(
-    request: Request,
-    contact_id: UUID,
-    settlements: Settlements,
-    obligations: Obligations,
-    contacts: Contacts,
-    direction: Annotated[str, Form()] = "received",
-    amount: Annotated[str, Form()] = "",
-    account_id: Annotated[str, Form()] = "",
-    date: Annotated[str, Form()] = "",
-    description: Annotated[str, Form()] = "",
-    obligation_id: Annotated[str, Form()] = "",
-    excess_as: Annotated[str, Form()] = "",
-    excess_category_id: Annotated[str, Form()] = "",
-):
-    _person(contacts, contact_id)
-    context: dict[str, Any] = {
-        "direction": direction,
-        "preview": None,
-        "message": None,
-        "excess_as": excess_as,
-        "excess_choices": EXCESS_CHOICES.get(direction, []),
-        "names": {o.id: describe_obligation(o)[0] for o in obligations.list(contact_id)},
-    }
-    if amount.strip():
-        try:
-            data = _settle_data(
-                direction, amount, account_id or str(UUID(int=0)), date, description, obligation_id, excess_as, ""
-            )
-            context["preview"] = settlements.preview(contact_id, data)
-        except ContactNotFoundError:
-            raise HTTPException(status_code=404, detail="person not found") from None
-        except (ValueError, ValidationError) as e:
-            context["message"] = _message(e)
-    return templates.TemplateResponse(request, "partials/settle_preview.html", context)
-
-
-@router.post("/{contact_id}/settle")
-def record_settlement(
-    contact_id: UUID,
-    settlements: Settlements,
-    direction: Annotated[str, Form()] = "received",
-    amount: Annotated[str, Form()] = "",
-    account_id: Annotated[str, Form()] = "",
-    date: Annotated[str, Form()] = "",
-    description: Annotated[str, Form()] = "",
-    obligation_id: Annotated[str, Form()] = "",
-    excess_as: Annotated[str, Form()] = "",
-    excess_category_id: Annotated[str, Form()] = "",
-):
-    try:
-        data = _settle_data(
-            direction, amount, account_id, date, description, obligation_id, excess_as, excess_category_id
-        )
-        settlements.record(contact_id, data)
-    except ContactNotFoundError:
-        raise HTTPException(status_code=404, detail="person not found") from None
-    except (ValueError, ValidationError) as e:
-        return htmx_error(_message(e), "#form-error")
-    return htmx_redirect(f"/people/{contact_id}", flash="settled-up")
-
-
 # ---- sharing a bill ---------------------------------------------------------------------------------------------
 
 
@@ -715,7 +479,6 @@ def reverse_entry(
     settlements: Settlements,
     expenses: SharedExpenses,
     incomes: SharedIncomes,
-    net_offs: NetOffs,
 ):
     _person(contacts, contact_id)
     found = [i for i in summaries.activity(contact_id, limit=200).items if i.transaction_id == transaction_id]
@@ -724,8 +487,6 @@ def reverse_entry(
     try:
         if found[0].purpose == "settlement":
             settlements.reverse(transaction_id)
-        elif found[0].purpose == "netoff":
-            net_offs.reverse(transaction_id)
         elif found[0].purpose == "income":
             incomes.cancel(transaction_id)
         elif found[0].purpose == "expense":

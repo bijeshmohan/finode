@@ -52,8 +52,6 @@ MESSAGES = {
     "opening-updated": "Opening balance saved",
     "expense-shared": "Expense recorded",
     "income-shared": "Income recorded",
-    "settled-up": "Settled up",
-    "net-off-done": "Netted off. What each owed the other is cleared.",
     "entry-reversed": "Reversed. It is as if it never happened.",
     "import-done": "Import complete",
     "currency-updated": "Currency saved",

@@ -443,6 +443,25 @@ def more_transactions(
     )
 
 
+def made_through_people(transactions: Transactions, transaction_id: UUID) -> list:
+    """What people made of an entry (a loan, a shared bill, a settlement…). A gift only names the person, so it is left out:
+    that entry is an ordinary one."""
+    rows = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
+    return [r for r in rows if r.purpose != "gift"]
+
+
+def named_person(person: str, kind: str) -> tuple[UUID | None, str]:
+    """The person an expense or income names as its payee (the `@` in the payee field), and which way the gift went."""
+    if not person:
+        return None, "sent"
+    if kind not in ("expense", "income"):
+        raise ValueError("a person can be named on an expense or an income only: use a transfer to lend or borrow!")
+    try:
+        return UUID(person), "sent" if kind == "expense" else "received"
+    except ValueError:
+        raise ValueError("choose the person from the list!") from None
+
+
 @router.get("/{transaction_id}/sheet")
 def transaction_sheet(
     request: Request,
@@ -459,7 +478,7 @@ def transaction_sheet(
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
     # An entry made through a person (a loan, a shared bill, a settlement) is looked after on that person's page.
-    party = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
+    party = made_through_people(transactions, transaction_id)
     with_person = contacts.read(party[0].contact_id) if party else None
     purposes = {r.purpose for r in party}
     # A loan, a borrowing or a bill shared with people is edited here too; the rest of what people made is on their page.
@@ -560,7 +579,12 @@ def people_group(accounts: Accounts, contacts: Contacts | None, keep: Collection
     query for it: the contact accounts are known from the account list."""
     if contacts is None or not accounts.ar.contact_account_ids():
         return []
-    people = [PickOption(c.id, c.name) for c in contacts.cr.list() if c.archived_at is None or c.id in keep]
+    # The balance of a person is what they owe you (a negative one: what you owe them); the form says what a transfer does.
+    people = [
+        PickOption(c.id, c.name, balance=c.net)
+        for c in contacts.list(include_archived=True)
+        if not c.archived or c.id in keep
+    ]
     return [("People", sorted(people, key=lambda o: o.label.casefold()))] if people else []
 
 
@@ -693,11 +717,22 @@ def suggested_payees(names: list[str], query: str = "", limit: int = SUGGESTED_P
     return (exact + starting + containing)[:limit]
 
 
+SUGGESTED_PEOPLE = 8  # how many people sit under the payee field after an "@"
+
+
 @router.get("/suggest")
-def suggest_payees(request: Request, transactions: Transactions, payee: str = ""):
-    """The chips under the payee field: people you pay that match what is typed, the ones paid most first."""
-    names = suggested_payees([name for name, _ in transactions.payees()], payee)
-    return templates.TemplateResponse(request, "partials/payee_chips.html", {"names": names})
+def suggest_payees(request: Request, transactions: Transactions, contacts: Contacts, payee: str = "", only: str = ""):
+    """The chips under the payee field: people you pay that match what is typed, the ones paid most first. After an "@",
+    your people instead (the entry will name the person, nothing is owed), A to Z, those starting with it first."""
+    if payee.startswith("@"):
+        wanted = payee[1:].strip().casefold()
+        found = [c for c in contacts.cr.list() if c.archived_at is None and wanted in c.name.casefold()]
+        found.sort(key=lambda c: (not c.name.casefold().startswith(wanted), c.name.casefold()))
+        people = [(c.id, c.name) for c in found[:SUGGESTED_PEOPLE]]
+        return templates.TemplateResponse(request, "partials/payee_chips.html", {"names": [], "people": people})
+    # Editing an entry offers people only: the payee it has is not second-guessed.
+    names = [] if only == "people" else suggested_payees([name for name, _ in transactions.payees()], payee)
+    return templates.TemplateResponse(request, "partials/payee_chips.html", {"names": names, "people": []})
 
 
 @router.get("/tag-options")
@@ -809,6 +844,7 @@ def new_transaction_page(
     amount: str = "",
     mode: str = "",  # "split": open on the Split tab (from a person's page)
     with_person: Annotated[UUID | None, Query(alias="with")] = None,  # the person ticked on that tab
+    move: str = "",  # "lend", "borrow" or "settle": a transfer with that person, from their page
 ):
     all_accounts = accounts.list()
     if repeat is not None:
@@ -856,6 +892,16 @@ def new_transaction_page(
             total = str(parse_amount(amount)) if amount.strip() else ""
         except ValueError:
             total = ""
+    if move in ("lend", "borrow", "settle") and with_person is not None:
+        person = contacts.read(with_person)
+        if person is None:
+            raise HTTPException(status_code=404, detail="person not found")
+        kind = "transfer"
+        # Settle: they pay you what they owe, or you pay what you owe them.
+        pays_you = move == "borrow" or (move == "settle" and person.receivable > 0)
+        from_id, to_id = (person.id, None) if pays_you else (None, person.id)
+        if move == "settle":
+            total = str(person.receivable if pays_you else person.payable)
     chosen = categories.read(category) if category is not None else None
     if chosen is not None:
         if chosen.kind == "spending":
@@ -874,7 +920,7 @@ def new_transaction_page(
             from_rows=form_rows([], PostingSide.CREDIT, from_id),
             to_rows=form_rows([], PostingSide.DEBIT, to_id),
             mode="split" if mode == "split" else "simple",
-            ed=editor_values(None, with_person),
+            ed=editor_values(None, with_person if not move else None),
             kind="expense" if mode == "split" else kind,
             related=linked,
             total=total,
@@ -926,11 +972,12 @@ def _transfer_with_person(
     tags: list[str] | None,
     related: str,
 ) -> None:
-    """A new Transfer with a person on one side is a loan or a borrowing, recorded by the contact services."""
+    """A new Transfer with a person on one side: paying back what is owed first, then a loan or a borrowing, recorded by the
+    contact services."""
     person, data = _person_rows(people, account, side, amount, date_, comment)
     if tags or related.strip():
-        raise ValueError("tags and related entries are not available for money lent to or borrowed from a person!")
-    transfers.record(person, data)
+        raise ValueError("tags and related entries are not available for money moved to or from a person!")
+    transfers.move(person, data)
 
 
 @router.post("/split")
@@ -956,6 +1003,7 @@ async def create_split_transaction(
     tags: Annotated[list[str] | None, Form()] = None,
     mode: Annotated[str, Form()] = "",
     kind: Annotated[str, Form()] = "",
+    payee_contact: Annotated[str, Form()] = "",
 ):
     account, side, amount = account or [], side or [], amount or []
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
@@ -984,9 +1032,8 @@ async def create_split_transaction(
         if people and any(a in {str(i) for i in people} for a in account):
             _transfer_with_person(transfers, people, account, side, amount, date_, comment, tags, related)
             return htmx_redirect(safe_back(back), flash="transfer-recorded")
-        if mode == "split":
-            raise ValueError("put a person on one side, or choose Split!")
-        transactions.create(
+        gift, way = named_person(payee_contact, kind)
+        entry = transactions.create(
             TransactionCreate(
                 date=date_ or local_today(),
                 payee=payee.strip() or None,
@@ -996,11 +1043,17 @@ async def create_split_transaction(
                 ),
                 related_id=parse_related(related),
                 tags=tags or [],
-            )
+            ),
+            commit=False,
         )
+        if gift is not None:
+            transfers.name_gift(entry.id, gift, way)
+        transactions.tr.db.commit()
     except ValidationError as e:
+        transactions.tr.db.rollback()
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
+        transactions.tr.db.rollback()
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(safe_back(back), flash="transaction-saved")
 
@@ -1013,6 +1066,7 @@ def edit_transaction_page(
     categories: Categories,
     transactions: Transactions,
     contacts: Contacts,
+    transfers: Transfers,
     expenses: SharedExpenses,
     incomes: SharedIncomes,
     back: str = "",
@@ -1021,10 +1075,10 @@ def edit_transaction_page(
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
     # An entry made through people: a loan or borrowing is edited here (the person shows on its side) and so is a bill
-    # shared with people (its shares and payments, as entered); anything else a person made (a gift, a settlement, an
-    # opening balance) is looked after on the person's page.
+    # shared with people (its shares and payments, as entered); anything else a person made (a settlement, an opening
+    # balance) is looked after on the person's page. A gift is an ordinary entry that names the person as its payee.
     person_of: dict[UUID, UUID] = {}
-    party = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
+    party = made_through_people(transactions, transaction_id)
     purposes = {r.purpose for r in party}
     bill = shared_income = None
     if party:
@@ -1055,8 +1109,7 @@ def edit_transaction_page(
             shared_income.total_amount,
             "split",
         )
-    elif party:
-        mode = "split"  # a loan or a borrowing: the person is on one side
+    named = transfers.gift_of(transaction_id)
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
@@ -1065,6 +1118,7 @@ def edit_transaction_page(
             categories,
             contacts,
             keep_people={r.contact_id for r in party},
+            payee_person=contacts.get(named) if named else None,
             editing=True,
             transaction=transaction,
             total=total,
@@ -1171,13 +1225,12 @@ async def update_transaction(
     tags: Annotated[list[str] | None, Form()] = None,
     mode: Annotated[str, Form()] = "",
     kind: Annotated[str, Form()] = "",
+    payee_contact: Annotated[str, Form()] = "",
 ):
     account, side, amount = account or [], side or [], amount or []
     db = transactions.tr.db
     people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
-    purposes = {
-        r.purpose for r in ObligationRepository(db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
-    }
+    purposes = {r.purpose for r in made_through_people(transactions, transaction_id)}
     with_people = bool(people) and any(a in {str(i) for i in people} for a in account)
     try:
         if mode == "split" and kind == "income":
@@ -1210,9 +1263,11 @@ async def update_transaction(
             person, loan = _person_rows(people, account, side, amount, date_, comment)
             transfers.convert(transaction_id, person, loan, tags or [], parse_related(related))
             return htmx_redirect(safe_back(back), flash="transaction-updated")
-        if mode == "split":
-            raise ValueError("put a person on one side, or choose Split!")
         _release(transaction_id, purposes, transfers, expenses, incomes, "")  # edited back into an ordinary entry
+        gift, way = named_person(payee_contact, kind)
+        if gift is not None or transfers.gift_of(transaction_id) is not None:
+            transfers.name_gift(transaction_id, gift, way)  # saved with the entry below
+            purposes = purposes | {"gift"}
         result = _update(
             transactions,
             transaction_id,

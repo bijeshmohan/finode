@@ -54,6 +54,7 @@ finode is a personal double-entry ledger with envelope budgeting: FastAPI + SQLM
 - **One currency** per person (`profiles.currency`); changing it relabels, never converts. Amounts are `Numeric(24,8)`: format with the `money` filter or `normalize_amount`, never `:.2f`. Decimals are limited by the currency (`check_places`).
 - Built-in groups (`accounts.system_key`) are guarded by key, never by name.
 - Contact accounts ("Due from X" / "Due to X") are posted to only by `TransactionService(contacts=True)`; ordinary routes, rules, imports and assistants are refused.
+- A person is never owed both ways: anything that saves an obligation calls `NettingService.even_out` before it commits, and anything that undoes one calls `release` first (`reference/people.md`).
 - Per-person settings are typed columns on `profiles` (column + migration + `ProfileUpdate` field), never a key-value store or Supabase `user_metadata`.
 
 ## Web UI rules (detail in `reference/ui-look.md`, `reference/ui-pages.md`)
