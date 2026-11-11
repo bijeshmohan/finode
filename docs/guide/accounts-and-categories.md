@@ -53,7 +53,7 @@ Give a card or loan its **statement day** (the day of the month the bank closes 
 
 ### Pin an account
 
-Open an account, then **…** › **Pin to top**. The Accounts page now starts with a **Pinned** row of the accounts you pinned, and each of them also stays in its own group's row, marked with a small pin. **Unpin** is in the same menu. Pinning only chooses where an account is listed: your balances and budget do not change. Groups cannot be pinned.
+Open an account and tap the pin button beside **…**. The Accounts page now starts with a **Pinned** row of the accounts you pinned, and each of them also stays in its own group's row, marked with a small pin in the corner of its card. Tap the button again to unpin. Pinning only chooses where an account is listed: your balances and budget do not change. Groups cannot be pinned.
 
 ### Closing and deleting
 

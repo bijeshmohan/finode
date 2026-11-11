@@ -266,19 +266,17 @@ def test_a_groups_heading_opens_its_page_with_its_accounts_in_a_row_and_their_tr
     expect(page.get_by_role("heading", name="SBI")).to_be_visible()
 
 
-def test_pinning_from_the_menu_lists_the_account_in_a_pinned_row_at_the_top(page: Page, api, books):
+def test_the_pin_button_lists_the_account_in_a_pinned_row_at_the_top(page: Page, api, books):
     nested(api, books)
     hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
     page.goto(f"/accounts/{hdfc['id']}")
-    page.get_by_label("More actions").click()
     page.get_by_role("button", name="Pin to top").click()
-    expect(page.locator("h1 .pin-mark")).to_be_visible()
+    expect(page.get_by_role("button", name="Unpin")).to_be_visible()
     page.goto("/accounts")
     expect(page.locator(".acc-head h2").first).to_have_text("Pinned")
     expect(page.locator("section.acc-kind").first.locator("a.acc-card")).to_have_text(re.compile(r"HDFC"))
     page.locator("section.acc-kind").first.locator("a.acc-card").click()
-    page.get_by_label("More actions").click()
     page.get_by_role("button", name="Unpin").click()
-    expect(page.locator("h1 .pin-mark")).to_have_count(0)
+    expect(page.get_by_role("button", name="Pin to top")).to_be_visible()
     page.goto("/accounts")
     expect(page.locator(".acc-head h2").first).not_to_have_text("Pinned")
