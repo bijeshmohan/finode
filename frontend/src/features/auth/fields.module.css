@@ -1,0 +1,83 @@
+/* .stack, label, input, button, .error, .login-notice and .switch of app/static/style.css. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.input {
+  font: inherit;
+  font-size: max(16px, 1rem);
+  min-height: var(--tap);
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  color: var(--text);
+  caret-color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  appearance: none;
+}
+.input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.fieldError {
+  color: var(--danger);
+  font-weight: 400;
+}
+.error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+  margin: 0.5rem 0;
+}
+.notice {
+  color: var(--positive);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  margin: 0.5rem 0;
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  font: inherit;
+  font-weight: 600;
+  color: var(--on-accent);
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.5rem 1.25rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+@media (hover: hover) {
+  .button:not(:disabled):hover {
+    background: var(--accent-hover);
+  }
+}
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.switchLine {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.switchLine a {
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 0.2em;
+}
