@@ -1,0 +1,74 @@
+/* dialog.sheet and dialog.sheet-bottom of app/static/style.css, with their motion. */
+.sheet {
+  width: min(28rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  overflow: auto;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  outline: none;
+  opacity: 0;
+  transform: translateY(0.75rem);
+  transition:
+    opacity 0.2s ease,
+    transform 0.25s cubic-bezier(0.3, 0.7, 0.2, 1),
+    overlay 0.25s allow-discrete,
+    display 0.25s allow-discrete;
+}
+.sheet[open] {
+  opacity: 1;
+  transform: none;
+}
+@starting-style {
+  .sheet[open] {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+.sheet::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.body {
+  padding: 1.25rem;
+}
+.title {
+  margin: 0 0 1rem;
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.grab {
+  display: none;
+}
+
+@media (max-width: 40rem) {
+  .sheet {
+    width: 100%;
+    max-width: none;
+    margin: auto 0 0;
+    border-radius: 24px 24px 0 0;
+    border-width: 1px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    opacity: 1;
+    transform: translateY(100%);
+  }
+  .sheet[open] {
+    transform: none;
+  }
+  @starting-style {
+    .sheet[open] {
+      transform: translateY(100%);
+    }
+  }
+  .grab {
+    display: block;
+    width: 2.5rem;
+    height: 4px;
+    margin: -0.25rem auto 1rem;
+    border-radius: 2px;
+    background: var(--border);
+  }
+}

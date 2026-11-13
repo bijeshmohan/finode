@@ -1,0 +1,51 @@
+/* The `.tx` row of app/static/style.css. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  min-height: 56px;
+  padding: 0.6rem 1rem;
+  color: inherit;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+}
+@media (hover: hover) {
+  a.row:hover,
+  button.row:hover {
+    background: var(--surface-2);
+  }
+}
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.figure {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+.in {
+  color: var(--positive);
+}
+.out {
+  color: var(--negative);
+}

@@ -1,0 +1,26 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* 16px or more stops iOS from zooming into the field. */
+.input {
+  font: inherit;
+  font-size: max(16px, 1rem);
+  min-height: var(--tap);
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  color: var(--text);
+  caret-color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+  appearance: none;
+}
+.input::placeholder {
+  color: var(--faint);
+}

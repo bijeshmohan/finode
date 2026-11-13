@@ -1,0 +1,10 @@
+/* .empty-state of app/static/style.css. */
+.empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+}
+.title {
+  margin: 0 0 1rem;
+  font-size: 1.0625rem;
+  color: var(--muted);
+}

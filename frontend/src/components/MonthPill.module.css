@@ -1,0 +1,54 @@
+/* .month-pill of app/static/style.css: plain text, no box around the month. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  margin-right: -0.5rem;
+  padding: 0 0.15rem;
+  min-height: 2.5rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.arrow {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.25rem;
+  padding: 0;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-radius: 999px;
+}
+.arrow:disabled {
+  opacity: 0.3;
+}
+@media (hover: hover) {
+  .arrow:not(:disabled):hover {
+    background: var(--surface-2);
+  }
+}
+.forward {
+  transform: scaleX(-1);
+}
+.pick {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.6rem;
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+}
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px;
+}
