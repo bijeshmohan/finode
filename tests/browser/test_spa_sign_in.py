@@ -32,3 +32,20 @@ def test_a_wrong_password_says_so(spa_page: Page):
     spa_page.get_by_label("Password").fill("wrong")
     spa_page.get_by_role("button", name="Sign in").click()
     expect(spa_page.get_by_role("alert")).to_have_text("Invalid email or password.")
+
+
+def test_creating_an_account(spa_page: Page, monkeypatch):
+    from app import auth_flows
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "signup_code", "a-long-enough-invite-code")
+    monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_test_key")
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
+    monkeypatch.setattr(auth_flows, "create_user", lambda email, password: None)
+    spa_page.goto("/sign-up")
+    spa_page.get_by_label("Email").fill("new@example.com")
+    spa_page.get_by_label("Password", exact=True).fill("right horse")
+    spa_page.get_by_label("Confirm password").fill("right horse")
+    spa_page.get_by_label("Invite code").fill("a-long-enough-invite-code")
+    spa_page.get_by_role("button", name="Create account").click()
+    expect(spa_page.get_by_role("heading", name="Home")).to_be_visible()

@@ -87,3 +87,27 @@ export function Stack({ children, onSubmit }: { children: ReactNode; onSubmit: (
     </form>
   );
 }
+
+export function CheckField({
+  label,
+  registration,
+  error,
+}: {
+  label: string;
+  registration: UseFormRegisterReturn;
+  error?: string | undefined;
+}) {
+  return (
+    <>
+      <label className={styles.check}>
+        <input type="checkbox" aria-invalid={error ? true : undefined} {...registration} />
+        <span>{label}</span>
+      </label>
+      {error && (
+        <span className={styles.fieldError} role="alert">
+          {error}
+        </span>
+      )}
+    </>
+  );
+}

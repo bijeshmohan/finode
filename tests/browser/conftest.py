@@ -100,7 +100,7 @@ def live_server(session) -> Generator[str]:
     yield from _serve(app, session)
 
 
-# The React app signs in for real through /api/auth; only Supabase is stood in for: the password "right" signs in, and
+# The React app signs in for real through /api/auth; only Supabase is stood in for: a password starting "right" signs in, and
 # the session cookie it sets ("test-access") is the test user.
 SPA_TOKEN = "test-access"
 
@@ -112,7 +112,7 @@ def _fake_jwt(token: str) -> dict:
 
 
 def _fake_sign_in(email: str, password: str) -> SessionTokens:
-    if password != "right":
+    if not password.startswith("right"):
         raise InvalidCredentialsError()
     return SessionTokens(SPA_TOKEN, "test-refresh", 3600)
 
