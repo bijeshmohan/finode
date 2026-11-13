@@ -1,0 +1,24 @@
+/* body.bare main and body.bare .card.narrow of app/static/style.css. */
+.page {
+  display: flex;
+  min-height: 100dvh;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1.25rem 1.5rem;
+}
+.column {
+  width: 100%;
+  max-width: 22rem;
+  margin: auto;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.25rem;
+  font-size: 1.6rem;
+}
+.brand img {
+  border-radius: 11px;
+}
+.intro {
+  color: var(--muted);
+}
