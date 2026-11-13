@@ -1,0 +1,14 @@
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+  padding: 0 1rem;
+  overflow: hidden;
+}
+.title {
+  margin: 0;
+  padding: 0.9rem 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--muted);
+}
