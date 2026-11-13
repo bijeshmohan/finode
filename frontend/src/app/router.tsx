@@ -5,6 +5,7 @@ import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
 import { SignIn } from "../features/auth/SignIn";
+import { SignUp } from "../features/auth/SignUp";
 import { Layout } from "./Layout";
 import { SessionProvider } from "./session";
 import { ToastProvider } from "./toast";
@@ -39,6 +40,8 @@ function SignedIn() {
 export const routes: RouteObject[] = [
   { path: "/sign-in", element: <SignIn /> },
   { path: "/login", element: <MovedTo path="/sign-in" /> },
+  { path: "/sign-up", element: <SignUp /> },
+  { path: "/signup", element: <MovedTo path="/sign-up" /> },
   {
     element: <SignedIn />,
     children: [
