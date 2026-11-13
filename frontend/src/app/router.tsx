@@ -4,6 +4,8 @@ import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
 
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
+import { Forgot } from "../features/auth/Forgot";
+import { Reset } from "../features/auth/Reset";
 import { SignIn } from "../features/auth/SignIn";
 import { SignUp } from "../features/auth/SignUp";
 import { Layout } from "./Layout";
@@ -42,6 +44,8 @@ export const routes: RouteObject[] = [
   { path: "/login", element: <MovedTo path="/sign-in" /> },
   { path: "/sign-up", element: <SignUp /> },
   { path: "/signup", element: <MovedTo path="/sign-up" /> },
+  { path: "/forgot", element: <Forgot /> },
+  { path: "/reset", element: <Reset /> },
   {
     element: <SignedIn />,
     children: [
