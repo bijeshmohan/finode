@@ -18,11 +18,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const session = useQuery({ queryKey: ["session"], queryFn: () => data(api.GET("/api/auth/session")) });
 
   if (session.isPending) return null;
-  if (session.isError) {
-    if (session.error instanceof ApiError && session.error.status === 401) {
-      const next = location.pathname + location.search;
-      return <Navigate to={`/sign-in?next=${encodeURIComponent(next)}`} replace />;
-    }
+  if (session.error instanceof ApiError && session.error.status === 401) {
+    const next = location.pathname + location.search;
+    return <Navigate to={`/sign-in?next=${encodeURIComponent(next)}`} replace />;
+  }
+  // A failed refresh keeps the app on screen with the session it has (the offline banner says why); only a first load
+  // that cannot reach finode replaces the screen.
+  if (session.data === undefined) {
     return (
       <div className="unreachable" role="alert">
         <p>finode can&apos;t be reached. Check your connection.</p>

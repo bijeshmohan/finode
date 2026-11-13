@@ -1,5 +1,5 @@
 // The segmented switcher (.chips.seg): one choice of a few, as a radio group the arrow keys move through.
-import type { KeyboardEvent } from "react";
+import { type KeyboardEvent, useRef } from "react";
 
 import styles from "./Chips.module.css";
 
@@ -11,24 +11,34 @@ interface ChipsProps<T extends string> {
 }
 
 export function Chips<T extends string>({ label, options, value, onChange }: ChipsProps<T>) {
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const chosen = options.findIndex((o) => o.value === value);
+  // The one chip Tab lands on: the chosen one, or the first when nothing matches.
+  const focusable = chosen === -1 ? 0 : chosen;
+
+  // The radio-group pattern: the arrow keys move the choice and the focus together.
   function move(event: KeyboardEvent, step: number) {
     event.preventDefault();
-    const at = options.findIndex((o) => o.value === value);
-    const next = options[(at + step + options.length) % options.length];
-    if (next) onChange(next.value);
+    const at = (focusable + step + options.length) % options.length;
+    const next = options[at];
+    if (!next) return;
+    onChange(next.value);
+    buttons.current[at]?.focus();
   }
 
   return (
     <div role="radiogroup" aria-label={label} className={styles.seg}>
-      {options.map((option) => {
-        const chosen = option.value === value;
+      {options.map((option, index) => {
         return (
           <button
             key={option.value}
+            ref={(element) => {
+              buttons.current[index] = element;
+            }}
             type="button"
             role="radio"
-            aria-checked={chosen}
-            tabIndex={chosen ? 0 : -1}
+            aria-checked={index === chosen}
+            tabIndex={index === focusable ? 0 : -1}
             className={styles.chip}
             onClick={() => {
               onChange(option.value);

@@ -15,9 +15,12 @@ export function makeClient(options: { baseUrl: string; fetch?: typeof fetch; onU
     headers: API_HEADER,
     ...(options.fetch ? { fetch: options.fetch } : {}),
   });
+  // A 401 from any other call means the session ended: go and sign in. /api/auth answers for itself (a wrong password
+  // is a 401 too, and the session's own 401 is SessionProvider's to handle).
   const signedOut: Middleware = {
-    onResponse({ response }) {
-      if (response.status === 401) options.onUnauthorized();
+    onResponse({ request, response }) {
+      const ownAnswer = new URL(request.url).pathname.startsWith("/api/auth/");
+      if (response.status === 401 && !ownAnswer) options.onUnauthorized();
       return response;
     },
   };

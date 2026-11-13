@@ -44,5 +44,5 @@ export function renderApp(path: string, answers: Answers = SIGNED_IN) {
       </ApiProvider>
     </QueryClientProvider>,
   );
-  return router;
+  return { router, queryClient };
 }
