@@ -141,3 +141,34 @@ def test_one_request_refreshes_the_session_once(raw_client: TestClient, monkeypa
     raw_client.cookies.set(REFRESH_COOKIE, "r", path="/")
     assert raw_client.get("/api/data-options").status_code == 200
     assert calls == ["r"]
+
+
+# What a token alone must never do, with real authentication (the shared test client switches the guard off).
+COOKIE_ONLY = [
+    ("/api/erase", {"confirm": "nope"}),
+    ("/api/delete-account", {"confirm": "nope"}),
+    ("/api/assistants/tokens", {"name": "x"}),
+    ("/api/oauth/consent/some-id", {"decision": "deny"}),
+]
+
+
+@pytest.mark.parametrize(("path", "body"), COOKIE_ONLY)
+def test_cookie_only_routes_need_the_app_and_refuse_bearer(raw_client: TestClient, path: str, body: dict):
+    bearer = {"Authorization": "Bearer good"}
+    assert raw_client.post(path, json=body, headers={**bearer, **APP}).status_code == 401
+    client = signed_in(raw_client)
+    assert client.post(path, json=body).status_code == 403, "a cookie without the app's header and origin"
+    assert client.post(path, json=body, headers={**bearer, **APP}).status_code == 401, "bearer beside a cookie"
+
+
+def test_cookie_only_routes_answer_the_app(raw_client: TestClient):
+    client = signed_in(raw_client)
+    assert client.post("/api/erase", json={"confirm": "test@example.com"}, headers=APP).status_code == 204
+    assert client.post("/api/assistants/tokens", json={"name": "x"}, headers=APP).status_code == 201
+
+
+def test_the_frontend_origin_setting_forgives_a_trailing_slash():
+    from app.config import Settings
+
+    assert Settings(frontend_origin="https://app.example.com/").frontend_origin == "https://app.example.com"
+    assert Settings(frontend_origin="").frontend_origin is None

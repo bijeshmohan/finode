@@ -62,6 +62,12 @@ class Settings(BaseSettings):
             )
         return v
 
+    @field_validator("frontend_origin")
+    @classmethod
+    def origin_without_trailing_slash(cls, v: str | None) -> str | None:
+        """Browsers send an origin with no trailing slash; `https://app.example.com/` would match nothing."""
+        return v.strip().rstrip("/") or None if v else None
+
     @field_validator("timezone")
     @classmethod
     def timezone_must_exist(cls, v: str | None) -> str | None:
