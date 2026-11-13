@@ -4,21 +4,21 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
+from app import auth_flows
 from app.config import settings
 from app.dependencies import get_db_session
 from app.main import app
-from app.routers.web import auth as web_auth_router
-from app.signup import (
-    EmailAlreadyRegisteredError,
-    RateLimitedError,
-    SignupRejectedError,
-)
-from app.web_auth import (
+from app.session import (
     ACCESS_COOKIE,
     REFRESH_COOKIE,
     AuthUnavailableError,
     InvalidCredentialsError,
     SessionTokens,
+)
+from app.signup import (
+    EmailAlreadyRegisteredError,
+    RateLimitedError,
+    SignupRejectedError,
 )
 
 CODE = "a-long-enough-invite-code"
@@ -50,13 +50,13 @@ def signup_on(monkeypatch: pytest.MonkeyPatch):
 def supabase(monkeypatch: pytest.MonkeyPatch):
     """Record calls to Supabase; every call succeeds unless a test overrides it."""
     calls = {"create_user": [], "sign_in": []}
-    monkeypatch.setattr(web_auth_router, "create_user", lambda email, password: calls["create_user"].append(email))
+    monkeypatch.setattr(auth_flows, "create_user", lambda email, password: calls["create_user"].append(email))
 
     def fake_sign_in(email, password):
         calls["sign_in"].append(email)
         return SessionTokens("access-1", "refresh-1", 3600)
 
-    monkeypatch.setattr(web_auth_router, "sign_in", fake_sign_in)
+    monkeypatch.setattr(auth_flows, "sign_in", fake_sign_in)
     return calls
 
 
@@ -136,7 +136,7 @@ def test_signup_supabase_failures(raw_client: TestClient, signup_on, supabase, m
     def fail(email, password):
         raise error
 
-    monkeypatch.setattr(web_auth_router, "create_user", fail)
+    monkeypatch.setattr(auth_flows, "create_user", fail)
     response = raw_client.post("/signup", data=FORM)
     assert response.status_code == status
     assert message in response.text
@@ -151,7 +151,7 @@ def test_signup_falls_back_to_login_when_auto_sign_in_fails(
     def fail(email, password):
         raise error
 
-    monkeypatch.setattr(web_auth_router, "sign_in", fail)
+    monkeypatch.setattr(auth_flows, "sign_in", fail)
     response = raw_client.post("/signup", data=FORM)
     assert response.status_code == 303
     assert response.headers["location"] == "/login?created=1"

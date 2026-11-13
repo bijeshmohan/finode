@@ -301,3 +301,15 @@ class PayeeDefaultRead(BaseModel):
 class PayeeRead(BaseModel):
     payee: str
     count: int
+
+
+class PersonChip(BaseModel):
+    id: UUID
+    name: str
+
+
+class PayeeSuggestions(BaseModel):
+    """The chips under the payee field: names to fill in, or after an "@" people to name on the entry."""
+
+    names: list[str] = Field(default_factory=list)
+    people: list[PersonChip] = Field(default_factory=list)

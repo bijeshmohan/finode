@@ -9,7 +9,7 @@ token and sets the new password.
 import httpx
 
 from .config import settings
-from .web_auth import AuthUnavailableError, SessionTokens, _to_tokens
+from .session import AuthUnavailableError, SessionTokens, _to_tokens
 
 
 class ResetLinkInvalidError(Exception):

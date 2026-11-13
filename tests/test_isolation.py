@@ -16,7 +16,7 @@ import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from app.auth import CurrentUser, require_authenticated_user
+from app.auth import CookieSession, CurrentUser, require_authenticated_user, require_cookie_session
 from app.dependencies import get_db_session
 from app.main import app
 from app.repositories.api_token import ApiTokenRepository
@@ -66,11 +66,22 @@ PUBLIC = {
     ("POST", "/mcp"),  # bearer tokens, tested below
     ("GET", "/oauth/consent"),
     ("POST", "/oauth/consent"),  # a Supabase authorization id of the signed-in user
+    ("GET", "/api/auth/options"),
+    ("POST", "/api/auth/sign-in"),
+    ("POST", "/api/auth/sign-up"),
+    ("POST", "/api/auth/forgot"),
+    ("POST", "/api/auth/reset"),
+    ("POST", "/api/auth/sign-out"),
+    ("GET", "/api/oauth/consent/{authorization_id}"),  # a Supabase authorization id of the signed-in user
+    ("POST", "/api/oauth/consent/{authorization_id}"),
 }
 
 # Routes without an id in the path: what they list is scoped to whoever asks.
 LISTS = {
     ("GET", "/"),
+    ("GET", "/api/auth/session"),
+    ("GET", "/api/assistants/"),
+    ("GET", "/api/data-options"),
     ("GET", "/accounts"),
     ("GET", "/accounts/new"),
     ("GET", "/accounts/new-group"),
@@ -93,6 +104,7 @@ LISTS = {
     ("GET", "/api/reports/trial-balance"),
     ("GET", "/api/transactions/"),
     ("GET", "/api/transactions/payee-defaults"),
+    ("GET", "/api/transactions/payee-suggestions"),
     ("GET", "/api/accounts/closed"),
     ("GET", "/api/profile/currencies"),
     ("GET", "/api/reports/breakdown"),
@@ -152,6 +164,7 @@ REFERENCES = {
     ("POST", "/import/preview"),
     ("POST", "/profile"),
     ("POST", "/profile/assistants"),
+    ("POST", "/api/assistants/tokens"),
     ("POST", "/recurring"),
     ("POST", "/restore"),
     ("POST", "/restore/preview"),
@@ -168,6 +181,8 @@ OWN_DATA = {
     ("POST", "/profile/data/delete-account"),
     ("POST", "/accounts/new-group"),
     ("POST", "/api/accounts/groups"),
+    ("POST", "/api/erase"),
+    ("POST", "/api/delete-account"),
 }
 
 
@@ -211,7 +226,11 @@ def test_every_route_is_covered():
 
 def as_user(user_id: UUID):
     email = "test@example.com" if user_id == TEST_USER_ID else "x@example.com"  # as in tests/conftest.py
-    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(id=user_id, email=email, claims={})
+    user = CurrentUser(id=user_id, email=email, claims={})
+    app.dependency_overrides[require_authenticated_user] = lambda: user
+    app.dependency_overrides[require_cookie_session] = lambda: CookieSession(
+        user=user, access_token="test-access-token"
+    )
 
 
 @contextmanager
@@ -351,6 +370,8 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("PATCH", "/api/shared-expenses/{expense_id}"): {"json": {"description": "hacked"}},
         ("POST", "/oauth/apps/{grant_id}/access"): {"data": {"scope": "read"}},
         ("POST", "/profile/assistants/{token_id}/access"): {"data": {"scope": "read"}},
+        ("POST", "/api/assistants/tokens/{token_id}/access"): {"json": {"scope": "read"}},
+        ("POST", "/api/assistants/apps/{grant_id}/access"): {"json": {"scope": "read"}},
     }
     return bodies.get((method, path), {"json": {}} if api else {"data": {}})
 

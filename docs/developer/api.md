@@ -1,23 +1,44 @@
 # The JSON API
 
-Everything the web app and the assistants can do with your books can be done through the JSON API under `/api`. It is for scripts, tools and future clients; the web app and the MCP server call the same services directly. Interactive documentation (`/docs`) is off unless `FINODE_API_DOCS=true`.
+Everything the web app and the assistants can do can be done through the JSON API under `/api`. It is for the finode app (the React frontend), scripts and tools; the web pages and the MCP server call the same services directly. Interactive documentation (`/docs`) is off unless `FINODE_API_DOCS=true`.
 
 ## Using it
 
-- **Sign in with a Supabase access token**: `Authorization: Bearer <token>`. The API never reads cookies. An assistant's personal access token or an OAuth app's token is refused here (they work only on `/mcp`).
+- **Sign in with a Supabase access token**: `Authorization: Bearer <token>`. An assistant's personal access token or an OAuth app's token is refused here (they work only on `/mcp`).
+- **The finode app** signs in through `/auth/sign-in` and then uses the HttpOnly session cookies it sets. A cookie request that changes anything must send `X-Finode: 1` from `FINODE_FRONTEND_ORIGIN`, the only origin CORS allows (see `docs/architecture/mcp-and-auth.md`).
 - **Everything is yours alone.** Every request is scoped to the signed-in person; another person's ids answer 404 (or 400 when they are named inside a request). `tests/test_isolation.py` checks this for every route.
 - **Amounts** are decimal strings or numbers in the person's one currency (no other currency exists); more decimals than the currency keeps are refused. **Dates** are `YYYY-MM-DD`, between 1900 and 2999. Money moves as a list of **postings** (`account`, `side` debit or credit, `amount`) whose debits equal their credits.
 - **Errors** are JSON `{"detail": ...}`: 400 for a refused change (with the reason), 404 for an unknown id, 409 when something is in use, 422 for a malformed request.
 - Routes with a trailing slash (`/accounts/`) are the collection; `/accounts/closed`, `/transactions/payees` and the like are fixed words, not ids.
 
-## What is not in the API, on purpose
+## Sign-in
 
-| Not here | Why |
-|---|---|
-| Signing in, signing up, passwords, the OAuth consent page | Identity belongs to Supabase; these are web pages. |
-| Creating or revoking assistant tokens and connected apps | A token must never be able to manage tokens, and an app's token never acts as a full sign-in. |
-| **Erase my books** and **Delete my account** | They need the person to type their email on the settings pages; a leaked bearer token must not be able to wipe a ledger. |
-| The Add screen's payee chips (names only) | A convenience of the Add screen; `GET /transactions/payees` gives the same names, and `GET /transactions/payee-defaults` how a payee is usually booked. |
+Every `POST` here needs the finode app's header and origin; errors are `{"detail": {"message", "code"}}`, with `Retry-After` on 429.
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/auth/options` | What the sign-in screens offer on this server: `signup_enabled`, `reset_enabled`, `test_notice`. No sign-in needed. |
+| `GET` | `/auth/session` | Who is signed in (`email`), `today` as finode counts it (`FINODE_TIMEZONE`), the feedback link and whether Delete my account can remove the login. |
+| `POST` | `/auth/sign-in` | `email`, `password`: sets the session cookies (204); 401 for a wrong password, 429 after too many tries. |
+| `POST` | `/auth/sign-up` | Invite-only (404 when off): `email`, `password`, `confirm_password`, `invite_code`, `accept` (the test notice); 201 `{signed_in}`, with the cookies when signed in. |
+| `POST` | `/auth/forgot` | `email`: emails a reset link (404 when reset is off); 202 whether or not the address has an account. |
+| `POST` | `/auth/reset` | `token_hash` (from the emailed link), `password`, `confirm_password`: sets the password and signs in (204); a spent or expired link answers `code: link-invalid`. |
+| `POST` | `/auth/sign-out` | Clears the session cookies (204). |
+
+## Assistants
+
+Only for someone signed in to the finode app itself (the session cookie): a bearer token is refused, so a token can never mint tokens or let an app in.
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/assistants/` | The address assistants connect to (`mcp_url`), your tokens and the apps you connected (revoked ones left out). |
+| `POST` | `/assistants/tokens` | A new personal access token: `name`, `scope` (`read`, `write` or `manage`). Its `secret` is in this answer only. |
+| `POST` | `/assistants/tokens/{token_id}/access` | Change what a token may do: `scope`. |
+| `POST` | `/assistants/tokens/{token_id}/revoke` | Revoke a token; it stops working at once. |
+| `POST` | `/assistants/apps/{grant_id}/access` | Change what a connected app may do: `scope`. |
+| `POST` | `/assistants/apps/{grant_id}/disconnect` | Take a connected app's access back and ask Supabase to stop issuing it tokens. |
+| `GET` | `/oauth/consent/{authorization_id}` | The app asking to connect, as Supabase describes it (`client_name`, `client_uri`, `scopes`); `redirect_url` is set when you already decided. |
+| `POST` | `/oauth/consent/{authorization_id}` | `decision` (`allow` or `deny`) and `access` (`read`, `write`, `manage`); answers the `redirect_url` that sends you back to the app. The app recorded is whatever Supabase says the request is for. |
 
 ## Accounts and categories
 
@@ -117,6 +138,7 @@ A contact is a person you lend to, borrow from or share costs with. It is not an
 | `POST` | `/transactions/batch` | Record up to 50 transactions as one: all are saved or none. An entry whose `source` and `external_id` are already recorded with the same date and rows is skipped (status `already_recorded`), so a batch can be sent again safely. Any problem refuses the whole batch (400) naming the entries at fault. With `dry_run=true` nothing is saved and the answer (200) shows what would be. |
 | `GET` | `/transactions/payees` | Who you have paid or been paid by, most used first (the opening-balance entries are left out). |
 | `GET` | `/transactions/payee-defaults` | How payees are usually booked, most used first: the accounts of the newest entry with one account on each side (so a repeat can be filled in), and the other routes seen. `payee` narrows to those that match what is typed. |
+| `GET` | `/transactions/payee-suggestions` | The Add screen's chips: names of people you pay that match `payee` (most paid first, six at most), or after an `@` your people (`people`, with ids); `only=people` offers people only. Names only, never accounts. |
 | `GET` | `/transactions/{transaction_id}` | One transaction with its postings. |
 | `GET` | `/transactions/` | Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts used; `payee` is exact; `source` and `external_id` find the entry a source's reference stands for; `tag` finds the entries that carry that tag (every entry reads back its `tags`; create and update take `tags`). |
 | `PATCH` | `/transactions/{transaction_id}` | Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or cleared with null). With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards. |
@@ -181,6 +203,9 @@ A contact is a person you lend to, borrow from or share costs with. It is not an
 | `POST` | `/import` |  |
 | `GET` | `/backup` | A complete backup: settings, accounts, transactions, recurring rules and the budget. |
 | `POST` | `/restore` | Restore a backup into an empty ledger, all or nothing (`dry_run` shows what would happen). |
+| `GET` | `/data-options` | What the data page offers: `can_import`, `can_restore` (both need empty books), `confirm_word` (what Erase and Delete ask you to type), `can_delete_login`. Signed in to the finode app only. |
+| `POST` | `/erase` | Erase my books: everything you recorded goes, the profile and sign-in stay. `confirm` must be your email (or `DELETE`); signed in to the finode app only, never a bearer token. |
+| `POST` | `/delete-account` | Delete my account: everything, then the sign-in (503 when the server cannot remove logins). Same `confirm` and the same rule; clears the session cookies. |
 
 ## Adding a route
 

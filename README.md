@@ -127,7 +127,7 @@ local databases and tests out of it.
 Off until you set `FINODE_PASSWORD_RESET=true`, because Supabase must be able to send email first:
 
 1. Supabase › Authentication › Emails › SMTP Settings: enable custom SMTP with your mail provider's host, port, user and password, and a sender address on your own domain (for Zoho Mail: `smtp.zoho.com` or `smtp.zoho.in` to match your data centre, port 465, the mailbox's full address, an app password).
-2. Authentication › Emails › Templates › **Reset Password**: make the link `<a href="{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}">Choose a new password</a>`. The Site URL (Authentication › URL Configuration) must be the public address of this app.
+2. Authentication › Emails › Templates › **Reset Password**: make the link `<a href="{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}">Choose a new password</a>`. The Site URL (Authentication › URL Configuration) must be the public address of this app. When the finode app (React) moves to its own address (`app.<domain>`, `FINODE_FRONTEND_ORIGIN`), the Site URL and the OAuth Server's authorization path point there instead; until then they stay as they are.
 3. Set `FINODE_PASSWORD_RESET=true` and restart. The sign-in page then shows "Forgot your password?".
 
 The link only opens a form; the token is spent when the new password is submitted, so mail scanners that open links cannot use it up. `/forgot` always answers the same whether or not the address has an account, and is rate limited (`FINODE_RESET_ATTEMPTS`).
@@ -203,6 +203,7 @@ Environment variables (or a `.env` file at the project root) override defaults:
 - `FINODE_SUPABASE_ANON_KEY` — Supabase anon (public) key, used by the web UI to sign users in
 - `FINODE_SIGNUP_CODE`, `FINODE_SUPABASE_SERVICE_ROLE_KEY` — enable invite-only sign-up (see above); both are optional
 - `FINODE_COOKIE_SECURE` — set `true` when serving over HTTPS so session cookies are `Secure`, default `false` (compose sets it to `true`)
+- `FINODE_FRONTEND_ORIGIN` — where the finode app (the React frontend) is served, e.g. `https://app.example.com`: the only origin allowed to call `/api` from a browser and to make changes with the session cookie; empty (the default) allows none
 
 Keys without the `FINODE_` prefix (such as the compose settings above) are
 ignored by the app, so one `.env` serves both.

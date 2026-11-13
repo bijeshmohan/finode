@@ -21,7 +21,7 @@ from app.schemas.api_token import ApiTokenCreate
 from app.services.api_token import ApiTokenService
 from app.services.erase import EraseService
 from app.services.oauth_grant import OAuthGrantService
-from app.web_auth import ACCESS_COOKIE, AuthUnavailableError
+from app.session import ACCESS_COOKIE, AuthUnavailableError
 
 from .books import post_account
 from .conftest import TEST_USER_ID

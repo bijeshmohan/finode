@@ -125,3 +125,26 @@ def test_opening_the_form_from_an_account_keeps_that_account(client, books):
     page = client.get("/transactions/new", params={"account": books["hdfc"]["id"]}).text
     assert option_selected(page, books["hdfc"]["id"])
     assert not option_selected(page, books["card"]["id"])
+
+
+# ---- the same chips through the JSON API (the finode app) ------------------------------------------------------------
+
+
+def test_api_payee_suggestions_match_the_chips(client, books):
+    for payee in ("Swiggy", "Swiggy", "Swiggy Instamart", "Zepto"):
+        pay(client, payee, books["hdfc"], books["delivery"])
+    found = client.get("/api/transactions/payee-suggestions", params={"payee": "swi"}).json()
+    assert found == {"names": ["Swiggy", "Swiggy Instamart"], "people": []}
+    assert found["names"] == chips(client, "swi")
+
+
+def test_api_suggests_people_after_an_at(client, books):
+    ada = client.post("/api/contacts/", json={"name": "Ada"}).json()
+    found = client.get("/api/transactions/payee-suggestions", params={"payee": "@a"}).json()
+    assert found == {"names": [], "people": [{"id": ada["id"], "name": "Ada"}]}
+
+
+def test_api_only_people(client, books):
+    pay(client, "Swiggy", books["hdfc"], books["delivery"])
+    found = client.get("/api/transactions/payee-suggestions", params={"payee": "swi", "only": "people"}).json()
+    assert found == {"names": [], "people": []}

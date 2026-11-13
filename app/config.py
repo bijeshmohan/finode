@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     supabase_audience: str = "authenticated"
     supabase_anon_key: str | None = None
     cookie_secure: bool = False
+    # Where the finode app (the React frontend) is served, e.g. https://app.example.com: the only origin allowed to
+    # call /api from a browser, and the one a cookie request that changes something must come from. Empty: none.
+    frontend_origin: str | None = None
     # MCP calls allowed per token per minute (per app process).
     mcp_rate_limit: int = Field(default=120, ge=1)
     # How often (in minutes) due recurring transactions are recorded in the background; 0 turns it off.

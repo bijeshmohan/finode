@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.auth import CurrentUser, require_authenticated_user
+from app.auth import CookieSession, CurrentUser, require_authenticated_user, require_cookie_session
 from app.dependencies import get_db_session
 from app.main import app
 from app.web_auth import web_login_required
@@ -101,6 +101,9 @@ def client(session: Session) -> Generator[TestClient]:
 
     app.dependency_overrides[get_db_session] = get_session_override
     app.dependency_overrides[require_authenticated_user] = auth_override
+    app.dependency_overrides[require_cookie_session] = lambda: CookieSession(
+        user=auth_override(), access_token="test-access-token"
+    )
     app.dependency_overrides[web_login_required] = lambda: None
     with TestClient(app) as c:
         yield c

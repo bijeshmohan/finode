@@ -7,7 +7,7 @@ from uuid import UUID
 import httpx
 
 from .config import settings
-from .web_auth import AuthUnavailableError
+from .session import AuthUnavailableError
 
 
 class EmailAlreadyRegisteredError(Exception): ...

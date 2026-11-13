@@ -3,6 +3,7 @@ import pytest
 
 from app import signup
 from app.config import Settings, settings
+from app.session import AuthUnavailableError
 from app.signup import (
     EmailAlreadyRegisteredError,
     RateLimitedError,
@@ -10,7 +11,6 @@ from app.signup import (
     create_user,
     invite_code_is_valid,
 )
-from app.web_auth import AuthUnavailableError
 
 CODE = "a-long-enough-invite-code"
 SERVICE_KEY = "sb_secret_test_key"
