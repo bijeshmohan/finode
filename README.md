@@ -83,6 +83,17 @@ API (all under `/api`) only accepts `Authorization: Bearer` tokens. Behind HTTPS
 `FINODE_COOKIE_SECURE=true`. htmx is vendored in `app/static/`, so no CDN is
 needed.
 
+## The React app (being built)
+
+The UI that will replace the pages above lives in `frontend/` (see the Frontend section of `AGENTS.md`). It needs Node, at the version in `frontend/.nvmrc`:
+
+```sh
+cd frontend && npm ci
+FINODE_FRONTEND_ORIGIN=http://localhost:5173 uv run fastapi dev   # in one terminal, from the repo root
+npm run dev                                                       # in another: http://localhost:5173
+npm run check                                                     # what CI runs for the frontend
+```
+
 ## Docker deployment
 
 `compose.yaml` runs finode behind an existing [Traefik](https://traefik.io)

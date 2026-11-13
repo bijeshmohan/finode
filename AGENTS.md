@@ -68,6 +68,17 @@ finode is a personal double-entry ledger with envelope budgeting: FastAPI + SQLM
 - Behaviour that lives in `app.js` or needs a real browser gets a test in `tests/browser/` (the unit tests only see server HTML). Browser tests run with reduced motion.
 - New pages reuse the existing parts (switcher `.chips.seg`, row, tile, `.add-row`, `.empty-state`, month pill macro); do not draw new ones.
 
+## Frontend rules (`frontend/`: the React app, being built on `feature/react-frontend`)
+
+Plan and design: `docs/superpowers/specs/2026-11-13-react-frontend-design.md`. Until the switch, the Jinja pages above stay the live UI.
+
+- Commands (in `frontend/`, Node from `.nvmrc`): `npm ci`; `npm run dev` (with `uv run fastapi dev` and `FINODE_FRONTEND_ORIGIN=http://localhost:5173`); `npm run check` (types for CSS modules and the API, ESLint, Prettier, `tsc`, Vitest, build, `npm audit --omit=dev`; also in `make check` and CI). After an API change: `npm run gen:api` (`tests/test_openapi_file.py` fails until you do).
+- **Never commit code that fails `npm run check`.** Strict TypeScript; no `any` without a reason; ESLint at zero warnings; exact dependency versions.
+- Call the API only through `useApi()` (`src/api/context.tsx`), never by importing `api`; read results with `data()` inside TanStack Query.
+- **Amounts are strings** end to end, never `Number`; format with `lib/money.ts`, type with `AmountField`. **Today comes from `useToday()`** (the server's, in `FINODE_TIMEZONE`), never `new Date()`. `tests/format_cases.json` holds the React helpers and the Jinja filters to the same answers.
+- Colours from `app/static/tokens.css` only (shared with the Jinja pages); icons from `components/Icon` (`tests/test_icon_parity.py` keeps them equal to `partials/icons.html`). Styles in a CSS Module per component, taken from the matching `style.css` rule.
+- A component used by two features lives in `src/components/`; a feature's own pages, queries and parts live in `src/features/<area>/`.
+
 ## Removed on purpose: do not bring back without the owner asking
 
 History, undo and Recently deleted · savings goals · budget targets and notes · the period lock · the Advanced switch · Build and Earn on the budget · search box and "Recently used" on Accounts · charts and colours on Categories · quick amounts on the Add screen · pre-filled accounts or categories (payee chips fill only the name) · account order / Move up/down · per-person depth limits · multiple currencies, prices and conversions. Details: `reference/removed.md` and the reference pages.
