@@ -1,3 +1,5 @@
+"""The budget plan: what a person assigned to each category in each month."""
+
 from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID, uuid4

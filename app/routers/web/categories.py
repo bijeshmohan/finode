@@ -127,7 +127,7 @@ def categories_page(request: Request, categories: Categories, reports: Reports, 
     when, end, is_current = _period(month)
     if when is None:
         return RedirectResponse(f"/categories?tab={tab}", status_code=303)
-    tab = {"spending": "expense", "earning": "income"}.get(tab, tab)  # the kinds' own names work too
+    tab = KIND_TABS.get(tab, tab)  # the kinds' own names work too
     tab = tab if tab in TABS else "expense"
     top, _own, totals = _figures(categories, reports, TABS[tab], when, end)
     grand = sum((totals[n.category.id] for n in top), ZERO)

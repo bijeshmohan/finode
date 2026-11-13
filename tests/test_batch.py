@@ -93,20 +93,17 @@ def test_the_size_and_the_limits_of_a_batch(client, account, expense_account, mo
 def test_a_failure_while_saving_leaves_nothing_behind(client, account, expense_account, monkeypatch):
     from app.repositories.transaction import TransactionRepository
 
-    real = TransactionRepository.create
-    calls = []
+    real = TransactionRepository.create_many
 
     def flaky(self, *args, **kwargs):
-        calls.append(1)
-        if len(calls) == 3:
-            raise RuntimeError("the database went away")
-        return real(self, *args, **kwargs)
+        real(self, *args, **kwargs)  # every row is written and nothing is committed yet: the worst moment to fail
+        raise RuntimeError("the database went away")
 
-    monkeypatch.setattr(TransactionRepository, "create", flaky)
+    monkeypatch.setattr(TransactionRepository, "create_many", flaky)
     sent = [entry(expense_account, account, str(n)) for n in (1, 2, 3, 4)]
     with pytest.raises(RuntimeError):
         client.post("/api/transactions/batch", json={"transactions": sent})
-    monkeypatch.setattr(TransactionRepository, "create", real)
+    monkeypatch.setattr(TransactionRepository, "create_many", real)
     assert count(client) == 0
     assert client.get("/api/reports/trial-balance").json()["balanced"] is True
 

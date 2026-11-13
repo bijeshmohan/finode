@@ -1,3 +1,5 @@
+"""What the API takes and returns for the budget: a month's lines and cards, and assigning, moving and copying."""
+
 from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID

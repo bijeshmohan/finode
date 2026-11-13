@@ -1,3 +1,5 @@
+"""The Your data page (erase, delete my account), the profile form and the Assistants page with its tokens."""
+
 from typing import Annotated
 from urllib.parse import quote
 from uuid import UUID

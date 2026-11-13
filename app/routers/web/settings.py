@@ -1,3 +1,5 @@
+"""The Settings page and changing the currency."""
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Request

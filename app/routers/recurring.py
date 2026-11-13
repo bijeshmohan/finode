@@ -1,3 +1,5 @@
+"""JSON API for recurring rules (`/api/recurring`): create, read, replace, pause, resume, skip and delete."""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException

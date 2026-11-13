@@ -1,8 +1,8 @@
-"""Tags are #hashtags written in a transaction's note ("Dinner with Ravi #reimbursable #goa-trip").
+"""Tags are labels on an entry, kept in their own tables (`tags`, `transaction_tags`) apart from its note.
 
-Nothing is stored for them: the note is the one place, so tags work the same on the web form, the API, imports and
-backups, and for assistants. A tag is a # that starts a word, then 1 to 30 letters, digits, `-` or `_` (it starts and
-ends with a letter or digit), is read case-insensitively, and has at least one letter, so "#1" is not a tag.
+A tag is 1 to 30 letters, digits, `-` or `_` (it starts and ends with a letter or digit), is kept lower case and has
+at least one letter, so "1" is not a tag. A `#word` in a note is only text: `tags_in` and `split_note` stay to read the
+tags out of the notes of an older backup, and to tell an assistant that the # it wrote in a note is not a tag.
 """
 
 import re

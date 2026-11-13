@@ -1,3 +1,5 @@
+"""What the assistants' token screens take and return; the secret is returned once, when the token is made."""
+
 from datetime import datetime
 from uuid import UUID
 

@@ -1,3 +1,5 @@
+"""Signing in, signing up, signing out and resetting a password (the only pages open to someone not signed in)."""
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request

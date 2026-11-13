@@ -60,9 +60,9 @@ class CategoryRepository:
         self.db.delete(category)
         self.db.flush()
 
-    def set_closed(self, bcids: builtins.list[UUID], day: date | None) -> None:
+    def set_closed(self, category_ids: builtins.list[UUID], day: date | None) -> None:
         for category in self.list():
-            if category.id in bcids:
+            if category.id in category_ids:
                 category.closed_on = day
                 self.db.add(category)
         self.db.flush()

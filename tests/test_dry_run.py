@@ -61,6 +61,18 @@ def test_deleting_with_dry_run_keeps_the_entry(client, account, expense_account)
     assert client.delete(f"/api/transactions/{made['id']}?dry_run=true").status_code == 404
 
 
+def test_a_dry_run_keeps_what_each_line_was_for_and_the_tags(client, account, expense_account):
+    """A change that leaves the rows alone, and a delete, used to show the lines without their category (and a delete
+    without the tags), so a line on groceries read as plain Expenses."""
+    made = client.post("/api/transactions/", json=body(expense_account, account) | {"tags": ["trip"]}).json()
+    categories = sorted(str(p["category_id"]) for p in made["postings"])
+    assert expense_account["id"] in categories
+    kept = client.patch(f"/api/transactions/{made['id']}?dry_run=true", json={"comment": "x"}).json()
+    assert sorted(str(p["category_id"]) for p in kept["postings"]) == categories and kept["tags"] == ["trip"]
+    gone = client.delete(f"/api/transactions/{made['id']}?dry_run=true").json()
+    assert sorted(str(p["category_id"]) for p in gone["postings"]) == categories and gone["tags"] == ["trip"]
+
+
 @pytest.mark.anyio
 async def test_assistants_can_check_before_they_write(session, client, account, expense_account):
     args = {"amount": "75", "from_account": account["id"], "to_account": expense_account["id"], "payee": "Cafe"}
@@ -76,6 +88,8 @@ async def test_assistants_can_check_before_they_write(session, client, account, 
         assert client.get(f"/api/transactions/{made}").json()["payee"] == "Cafe"
         gone = payload(await c.call_tool("delete_transaction", {"transaction_id": made, "dry_run": True}))
         assert gone["would_delete"]["id"] == made and count(client) == 1
+        for seen in (change["would_become"], gone["would_delete"]):
+            assert expense_account["id"] in [p["account_id"] for p in seen["postings"]], "the line names its category"
         rows = [
             tool_leg(account, "credit", "9"),
             tool_leg(expense_account, "debit", "9"),

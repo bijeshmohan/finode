@@ -153,7 +153,7 @@ class ExpenseSharingService:
 
     def _lines(self, plan: _Plan) -> list[PostingCreate]:
         """The ledger lines (see the module note); they balance because shares and payments both add up to the total."""
-        roots = {a.name: a.id for a in self.contacts.accounts.ar.list() if a.parent_id is None}
+        roots = self.contacts.accounts.ar.root_ids()
         owner = self._owner(plan)
         lines: list[PostingCreate] = []
         if owner.share > 0:
@@ -301,8 +301,13 @@ class ExpenseSharingService:
             raise SharedExpenseNotFoundError
         return expense
 
-    def _read(self, expense: SharedExpense) -> SharedExpenseRead:
-        preview = self._describe(self._plan_of(expense))
+    def _read(
+        self,
+        expense: SharedExpense,
+        shares: builtins.list[ExpenseShare] | None = None,
+        paid: builtins.list[ExpenseContribution] | None = None,
+    ) -> SharedExpenseRead:
+        preview = self._describe(self._plan_of(expense, shares, paid))
         return SharedExpenseRead(
             **preview.model_dump(),
             id=expense.id,
@@ -310,8 +315,14 @@ class ExpenseSharingService:
             transaction_id=expense.transaction_id,
         )
 
-    def _plan_of(self, expense: SharedExpense) -> _Plan:
-        """The stored plan, with the shares as they were worked out then (not worked out again)."""
+    def _plan_of(
+        self,
+        expense: SharedExpense,
+        shares: builtins.list[ExpenseShare] | None = None,
+        paid: builtins.list[ExpenseContribution] | None = None,
+    ) -> _Plan:
+        """The stored plan, with the shares as they were worked out then (not worked out again). `shares` and `paid` are
+        the expense's rows when the caller already read them (a list reads them for every expense at once)."""
         names = {c.id: c.name for c in self.contacts.cr.list()}
         people = [
             _Person(
@@ -320,11 +331,11 @@ class ExpenseSharingService:
                 share=s.share_amount,
                 value=s.share_value,
             )
-            for s in self.er.shares(expense.id)
+            for s in (self.er.shares(expense.id) if shares is None else shares)
         ]
         by_contact = {p.contact_id: p for p in people}
         payments = []
-        for c in self.er.contributions(expense.id):
+        for c in self.er.contributions(expense.id) if paid is None else paid:
             by_contact[c.contact_id].paid += c.amount
             if c.is_self:
                 payments.append((c.account_id, c.amount))
@@ -341,8 +352,16 @@ class ExpenseSharingService:
     def read(self, expense_id: UUID) -> SharedExpenseRead:
         return self._read(self._get(expense_id))
 
+    def of_entry(self, transaction_id: UUID) -> SharedExpenseRead | None:
+        """The shared expense a ledger entry was made by, if one was."""
+        found = self.er.by_transaction(transaction_id)
+        return self._read(found) if found is not None else None
+
     def list(self, status: str | None = None) -> list[SharedExpenseRead]:
-        return [self._read(e) for e in self.er.list(status)]
+        expenses = self.er.list(status)
+        ids = [e.id for e in expenses]
+        shares, paid = self.er.shares_for(ids), self.er.contributions_for(ids)
+        return [self._read(e, shares[e.id], paid[e.id]) for e in expenses]
 
     # ---- writing -----------------------------------------------------------------------------------
 
@@ -491,7 +510,7 @@ class ExpenseSharingService:
             return False
         owed = self.ob.obligations(source_transaction_id=transaction_id, lock=True)
         self.netting.release([o.id for o in owed])
-        if any(self.ob.settled([o.id]).get(o.id) for o in owed):
+        if self.ob.any_settled(owed):
             raise ReversalBlockedError("something was paid back against this: reverse that first!")
         self.er.delete(expense)
         self.ob.purge(transaction_id)
@@ -557,7 +576,7 @@ class ExpenseSharingService:
             obligations = self.ob.obligations(source_transaction_id=entry_id, lock=True) if entry_id else []
             if entry_id is not None:
                 self.netting.release([o.id for o in obligations])
-                if any(self.ob.settled([o.id]).get(o.id) for o in obligations):
+                if self.ob.any_settled(obligations):
                     raise ReversalBlockedError("something was settled against this: reverse the settlement first!")
             self.er.delete(expense)
             if entry_id is not None:

@@ -88,7 +88,12 @@ class ComingUpService:
                     amount = rule.amount
                 else:
                     continue
-                day, found = max(rule.next_date, today + timedelta(days=1)), 0
+                # A rule that is behind (not caught up yet, or held by a problem) carries on with its own days.
+                tomorrow = today + timedelta(days=1)
+                day = max(
+                    rule.next_date, schedule.first_on_or_after(rule.start_date, rule.frequency, rule.every, tomorrow)
+                )
+                found = 0
                 while day <= through and (rule.end_date is None or day <= rule.end_date) and found < MAX_PER_RULE:
                     item(day, rule.payee, debits, credits, amount, recurring_id=rule.id)
                     day = schedule.first_after(rule.start_date, rule.frequency, rule.every, day)

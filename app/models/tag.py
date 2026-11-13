@@ -1,3 +1,5 @@
+"""Tags: a person's labels and the entries that carry them."""
+
 from uuid import UUID, uuid4
 
 from sqlalchemy import Index, UniqueConstraint

@@ -153,6 +153,7 @@ def test_accounts_merge_with_their_entries(client, books, root_accounts):
     done = merge(client, other, books["bank"])
     assert done.status_code == 200, done.text
     assert done.json()["balance_moved"] == "200.00"
+    assert "plan_months_moved" not in done.json()  # the plan belongs to categories: an account has none to move
     assert client.get(f"/api/accounts/{other['id']}").status_code == 404
     assert balance(client, books["bank"]) == "1170.00"
     assert client.get("/api/reports/trial-balance").json()["balanced"] is True

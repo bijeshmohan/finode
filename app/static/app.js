@@ -842,15 +842,7 @@ function syncRowPickers(form) {
     const text = search.value.trim().toLowerCase();
     const all = choices();
     list.replaceChildren();
-    if (flat) {
-      all.filter((o) => o.textContent.toLowerCase().includes(text)).forEach((o) => list.append(row(o, "")));
-      if (!list.children.length) {
-        const li = document.createElement("li");
-        li.className = "filter-empty muted";
-        li.textContent = `No ${noun} matches.`;
-        list.append(li);
-      }
-    } else if (text) {
+    if (flat || text) {  // one plain list: a form's field, or what a search found
       all.filter((o) => o.textContent.toLowerCase().includes(text)).forEach((o) => list.append(row(o, "")));
       if (!list.children.length) {
         const li = document.createElement("li");

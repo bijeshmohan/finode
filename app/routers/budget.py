@@ -1,3 +1,5 @@
+"""JSON API for the budget (`/api/budget`): a month's figures, assigning, moving, copying, and what is coming up."""
+
 from collections.abc import Callable
 from datetime import date
 from typing import Any
@@ -45,7 +47,7 @@ def coming_up(service: ComingUp, through: date | None = None):
 
 @router.put("/categories/{category_id}", response_model=BudgetRead, status_code=200)
 def assign(category_id: UUID, data: BudgetAssign, budget: Budget):
-    """Set how much of the month a category gets (an expense account); 0 removes it."""
+    """Set how much of the month a spending category gets; 0 removes it."""
     try:
         return budget.assign(data.month, category_id, data.amount)
     except BudgetError as e:

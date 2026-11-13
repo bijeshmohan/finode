@@ -27,18 +27,19 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | `limits.py`, `ratelimit.py` | per-person caps; slowing sign-in guessing |
 | `recurring_runner.py` | background loop that records due recurring transactions |
 | `version.py` | the version from `pyproject.toml` |
+| `tags.py` | reading `#tags` out of a note (older backups, and the assistant's notice when a note holds one) |
 
 ## Layers
 
 | Folder | One line |
 |---|---|
-| `models/` | SQLModel tables: `account`, `transaction` (+ `Posting`), `category` (budget categories), `contact` (contacts and their two accounts), `budget` (allocations), `recurring`, `profile`, `api_token`, `oauth_grant`, `auth` (mirror of Supabase `users`), `utils` (timestamps, the `Amount` column type) |
+| `models/` | SQLModel tables: `account`, `transaction` (+ `Posting`), `category` (budget categories), `contact` (contacts and their two accounts), `budget` (allocations), `recurring`, `tag` (tags and the entries that carry them), `profile`, `api_token`, `oauth_grant`, `auth` (mirror of Supabase `users`), `utils` (timestamps, the `Amount` column type) |
 | `schemas/` | Pydantic shapes per entity: `*Base`, `*Create`, `*Read`, `*Update` |
-| `repositories/` | tenant-scoped queries |
-| `services/` | `account`, `cards` (a card's statement and due dates), `category`, `contact` (people with a "Due from" and a "Due to" account), `transfer`, `expense_sharing`, `splits`, `settlement`, `obligation`, `contact_summary` (what is done with a person), `transaction`, `budget`, `coming_up` (entries dated ahead and rule occurrences in one list), `report`, `recurring` (+ `schedule`), `profile`, `data`, `backup`, `erase`, `api_token`, `oauth_grant`, `simple`, `validation` |
-| `routers/` | the JSON API (`/api`, all of it listed in [api.md](api.md)): `accounts`, `categories`, `contacts`, `transactions`, `profile`, `recurring`, `budget`, `reports`, `data` |
+| `repositories/` | tenant-scoped queries; `cache` remembers reads for one request (dropped on any write) |
+| `services/` | `account`, `cards` (a card's statement and due dates), `category`, `contact` (people with a "Due from" and a "Due to" account), `contact_errors`, `transfer`, `expense_sharing`, `income_sharing`, `splits`, `settlement`, `obligation`, `netting` (nobody is owed both ways), `contact_summary` (what is done with a person), `transaction`, `budget`, `coming_up` (entries dated ahead and rule occurrences in one list), `report`, `todo` (the to-do bell), `recurring` (+ `schedule`), `profile`, `data`, `backup`, `erase`, `api_token`, `oauth_grant`, `simple`, `validation` |
+| `routers/` | the JSON API (`/api`, all of it listed in [api.md](api.md)): `accounts`, `categories`, `contacts`, `transfers`, `settlements`, `shared_expenses`, `shared_incomes`, `transactions`, `tags`, `profile`, `recurring`, `budget`, `reports`, `todo`, `data`; `contact_utils` is what the people routes share (the retry header, how a refusal is answered) |
 | `routers/web/` | the HTML pages, one module per area |
-| `mcp_server/` | `transport` (auth, rate limit), `tools`, `accounts` (name lookup), `context` |
+| `mcp_server/` | `transport` (auth, rate limit), `tools`, `accounts` and `categories` (name lookup), `context` |
 | `ledger/` | journal format parser and writer (import and export) |
 | `templates/`, `static/` | the web UI |
 
@@ -47,6 +48,7 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | Where | What |
 |---|---|
 | `tests/conftest.py` | fresh in-memory SQLite per test, dependency overrides, fixtures (`client`, `root_accounts`, `account`, `expense_account`, `svc`, …) |
+| `tests/books.py` | categories in tests: what used to be an Expenses or Income account is a category (`post_account`, `into`, …) |
 | `tests/svc.py` | `services(session, user=…, origin=…)` and `plain(model)`: call the services directly without HTTP |
 | `tests/test_isolation.py` | person B tries to reach person A's data by every route; classifies every route |
 | `tests/test_query_counts.py` | statement counts of the main pages must not grow with the data |
@@ -73,6 +75,6 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | add or change what a category is, or how a line gets one | `services/category.py`, `repositories/category.py`, `TransactionRepository._line_categories`, `TransactionService._check_categories` |
 | change the budget arithmetic | `services/budget.py::_compute` / `_roll`, `tests/test_budget.py` |
 | add a page | a module in `routers/web/`, a template in `templates/`, register it in `routers/web/__init__.py`, classify the route in `tests/test_isolation.py` |
-| add an MCP tool | `mcp_server/tools.py` (add to `READ_TOOLS` or `WRITE_TOOLS`), update `INSTRUCTIONS` if a rule changed |
+| add an MCP tool | `mcp_server/tools.py` (add to `READ_TOOLS`, `WRITE_TOOLS` or `MANAGE_TOOLS`), update `INSTRUCTIONS` if a rule changed; a read tool also gets a call in `tests/test_mcp_smoke.py` |
 | add a setting for people | a column on `profiles`, a migration, a field on `ProfileUpdate`, a form on `routers/web/settings.py` |
 | add a table | model, migration, backup + `tests/test_backup.py`; it has a `user_id` column so erasing finds it |
