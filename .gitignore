@@ -102,3 +102,7 @@ backups/
 
 # What a failed browser test leaves behind (tests/browser/conftest.py)
 tests/browser/failures/
+
+# The React app (frontend/)
+frontend/node_modules/
+frontend/dist/
