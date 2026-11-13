@@ -49,3 +49,22 @@ def test_creating_an_account(spa_page: Page, monkeypatch):
     spa_page.get_by_label("Invite code").fill("a-long-enough-invite-code")
     spa_page.get_by_role("button", name="Create account").click()
     expect(spa_page.get_by_role("heading", name="Home")).to_be_visible()
+
+
+def test_resetting_a_password(spa_page: Page, monkeypatch):
+    from app import auth_flows
+    from app.config import settings
+    from app.session import SessionTokens
+
+    monkeypatch.setattr(settings, "password_reset", True)
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
+    monkeypatch.setattr(settings, "supabase_anon_key", "anon-key")
+    monkeypatch.setattr(
+        auth_flows, "reset_password", lambda token_hash, password: SessionTokens("test-access", "test-refresh", 3600)
+    )
+    spa_page.goto("/reset?token_hash=abc")
+    spa_page.get_by_label("New password").fill("correct horse")
+    spa_page.get_by_label("Confirm password").fill("correct horse")
+    spa_page.get_by_role("button", name="Change password").click()
+    expect(spa_page.get_by_role("heading", name="Home")).to_be_visible()
+    expect(spa_page.get_by_role("status")).to_have_text("Your password was changed. You are signed in.")
