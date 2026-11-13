@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-CSS = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
+CSS = (Path(__file__).parent.parent / "app" / "static" / "tokens.css").read_text()
 
 
 def tokens(block: str) -> dict[str, str]:

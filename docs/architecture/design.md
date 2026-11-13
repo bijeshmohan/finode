@@ -13,7 +13,7 @@ finode looks the way it does on purpose: **calm, minimal and quick to enter**. T
 
 ## Tokens
 
-The tokens are CSS variables at the top of `style.css`. Style with tokens only, never literal colours (the white switch knob is the one exception).
+The tokens are CSS variables in `app/static/tokens.css`, loaded before `style.css` and by the React app. Style with tokens only, never literal colours (the white switch knob is the one exception).
 
 | Group | Tokens |
 |---|---|

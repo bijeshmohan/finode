@@ -23,7 +23,7 @@ def test_a_touched_row_is_not_painted_grey(page: Page, books):
             "transparent",
         )
     # and the hover colours that remain are only for devices that really hover
-    css = page.request.get(page.evaluate("document.querySelector('link[rel=stylesheet]').href")).text()
+    css = page.request.get(page.evaluate("document.querySelector('link[rel=stylesheet][href*=style]').href")).text()
     assert "@media (hover: hover) { .acc-card:hover" in css and ".setting > summary:hover" not in css
 
 

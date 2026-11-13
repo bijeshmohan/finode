@@ -48,9 +48,9 @@ def test_dark_theme_defines_the_same_tokens_in_both_dark_blocks():
     """The automatic dark block and the manual `data-theme=dark` block must stay in step."""
     from pathlib import Path
 
-    css = (Path(__file__).parent.parent / "app" / "static" / "style.css").read_text()
+    css = (Path(__file__).parent.parent / "app" / "static" / "tokens.css").read_text()
     auto = css[css.index("@media (prefers-color-scheme: dark)") : css.index(':root[data-theme="dark"]')]
-    manual = css[css.index(':root[data-theme="dark"]') : css.index("/* ---------- Base")]
+    manual = css[css.index(':root[data-theme="dark"]') :]
     names = lambda block: {line.split(":")[0].strip() for line in block.splitlines() if line.strip().startswith("--")}
     assert names(auto) == names(manual) and "--field-border" in names(auto)
 
@@ -73,3 +73,17 @@ def test_the_sidebar_lists_home_plan_accounts_categories_then_transactions(clien
     assert order == sorted(order), "Home, Budgets, Accounts, Categories, Transactions"
     bar = page[page.index('class="tabbar') : page.index("</nav>", page.index('class="tabbar'))]
     assert 'href="/transactions"' not in bar, "phones keep their four tabs (and the docked +)"
+
+
+def test_the_tokens_live_in_one_file(client: TestClient):
+    """The colours are defined once, in tokens.css, which the web pages and the React app (frontend/) both load."""
+    from pathlib import Path
+
+    static = Path(__file__).parent.parent / "app" / "static"
+    tokens, style = (static / "tokens.css").read_text(), (static / "style.css").read_text()
+    for block in (":root {", "@media (prefers-color-scheme: dark)", ':root[data-theme="dark"]'):
+        assert block in tokens
+    for token in ("--bg:", "--surface:", "--accent:"):
+        assert token not in style, f"{token} is defined in style.css: it belongs in tokens.css"
+    page = client.get("/").text
+    assert page.index("/static/tokens.css?v=") < page.index("/static/style.css?v=")
