@@ -1,0 +1,214 @@
+/* The app shell, from the "App shell" and toast rules of app/static/style.css. Colours from tokens.css only. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: calc(var(--topbar-h) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(1.25rem, env(safe-area-inset-right)) 0 max(1.25rem, env(safe-area-inset-left));
+  background: var(--bg);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 650;
+  font-stretch: 87.5%;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.avatar :global(.icon) {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.avatar[aria-current="page"] {
+  color: var(--text);
+}
+
+.sidebar {
+  display: none;
+}
+
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.tabbar a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--faint);
+  touch-action: manipulation;
+}
+.tabbar a[aria-current="page"] {
+  color: var(--text);
+}
+.tabbar :global(.icon) {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+/* The "+" is docked in the middle of the tab bar, so it never covers what is on the page. */
+.tabbar a.fab {
+  width: 3rem;
+  height: 3rem;
+  margin: -1rem auto 0;
+  flex: none;
+  border-radius: 50%;
+  color: var(--on-accent);
+  background: var(--accent);
+  box-shadow: var(--shadow-lg);
+}
+.tabbar a.fab :global(.icon) {
+  width: 24px;
+  height: 24px;
+}
+
+.main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1rem 1.25rem calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 2rem);
+}
+
+.netBanner {
+  position: fixed;
+  z-index: 70;
+  top: calc(env(safe-area-inset-top) + 0.5rem);
+  left: 1rem;
+  right: 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  box-shadow: var(--shadow-lg);
+}
+
+.toastRegion {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 1.75rem);
+  z-index: 30;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.toast {
+  display: block;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.7rem 1.1rem;
+  color: var(--bg);
+  background: var(--text);
+  border-radius: 999px;
+  box-shadow: var(--shadow-lg);
+  font-weight: 500;
+  animation: toast-in 0.25s ease-out;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+/* Wide screens: a sidebar replaces the top bar and the tab bar, and the page is one calm column. */
+@media (min-width: 60rem) {
+  .topbar,
+  .tabbar {
+    display: none;
+  }
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: var(--sidebar-w);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1rem 0.75rem;
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+  }
+  .sidebar .brand {
+    padding: 0.25rem 0.5rem 1rem;
+  }
+  .sidebarNew {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--accent);
+    background: var(--surface);
+    font-weight: 600;
+  }
+  .sidenav {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sidenav a {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 2.5rem;
+    padding: 0 0.75rem;
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 0.9375rem;
+    font-weight: 500;
+  }
+  .sidenav a:hover,
+  .sidenav a[aria-current="page"] {
+    color: var(--text);
+    background: var(--border);
+  }
+  .sidenav a.sidebarFoot {
+    margin-top: auto;
+  }
+  .main {
+    margin-left: max(calc(var(--sidebar-w) + 1rem), calc(50vw - 22rem));
+    margin-right: auto;
+    padding: 3rem 2rem 4rem;
+  }
+  .netBanner {
+    left: calc(var(--sidebar-w) + 2rem);
+    right: 2rem;
+    max-width: 40rem;
+  }
+  .toastRegion {
+    bottom: 2rem;
+  }
+}

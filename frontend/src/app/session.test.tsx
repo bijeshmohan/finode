@@ -1,0 +1,26 @@
+import { screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+
+import { renderApp, SIGNED_IN } from "../test/render";
+
+describe("the session", () => {
+  it("signed out goes to sign-in", async () => {
+    const router = renderApp("/accounts", { "/api/auth/session": [401, { detail: "missing authentication token" }] });
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/sign-in");
+    expect(router.state.location.search).toBe("?next=%2Faccounts");
+  });
+
+  it("a lost connection says so and offers to try again, never sign-in", async () => {
+    renderApp("/", { "/api/auth/session": new TypeError("Failed to fetch") });
+    expect(await screen.findByText("finode can't be reached. Check your connection.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Sign in" })).not.toBeInTheDocument();
+  });
+
+  it("today is the server's day", async () => {
+    renderApp("/", SIGNED_IN);
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-11-13");
+  });
+});
