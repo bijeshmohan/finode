@@ -30,5 +30,11 @@ describe("Chips", () => {
     screen.getByRole("radio", { name: "Spend" }).focus();
     await userEvent.keyboard("{ArrowRight}");
     expect(onChange).toHaveBeenCalledWith("save");
+    expect(screen.getByRole("radio", { name: "Save" })).toHaveFocus();
+  });
+
+  it("can be reached by keyboard even when nothing matches", () => {
+    render(<Chips label="Kind" options={OPTIONS} value={"other" as "spend"} onChange={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "Spend" })).toHaveAttribute("tabindex", "0");
   });
 });

@@ -38,12 +38,31 @@ describe("Sheet", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("is closed when not open", () => {
-    render(
+  it("closing calls the dialog's own close(), so the browser gives focus back to the opener", () => {
+    const close = vi.spyOn(HTMLDialogElement.prototype, "close");
+    const { rerender } = render(
+      <Sheet open onClose={vi.fn()} title="Coffee">
+        details
+      </Sheet>,
+    );
+    rerender(
       <Sheet open={false} onClose={vi.fn()} title="Coffee">
         details
       </Sheet>,
     );
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(close).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog", { hidden: true })).not.toHaveAttribute("open");
+    close.mockRestore();
+  });
+
+  it("a dialog the browser closed by itself tells the page", () => {
+    const onClose = vi.fn();
+    render(
+      <Sheet open onClose={onClose} title="Coffee">
+        details
+      </Sheet>,
+    );
+    screen.getByRole<HTMLDialogElement>("dialog").close();
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

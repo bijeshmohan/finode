@@ -1,11 +1,13 @@
-import { screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { renderApp, SIGNED_IN } from "../test/render";
 
 describe("the session", () => {
   it("signed out goes to sign-in", async () => {
-    const router = renderApp("/accounts", { "/api/auth/session": [401, { detail: "missing authentication token" }] });
+    const { router } = renderApp("/accounts", {
+      "/api/auth/session": [401, { detail: "missing authentication token" }],
+    });
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/sign-in");
     expect(router.state.location.search).toBe("?next=%2Faccounts");
@@ -16,6 +18,19 @@ describe("the session", () => {
     expect(await screen.findByText("finode can't be reached. Check your connection.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sign in" })).not.toBeInTheDocument();
+  });
+
+  it("a failed refresh keeps the app on screen once it has a session", async () => {
+    const answers = { ...SIGNED_IN };
+    const { queryClient } = renderApp("/", answers);
+    expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
+    answers["/api/auth/session"] = new TypeError("Failed to fetch");
+    await act(() => queryClient.refetchQueries({ queryKey: ["session"] }));
+    await waitFor(() => {
+      expect(queryClient.getQueryState(["session"])?.status).toBe("error");
+    });
+    expect(screen.getByRole("heading", { name: "Home" })).toBeInTheDocument();
+    expect(screen.queryByText("finode can't be reached. Check your connection.")).not.toBeInTheDocument();
   });
 
   it("today is the server's day", async () => {

@@ -9,20 +9,21 @@ export function groupingFor(currency: string | null): Grouping {
 }
 
 /** Only what makes an amount: digits, commas, one decimal point (none when `places` is 0, and no more decimals than
- * `places`) and a leading minus; no zeros in front ("01" is 1, "00.5" is 0.5). */
+ * `places`) and a leading minus (the app's own "−" too); no zeros in front ("01" is 1, "00.5" is 0.5). */
 export function cleanAmount(text: string, places: number): string {
   let out = "";
   let dot = false;
   let fraction = 0;
-  for (const ch of text) {
+  for (const ch of text.replaceAll("\u2212", "-")) {
     if (ch >= "0" && ch <= "9") {
       if (dot && fraction >= places) continue;
       if (dot) fraction += 1;
       out += ch;
     } else if (ch === ",") out += ch;
-    else if (ch === "." && !dot && places > 0) {
+    else if (ch === "." && !dot) {
+      // Without decimals the point is never typed, and digits pasted after one ("1,500.00") are dropped, not joined on.
       dot = true;
-      out += ch;
+      if (places > 0) out += ch;
     } else if (ch === "-" && out === "") out += ch;
   }
   return out.replace(/^(-?)0+(?=\d)/, "$1");

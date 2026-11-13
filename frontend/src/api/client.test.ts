@@ -32,6 +32,15 @@ describe("the API client", () => {
     expect(onUnauthorized).toHaveBeenCalledOnce();
   });
 
+  it("a 401 from sign-in itself (a wrong password) does not leave the page", async () => {
+    const { fetch } = stubFetch(401, { detail: { message: "Invalid email or password." } });
+    const onUnauthorized = vi.fn();
+    const client = makeClient({ baseUrl: "http://localhost", fetch, onUnauthorized });
+    await client.POST("/api/auth/sign-in", { body: { email: "a@b.co", password: "x" } });
+    await client.GET("/api/auth/session");
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
   it("data() throws ApiError with the status and detail", async () => {
     const { fetch } = stubFetch(400, { detail: "nope" });
     const client = makeClient({ baseUrl: "http://localhost", fetch, onUnauthorized: vi.fn() });
