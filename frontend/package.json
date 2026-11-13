@@ -13,8 +13,10 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run audit",
-    "audit": "npm audit --omit=dev"
+    "check": "npm run gen:api:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run audit",
+    "audit": "npm audit --omit=dev",
+    "gen:api": "cd .. && uv run python -m scripts.export_openapi && cd frontend && openapi-typescript openapi.json -o src/api/schema.d.ts",
+    "gen:api:check": "node scripts/check-api-types.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "5.107.1",
