@@ -12,6 +12,10 @@ NAME="finode-browser-$$"
 
 cd "$(dirname "$0")/.."
 
+# The React app's browser tests drive the built app (tests/browser/spa.py): build it first.
+if [ ! -d frontend/node_modules ]; then npm --prefix frontend ci; fi
+npm --prefix frontend run build >/dev/null
+
 # The browser server listens on localhost only: it must never be reachable from outside.
 docker run -d --rm --name "$NAME" --network host --ipc=host "$IMAGE" \
   sh -c "pip install -q playwright==${VERSION} && python -m playwright run-server --host 127.0.0.1 --port ${PORT}" >/dev/null
