@@ -123,6 +123,7 @@ def spa_server(session, monkeypatch: pytest.MonkeyPatch) -> Generator[str]:
     monkeypatch.setattr(auth, "verify_supabase_jwt", _fake_jwt)
     monkeypatch.setattr(auth_flows, "sign_in", _fake_sign_in)
     monkeypatch.setattr(settings, "recurring_interval_minutes", 0)
+    monkeypatch.setattr(settings, "cookie_secure", False)  # plain http on 127.0.0.1: WebKit drops a Secure cookie there
     served = _serve(spa_app(), session)
     url = next(served)
     monkeypatch.setattr(settings, "frontend_origin", url)
