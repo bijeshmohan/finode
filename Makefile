@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install run migrate lint format typecheck test test-browser coverage check hooks
+.PHONY: help install run migrate lint format typecheck test test-browser coverage check frontend-check hooks
 
 help:  ## list the targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -33,7 +33,10 @@ test-browser:  ## the browser tests in Docker; FINODE_BROWSER=webkit for Safari'
 coverage:  ## the tests with a coverage report
 	uv run pytest -q --cov --cov-report=term-missing:skip-covered
 
-check: lint typecheck test  ## everything CI runs (except the browser tests)
+check: lint typecheck test frontend-check  ## everything CI runs (except the browser tests)
+
+frontend-check:  ## the React app: lint, types, unit tests, build, audit (needs Node: see frontend/.nvmrc)
+	npm --prefix frontend run check
 
 hooks:  ## install the git pre-commit hook
 	uv run pre-commit install
