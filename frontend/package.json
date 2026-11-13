@@ -7,16 +7,17 @@
     "node": ">=26.13.1"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run css:types && vite",
     "build": "vite build",
-    "lint": "eslint . --max-warnings 0 && prettier --check .",
+    "lint": "npm run css:types && eslint . --max-warnings 0 && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run css:types && tsc --noEmit",
     "test": "vitest run",
     "check": "npm run gen:api:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run audit",
     "audit": "npm audit --omit=dev",
     "gen:api": "cd .. && uv run python -m scripts.export_openapi && cd frontend && openapi-typescript openapi.json -o src/api/schema.d.ts",
-    "gen:api:check": "node scripts/check-api-types.mjs"
+    "gen:api:check": "node scripts/check-api-types.mjs",
+    "css:types": "node scripts/css-module-types.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "5.107.1",
