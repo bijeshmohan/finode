@@ -61,6 +61,17 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | `tests/browser/` | Playwright tests of `app.js` behaviour in a real browser |
 | `tests/htmlutil.py` | tiny helpers to assert on HTML |
 
+## `frontend/` (the React app, being built)
+
+| Where | What |
+|---|---|
+| `src/app/` | the router (`router.tsx`), the session and today (`session.tsx`), the layout (tab bar, sidebar), toasts, the offline banner |
+| `src/api/` | `schema.d.ts` (generated from `openapi.json`, which `scripts/export_openapi.py` writes), the typed client (`client.ts`), the query client, `useApi()` |
+| `src/components/` | the shared parts: `Icon` (`icons.json`), `Row`, `Tile`, `Sheet`, `Chips`, `AmountField`, `MonthPill`, `EmptyState` |
+| `src/features/` | one folder per area; `placeholder/` stands in for pages not rebuilt yet |
+| `src/lib/` | `amount.ts` (typing amounts), `money.ts` (writing them), `dates.ts` (writing days) |
+| `scripts/` | `check-api-types.mjs`, `css-module-types.mjs` (exact types for each CSS module) |
+
 ## Scripts and ops files
 
 | File | Job |

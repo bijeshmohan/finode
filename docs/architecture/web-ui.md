@@ -1,6 +1,8 @@
 # The web UI
 
-The web app is **server-rendered HTML** (Jinja2) with a little vendored **htmx** and one hand-written script, `app/static/app.js`. There is **no JavaScript build step** and none should be added.
+The web app is **server-rendered HTML** (Jinja2) with a little vendored **htmx** and one hand-written script, `app/static/app.js`. There is **no JavaScript build step** and none should be added to these pages.
+
+A React app that will replace them is being built in `frontend/` on the `feature/react-frontend` branch (design: `docs/superpowers/specs/2026-11-13-react-frontend-design.md`; rules: the Frontend section of `AGENTS.md`). It uses only `/api`, shares this UI's colour tokens (`app/static/tokens.css`) and icons, and these pages stay the live UI until the switch.
 
 ## Where things are
 
