@@ -1,3 +1,5 @@
+"""JSON API for one transfer with a contact (`/api/transfers`): read it, change an opening balance, or undo it."""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException

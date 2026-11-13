@@ -1,3 +1,5 @@
+"""The ledger itself: a transaction (an entry) and its postings, each a debit or a credit to one account."""
+
 from datetime import date as Date
 from decimal import Decimal
 from enum import StrEnum

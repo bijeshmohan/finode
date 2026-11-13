@@ -1,3 +1,5 @@
+"""What a person let a connected app (an assistant that signed in through Supabase) do."""
+
 from datetime import datetime
 from uuid import UUID, uuid4
 

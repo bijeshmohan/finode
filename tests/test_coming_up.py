@@ -79,6 +79,20 @@ def test_a_monthly_rule_shows_once_and_a_weekly_one_each_time_it_falls_due(clien
     ]
 
 
+def test_a_rule_that_is_behind_shows_on_the_days_it_falls_due_not_tomorrow(client, accounts, fake_today):
+    """An occurrence that fell due and is not recorded yet (the catch-up has not run, or a problem holds it) is not
+    coming up: the next ones are, on the rule's own days."""
+    rule(client, accounts, start_date="2999-10-28", payee="Rent")
+    rule(client, accounts, start_date="2999-10-20", frequency="weekly", payee="Weekly", amount="10")
+    assert [(i["date"], i["payee"]) for i in coming(client)["items"]] == [
+        ("2999-11-03", "Weekly"),
+        ("2999-11-10", "Weekly"),
+        ("2999-11-17", "Weekly"),
+        ("2999-11-24", "Weekly"),
+        ("2999-11-28", "Rent"),
+    ]
+
+
 def test_a_paused_or_ended_rule_is_not_coming_up(client, accounts, fake_today):
     paused = rule(client, accounts, start_date="2999-11-05", payee="Paused")
     assert client.post(f"/api/recurring/{paused['id']}/pause").status_code == 200

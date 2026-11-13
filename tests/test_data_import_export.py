@@ -151,6 +151,14 @@ def test_export_formats_and_headers(client: TestClient):
     assert client.get("/api/export", params={"format": "xml"}).status_code == 422
 
 
+def test_the_csv_keeps_every_decimal_the_currency_has(client: TestClient):
+    """The spreadsheet used to round every amount to two decimals, so a dinar's third one was lost."""
+    client.patch("/api/profile/", json={"default_currency": "KWD"})
+    _import(client, "2026-01-01 Souk\n    Expenses:Food  1.005\n    Assets:Bank\n")
+    lines = client.get("/api/export", params={"format": "csv"}).text.splitlines()
+    assert "2026-01-01,Souk,,,Expenses:Food,Food,1.005," in lines and "2026-01-01,Souk,,,Assets:Bank,,,1.005" in lines
+
+
 def test_csv_neutralises_spreadsheet_formulas(client: TestClient):
     _import(client, "2026-01-01 =HYPERLINK(1)\n    Expenses:A  5\n    Assets:B\n")
     lines = client.get("/api/export", params={"format": "csv"}).text.splitlines()

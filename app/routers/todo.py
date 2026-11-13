@@ -1,3 +1,5 @@
+"""JSON API for the to-do bell (`/api/todo`): what needs a decision now."""
+
 from fastapi import APIRouter, Depends
 
 from ..auth import require_authenticated_user

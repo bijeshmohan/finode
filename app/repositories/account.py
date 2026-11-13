@@ -65,6 +65,10 @@ class AccountRepository:
 
         return list(remembered(self.db, ("accounts", self.uid), load))
 
+    def root_ids(self) -> dict[str, UUID]:
+        """The id of each root (Assets, Liabilities, Equity, Income, Expenses) by its name."""
+        return {a.name: a.id for a in self.list() if a.parent_id is None}
+
     def read_by_name(
         self,
         name: str,
@@ -104,9 +108,9 @@ class AccountRepository:
         self.db.flush()
         return account
 
-    def set_closed(self, aids: builtins.list[UUID], day: date | None) -> None:
+    def set_closed(self, account_ids: builtins.list[UUID], day: date | None) -> None:
         for account in self.db.exec(
-            select(Account).where(Account.user_id == self.uid, col(Account.id).in_(aids))
+            select(Account).where(Account.user_id == self.uid, col(Account.id).in_(account_ids))
         ).all():
             account.closed_on = day
             self.db.add(account)

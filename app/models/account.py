@@ -1,3 +1,5 @@
+"""The accounts table: a tree of the places money is kept or owed, under five roots per person."""
+
 from datetime import date as Date
 from uuid import UUID, uuid4
 

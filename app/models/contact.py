@@ -1,3 +1,5 @@
+"""People: contacts, the accounts that stand for them, what is owed either way, settlements and shared expenses."""
+
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal

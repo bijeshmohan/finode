@@ -1,3 +1,5 @@
+"""What the API takes and returns for transactions: postings, references, batches, dry runs, tags and payees."""
+
 from datetime import date as Date
 from datetime import datetime
 from decimal import Decimal

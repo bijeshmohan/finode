@@ -26,12 +26,12 @@ from ..schemas.recurring import RecurringCreate
 from ..schemas.transaction import (
     MAX_BATCH,
     PostingCreate,
+    PostingRead,
     TransactionCreate,
     TransactionPreview,
     TransactionRead,
     TransactionUpdate,
 )
-from ..services.simple import label_simple
 from ..tags import clean_name, clean_names, tags_in
 from ..version import VERSION
 from .accounts import AccountIndex, Entry, Place, Places
@@ -60,8 +60,8 @@ finode is the user's personal double-entry ledger.
   finds the entries. Reuse an existing tag instead of inventing a near-duplicate. Renaming, merging and deleting tags
   need access to manage accounts.
 - Categories say what money was for (Groceries, EMI, Salary), apart from the accounts. list_categories shows them
-  with their paths; spending ones are what the budget plans against, earning ones label income. Spending on an
-  expense account already has its category. When money goes into a loan or fund, pass category (EMI, SIP) to
+  with their paths; spending ones are what the budget plans against, earning ones label income. Spending sent
+  to a category (to=Groceries) already carries it. When money goes into a loan or fund, pass category (EMI, SIP) to
   record_transaction, or on a row of record_split: that is what the budget counts. A row may name only a category
   instead of an account. create_category makes one; renaming, moving, closing and merging categories need access to
   manage accounts.
@@ -176,7 +176,8 @@ def _tool_errors(fn: Callable) -> Callable:
 
 
 def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[str, Any]:
-    names = _categories(s) if any(p.category_id for p in t.postings) else CategoryIndex([])
+    if any(p.category_id and p.category_id not in index.category_names for p in t.postings):
+        index = _index(s)  # a category this very write made (a person's first Uncategorised): only then read again
     total = sum((p.amount for p in t.postings if p.side == PostingSide.DEBIT), Decimal(0))
     return {
         "id": str(t.id),
@@ -187,11 +188,12 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
         "total": text(total),
         "postings": [
             {
-                "account": index.where(p.target, p.category_id)[0],
-                "account_id": str(index.where(p.target, p.category_id)[1]),
-                "side": p.side.value,
-                "amount": text(p.amount),
-                **({"category": names.path(p.category_id), "category_id": str(p.category_id)} if p.category_id else {}),
+                **_line(p, index),
+                **(
+                    {"category": index.category_names.get(p.category_id), "category_id": str(p.category_id)}
+                    if p.category_id
+                    else {}
+                ),
                 **({"posted_on": p.posted_on.isoformat()} if p.posted_on else {}),
             }
             for p in t.postings
@@ -205,6 +207,12 @@ def _transaction(t: TransactionRead, index: AccountIndex, s: Services) -> dict[s
     }
 
 
+def _line(p: PostingRead | PostingCreate, index: AccountIndex) -> dict[str, Any]:
+    """One line of an entry as an assistant sees it: where it went (by name and by id), which side, how much."""
+    name, place_id = index.where(p.target, p.category_id)
+    return {"account": name, "account_id": str(place_id), "side": p.side.value, "amount": text(p.amount)}
+
+
 def _via(origin: str | None) -> str | None:
     if origin and origin.startswith("mcp:"):
         return f"assistant ({origin[4:]})"
@@ -216,7 +224,10 @@ def _index(s: Services) -> AccountIndex:
 
 
 def _places(s: Services) -> Places:
-    return Places(_index(s), _categories(s))
+    """The accounts and the categories together, for a tool that records. Built once per call: listing the accounts
+    works out every balance, so a batch must not ask again for each entry."""
+    categories = s.categories.list(include_closed=True)
+    return Places(AccountIndex(s.accounts.list(), categories), CategoryIndex(categories))
 
 
 def _sides(amount: Decimal, payer: Place, target: Place) -> list[PostingCreate]:
@@ -233,17 +244,17 @@ def _categories(s: Services) -> CategoryIndex:
     return CategoryIndex(s.categories.list(include_closed=True))
 
 
-def _category_id(s: Services, text: str | None) -> UUID | None:
+def _category_id(places: Places, text: str | None) -> UUID | None:
     """The spending category a tool call names, or None when it names none."""
     if text is None or not text.strip():
         return None
-    return _categories(s).find(text, kind="spending", open_only=True).id
+    return places.categories.find(text, kind="spending", open_only=True).id
 
 
-def _label_simple(s: Services, postings: list[PostingCreate], text: str | None) -> list[PostingCreate]:
-    category = _category_id(s, text)
+def _label_simple(s: Services, places: Places, postings: list[PostingCreate], text: str | None) -> list[PostingCreate]:
+    category = _category_id(places, text)
     if category is not None:
-        label_simple({a.id: a for a in s.accounts.ar.list()}, postings, category)
+        s.accounts.label_simple(postings, category)
     return postings
 
 
@@ -256,6 +267,13 @@ def _transaction_id(value: str) -> UUID:
         return UUID(value.strip())
     except ValueError:
         raise ToolError(f"'{value}' is not a transaction id: use the id from search_transactions!") from None
+
+
+def _recurring_id(value: str) -> UUID:
+    try:
+        return UUID(value.strip())
+    except ValueError:
+        raise ToolError(f"'{value}' is not a recurring transaction id: use the id from list_recurring!") from None
 
 
 # ---- reading ---------------------------------------------------------------------------------------
@@ -476,19 +494,6 @@ def get_transaction(transaction_id: Annotated[str, Field(description="Id from se
         return found
 
 
-def _plain(value: Any) -> Any:
-    """History data for an assistant: amounts as strings, account paths with ':'."""
-    if isinstance(value, Decimal):
-        return text(value)
-    if isinstance(value, dict):
-        return {k: _plain(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_plain(v) for v in value]
-    if isinstance(value, str):
-        return value.replace(" › ", ":")
-    return value
-
-
 @_tool_errors
 def check_balance(
     account: AccountRef,
@@ -537,10 +542,7 @@ def get_card_bill(account: AccountRef) -> dict[str, Any]:
     with update_account or create_account); nothing is stored. To pay it, record a transfer from a bank account."""
     with services() as s:
         entry = _index(s).find(account)
-        try:
-            bill = s.accounts.bill(entry.account.id)
-        except ValueError as e:
-            raise ToolError(str(e)) from None
+        bill = s.accounts.bill(entry.account.id)
         if bill is None:
             raise ToolError("account not found")
         return {
@@ -701,9 +703,11 @@ def record_transaction(
     something outside finode (a bank message, a mail), pass its source and external_id: sending the same pair
     again is safe, it answers with the entry already recorded (`already_recorded`) and makes no copy."""
     with services() as s:
-        index = _index(s)
         places = _places(s)
-        postings = _label_simple(s, _sides(amount, places.find(from_account), places.find(to_account)), category)
+        index = places.accounts
+        postings = _label_simple(
+            s, places, _sides(amount, places.find(from_account), places.find(to_account)), category
+        )
         data = TransactionCreate(
             date=date or _today(),
             payee=(payee or "").strip() or None,
@@ -747,15 +751,7 @@ def _dry_run(key: str, preview: TransactionPreview, index: AccountIndex) -> dict
         "payee": preview.payee,
         "note": preview.comment,
         "total": text(debits),
-        "postings": [
-            {
-                "account": index.where(p.target, p.category_id)[0],
-                "account_id": str(index.where(p.target, p.category_id)[1]),
-                "side": p.side.value,
-                "amount": text(p.amount),
-            }
-            for p in preview.postings
-        ],
+        "postings": [_line(p, index) for p in preview.postings],
         "related_to": str(preview.related_id) if preview.related_id else None,
         "reference": {"source": preview.source, "external_id": preview.external_id, "url": preview.source_url}
         if preview.source or preview.external_id or preview.source_url
@@ -787,13 +783,12 @@ class PostingIn(BaseModel):
     )
 
 
-def _postings(rows: list[PostingIn], s: Services) -> list[PostingCreate]:
+def _postings(rows: list[PostingIn], places: Places) -> list[PostingCreate]:
     found = []
-    places = _places(s)
     for row in rows:
         if not row.account and not row.category:
             raise ValueError("each row needs an account or a category!")
-        category = _category_id(s, row.category)
+        category = _category_id(places, row.category)
         place = places.find(row.account) if row.account else None
         found.append(
             PostingCreate(
@@ -828,12 +823,13 @@ def record_split(
     """Record a transaction with several rows, e.g. a bill split across categories or a salary
     with deductions. Debits must equal credits. source and external_id work as for record_transaction."""
     with services() as s:
-        index = _index(s)
+        places = _places(s)
+        index = places.accounts
         data = TransactionCreate(
             date=date or _today(),
             payee=(payee or "").strip() or None,
             comment=(note or "").strip() or None,
-            postings=_postings(postings, s),
+            postings=_postings(postings, places),
             related_id=_related_id(related_to),
             tags=tags or [],
             source=source,
@@ -877,12 +873,13 @@ def record_transactions(
     (`already_recorded`). Any problem refuses the whole batch and names the entries at fault by their number
     (1 is the first)."""
     with services() as s:
-        index = _index(s)
+        places = _places(s)
+        index = places.accounts
         data: list[TransactionCreate] = []
         problems: list[str] = []
         for number, e in enumerate(entries, start=1):
             try:
-                data.append(_batch_entry(e, s))
+                data.append(_batch_entry(e, s, places))
             except (ValueError, LookupError, ValidationError) as err:
                 message = validation_message(err) if isinstance(err, ValidationError) else str(err)
                 problems.append(f"entry {number}: {message}")
@@ -905,18 +902,18 @@ def record_transactions(
         }
 
 
-def _batch_entry(e: BatchItem, s: Services) -> TransactionCreate:
+def _batch_entry(e: BatchItem, s: Services, places: Places) -> TransactionCreate:
     simple = (e.amount, e.from_account, e.to_account)
     if e.postings is not None:
         if any(v is not None for v in simple):
             raise ValueError("give either amount, from_account and to_account, or postings, not both!")
-        postings = _postings(e.postings, s)
+        postings = _postings(e.postings, places)
     else:
         if any(v is None for v in simple):
             raise ValueError("give amount, from_account and to_account, or postings!")
-        places = _places(s)
         postings = _label_simple(
             s,
+            places,
             _sides(
                 cast(Decimal, e.amount), places.find(cast(str, e.from_account)), places.find(cast(str, e.to_account))
             ),
@@ -978,7 +975,7 @@ def update_transaction(
         if note is not None:
             changes["comment"] = note.strip() or None
         if postings is not None:
-            changes["postings"] = _postings(postings, s)
+            changes["postings"] = _postings(postings, _places(s))
         if related_to is not None:
             changes["related_id"] = _related_id(related_to)
         if tags is not None or add_tags or remove_tags:
@@ -1030,7 +1027,7 @@ def delete_transaction(
 @_tool_errors
 def create_account(
     name: Annotated[str, Field(max_length=40, description="The new account's own name, without ':'")],
-    parent: Annotated[str, Field(description="Where it goes, e.g. Expenses or Assets:Bank")],
+    parent: Annotated[str, Field(description="Where it goes, e.g. Assets:Bank Accounts or Liabilities:Credit Cards")],
     opening_balance: Annotated[
         Decimal | None, Field(ge=0, description="Assets and liabilities only: what it holds (or owes) today")
     ] = None,
@@ -1145,9 +1142,9 @@ def update_account(
 
 @_tool_errors
 def close_account(account: AccountRef) -> dict[str, Any]:
-    """Close an account (or category) and everything inside it: nothing more can be posted to it and it leaves the
-    pickers, but its history stays and the user can reopen it. Refused while anything inside still holds money or
-    a recurring transaction still uses it."""
+    """Close an account and everything inside it: nothing more can be posted to it and it leaves the pickers, but
+    its history stays and the user can reopen it. Refused while anything inside still holds money or a recurring
+    transaction still uses it. (A category is closed with close_category.)"""
     with services() as s:
         entry = _index(s).find(account)
         s.accounts.close(entry.account.id)
@@ -1171,10 +1168,10 @@ def merge_accounts(
     into_account: Annotated[AccountRef, Field(description="The account that takes over everything")],
     dry_run: DryRun = False,
 ) -> dict[str, Any]:
-    """Make one account part of another, e.g. two categories that mean the same: all its entries, planned amounts,
-    recurring rules become the other's, its balance moves with them, and it is deleted. Both
-    must be plain accounts under the same top-level account. It cannot be undone, so call it with dry_run=true
-    first, tell the user what would move, and only merge after their go-ahead."""
+    """Make one account part of another, e.g. two accounts that turned out to be the same bank account: all its
+    entries and recurring rules become the other's, its balance moves with them, and it is deleted. Both must be
+    plain accounts under the same top-level account. It cannot be undone, so call it with dry_run=true first, tell
+    the user what would move, and only merge after their go-ahead. (Categories are merged with merge_categories.)"""
     with services() as s:
         index = _index(s)
         source = index.find(from_account)
@@ -1187,7 +1184,6 @@ def merge_accounts(
             "into": done.into,
             "balance_moved": text(done.balance_moved),
             "entries_moved": done.entries_moved,
-            "plan_months_moved": done.plan_months_moved,
             "recurring_rules_moved": done.recurring_rules_moved,
         }
         if done.merged:
@@ -1235,7 +1231,7 @@ def create_recurring(
             source = target = None
             if category:
                 raise ToolError("with postings, name the category on each row, not on the rule!")
-            rows = _postings(postings, s)
+            rows = _postings(postings, _places(s))
             shape: dict[str, Any] = {
                 "postings": [
                     {"account_id": r.account_id, "side": r.side, "amount": r.amount, "category_id": r.category_id}
@@ -1251,7 +1247,7 @@ def create_recurring(
                 "from_account_id": source.account,
                 "to_account_id": target.account,
                 "amount": amount,
-                "category_id": _category_id(s, category) or target.category or source.category,
+                "category_id": _category_id(places, category) or target.category or source.category,
             }
         created = s.recurring.create(
             RecurringCreate(
@@ -1297,12 +1293,7 @@ def stop_recurring(
     """Pause a recurring transaction: nothing more is recorded until the user resumes it in finode.
     What it already recorded is kept."""
     with services() as s:
-        try:
-            recurring_uuid = UUID(recurring_id.strip())
-        except ValueError:
-            raise ToolError(
-                f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
-            ) from None
+        recurring_uuid = _recurring_id(recurring_id)
         rule = s.recurring.set_active(recurring_uuid, False)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
@@ -1316,12 +1307,7 @@ def skip_recurring_occurrence(
     """Leave out the next occurrence of a running recurring transaction (a month without the subscription):
     nothing is recorded for it and the rule carries on with the one after. Only when the user asks."""
     with services() as s:
-        try:
-            recurring_uuid = UUID(recurring_id.strip())
-        except ValueError:
-            raise ToolError(
-                f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
-            ) from None
+        recurring_uuid = _recurring_id(recurring_id)
         before = s.recurring.read(recurring_uuid)
         if before is None:
             raise ToolError("no recurring transaction has that id!")
@@ -1439,7 +1425,7 @@ def get_budget(
 
 @_tool_errors
 def assign_to_category(
-    category: Annotated[str, Field(description="An expense account, e.g. Groceries or Expenses:Food:Groceries")],
+    category: Annotated[str, Field(description="A spending category, e.g. Groceries or Expenses:Food:Groceries")],
     amount: Annotated[
         Decimal, Field(ge=0, description="The month's total for the category (replaces what was assigned; 0 clears it)")
     ],
@@ -1541,12 +1527,7 @@ def resume_recurring(
     """Resume a paused recurring transaction. What fell due while it was paused is not recorded late; it carries on
     from the next occurrence."""
     with services() as s:
-        try:
-            recurring_uuid = UUID(recurring_id.strip())
-        except ValueError:
-            raise ToolError(
-                f"'{recurring_id}' is not a recurring transaction id: use the id from list_recurring!"
-            ) from None
+        recurring_uuid = _recurring_id(recurring_id)
         rule = s.recurring.set_active(recurring_uuid, True)
         if rule is None:
             raise ToolError("no recurring transaction has that id!")
@@ -1663,6 +1644,7 @@ def close_category(category: Annotated[str, Field(description="The category's pa
 
 @_tool_errors
 def reopen_category(category: Annotated[str, Field(description="The category's path or id")]) -> dict[str, Any]:
+    """Reopen a closed category with the categories in it, and the group it is in, so it can be used again."""
     with services() as s:
         return {"reopened": _category_row(s.categories.reopen(_categories(s).find(category).id))}
 
@@ -1750,14 +1732,15 @@ NO_MANAGE_MESSAGE = (
     "you can try again."
 )
 NO_MANAGE_NOTE = (
-    "\nThis connection can change transactions but not accounts: the tools that rename, move, close, reopen or merge "
-    "accounts are listed but always refuse. If the user asks for that, say so and tell them to allow account changes "
-    "in finode under Profile > AI assistants.\n"
+    "\nThis connection can change transactions but not manage accounts, categories or tags: the tools that rename, "
+    "move, close, reopen or merge them, or delete a tag, are listed but always refuse (except a merge with "
+    "dry_run=true, which only checks). If the user asks for that, say so and tell them to allow it in finode under "
+    "Profile > AI assistants.\n"
 )
 MANAGE_NOTE = (
-    "\nThis connection may also change accounts (rename, move, close, reopen and merge them), but never delete them. "
-    "These changes affect how the user's whole history is organised: say what you will do and get the user's go-ahead "
-    "first, and use dry_run where a tool has it.\n"
+    "\nThis connection may also change accounts, categories and tags (rename, move, close, reopen and merge them, and "
+    "delete a tag), but never delete an account or a category. These changes affect how the user's whole history is "
+    "organised: say what you will do and get the user's go-ahead first, and use dry_run where a tool has it.\n"
 )
 READ_ONLY_NOTE = (
     "\nThis connection is read-only: the tools that change things are listed but always refuse (except with "
@@ -1804,7 +1787,7 @@ def build_server(access: str = TokenScope.WRITE) -> MCPServer:
             why = (
                 "this connection is read-only"
                 if access == TokenScope.READ
-                else "this connection may not change accounts"
+                else "this connection may not manage accounts, categories or tags"
             )
             server.add_tool(_refused(fn, refused, why), annotations=annotations)
     server.prompt()(monthly_review)

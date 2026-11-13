@@ -1,3 +1,5 @@
+"""JSON API for the reports (`/api/reports`): the trial balance, the summary and the breakdown."""
+
 from datetime import date
 from typing import Literal
 

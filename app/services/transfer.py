@@ -72,7 +72,7 @@ class TransferService:
             account_id=account_id, side=PostingSide.CREDIT if sent else PostingSide.DEBIT, amount=amount
         )
         if data.purpose == "gift":
-            roots = {a.name: a.id for a in self.accounts.ar.list() if a.parent_id is None}
+            roots = self.accounts.ar.root_ids()
             other = PostingCreate(
                 account_id=roots["Expenses" if sent else "Income"],
                 side=PostingSide.DEBIT if sent else PostingSide.CREDIT,
@@ -210,7 +210,7 @@ class TransferService:
             )
         owed = self.ob.obligations(source_transaction_id=transaction_id, lock=lock)
         self.netting.release([o.id for o in owed])
-        if any(self.ob.settled([o.id]).get(o.id) for o in owed):
+        if self.ob.any_settled(owed):
             raise ConflictError("something was paid back against this: reverse that first!")
         return party[0], owed[0] if owed else None
 
@@ -367,7 +367,7 @@ class TransferService:
         """A contact's transfers, newest first."""
         self.contacts.get(contact_id)
         rows = [r for r in self.ob.party_rows(contact_id=contact_id) if r.purpose in TRANSFER_PURPOSES]
-        entries = {e.id: e for e in (self.transactions.read(r.transaction_id) for r in rows) if e is not None}
+        entries = self.transactions.read_many([r.transaction_id for r in rows])
         made = {o.source_transaction_id: o.id for o in self.ob.obligations(contact_id=contact_id)}
         reads = [self._read(entries[r.transaction_id], r, made.get(r.transaction_id)) for r in rows]
         return sorted(reads, key=lambda t: (t.date, str(t.id)), reverse=True)
@@ -381,7 +381,7 @@ class TransferService:
         obligations = self.ob.obligations(source_transaction_id=transaction_id, lock=True)
         try:
             self.netting.release([o.id for o in obligations])
-            if any(self.ob.settled([o.id]).get(o.id) for o in obligations):
+            if self.ob.any_settled(obligations):
                 raise ReversalBlockedError("something was settled against this: reverse the settlement first!")
             self.ob.purge(transaction_id)
             self.transactions.delete(transaction_id, commit=False)

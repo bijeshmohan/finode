@@ -1,3 +1,5 @@
+"""JSON API for transactions (`/api/transactions`): record (one or a batch), read, search, change, delete, payees."""
+
 from datetime import date
 from typing import Literal
 from uuid import UUID

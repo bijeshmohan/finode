@@ -2,7 +2,11 @@
 to show; the routers answer 404 for the "not found" ones, 409 for a conflict and 400 for the rest."""
 
 
-class ContactNotFoundError(ValueError):
+class NotFoundError(ValueError):
+    """What was asked for is not among the person's own (HTTP 404)."""
+
+
+class ContactNotFoundError(NotFoundError):
     """No such contact among the person's own."""
 
     def __init__(self) -> None:
@@ -25,7 +29,7 @@ class InvalidTransferPurposeError(ValueError):
     """The purpose does not fit the direction (a loan is money sent, a borrowing money received)."""
 
 
-class ObligationNotFoundError(ValueError):
+class ObligationNotFoundError(NotFoundError):
     def __init__(self) -> None:
         super().__init__("obligation not found!")
 
@@ -50,7 +54,7 @@ class InvalidExpenseContributionError(ValueError):
     """Who paid for a shared expense is wrong (the payments do not add up to the total…)."""
 
 
-class SharedExpenseNotFoundError(ValueError):
+class SharedExpenseNotFoundError(NotFoundError):
     def __init__(self) -> None:
         super().__init__("shared expense not found!")
 
@@ -75,6 +79,6 @@ class InvalidSharedIncomeError(ValueError):
     """Income shared with people is wrong (the parts or the deposits do not add up, a person is on both sides…)."""
 
 
-class SharedIncomeNotFoundError(ValueError):
+class SharedIncomeNotFoundError(NotFoundError):
     def __init__(self) -> None:
         super().__init__("shared income not found!")

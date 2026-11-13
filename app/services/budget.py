@@ -42,8 +42,8 @@ def month_end(month: date) -> date:
 class BudgetService:
     """Every unit of money gets a job (envelope budgeting) on top of the ledger.
 
-    The only thing stored is the plan: how much of each month the user assigned to each category (an
-    Expenses account). Everything else is derived, so editing the ledger can never leave it stale:
+    The only thing stored is the plan: how much of each month the user assigned to each spending category
+    (`budget_categories`). Everything else is derived, so editing the ledger can never leave it stale:
 
     - *cash* is what the budget's accounts hold: the asset and liability accounts the user flagged
       (`accounts.on_budget`), debits minus credits, a credit card counting as negative.
@@ -101,6 +101,10 @@ class BudgetService:
 
     def view(self, month: date | None = None) -> BudgetRead:
         return self._compute(month)[0]
+
+    def started(self) -> bool:
+        """Whether an amount was ever assigned to a category, in any month."""
+        return bool(self.br.list())
 
     def _compute(self, month: date | None) -> tuple[BudgetRead, dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]]]:
         month = month_start(month)
@@ -192,7 +196,7 @@ class BudgetService:
         allocations = [row for row in every_row if row.month <= month]
         # Money assigned to later months is out of what can be assigned now.
         later = sum((row.amount for row in every_row if row.month > month and row.category_id in categories), ZERO)
-        previous_month = first_of_month(month - timedelta(days=1))
+        previous = first_of_month(month - timedelta(days=1))
         assigned_here = {row.category_id for row in allocations if row.month == month}
         # Once anything is assigned this month the month is started, so there is nothing to offer a copy of.
         started = bool(assigned_here)
@@ -200,7 +204,7 @@ class BudgetService:
             (
                 row.amount
                 for row in allocations
-                if row.month == previous_month
+                if row.month == previous
                 and row.category_id in categories
                 and row.category_id not in assigned_here
                 and categories[row.category_id].closed_on is None
@@ -244,10 +248,9 @@ class BudgetService:
             if row.category_id in categories:
                 by_category.setdefault(row.category_id, {}).setdefault(row.month, [ZERO, ZERO])[0] += row.amount
 
-        previous = first_of_month(month - timedelta(days=1))
-        own: dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]] = {}
-        for account_id in categories:
-            own[account_id] = self._roll(by_category.get(account_id, {}), month, previous)
+        own: dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]] = {
+            category_id: self._roll(by_category.get(category_id, {}), month, previous) for category_id in categories
+        }
         total_assigned = sum((v[0] for v in own.values()), ZERO)
         total_activity = sum((v[1] for v in own.values()), ZERO)
         total_available = sum((v[2] for v in own.values()), ZERO)
@@ -417,10 +420,10 @@ class BudgetService:
         category = self._categories().get(category_id)
         if category is not None:
             return category
-        found = self.cr.read(category_id) or self.accounts.ar.read(category_id)
+        found = self.cr.read(category_id)
         if found is None:
             raise BudgetError("category not found!")
-        raise BudgetError(f"'{found.name}' is not an expense account: only expense accounts can be budgeted!")
+        raise BudgetError(f"'{found.name}' is not a spending category: only spending categories can be budgeted!")
 
     def _check_amount(self, amount: Decimal) -> None:
         currency = self.accounts.currency()
@@ -506,28 +509,26 @@ class BudgetService:
                 if not any(row.month == previous for row in rows)
                 else "everything last month had is already assigned this month!"
             )
-        for row in wanted:
-            if row.category_id is not None:
-                self.br.set(month, row.category_id, row.amount)
+        self.br.add_many((month, row.category_id, row.amount) for row in wanted)
         self.br.db.commit()
         return self.view(month)
 
-    def move(self, month: date | None, from_aid: UUID, to_aid: UUID, amount: Decimal) -> BudgetRead:
+    def move(self, month: date | None, from_id: UUID, to_id: UUID, amount: Decimal) -> BudgetRead:
         """Take money from one category's available and give it to another, in a month."""
         month = month_start(month)
-        if from_aid == to_aid:
+        if from_id == to_id:
             raise BudgetError("choose two different categories!")
-        source = self._category(from_aid)
-        self._category(to_aid)  # must exist and be a category
+        source = self._category(from_id)
+        self._category(to_id)  # must exist and be a category
         self._check_amount(amount)
         if amount <= 0:
             raise BudgetError("the amount must be positive!")
-        available = self._compute(month)[1][from_aid][2]
+        available = self._compute(month)[1][from_id][2]
         if available <= 0:
             raise BudgetError(f"'{source.name}' has nothing available to move!")
         if amount > available:
             raise BudgetError(f"only {available:f} is available in '{source.name}'!")
-        self.br.set(month, from_aid, self.assigned(month, from_aid) - amount)
-        self.br.set(month, to_aid, self.assigned(month, to_aid) + amount)
+        self.br.set(month, from_id, self.assigned(month, from_id) - amount)
+        self.br.set(month, to_id, self.assigned(month, to_id) + amount)
         self.br.db.commit()
         return self.view(month)

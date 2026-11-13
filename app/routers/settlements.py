@@ -1,3 +1,5 @@
+"""JSON API for one settlement (`/api/settlements`): read it or undo it. Recording one is under `/api/contacts`."""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException

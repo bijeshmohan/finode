@@ -1,6 +1,7 @@
 """Persistence for the budget plan, always filtered by the user's id."""
 
 import builtins
+from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -42,6 +43,14 @@ class BudgetRepository:
         else:
             row.amount = amount
             self.db.add(row)
+        self.db.flush()
+
+    def add_many(self, rows: Iterable[tuple[date, UUID, Decimal]]) -> None:
+        """Assign (month, category, amount) where nothing is assigned yet: nothing is read first and the rows are
+        written together. The caller knows they are missing (a month being copied into, a ledger being restored)."""
+        for month, category_id, amount in rows:
+            if amount != 0:
+                self.db.add(BudgetAllocation(user_id=self.uid, month=month, category_id=category_id, amount=amount))
         self.db.flush()
 
     def delete_for_category(self, category_id: UUID) -> None:

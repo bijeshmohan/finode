@@ -63,12 +63,11 @@ class ReportService:
     def _period_totals(
         self, roots: dict[str, AccountRead], period_start: date, period_end: date
     ) -> tuple[Decimal, Decimal]:
-        """(income, expenses) for a period from one query: what came in on the Income accounts and went out on the Expenses ones."""
-        income_ids = set(self.accounts.subtree_ids(roots["Income"].id))
-        expense_ids = set(self.accounts.subtree_ids(roots["Expenses"].id))
+        """(income, expenses) for a period from one query: what came in on Income and went out on Expenses."""
+        income_id, expenses_id = roots["Income"].id, roots["Expenses"].id
         income = expenses = Decimal("0.00")
-        for posting in self.tr.postings_for_accounts(list(income_ids | expense_ids), period_start, period_end):
-            if posting.account_id in income_ids:
+        for posting in self.tr.postings_for_accounts([income_id, expenses_id], period_start, period_end):
+            if posting.account_id == income_id:
                 income += posting.amount if posting.side == PostingSide.CREDIT else -posting.amount
             else:
                 expenses += posting.amount if posting.side == PostingSide.DEBIT else -posting.amount

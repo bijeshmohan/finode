@@ -1,3 +1,5 @@
+"""What an import reports."""
+
 from datetime import date
 from decimal import Decimal
 

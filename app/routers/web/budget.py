@@ -1,3 +1,5 @@
+"""The Budgets page: the month's categories as tiles, a group's own page, the assign sheet and moving money."""
+
 import calendar
 from datetime import date
 from decimal import Decimal
@@ -36,7 +38,7 @@ def shift(month: date, by: int) -> date:
 
 class Node:
     """A category in the budget: a group (with its subcategories, and its own 'everything else' line) or a plain category.
-    Accounts go two levels deep, so a subcategory is never a group itself."""
+    Categories go two levels deep, so a subcategory is never a group itself."""
 
     def __init__(self, line: BudgetLine):
         self.line = line
@@ -147,7 +149,7 @@ def _context(budget: Budget, month: date) -> dict:
         "budget": data,
         "category_choices": [(c.id, " › ".join(budget.category_path(c))) for c in budget.spending_categories()],
         # A short welcome until the first amount is assigned.
-        "show_intro": not budget.br.list(),
+        "show_intro": not budget.started(),
         "tree": tree,
         "rows": [{"node": n, "hint": _hint(n, grouping_for(data.currency))} for n in _by_assigned(tree)],
         "unused_ids": {n.line.category_id for n in unused},
@@ -218,7 +220,7 @@ def assign_group(
     try:
         budget.assign_group(when, category_id, parse_amount(amount, default=parse_amount("0")))
     except (BudgetError, ValueError) as e:
-        return htmx_error(str(e).capitalize(), "#cat-sheet-error")
+        return htmx_error(_sentence(str(e)), "#cat-sheet-error")
     return templates.TemplateResponse(
         request, "partials/budget_group_body.html", _group_context(budget, when, category_id)
     )
@@ -267,16 +269,11 @@ def assign(
 
 @router.get("/move")
 def move_page(request: Request, budget: Budget, month: str = "", source: UUID | None = None):
-    when = parse_month(month)
-    data = budget.view(when)
-    lines = [line for line in data.lines if not line.group]
+    context = _context(budget, parse_month(month))
+    lines = [line for line in context["budget"].lines if not line.group]
     if source is not None and not any(line.category_id == source for line in lines):
         raise HTTPException(status_code=404, detail="category not found")
-    return templates.TemplateResponse(
-        request,
-        "budget_move.html",
-        {**_context(budget, when), "lines": lines, "source": source, "active": "budget"},
-    )
+    return templates.TemplateResponse(request, "budget_move.html", {**context, "lines": lines, "source": source})
 
 
 @router.post("/move")
@@ -308,4 +305,5 @@ def copy_previous(request: Request, budget: Budget, month: Annotated[str, Form()
 
 
 def _sentence(message: str) -> str:
+    """The message with its first letter raised and the rest as written (a currency code or a name keeps its capitals)."""
     return message[:1].upper() + message[1:]

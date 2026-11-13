@@ -1,3 +1,5 @@
+"""Shared by the models: timestamps, the exact money column type, and keeping NUL characters out of text."""
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any

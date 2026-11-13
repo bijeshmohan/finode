@@ -1,3 +1,5 @@
+"""What the to-do bell lists: payments no category took, accounts left out of the budget, failing rules, bills due."""
+
 from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID

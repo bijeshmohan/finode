@@ -55,7 +55,10 @@ class RecurringRepository:
         return found
 
     def set_postings(self, recurring_id: UUID, rows: builtins.list[dict]) -> None:
-        for old in self.db.exec(select(RecurringPosting).where(RecurringPosting.recurring_id == recurring_id)).all():
+        mine = select(RecurringPosting).where(
+            RecurringPosting.user_id == self.uid, RecurringPosting.recurring_id == recurring_id
+        )
+        for old in self.db.exec(mine).all():
             self.db.delete(old)
         self.db.flush()
         for position, row in enumerate(rows):
@@ -65,7 +68,8 @@ class RecurringRepository:
     def delete(self, rule: RecurringTransaction) -> None:
         self.set_postings(rule.id, [])
         # What it recorded stays: those transactions just stop pointing at the rule.
-        for transaction in self.db.exec(select(Transaction).where(Transaction.recurring_id == rule.id)).all():
+        recorded = select(Transaction).where(Transaction.user_id == self.uid, Transaction.recurring_id == rule.id)
+        for transaction in self.db.exec(recorded).all():
             transaction.recurring_id = None
             self.db.add(transaction)
         self.db.flush()
@@ -76,7 +80,9 @@ class RecurringRepository:
         return (
             self.db.exec(
                 select(Transaction.id).where(
-                    Transaction.recurring_id == recurring_id, Transaction.recurring_date == day
+                    Transaction.user_id == self.uid,
+                    Transaction.recurring_id == recurring_id,
+                    Transaction.recurring_date == day,
                 )
             ).first()
             is not None
@@ -92,12 +98,12 @@ class RecurringRepository:
         return list(db.exec(statement).all())
 
     @staticmethod
-    def active_rules_using(db: Session, uid: UUID, aids: set[UUID]) -> builtins.list[RecurringTransaction]:
+    def active_rules_using(db: Session, uid: UUID, account_ids: set[UUID]) -> builtins.list[RecurringTransaction]:
         """Rules that still run and record into or out of any of these accounts."""
         posting_rules = set(
             db.exec(
                 select(RecurringPosting.recurring_id).where(
-                    RecurringPosting.user_id == uid, col(RecurringPosting.account_id).in_(aids)
+                    RecurringPosting.user_id == uid, col(RecurringPosting.account_id).in_(account_ids)
                 )
             ).all()
         )
@@ -108,27 +114,26 @@ class RecurringRepository:
                     RecurringTransaction.user_id == uid, col(RecurringTransaction.active).is_(True)
                 )
             ).all()
-            if rule.from_account_id in aids or rule.to_account_id in aids or rule.id in posting_rules
+            if rule.from_account_id in account_ids or rule.to_account_id in account_ids or rule.id in posting_rules
         ]
 
     @staticmethod
     def merge_conflicts(db: Session, uid: UUID, a: UUID, b: UUID) -> builtins.list[str]:
-        """Rules that would end up with an account on both sides if `a` and `b` became one (named by payee)."""
+        """Rules that would end up with an account on both sides if `a` and `b` became one (named by payee). Two
+        queries however many rules there are."""
+        sides: dict[UUID, dict[UUID, set[str]]] = {}
+        for row in db.exec(
+            select(RecurringPosting).where(
+                RecurringPosting.user_id == uid, col(RecurringPosting.account_id).in_([a, b])
+            )
+        ).all():
+            sides.setdefault(row.recurring_id, {}).setdefault(row.account_id, set()).add(row.side)
         names = []
         for rule in db.exec(select(RecurringTransaction).where(RecurringTransaction.user_id == uid)).all():
-            label = rule.payee or "a recurring transaction"
-            if {rule.from_account_id, rule.to_account_id} == {a, b}:
-                names.append(label)
-                continue
-            rows = db.exec(
-                select(RecurringPosting).where(
-                    RecurringPosting.user_id == uid, RecurringPosting.recurring_id == rule.id
-                )
-            ).all()
-            sides_a = {p.side for p in rows if p.account_id == a}
-            sides_b = {p.side for p in rows if p.account_id == b}
-            if sides_a and sides_b and sides_a != sides_b:
-                names.append(label)
+            of_rule = sides.get(rule.id, {})
+            sides_a, sides_b = of_rule.get(a, set()), of_rule.get(b, set())
+            if {rule.from_account_id, rule.to_account_id} == {a, b} or (sides_a and sides_b and sides_a != sides_b):
+                names.append(rule.payee or "a recurring transaction")
         return names
 
     @staticmethod
@@ -191,28 +196,36 @@ class RecurringRepository:
         return len(rules)
 
     @staticmethod
-    def uses_account(db: Session, account_id: UUID) -> bool:
+    def uses_account(db: Session, uid: UUID, account_id: UUID) -> bool:
         """Whether any rule records into or out of the account (so it cannot be deleted)."""
         return (
             db.exec(
                 select(RecurringTransaction.id).where(
+                    RecurringTransaction.user_id == uid,
                     or_(
                         RecurringTransaction.from_account_id == account_id,
                         RecurringTransaction.to_account_id == account_id,
-                    )
+                    ),
                 )
             ).first()
             is not None
-            or db.exec(select(RecurringPosting.id).where(RecurringPosting.account_id == account_id)).first() is not None
+            or db.exec(
+                select(RecurringPosting.id).where(
+                    RecurringPosting.user_id == uid, RecurringPosting.account_id == account_id
+                )
+            ).first()
+            is not None
         )
 
     @staticmethod
-    def active_rules_for_category(db: Session, uid: UUID, category_id: UUID) -> builtins.list[RecurringTransaction]:
-        """Rules that still run and record into this category (on the rule or on one of its rows)."""
+    def active_rules_for_categories(
+        db: Session, uid: UUID, category_ids: set[UUID]
+    ) -> builtins.list[RecurringTransaction]:
+        """Rules that still run and record into any of these categories (on the rule or on one of its rows)."""
         by_rows = set(
             db.exec(
                 select(RecurringPosting.recurring_id).where(
-                    RecurringPosting.user_id == uid, RecurringPosting.category_id == category_id
+                    RecurringPosting.user_id == uid, col(RecurringPosting.category_id).in_(category_ids)
                 )
             ).all()
         )
@@ -223,7 +236,7 @@ class RecurringRepository:
                     RecurringTransaction.user_id == uid, col(RecurringTransaction.active).is_(True)
                 )
             ).all()
-            if rule.category_id == category_id or rule.id in by_rows
+            if rule.category_id in category_ids or rule.id in by_rows
         ]
 
     @staticmethod

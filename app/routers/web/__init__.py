@@ -1,3 +1,5 @@
+"""The web UI's routes: sign-in pages are open, every other page needs a signed-in person."""
+
 from fastapi import APIRouter, Depends
 
 from ...dependencies import load_currency

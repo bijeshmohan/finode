@@ -1,3 +1,5 @@
+"""JSON API for a person's data: export, import, backup and restore. The web pages reuse its file helpers."""
+
 import json
 from typing import Literal
 
