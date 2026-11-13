@@ -46,6 +46,14 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # The React app's browser tests drive the built app.
+      - run: npm ci && npm run build
+        working-directory: frontend
       - run: uv run playwright install --with-deps chromium
       - run: uv run pytest tests/browser -q
 

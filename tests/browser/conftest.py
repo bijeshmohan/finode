@@ -18,16 +18,21 @@ from pathlib import Path
 
 import pytest
 import uvicorn
+from fastapi import HTTPException
 
+from app import auth, auth_flows
 from app.auth import CurrentUser, require_authenticated_user
+from app.config import settings
 from app.dependencies import get_db_session
 from app.main import app
+from app.session import ACCESS_COOKIE, InvalidCredentialsError, SessionTokens
 from app.web_auth import web_login_required
 
 from ..conftest import TEST_USER_ID
+from .spa import spa_app
 
 try:
-    from playwright.sync_api import Browser, Page, sync_playwright
+    from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
 except ImportError:  # pragma: no cover
     sync_playwright = None
 
@@ -55,12 +60,13 @@ def browser() -> Generator[Browser]:
     playwright.stop()
 
 
-@pytest.fixture
-def live_server(session) -> Generator[str]:
-    """The app on a free port, signed in as the test user, with the fresh in-memory database of the test."""
-    # The test database is one in-memory SQLite connection, which must not be used by two threads at once (a page
-    # fetches several things at the same time; that raised "bad parameter or other API misuse" now and then). So
-    # requests take turns, each with its own read memory, as every request has its own session in production.
+def _serve(asgi_app, session) -> Generator[str]:
+    """`asgi_app` on a free port, using the test's in-memory database, until the test ends.
+
+    The test database is one in-memory SQLite connection, which must not be used by two threads at once (a page
+    fetches several things at the same time; that raised "bad parameter or other API misuse" now and then). So
+    requests take turns, each with its own read memory, as every request has its own session in production.
+    """
     turn = threading.Lock()
 
     def one_at_a_time():
@@ -69,11 +75,7 @@ def live_server(session) -> Generator[str]:
             yield session
 
     app.dependency_overrides[get_db_session] = one_at_a_time
-    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(
-        id=TEST_USER_ID, email="test@example.com", claims={}
-    )
-    app.dependency_overrides[web_login_required] = lambda: None
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning"))
+    server = uvicorn.Server(uvicorn.Config(asgi_app, host="127.0.0.1", port=0, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     deadline = time.time() + 15
@@ -86,6 +88,46 @@ def live_server(session) -> Generator[str]:
     server.should_exit = True
     thread.join(timeout=10)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def live_server(session) -> Generator[str]:
+    """The app on a free port, signed in as the test user, with the fresh in-memory database of the test."""
+    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(
+        id=TEST_USER_ID, email="test@example.com", claims={}
+    )
+    app.dependency_overrides[web_login_required] = lambda: None
+    yield from _serve(app, session)
+
+
+# The React app signs in for real through /api/auth; only Supabase is stood in for: the password "right" signs in, and
+# the session cookie it sets ("test-access") is the test user.
+SPA_TOKEN = "test-access"
+
+
+def _fake_jwt(token: str) -> dict:
+    if token == SPA_TOKEN:
+        return {"sub": str(TEST_USER_ID), "email": "test@example.com"}
+    raise HTTPException(status_code=401, detail="invalid authentication token")
+
+
+def _fake_sign_in(email: str, password: str) -> SessionTokens:
+    if password != "right":
+        raise InvalidCredentialsError()
+    return SessionTokens(SPA_TOKEN, "test-refresh", 3600)
+
+
+@pytest.fixture
+def spa_server(session, monkeypatch: pytest.MonkeyPatch) -> Generator[str]:
+    """The built React app and the API on one free port, signed out, with the test's in-memory database."""
+    monkeypatch.setattr(auth, "verify_supabase_jwt", _fake_jwt)
+    monkeypatch.setattr(auth_flows, "sign_in", _fake_sign_in)
+    monkeypatch.setattr(settings, "recurring_interval_minutes", 0)
+    served = _serve(spa_app(), session)
+    url = next(served)
+    monkeypatch.setattr(settings, "frontend_origin", url)
+    yield url
+    next(served, None)
 
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
@@ -113,10 +155,9 @@ def keep_evidence(item, page: Page) -> None:
         warnings.warn(f"could not keep the evidence of {item.name}: {error}", stacklevel=2)
 
 
-@pytest.fixture
-def page(request, browser: Browser, live_server: str) -> Generator[Page]:
+def _new_page(browser: Browser, base_url: str) -> tuple[BrowserContext, Page, list[str]]:
     context = browser.new_context(
-        viewport={"width": 390, "height": 844}, base_url=live_server, reduced_motion="reduce"
+        viewport={"width": 390, "height": 844}, base_url=base_url, reduced_motion="reduce"
     )  # measured positions must not catch a page mid-rise
     page = context.new_page()
     page.set_default_timeout(8000)
@@ -127,10 +168,33 @@ def page(request, browser: Browser, live_server: str) -> Generator[Page]:
         "pageerror",
         lambda error: errors.append(str(error)) if "due to access control checks" not in str(error) else None,
     )
+    return context, page, errors
+
+
+@pytest.fixture
+def page(request, browser: Browser, live_server: str) -> Generator[Page]:
+    context, page, errors = _new_page(browser, live_server)
     yield page
     keep_evidence(request.node, page)
     context.close()
     assert not errors, f"JavaScript errors in the page: {errors}"
+
+
+@pytest.fixture
+def spa_page(request, browser: Browser, spa_server: str) -> Generator[Page]:
+    """The React app in a phone-sized browser, signed out."""
+    context, page, errors = _new_page(browser, spa_server)
+    yield page
+    keep_evidence(request.node, page)
+    context.close()
+    assert not errors, f"JavaScript errors in the page: {errors}"
+
+
+@pytest.fixture
+def signed_in_spa_page(spa_page: Page, spa_server: str) -> Page:
+    """The React app, signed in as the test user (the session cookie a real sign-in sets)."""
+    spa_page.context.add_cookies([{"name": ACCESS_COOKIE, "value": SPA_TOKEN, "url": spa_server}])
+    return spa_page
 
 
 class Api:
