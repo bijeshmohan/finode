@@ -202,3 +202,47 @@ def test_the_currency_list(client):
     listed = client.get("/api/profile/currencies").json()
     inr = next(c for c in listed if c["code"] == "INR")
     assert inr["decimals"] == 2 and len(listed) > 100
+
+
+# ---- your data ------------------------------------------------------------------------------------------------------
+
+
+def test_data_options(client):
+    options = client.get("/api/data-options").json()
+    assert options == {
+        "can_import": True,
+        "can_restore": True,
+        "confirm_word": "test@example.com",
+        "can_delete_login": False,
+    }
+
+
+def test_erase_needs_the_confirm_word(client, books):
+    entry(client, books)
+    assert client.post("/api/erase", json={"confirm": "nope"}).json()["detail"] == "Type test@example.com to confirm."
+    assert client.get("/api/transactions/").json() != []
+    assert client.post("/api/erase", json={"confirm": " TEST@example.com "}).status_code == 204
+    assert client.get("/api/transactions/").json() == []
+
+
+def test_delete_account_when_logins_cannot_be_deleted(client, books):
+    entry(client, books)
+    refused = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert refused.status_code == 503
+    assert refused.json()["detail"] == "Deleting your login is not set up here: ask the person who runs finode."
+    assert client.get("/api/transactions/").json() != []
+
+
+def test_delete_account(client, books, monkeypatch):
+    from app.config import settings
+    from app.routers import data as data_router
+
+    monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_test_key")
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
+    deleted = []
+    monkeypatch.setattr(data_router, "delete_user", deleted.append)
+    entry(client, books)
+    response = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert response.status_code == 204 and len(deleted) == 1
+    assert any(c.startswith("finode_access=") and "Max-Age=0" in c for c in response.headers.get_list("set-cookie"))
+    assert client.get("/api/transactions/").json() == []

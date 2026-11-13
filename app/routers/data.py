@@ -1,19 +1,22 @@
-"""JSON API for a person's data: export, import, backup and restore. The web pages reuse its file helpers."""
+"""JSON API for a person's data: export, import, backup, restore, Erase and Delete my account. The web pages reuse its
+file helpers and `confirmed`."""
 
 import json
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 
-from ..auth import require_authenticated_user
+from ..auth import CookieSession, CurrentUser, require_authenticated_user, require_cookie_session
 from ..clock import local_today
 from ..config import settings
-from ..dependencies import Backup, Data
+from ..dependencies import Backup, Data, Erase
 from ..limits import upload_limit_bytes
 from ..schemas.backup import RestoreSummary
-from ..schemas.data import ImportSummary
+from ..schemas.data import Confirmation, DataOptions, ImportSummary
 from ..services.backup import BackupService
 from ..services.data import DataService, ImportRejected
+from ..session import AuthUnavailableError, clear_auth_cookies
+from ..signup import delete_user
 
 MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
@@ -101,3 +104,55 @@ def restore(backup: Backup, file: UploadFile | None = File(default=None), dry_ru
     if summary.errors:
         raise HTTPException(status_code=400, detail=summary.model_dump(mode="json"))
     return summary
+
+
+def confirmed(user: CurrentUser, typed: str) -> bool:
+    """The person types their email (or DELETE when the account has none) so a stray tap can't erase anything."""
+    expected = (user.email or "DELETE").strip().lower()
+    return typed.strip().lower() == expected
+
+
+def _type_to_confirm(user: CurrentUser) -> HTTPException:
+    return HTTPException(status_code=400, detail=f"Type {user.email or 'DELETE'} to confirm.")
+
+
+@router.get("/data-options", response_model=DataOptions)
+def data_options(data: Data, backup: Backup, cookie: CookieSession = Depends(require_cookie_session)):
+    """What the data page offers: import and restore need empty books; the word Erase and Delete ask you to type."""
+    return DataOptions(
+        can_import=data.can_import(),
+        can_restore=backup.can_restore(),
+        confirm_word=cookie.user.email or "DELETE",
+        can_delete_login=settings.can_delete_logins,
+    )
+
+
+@router.post("/erase", status_code=204)
+def erase_books(data: Confirmation, erase: Erase, cookie: CookieSession = Depends(require_cookie_session)):
+    """Erase my books: every entry, account, category, person, rule and budget; the profile and sign-in stay."""
+    if not confirmed(cookie.user, data.confirm):
+        raise _type_to_confirm(cookie.user)
+    erase.erase_books()
+
+
+@router.post("/delete-account", status_code=204)
+def delete_account(
+    data: Confirmation, erase: Erase, response: Response, cookie: CookieSession = Depends(require_cookie_session)
+):
+    """Delete my account: everything, then the sign-in itself (needs Supabase's admin key on the server)."""
+    if not confirmed(cookie.user, data.confirm):
+        raise _type_to_confirm(cookie.user)
+    if not settings.can_delete_logins:
+        raise HTTPException(
+            status_code=503, detail="Deleting your login is not set up here: ask the person who runs finode."
+        )
+    erase.erase_everything()
+    try:
+        delete_user(cookie.user.id)
+    except AuthUnavailableError:
+        # The books are gone; the sign-in is not. Say so, and let them (or the admin) finish it.
+        raise HTTPException(
+            status_code=503,
+            detail="Your data was erased, but removing your login failed. Try again, or ask the person who runs finode.",
+        ) from None
+    clear_auth_cookies(response)

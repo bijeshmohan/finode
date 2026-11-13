@@ -40,6 +40,7 @@ from ...schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
+from ...services import payee_suggestions
 from ...tags import clean_tag
 from ...templating import templates
 from .accounts import PickGroups, PickOption, build_tree, category_groups, posting_groups, without_contacts
@@ -688,38 +689,12 @@ def category_places(accounts: Accounts, categories: Categories) -> dict[UUID, UU
     return {c.id: roots["Expenses" if c.kind == "spending" else "Income"] for c in categories.list(include_closed=True)}
 
 
-SUGGESTED_PAYEES = 6  # how many chips sit under the payee field
-
-
-def suggested_payees(names: list[str], query: str = "", limit: int = SUGGESTED_PAYEES) -> list[str]:
-    """The chips under the payee field while something is typed, from the people paid most (`names` come most used first):
-    those starting with it, then containing it, an exact match first; nothing for an empty field. Only the name is
-    suggested, never accounts."""
-    wanted = query.strip().lower()
-    if not wanted:
-        return []
-    exact = [n for n in names if n.lower() == wanted]
-    starting = [n for n in names if n.lower().startswith(wanted) and n.lower() != wanted]
-    containing = [n for n in names if wanted in n.lower() and not n.lower().startswith(wanted)]
-    return (exact + starting + containing)[:limit]
-
-
-SUGGESTED_PEOPLE = 8  # how many people sit under the payee field after an "@"
-
-
 @router.get("/suggest")
 def suggest_payees(request: Request, transactions: Transactions, contacts: Contacts, payee: str = "", only: str = ""):
-    """The chips under the payee field: people you pay that match what is typed, the ones paid most first. After an "@",
-    your people instead (the entry will name the person, nothing is owed), A to Z, those starting with it first."""
-    if payee.startswith("@"):
-        wanted = payee[1:].strip().casefold()
-        found = [c for c in contacts.people() if c.archived_at is None and wanted in c.name.casefold()]
-        found.sort(key=lambda c: (not c.name.casefold().startswith(wanted), c.name.casefold()))
-        people = [(c.id, c.name) for c in found[:SUGGESTED_PEOPLE]]
-        return templates.TemplateResponse(request, "partials/payee_chips.html", {"names": [], "people": people})
-    # Editing an entry offers people only: the payee it has is not second-guessed.
-    names = [] if only == "people" else suggested_payees([name for name, _ in transactions.payees()], payee)
-    return templates.TemplateResponse(request, "partials/payee_chips.html", {"names": names, "people": []})
+    """The chips under the payee field (see services/payee_suggestions.py)."""
+    found = payee_suggestions.suggest(transactions, contacts, payee, only)
+    people = [(p.id, p.name) for p in found.people]
+    return templates.TemplateResponse(request, "partials/payee_chips.html", {"names": found.names, "people": people})
 
 
 @router.get("/tag-options")

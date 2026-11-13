@@ -5,10 +5,11 @@ import json
 
 import pytest
 
+from app import auth_flows
 from app.config import settings
 from app.ratelimit import AttemptLimiter
 from app.routers.web import auth as web_auth_router
-from app.web_auth import InvalidCredentialsError, SessionTokens
+from app.session import InvalidCredentialsError, SessionTokens
 
 from .books import into, leg, post_account
 from .test_web_signup import CODE, FORM, raw_client, signup_on, supabase  # noqa: F401  (fixtures used by name)
@@ -47,7 +48,7 @@ def failing_sign_in(monkeypatch):
         calls.append(email)
         raise InvalidCredentialsError()
 
-    monkeypatch.setattr(web_auth_router, "sign_in", fail)
+    monkeypatch.setattr(auth_flows, "sign_in", fail)
     return calls
 
 
@@ -65,7 +66,7 @@ def test_repeated_wrong_passwords_are_slowed_down(raw_client, failing_sign_in, m
 
 def test_one_email_is_slowed_down_from_every_address(raw_client, failing_sign_in, monkeypatch):
     monkeypatch.setattr(settings, "login_attempts", 2)
-    monkeypatch.setattr(web_auth_router, "_client", lambda request: request.headers["x-test-ip"])
+    monkeypatch.setattr(web_auth_router, "client_address", lambda request: request.headers["x-test-ip"])
     for ip in ("1.1.1.1", "2.2.2.2"):
         raw_client.post("/login", data={"email": "victim@x.com", "password": "bad"}, headers={"x-test-ip": ip})
     blocked = raw_client.post(
@@ -90,7 +91,7 @@ def test_a_good_sign_in_is_not_counted_and_clears_the_email(raw_client, monkeypa
             raise outcome
         return SessionTokens("a", "r", 3600)
 
-    monkeypatch.setattr(web_auth_router, "sign_in", sign_in)
+    monkeypatch.setattr(auth_flows, "sign_in", sign_in)
     assert raw_client.post("/login", data={"email": "a@x.com", "password": "x"}).status_code == 401
     assert raw_client.post("/login", data={"email": "a@x.com", "password": "ok"}).status_code == 303
     # the address still has one failure on record, so one more is allowed and the next is not

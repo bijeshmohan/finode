@@ -9,9 +9,9 @@ from ...auth import CurrentUser, require_authenticated_user
 from ...config import settings
 from ...currencies import CURRENCIES
 from ...dependencies import Profiles
+from ...feedback import feedback_url
 from ...schemas.profile import ProfileUpdate
 from ...templating import templates
-from .profile import _feedback_url
 from .utils import htmx_error, htmx_redirect, validation_message
 
 router = APIRouter(prefix="/settings")
@@ -41,7 +41,7 @@ def settings_page(
             "email": user.email,
             "display_name": " ".join(names),
             "test_notice": settings.test_notice,
-            "feedback_url": _feedback_url(),
+            "feedback_url": feedback_url(),
         },
     )
 

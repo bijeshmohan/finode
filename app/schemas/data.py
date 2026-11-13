@@ -1,4 +1,4 @@
-"""What an import reports."""
+"""What an import reports, and what the data page offers (Erase, Delete my account)."""
 
 from datetime import date
 from decimal import Decimal
@@ -22,3 +22,19 @@ class ImportSummary(BaseModel):
     # Totals of the imported accounts.
     assets: Decimal = Decimal("0.00")
     liabilities: Decimal = Decimal("0.00")
+
+
+class DataOptions(BaseModel):
+    """What the data page offers: import and restore need empty books; Erase and Delete ask for `confirm_word`."""
+
+    can_import: bool
+    can_restore: bool
+    confirm_word: str
+    # Delete my account can also remove the sign-in (Supabase's admin key is set on the server).
+    can_delete_login: bool
+
+
+class Confirmation(BaseModel):
+    """The word the person typed to confirm (their email, or DELETE when the account has none)."""
+
+    confirm: str = ""

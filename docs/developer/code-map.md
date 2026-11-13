@@ -18,8 +18,11 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | `config.py` | `settings` (FINODE_* variables) |
 | `dependencies.py` | database session, repositories and services per request (`DBSession`, `Budget`, `Reports`, …) |
 | `auth.py` | verifies Supabase JWTs for the JSON API and /mcp (`CurrentUser`, `require_authenticated_user`, `reject_app_token`) |
-| `web_auth.py` | the web login: cookies, refresh, `web_login_required`, `safe_next` |
+| `session.py` | the Supabase session: password sign-in, refresh, the HttpOnly cookies |
+| `web_auth.py` | the web pages' guard: `web_login_required`, `safe_next`, the cookie refresh middleware |
 | `signup.py`, `reset.py` | invite-only sign-up; forgotten passwords |
+| `auth_flows.py` | the sign-in rules (limits, checks, messages) shared by the web pages and `/api/auth` |
+| `feedback.py` | the Send feedback mail link |
 | `oauth.py` | talking to Supabase's OAuth server for the consent step |
 | `clock.py` | `local_today()` and friends; never call `date.today()` |
 | `currencies.py` | the currency list with decimals and signs |
@@ -36,8 +39,8 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | `models/` | SQLModel tables: `account`, `transaction` (+ `Posting`), `category` (budget categories), `contact` (contacts and their two accounts), `budget` (allocations), `recurring`, `tag` (tags and the entries that carry them), `profile`, `api_token`, `oauth_grant`, `auth` (mirror of Supabase `users`), `utils` (timestamps, the `Amount` column type) |
 | `schemas/` | Pydantic shapes per entity: `*Base`, `*Create`, `*Read`, `*Update` |
 | `repositories/` | tenant-scoped queries; `cache` remembers reads for one request (dropped on any write) |
-| `services/` | `account`, `cards` (a card's statement and due dates), `category`, `contact` (people with a "Due from" and a "Due to" account), `contact_errors`, `transfer`, `expense_sharing`, `income_sharing`, `splits`, `settlement`, `obligation`, `netting` (nobody is owed both ways), `contact_summary` (what is done with a person), `transaction`, `budget`, `coming_up` (entries dated ahead and rule occurrences in one list), `report`, `todo` (the to-do bell), `recurring` (+ `schedule`), `profile`, `data`, `backup`, `erase`, `api_token`, `oauth_grant`, `simple`, `validation` |
-| `routers/` | the JSON API (`/api`, all of it listed in [api.md](api.md)): `accounts`, `categories`, `contacts`, `transfers`, `settlements`, `shared_expenses`, `shared_incomes`, `transactions`, `tags`, `profile`, `recurring`, `budget`, `reports`, `todo`, `data`; `contact_utils` is what the people routes share (the retry header, how a refusal is answered) |
+| `services/` | `account`, `cards` (a card's statement and due dates), `category`, `contact` (people with a "Due from" and a "Due to" account), `contact_errors`, `transfer`, `expense_sharing`, `income_sharing`, `splits`, `settlement`, `obligation`, `netting` (nobody is owed both ways), `contact_summary` (what is done with a person), `transaction`, `budget`, `coming_up` (entries dated ahead and rule occurrences in one list), `report`, `todo` (the to-do bell), `recurring` (+ `schedule`), `profile`, `data`, `backup`, `erase`, `api_token`, `oauth_grant`, `payee_suggestions` (the Add screen's payee chips), `simple`, `validation` |
+| `routers/` | the JSON API (`/api`, all of it listed in [api.md](api.md)): `accounts`, `categories`, `contacts`, `transfers`, `settlements`, `shared_expenses`, `shared_incomes`, `transactions`, `tags`, `profile`, `recurring`, `budget`, `reports`, `todo`, `data` (also Erase and Delete my account), `auth` (sign-in for the finode app), `assistants` (tokens, connected apps, consent); `contact_utils` is what the people routes share (the retry header, how a refusal is answered) |
 | `routers/web/` | the HTML pages, one module per area |
 | `mcp_server/` | `transport` (auth, rate limit), `tools`, `accounts` and `categories` (name lookup), `context` |
 | `ledger/` | journal format parser and writer (import and export) |

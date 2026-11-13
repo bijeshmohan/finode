@@ -4,10 +4,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app import auth, web_auth
+from app import auth, auth_flows
 from app.dependencies import get_db_session
 from app.main import app
-from app.web_auth import (
+from app.session import (
     ACCESS_COOKIE,
     REFRESH_COOKIE,
     AuthUnavailableError,
@@ -57,10 +57,9 @@ def test_login_page_renders(raw_client: TestClient):
 
 
 def test_login_success_sets_cookies(raw_client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    from app.routers.web import auth as web_auth_router
 
     monkeypatch.setattr(
-        web_auth_router,
+        auth_flows,
         "sign_in",
         lambda email, password: SessionTokens("good-token", "refresh-1", 3600),
     )
@@ -74,12 +73,11 @@ def test_login_success_sets_cookies(raw_client: TestClient, monkeypatch: pytest.
 
 
 def test_login_invalid_credentials(raw_client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    from app.routers.web import auth as web_auth_router
 
     def fail(email, password):
         raise InvalidCredentialsError()
 
-    monkeypatch.setattr(web_auth_router, "sign_in", fail)
+    monkeypatch.setattr(auth_flows, "sign_in", fail)
     response = raw_client.post("/login", data={"email": "a@b.co", "password": "bad"})
     assert response.status_code == 401
     assert "Invalid email or password." in response.text
@@ -87,12 +85,11 @@ def test_login_invalid_credentials(raw_client: TestClient, monkeypatch: pytest.M
 
 
 def test_login_service_unavailable(raw_client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    from app.routers.web import auth as web_auth_router
 
     def fail(email, password):
         raise AuthUnavailableError("down")
 
-    monkeypatch.setattr(web_auth_router, "sign_in", fail)
+    monkeypatch.setattr(auth_flows, "sign_in", fail)
     response = raw_client.post("/login", data={"email": "a@b.co", "password": "pw"})
     assert response.status_code == 503
 
@@ -105,7 +102,7 @@ def test_protected_page_with_valid_cookie(raw_client: TestClient, valid_jwt):
 
 
 def test_expired_access_token_is_refreshed(raw_client: TestClient, valid_jwt, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(web_auth, "refresh_session", lambda token: SessionTokens("good-token", "refresh-2", 3600))
+    monkeypatch.setattr(auth, "refresh_session", lambda token: SessionTokens("good-token", "refresh-2", 3600))
     raw_client.cookies.set(ACCESS_COOKIE, "expired-token", path="/")
     raw_client.cookies.set(REFRESH_COOKIE, "refresh-1", path="/")
 
@@ -120,7 +117,7 @@ def test_failed_refresh_redirects_to_login(raw_client: TestClient, valid_jwt, mo
     def fail(token):
         raise InvalidCredentialsError()
 
-    monkeypatch.setattr(web_auth, "refresh_session", fail)
+    monkeypatch.setattr(auth, "refresh_session", fail)
     raw_client.cookies.set(ACCESS_COOKIE, "expired-token", path="/")
     raw_client.cookies.set(REFRESH_COOKIE, "revoked", path="/")
 
@@ -136,10 +133,12 @@ def test_logout_clears_cookies(raw_client: TestClient):
     assert any(c.startswith(f"{ACCESS_COOKIE}=") and "Max-Age=0" in c for c in cookies)
 
 
-def test_json_api_ignores_cookies(raw_client: TestClient, valid_jwt):
+def test_json_api_takes_the_cookie_but_not_a_cross_site_write(raw_client: TestClient, valid_jwt):
+    """The finode app reads /api with the cookie; a change without its header and origin is refused (see
+    tests/test_api_cookie_auth.py), so a web page cookie cannot be used from another site."""
     raw_client.cookies.set(ACCESS_COOKIE, "good-token", path="/")
-    response = raw_client.get("/api/accounts/")
-    assert response.status_code == 401
+    assert raw_client.get("/api/accounts/").status_code == 200
+    assert raw_client.post("/api/accounts/", json={"name": "x"}).status_code == 403
 
 
 def test_static_assets_are_served(raw_client: TestClient):

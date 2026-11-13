@@ -9,6 +9,8 @@ import threading
 import time
 from collections import deque
 
+from fastapi import Request
+
 
 class AttemptLimiter:
     def __init__(self) -> None:
@@ -49,6 +51,11 @@ class AttemptLimiter:
 
 # One shared limiter for the sign-in and sign-up pages.
 attempts = AttemptLimiter()
+
+
+def client_address(request: Request) -> str:
+    """The address attempts are counted against."""
+    return request.client.host if request.client else "unknown"
 
 
 def minutes(seconds: int) -> int:

@@ -13,7 +13,7 @@ Identity itself is **Supabase Auth**; finode stores no passwords. The ledger dat
 
 ## The web login
 
-`app/web_auth.py` signs people in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies (path `/`; `Secure` when `FINODE_COOKIE_SECURE` is true).
+`app/session.py` signs people in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies (path `/`; `Secure` when `FINODE_COOKIE_SECURE` is true); `app/web_auth.py` guards the web pages with them.
 
 ```mermaid
 sequenceDiagram
@@ -33,7 +33,16 @@ sequenceDiagram
     end
 ```
 
-`web_login_required` stores the verified token in `request.state`, which `require_authenticated_user` accepts in addition to a bearer header, so the repositories stay scoped to the user. **The JSON API never reads cookies.**
+`web_login_required` stores the verified token in `request.state`, which `require_authenticated_user` accepts in addition to a bearer header, so the repositories stay scoped to the user.
+
+### Cookie sessions on /api (the finode app)
+
+The React frontend (served from `app.<domain>`, see `docs/superpowers/specs/2026-11-13-react-frontend-design.md`) calls `/api` with the same cookies. `require_authenticated_user` takes, in order: a bearer header; the web pages' `request.state`; the session cookie (`auth.token_from_cookies`, which refreshes an expired access token). The page's JavaScript never sees a token.
+
+- **Reads** with the cookie need nothing more.
+- **Changes** with the cookie (any method but GET, HEAD, OPTIONS) need `X-Finode: 1` and an `Origin` equal to `FINODE_FRONTEND_ORIGIN` (`auth.check_app_request`); with the setting empty every cookie change is refused. Another site can send neither the header nor our origin without a CORS preflight, which only `FINODE_FRONTEND_ORIGIN` passes (`main.cors_options`). Bearer requests skip both checks: a token is not something a browser attaches by itself.
+- **Cookie only** (`auth.require_cookie_session`): what a token alone must never do, such as minting tokens, connecting apps, consenting for an assistant or erasing the books, refuses a bearer header even alongside a cookie.
+- A connected app's token (`client_id` claim) is refused in a cookie as anywhere outside `/mcp`.
 
 Sign-up is invite-only (`app/signup.py`): the invite code is compared in constant time and users are created, already confirmed, through Supabase's admin API with the **service key**. That key must stay server-side: never render it, log it or send it to a browser. Password reset (`app/reset.py`, `/forgot`, `/reset`) is off unless `FINODE_PASSWORD_RESET=true`. Sign-in and sign-up attempts are slowed per address by the in-memory limiter in `app/ratelimit.py`.
 

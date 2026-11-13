@@ -1,7 +1,6 @@
 """The Your data page (erase, delete my account), the profile form and the Assistants page with its tokens."""
 
 from typing import Annotated
-from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -12,21 +11,14 @@ from ...config import settings
 from ...dependencies import ApiTokens, Backup, Data, Erase, OAuthGrants, Profiles
 from ...schemas.api_token import ApiTokenCreate
 from ...schemas.profile import ProfileUpdate
+from ...session import AuthUnavailableError, clear_auth_cookies
 from ...signup import delete_user
 from ...templating import templates
-from ...version import VERSION
-from ...web_auth import AuthUnavailableError, clear_auth_cookies
+from ..assistants import mcp_url
+from ..data import confirmed
 from .utils import htmx_error, htmx_redirect, validation_message
 
 router = APIRouter(prefix="/profile")
-
-
-def _feedback_url() -> str | None:
-    """A mailto link that starts a feedback email to whoever runs finode (no personal data in it)."""
-    if not settings.feedback_email:
-        return None
-    body = f"What happened, or what would help?\n\n\n\n--\nfinode {VERSION}"
-    return f"mailto:{settings.feedback_email}?subject={quote('finode feedback')}&body={quote(body)}"
 
 
 @router.get("/data")
@@ -49,19 +41,13 @@ def data_page(
     )
 
 
-def _confirmed(user: CurrentUser, typed: str) -> bool:
-    """The person types their email (or DELETE when the account has none) so a stray tap can't erase anything."""
-    expected = (user.email or "DELETE").strip().lower()
-    return typed.strip().lower() == expected
-
-
 @router.post("/data/erase")
 def erase_books(
     user: Annotated[CurrentUser, Depends(require_authenticated_user)],
     erase: Erase,
     confirm: Annotated[str, Form()] = "",
 ):
-    if not _confirmed(user, confirm):
+    if not confirmed(user, confirm):
         return htmx_error(f"Type {user.email or 'DELETE'} to confirm.", "#erase-error")
     erase.erase_books()
     return htmx_redirect("/", flash="books-erased")
@@ -73,7 +59,7 @@ def delete_account(
     erase: Erase,
     confirm: Annotated[str, Form()] = "",
 ):
-    if not _confirmed(user, confirm):
+    if not confirmed(user, confirm):
         return htmx_error(f"Type {user.email or 'DELETE'} to confirm.", "#delete-error")
     if not settings.can_delete_logins:
         return htmx_error("Deleting your login is not set up here: ask the person who runs finode.", "#delete-error")
@@ -102,10 +88,6 @@ def update_profile(
     except ValidationError as e:
         return htmx_error(validation_message(e), "#form-error")
     return htmx_redirect("/settings", flash="profile-updated")
-
-
-def mcp_url(request: Request) -> str:
-    return str(request.base_url).rstrip("/") + "/mcp"
 
 
 @router.get("/assistants")

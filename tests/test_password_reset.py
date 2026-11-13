@@ -3,7 +3,7 @@ import pytest
 
 from app import reset
 from app.config import Settings, settings
-from app.web_auth import ACCESS_COOKIE, AuthUnavailableError
+from app.session import ACCESS_COOKIE, AuthUnavailableError
 
 from .test_web_signup import raw_client  # noqa: F401
 
