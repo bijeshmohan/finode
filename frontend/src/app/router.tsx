@@ -1,10 +1,10 @@
 // Every address the app answers. Inside the layout a session is guaranteed (SessionProvider); sign-in stands outside.
 // Pages are placeholders until their step of the rebuild; real pages are loaded lazily as they arrive.
-import { Outlet, type RouteObject } from "react-router";
+import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
 
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
-import { SignInPlaceholder } from "../features/placeholder/SignInPlaceholder";
+import { SignIn } from "../features/auth/SignIn";
 import { Layout } from "./Layout";
 import { SessionProvider } from "./session";
 import { ToastProvider } from "./toast";
@@ -20,6 +20,12 @@ const PAGES: [path: string, title: string][] = [
   ["/settings", "Settings"],
 ];
 
+/** An old address of the web pages (/login, /signup), kept so bookmarks and mails still work. */
+function MovedTo({ path }: { path: string }) {
+  const { search } = useLocation();
+  return <Navigate to={path + search} replace />;
+}
+
 function SignedIn() {
   return (
     <SessionProvider>
@@ -31,7 +37,8 @@ function SignedIn() {
 }
 
 export const routes: RouteObject[] = [
-  { path: "/sign-in", element: <SignInPlaceholder /> },
+  { path: "/sign-in", element: <SignIn /> },
+  { path: "/login", element: <MovedTo path="/sign-in" /> },
   {
     element: <SignedIn />,
     children: [

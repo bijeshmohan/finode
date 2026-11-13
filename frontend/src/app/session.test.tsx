@@ -8,7 +8,7 @@ describe("the session", () => {
     const { router } = renderApp("/accounts", {
       "/api/auth/session": [401, { detail: "missing authentication token" }],
     });
-    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(await screen.findByText("Sign in to your ledger.")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/sign-in");
     expect(router.state.location.search).toBe("?next=%2Faccounts");
   });
@@ -17,7 +17,7 @@ describe("the session", () => {
     renderApp("/", { "/api/auth/session": new TypeError("Failed to fetch") });
     expect(await screen.findByText("finode can't be reached. Check your connection.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Sign in to your ledger.")).not.toBeInTheDocument();
   });
 
   it("a failed refresh keeps the app on screen once it has a session", async () => {

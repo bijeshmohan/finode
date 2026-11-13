@@ -9,7 +9,8 @@ interface TextFieldProps {
   registration: UseFormRegisterReturn;
   type?: "email" | "password" | "text";
   autoComplete: string;
-  autoFocus?: boolean;
+  /** The field the screen starts in, as the web pages do. */
+  startHere?: boolean;
   error?: string | undefined;
 }
 
@@ -18,7 +19,7 @@ export function TextField({
   registration,
   type = "text",
   autoComplete,
-  autoFocus = false,
+  startHere = false,
   error,
 }: TextFieldProps) {
   return (
@@ -30,7 +31,7 @@ export function TextField({
         autoComplete={autoComplete}
         // The first field of a sign-in screen, as on the web pages.
         // eslint-disable-next-line jsx-a11y-x/no-autofocus
-        autoFocus={autoFocus}
+        autoFocus={startHere}
         aria-invalid={error ? true : undefined}
         {...registration}
       />
