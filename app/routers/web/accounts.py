@@ -1,3 +1,5 @@
+"""The Accounts page, an account's own page, and the forms that make, change, close, pin and delete accounts."""
+
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -15,7 +17,6 @@ from ...schemas.account import GroupCreate, RegisterEntry
 from ...schemas.category import CategoryRead
 from ...services import cards
 from ...services.account import (
-    GROUP_POSTING_ROOT_NAMES,
     MAX_ACCOUNT_DEPTH,
     AccountService,
     RegisterPage,
@@ -73,21 +74,19 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
             elif node.account.system_key:
                 node.kind = "fixed"  # a built-in group (Bank Accounts, Cash, Investments, Credit Cards, Loans)
 
-    def finish(node: Node, depth: int, parent_path: str = "", root_name: str = "") -> None:
+    def finish(node: Node, depth: int, parent_path: str = "") -> None:
         node.depth = depth
         node.postable = (
-            node.kind not in ("root", "fixed")
-            and node.account.new_accounts_in_budget is None
-            and (node.is_leaf or root_name in GROUP_POSTING_ROOT_NAMES)
+            node.kind not in ("root", "fixed") and node.account.new_accounts_in_budget is None and node.is_leaf
         )
         node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
         node.children.sort(key=lambda n: AccountService.order_key(n.account))
         for child in node.children:
-            finish(child, depth + 1, node.path, root_name)
+            finish(child, depth + 1, node.path)
 
     roots.sort(key=lambda n: ROOT_ORDER.index(n.account.name) if n.account.name in ROOT_ORDER else len(ROOT_ORDER))
     for root in roots:
-        finish(root, 0, root_name=root.account.name)
+        finish(root, 0)
     return roots
 
 
@@ -165,23 +164,10 @@ def _find(roots: list[Node], account_id: UUID) -> Node | None:
     return next((n for root in roots for n in root.walk() if n.account.id == account_id), None)
 
 
-def _parent_options(
-    roots: list[Node],
-    exclude: Node | None = None,
-    keep: UUID | None = None,
-) -> list[Node]:
-    """Accounts that may become a parent: system accounts are leaves by design and a
-    parent must leave room for the new (or moved) subtree within two levels."""
-    excluded = {n.account.id for n in exclude.walk()} if exclude else set()
-    below = (max(n.depth for n in exclude.walk()) - exclude.depth) if exclude else 0
-    return [
-        n
-        for root in roots
-        for n in root.walk()
-        if n.kind != "system"
-        and n.account.id not in excluded
-        and (n.depth + 1 + below <= MAX_ACCOUNT_DEPTH or n.account.id == keep)
-    ]
+def _parent_options(roots: list[Node]) -> list[Node]:
+    """Accounts a new one may be made in: the built-in Opening Balances holds none, and a parent must leave room for it
+    within two levels."""
+    return [n for root in roots for n in root.walk() if n.kind != "system" and n.depth + 1 <= MAX_ACCOUNT_DEPTH]
 
 
 def _starts(roots: list[Node]) -> dict[UUID, str]:
@@ -559,11 +545,7 @@ def account_context(
     at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
     # Asset and liability accounts with their own postings cannot gain sub-accounts.
     has_own_postings = node.is_leaf and has_any and node.kind != "root"
-    can_add_child = (
-        node.kind != "system"
-        and not at_limit
-        and (not has_own_postings or root.account.name in GROUP_POSTING_ROOT_NAMES)
-    )
+    can_add_child = node.kind != "system" and not at_limit and not has_own_postings
     bill = None
     can_set_days = False
     if entries is None and root.account.name == "Liabilities" and node.kind == "user" and node.postable:
@@ -615,12 +597,11 @@ def account_page(request: Request, account_id: UUID, accounts: Accounts):
 
 @router.post("/{account_id}/close")
 def close_account(account_id: UUID, accounts: Accounts):
-    area = "/accounts"
     try:
         accounts.close(account_id)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect(area, flash="account-closed")
+    return htmx_redirect("/accounts", flash="account-closed")
 
 
 @router.post("/{account_id}/pin")
@@ -741,9 +722,8 @@ def update_account(
 
 @router.post("/{account_id}/delete")
 def delete_account(account_id: UUID, accounts: Accounts):
-    where = "/accounts"
     try:
         accounts.delete(account_id)
     except ValueError as e:
         return htmx_error(str(e), "#page-error")
-    return htmx_redirect(where, flash="account-deleted")
+    return htmx_redirect("/accounts", flash="account-deleted")

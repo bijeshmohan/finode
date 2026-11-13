@@ -8,7 +8,6 @@ from uuid import UUID
 
 from ..schemas import AccountRead
 from ..schemas.category import CategoryRead
-from ..services.account import GROUP_POSTING_ROOT_NAMES
 from .categories import CategoryIndex
 
 SEPARATORS = re.compile(r"\s*(?::|›|>|/)\s*")
@@ -39,7 +38,7 @@ class Entry:
 
     @property
     def postable(self) -> bool:
-        return not self.is_root and (not self.has_children or self.root in GROUP_POSTING_ROOT_NAMES)
+        return not self.is_root and not self.has_children
 
 
 class AccountIndex:
@@ -60,6 +59,7 @@ class AccountIndex:
         self.category_paths: dict[UUID, str] = {
             c.id: ("Expenses" if c.kind == "spending" else "Income") + ":" + c.path for c in categories or []
         }
+        self.category_names: dict[UUID, str] = {c.id: c.path for c in categories or []}
 
     def where(self, account: UUID, category: UUID | None) -> tuple[str, UUID]:
         """What a line is called to an assistant: a line on Expenses or Income by its category (Expenses:Food:Groceries
@@ -113,7 +113,7 @@ class AccountIndex:
                 e for e in matches if e.account.closed_on is None
             ] or matches  # a closed twin is not the one meant
         if postable and len(matches) > 1:
-            # "Food" under Expenses and a group "Food" under Assets: prefer what can take postings.
+            # An account "Travel" and a group "Travel" elsewhere: prefer what can take postings.
             matches = [e for e in matches if e.postable] or matches
         if len(matches) == 1:
             return self._check(matches[0], postable, allow_root)
@@ -134,10 +134,7 @@ class AccountIndex:
         if postable and entry.account.closed_on is not None:
             raise ValueError(f"'{entry.path}' is closed: the user can reopen it in finode to use it!")
         if postable and not entry.postable:
-            raise ValueError(
-                f"'{entry.path}' has sub-accounts, so post to one of them instead "
-                "(only Income and Expenses groups take postings directly)!"
-            )
+            raise ValueError(f"'{entry.path}' has sub-accounts, so post to one of them instead!")
         return entry
 
 

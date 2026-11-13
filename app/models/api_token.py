@@ -1,3 +1,5 @@
+"""Personal access tokens for the assistants' server, and the levels of access a connection can have."""
+
 from datetime import datetime
 from typing import ClassVar
 from uuid import UUID, uuid4

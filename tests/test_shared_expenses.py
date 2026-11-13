@@ -330,3 +330,51 @@ def test_the_category_must_be_an_open_spending_category(client, bank, dining, pe
     )
     assert no_category.status_code == 201
     assert spent(client, "Uncategorised") == 500
+
+
+def test_merging_the_account_that_paid_moves_the_bill_to_the_account_it_became(
+    client, bank, dining, people, root_accounts
+):
+    other = client.post("/api/accounts/", json={"name": "ICICI", "parent_id": root_accounts["Assets"]}).json()
+    made = client.post("/api/shared-expenses/", params={"confirm": True}, json=dinner(bank, dining, people)).json()
+    both = dinner(
+        bank,
+        dining,
+        people,
+        description="Lunch",
+        payments=[{"account_id": bank["id"], "amount": "1000"}, {"account_id": other["id"], "amount": "500"}],
+    )
+    lunch = client.post("/api/shared-expenses/", params={"confirm": True}, json=both).json()
+
+    merged = client.post(f"/api/accounts/{bank['id']}/merge", json={"into": other["id"]})
+    assert merged.status_code == 200, merged.text
+
+    paid = client.get(f"/api/shared-expenses/{made['id']}").json()["contributions"]
+    assert [(c["account_id"], float(c["amount"])) for c in paid] == [(other["id"], 1500)]
+    paid = client.get(f"/api/shared-expenses/{lunch['id']}").json()["contributions"]
+    assert [(c["account_id"], float(c["amount"])) for c in paid] == [(other["id"], 1500)], "one account, one row"
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+
+
+def test_an_account_a_draft_is_paid_from_is_not_deleted_from_under_it(client, bank, dining, people, root_accounts):
+    wallet = client.post("/api/accounts/", json={"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()
+    body = dinner(bank, dining, people, payments=[{"account_id": wallet["id"], "amount": "1500"}])
+    draft = client.post("/api/shared-expenses/", json=body).json()
+    refused = client.delete(f"/api/accounts/{wallet['id']}")
+    assert refused.status_code == 409 and "shared expense" in refused.json()["detail"]
+    assert client.post(f"/api/shared-expenses/{draft['id']}/cancel").status_code == 204
+    assert client.delete(f"/api/accounts/{wallet['id']}").status_code == 204
+
+
+def test_merging_or_deleting_the_category_of_a_bill_keeps_the_bill_whole(client, bank, dining, people):
+    food = category(client, "Food")
+    made = client.post("/api/shared-expenses/", params={"confirm": True}, json=dinner(bank, dining, people)).json()
+    merged = client.post(f"/api/categories/{dining['id']}/merge", json={"into": food["id"]})
+    assert merged.status_code == 200, merged.text
+    assert client.get(f"/api/shared-expenses/{made['id']}").json()["category_id"] == food["id"]
+
+    # A category only a draft names has no entries yet: it is closed, not deleted from under the draft.
+    trips = category(client, "Trips")
+    draft = client.post("/api/shared-expenses/", json=dinner(bank, dining, people, category_id=trips["id"])).json()
+    assert client.post(f"/api/categories/{trips['id']}/delete").json()["outcome"] == "closed"
+    assert client.get(f"/api/shared-expenses/{draft['id']}").json()["category_id"] == trips["id"]

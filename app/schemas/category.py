@@ -1,10 +1,12 @@
+"""What the API takes and returns for categories, and what deleting or merging one did."""
+
 from datetime import date as Date
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from .account import clean_name
+from .account import MergeResult, clean_name
 
 CategoryKindName = Literal["spending", "earning"]
 
@@ -51,3 +53,10 @@ class CategoryDeleteResult(BaseModel):
     # "deleted" (unused: gone for good) or "closed" (it has history: kept, no longer offered).
     outcome: Literal["deleted", "closed"]
     category: CategoryRead
+
+
+class CategoryMergeResult(MergeResult):
+    """What folding one category into another did (or, for a dry run, would do)."""
+
+    # The months in which the folded category had a planned amount, now added to the other's.
+    plan_months_moved: int

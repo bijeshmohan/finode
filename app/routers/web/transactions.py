@@ -1,3 +1,5 @@
+"""The Transactions page, an entry's sheet and the Add / Edit screen (expense, income, transfer, split, people)."""
+
 import calendar
 from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -23,7 +25,6 @@ from ...dependencies import (
     Transfers,
 )
 from ...models.transaction import PostingSide
-from ...repositories.obligation import ObligationRepository
 from ...repositories.transaction import SYSTEM_PAYEES
 from ...schemas import AccountRead
 from ...schemas.category import CategoryRead
@@ -186,7 +187,7 @@ def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
 
 def list_rows(chunk: list[TransactionRead], index: AccountIndex, transactions: Transactions) -> list[TransactionRow]:
     """The rows of a list, each with what it is related to (two more queries when anything is, none otherwise)."""
-    refs = transactions.tr.related_refs([t.related_id for t in chunk])
+    refs = transactions.related_refs(t.related_id for t in chunk)
     rows = [to_row(t, index) for t in chunk]
     for row in rows:
         row.related = refs.get(row.transaction.related_id) if row.transaction.related_id else None
@@ -215,10 +216,7 @@ def transactions_page(
     kind: str = "",
     month: str = "",
 ):
-    try:
-        recurring.process_due()  # record what has fallen due; never stop the page from opening
-    except Exception:
-        recurring.repo.db.rollback()
+    recurring.catch_up()  # record what has fallen due; it never stops the page from opening
     all_accounts = accounts.list()
     index = AccountIndex.build(all_accounts, categories.list(include_closed=True))
     kind = KIND_FILTERS.get(kind, "")  # one spelling from here on
@@ -443,13 +441,6 @@ def more_transactions(
     )
 
 
-def made_through_people(transactions: Transactions, transaction_id: UUID) -> list:
-    """What people made of an entry (a loan, a shared bill, a settlement…). A gift only names the person, so it is left out:
-    that entry is an ordinary one."""
-    rows = ObligationRepository(transactions.tr.db, transactions.tr.uid).party_rows(transaction_id=transaction_id)
-    return [r for r in rows if r.purpose != "gift"]
-
-
 def named_person(person: str, kind: str) -> tuple[UUID | None, str]:
     """The person an expense or income names as its payee (the `@` in the payee field), and which way the gift went."""
     if not person:
@@ -478,12 +469,12 @@ def transaction_sheet(
     if transaction is None:
         raise HTTPException(status_code=404, detail="transaction not found")
     # An entry made through a person (a loan, a shared bill, a settlement) is looked after on that person's page.
-    party = made_through_people(transactions, transaction_id)
+    party = contacts.made_of(transaction_id)
     with_person = contacts.read(party[0].contact_id) if party else None
     purposes = {r.purpose for r in party}
     # A loan, a borrowing or a bill shared with people is edited here too; the rest of what people made is on their page.
     loan_like = bool(party) and (purposes <= {"loan", "borrowing"} or purposes in ({"expense"}, {"income"}))
-    names = {c.id: c.name for c in contacts.cr.list()}
+    names = {c.id: c.name for c in contacts.people()}
     with_names = sorted({names[r.contact_id] for r in party if r.contact_id in names})
     index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
     row = to_row(transaction, index)
@@ -577,7 +568,7 @@ def infer_kind(postings: Iterable[PostingBase | PostingCreate], roots: dict[UUID
 def people_group(accounts: Accounts, contacts: Contacts | None, keep: Collection[UUID] = frozenset()) -> PickGroups:
     """The people a transfer can go to or come from, as one more group in the pickers. Nobody with no contacts pays a
     query for it: the contact accounts are known from the account list."""
-    if contacts is None or not accounts.ar.contact_account_ids():
+    if contacts is None or not contacts.has_people():
         return []
     # The balance of a person is what they owe you (a negative one: what you owe them); the form says what a transfer does.
     people = [
@@ -621,11 +612,7 @@ def income_values(shared: SharedIncomeRead | None = None) -> dict:
 
 def form_context(accounts: Accounts, categories: Categories, contacts: Contacts | None = None, **extra) -> dict:
     all_accounts = accounts.list()
-    people = (
-        [c for c in contacts.cr.list() if c.archived_at is None]
-        if contacts and accounts.ar.contact_account_ids()
-        else []
-    )
+    people = [c for c in contacts.people() if c.archived_at is None] if contacts and contacts.has_people() else []
     # Accounts and categories an entry being edited already uses stay offered even if they were closed since.
     used = getattr(extra.get("transaction"), "postings", ())
     keep = set(extra.pop("keep", ())) | {p.account_id for p in used}
@@ -726,7 +713,7 @@ def suggest_payees(request: Request, transactions: Transactions, contacts: Conta
     your people instead (the entry will name the person, nothing is owed), A to Z, those starting with it first."""
     if payee.startswith("@"):
         wanted = payee[1:].strip().casefold()
-        found = [c for c in contacts.cr.list() if c.archived_at is None and wanted in c.name.casefold()]
+        found = [c for c in contacts.people() if c.archived_at is None and wanted in c.name.casefold()]
         found.sort(key=lambda c: (not c.name.casefold().startswith(wanted), c.name.casefold()))
         people = [(c.id, c.name) for c in found[:SUGGESTED_PEOPLE]]
         return templates.TemplateResponse(request, "partials/payee_chips.html", {"names": [], "people": people})
@@ -1006,13 +993,13 @@ async def create_split_transaction(
     payee_contact: Annotated[str, Form()] = "",
 ):
     account, side, amount = account or [], side or [], amount or []
-    people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
+    people = {c.id for c in contacts.people()} if contacts.has_people() else set()
     try:
         if mode == "split" and kind == "income":
             # Share on an income: money that came in, part of it theirs (what the form lists).
             form = {k: str(v) for k, v in (await request.form()).items()}
             incomes.create(
-                income_data(form, contacts.cr.list()),
+                income_data(form, contacts.people()),
                 comment=comment.strip() or None,
                 tags=tags or [],
                 related_id=parse_related(related),
@@ -1022,7 +1009,7 @@ async def create_split_transaction(
             # Share: a bill shared by the shares and payments the form lists (the same one a person's page records).
             form = {k: str(v) for k, v in (await request.form()).items()}
             expenses.create(
-                expense_data(form, contacts.cr.list()),
+                expense_data(form, contacts.people()),
                 confirm=True,
                 comment=comment.strip() or None,
                 tags=tags or [],
@@ -1048,12 +1035,12 @@ async def create_split_transaction(
         )
         if gift is not None:
             transfers.name_gift(entry.id, gift, way)
-        transactions.tr.db.commit()
+        transactions.save()
     except ValidationError as e:
-        transactions.tr.db.rollback()
+        transactions.discard()
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
-        transactions.tr.db.rollback()
+        transactions.discard()
         return htmx_error(str(e), "#form-error")
     return htmx_redirect(safe_back(back), flash="transaction-saved")
 
@@ -1078,18 +1065,17 @@ def edit_transaction_page(
     # shared with people (its shares and payments, as entered); anything else a person made (a settlement, an opening
     # balance) is looked after on the person's page. A gift is an ordinary entry that names the person as its payee.
     person_of: dict[UUID, UUID] = {}
-    party = made_through_people(transactions, transaction_id)
+    party = contacts.made_of(transaction_id)
     purposes = {r.purpose for r in party}
     bill = shared_income = None
     if party:
         if purposes == {"expense"}:
-            found = expenses.er.by_transaction(transaction_id)
-            bill = expenses.read(found.id) if found is not None else None
+            bill = expenses.of_entry(transaction_id)
         if purposes == {"income"}:
             shared_income = incomes.read(transaction_id)
         if bill is None and shared_income is None and not purposes <= {"loan", "borrowing"}:
             return RedirectResponse(f"/people/{party[0].contact_id}", status_code=303)
-        person_of = {link.account_id: link.contact_id for link in contacts.cr.links()}
+        person_of = contacts.person_by_account()
     total = sum((p.amount for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
     roots = roots_by_id(accounts)
     from_rows = form_rows(transaction.postings, PostingSide.CREDIT, roots=roots, person_of=person_of)
@@ -1228,9 +1214,8 @@ async def update_transaction(
     payee_contact: Annotated[str, Form()] = "",
 ):
     account, side, amount = account or [], side or [], amount or []
-    db = transactions.tr.db
-    people = {c.id for c in contacts.cr.list()} if accounts.ar.contact_account_ids() else set()
-    purposes = {r.purpose for r in made_through_people(transactions, transaction_id)}
+    people = {c.id for c in contacts.people()} if contacts.has_people() else set()
+    purposes = {r.purpose for r in contacts.made_of(transaction_id)}
     with_people = bool(people) and any(a in {str(i) for i in people} for a in account)
     try:
         if mode == "split" and kind == "income":
@@ -1239,7 +1224,7 @@ async def update_transaction(
             form = {k: str(v) for k, v in (await request.form()).items()}
             incomes.convert(
                 transaction_id,
-                income_data(form, contacts.cr.list()),
+                income_data(form, contacts.people()),
                 comment.strip() or None,
                 tags or [],
                 parse_related(related),
@@ -1251,7 +1236,7 @@ async def update_transaction(
             form = {k: str(v) for k, v in (await request.form()).items()}
             expenses.convert(
                 transaction_id,
-                expense_data(form, contacts.cr.list()),
+                expense_data(form, contacts.people()),
                 comment.strip() or None,
                 tags or [],
                 parse_related(related),
@@ -1280,16 +1265,16 @@ async def update_transaction(
             tags,
         )
         if purposes and result.status_code >= 400:
-            db.rollback()  # it stays what it was
+            transactions.discard()  # it stays what it was
         return result
     except ValidationError as e:
-        db.rollback()
+        transactions.discard()
         return htmx_error(validation_message(e), "#form-error")
     except ValueError as e:
-        db.rollback()
+        transactions.discard()
         if "not found" in str(e) and f"'{transaction_id}'" in str(e):
             raise HTTPException(status_code=404, detail="transaction not found") from None
         return htmx_error(str(e), "#form-error")
     except HTTPException:
-        db.rollback()
+        transactions.discard()
         raise

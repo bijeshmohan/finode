@@ -1,4 +1,5 @@
-"""Accounts: the tree and its rules (two levels, no posting to roots or groups), balances derived from postings, closing, deleting, restoring, ordering and the account register."""
+"""Accounts: the tree and its rules (two levels, no posting to roots or groups), balances derived from postings,
+closing, reopening, deleting, merging, pinning and the account register."""
 
 import builtins
 from collections.abc import Sequence
@@ -19,10 +20,12 @@ from ..models import Account
 from ..models.transaction import Posting, PostingSide
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..repositories.recurring import RecurringRepository
+from ..repositories.shared_expense import SharedExpenseRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.account import BalanceCheck, BillRounding, CardBill, GroupCreate, MergeResult
 from ..schemas.transaction import PostingBase, PostingCreate, TransactionCreate
 from . import cards
+from .simple import label_simple
 
 # Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
 MAX_ACCOUNT_DEPTH = 2
@@ -32,7 +35,7 @@ REGISTER_PAGE = 30
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"
 ROOT_ACCOUNT_NAMES = ("Assets", "Expenses", "Equity", "Income", "Liabilities")
 DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
-# Income and expense accounts are categories, so a group may hold postings of its own.
+# Spending and income post to the Expenses and Income roots themselves (the line carries the category).
 # Assets and liabilities are real holdings and stay leaf-only.
 GROUP_POSTING_ROOT_NAMES = frozenset({"Income", "Expenses"})
 
@@ -185,10 +188,10 @@ class AccountService:
         used = {a.parent_id for a in all_accounts}
         return [a for a in all_accounts if a.system_key is not None and a.id not in used]
 
-    def release_fixed_parents(self, aids: list[UUID]) -> None:
+    def release_fixed_parents(self, account_ids: list[UUID]) -> None:
         """Remove empty built-in groups so a restore or an import can bring its own structure (the caller commits)."""
         empty = {a.id for a in self.empty_fixed_parents()}
-        for account_id in aids:
+        for account_id in account_ids:
             if account_id in empty:
                 self.ar.delete(account_id)
 
@@ -234,6 +237,10 @@ class AccountService:
         except IntegrityError:
             self.ar.db.rollback()
         return self.ar.list()
+
+    def label_simple(self, postings: builtins.list[PostingCreate], category_id: UUID) -> None:
+        """Put a category on a plain from-here-to-there entry, on the side `simple.label_simple` picks."""
+        label_simple({a.id: a for a in self.ar.list()}, postings, category_id)
 
     def _get_root_name(self, account: Account, accounts_by_id: dict[UUID, Account]) -> str:
         return self.root_name(account, accounts_by_id)
@@ -452,14 +459,10 @@ class AccountService:
         self._refuse_fixed(account, "closed")
         self._refuse_contact(account, "closed")
         subtree = self._subtree(account_id, all_accounts)
-        by_id = {a.id: a for a in all_accounts}
-        if self._get_root_name(account, by_id) in GROUP_POSTING_ROOT_NAMES:
-            subtree_money = []  # a category's "balance" is what was spent or earned in it, not money to move out first
-        else:
-            subtree_money = subtree
-        for member in subtree_money:
-            for when in (today, date(2999, 12, 31)):
-                balance = self._to_read(member, all_accounts, when).balance
+        for when in (today, date(2999, 12, 31)):
+            postings = self._postings_by_account(subtree, when)  # one read for everything inside, not one each
+            for member in subtree:
+                balance = self._balance_for(member, all_accounts, when, postings)
                 if balance != 0:
                     raise ValueError(
                         f"'{member.name}' still holds {balance:f}: move or spend it first, then close "
@@ -603,8 +606,7 @@ class AccountService:
             raise
         if commit:
             self.ar.db.commit()
-            self.ar.db.refresh(created)
-        return self._to_read(created, all_accounts_with_created)
+        return self._to_read(created, self._ensure_roots())  # one fresh list: a commit makes every loaded row stale
 
     def create_group(self, data: GroupCreate, *, commit: bool = True) -> AccountRead:
         """Make a group: a shelf for accounts under Assets (money the person owns) or Liabilities (money they owe). It
@@ -618,8 +620,7 @@ class AccountService:
         )
         if commit:
             self.ar.db.commit()
-            self.ar.db.refresh(created)
-        return self._to_read(created, [*all_accounts, created])
+        return self._to_read(created, self._ensure_roots())
 
     def read(self, account_id: UUID, as_of: date | None = None) -> AccountRead | None:
         all_accounts = self._ensure_roots()
@@ -705,8 +706,8 @@ class AccountService:
         return account.name
 
     def merge(self, source_id: UUID, target_id: UUID, dry_run: bool = False) -> MergeResult:
-        """Make one account part of another: every entry, planned amount, recurring rule and payment link of
-        `source` becomes the target's, and `source` is deleted. All or nothing. The source must be a plain account
+        """Make one account part of another: every entry, recurring rule and shared bill of `source` becomes the
+        target's, and `source` is deleted. All or nothing. The source must be a plain account
         (no sub-accounts) under the same top-level account as the target, which must be open and able to take
         postings. Refused when an entry or rule has both accounts on opposite sides (it would pay an account from
         itself) or when only one of them is part of the budget (that would change Ready to assign)."""
@@ -727,11 +728,11 @@ class AccountService:
         self._refuse_contact(source, "merged")
         self._refuse_contact(target, "merged")
         if self._get_root_name(source, by_id) != self._get_root_name(target, by_id):
-            raise ValueError("cannot merge accounts of different kinds (an asset into an expense, say)!")
+            raise ValueError("cannot merge accounts of different kinds (an asset into a liability, say)!")
         if self.ar.has_children(source_id):
             raise ValueError(f"'{source.name}' has sub-accounts: merge or move them first!")
         root = self._get_root_name(target, by_id)
-        if self.ar.has_children(target_id) and root not in GROUP_POSTING_ROOT_NAMES:
+        if self.ar.has_children(target_id):
             raise ValueError(f"'{target.name}' has sub-accounts, so nothing can be merged into it: pick one of them!")
         if target.closed_on is not None:
             raise ValueError(f"'{target.name}' is closed: reopen it first!")
@@ -750,7 +751,7 @@ class AccountService:
         if clashing:
             raise ValueError(f"the recurring transaction '{clashing[0]}' uses both accounts: change it first!")
         balance = self._to_read(source, all_accounts).balance
-        tids = self.tr.transactions_touching(source_id)
+        transaction_ids = self.tr.transactions_touching(source_id)
         rules = RecurringRepository.rules_using(self.ar.db, self.ar.uid, source_id)
         result = MergeResult(
             dry_run=dry_run,
@@ -758,8 +759,7 @@ class AccountService:
             source=self._path(source, by_id),
             into=self._path(target, by_id),
             balance_moved=balance,
-            entries_moved=len(tids),
-            plan_months_moved=0,
+            entries_moved=len(transaction_ids),
             recurring_rules_moved=rules,
         )
         if dry_run:
@@ -767,6 +767,7 @@ class AccountService:
         try:
             self.tr.repoint_account(source_id, target_id, self.ar.origin)
             RecurringRepository.repoint_account(self.ar.db, self.ar.uid, source_id, target_id)
+            SharedExpenseRepository(self.ar.db, self.ar.uid).repoint_account(source_id, target_id)
             self.delete(source_id)  # commits
         except Exception:
             self.ar.db.rollback()
@@ -849,35 +850,37 @@ class AccountService:
             owed_total=max(total, Decimal("0.00")),
         )
 
-    def glance(self, today: date | None = None) -> tuple[dict[UUID, date], dict[UUID, CardBill]]:
-        """What the Accounts page's cards say under a balance, for every account in two queries: the day of each account's
-        newest entry, and the bill of each open account that has its statement and due days."""
-        day = today or local_today()
-        accounts = self._ensure_roots()
-        last = self.tr.last_entry_dates([a.id for a in accounts], day)
+    def _bills(self, accounts: Sequence[Account], day: date) -> dict[UUID, CardBill]:
+        """The bill of each open account that has its statement and due days, from one read of their lines (none when
+        no account has its days)."""
         with_days = [
             a for a in accounts if a.statement_day is not None and a.due_day is not None and a.closed_on is None
         ]
         facts: dict[UUID, list[Any]] = {a.id: [] for a in with_days}
         for fact in self.tr.posting_facts(list(facts)):
             facts[fact.account_id].append(fact)
-        return last, {a.id: self._bill_of(a, facts[a.id], day) for a in with_days}
+        return {a.id: self._bill_of(a, facts[a.id], day) for a in with_days}
+
+    def glance(self, today: date | None = None) -> tuple[dict[UUID, date], dict[UUID, CardBill]]:
+        """What the Accounts page's cards say under a balance, for every account in two queries: the day of each account's
+        newest entry, and the bill of each open account that has its statement and due days."""
+        day = today or local_today()
+        accounts = self._ensure_roots()
+        return self.tr.last_entry_dates([a.id for a in accounts], day), self._bills(accounts, day)
 
     def bills_due(self, today: date | None = None) -> builtins.list[tuple[str, CardBill]]:
         """The open liability accounts with something left to pay that is due within `cards.DUE_SOON_DAYS` days or
-        already overdue, as (name, bill), the most overdue first. None are read while no account has its days set."""
+        already overdue, as (name, bill), the most overdue first. One query however many cards, none while no account
+        has its days set."""
         day = today or local_today()
         accounts = self._ensure_roots()
         by_id = {a.id: a for a in accounts}
-        found = []
-        for account in accounts:
-            if account.statement_day is None or account.closed_on is not None:
-                continue
-            if self._get_root_name(account, by_id) != "Liabilities":
-                continue
-            bill = self.bill(account.id, day)
-            if bill is not None and bill.bill > 0 and bill.days_to_due <= cards.DUE_SOON_DAYS:
-                found.append((self._path(account, by_id), bill))
+        liabilities = [a for a in accounts if self._get_root_name(a, by_id) == "Liabilities"]
+        found = [
+            (self._path(by_id[account_id], by_id), bill)
+            for account_id, bill in self._bills(liabilities, day).items()
+            if bill.bill > 0 and bill.days_to_due <= cards.DUE_SOON_DAYS
+        ]
         return sorted(found, key=lambda pair: (pair[1].days_to_due, pair[0]))
 
     def register_page(
@@ -1079,8 +1082,7 @@ class AccountService:
                 raise
 
         self.ar.db.commit()
-        self.ar.db.refresh(updated)
-        return self._to_read(updated, all_accounts)
+        return self._to_read(updated, self._ensure_roots())
 
     def _read(self, account_id: UUID) -> Account:
         """The account, which must exist (it was just found or changed)."""
@@ -1100,8 +1102,7 @@ class AccountService:
         return ":".join(reversed(names))
 
     def closed(self) -> builtins.list[dict]:
-        """The accounts that were closed (a category that was deleted but had a history is closed): the outermost of
-        each closed branch, newest first."""
+        """The accounts that were closed: the outermost of each closed branch, newest first."""
         all_accounts = self._ensure_roots()
         by_id = {a.id: a for a in all_accounts}
         top = [
@@ -1142,8 +1143,10 @@ class AccountService:
             raise AccountInUseError("account has sub-accounts")
         if self.tr.postings_for_account(account_id):
             raise AccountInUseError("account has postings")
-        if RecurringRepository.uses_account(self.ar.db, account_id):
+        if RecurringRepository.uses_account(self.ar.db, self.ar.uid, account_id):
             raise AccountInUseError("account is used by a recurring transaction")
+        if SharedExpenseRepository(self.ar.db, self.ar.uid).uses_account(account_id):
+            raise AccountInUseError("account is used by a shared expense")
 
         account_read = self._to_read(account, all_accounts)
         deleted = self.ar.delete(account_id)

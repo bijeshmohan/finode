@@ -1,3 +1,5 @@
+"""Home: a month's money in and out, the budget at a glance, the month's entries, and a new person's first steps."""
+
 import calendar
 from decimal import Decimal
 
@@ -16,14 +18,6 @@ router = APIRouter()
 RECENT_LIMIT = 8
 
 
-def _catch_up(recurring: Recurring) -> None:
-    """Record what has fallen due; a problem here must never stop the page from opening."""
-    try:
-        recurring.process_due()
-    except Exception:
-        recurring.repo.db.rollback()
-
-
 @router.get("/")
 def dashboard(
     request: Request,
@@ -36,7 +30,7 @@ def dashboard(
     profiles: Profiles,
     month: str = "",
 ):
-    _catch_up(recurring)
+    recurring.catch_up()  # record what has fallen due; it never stops the page from opening
     this_month = local_today().replace(day=1)
     when = min(parse_month(month), this_month)  # never a month that has not started
     is_current = when == this_month
@@ -67,7 +61,7 @@ def dashboard(
         has_recorded = recorded(
             [to_row(t, index) for t in transactions.list(date_to=local_today(), limit=RECENT_LIMIT)]
         )
-    planned = bool(budget.br.list())  # anything ever assigned in the Plan
+    planned = budget.started()
     steps = [
         {
             "done": bool(used_roots & {"Assets", "Liabilities"}),

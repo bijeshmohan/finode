@@ -1,3 +1,5 @@
+"""What the API takes and returns for recurring rules: a simple rule (from, to, amount) or a split."""
+
 from datetime import date as Date
 from datetime import datetime
 from decimal import Decimal

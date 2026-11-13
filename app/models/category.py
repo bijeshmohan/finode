@@ -1,3 +1,5 @@
+"""Budget categories: what money was for (spending or earning), kept apart from the accounts."""
+
 from datetime import date as Date
 from enum import StrEnum
 from uuid import UUID, uuid4

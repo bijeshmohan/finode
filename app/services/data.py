@@ -19,6 +19,7 @@ from ..limits import LimitReached, ensure_room
 from ..models import Account
 from ..models.category import BudgetCategory
 from ..models.transaction import Posting, PostingSide
+from ..models.utils import normalize_amount
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
 from ..schemas.account import AccountCreate
 from ..schemas.category import CategoryCreate
@@ -241,7 +242,7 @@ class DataService:
         names = self._category_paths()
         for t in transactions:
             for p in postings.get(t.id, []):
-                shown = f"{p.amount:.2f}"
+                shown = format(normalize_amount(p.amount), "f")  # every decimal the currency has
                 debit = shown if p.side == PostingSide.DEBIT else ""
                 credit = shown if p.side == PostingSide.CREDIT else ""
                 writer.writerow(
@@ -597,8 +598,8 @@ class DataService:
                     posted_on=posted,
                 )
 
-            for planned in plan.transactions:
-                self.tr.create(
+            self.tr.create_many(  # together: a journal of years is a few round trips, not three for each entry
+                [
                     TransactionCreate(
                         date=planned.date,
                         payee=planned.payee,
@@ -610,9 +611,11 @@ class DataService:
                             )
                         ],
                         tags=planned.tags,
-                    ),
-                    origin="import",
-                )
+                    )
+                    for planned in plan.transactions
+                ],
+                origin="import",
+            )
             self.tr.db.commit()
         except Exception:
             self.tr.db.rollback()

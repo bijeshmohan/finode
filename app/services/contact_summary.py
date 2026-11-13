@@ -34,11 +34,7 @@ class ContactSummaryService:
     def _activity(self, rows: list[PartyTransaction], contact_id: UUID) -> list[ActivityRead]:
         entries = self.tr.read_many([r.transaction_id for r in rows])
         postings = self.tr.postings_for_transactions([r.transaction_id for r in rows])
-        shares: dict[UUID, Decimal] = {}
-        for expense in self.expenses.list("confirmed"):
-            for share in self.expenses.shares(expense.id):
-                if share.contact_id == contact_id and expense.transaction_id is not None:
-                    shares[expense.transaction_id] = share.share_amount
+        shares = self.expenses.shares_of_contact(contact_id)
         owed: dict[UUID, list] = {}
         for o in self.ob.obligations(contact_id=contact_id):
             owed.setdefault(o.source_transaction_id, []).append(o)
@@ -65,6 +61,11 @@ class ContactSummaryService:
                 )
             )
         return sorted(items, key=lambda i: (i.date, str(i.transaction_id)), reverse=True)
+
+    def entry(self, contact_id: UUID, transaction_id: UUID) -> ActivityRead | None:
+        """One entry done with the contact, however old; None when it is not theirs."""
+        found = self._activity(self.ob.party_rows(contact_id=contact_id, transaction_id=transaction_id), contact_id)
+        return found[0] if found else None
 
     def activity(self, contact_id: UUID, purpose: str | None = None, limit: int = 50, offset: int = 0) -> ActivityPage:
         """Everything done with the contact, newest first."""

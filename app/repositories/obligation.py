@@ -105,6 +105,10 @@ class ObligationRepository:
         rows = self.db.exec(statement.group_by(ObligationSettlement.obligation_id)).all()
         return {obligation_id: Decimal(total) for obligation_id, total in rows}
 
+    def any_settled(self, obligations: builtins.list[PartyObligation]) -> bool:
+        """Whether anything has been cleared against any of these obligations."""
+        return bool(obligations) and any(self.settled([o.id for o in obligations]).values())
+
     def add_settlement(self, obligation_id: UUID, transaction_id: UUID, amount: Decimal) -> ObligationSettlement:
         row = ObligationSettlement(
             user_id=self.uid, obligation_id=obligation_id, settlement_transaction_id=transaction_id, amount=amount

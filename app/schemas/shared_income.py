@@ -1,3 +1,5 @@
+"""What the API takes and returns for income shared with contacts: whose it is and where it landed."""
+
 from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID

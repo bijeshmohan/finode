@@ -1,3 +1,5 @@
+"""What the API takes and returns for accounts: the account, its register, a card's bill, a merge, a balance check."""
+
 import unicodedata
 from datetime import date as Date
 from datetime import datetime
@@ -174,7 +176,6 @@ class MergeResult(BaseModel):
     # What the merged account held, now held by the other.
     balance_moved: Decimal
     entries_moved: int
-    plan_months_moved: int
     recurring_rules_moved: int
 
 
@@ -197,7 +198,7 @@ class BalanceCheck(BaseModel):
 
 
 class ClosedAccount(BaseModel):
-    """An account (or deleted-with-history category) that was closed: the outermost of its closed branch."""
+    """An account that was closed: the outermost of its closed branch."""
 
     id: UUID
     name: str

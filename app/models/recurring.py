@@ -1,3 +1,5 @@
+"""Recurring transactions: the rule, how often it runs, and the rows of a split rule."""
+
 from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID, uuid4

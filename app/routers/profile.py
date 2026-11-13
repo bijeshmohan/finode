@@ -1,3 +1,5 @@
+"""JSON API for a person's profile (`/api/profile`) and the currencies they can choose."""
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_authenticated_user

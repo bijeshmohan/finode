@@ -433,7 +433,7 @@ async def income_preview(request: Request, contacts: Contacts, incomes: SharedIn
     context: dict[str, Any] = {"preview": None, "message": None}
     if (form.get("total_amount") or form.get("total") or "").strip():
         try:
-            context["preview"] = incomes.preview(income_data(form, contacts.cr.list()))
+            context["preview"] = incomes.preview(income_data(form, contacts.people()))
         except (ValueError, ValidationError) as e:
             context["message"] = _message(e)
     return templates.TemplateResponse(request, "partials/income_preview.html", context)
@@ -445,7 +445,7 @@ async def expense_preview(request: Request, contacts: Contacts, expenses: Shared
     context: dict[str, Any] = {"preview": None, "message": None}
     if (form.get("total_amount") or form.get("total") or "").strip():
         try:
-            context["preview"] = expenses.preview(expense_data(form, contacts.cr.list()))
+            context["preview"] = expenses.preview(expense_data(form, contacts.people()))
         except (ValueError, ValidationError) as e:
             context["message"] = _message(e)
     return templates.TemplateResponse(request, "partials/expense_preview.html", context)
@@ -463,10 +463,10 @@ def entry_sheet(
     summaries: ContactSummaries,
 ):
     person = _person(contacts, contact_id)
-    found = [i for i in summaries.activity(contact_id, limit=200).items if i.transaction_id == transaction_id]
-    if not found:
+    item = summaries.entry(contact_id, transaction_id)
+    if item is None:
         raise HTTPException(status_code=404, detail="entry not found")
-    return templates.TemplateResponse(request, "partials/person_entry_sheet.html", {"person": person, "item": found[0]})
+    return templates.TemplateResponse(request, "partials/person_entry_sheet.html", {"person": person, "item": item})
 
 
 @router.post("/{contact_id}/entry/{transaction_id}/reverse")
@@ -481,16 +481,16 @@ def reverse_entry(
     incomes: SharedIncomes,
 ):
     _person(contacts, contact_id)
-    found = [i for i in summaries.activity(contact_id, limit=200).items if i.transaction_id == transaction_id]
-    if not found:
+    item = summaries.entry(contact_id, transaction_id)
+    if item is None:
         raise HTTPException(status_code=404, detail="entry not found")
     try:
-        if found[0].purpose == "settlement":
+        if item.purpose == "settlement":
             settlements.reverse(transaction_id)
-        elif found[0].purpose == "income":
+        elif item.purpose == "income":
             incomes.cancel(transaction_id)
-        elif found[0].purpose == "expense":
-            expense = next((e for e in expenses.list("confirmed") if e.transaction_id == transaction_id), None)
+        elif item.purpose == "expense":
+            expense = expenses.of_entry(transaction_id)
             if expense is None:
                 raise ValueError("shared expense not found!")
             expenses.cancel(expense.id)

@@ -1,3 +1,5 @@
+"""What the reports return: the summary, the breakdown and the trial balance."""
+
 from datetime import date as Date
 from decimal import Decimal
 

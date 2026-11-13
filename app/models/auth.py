@@ -1,3 +1,5 @@
+"""Supabase's own users table (schema `auth`), mapped only so that `user_id` columns can point at it."""
+
 from uuid import UUID
 
 from sqlmodel import Field, SQLModel

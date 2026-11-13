@@ -184,16 +184,16 @@ class SettlementService:
         every = {a.id: a for a in self.contacts.accounts.ar.list()}
         if not every[account_id].on_budget:
             return {}
+        shares = [a for a in plan.allocations if a.obligation.source_type == "shared_expense"]
+        sources = [a.obligation.source_transaction_id for a in shares]
+        postings = self.transactions.tr.postings_for_transactions(sources)  # one read each, however many bills
+        expenses = self.expenses.by_transactions(sources)
         counted: dict[UUID | None, Decimal] = {}
-        for a in plan.allocations:
-            if a.obligation.source_type != "shared_expense":
-                continue
+        for a in shares:
             source = a.obligation.source_transaction_id
-            if any(
-                every[p.account_id].on_budget for p in self.transactions.tr.postings(source) if p.account_id in every
-            ):
+            if any(every[p.account_id].on_budget for p in postings.get(source, []) if p.account_id in every):
                 continue  # it was counted when it was recorded
-            expense = self.expenses.by_transaction(source)
+            expense = expenses.get(source)
             category = expense.category_id if expense else None
             if category is None:
                 category = self.transactions.cr.ensure_uncategorised("spending").id
@@ -202,7 +202,7 @@ class SettlementService:
 
     def _postings(self, contact_id: UUID, data: SettlementCreate, plan: _Plan, account_id: UUID) -> list[PostingCreate]:
         ids = self.contacts.account_ids(contact_id)
-        roots = {a.name: a.id for a in self.contacts.accounts.ar.list() if a.parent_id is None}
+        roots = self.contacts.accounts.ar.root_ids()
         received = data.direction == "received"
         mine = PostingCreate(
             account_id=account_id, side=PostingSide.DEBIT if received else PostingSide.CREDIT, amount=data.amount
@@ -289,74 +289,81 @@ class SettlementService:
             raise ObligationNotFoundError
         return rows[0]
 
-    def _read(self, entry: TransactionRead, party: PartyTransaction) -> SettlementRead:
-        received = party.direction == "received"
-        mine = PostingSide.DEBIT if received else PostingSide.CREDIT
-        total = sum((p.amount for p in entry.postings if p.side == mine), ZERO)
-        rows = self.ob.settlements(transaction_id=entry.id)
-        by_id = {o.id: o for o in self.ob.obligations(ids=[r.obligation_id for r in rows])}
-        done_after = self.ob.settled(list(by_id))
-        allocations = [
-            AllocationRead(
-                obligation_id=r.obligation_id,
-                outstanding_before=outstanding(by_id[r.obligation_id], ZERO) - self._settled_before(r, entry),
-                amount=r.amount,
-                outstanding_after=outstanding(by_id[r.obligation_id], done_after.get(r.obligation_id, ZERO)),
-            )
-            for r in rows
-        ]
-        cleared = sum((r.amount for r in rows), ZERO)
-        made = self.ob.obligations(source_transaction_id=entry.id)
-        excess = total - cleared
-        use = made[0].source_type if made else ("gift" if excess > 0 else None)
-        account = next((p.account_id for p in entry.postings if p.side == mine), None)
-        return SettlementRead(
-            id=entry.id,
-            contact_id=party.contact_id,
-            direction=party.direction,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
-            amount=total,
-            date=entry.date,
-            account_id=account,
-            description=entry.comment,
-            allocations=allocations,
-            excess=excess,
-            excess_as=use,  # pyrefly: ignore[bad-argument-type]  # one of the excess uses
-            excess_obligation_id=made[0].id if made else None,
-        )
+    def _reads(self, contact_id: UUID, pairs: list[tuple[TransactionRead, PartyTransaction]]) -> list[SettlementRead]:
+        """Settlements with one contact, in the order given. Three queries however many there are: the contact's
+        obligations, what was cleared against them, and the days of the other entries that cleared them."""
+        owed = {o.id: o for o in self.ob.obligations(contact_id=contact_id)}
+        left_over: dict[UUID, PartyObligation] = {}  # what a settlement's excess left owed, by the settling entry
+        for o in owed.values():
+            left_over.setdefault(o.source_transaction_id, o)
+        cleared = self.ob.settlements(obligation_ids=list(owed)) if owed else []
+        by_entry: dict[UUID, list[ObligationSettlement]] = {}
+        by_obligation: dict[UUID, list[ObligationSettlement]] = {}
+        for r in cleared:
+            by_entry.setdefault(r.settlement_transaction_id, []).append(r)
+            by_obligation.setdefault(r.obligation_id, []).append(r)
+        days = {entry.id: entry.date for entry, _ in pairs}
+        touched = {r.obligation_id for entry_id in days for r in by_entry.get(entry_id, [])}
+        others = {r.settlement_transaction_id for r in cleared if r.obligation_id in touched} - set(days)
+        if others:
+            days |= {e.id: e.date for e in self.transactions.tr.read_many(list(others)).values()}
 
-    def _settled_before(self, row: ObligationSettlement, entry: TransactionRead) -> Decimal:
-        """What had been cleared on the obligation by entries before this one (by date, then by when it was made)."""
-        others = [r for r in self.ob.settlements(obligation_ids=[row.obligation_id]) if r.id != row.id]
-        if not others:
-            return ZERO
-        dates = {
-            e.id: e for e in self.transactions.tr.read_many([r.settlement_transaction_id for r in others]).values()
-        }
-        return sum(
-            (
-                r.amount
-                for r in others
-                if (dates[r.settlement_transaction_id].date, r.created) < (entry.date, row.created)
-            ),
-            ZERO,
-        )
+        def read(entry: TransactionRead, party: PartyTransaction) -> SettlementRead:
+            mine = PostingSide.DEBIT if party.direction == "received" else PostingSide.CREDIT
+            total = sum((p.amount for p in entry.postings if p.side == mine), ZERO)
+            rows = by_entry.get(entry.id, [])
+            allocations = []
+            for row in rows:
+                on_it = by_obligation[row.obligation_id]
+                # What had been cleared by entries before this one: by date, then by when the row was made.
+                before = sum(
+                    (
+                        r.amount
+                        for r in on_it
+                        if r.id != row.id and (days[r.settlement_transaction_id], r.created) < (entry.date, row.created)
+                    ),
+                    ZERO,
+                )
+                allocations.append(
+                    AllocationRead(
+                        obligation_id=row.obligation_id,
+                        outstanding_before=outstanding(owed[row.obligation_id], before),
+                        amount=row.amount,
+                        outstanding_after=outstanding(owed[row.obligation_id], sum((r.amount for r in on_it), ZERO)),
+                    )
+                )
+            excess = total - sum((r.amount for r in rows), ZERO)
+            made = left_over.get(entry.id)
+            return SettlementRead(
+                id=entry.id,
+                contact_id=party.contact_id,
+                direction=party.direction,  # pyrefly: ignore[bad-argument-type]  # a database CHECK limits it
+                amount=total,
+                date=entry.date,
+                account_id=next((p.account_id for p in entry.postings if p.side == mine), None),
+                description=entry.comment,
+                allocations=allocations,
+                excess=excess,
+                # pyrefly: ignore[bad-argument-type]  # one of the excess uses
+                excess_as=made.source_type if made else ("gift" if excess > 0 else None),
+                excess_obligation_id=made.id if made else None,
+            )
+
+        return [read(entry, party) for entry, party in pairs]
 
     def read(self, transaction_id: UUID) -> SettlementRead:
         party = self._party(transaction_id)
         entry = self.transactions.read(transaction_id)
         if entry is None:
             raise ObligationNotFoundError
-        return self._read(entry, party)
+        return self._reads(party.contact_id, [(entry, party)])[0]
 
     def list(self, contact_id: UUID) -> list[SettlementRead]:
         """A contact's settlements, newest first."""
         self.contacts.get(contact_id)
         rows = [r for r in self.ob.party_rows(contact_id=contact_id) if r.purpose == "settlement"]
-        reads = []
-        for party in rows:
-            entry = self.transactions.read(party.transaction_id)
-            if entry is not None:
-                reads.append(self._read(entry, party))
+        entries = self.transactions.read_many([r.transaction_id for r in rows])
+        reads = self._reads(contact_id, [(entries[r.transaction_id], r) for r in rows if r.transaction_id in entries])
         return sorted(reads, key=lambda s: (s.date, str(s.id)), reverse=True)
 
     # ---- reversing ---------------------------------------------------------------------------------
@@ -368,7 +375,7 @@ class SettlementService:
         made = self.ob.obligations(source_transaction_id=transaction_id, lock=True)
         try:
             self.netting.release([o.id for o in made])
-            if any(self.ob.settled([o.id]).get(o.id) for o in made):
+            if self.ob.any_settled(made):
                 raise ReversalBlockedError("something was settled against what this left over: reverse that first!")
             self.ob.purge(transaction_id)
             self.transactions.delete(transaction_id, commit=False)

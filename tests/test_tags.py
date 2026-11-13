@@ -130,6 +130,20 @@ def test_a_person_has_only_so_many_tags(client, account, expense_account, monkey
     assert client.post("/api/transactions/", json=body(expense_account, account, "5", tags=["one"])).status_code == 201
 
 
+def test_a_batch_counts_its_new_tags_together(client, account, expense_account, monkeypatch):
+    """Each entry of a batch brings one new tag: none is over the limit alone, the three of them together are."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "max_tags", 2)
+    entries = [body(expense_account, account, "5", tags=[name]) for name in ("one", "two", "three")]
+    refused = client.post("/api/transactions/batch", json={"transactions": entries})
+    assert refused.status_code == 400 and "limit" in refused.text
+    assert client.get("/api/tags/").json() == [] and client.get("/api/transactions/").json() == []
+    saved = client.post("/api/transactions/batch", json={"transactions": entries[:2] + entries[:1]})
+    assert saved.status_code == 201, "the same tag on two entries counts once"
+    assert sorted(t["tag"] for t in client.get("/api/tags/").json()) == ["one", "two"]
+
+
 def test_deleting_an_entry_drops_the_tags_nothing_else_carries(client, account, expense_account):
     made = make(client, account, expense_account, "Taxi", ["a", "b"])
     client.delete(f"/api/transactions/{made['id']}")

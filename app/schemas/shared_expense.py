@@ -1,3 +1,5 @@
+"""What the API takes and returns for an expense split with contacts: who shares it, who paid, what it records."""
+
 from datetime import date as Date
 from decimal import Decimal
 from typing import Literal

@@ -284,6 +284,22 @@ def test_a_failing_user_does_not_stop_the_run(client, accounts, session, monkeyp
     assert run_once(date(2026, 2, 1)) == 0
 
 
+def test_trouble_recording_what_is_due_never_stops_a_page_and_is_logged(client, accounts, monkeypatch, caplog):
+    """Home, Transactions and the Recurring page record what has fallen due as they open: a problem there is written to
+    the log, not shown."""
+    from app.services.recurring import RecurringService
+
+    def boom(self, today=None):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(RecurringService, "process_due", boom)
+    with caplog.at_level("ERROR", logger="finode.recurring"):
+        assert client.get("/").status_code == 200
+        assert client.get("/transactions").status_code == 200
+        assert client.get("/recurring").status_code == 200
+    assert len([r for r in caplog.records if r.exc_info and "boom" in str(r.exc_info[1])]) == 3
+
+
 # ---- the pages -----------------------------------------------------------------------------------
 
 

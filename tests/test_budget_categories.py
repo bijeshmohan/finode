@@ -85,7 +85,7 @@ def test_a_payment_into_a_loan_with_no_category_is_listed_until_it_gets_one(clie
 
 def test_payments_that_have_a_category_or_stay_inside_the_budget_are_not_listed(client, books, root_accounts):
     paid(client, books["bank"], books["loan"], "100", books["emi"])
-    paid(client, books["bank"], books["sip"], "5")  # an expense account: its own category
+    paid(client, books["bank"], books["sip"], "5")  # spending on a category: it carries its own
     cash = account(client, root_accounts, "Cash", "Assets")
     paid(client, books["bank"], cash, "50")  # a move inside the budget
     assert budget(client)["uncategorised"] == []

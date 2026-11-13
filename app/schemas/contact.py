@@ -1,3 +1,5 @@
+"""What the API takes and returns for people: contacts, transfers, opening balances, settlements and activity."""
+
 import unicodedata
 from datetime import date as Date
 from datetime import datetime

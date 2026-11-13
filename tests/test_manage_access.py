@@ -51,8 +51,8 @@ def _tkid(session, name):
 async def test_the_status_and_instructions_tell_each_level_what_it_may_do(session):
     expectations = {
         "read": ("read only", False, False, "read-only"),
-        "write": ("read & write", True, False, "not accounts"),
-        "manage": ("read, write & manage accounts", True, True, "may also change accounts"),
+        "write": ("read & write", True, False, "not manage accounts, categories or tags"),
+        "manage": ("read, write & manage accounts", True, True, "may also change accounts, categories and tags"),
     }
     for scope, (label, can_write, can_manage, note) in expectations.items():
         async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name=scope, scope=scope)) as c:

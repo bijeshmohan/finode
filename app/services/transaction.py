@@ -26,6 +26,7 @@ from ..schemas.transaction import (
     PostingBase,
     PostingCreate,
     PostingRead,
+    RelatedRef,
     RouteAccount,
     TagRead,
     TransactionCreate,
@@ -85,6 +86,16 @@ def _same_content(existing: TransactionRead, data: TransactionCreate) -> bool:
     return existing.date == data.date and _rows(existing.postings) == _rows(data.postings)
 
 
+def _as_lines(postings: Iterable[PostingBase | Posting]) -> list[PostingCreate]:
+    """An entry's saved lines as they would be sent: what each was for and when it posted stay on the line."""
+    return [
+        PostingCreate(
+            account_id=p.account_id, side=p.side, amount=p.amount, category_id=p.category_id, posted_on=p.posted_on
+        )
+        for p in postings
+    ]
+
+
 def decimal_places(value: Decimal) -> int:
     exponent = value.normalize().as_tuple().exponent
     return max(0, -exponent) if isinstance(exponent, int) else 0
@@ -137,7 +148,7 @@ class TransactionService:
         keep_categories: Collection[UUID] = frozenset(),
     ) -> None:
         """A category named on a line is the person's own, open (unless the entry already used it) and fits the line:
-        a spending category goes on Expenses (or an expense account) or on a payment out of the budget into an account
+        a spending category goes on Expenses or on a payment out of the budget into an account
         outside it, an earning category on Income, and nothing goes on Equity."""
         named = [p for p in postings if p.category_id is not None]
         if not named:
@@ -210,9 +221,7 @@ class TransactionService:
                 )
             if account.closed_on is not None and account.id not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
-            if (account.id in has_children or account.new_accounts_in_budget is not None) and AccountService.root_name(
-                account, accounts_by_id
-            ) not in GROUP_POSTING_ROOT_NAMES:
+            if account.id in has_children or account.new_accounts_in_budget is not None:
                 raise InvalidPostingAccountError(
                     f"cannot post to account '{account.name}' because it is a group of accounts!"
                 )
@@ -286,6 +295,12 @@ class TransactionService:
             created=transaction.created,
             updated=transaction.updated,
         )
+
+    def _to_reads(self, transactions: Sequence[Transaction]) -> builtins.list[TransactionRead]:
+        """Several entries with their postings and tags, in the order given: one query for each, not one per entry."""
+        ids = [t.id for t in transactions]
+        postings, tags = self.tr.postings_for_transactions(ids), self.tr.tag_map(ids)
+        return [self._to_read(t, postings.get(t.id, []), tags.get(t.id, [])) for t in transactions]
 
     def _category_paths(self) -> dict[UUID, str]:
         """Each category as the journal account it stands for: Expenses:Food:Groceries, Income:Salary."""
@@ -371,29 +386,42 @@ class TransactionService:
                 f"this entry belongs to a contact and can't be {what} here: reverse it from the contact's page!"
             )
 
-    def _check_new(self, data: TransactionCreate) -> None:
-        """Everything creating an entry checks before it saves."""
-        self._check_limits()
+    def _check_new(self, data: TransactionCreate, *, limits: bool = True) -> None:
+        """Everything creating an entry checks before it saves. A batch leaves `limits` out: it checks the room for all
+        its entries, and for the new tags they bring, together."""
+        if limits:
+            self._check_limits()
+            self._check_tags(data.tags)
         self._resolve(data, on=data.date)
         self._check_related(data.related_id)
         self._check_reference(data.source, data.external_id)
-        self._check_tags(data.tags)
+
+    def _recorded_as(self, data: TransactionCreate) -> TransactionRead | None:
+        """The entry already recorded under this one's source and reference, if there is one."""
+        if not (data.source and data.external_id):
+            return None
+        found = self.tr.find_by_reference(data.source, data.external_id)
+        return self._to_read(found) if found is not None else None
+
+    def _same_as(self, data: TransactionCreate, existing: TransactionRead) -> bool:
+        """Whether what is sent is the entry its reference already has: the same date and rows."""
+        self._fill_accounts(data.postings, self.ar.list())
+        return _same_content(existing, data)
 
     def preview_create(self, data: TransactionCreate) -> TransactionPreview:
         """What `create_once` would do, with nothing saved: the same checks, the same refusals."""
-        found = None
-        if data.source and data.external_id:
-            found = self.tr.find_by_reference(data.source, data.external_id)
-            if found is not None:
-                self._fill_accounts(data.postings, self.ar.list())
-                existing = self._to_read(found)
-                if not _same_content(existing, data):
-                    raise DuplicateReferenceError(_different_content(data, found.id))
-        if found is None:
-            self._check_new(data)
+        return self._preview(data, self._recorded_as(data))
+
+    def _preview(
+        self, data: TransactionCreate, existing: TransactionRead | None, *, limits: bool = True
+    ) -> TransactionPreview:
+        if existing is None:
+            self._check_new(data, limits=limits)
+        elif not self._same_as(data, existing):
+            raise DuplicateReferenceError(_different_content(data, existing.id))
         return TransactionPreview(
-            id=found.id if found else None,
-            already_recorded=found.id if found else None,
+            id=existing.id if existing else None,
+            already_recorded=existing.id if existing else None,
             **data.model_dump(exclude={"postings"}),
             postings=data.postings,
         )
@@ -401,16 +429,22 @@ class TransactionService:
     def record_batch(self, items: Sequence[TransactionCreate], dry_run: bool = False) -> BatchResult:
         """Record several entries as one: either all of them are saved or none is. An entry whose source and
         reference are already recorded with the same date and rows is skipped (it is not an error, so retrying a
-        batch is safe). Every problem is collected and reported by its place in the batch."""
+        batch is safe). Every problem is collected and reported by its place in the batch.
+
+        The database is asked for the batch, not for each entry: the references are looked up together, the room is
+        checked once, the entries are written together and read back together."""
         if not items:
             raise BatchError("a batch needs at least one entry!")
         if len(items) > MAX_BATCH:
             raise BatchError(f"a batch can hold at most {MAX_BATCH} entries: send it in parts!")
+        taken = self.tr.find_by_references([(i.source, i.external_id) for i in items if i.source and i.external_id])
+        recorded = {t.id: t for t in self._to_reads(list(taken.values()))}
         problems: list[str] = []
         previews: list[TransactionPreview | None] = []
         seen: dict[tuple[str, str], int] = {}
         for number, item in enumerate(items, start=1):
             try:
+                existing = None
                 if item.source and item.external_id:
                     key = (item.source, item.external_id)
                     if key in seen:
@@ -419,13 +453,16 @@ class TransactionService:
                             f"entry {seen[key]} has!"
                         )
                     seen[key] = number
-                previews.append(self.preview_create(item))
+                    existing = recorded[taken[key].id] if key in taken else None
+                previews.append(self._preview(item, existing, limits=False))
             except (ValueError, LookupError) as e:
                 problems.append(f"entry {number}: {e}")
                 previews.append(None)
-        new = sum(1 for p in previews if p is not None and p.already_recorded is None)
+        fresh = [number for number, p in enumerate(previews, start=1) if p is not None and p.already_recorded is None]
+        new = len(fresh)
         if not problems and new:
             try:
+                self._check_tags(sorted({name for number in fresh for name in items[number - 1].tags}))
                 ensure_room(self.tr.count(), settings.max_transactions, "transactions", adding=new)
                 if settings.max_transactions_per_day and self.origin not in ("recurring", "import"):
                     ensure_room(
@@ -435,6 +472,7 @@ class TransactionService:
                 problems.append(str(e))
         if problems:
             raise BatchError("nothing was saved. " + " ".join(problems))
+        checked = cast(list[TransactionPreview], previews)
         if dry_run:
             entries = [
                 BatchEntryResult(
@@ -442,36 +480,27 @@ class TransactionService:
                     status="already_recorded" if preview.already_recorded else "would_record",
                     transaction=preview,
                 )
-                for number, preview in enumerate(cast(list[TransactionPreview], previews), start=1)
+                for number, preview in enumerate(checked, start=1)
             ]
             return BatchResult(dry_run=True, saved=False, created=0, already_recorded=len(items) - new, entries=entries)
-        made: dict[int, Transaction] = {}
         try:
-            for number, (item, preview) in enumerate(
-                zip(items, cast(list[TransactionPreview], previews), strict=True), start=1
-            ):
-                if preview.already_recorded is None:
-                    made[number] = self.tr.create(item, self.origin)
+            written = [t.id for t in self.tr.create_many([items[number - 1] for number in fresh], self.origin)]
             self.tr.db.commit()
         except Exception:
             self.tr.db.rollback()
             raise
-        entries = []
-        for number, preview in enumerate(cast(list[TransactionPreview], previews), start=1):
-            if number in made:
-                self.tr.db.refresh(made[number])
-                entries.append(
-                    BatchEntryResult(item=number, status="recorded", transaction=self._to_read(made[number]))
-                )
-            else:
-                existing = self.read(cast(UUID, preview.already_recorded))
-                entries.append(
-                    BatchEntryResult(
-                        item=number, status="already_recorded", transaction=cast(TransactionRead, existing)
-                    )
-                )
+        made = self.read_many(written)  # read back together after the commit, not one refresh for each
+        saved = {number: made[transaction_id] for number, transaction_id in zip(fresh, written, strict=True)}
+        entries = [
+            BatchEntryResult(item=number, status="recorded", transaction=saved[number])
+            if number in saved
+            else BatchEntryResult(
+                item=number, status="already_recorded", transaction=recorded[cast(UUID, preview.already_recorded)]
+            )
+            for number, preview in enumerate(checked, start=1)
+        ]
         return BatchResult(
-            dry_run=False, saved=True, created=len(made), already_recorded=len(items) - len(made), entries=entries
+            dry_run=False, saved=True, created=len(saved), already_recorded=len(items) - len(saved), entries=entries
         )
 
     def preview_update(self, transaction_id: UUID, data: TransactionUpdate) -> TransactionPreview:
@@ -483,14 +512,7 @@ class TransactionService:
             for key in ("date", "payee", "comment", "related_id", "source", "external_id", "source_url")
         }
         merged["tags"] = data.tags if data.tags is not None else self.tr.tag_names(transaction_id)
-        postings = (
-            data.postings
-            if data.postings is not None
-            else [
-                PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount, posted_on=p.posted_on)
-                for p in self.tr.postings(transaction_id)
-            ]
-        )
+        postings = data.postings if data.postings is not None else _as_lines(self.tr.postings(transaction_id))
         return TransactionPreview(id=transaction_id, **merged, postings=postings)
 
     def preview_delete(self, transaction_id: UUID) -> TransactionPreview:
@@ -507,10 +529,8 @@ class TransactionService:
             source=existing.source,
             external_id=existing.external_id,
             source_url=existing.source_url,
-            postings=[
-                PostingCreate(account_id=p.account_id, side=p.side, amount=p.amount, posted_on=p.posted_on)
-                for p in existing.postings
-            ],
+            tags=existing.tags,
+            postings=_as_lines(existing.postings),
         )
 
     def create_once(
@@ -519,14 +539,11 @@ class TransactionService:
         """Record an entry, or, when its source and reference are already recorded with the same date and rows,
         return that entry and change nothing. The flag is True when a new entry was made. The same reference with
         different content is an error (the reference is for one entry)."""
-        if data.source and data.external_id:
-            found = self.tr.find_by_reference(data.source, data.external_id)
-            if found is not None:
-                self._fill_accounts(data.postings, self.ar.list())
-                existing = self._to_read(found)
-                if _same_content(existing, data):
-                    return existing, False
-                raise DuplicateReferenceError(_different_content(data, found.id))
+        existing = self._recorded_as(data)
+        if existing is not None:
+            if self._same_as(data, existing):
+                return existing, False
+            raise DuplicateReferenceError(_different_content(data, existing.id))
         return self.create(data, recurring), True
 
     def create(
@@ -538,7 +555,7 @@ class TransactionService:
         if commit:
             self.tr.db.commit()
             self.tr.db.refresh(transaction)
-        return self._to_read(transaction)
+        return self._to_read(transaction, tags=None if data.tags else [])  # no tags given: none to read back
 
     def read(self, transaction_id: UUID) -> TransactionRead | None:
         transaction = self.tr.read(transaction_id)
@@ -546,12 +563,26 @@ class TransactionService:
             return None
         return self._to_read(transaction)
 
+    def read_many(self, transaction_ids: builtins.list[UUID]) -> dict[UUID, TransactionRead]:
+        """Several entries by id (three queries however many); one that is not the person's is left out."""
+        return {t.id: t for t in self._to_reads(list(self.tr.read_many(transaction_ids).values()))}
+
     def related(self, transaction_id: UUID) -> list[TransactionRead]:
         """The entries that are related to this one, oldest first."""
-        rows = self.tr.related_to(transaction_id)
-        tids = [t.id for t in rows]
-        postings, tags = self.tr.postings_for_transactions(tids), self.tr.tag_map(tids)
-        return [self._to_read(t, postings.get(t.id, []), tags.get(t.id, [])) for t in rows]
+        return self._to_reads(self.tr.related_to(transaction_id))
+
+    def related_refs(self, related_ids: Iterable[UUID | None]) -> dict[UUID, RelatedRef]:
+        """What a list shows of the earlier entries its rows are related to: each one's date and what it came to (two
+        queries however many, none when nothing is related)."""
+        return self.tr.related_refs(builtins.list(related_ids))
+
+    def save(self) -> None:
+        """Save what was made with `commit=False`, together with whatever else the caller did alongside it."""
+        self.tr.db.commit()
+
+    def discard(self) -> None:
+        """Drop what has not been saved (a refused change leaves nothing half done behind)."""
+        self.tr.db.rollback()
 
     def _account_subtree(self, account_id: UUID) -> list[UUID]:
         accounts = self.ar.list()
@@ -576,17 +607,22 @@ class TransactionService:
             raise ValueError(f"category '{category_id}' not found!")
         return [c.id for c in categories if c.id == category_id or c.parent_id == category_id]
 
-    def _args(self, account: UUID | None, kind: str | None, also: UUID | None):
+    def _args(
+        self, account: UUID | None, kind: str | None, also: UUID | None
+    ) -> tuple[
+        builtins.list[UUID] | None, tuple[builtins.list[UUID], builtins.list[UUID]] | None, builtins.list[UUID] | None
+    ]:
+        """What a search is narrowed by, as ids: the account with the ones inside it, the Expenses and Income
+        accounts that tell an expense from an income (only when a kind is asked for), and the category with the ones inside it."""
         account_ids = self._account_subtree(account) if account else None
         also_ids = self._category_subtree(also) if also else None
         if kind not in (None, "", "expense", "income", "transfer"):
             raise ValueError("the kind must be expense, income or transfer!")
         kind_accounts = None
         if kind:
-            roots = {a.name: a.id for a in self.ar.list() if a.parent_id is None}
-            kind_accounts = tuple(
-                self._account_subtree(roots[name]) if name in roots else [] for name in ("Expenses", "Income")
-            )
+            roots = self.ar.root_ids()
+            expense_ids, income_ids = ([roots[name]] if name in roots else [] for name in ("Expenses", "Income"))
+            kind_accounts = (expense_ids, income_ids)
         return account_ids, kind_accounts, also_ids
 
     def list(
@@ -620,15 +656,7 @@ class TransactionService:
             (external_id or "").strip() or None,
             clean_tag(tag or "") or None,
         )
-        tids = [t.id for t in transactions]
-        postings, tags = (
-            self.tr.postings_for_transactions(tids),
-            self.tr.tag_map(tids),
-        )  # one query each, not one per row
-        return [
-            self._to_read(transaction, postings.get(transaction.id, []), tags.get(transaction.id, []))
-            for transaction in transactions
-        ]
+        return self._to_reads(transactions)
 
     def page(
         self,
@@ -668,20 +696,11 @@ class TransactionService:
             )
         else:
             total = offset + len(found)  # nothing is left, so there is no need to count
-        tids = [t.id for t in found]
-        postings, tags = (
-            self.tr.postings_for_transactions(tids),
-            self.tr.tag_map(tids),
-        )  # one query each, not one per row
-        found = [self._to_read(t, postings.get(t.id, []), tags.get(t.id, [])) for t in found]
-        return found, total
+        return self._to_reads(found), total
 
     def tagged(self) -> builtins.list[TransactionRead]:
         """Every entry that carries at least one tag, newest first, with its postings (three queries however many)."""
-        found = self.tr.tagged()
-        tids = [t.id for t in found]
-        postings, tags = self.tr.postings_for_transactions(tids), self.tr.tag_map(tids)
-        return [self._to_read(t, postings.get(t.id, []), tags.get(t.id, [])) for t in found]
+        return self._to_reads(self.tr.tagged())
 
     def tags(self) -> builtins.list[TagRead]:
         """The person's tags, the most used first, each with how many entries carry it and its last day."""
@@ -689,7 +708,8 @@ class TransactionService:
 
     def _check_tags(self, names: builtins.list[str]) -> None:
         """A person may have only so many different tags; the ones an entry names that do not exist yet count."""
-        new = [name for name in names if not self.tr.tag_exists(name)]
+        existing = self.tr.existing_tags(names)
+        new = [name for name in names if name not in existing]
         if new:
             ensure_room(self.tr.count_tags(), settings.max_tags, "tags", adding=len(new))
 
@@ -707,7 +727,7 @@ class TransactionService:
         """Put the entries of one tag under another existing tag and remove the first. Returns how many entries carry the
         target now."""
         source, target = clean_name(source), clean_name(target)
-        if not self.tr.tag_exists(target):
+        if not self.tr.existing_tags([target]):
             raise LookupError(f"no tag is called '{target}'! Rename the tag instead.")
         return self.rename_tag(source, target)
 

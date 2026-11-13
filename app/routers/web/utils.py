@@ -1,3 +1,5 @@
+"""Shared by the web routers: reading an amount from a form, and htmx redirects, events and errors."""
+
 import json
 from dataclasses import dataclass
 from datetime import date as Date

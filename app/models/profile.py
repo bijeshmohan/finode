@@ -1,3 +1,5 @@
+"""A person's profile: their details and settings, one typed column per setting."""
+
 from uuid import UUID
 
 from sqlmodel import Field

@@ -1,3 +1,5 @@
+"""JSON API for accounts (`/api/accounts`): create, read, change, close, reopen, merge, the register, a card's bill."""
+
 from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
@@ -49,8 +51,8 @@ def create_group(group: GroupCreate, accounts: Accounts):
 
 @router.get("/closed", response_model=list[ClosedAccount])
 def closed_accounts(accounts: Accounts):
-    """Accounts that were closed (and categories "deleted" while they had a history): the outermost of each closed
-    branch, newest first. Reopen one with POST /accounts/{account_id}/reopen."""
+    """Accounts that were closed: the outermost of each closed branch, newest first. Reopen one with
+    POST /accounts/{account_id}/reopen."""
     return accounts.closed()
 
 
@@ -130,8 +132,8 @@ def reopen_account(account_id: UUID, accounts: Accounts):
 
 @router.post("/{account_id}/merge", response_model=MergeResult, status_code=200)
 def merge_account(account_id: UUID, data: MergeRequest, accounts: Accounts, dry_run: bool = False):
-    """Make this account part of another (`into`): its entries, planned amounts, recurring rules and payment links
-    become the other's and it is deleted, all or nothing. Both must be plain accounts of the same top-level account
+    """Make this account part of another (`into`): its entries, recurring rules and shared bills become the
+    other's and it is deleted, all or nothing. Both must be plain accounts of the same top-level account
     (this one without sub-accounts, the other open and able to take entries). Refused when an entry or rule has both on
     opposite sides, or only one is part of the budget. With `dry_run=true` nothing changes and the answer says what
     would move."""

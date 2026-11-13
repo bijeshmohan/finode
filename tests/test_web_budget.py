@@ -58,7 +58,7 @@ def test_a_bad_amount_is_explained_next_to_the_list(client, setup):
     assert response.status_code == 400 and response.headers["HX-Retarget"] == "#budget-error"
     assert "not a valid amount" in response.text
     response = client.post("/budget/assign", data={"category": setup["bank"]["id"], "amount": "5"})
-    assert response.status_code == 400 and "expense" in response.text
+    assert response.status_code == 400 and "category not found" in response.text, "an account is not a category"
 
 
 def test_other_months_are_reachable(client, setup):
@@ -354,6 +354,15 @@ def test_the_i_on_budget_shows_the_sum_behind_ready_to_assign(client, setup):
         ("minus", "Assigned to later months", "₹0.00"),
         ("total", "Ready to assign", "₹700.00"),
     ]
+
+
+def test_a_refused_group_budget_keeps_the_capitals_of_its_message(client, root_accounts, setup):
+    """Only the first letter is raised: the currency code and a category's name inside the message stay as written."""
+    food = setup["food"]["id"]
+    assign(client, post_account(client, {"name": "Groceries", "parent_id": food}).json(), "200")
+    month = THIS_MONTH.strftime("%Y-%m")
+    refused = client.post(f"/budget/group/{food}/assign", data={"month": month, "amount": "300.123"})
+    assert refused.status_code == 400 and "INR amounts can have at most 2 decimal places" in refused.text
 
 
 def test_a_groups_budget_starts_at_what_its_categories_add_up_to_and_never_goes_below(client, root_accounts, setup):

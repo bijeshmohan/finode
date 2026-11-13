@@ -16,8 +16,15 @@ from ..models.category import BudgetCategory
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, CategoryRepository
 from ..repositories.recurring import RecurringRepository
-from ..schemas.account import MergeResult, RegisterEntry
-from ..schemas.category import CategoryCreate, CategoryDeleteResult, CategoryRead, CategoryUpdate
+from ..repositories.shared_expense import SharedExpenseRepository
+from ..schemas.account import RegisterEntry
+from ..schemas.category import (
+    CategoryCreate,
+    CategoryDeleteResult,
+    CategoryMergeResult,
+    CategoryRead,
+    CategoryUpdate,
+)
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
 
 
@@ -158,11 +165,10 @@ class CategoryService:
         recurring transaction still records into it."""
         category = self._get(category_id)
         branch = self._branch(category_id)
-        for member in branch:
-            rules = RecurringRepository.active_rules_for_category(self.db, self.uid, member.id)
-            if rules:
-                label = rules[0].payee or "a recurring transaction"
-                raise CategoryInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
+        rules = RecurringRepository.active_rules_for_categories(self.db, self.uid, {m.id for m in branch})
+        if rules:
+            label = rules[0].payee or "a recurring transaction"
+            raise CategoryInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
         self.cr.set_closed([m.id for m in branch if m.closed_on is None], today or local_today())
         self.db.commit()
         return self._read(category.id)
@@ -182,12 +188,13 @@ class CategoryService:
             self.cr.has_children(category.id)
             or self.cr.used_by_lines(category.id)
             or RecurringRepository.uses_category(self.db, self.uid, category.id)
+            or SharedExpenseRepository(self.db, self.uid).uses_category(category.id)
             or category.system_key is not None
         )
 
     def delete(self, category_id: UUID) -> CategoryDeleteResult:
         """Remove an unused category for good (its planned amounts go with it); one with history (lines, categories
-        inside it or a rule) is closed instead, so nothing that was recorded loses its meaning."""
+        inside it, a rule or a shared expense) is closed instead, so nothing that was recorded loses its meaning."""
         category = self._get(category_id)
         before = self._read(category_id)
         if not self._unused(category):
@@ -197,9 +204,9 @@ class CategoryService:
         self.db.commit()
         return CategoryDeleteResult(outcome="deleted", category=before)
 
-    def merge(self, source: UUID, target: UUID, dry_run: bool = False) -> MergeResult:
-        """Fold one category into another of the same kind: its lines, planned amounts and recurring rules
-        become the target's, and the source is deleted. All or nothing."""
+    def merge(self, source: UUID, target: UUID, dry_run: bool = False) -> CategoryMergeResult:
+        """Fold one category into another of the same kind: its lines, planned amounts, recurring rules and shared
+        expenses become the target's, and the source is deleted. All or nothing."""
         origin, into = self._get(source), self._get(target)
         if source == target:
             raise ValueError("a category cannot be merged into itself!")
@@ -213,15 +220,15 @@ class CategoryService:
             raise ValueError(f"'{into.name}' is closed: reopen it first!")
         by_id = {c.id: c for c in self.cr.list()}
         budget = BudgetRepository(self.db, self.uid)
-        tids = self.tr.labelled(source)
+        transaction_ids = self.tr.labelled(source)
         entries = self.register(source, own_only=True)
-        result = MergeResult(
+        result = CategoryMergeResult(
             dry_run=dry_run,
             merged=not dry_run,
             source=self._path(origin, by_id),
             into=self._path(into, by_id),
             balance_moved=entries[-1].balance if entries else Decimal("0.00"),
-            entries_moved=len(tids),
+            entries_moved=len(transaction_ids),
             plan_months_moved=budget.months_for_category(source),
             recurring_rules_moved=RecurringRepository.rules_for_category(self.db, self.uid, source),
         )
@@ -231,6 +238,7 @@ class CategoryService:
             self.tr.relabel_category(source, target, self.origin)
             budget.merge_category(source, target)
             RecurringRepository.repoint_category(self.db, self.uid, source, target)
+            SharedExpenseRepository(self.db, self.uid).repoint_category(source, target)
             self.cr.delete(origin)
             self.db.commit()
         except Exception:

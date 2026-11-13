@@ -1,3 +1,5 @@
+"""The Recurring page and the form that makes, changes, pauses, skips, resumes and deletes a rule."""
+
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -85,7 +87,7 @@ def _row(rule: RecurringRead, paths: dict[UUID, str]) -> RuleRow:
 
 @router.get("")
 def recurring_page(request: Request, accounts: Accounts, categories: Categories, recurring: Recurring):
-    recurring.process_due()
+    recurring.catch_up()  # record what has fallen due; it never stops the page from opening
     paths = _paths(accounts, categories)
     rows = [_row(r, paths) for r in recurring.list()]
     return templates.TemplateResponse(
@@ -109,23 +111,15 @@ def _form_page(
     total: Decimal | str
     keep: set[UUID] | tuple[()]
     if rule is None:
-        transaction, total, from_rows, to_rows = (
-            None,
-            "",
-            form_rows([], PostingSide.CREDIT),
-            form_rows([], PostingSide.DEBIT),
-        )
+        total, from_rows, to_rows = "", form_rows([], PostingSide.CREDIT), form_rows([], PostingSide.DEBIT)
         kind = "expense"
         keep = ()
     else:
         recorded = recurring.as_transaction(rule)
         keep = {p.target for p in recorded.postings}
-        transaction = None
         total = sum((p.amount for p in recorded.postings if p.side == PostingSide.DEBIT), Decimal(0))
-        kind = infer_kind(
-            recorded.postings, {n.account.id: r.account.name for r in build_tree(accounts.list()) for n in r.walk()}
-        )
         roots = roots_by_id(accounts)
+        kind = infer_kind(recorded.postings, roots)
         from_rows = form_rows(recorded.postings, PostingSide.CREDIT, roots=roots)
         to_rows = form_rows(recorded.postings, PostingSide.DEBIT, roots=roots)
     return form_context(
@@ -134,7 +128,7 @@ def _form_page(
         editing=rule is not None,
         kind=kind,
         rule=rule,
-        transaction=transaction,
+        transaction=None,
         total=total,
         from_rows=from_rows,
         to_rows=to_rows,

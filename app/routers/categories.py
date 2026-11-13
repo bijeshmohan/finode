@@ -1,3 +1,5 @@
+"""JSON API for categories (`/api/categories`): create, read, change, close, reopen, delete and merge."""
+
 from typing import Literal
 from uuid import UUID
 
@@ -5,8 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..dependencies import Categories
-from ..schemas.account import MergeRequest, MergeResult, RegisterEntry
-from ..schemas.category import CategoryCreate, CategoryDeleteResult, CategoryRead, CategoryUpdate
+from ..schemas.account import MergeRequest, RegisterEntry
+from ..schemas.category import (
+    CategoryCreate,
+    CategoryDeleteResult,
+    CategoryMergeResult,
+    CategoryRead,
+    CategoryUpdate,
+)
 from ..services.account import SystemAccountError
 
 router = APIRouter(
@@ -104,7 +112,7 @@ def delete_category(category_id: UUID, categories: Categories):
         raise _refused(e) from None
 
 
-@router.post("/{category_id}/merge", response_model=MergeResult)
+@router.post("/{category_id}/merge", response_model=CategoryMergeResult)
 def merge_category(category_id: UUID, data: MergeRequest, categories: Categories, dry_run: bool = False):
     """Fold this category into another (`into`, a category id): its entries, labelled lines, planned amounts and
     recurring rules become the other's, and this one goes. Same rules as merging accounts; `dry_run=true` only tells

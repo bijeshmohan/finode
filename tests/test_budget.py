@@ -285,9 +285,11 @@ def test_only_what_is_available_can_be_moved(client, setup):
 # ---- guards ----------------------------------------------------------------------------------------------
 
 
-def test_only_expense_accounts_are_categories(client, setup):
+def test_only_spending_categories_are_budgeted(client, setup):
+    response = client.put(f"/api/budget/categories/{setup['salary']['id']}", json={"amount": "5"})
+    assert response.status_code == 400 and "not a spending category" in response.json()["detail"]
     response = client.put(f"/api/budget/categories/{setup['bank']['id']}", json={"amount": "5"})
-    assert response.status_code == 400 and "expense" in response.json()["detail"]
+    assert response.status_code == 400 and "not found" in response.json()["detail"], "an account is not a category"
     assert (
         client.put("/api/budget/categories/00000000-0000-4000-8000-0000000000aa", json={"amount": "5"}).status_code
         == 400

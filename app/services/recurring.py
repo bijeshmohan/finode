@@ -1,6 +1,7 @@
 """Recurring transactions: validating a rule, recording every occurrence that is due, skipping one, pausing and resuming."""
 
 import builtins
+import logging
 from datetime import date
 from uuid import UUID
 
@@ -16,7 +17,7 @@ from ..schemas.recurring import RecurringCreate, RecurringPostingData, Recurring
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from . import schedule
 from .account import AccountService
-from .simple import label_simple, simple_postings
+from .simple import simple_postings
 from .transaction import TransactionService
 from .validation import validation_message
 
@@ -24,6 +25,7 @@ from .validation import validation_message
 MAX_PER_RUN = 400
 MAX_RULES = 100
 ORIGIN = "recurring"
+log = logging.getLogger("finode.recurring")
 
 
 class RecurringService:
@@ -70,7 +72,7 @@ class RecurringService:
             raise ValueError("a rule without rows needs an amount and both accounts!")
         postings = simple_postings(rule_like.amount, rule_like.from_account_id, rule_like.to_account_id)
         if rule_like.category_id is not None:
-            label_simple({a.id: a for a in self.accounts.ar.list()}, postings, rule_like.category_id)
+            self.accounts.label_simple(postings, rule_like.category_id)
         return TransactionCreate(
             date=day, payee=rule_like.payee, comment=rule_like.comment, tags=list(rule_like.tags), postings=postings
         )
@@ -80,7 +82,7 @@ class RecurringService:
         if not any(p.account_id is None for p in data.postings):
             return data
         categories = {c.id: c for c in self.transactions.cr.list()}
-        roots = {a.name: a.id for a in self.accounts.ar.list() if a.parent_id is None}
+        roots = self.accounts.ar.root_ids()
         rows = []
         for p in data.postings:
             if p.account_id is None:
@@ -224,6 +226,15 @@ class RecurringService:
         for rule in self.repo.due(today):
             recorded += self._catch_up(rule, today)
         return recorded
+
+    def catch_up(self) -> None:
+        """Record what has fallen due as a page opens. A problem here never stops the page: what was half done is dropped
+        and the trouble is logged."""
+        try:
+            self.process_due()
+        except Exception:
+            self.repo.db.rollback()
+            log.exception("recurring transactions failed as a page opened")
 
     def _reread(self, rule: RecurringTransaction) -> RecurringTransaction:
         """The rule as the database has it now (after a rollback); it cannot have gone, only this worker deletes rules."""

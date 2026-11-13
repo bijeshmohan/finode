@@ -87,7 +87,7 @@ class IncomeSharingService:
         return mine
 
     def _lines(self, data: SharedIncomeCreate, mine: Decimal) -> builtins.list[PostingCreate]:
-        roots = {a.name: a.id for a in self.contacts.accounts.ar.list() if a.parent_id is None}
+        roots = self.contacts.accounts.ar.root_ids()
         lines: list[PostingCreate] = []
         if mine > 0:
             lines.append(
@@ -251,7 +251,7 @@ class IncomeSharingService:
             return False
         owed = self.ob.obligations(source_transaction_id=transaction_id, lock=True)
         self.netting.release([o.id for o in owed])
-        if any(self.ob.settled([o.id]).get(o.id) for o in owed):
+        if self.ob.any_settled(owed):
             raise ReversalBlockedError("something was paid back against this: reverse that first!")
         self.ob.purge(transaction_id)
         self.netting.even_out(o.contact_id for o in owed)

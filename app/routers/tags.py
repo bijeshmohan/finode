@@ -1,9 +1,10 @@
+"""JSON API for tags (`/api/tags`): list, rename (or merge) and delete."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..auth import require_authenticated_user
 from ..dependencies import Transactions
-from ..limits import LimitReached
 from ..schemas.transaction import TagRead
 from ..tags import clean_name
 
@@ -37,7 +38,7 @@ def rename_tag(name: str, data: TagRename, transactions: Transactions):
         raise HTTPException(status_code=404, detail="tag not found")
     try:
         transactions.rename_tag(tag.tag, data.name)
-    except (ValueError, LimitReached) as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
     result = _find(transactions, data.name)
     if result is None:

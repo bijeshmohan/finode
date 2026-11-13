@@ -7,7 +7,7 @@ connected apps (secrets and sign-ins to set up again) and the audit history (it 
 Restoring creates everything with new ids, all or nothing in one database transaction.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import cast
 from uuid import UUID
@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from ..config import settings
 from ..currencies import find as find_currency
 from ..limits import LimitReached, ensure_room
+from ..models.account import Account
 from ..models.category import BudgetCategory
 from ..models.contact import (
     Contact,
@@ -32,6 +33,7 @@ from ..repositories.contact import ContactRepository
 from ..repositories.obligation import ObligationRepository
 from ..repositories.recurring import RecurringRepository
 from ..repositories.shared_expense import SharedExpenseRepository
+from ..repositories.transaction import NewEntry
 from ..schemas.account import AccountCreate, BillRounding
 from ..schemas.backup import (
     FORMAT,
@@ -197,10 +199,7 @@ class BackupService:
         return file.model_dump(mode="json")
 
     def _export_contacts(self) -> list[BackupContact]:
-        links = self.contacts.links()
-
-        def account_of(contact: Contact, role: str) -> UUID:
-            return next(k.account_id for k in links if k.contact_id == contact.id and k.role == role)
+        accounts = {(k.contact_id, k.role): k.account_id for k in self.contacts.links()}
 
         return [
             BackupContact(
@@ -210,8 +209,8 @@ class BackupService:
                 phone=c.phone,
                 notes=c.notes,
                 archived_at=c.archived_at,
-                receivable_account=account_of(c, "receivable"),
-                payable_account=account_of(c, "payable"),
+                receivable_account=accounts[c.id, "receivable"],
+                payable_account=accounts[c.id, "payable"],
             )
             for c in sorted(self.contacts.list(), key=lambda c: c.name.casefold())
         ]
@@ -219,6 +218,9 @@ class BackupService:
     def _export_party(self) -> dict:
         """What contacts did: activity, what is owed, settlements and shared expenses."""
         obligations = self.obligations.obligations()
+        expenses = self.expenses.list()
+        ids = [e.id for e in expenses]
+        shares, paid = self.expenses.shares_for(ids), self.expenses.contributions_for(ids)  # two reads for them all
         return {
             "party_transactions": [
                 BackupPartyTransaction(
@@ -258,16 +260,16 @@ class BackupService:
                             share_amount=s.share_amount,
                             share_value=s.share_value,
                         )
-                        for s in self.expenses.shares(e.id)
+                        for s in shares[e.id]
                     ],
                     contributions=[
                         BackupContribution(
                             contact=c.contact_id, is_self=c.is_self, account=c.account_id, amount=c.amount
                         )
-                        for c in self.expenses.contributions(e.id)
+                        for c in paid[e.id]
                     ],
                 )
-                for e in self.expenses.list()
+                for e in expenses
             ],
         }
 
@@ -431,11 +433,7 @@ class BackupService:
                 errors.append(f"account name '{a.name}' contains ':'.")
         if errors:
             return
-        for a in file.accounts:  # a chain that never reaches a top-level account is a cycle
-            seen, current = set(), a
-            while current.parent_id is not None and current.id not in seen:
-                seen.add(current.id)
-                current = accounts[current.parent_id]
+        # a chain that never reaches a top-level account is a cycle
         if any(self._depth(a, accounts) is None for a in file.accounts):
             errors.append("the accounts contain a cycle.")
             return
@@ -754,6 +752,7 @@ class BackupService:
                 ]
             )
             opening = None
+            closed: list[tuple[Account, date]] = []
             for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old) or 0):
                 if a.parent_id is None or a.id in kept:
                     continue
@@ -779,15 +778,12 @@ class BackupService:
                     pinned=a.pinned,
                 )
                 ids[a.id] = created.id
-            for a in file.accounts:
-                if a.parent_id is None or a.id in kept or ids[a.id] == (opening.id if opening else None):
-                    continue
-                account = self.ar.read(ids[a.id])
-                if account is None:
-                    continue
-                account.closed_on = a.closed_on
+                if a.closed_on is not None:
+                    closed.append((created, a.closed_on))
+            for account, day in closed:  # after they are all made: a closed group can still be given its accounts
+                account.closed_on = day
                 db.add(account)
-                db.flush()
+            db.flush()
             contact_ids: dict[UUID, UUID] = {}
             for c in file.contacts:
                 contact = self.contacts.add(
@@ -856,47 +852,47 @@ class BackupService:
                 )
                 rules[r.id] = rule.id
 
-            made: dict[UUID, UUID] = {}
-            for t in file.transactions:
-                postings = [
-                    PostingCreate(
-                        account_id=ids[p.account],
-                        side=p.side,
-                        amount=p.amount,
-                        category_id=cats.get(p.category) if p.category else None,
-                        posted_on=p.posted_on,
+            # Every entry in one go (and its lines and tags in theirs): a backup of years is a few round trips.
+            entries = self.tr.write(
+                [
+                    NewEntry(
+                        TransactionCreate(
+                            date=t.date,
+                            payee=t.payee,
+                            comment=t.comment,
+                            postings=[
+                                PostingCreate(
+                                    account_id=ids[p.account],
+                                    side=p.side,
+                                    amount=p.amount,
+                                    category_id=cats.get(p.category) if p.category else None,
+                                    posted_on=p.posted_on,
+                                )
+                                for p in t.postings
+                            ],
+                            tags=t.tags,
+                            source=t.source,
+                            external_id=t.external_id,
+                            source_url=t.source_url,
+                        ),
+                        created_via=t.created_via,
+                        updated_via=t.updated_via,
+                        recurring=(rules[t.recurring_id], t.recurring_date)
+                        if t.recurring_id and t.recurring_date
+                        else None,
                     )
-                    for p in t.postings
+                    for t in file.transactions
                 ]
-                entry = self.tr.create(
-                    TransactionCreate(
-                        date=t.date,
-                        payee=t.payee,
-                        comment=t.comment,
-                        postings=postings,
-                        tags=t.tags,
-                        source=t.source,
-                        external_id=t.external_id,
-                        source_url=t.source_url,
-                    ),
-                    origin=t.created_via,
-                    recurring=(rules[t.recurring_id], t.recurring_date)
-                    if t.recurring_id and t.recurring_date
-                    else None,
-                )
-                made[t.id] = entry.id
-                if t.updated_via != t.created_via:
-                    entry.updated_via = t.updated_via
-                    db.add(entry)
+            )
+            by_old_id = {t.id: entry for t, entry in zip(file.transactions, entries, strict=True)}
+            made = {old_id: entry.id for old_id, entry in by_old_id.items()}
             for t in file.transactions:  # links last: every entry has its new id by now
                 if t.related_id in made:
-                    linked = self.tr.read(made[t.id])
-                    if linked is None:
-                        continue
-                    linked.related_id = made[t.related_id]
-                    db.add(linked)
-            for row in self._spending_plan(file):
-                self.br.set(row.month, cats[row.category_id], row.amount)
+                    by_old_id[t.id].related_id = made[t.related_id]
+                    db.add(by_old_id[t.id])
+            # (a later row for the same month and category wins, as when they were assigned one after the other)
+            plan = {(row.month, cats[row.category_id]): row.amount for row in self._spending_plan(file)}
+            self.br.add_many((month, category_id, amount) for (month, category_id), amount in plan.items())
             self._apply_party(file, contact_ids, made, ids, cats)
             db.commit()
         except Exception:

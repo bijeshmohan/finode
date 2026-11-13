@@ -1,6 +1,6 @@
 """Reads remembered for the length of one session (one web request, one tool call).
 
-A page asks several services for the same thing (the account list, every posting, the profile, the budget targets),
+A page asks several services for the same thing (the account list, every posting, the profile, the budget plan),
 each unaware of the others, and every ask is a round trip to a database about 15 ms away. `remembered` loads such a
 thing once and hands the same rows to the next asker.
 

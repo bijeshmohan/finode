@@ -951,3 +951,27 @@ def test_a_transfer_with_a_person_is_a_loan_whatever_the_mode_says(client, bank,
     lent = client.post("/transactions/split", data={**plain, "account": [bank["id"], alice["id"]]})
     assert lent.status_code == 200, lent.text
     assert float(client.get(f"/api/contacts/{alice['id']}").json()["receivable"]) == 300
+
+
+def test_an_old_entry_still_opens_and_can_be_undone_after_a_long_history(client, bank):
+    """The sheet used to look for the entry among the newest 200 only: an older amount still owed would not open."""
+    alice = person(client)
+
+    def lend(**extra):
+        made = client.post(
+            f"/api/contacts/{alice['id']}/transfers",
+            json={"direction": "sent", "purpose": "loan", "amount": "1", "account_id": bank["id"], **extra},
+        )
+        assert made.status_code == 201, made.text
+        return made.json()
+
+    first = lend(date="2020-01-01", description="The first one")
+    for _ in range(200):
+        lend()
+    assert f"/entry/{first['id']}/sheet" in page(client, f"/people/{alice['id']}"), "it is still owed, so it is listed"
+    assert "The first one" in page(client, f"/people/{alice['id']}/entry/{first['id']}/sheet")
+    bob = person(client, "Bob")
+    assert page(client, f"/people/{bob['id']}/entry/{first['id']}/sheet", status=404), "not under someone else"
+    assert client.post(f"/people/{bob['id']}/entry/{first['id']}/reverse").status_code == 404
+    assert client.post(f"/people/{alice['id']}/entry/{first['id']}/reverse").status_code == 200
+    assert float(client.get(f"/api/contacts/{alice['id']}").json()["net"]) == 200

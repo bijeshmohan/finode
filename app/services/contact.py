@@ -6,6 +6,7 @@ from those accounts, never stored. A contact with entries is archived rather tha
 owed either way. The account service refuses to rename, close, delete or merge the two accounts by themselves: they
 follow the contact."""
 
+import builtins
 from datetime import date
 from decimal import Decimal
 from typing import Literal
@@ -13,7 +14,7 @@ from uuid import UUID
 
 from ..config import settings
 from ..limits import ensure_room
-from ..models.contact import Contact
+from ..models.contact import Contact, PartyTransaction
 from ..models.utils import utc_now
 from ..repositories.contact import ContactRepository
 from ..repositories.obligation import ObligationRepository
@@ -116,6 +117,23 @@ class ContactService:
     def read(self, contact_id: UUID) -> ContactRead | None:
         contact = self.cr.read(contact_id)
         return None if contact is None else self._read(contact)
+
+    def has_people(self) -> bool:
+        """Whether anyone is kept as a contact (the accounts that stand for contacts are loaded once per request)."""
+        return bool(self.ar.contact_account_ids())
+
+    def people(self) -> builtins.list[Contact]:
+        """The contacts as they are kept, archived ones too, without what each owes (`list` works that out)."""
+        return self.cr.list()
+
+    def made_of(self, transaction_id: UUID) -> builtins.list[PartyTransaction]:
+        """What people made of an entry (a loan, a shared bill, a settlement…), one row per person. A gift only names the
+        person, so it is left out: that entry is an ordinary one."""
+        return [r for r in self.ob.party_rows(transaction_id=transaction_id) if r.purpose != "gift"]
+
+    def person_by_account(self) -> dict[UUID, UUID]:
+        """The contact behind each "Due from" and "Due to" account."""
+        return {link.account_id: link.contact_id for link in self.cr.links()}
 
     def active(self, contact_id: UUID) -> Contact:
         """The contact for a new operation: it must exist and not be archived."""
