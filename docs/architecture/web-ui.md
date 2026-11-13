@@ -10,7 +10,7 @@ The web app is **server-rendered HTML** (Jinja2) with a little vendored **htmx**
 | Shared helpers for handlers | `app/routers/web/utils.py` (`htmx_redirect`, `htmx_error`, `htmx_trigger`, `safe_back`, `UpcomingItem`) |
 | Page templates | `app/templates/*.html`, all extending `base.html` |
 | Fragments returned to htmx | `app/templates/partials/` |
-| Styles and tokens | `app/static/style.css` |
+| Styles and tokens | `app/static/style.css`; the colour tokens in `app/static/tokens.css` (shared with the React app) |
 | Behaviour | `app/static/app.js`, `app/static/htmx.min.js` |
 | Money formatting | `app/templating.py` (`money`, `symbol`, `friendly_date`), the `figure` macro in `partials/money.html` |
 | Icons | the `icon()` macro in `partials/icons.html` |
@@ -47,7 +47,7 @@ Pages work without scripts where they can: rows are links to detail or edit page
 
 - **Phones first.** Keep text inputs at 16px or more so iOS does not zoom. Prefer our own chips and sheets over native pickers so iOS and Android look the same.
 - **Bento tiles.** Rows are grouped into soft rounded tiles (a tile per day in transaction lists, per group on Accounts and Budget). One rule block at the end of `style.css` defines them; new lists should reuse it.
-- **Tokens only.** Colours come from the CSS variables at the top of `style.css`; the light theme, the automatic dark block and the manual `data-theme="dark"` block must define the same tokens (a test compares them). Green and red are for money in and out only.
+- **Tokens only.** Colours come from the CSS variables in `tokens.css`; the light theme, the automatic dark block and the manual `data-theme="dark"` block must define the same tokens (a test compares them). Green and red are for money in and out only.
 - **The `back` path.** Forms that can be opened from several places take a `back` path and return there; always pass it through `safe_back`, which only allows local paths of the web UI.
 - **No Advanced switch (removed 2026-10-24).** Closing accounts is always in an account's menu; the `profiles.advanced` column is dropped (migration `a9b1c3d5e7f2`). The period lock and the hand-set order of accounts were removed too (2026-10-25, migration `b2d4f6a8c0e3`): accounts are listed alphabetically, the built-in groups first.
 - **Amount fields.** Every `input[inputmode="decimal"]` is cleaned as it is typed (`cleanAmount` in `app.js`): digits, one decimal point, a leading minus. The server still decides how many decimals are allowed.

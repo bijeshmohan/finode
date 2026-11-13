@@ -306,7 +306,7 @@ def test_subcategories_end_in_a_dashed_add_row_and_the_transactions_heading_has_
 
 def test_every_bar_takes_its_thickness_from_one_token():
     css = open("app/static/style.css").read()
-    assert "--bar-h: 3px" in css
+    assert "--bar-h: 3px" in open("app/static/tokens.css").read()
     for rule in (".glance-bar {", ".crow .bar {"):
         line = next(l for l in css.splitlines() if l.startswith(rule))
         assert "height: var(--bar-h)" in line, rule
