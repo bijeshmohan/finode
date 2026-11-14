@@ -43,15 +43,6 @@ describe("the Add and Edit addresses", () => {
     });
   });
 
-  it("an entry with several lines says where to edit it for now", async () => {
-    renderApp(`/transactions/t9/edit`, {
-      ...SIGNED_IN,
-      "/api/views/entry-form": [200, view({ editing: true, simple: false })],
-    });
-    expect(await screen.findByText(/edit it on the web page for now/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
-  });
-
   it("an entry that cannot be found says so", async () => {
     renderApp(`/transactions/t9/edit`, {
       ...SIGNED_IN,

@@ -47,9 +47,22 @@ export function view(overrides: Partial<EntryFormView> = {}): EntryFormView {
     related: null,
     from_rows: [{ choice: null, amount: null, category_id: null, posted_on: null }],
     to_rows: [{ choice: null, amount: null, category_id: null, posted_on: null }],
-    simple: true,
+    mode: "simple",
+    people: [],
+    expense_share: {
+      kind: "expense",
+      category_id: null,
+      account_id: null,
+      method: "equal",
+      self_value: null,
+      self_paid: null,
+      people: [],
+    },
+    income_share: { kind: "income", category_id: null, account_id: null, people: [] },
     person_page: null,
     groups,
+    account_parents: [],
+    category_parents: [],
     ...overrides,
   };
 }
