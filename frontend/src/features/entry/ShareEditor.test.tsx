@@ -75,9 +75,9 @@ describe("Split: a bill shared with people", () => {
         category_id: ids.food,
         account_id: ids.bank,
         method: "exact",
-        self_value: "300.00",
+        self_value: "300",
         self_paid: null,
-        people: [{ contact_id: ids.ada, value: "300.00", paid: null }],
+        people: [{ contact_id: ids.ada, value: "300", paid: null }],
       },
     });
   });
@@ -161,7 +161,7 @@ describe("Split: a bill shared with people", () => {
         kind: "income",
         category_id: ids.salary,
         account_id: ids.bank,
-        people: [{ contact_id: ids.ada, theirs: "4000.00", received: null }],
+        people: [{ contact_id: ids.ada, theirs: "4000", received: null }],
       },
     });
   });
