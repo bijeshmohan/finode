@@ -48,6 +48,32 @@ describe("the Add and Edit addresses", () => {
     expect(asked[0]).toBe(`?with=${ids.ada}&mode=split`);
   });
 
+  it("a shared bill opens in Split", async () => {
+    renderApp(`/transactions/t9/edit`, {
+      ...SIGNED_IN,
+      "/api/views/entry-form": [200, view({ editing: true, mode: "split", people: [{ id: ids.ada, name: "Ada" }] })],
+    });
+    expect(await screen.findByRole("radio", { name: "Split" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+  });
+
+  it("an entry with several lines opens with them", async () => {
+    const line = (choice: string, amount: string) => ({ choice, amount, category_id: null, posted_on: null });
+    renderApp(`/transactions/t9/edit`, {
+      ...SIGNED_IN,
+      "/api/views/entry-form": [
+        200,
+        view({
+          editing: true,
+          total: "100.00",
+          from_rows: [line(ids.bank, "100.00")],
+          to_rows: [line(ids.food, "60.00"), line(ids.emi, "40.00")],
+        }),
+      ],
+    });
+    expect(await screen.findAllByRole("button", { name: /^Spent on/ })).toHaveLength(2);
+  });
+
   it("edits the entry in the address", async () => {
     const asked: string[] = [];
     renderApp(`/transactions/t9/edit`, {
