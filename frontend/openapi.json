@@ -649,6 +649,10 @@
               }
             ]
           },
+          "bill_soon": {
+            "title": "Bill Soon",
+            "type": "boolean"
+          },
           "can_add_child": {
             "title": "Can Add Child",
             "type": "boolean"
@@ -793,6 +797,7 @@
           "balance_after",
           "direct",
           "bill",
+          "bill_soon",
           "can_set_days",
           "is_group",
           "has_children",

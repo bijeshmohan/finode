@@ -6,6 +6,8 @@ import { EntryRoute } from "../features/entry/EntryRoute";
 import { Home } from "../features/home/Home";
 import { NotFound } from "../features/placeholder/NotFound";
 import { TransactionsPage } from "../features/transactions/TransactionsPage";
+import { AccountPage } from "../features/accounts/AccountPage";
+import { AccountsPage } from "../features/accounts/AccountsPage";
 import { Placeholder } from "../features/placeholder/Placeholder";
 import { Forgot } from "../features/auth/Forgot";
 import { Reset } from "../features/auth/Reset";
@@ -17,7 +19,6 @@ import { ToastProvider } from "./toast";
 
 const PAGES: [path: string, title: string][] = [
   ["/budget", "Budgets"],
-  ["/accounts", "Accounts"],
   ["/categories", "Categories"],
   ["/people", "People"],
   ["/settings", "Settings"],
@@ -56,6 +57,8 @@ export const routes: RouteObject[] = [
           { path: "/transactions", element: <TransactionsPage /> },
           { path: "/transactions/new", element: <EntryRoute /> },
           { path: "/transactions/:transactionId/edit", element: <EntryRoute /> },
+          { path: "/accounts", element: <AccountsPage /> },
+          { path: "/accounts/:accountId", element: <AccountPage /> },
           ...PAGES.map(([path, title]) => ({ path, element: <Placeholder title={title} /> })),
           { path: "*", element: <NotFound /> },
         ],

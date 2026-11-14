@@ -1,0 +1,104 @@
+/* details.menu and details.note-info of app/static/style.css: the "…" menu of an account's or a category's page, and the
+   "i" beside its name that opens its description. They share the place under the title. */
+.holder {
+  position: static;
+}
+.holder > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.holder > summary::-webkit-details-marker {
+  display: none;
+}
+.circ {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.375rem;
+  height: 2.375rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+}
+.circ :global(.icon) {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+.info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  color: var(--muted);
+}
+.info :global(.icon) {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+.panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  right: 0;
+  max-width: 24rem;
+  margin-left: auto;
+  padding: 0.35rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.panel > a,
+.panel > button {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 2.875rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.panel > a + *,
+.panel > button + * {
+  border-top: 1px solid var(--surface-2);
+}
+.panel :global(.icon) {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--muted);
+}
+.panel .danger {
+  color: var(--danger);
+}
+.note {
+  margin: 0;
+  padding: 0.6rem 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted);
+  border-top: 1px solid var(--surface-2);
+}
+.note:first-child {
+  border-top: 0;
+}
+.infoPanel {
+  padding: 0.75rem 1rem;
+}
+.infoPanel .note {
+  padding: 0;
+  font-size: 0.9375rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}

@@ -2365,6 +2365,8 @@ export interface components {
             /** Balance After */
             balance_after: string | null;
             bill: components["schemas"]["CardBill"] | null;
+            /** Bill Soon */
+            bill_soon: boolean;
             /** Can Add Child */
             can_add_child: boolean;
             /** Can Edit */

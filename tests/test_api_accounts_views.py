@@ -123,6 +123,7 @@ def test_a_cards_bill_and_the_days_to_set(client, tree):
     transfer(client, visa["id"], tree["hdfc"], "700", local_today() - timedelta(days=60))
     seen = view(client, f"/api/views/accounts/{visa['id']}")
     assert seen["bill"] is not None and seen["bill"]["statement_day"] == 1 and seen["can_set_days"] is False
+    assert seen["bill_soon"] is (0 <= seen["bill"]["days_to_due"] <= 5)
 
 
 def test_another_persons_account_is_not_found(client, tree):

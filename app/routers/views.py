@@ -63,6 +63,7 @@ from ..schemas.views import (
     TransactionsView,
     UpcomingRead,
 )
+from ..services import cards
 from ..services.account_tree import Node, build_tree, without_contacts
 from ..services.accounts_view import (
     AccountForm,
@@ -490,6 +491,7 @@ def account_view(account_id: UUID, accounts: Accounts, offset: int = Query(defau
         balance_after=page.balance_after,
         direct=page.direct,
         bill=page.bill,
+        bill_soon=page.bill is not None and page.bill.bill > 0 and 0 <= page.bill.days_to_due <= cards.DUE_SOON_DAYS,
         can_set_days=page.can_set_days,
         is_group=node.is_group,
         has_children=bool(node.children),

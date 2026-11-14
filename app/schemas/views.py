@@ -332,6 +332,8 @@ class AccountView(BaseModel):
     # Part of a group's balance posted to the group itself.
     direct: Decimal | None
     bill: CardBill | None
+    # Something left to pay, due within cards.DUE_SOON_DAYS (not yet overdue): the due line turns amber.
+    bill_soon: bool
     can_set_days: bool
     is_group: bool
     has_children: bool

@@ -1,7 +1,8 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { renderApp } from "../test/render";
+import { account, ids } from "../features/accounts/fixtures";
+import { renderApp, SIGNED_IN } from "../test/render";
 
 describe("the layout", () => {
   it("has a tab bar with the four pages and the plus button", async () => {
@@ -26,6 +27,18 @@ describe("the layout", () => {
     const tabs = await screen.findByRole("navigation", { name: "Tab bar" });
     expect(within(tabs).getByRole("link", { name: "Accounts" })).toHaveAttribute("aria-current", "page");
     expect(within(tabs).getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
+  });
+});
+
+describe("the plus", () => {
+  it("on an account's page starts an entry for that account and comes back to it", async () => {
+    renderApp(`/accounts/${ids.hdfc}`, { ...SIGNED_IN, [`/api/views/accounts/${ids.hdfc}`]: [200, account()] });
+    await screen.findByRole("heading", { level: 1, name: "HDFC" });
+    const tabs = screen.getByRole("navigation", { name: "Tab bar" });
+    expect(within(tabs).getByRole("link", { name: "New transaction" })).toHaveAttribute(
+      "href",
+      `/transactions/new?account=${ids.hdfc}&back=/accounts/${ids.hdfc}`,
+    );
   });
 });
 

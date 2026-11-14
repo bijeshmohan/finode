@@ -4,6 +4,7 @@ import { NavLink, Outlet } from "react-router";
 
 import { Icon, type IconName } from "../components/Icon";
 import styles from "./Layout.module.css";
+import { NewEntryProvider, useNewEntryUrl } from "./newEntry";
 import { Offline } from "./Offline";
 
 interface Page {
@@ -18,7 +19,6 @@ const ACCOUNTS: Page = { to: "/accounts", label: "Accounts", icon: "accounts" };
 const CATEGORIES: Page = { to: "/categories", label: "Categories", icon: "tag" };
 const TRANSACTIONS: Page = { to: "/transactions", label: "Transactions", icon: "list" };
 const PEOPLE: Page = { to: "/people", label: "People", icon: "user" };
-const NEW_TRANSACTION = "/transactions/new";
 
 function PageLink({ page, className = "" }: { page: Page; className?: string }) {
   return (
@@ -30,6 +30,15 @@ function PageLink({ page, className = "" }: { page: Page; className?: string }) 
 }
 
 export function Layout() {
+  return (
+    <NewEntryProvider>
+      <Frame />
+    </NewEntryProvider>
+  );
+}
+
+function Frame() {
+  const newEntry = useNewEntryUrl();
   return (
     <div>
       <header className={styles.topbar}>
@@ -45,7 +54,7 @@ export function Layout() {
         <NavLink to="/" className={styles.brand}>
           finode
         </NavLink>
-        <NavLink to={NEW_TRANSACTION} className={styles.sidebarNew}>
+        <NavLink to={newEntry} className={styles.sidebarNew}>
           <Icon name="plus" />
           <span>New transaction</span>
         </NavLink>
@@ -66,7 +75,7 @@ export function Layout() {
       <nav className={styles.tabbar} aria-label="Tab bar">
         <PageLink page={HOME} />
         <PageLink page={BUDGETS} />
-        <NavLink to={NEW_TRANSACTION} className={styles.fab} aria-label="New transaction">
+        <NavLink to={newEntry} className={styles.fab} aria-label="New transaction">
           <Icon name="plus" />
         </NavLink>
         <PageLink page={ACCOUNTS} />
