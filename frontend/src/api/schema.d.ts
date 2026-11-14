@@ -1856,6 +1856,27 @@ export interface paths {
         patch: operations["change_opening_balance_api_transfers__transaction_id__patch"];
         trace?: never;
     };
+    "/api/views/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Home
+         * @description Home for a month (`YYYY-MM`, never ahead): the budget at a glance, the month's first entries (a day is never cut;
+         *     the rest come from `/views/transactions`), and a new person's first steps while some are left.
+         */
+        get: operations["home_api_views_home_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/views/transaction-filters": {
         parameters: {
             query?: never;
@@ -2921,6 +2942,18 @@ export interface components {
             /** Merchants */
             merchants: string[];
         };
+        /**
+         * FilterSummary
+         * @description How many entries a filter found and, when they all go one way, what they come to ("spent" or "earned").
+         */
+        FilterSummary: {
+            /** Count */
+            count: number;
+            /** Total */
+            total: string | null;
+            /** Word */
+            word: string;
+        };
         /** ForgotPassword */
         ForgotPassword: {
             /**
@@ -2928,6 +2961,28 @@ export interface components {
              * @default
              */
             email: string;
+        };
+        /**
+         * GlanceRead
+         * @description Home's budget at a glance for the month.
+         */
+        GlanceRead: {
+            /** Assigned */
+            assigned: string;
+            /** Carried */
+            carried: string;
+            /** Has Budget */
+            has_budget: boolean;
+            /** Left */
+            left: string;
+            /** Of */
+            of: string;
+            /** Pace */
+            pace: number | null;
+            /** Percent */
+            percent: number;
+            /** Spent */
+            spent: string;
         };
         /** GroupAssign */
         GroupAssign: {
@@ -2955,6 +3010,28 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HomeView */
+        HomeView: {
+            glance: components["schemas"]["GlanceRead"];
+            /** Has Recorded */
+            has_recorded: boolean;
+            /** Is Current */
+            is_current: boolean;
+            /** Month */
+            month: string;
+            /** Rows */
+            rows: components["schemas"]["RowRead"][];
+            /** Spent */
+            spent: string;
+            /** Steps */
+            steps: components["schemas"]["StepRead"][] | null;
+            /** Steps Done */
+            steps_done: number;
+            /** Steps Total */
+            steps_total: number;
+            /** Total */
+            total: number;
         };
         /**
          * ImportSummary
@@ -4040,6 +4117,52 @@ export interface components {
             signed_in: boolean;
         };
         /**
+         * StepRead
+         * @description A first step for a new person; the app knows where each `key` leads.
+         */
+        StepRead: {
+            /** Done */
+            done: boolean;
+            /** Hint */
+            hint: string | null;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "account" | "spend" | "budget";
+            /** Title */
+            title: string;
+        };
+        /** SummaryRead */
+        SummaryRead: {
+            /** Assets */
+            assets: string;
+            /** Currency */
+            currency: string;
+            /** Expenses */
+            expenses: string;
+            /** Income */
+            income: string;
+            /** Liabilities */
+            liabilities: string;
+            /** Net Income */
+            net_income: string;
+            /** Net Worth */
+            net_worth: string;
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date
+             */
+            period_start: string;
+            /** Spent */
+            spent: string;
+        };
+        /**
          * TagRead
          * @description A tag: how many entries carry it and the day of the latest.
          */
@@ -4311,7 +4434,7 @@ export interface components {
             month: string;
             /** Rows */
             rows: components["schemas"]["RowRead"][];
-            summary: components["schemas"]["app__schemas__views__SummaryRead"] | null;
+            summary: components["schemas"]["FilterSummary"] | null;
             /** Total */
             total: number;
             /** Upcoming */
@@ -4450,35 +4573,6 @@ export interface components {
             /** Error Type */
             type: string;
         };
-        /** SummaryRead */
-        app__schemas__report__SummaryRead: {
-            /** Assets */
-            assets: string;
-            /** Currency */
-            currency: string;
-            /** Expenses */
-            expenses: string;
-            /** Income */
-            income: string;
-            /** Liabilities */
-            liabilities: string;
-            /** Net Income */
-            net_income: string;
-            /** Net Worth */
-            net_worth: string;
-            /**
-             * Period End
-             * Format: date
-             */
-            period_end: string;
-            /**
-             * Period Start
-             * Format: date
-             */
-            period_start: string;
-            /** Spent */
-            spent: string;
-        };
         /**
          * LineRead
          * @description One line of the ledger entry that confirming will record (or recorded).
@@ -4506,18 +4600,6 @@ export interface components {
             name: string;
             /** Posted On */
             posted_on: string | null;
-        };
-        /**
-         * SummaryRead
-         * @description How many entries a filter found and, when they all go one way, what they come to ("spent" or "earned").
-         */
-        app__schemas__views__SummaryRead: {
-            /** Count */
-            count: number;
-            /** Total */
-            total: string | null;
-            /** Word */
-            word: string;
         };
     };
     responses: never;
@@ -6976,7 +7058,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__report__SummaryRead"];
+                    "application/json": components["schemas"]["SummaryRead"];
                 };
             };
             /** @description Validation Error */
@@ -8023,6 +8105,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransferRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    home_api_views_home_get: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomeView"];
                 };
             };
             /** @description Validation Error */

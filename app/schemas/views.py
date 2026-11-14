@@ -30,7 +30,7 @@ class RowRead(BaseModel):
     by_assistant: str | None
 
 
-class SummaryRead(BaseModel):
+class FilterSummary(BaseModel):
     """How many entries a filter found and, when they all go one way, what they come to ("spent" or "earned")."""
 
     count: int
@@ -62,7 +62,7 @@ class TransactionsView(BaseModel):
     is_current: bool
     rows: list[RowRead]
     total: int
-    summary: SummaryRead | None
+    summary: FilterSummary | None
     upcoming: list[UpcomingRead]
     upcoming_total: Decimal | None
     error: str | None
@@ -116,3 +116,40 @@ class TransactionDetails(BaseModel):
     external_id: str | None
     added_by: str | None
     changed_by: str | None
+
+
+class GlanceRead(BaseModel):
+    """Home's budget at a glance for the month."""
+
+    has_budget: bool
+    left: Decimal
+    spent: Decimal
+    assigned: Decimal
+    carried: Decimal
+    of: Decimal
+    percent: int
+    pace: int | None
+
+
+class StepRead(BaseModel):
+    """A first step for a new person; the app knows where each `key` leads."""
+
+    key: Literal["account", "spend", "budget"]
+    title: str
+    done: bool
+    hint: str | None
+
+
+class HomeView(BaseModel):
+    month: str
+    is_current: bool
+    has_recorded: bool
+    glance: GlanceRead
+    # The month's spending, for a person with no budget yet.
+    spent: Decimal
+    # The first steps while some are left; null once all are done.
+    steps: list[StepRead] | None
+    steps_done: int
+    steps_total: int
+    rows: list[RowRead]
+    total: int
