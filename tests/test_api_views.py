@@ -160,3 +160,44 @@ def test_recurring_falls_due_before_the_list(client, books):
     assert rule.status_code == 201, rule.text
     month = yesterday.strftime("%Y-%m")
     assert "Gym" in payees_of(view(client, month=month))
+
+
+# ---- Home ----------------------------------------------------------------------------------------------------------
+
+
+def home(client, **params):
+    response = client.get("/api/views/home", params=params)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_home_with_nothing_recorded(client, root_accounts):
+    seen = home(client)
+    assert seen["has_recorded"] is False and seen["rows"] == []
+    assert [(s["key"], s["done"]) for s in seen["steps"]] == [("account", False), ("spend", False), ("budget", False)]
+    assert seen["steps"][1]["title"] == "Record your first spend" and seen["steps"][1]["hint"] == "Takes about ten seconds"
+    assert (seen["steps_done"], seen["steps_total"]) == (0, 3)
+
+
+def test_home_glance_when_overspent(client, books):
+    client.put(f"/api/budget/categories/{books['food']['id']}", json={"month": f"{MONTH}-01", "amount": "100"})
+    spend(client, books, amount="150.5")
+    glance = home(client)["glance"]
+    assert glance["has_budget"] is True
+    assert (glance["left"], glance["spent"], glance["assigned"], glance["percent"]) == ("-50.50", "150.50", "100.00", 100)
+    assert glance["pace"] is not None
+
+
+def test_home_first_rows_and_total(client, books):
+    for i in range(12):
+        spend(client, books, payee=f"P{i}")
+    seen = home(client)
+    assert seen["has_recorded"] is True
+    assert len(seen["rows"]) >= 8 and seen["total"] >= 12, "a day is finished, never cut"
+    assert seen["steps"] is None or all(isinstance(s["done"], bool) for s in seen["steps"])
+
+
+def test_home_past_month_has_no_pace(client, books):
+    last_month = (TODAY.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    seen = home(client, month=last_month)
+    assert seen["month"] == last_month and seen["is_current"] is False and seen["glance"]["pace"] is None

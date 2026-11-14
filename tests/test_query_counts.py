@@ -13,7 +13,7 @@ from sqlalchemy import event
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
 
-PAGES = ["/transactions/new", "/transactions", "/api/views/transactions", "/", "/accounts", "/budget", "/categories", "/categories?tab=income"]
+PAGES = ["/transactions/new", "/transactions", "/api/views/transactions", "/", "/api/views/home", "/accounts", "/budget", "/categories", "/categories?tab=income"]
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
@@ -21,7 +21,8 @@ CEILING = {
     "/transactions/new": 4,  # + the categories
     "/transactions": 12,  # + the categories (their names for the rows) + the tags of the rows shown (one query, whatever the number of rows)
     "/api/views/transactions": 12,  # the Transactions page's own reads, for the finode app
-    "/": 15,  # + the categories (their own table) and what the month spent by category
+    "/": 15,
+    "/api/views/home": 15,  # Home's own reads, for the finode app  # + the categories (their own table) and what the month spent by category
     "/accounts": 5,  # + the day of each account's last entry, + the postings of the cards that have bill days (one query each, whatever the number)
     "/budget": 6,  # + the categories
     "/categories": 4,

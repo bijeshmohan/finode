@@ -2655,6 +2655,38 @@
         "title": "FilterOptions",
         "type": "object"
       },
+      "FilterSummary": {
+        "description": "How many entries a filter found and, when they all go one way, what they come to (\"spent\" or \"earned\").",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "word": {
+            "title": "Word",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "total",
+          "word"
+        ],
+        "title": "FilterSummary",
+        "type": "object"
+      },
       "ForgotPassword": {
         "properties": {
           "email": {
@@ -2664,6 +2696,67 @@
           }
         },
         "title": "ForgotPassword",
+        "type": "object"
+      },
+      "GlanceRead": {
+        "description": "Home's budget at a glance for the month.",
+        "properties": {
+          "assigned": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Assigned",
+            "type": "string"
+          },
+          "carried": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Carried",
+            "type": "string"
+          },
+          "has_budget": {
+            "title": "Has Budget",
+            "type": "boolean"
+          },
+          "left": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Left",
+            "type": "string"
+          },
+          "of": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Of",
+            "type": "string"
+          },
+          "pace": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "integer"
+          },
+          "spent": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Spent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "has_budget",
+          "left",
+          "spent",
+          "assigned",
+          "carried",
+          "of",
+          "percent",
+          "pace"
+        ],
+        "title": "GlanceRead",
         "type": "object"
       },
       "GroupAssign": {
@@ -2739,6 +2832,77 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HomeView": {
+        "properties": {
+          "glance": {
+            "$ref": "#/components/schemas/GlanceRead"
+          },
+          "has_recorded": {
+            "title": "Has Recorded",
+            "type": "boolean"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RowRead"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "spent": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Spent",
+            "type": "string"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StepRead"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "steps_done": {
+            "title": "Steps Done",
+            "type": "integer"
+          },
+          "steps_total": {
+            "title": "Steps Total",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "is_current",
+          "has_recorded",
+          "glance",
+          "spent",
+          "steps",
+          "steps_done",
+          "steps_total",
+          "rows",
+          "total"
+        ],
+        "title": "HomeView",
         "type": "object"
       },
       "ImportSummary": {
@@ -5585,6 +5749,114 @@
         "title": "SignUpResult",
         "type": "object"
       },
+      "StepRead": {
+        "description": "A first step for a new person; the app knows where each `key` leads.",
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "boolean"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "key": {
+            "enum": [
+              "account",
+              "spend",
+              "budget"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "done",
+          "hint"
+        ],
+        "title": "StepRead",
+        "type": "object"
+      },
+      "SummaryRead": {
+        "properties": {
+          "assets": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Assets",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "expenses": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Expenses",
+            "type": "string"
+          },
+          "income": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Income",
+            "type": "string"
+          },
+          "liabilities": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Liabilities",
+            "type": "string"
+          },
+          "net_income": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Income",
+            "type": "string"
+          },
+          "net_worth": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Worth",
+            "type": "string"
+          },
+          "period_end": {
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "spent": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Spent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "period_start",
+          "period_end",
+          "assets",
+          "liabilities",
+          "net_worth",
+          "income",
+          "expenses",
+          "spent",
+          "net_income"
+        ],
+        "title": "SummaryRead",
+        "type": "object"
+      },
       "TagRead": {
         "description": "A tag: how many entries carry it and the day of the latest.",
         "properties": {
@@ -6448,7 +6720,7 @@
           "summary": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/app__schemas__views__SummaryRead"
+                "$ref": "#/components/schemas/FilterSummary"
               },
               {
                 "type": "null"
@@ -6827,73 +7099,6 @@
         "title": "ValidationError",
         "type": "object"
       },
-      "app__schemas__report__SummaryRead": {
-        "properties": {
-          "assets": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Assets",
-            "type": "string"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "expenses": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Expenses",
-            "type": "string"
-          },
-          "income": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Income",
-            "type": "string"
-          },
-          "liabilities": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Liabilities",
-            "type": "string"
-          },
-          "net_income": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Income",
-            "type": "string"
-          },
-          "net_worth": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Worth",
-            "type": "string"
-          },
-          "period_end": {
-            "format": "date",
-            "title": "Period End",
-            "type": "string"
-          },
-          "period_start": {
-            "format": "date",
-            "title": "Period Start",
-            "type": "string"
-          },
-          "spent": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Spent",
-            "type": "string"
-          }
-        },
-        "required": [
-          "currency",
-          "period_start",
-          "period_end",
-          "assets",
-          "liabilities",
-          "net_worth",
-          "income",
-          "expenses",
-          "spent",
-          "net_income"
-        ],
-        "title": "SummaryRead",
-        "type": "object"
-      },
       "app__schemas__shared_expense__LineRead": {
         "description": "One line of the ledger entry that confirming will record (or recorded).",
         "properties": {
@@ -6963,38 +7168,6 @@
           "posted_on"
         ],
         "title": "LineRead",
-        "type": "object"
-      },
-      "app__schemas__views__SummaryRead": {
-        "description": "How many entries a filter found and, when they all go one way, what they come to (\"spent\" or \"earned\").",
-        "properties": {
-          "count": {
-            "title": "Count",
-            "type": "integer"
-          },
-          "total": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total"
-          },
-          "word": {
-            "title": "Word",
-            "type": "string"
-          }
-        },
-        "required": [
-          "count",
-          "total",
-          "word"
-        ],
-        "title": "SummaryRead",
         "type": "object"
       }
     },
@@ -11177,7 +11350,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/app__schemas__report__SummaryRead"
+                  "$ref": "#/components/schemas/SummaryRead"
                 }
               }
             },
@@ -13114,6 +13287,55 @@
         "summary": "Change Opening Balance",
         "tags": [
           "contacts"
+        ]
+      }
+    },
+    "/api/views/home": {
+      "get": {
+        "description": "Home for a month (`YYYY-MM`, never ahead): the budget at a glance, the month's first entries (a day is never cut;\nthe rest come from `/views/transactions`), and a new person's first steps while some are left.",
+        "operationId": "home_api_views_home_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Month",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Home",
+        "tags": [
+          "views"
         ]
       }
     },

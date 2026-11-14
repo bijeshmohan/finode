@@ -8,19 +8,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..clock import local_today
-from ..dependencies import Accounts, Categories, Contacts, Recurring, Transactions
+from ..dependencies import Accounts, Budget, Categories, Contacts, Recurring, Reports, Transactions
 from ..schemas.views import (
     AppliedFilter,
     FilterChoice,
     FilterOptions,
+    FilterSummary,
+    GlanceRead,
+    HomeView,
     LineRead,
     PersonRef,
     RowRead,
-    SummaryRead,
+    StepRead,
     TransactionDetails,
     TransactionsView,
     UpcomingRead,
 )
+from ..services.home import home_view
 from ..services.transaction_rows import (
     PAGE_SIZE,
     AccountIndex,
@@ -95,7 +99,7 @@ def transactions_view(
         is_current=found.is_current,
         rows=[row_read(r) for r in found.rows],
         total=found.total,
-        summary=SummaryRead(count=found.summary.count, total=found.summary.total, word=found.summary.word)
+        summary=FilterSummary(count=found.summary.count, total=found.summary.total, word=found.summary.word)
         if found.summary
         else None,
         upcoming=[
@@ -148,4 +152,44 @@ def transaction_view(
         external_id=t.external_id,
         added_by=found.added_by,
         changed_by=found.changed_by,
+    )
+
+
+@router.get("/home", response_model=HomeView)
+def home(
+    accounts: Accounts,
+    categories: Categories,
+    reports: Reports,
+    transactions: Transactions,
+    recurring: Recurring,
+    budget: Budget,
+    month: str = "",
+):
+    """Home for a month (`YYYY-MM`, never ahead): the budget at a glance, the month's first entries (a day is never cut;
+    the rest come from `/views/transactions`), and a new person's first steps while some are left."""
+    recurring.catch_up()  # record what has fallen due, as the page does
+    found = home_view(parse_month(month, local_today()), accounts, categories, reports, transactions, budget)
+    g = found.glance
+    return HomeView(
+        month=found.when.strftime("%Y-%m"),
+        is_current=found.is_current,
+        has_recorded=found.has_recorded,
+        glance=GlanceRead(
+            has_budget=g.has_budget,
+            left=g.left,
+            spent=g.spent,
+            assigned=g.assigned,
+            carried=g.carried,
+            of=g.of,
+            percent=g.percent,
+            pace=g.pace,
+        ),
+        spent=found.summary.spent,
+        steps=[StepRead(key=s.key, title=s.title, done=s.done, hint=s.hint) for s in found.steps]
+        if found.steps_left
+        else None,
+        steps_done=sum(1 for s in found.steps if s.done),
+        steps_total=len(found.steps),
+        rows=[row_read(r) for r in found.rows],
+        total=found.total,
     )
