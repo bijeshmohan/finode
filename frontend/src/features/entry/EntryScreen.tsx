@@ -26,7 +26,11 @@ import {
   screenOrder,
   type Side,
 } from "./kinds";
+import { DateChip } from "./DateChip";
+import { NoteAndTags } from "./NoteAndTags";
+import { PayeeField } from "./PayeeField";
 import { Picker } from "./Picker";
+import { Related } from "./RelatedPicker";
 import { type EntryBody, type EntryFormView, type PickGroup, useSaveEntry } from "./queries";
 
 const ASK = "Delete this transaction? Account balances will change. This cannot be undone.";
@@ -83,12 +87,9 @@ interface ScreenProps {
   transactionId?: string;
   /** Where to go after saving or deleting (inside the app only). */
   back?: string | null;
-  /** Fields of a later part of the screen (payee, date, related, note and tags), given the state to read and change. */
-  children?: (state: EntryState, change: (next: Partial<EntryState>) => void) => React.ReactNode;
-  beforeRows?: (state: EntryState, change: (next: Partial<EntryState>) => void) => React.ReactNode;
 }
 
-export function EntryScreen({ form, transactionId, back = null, children, beforeRows }: ScreenProps) {
+export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
   const grouping = useGrouping();
   const places = usePlaces();
   const symbol = useSymbol();
@@ -272,7 +273,33 @@ export function EntryScreen({ form, transactionId, back = null, children, before
           {symbol !== "₹" && <span className={styles.code}>{symbol}</span>}
         </div>
 
-        {beforeRows?.(state, change)}
+        <PayeeField
+          value={state.payee}
+          onChange={(payee) => {
+            change({ payee });
+          }}
+          person={state.payeePerson}
+          onPerson={(payeePerson) => {
+            change({ payeePerson });
+          }}
+          editing={editing}
+          canName={state.kind === "expense" || state.kind === "income"}
+        />
+        <div className={styles.metaRow}>
+          <DateChip
+            value={state.date}
+            onChange={(date) => {
+              change({ date });
+            }}
+          />
+          <Related
+            value={state.related}
+            exclude={transactionId}
+            onChange={(related) => {
+              change({ related });
+            }}
+          />
+        </div>
 
         {side(first ?? "credit")}
         {canSwap(state.kind) && (
@@ -290,7 +317,16 @@ export function EntryScreen({ form, transactionId, back = null, children, before
         )}
         {side(second ?? "debit")}
 
-        {children?.(state, change)}
+        <NoteAndTags
+          note={state.comment}
+          onNote={(comment) => {
+            change({ comment });
+          }}
+          tags={state.tags}
+          onTags={(tags) => {
+            change({ tags });
+          }}
+        />
 
         {(problem ?? (save.isError ? messageOf(save.error) : null)) && (
           <p className={styles.error} role="alert">
