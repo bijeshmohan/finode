@@ -5,6 +5,7 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import ValidationError
 
 from ..auth import require_authenticated_user
 from ..clock import local_today
@@ -21,8 +22,10 @@ from ..dependencies import (
     Transfers,
 )
 from ..repositories.transaction import SYSTEM_PAYEES
+from ..schemas.entry import EntryForm, ExpenseShare
 from ..schemas.views import (
     AppliedFilter,
+    CategoryParent,
     DayTotal,
     EntryFormView,
     FilterChoice,
@@ -32,19 +35,30 @@ from ..schemas.views import (
     GlanceRead,
     HomeView,
     LineRead,
+    ParentOption,
     PersonRef,
     PickGroupRead,
     PickOptionRead,
     RowRead,
+    SharePreview,
+    SharePreviewAsk,
     StepRead,
     TransactionDetails,
     TransactionsView,
     UpcomingRead,
 )
-from ..services.account_tree import build_tree
+from ..services.account_tree import build_tree, without_contacts
 from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
+from ..services.entry_share import expense_create, expense_start, income_create, income_start
 from ..services.home import home_view
-from ..services.pickers import category_groups, people_group, posting_groups
+from ..services.pickers import (
+    ACCOUNT_ROOTS,
+    OPENING_BALANCE_ROOTS,
+    category_groups,
+    parent_options,
+    people_group,
+    posting_groups,
+)
 from ..services.transaction_rows import (
     PAGE_SIZE,
     AccountIndex,
@@ -56,6 +70,8 @@ from ..services.transaction_rows import (
     to_row,
     transaction_details,
 )
+from ..services.validation import validation_message
+from .contact_utils import refused
 
 router = APIRouter(prefix="/views", tags=["views"], dependencies=[Depends(require_authenticated_user)])
 
@@ -254,10 +270,12 @@ def entry_form(
     amount: str = "",
     move: str = "",
     with_person: UUID | None = Query(default=None, alias="with"),
+    mode: str = "",
 ):
     """Where the Add screen starts (`transaction_id` to edit; otherwise blank, or opened from an `account` or a
-    `category`, as a `repeat`, `related` to an entry, to `pay` a card with `amount`, or to `move` money `with` a person),
-    and what its pickers offer: the accounts by type with their balances and budget flags, the people, the categories."""
+    `category`, as a `repeat`, `related` to an entry, to `pay` a card with `amount`, to `move` money `with` a person, or
+    with `mode=split` to share a bill `with` a person), and what its pickers offer: the accounts by type with their
+    balances and budget flags, the people, the categories, and where a new account or category can go."""
     try:
         if transaction_id is not None:
             start: EntryStart = edit_start(
@@ -281,12 +299,19 @@ def entry_form(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from None
     edit = start if isinstance(start, EditStart) else None
+    split = edit.mode == "split" if edit else mode == "split" and repeat is None
+    tree = build_tree(accounts.list())
+    people = [c for c in contacts.people() if c.archived_at is None] if contacts.has_people() else []
     transaction = edit.transaction if edit else None
     used = transaction.postings if transaction is not None else ()
     payee_person = edit.payee_person if edit else None
     return EntryFormView(
         editing=edit is not None,
-        kind=start.kind if start.kind in ("expense", "income", "transfer") else "other",
+        kind="expense"
+        if split and edit is None
+        else start.kind
+        if start.kind in ("expense", "income", "transfer")
+        else "other",
         date=transaction.date if transaction is not None else local_today(),
         total=start.total if start.total != "" else None,
         payee=start.payee,
@@ -296,7 +321,12 @@ def entry_form(
         related=row_read(start.related) if start.related else None,
         from_rows=_form_rows(start.from_rows),
         to_rows=_form_rows(start.to_rows),
-        simple=len(start.from_rows) == 1 and len(start.to_rows) == 1 and (edit is None or edit.mode == "simple"),
+        mode="split" if split else "simple",
+        people=[PersonRef(id=c.id, name=c.name) for c in people],
+        expense_share=expense_start(
+            edit.bill if edit else None, with_person if split and edit is None and not move else None
+        ),
+        income_share=income_start(edit.shared_income if edit else None),
         person_page=edit.person_page if edit else None,
         groups=[
             PickGroupRead(
@@ -304,12 +334,44 @@ def entry_form(
                 options=[PickOptionRead(id=o.id, label=o.label, budget=o.budget, balance=o.balance) for o in options],
             )
             for title, options in (
-                *posting_groups(build_tree(accounts.list()), {p.account_id for p in used}),
+                *posting_groups(tree, {p.account_id for p in used}),
                 *people_group(contacts, edit.keep_people if edit else set()),
                 *category_groups(categories.list(include_closed=True), {p.category_id for p in used if p.category_id}),
             )
         ],
+        account_parents=[
+            ParentOption(
+                id=n.account.id,
+                name=n.account.name,
+                depth=n.depth,
+                root=root.account.name,
+                opening_balance=root.account.name in OPENING_BALANCE_ROOTS,
+            )
+            for root in without_contacts(tree)
+            if root.account.name in ACCOUNT_ROOTS
+            for n in parent_options([root])
+        ],
+        category_parents=[
+            CategoryParent(id=c.id, name=c.name, kind=c.kind) for c in categories.list() if c.parent_id is None
+        ],
     )
+
+
+@router.post("/entry-share-preview", response_model=SharePreview)
+def entry_share_preview(ask: SharePreviewAsk, contacts: Contacts, expenses: SharedExpenses, incomes: SharedIncomes):
+    """What the Add screen's Split would do, as typed so far: each share and what is owed for a bill, your income and
+    the people's parts for an income. Nothing is saved. A Split that cannot be saved yet is refused with the reason (400;
+    404 for a person, account or category that is not the caller's), which the screen shows in place of the preview."""
+    form = EntryForm(kind=ask.share.kind, payee=ask.payee, date=ask.date, total=ask.total, share=ask.share)
+    people = {c.id for c in contacts.people()} if contacts.has_people() else set()
+    try:
+        if isinstance(ask.share, ExpenseShare):
+            return SharePreview(kind="expense", expense=expenses.preview(expense_create(form, ask.share, people)))
+        return SharePreview(kind="income", income=incomes.preview(income_create(form, ask.share, people)))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=validation_message(e)) from None
+    except ValueError as e:
+        raise refused(e) from None
 
 
 RELATED_LIMIT = 30

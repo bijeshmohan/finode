@@ -1082,7 +1082,8 @@ export interface paths {
         /**
          * Create Entry
          * @description Record what the Add screen says. A category on a row posts on Expenses or Income with it; a person on a transfer is
-         *     a loan or a borrowing (paying back what is owed first); `payee_contact` names a person as a gift.
+         *     a loan or a borrowing (paying back what is owed first); `payee_contact` names a person as a gift; `share` with `total`
+         *     records a bill or an income shared with people (the Split), the server working out each share and what is owed.
          */
         post: operations["create_entry_api_entries_post"];
         delete?: never;
@@ -1908,12 +1909,35 @@ export interface paths {
         /**
          * Entry Form
          * @description Where the Add screen starts (`transaction_id` to edit; otherwise blank, or opened from an `account` or a
-         *     `category`, as a `repeat`, `related` to an entry, to `pay` a card with `amount`, or to `move` money `with` a person),
-         *     and what its pickers offer: the accounts by type with their balances and budget flags, the people, the categories.
+         *     `category`, as a `repeat`, `related` to an entry, to `pay` a card with `amount`, to `move` money `with` a person, or
+         *     with `mode=split` to share a bill `with` a person), and what its pickers offer: the accounts by type with their
+         *     balances and budget flags, the people, the categories, and where a new account or category can go.
          */
         get: operations["entry_form_api_views_entry_form_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/entry-share-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Entry Share Preview
+         * @description What the Add screen's Split would do, as typed so far: each share and what is owed for a bill, your income and
+         *     the people's parts for an income. Nothing is saved. A Split that cannot be saved yet is refused with the reason (400;
+         *     404 for a person, account or category that is not the caller's), which the screen shows in place of the preview.
+         */
+        post: operations["entry_share_preview_api_views_entry_share_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2643,6 +2667,24 @@ export interface components {
             /** Source */
             source: string;
         };
+        /**
+         * CategoryParent
+         * @description A top-level category a new one can go under.
+         */
+        CategoryParent: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "spending" | "earning";
+            /** Name */
+            name: string;
+        };
         /** CategoryRead */
         CategoryRead: {
             /** Closed On */
@@ -3003,15 +3045,23 @@ export interface components {
             /** Related Id */
             related_id?: string | null;
             /** Rows */
-            rows: components["schemas"]["EntryRow"][];
+            rows?: components["schemas"]["EntryRow"][];
+            /** Share */
+            share?: (components["schemas"]["ExpenseShare-Input"] | components["schemas"]["IncomeShare-Input"]) | null;
             /** Tags */
             tags?: string[];
+            /** Total */
+            total?: number | string | null;
         };
         /**
          * EntryFormView
          * @description Where the Add screen starts, and what its pickers offer.
          */
         EntryFormView: {
+            /** Account Parents */
+            account_parents: components["schemas"]["ParentOption"][];
+            /** Category Parents */
+            category_parents: components["schemas"]["CategoryParent"][];
             /** Comment */
             comment: string;
             /**
@@ -3021,23 +3071,30 @@ export interface components {
             date: string;
             /** Editing */
             editing: boolean;
+            expense_share: components["schemas"]["ExpenseShare-Output"];
             /** From Rows */
             from_rows: components["schemas"]["FormRow"][];
             /** Groups */
             groups: components["schemas"]["PickGroupRead"][];
+            income_share: components["schemas"]["IncomeShare-Output"];
             /**
              * Kind
              * @enum {string}
              */
             kind: "expense" | "income" | "transfer" | "other";
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "simple" | "split";
             /** Payee */
             payee: string;
             payee_person: components["schemas"]["PersonRef"] | null;
+            /** People */
+            people: components["schemas"]["PersonRef"][];
             /** Person Page */
             person_page: string | null;
             related: components["schemas"]["RowRead"] | null;
-            /** Simple */
-            simple: boolean;
             /** Tags */
             tags: string[];
             /** To Rows */
@@ -3066,7 +3123,7 @@ export interface components {
              * Recorded
              * @enum {string}
              */
-            recorded: "transaction" | "transfer";
+            recorded: "transaction" | "transfer" | "expense-shared" | "income-shared";
             /**
              * Transaction Id
              * Format: uuid
@@ -3107,6 +3164,61 @@ export interface components {
             user_paid: string;
             /** User Share */
             user_share: string;
+        };
+        /**
+         * ExpenseShare
+         * @description A bill shared with people, as the Split form describes it. The server works out the shares and what is owed.
+         */
+        "ExpenseShare-Input": {
+            /** Account Id */
+            account_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "expense";
+            /**
+             * Method
+             * @default equal
+             * @enum {string}
+             */
+            method: "equal" | "exact" | "percentage" | "shares";
+            /** People */
+            people?: components["schemas"]["PersonShare-Input"][];
+            /** Self Paid */
+            self_paid?: number | string | null;
+            /** Self Value */
+            self_value?: number | string | null;
+        };
+        /**
+         * ExpenseShare
+         * @description A bill shared with people, as the Split form describes it. The server works out the shares and what is owed.
+         */
+        "ExpenseShare-Output": {
+            /** Account Id */
+            account_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /**
+             * Kind
+             * @default expense
+             * @constant
+             */
+            kind: "expense";
+            /**
+             * Method
+             * @default equal
+             * @enum {string}
+             */
+            method: "equal" | "exact" | "percentage" | "shares";
+            /** People */
+            people?: components["schemas"]["PersonShare-Output"][];
+            /** Self Paid */
+            self_paid?: string | null;
+            /** Self Value */
+            self_value?: string | null;
         };
         /** FilterChoice */
         FilterChoice: {
@@ -3301,6 +3413,36 @@ export interface components {
             amount: string;
         };
         /**
+         * IncomePart
+         * @description A person an income is shared with: the part that is theirs, and what they received of it for you.
+         */
+        "IncomePart-Input": {
+            /**
+             * Contact Id
+             * Format: uuid
+             */
+            contact_id: string;
+            /** Received */
+            received?: number | string | null;
+            /** Theirs */
+            theirs?: number | string | null;
+        };
+        /**
+         * IncomePart
+         * @description A person an income is shared with: the part that is theirs, and what they received of it for you.
+         */
+        "IncomePart-Output": {
+            /**
+             * Contact Id
+             * Format: uuid
+             */
+            contact_id: string;
+            /** Received */
+            received?: string | null;
+            /** Theirs */
+            theirs?: string | null;
+        };
+        /**
          * IncomePartIn
          * @description An amount that belongs to a contact (or, in `received_by`, that a contact received for you).
          */
@@ -3346,6 +3488,41 @@ export interface components {
             total_amount: string;
             /** Your Income */
             your_income: string;
+        };
+        /**
+         * IncomeShare
+         * @description Income shared with people, as the Split form describes it.
+         */
+        "IncomeShare-Input": {
+            /** Account Id */
+            account_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "income";
+            /** People */
+            people?: components["schemas"]["IncomePart-Input"][];
+        };
+        /**
+         * IncomeShare
+         * @description Income shared with people, as the Split form describes it.
+         */
+        "IncomeShare-Output": {
+            /** Account Id */
+            account_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /**
+             * Kind
+             * @default income
+             * @constant
+             */
+            kind: "income";
+            /** People */
+            people?: components["schemas"]["IncomePart-Output"][];
         };
         /** MergeRequest */
         MergeRequest: {
@@ -3475,6 +3652,26 @@ export interface components {
             name: string;
         };
         /**
+         * ParentOption
+         * @description Where a new account can go (the Add screen's "New account" sheet): a root or a group, at its depth, and whether an
+         *     account made there can start with a balance.
+         */
+        ParentOption: {
+            /** Depth */
+            depth: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Opening Balance */
+            opening_balance: boolean;
+            /** Root */
+            root: string;
+        };
+        /**
          * ParticipantIn
          * @description Who shares the expense: you (`is_self`) or a contact. `value` is what the split method needs: nothing for an
          *     equal split, the weight for `shares`, the percentage for `percentage` or the amount for `exact`.
@@ -3567,6 +3764,36 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /**
+         * PersonShare
+         * @description A person a bill is shared with.
+         */
+        "PersonShare-Input": {
+            /**
+             * Contact Id
+             * Format: uuid
+             */
+            contact_id: string;
+            /** Paid */
+            paid?: number | string | null;
+            /** Value */
+            value?: number | string | null;
+        };
+        /**
+         * PersonShare
+         * @description A person a bill is shared with.
+         */
+        "PersonShare-Output": {
+            /**
+             * Contact Id
+             * Format: uuid
+             */
+            contact_id: string;
+            /** Paid */
+            paid?: string | null;
+            /** Value */
+            value?: string | null;
         };
         /**
          * PickGroupRead
@@ -4134,6 +4361,36 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * SharePreview
+         * @description What a bill or an income shared with people would do: `expense` for a bill, `income` for an income.
+         */
+        SharePreview: {
+            expense?: components["schemas"]["ExpensePreview"] | null;
+            income?: components["schemas"]["IncomePreview"] | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "expense" | "income";
+        };
+        /**
+         * SharePreviewAsk
+         * @description What the Split would save, as typed so far.
+         */
+        SharePreviewAsk: {
+            /** Date */
+            date?: string | null;
+            /**
+             * Payee
+             * @default
+             */
+            payee: string;
+            /** Share */
+            share: components["schemas"]["ExpenseShare-Input"] | components["schemas"]["IncomeShare-Input"];
+            /** Total */
+            total: number | string;
         };
         /** ShareRead */
         ShareRead: {
@@ -8422,6 +8679,7 @@ export interface operations {
                 amount?: string;
                 move?: string;
                 with?: string | null;
+                mode?: string;
             };
             header?: never;
             path?: never;
@@ -8436,6 +8694,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntryFormView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    entry_share_preview_api_views_entry_share_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharePreviewAsk"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharePreview"];
                 };
             };
             /** @description Validation Error */

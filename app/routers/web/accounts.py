@@ -21,7 +21,7 @@ from ...services.account import (
     RegisterPage,
 )
 from ...services.account_tree import Node, build_tree, without_contacts
-from ...services.pickers import category_groups, posting_groups
+from ...services.pickers import ACCOUNT_ROOTS, OPENING_BALANCE_ROOTS, category_groups, parent_options, posting_groups
 from ...services.transaction_rows import UpcomingItem
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
@@ -29,17 +29,10 @@ from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, valida
 router = APIRouter(prefix="/accounts")
 
 # Only these hold money the user already has (or owes) when an account is first added.
-OPENING_BALANCE_ROOTS = ("Assets", "Liabilities")
 
 
 def _find(roots: list[Node], account_id: UUID) -> Node | None:
     return next((n for root in roots for n in root.walk() if n.account.id == account_id), None)
-
-
-def _parent_options(roots: list[Node]) -> list[Node]:
-    """Accounts a new one may be made in: the built-in Opening Balances holds none, and a parent must leave room for it
-    within two levels."""
-    return [n for root in roots for n in root.walk() if n.kind != "system" and n.depth + 1 <= MAX_ACCOUNT_DEPTH]
 
 
 def _starts(roots: list[Node]) -> dict[UUID, str]:
@@ -65,7 +58,6 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 
 
 # Where the money is (the Accounts page); where it goes and comes from is a category (the Categories page).
-ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
 
 
 # What a new group can hold, as the form words it, and the type it sits under.
@@ -274,7 +266,7 @@ def quick_account_sheet(request: Request, accounts: Accounts, categories: Catego
         "partials/quick_account.html",
         {
             "parent_id": suggested,
-            "parent_options": _parent_options(roots),
+            "parent_options": parent_options(roots),
             "roots_by_id": {n.account.id: r.account.name for r in roots for n in r.walk()},
             "currency": accounts.currency().code,
         },

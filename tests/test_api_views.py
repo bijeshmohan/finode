@@ -245,7 +245,12 @@ def form_view(client, **params):
 
 def test_a_blank_form(client, books):
     seen = form_view(client)
-    assert (seen["editing"], seen["kind"], seen["date"], seen["simple"]) == (False, "expense", TODAY.isoformat(), True)
+    assert (seen["editing"], seen["kind"], seen["date"], seen["mode"]) == (
+        False,
+        "expense",
+        TODAY.isoformat(),
+        "simple",
+    )
     assert [r["choice"] for r in seen["from_rows"]] == [None] and [r["choice"] for r in seen["to_rows"]] == [None]
     titles = [g["title"] for g in seen["groups"]]
     assert "Assets" in titles and "Expenses" in titles and "Income" in titles
@@ -279,9 +284,9 @@ def test_repeat_and_related(client, books):
     )
 
 
-def test_editing_a_simple_and_a_split_entry(client, books):
+def test_editing_an_entry_with_one_line_and_with_several(client, books):
     simple = form_view(client, transaction_id=spend(client, books, amount="30")["id"])
-    assert simple["editing"] is True and simple["simple"] is True and simple["total"] == "30.00"
+    assert simple["editing"] is True and simple["mode"] == "simple" and simple["total"] == "30.00"
     split = client.post(
         "/api/transactions/",
         json={
@@ -292,7 +297,8 @@ def test_editing_a_simple_and_a_split_entry(client, books):
             ]
         },
     ).json()
-    assert form_view(client, transaction_id=split["id"])["simple"] is False
+    several = form_view(client, transaction_id=split["id"])
+    assert several["mode"] == "simple" and len(several["to_rows"]) == 2
 
 
 def test_a_loan_opens_with_the_person_on_its_row(client, books):

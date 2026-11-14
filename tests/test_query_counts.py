@@ -30,7 +30,7 @@ PAGES = [
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
 CEILING = {
     "/transactions/new": 4,
-    "/api/views/entry-form": 4,  # the Add screen's own reads, for the finode app  # + the categories
+    "/api/views/entry-form": 4,  # the Add screen's own reads, for the finode app
     "/transactions": 12,  # + the categories (their names for the rows) + the tags of the rows shown (one query, whatever the number of rows)
     "/api/views/transactions": 12,  # the Transactions page's own reads, for the finode app
     "/": 15,
@@ -591,3 +591,53 @@ def test_a_backup_does_not_read_once_per_shared_bill(client, root_accounts, sess
     assert many <= few, f"a backup reads more as there are more shared bills: {few} -> {many}"
     bills = client.get("/api/backup").json()["shared_expenses"]
     assert len(bills) == 7 and all(len(b["shares"]) == 2 and len(b["contributions"]) == 1 for b in bills)
+
+
+# The Add screen's other views, for the finode app, with what each asks today and one to spare. Editing a bill shared
+# with people reads the entry, who it was made with (people, their accounts), the bill with its shares and payments,
+# the gift and related entry, then the picker groups; the related picker reads the newest entries and their names; the
+# Split's preview reads the people, the accounts and the category it names. None of them asks per row or per person.
+SHARE_CEILING = {"edit": 16, "related": 7, "preview": 7}
+
+
+def test_the_add_screens_other_views_do_not_grow_with_the_books(client, root_accounts, count_queries):
+    def shared_bill():
+        bank = post_account(client, {"name": f"Bank{len(made)}", "parent_id": root_accounts["Assets"]}).json()
+        food = category(client, f"Food{len(made)}")
+        ada = client.post("/api/contacts/", json={"name": f"Ada{len(made)}"}).json()
+        body = {
+            "kind": "expense",
+            "total": "900",
+            "share": {
+                "kind": "expense",
+                "category_id": food["id"],
+                "account_id": bank["id"],
+                "people": [{"contact_id": ada["id"]}],
+            },
+        }
+        saved = client.post("/api/entries", json=body)
+        assert saved.status_code == 201, saved.text
+        made.append((saved.json()["transaction_id"], body))
+
+    made: list = []
+
+    def counts():
+        transaction_id, body = made[-1]
+        return {
+            "edit": count_queries(
+                lambda: client.get("/api/views/entry-form", params={"transaction_id": transaction_id})
+            ),
+            "related": count_queries(lambda: client.get("/api/views/related-entries")),
+            "preview": count_queries(lambda: client.post("/api/views/entry-share-preview", json=body)),
+        }
+
+    grow(client, root_accounts, accounts=10, transactions=10)
+    shared_bill()
+    small = counts()
+    grow(client, root_accounts, accounts=40, transactions=40, start=10)
+    for _ in range(5):
+        shared_bill()
+    large = counts()
+    for view in SHARE_CEILING:
+        assert large[view] <= small[view], f"{view} asks more often as the books grow: {small[view]} -> {large[view]}"
+        assert large[view] <= SHARE_CEILING[view], f"{view} makes {large[view]} queries"

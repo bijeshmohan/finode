@@ -156,7 +156,9 @@ class EntryService:
         )
         return EntrySaved(transaction_id=income.transaction_id, recorded="income-shared")
 
-    def _update_shared(self, transaction_id: UUID, form: EntryForm, people: set[UUID], purposes: set[str]) -> EntrySaved:
+    def _update_shared(
+        self, transaction_id: UUID, form: EntryForm, people: set[UUID], purposes: set[str]
+    ) -> EntrySaved:
         comment = (form.comment or "").strip() or None
         if form.date is None:  # without one, the entry keeps its own (as an ordinary edit does)
             entry = self.transactions.read(transaction_id)
