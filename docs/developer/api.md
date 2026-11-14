@@ -145,6 +145,17 @@ A contact is a person you lend to, borrow from or share costs with. It is not an
 | `DELETE` | `/transactions/{transaction_id}` | Delete a transaction for good (finode keeps no history). With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go. |
 | `GET` | `/transactions/{transaction_id}/related` | The entries that are related to this one (refunds, reversals), oldest first. |
 
+## Entries
+
+What the finode app's Add screen saves: the entry as the person chose it, rows naming an account, a category or a person.
+The server decides what that records, exactly as for the web form (`services/entry.py`). `/transactions` stays the
+ledger's own, line by line, for scripts and tools.
+
+| Method | Path | What it does |
+|---|---|---|
+| `POST` | `/entries` | Record an entry: `kind`, `date`, `payee`, `comment`, `tags`, `related_id`, `payee_contact` (a person named after `@`: a gift, nothing owed) and `rows` (`choice`, `side`, `amount`, `category_id` for a payment into a loan or fund, `posted_on`). A category posts on Expenses or Income with it; a person on a transfer is a loan or a borrowing, paying back what is owed first (`recorded: transfer`). 400 with the reason when refused. |
+| `PUT` | `/entries/{transaction_id}` | Change an entry into what the form now says, releasing what it was first (a loan, a gift, a shared bill or income), all of it or nothing. |
+
 ## Tags
 
 | Method | Path | What it does |

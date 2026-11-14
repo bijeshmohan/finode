@@ -2515,6 +2515,176 @@
         "title": "DayTotal",
         "type": "object"
       },
+      "EntryForm": {
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "kind": {
+            "default": "other",
+            "enum": [
+              "expense",
+              "income",
+              "transfer",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "payee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee"
+          },
+          "payee_contact": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee Contact"
+          },
+          "related_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Id"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/EntryRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "EntryForm",
+        "type": "object"
+      },
+      "EntryRow": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "choice": {
+            "format": "uuid",
+            "title": "Choice",
+            "type": "string"
+          },
+          "posted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted On"
+          },
+          "side": {
+            "$ref": "#/components/schemas/PostingSide"
+          }
+        },
+        "required": [
+          "choice",
+          "side",
+          "amount"
+        ],
+        "title": "EntryRow",
+        "type": "object"
+      },
+      "EntrySaved": {
+        "properties": {
+          "recorded": {
+            "enum": [
+              "transaction",
+              "transfer"
+            ],
+            "title": "Recorded",
+            "type": "string"
+          },
+          "transaction_id": {
+            "format": "uuid",
+            "title": "Transaction Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "recorded"
+        ],
+        "title": "EntrySaved",
+        "type": "object"
+      },
       "ExpensePreview": {
         "properties": {
           "category_id": {
@@ -10498,6 +10668,112 @@
         "summary": "Delete Account",
         "tags": [
           "data"
+        ]
+      }
+    },
+    "/api/entries": {
+      "post": {
+        "description": "Record what the Add screen says. A category on a row posts on Expenses or Income with it; a person on a transfer is\na loan or a borrowing (paying back what is owed first); `payee_contact` names a person as a gift.",
+        "operationId": "create_entry_api_entries_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntrySaved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Entry",
+        "tags": [
+          "entries"
+        ]
+      }
+    },
+    "/api/entries/{transaction_id}": {
+      "put": {
+        "description": "Change an entry into what the Add screen now says, releasing what it was (a loan, a shared bill) first; all of it\nor nothing.",
+        "operationId": "update_entry_api_entries__transaction_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Transaction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntrySaved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Entry",
+        "tags": [
+          "entries"
         ]
       }
     },
