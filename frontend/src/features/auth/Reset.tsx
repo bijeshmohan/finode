@@ -14,7 +14,8 @@ import { FormError, Stack, SubmitButton, TextField } from "./fields";
 import { codeOf, messageOf } from "../../api/messages";
 import { MIN_PASSWORD_LENGTH, RULES } from "./rules";
 import { WithOptions } from "./options";
-import { forgetPreviousSession, useSubmitOnce } from "./session";
+import { useSubmitOnce } from "../../api/useSubmitOnce";
+import { forgetPreviousSession } from "./session";
 
 const PASSWORD_CHANGED = "Your password was changed. You are signed in.";
 
@@ -75,7 +76,9 @@ function ResetForm({ tokenHash }: { tokenHash: string }) {
       <FormError message={reset.isError ? messageOf(reset.error) : null} />
       <Stack
         onSubmit={() => {
-          void handleSubmit(submit)();
+          void handleSubmit((body) => {
+            submit(body);
+          })();
         }}
       >
         <TextField

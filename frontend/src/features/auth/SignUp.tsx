@@ -12,7 +12,8 @@ import { CheckField, FormError, Stack, SubmitButton, SwitchLine, TextField } fro
 import { messageOf } from "../../api/messages";
 import { MIN_PASSWORD_LENGTH, RULES } from "./rules";
 import { WithOptions } from "./options";
-import { forgetPreviousSession, useSubmitOnce } from "./session";
+import { useSubmitOnce } from "../../api/useSubmitOnce";
+import { forgetPreviousSession } from "./session";
 import { TestNotice } from "./TestNotice";
 
 const TICK = "Please read the notice and tick the box to continue.";
@@ -73,7 +74,9 @@ function SignUpForm({ testNotice }: { testNotice: boolean }) {
       <FormError message={signUp.isError ? messageOf(signUp.error) : null} />
       <Stack
         onSubmit={() => {
-          void handleSubmit(submit)();
+          void handleSubmit((body) => {
+            submit(body);
+          })();
         }}
       >
         <TextField

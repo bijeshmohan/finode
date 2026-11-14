@@ -8,10 +8,18 @@ import { describe, expect, it } from "vitest";
 import type { Grouping } from "../lib/amount";
 import { AmountField } from "./AmountField";
 
-function Field({ places = 2, grouping = "indian" as Grouping }) {
-  const [value, setValue] = useState("");
+function Field({ places = 2, grouping = "indian" as Grouping, start = "", groupAsTyped = false }) {
+  const [value, setValue] = useState(start);
   return (
-    <AmountField id="amount" label="Amount" value={value} onChange={setValue} places={places} grouping={grouping} />
+    <AmountField
+      id="amount"
+      label="Amount"
+      value={value}
+      onChange={setValue}
+      places={places}
+      grouping={grouping}
+      groupAsTyped={groupAsTyped}
+    />
   );
 }
 
@@ -45,5 +53,24 @@ describe("AmountField", () => {
     // jsdom does not apply CSS modules, so the rule itself is read (Vitest runs from frontend/).
     const css = readFileSync("src/components/AmountField.module.css", "utf8");
     expect(css).toMatch(/\.input \{[^}]*font-size: max\(16px, 1rem\)/);
+  });
+
+  it("a letter typed in the middle is dropped and the cursor stays where it was", async () => {
+    render(<Field start="1,234" />);
+    const field = screen.getByLabelText<HTMLInputElement>("Amount");
+    await userEvent.type(field, "a", { initialSelectionStart: 2, initialSelectionEnd: 2 });
+    expect(field).toHaveValue("1,234");
+    expect(field.selectionStart).toBe(2);
+  });
+
+  it("can group as it is typed, keeping the cursor after the same digits", async () => {
+    render(<Field groupAsTyped />);
+    const field = screen.getByLabelText<HTMLInputElement>("Amount");
+    await userEvent.type(field, "1234567");
+    expect(field).toHaveValue("12,34,567");
+    expect(field.selectionStart).toBe("12,34,567".length);
+    await userEvent.type(field, "8", { initialSelectionStart: 1, initialSelectionEnd: 1 });
+    expect(field).toHaveValue("1,82,34,567");
+    expect(field.selectionStart).toBe(3);
   });
 });

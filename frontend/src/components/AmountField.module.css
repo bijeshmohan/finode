@@ -24,3 +24,19 @@
 .input::placeholder {
   color: var(--faint);
 }
+/* The Add screen's amount: large and centred, its grey 0.00 kept while empty (the .total-field rules). */
+.big .input {
+  font-size: 3.75rem;
+  font-weight: 650;
+  font-stretch: 75%;
+  letter-spacing: -0.025em;
+  text-align: center;
+  line-height: 1.1;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.big .input::placeholder {
+  color: var(--faint);
+  opacity: 0.55;
+}

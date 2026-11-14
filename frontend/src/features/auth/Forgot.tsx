@@ -13,7 +13,7 @@ import { FormError, Notice, Stack, SubmitButton, SwitchLine, TextField } from ".
 import { messageOf } from "../../api/messages";
 import { RULES } from "./rules";
 import { WithOptions } from "./options";
-import { useSubmitOnce } from "./session";
+import { useSubmitOnce } from "../../api/useSubmitOnce";
 
 const form = z.object({ email: z.string().trim().includes("@", { message: RULES.email }) });
 type Form = z.infer<typeof form>;
@@ -65,7 +65,9 @@ function ForgotForm() {
           <FormError message={send.isError ? messageOf(send.error) : handedOver} />
           <Stack
             onSubmit={() => {
-              void handleSubmit(submit)();
+              void handleSubmit((body) => {
+                submit(body);
+              })();
             }}
           >
             <TextField

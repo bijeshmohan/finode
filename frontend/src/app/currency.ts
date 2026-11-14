@@ -17,3 +17,21 @@ export function useCurrency(): string | null {
 export function useGrouping(): Grouping {
   return groupingFor(useCurrency());
 }
+
+/** How many decimals the person's currency keeps (2 for rupees, 0 for yen). */
+export function usePlaces(): number {
+  const api = useApi();
+  const code = useCurrency();
+  const currencies = useQuery({
+    queryKey: ["currencies"],
+    queryFn: () => data(api.GET("/api/profile/currencies")),
+    staleTime: Infinity,
+  });
+  return currencies.data?.find((c) => c.code === code)?.decimals ?? 2;
+}
+
+/** The sign written beside an amount: ₹ for rupees, else the code. */
+export function useSymbol(): string {
+  const code = useCurrency();
+  return code === "INR" ? "₹" : (code ?? "");
+}

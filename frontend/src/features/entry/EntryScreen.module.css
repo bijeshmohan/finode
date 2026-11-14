@@ -1,0 +1,174 @@
+/* The Add screen of app/static/style.css: .back, .segmented.kinds, .total-field, .txn-side, .txn-swap, the row picker,
+   .form-actions and .danger-zone. */
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.kinds {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--surface-2);
+  border-radius: 999px;
+}
+.kinds button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 2.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.kinds button[aria-pressed="true"] {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.total {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.symbol {
+  padding-bottom: 1rem;
+  font-size: 2rem;
+  font-weight: 500;
+}
+.code {
+  padding-bottom: 1.2rem;
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+}
+.sideTitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.rowPick,
+.rowCategory {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.rowPick :global(.icon) {
+  width: 1rem;
+  height: 1rem;
+  color: var(--faint);
+}
+.rowCategory {
+  border-top: 1px solid var(--surface-2);
+  font-weight: 400;
+}
+.rowCategory > span:first-child {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.placeholder {
+  color: var(--faint);
+}
+.swapRow {
+  position: relative;
+  height: 0;
+  margin-block: -0.5rem;
+  z-index: 2;
+}
+.swap {
+  position: absolute;
+  left: 50%;
+  top: -1.125rem;
+  margin-left: -1.125rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  color: var(--muted);
+  cursor: pointer;
+}
+.swap :global(.icon) {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.error {
+  margin: 0;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+}
+.actions {
+  display: flex;
+}
+.primary {
+  flex: 1;
+  min-height: 3.125rem;
+  border: 0;
+  border-radius: 999px;
+  color: var(--on-accent);
+  background: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.55;
+}
+.danger {
+  margin-top: 2rem;
+}
+.dangerButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--tap);
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--danger);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
