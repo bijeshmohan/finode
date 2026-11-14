@@ -201,8 +201,9 @@ def signed_in_spa_page(spa_page: Page, spa_server: str) -> Page:
 class Api:
     """Set data up through the JSON API, as the signed-in test user."""
 
-    def __init__(self, page: Page):
+    def __init__(self, page: Page, headers: dict[str, str] | None = None):
         self.request = page.request
+        self.headers = headers or {}
 
     def post(self, path: str, **body):
         if path == "/accounts/":  # an "account" under Expenses or Income (or inside a category) is a category
@@ -214,17 +215,17 @@ class Api:
                 send = {"name": body["name"], "kind": kind, **({"parent_id": parent} if parent in kinds else {})}
                 made = self.post("/categories/", **send)
                 return {**made, "id": made["id"]}
-        response = self.request.post(f"/api{path}", data=body)
+        response = self.request.post(f"/api{path}", data=body, headers=self.headers)
         assert response.ok, f"{path}: {response.status} {response.text()}"
         return response.json()
 
     def put(self, path: str, **body):
-        response = self.request.put(f"/api{path}", data=body)
+        response = self.request.put(f"/api{path}", data=body, headers=self.headers)
         assert response.ok, f"{path}: {response.status} {response.text()}"
         return response.json()
 
     def delete(self, path: str):
-        response = self.request.delete(f"/api{path}")
+        response = self.request.delete(f"/api{path}", headers=self.headers)
         assert response.ok, f"{path}: {response.status} {response.text()}"
 
     def get(self, path: str):
@@ -272,6 +273,22 @@ def api(page: Page) -> Api:
 @pytest.fixture
 def books(api: Api) -> dict:
     """A small set of accounts, all directly under their type so pickers show plain names."""
+    return make_books(api)
+
+
+@pytest.fixture
+def spa_api(signed_in_spa_page: Page, spa_server: str) -> Api:
+    """The JSON API as the React app's signed-in person: the cookie, and the app's header and origin for changes."""
+    return Api(signed_in_spa_page, headers={"X-Finode": "1", "Origin": spa_server})
+
+
+@pytest.fixture
+def spa_books(spa_api: Api) -> dict:
+    """The same accounts as `books`, for the React app's tests."""
+    return make_books(spa_api)
+
+
+def make_books(api: Api) -> dict:
     roots = {a["name"]: a["id"] for a in api.get("/accounts/") if a["parent_id"] is None}
     return {
         "checking": api.post("/accounts/", name="Checking", parent_id=roots["Assets"], balance="5000"),

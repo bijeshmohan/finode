@@ -22,6 +22,9 @@ export interface ListFilters {
   kind?: string;
 }
 
+/** How many entries a page of the list asks for (a page can hold more: a day is never split). */
+export const PAGE_SIZE = 25;
+
 /** Every view's cached answer starts with this, so a change to the books refreshes them all. */
 export const VIEWS = ["views"] as const;
 
@@ -30,7 +33,11 @@ export function useTransactionsPages(filters: ListFilters) {
   return useInfiniteQuery({
     queryKey: [...VIEWS, "transactions", filters],
     queryFn: ({ pageParam }) =>
-      data(api.GET("/api/views/transactions", { params: { query: { ...filters, offset: pageParam } } })),
+      data(
+        api.GET("/api/views/transactions", {
+          params: { query: { ...filters, offset: pageParam, limit: PAGE_SIZE } },
+        }),
+      ),
     initialPageParam: 0,
     // A page holds whole days: the next one starts after the rows already shown.
     getNextPageParam: (last, pages) => {
