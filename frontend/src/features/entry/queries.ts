@@ -63,3 +63,29 @@ export function useSharePreview(ask: SharePreviewAsk | null) {
     retry: false,
   });
 }
+
+export type ParentOption = components["schemas"]["ParentOption"];
+export type CategoryParent = components["schemas"]["CategoryParent"];
+
+/** Make an account or a category from the Add screen's picker; every view is refreshed, so the pickers list it. */
+export function useAddAccount() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: components["schemas"]["AccountCreate"]) => data(api.POST("/api/accounts/", { body })),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: VIEWS });
+    },
+  });
+}
+
+export function useAddCategory() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: components["schemas"]["CategoryCreate"]) => data(api.POST("/api/categories/", { body })),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: VIEWS });
+    },
+  });
+}

@@ -338,3 +338,30 @@ def test_repeat_and_edit_from_the_sheet(signed_in_spa_page: Page, spa_books, spa
     page.get_by_role("dialog", name="Transaction details").get_by_role("link", name="Edit", exact=True).click()
     page.wait_for_url(re.compile(r"/edit$"))
     expect(page.get_by_placeholder("Payee or Merchant?")).to_have_value("DMart")
+
+
+def test_a_new_account_can_be_made_from_the_sheet(signed_in_spa_page: Page, spa_books, spa_api: Api):
+    page = signed_in_spa_page
+    page.goto("/transactions/new")
+    side(page, "Paid from").click()
+    page.get_by_role("dialog", name="Paid from").get_by_role("button", name="＋ New account").click()
+    sheet = page.get_by_role("dialog", name="New account")
+    expect(sheet).to_be_visible()
+    sheet.get_by_label("Name").fill("Kotak")
+    sheet.get_by_role("button", name="Add account").click()
+    expect(sheet).to_have_count(0)
+    expect(side(page, "Paid from")).to_contain_text("Kotak")
+    assert any(a["name"] == "Kotak" for a in spa_api.get("/accounts/"))
+
+
+def test_adding_a_category_from_the_picker(signed_in_spa_page: Page, spa_books, spa_api: Api):
+    page = signed_in_spa_page
+    page.goto("/transactions/new")
+    side(page, "Spent on").click()
+    page.get_by_role("dialog", name="Spent on").get_by_role("button", name="＋ New category").click()
+    sheet = page.get_by_role("dialog", name="New category")
+    sheet.get_by_label("Name").fill("Coffee")
+    sheet.get_by_role("button", name="Add category").click()
+    expect(sheet).to_have_count(0)
+    expect(side(page, "Spent on")).to_contain_text("Coffee")
+    assert any(c["name"] == "Coffee" for c in spa_api.get("/categories/"))
