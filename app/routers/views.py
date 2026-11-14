@@ -569,6 +569,7 @@ def category_view(category_id: UUID, categories: Categories, reports: Reports, m
         own_here=page.own_here,
         can_add_child=page.can_add_child,
         can_delete=category.system_key is None and category.closed_on is None,
+        new_transaction_url=page.new_transaction_url,
         entries=[register_read(r) for r in page.entries],
     )
 

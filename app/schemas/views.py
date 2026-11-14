@@ -401,6 +401,8 @@ class CategoryView(BaseModel):
     own_here: Decimal
     can_add_child: bool
     can_delete: bool
+    # Where the bar's "+" starts an entry on this page (for this category, coming back here); none once it is closed.
+    new_transaction_url: str | None
     entries: list[RegisterRowRead]
 
 

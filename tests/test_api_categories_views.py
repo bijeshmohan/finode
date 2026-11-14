@@ -48,6 +48,8 @@ def test_a_groups_page(client, books):
     assert [(s["name"], s["total"]) for s in seen["subs"]] == [("Groceries", "300.00"), ("Dining", "0.00")]
     assert [r["amount"] for r in seen["entries"]] == ["50.00"], "only what was labelled with the group itself"
     assert seen["can_add_child"] is True and seen["can_delete"] is True and seen["group"] is None
+    food = books["food"]["id"]
+    assert seen["new_transaction_url"] == f"/transactions/new?category={food}&back=/categories/{food}"
     plain = view(client, f"/api/views/categories/{books['dining']['id']}")
     assert (
         plain["subs"] == []
@@ -58,6 +60,16 @@ def test_a_groups_page(client, books):
             "name": "Food",
         }
     )
+
+
+def test_a_closed_category_starts_no_entry(client, books):
+    assert client.post(f"/api/categories/{books['travel']['id']}/delete").status_code == 200
+    seen = client.get(f"/api/views/categories/{books['travel']['id']}")
+    assert seen.status_code in (200, 404)
+    rent = books["rent"]["id"]
+    entry(client, books["rent"], books["bank"], "10", THIS_MONTH)
+    assert client.post(f"/api/categories/{rent}/delete").status_code == 200
+    assert view(client, f"/api/views/categories/{rent}")["new_transaction_url"] is None
 
 
 def test_an_entry_on_a_category_page(client, books):

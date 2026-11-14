@@ -90,6 +90,43 @@ describe("a category's page", () => {
     });
   });
 
+  it("deleting an unused category does not ask for its page again", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    let deleted = false;
+    let asked = 0;
+    const { router } = renderApp(`/categories/${ids.food}`, {
+      ...SIGNED_IN,
+      [path]: () => {
+        asked += 1;
+        return deleted ? [404, { detail: "category not found" }] : [200, category({ subs: [] })];
+      },
+      [`/api/categories/${ids.food}/delete`]: () => {
+        deleted = true;
+        return [200, { outcome: "deleted" }];
+      },
+      "/api/views/categories": [200, categories()],
+    });
+    await userEvent.click(await screen.findByLabelText("More actions"));
+    await userEvent.click(screen.getByRole("button", { name: "Delete category" }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/categories");
+    });
+    expect(asked).toBe(1);
+  });
+
+  it("the + starts an entry for the category as the server says", async () => {
+    renderApp(`/categories/${ids.food}`, {
+      ...SIGNED_IN,
+      [path]: [200, category({ new_transaction_url: "/transactions/new?category=x&back=/categories/x" })],
+    });
+    await screen.findByRole("heading", { level: 1, name: "Food" });
+    const tabs = screen.getByRole("navigation", { name: "Tab bar" });
+    expect(within(tabs).getByRole("link", { name: "New transaction" })).toHaveAttribute(
+      "href",
+      "/transactions/new?category=x&back=/categories/x",
+    );
+  });
+
   it("a deleted category can be restored", async () => {
     const { fetch } = renderApp(`/categories/${ids.food}`, {
       ...SIGNED_IN,

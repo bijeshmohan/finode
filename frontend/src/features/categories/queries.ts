@@ -57,7 +57,11 @@ export function useCategoryChange() {
       return data(api.POST("/api/categories/{category_id}/reopen", path));
     },
     onSuccess: async (_answer, change) => {
-      if (change.action === "delete") queryClient.removeQueries({ queryKey: [...VIEWS, "category-form"] });
+      if (change.action === "delete") {
+        // An unused category is gone for good: its own views are dropped, not asked for again ("not found").
+        queryClient.removeQueries({ queryKey: [...VIEWS, "category", change.id] });
+        queryClient.removeQueries({ queryKey: [...VIEWS, "category-form"] });
+      }
       await queryClient.invalidateQueries({ queryKey: VIEWS });
     },
   });

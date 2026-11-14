@@ -38,6 +38,7 @@ export function category(over: Partial<CategoryView> = {}): CategoryView {
     own_here: "50.00",
     can_add_child: true,
     can_delete: true,
+    new_transaction_url: `/transactions/new?category=${ids.food}&back=/categories/${ids.food}`,
     entries: [],
     ...over,
   };

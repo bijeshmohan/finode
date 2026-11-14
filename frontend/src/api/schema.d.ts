@@ -3097,6 +3097,8 @@ export interface components {
             month: string;
             /** Name */
             name: string;
+            /** New Transaction Url */
+            new_transaction_url: string | null;
             /** Own Here */
             own_here: string;
             /** Subs */

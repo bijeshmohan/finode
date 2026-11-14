@@ -137,7 +137,7 @@ export function CategoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [openId, openEntry, closeEntry] = useOpenEntry();
   const view = query.data;
-  useNewEntryHere(view && !view.closed_on ? `/transactions/new?category=${view.id}&back=/categories/${view.id}` : null);
+  useNewEntryHere(view?.new_transaction_url ?? null);
 
   if (query.isError) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
   if (!view) return <h1 className="sr-only">Category</h1>;
