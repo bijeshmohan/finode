@@ -1070,6 +1070,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Entry
+         * @description Record what the Add screen says. A category on a row posts on Expenses or Income with it; a person on a transfer is
+         *     a loan or a borrowing (paying back what is owed first); `payee_contact` names a person as a gift.
+         */
+        post: operations["create_entry_api_entries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/entries/{transaction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Entry
+         * @description Change an entry into what the Add screen now says, releasing what it was (a loan, a shared bill) first; all of it
+         *     or nothing.
+         */
+        put: operations["update_entry_api_entries__transaction_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/erase": {
         parameters: {
             query?: never;
@@ -2898,6 +2940,57 @@ export interface components {
             date: string;
             /** Spent */
             spent: string;
+        };
+        /** EntryForm */
+        EntryForm: {
+            /** Comment */
+            comment?: string | null;
+            /** Date */
+            date?: string | null;
+            /**
+             * Kind
+             * @default other
+             * @enum {string}
+             */
+            kind: "expense" | "income" | "transfer" | "other";
+            /** Payee */
+            payee?: string | null;
+            /** Payee Contact */
+            payee_contact?: string | null;
+            /** Related Id */
+            related_id?: string | null;
+            /** Rows */
+            rows: components["schemas"]["EntryRow"][];
+            /** Tags */
+            tags?: string[];
+        };
+        /** EntryRow */
+        EntryRow: {
+            /** Amount */
+            amount: number | string;
+            /** Category Id */
+            category_id?: string | null;
+            /**
+             * Choice
+             * Format: uuid
+             */
+            choice: string;
+            /** Posted On */
+            posted_on?: string | null;
+            side: components["schemas"]["PostingSide"];
+        };
+        /** EntrySaved */
+        EntrySaved: {
+            /**
+             * Recorded
+             * @enum {string}
+             */
+            recorded: "transaction" | "transfer";
+            /**
+             * Transaction Id
+             * Format: uuid
+             */
+            transaction_id: string;
         };
         /** ExpensePreview */
         ExpensePreview: {
@@ -6528,6 +6621,74 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_entry_api_entries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntryForm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntrySaved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_entry_api_entries__transaction_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntryForm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntrySaved"];
+                };
             };
             /** @description Validation Error */
             422: {

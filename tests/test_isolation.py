@@ -168,6 +168,7 @@ REFERENCES = {
     ("POST", "/profile"),
     ("POST", "/profile/assistants"),
     ("POST", "/api/assistants/tokens"),
+    ("POST", "/api/entries"),
     ("POST", "/recurring"),
     ("POST", "/restore"),
     ("POST", "/restore/preview"),
