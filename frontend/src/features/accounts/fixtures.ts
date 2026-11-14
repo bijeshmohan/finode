@@ -1,4 +1,5 @@
 // The Accounts views as the server answers them, for the tests.
+import type { components } from "../../api/schema";
 import type { AccountCardData, AccountsView, AccountView } from "./queries";
 
 export const ids = {
@@ -107,6 +108,43 @@ export function entry(id: string, over: Partial<AccountView["entries"][number]> 
     inflow: false,
     negative: false,
     balance: "4970.00",
+    ...over,
+  };
+}
+
+export const kinds = {
+  banks: { id: ids.banks, name: "Banks", root: "Assets", can_budget: true, can_bill: false, budget_default: true },
+  loans: {
+    id: "00000000-0000-4000-8000-00000000c10a",
+    name: "Loans",
+    root: "Liabilities",
+    can_budget: true,
+    can_bill: true,
+    budget_default: false,
+  },
+};
+
+export function accountForm(
+  over: Partial<components["schemas"]["AccountFormView"]> = {},
+): components["schemas"]["AccountFormView"] {
+  return {
+    editing: false,
+    is_group: false,
+    name: "",
+    details: null,
+    balance: null,
+    parent_id: null,
+    kinds: [kinds.banks, kinds.loans],
+    placed: null,
+    parent_options: [kinds.banks, kinds.loans],
+    root_name: null,
+    can_budget: false,
+    can_bill: false,
+    on_budget: false,
+    statement_day: null,
+    due_day: null,
+    bill_rounding: "none",
+    new_accounts_in_budget: null,
     ...over,
   };
 }

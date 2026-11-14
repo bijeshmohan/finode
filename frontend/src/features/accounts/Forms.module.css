@@ -1,0 +1,243 @@
+/* The account, group and category forms (.card.stack.form-narrow, label, input, select, .chips, label.check-row,
+   .bill-days, details.add-note, .danger-zone in app/static/style.css). */
+.title {
+  margin: 0 0 1rem;
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  max-width: 36rem;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.form label,
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.form input:not([type="checkbox"]):not([type="radio"]),
+.form select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  caret-color: var(--text);
+  font: inherit;
+  font-size: max(16px, 1rem);
+  font-weight: 400;
+}
+.hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+}
+.chip {
+  min-height: 2.25rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .chip:hover {
+    background: var(--surface-2);
+  }
+}
+.chip[aria-pressed="true"] {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.inside {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text);
+}
+.form label.check {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: var(--tap);
+  padding: 0.15rem 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+.check > span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.check input[type="checkbox"] {
+  flex: none;
+  width: 2.75rem;
+  height: 1.6rem;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  appearance: none;
+  background: var(--field-border) radial-gradient(circle closest-side, var(--surface) 96%, transparent) no-repeat 0.2rem
+    center / 1.2rem 1.2rem;
+  transition:
+    background-color 0.15s ease,
+    background-position 0.15s ease;
+}
+.check input[type="checkbox"]:checked {
+  background-color: var(--accent);
+  background-image: radial-gradient(circle closest-side, var(--on-accent) 96%, transparent);
+  background-position: calc(100% - 0.2rem) center;
+}
+.check input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .check input[type="checkbox"] {
+    transition: none;
+  }
+}
+.billDays {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.billDays label:last-of-type {
+  grid-column: 1 / -1;
+}
+.note > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  color: var(--muted);
+  font-size: 0.9rem;
+  list-style: none;
+  cursor: pointer;
+}
+.note > summary::-webkit-details-marker {
+  display: none;
+}
+.note[open] > summary {
+  min-height: 0;
+  margin-bottom: 0.3rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.error {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0.5rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.55;
+}
+.danger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 36rem;
+  margin-top: 1.5rem;
+}
+.dangerButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--tap);
+  padding: 0.5rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--danger);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dangerButton :global(.icon) {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+.dangerHint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.seg {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.form .seg label {
+  display: grid;
+  place-items: center;
+  position: relative;
+  min-height: 2.25rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+}
+/* The radio is invisible and lets a tap through to its label, which ticks it (the keyboard still reaches it). */
+.seg input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.form .seg label:has(input:checked) {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.form .seg label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

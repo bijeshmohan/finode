@@ -6,8 +6,10 @@ import { EntryRoute } from "../features/entry/EntryRoute";
 import { Home } from "../features/home/Home";
 import { NotFound } from "../features/placeholder/NotFound";
 import { TransactionsPage } from "../features/transactions/TransactionsPage";
+import { AccountForm } from "../features/accounts/AccountForm";
 import { AccountPage } from "../features/accounts/AccountPage";
 import { AccountsPage } from "../features/accounts/AccountsPage";
+import { GroupForm } from "../features/accounts/GroupForm";
 import { Placeholder } from "../features/placeholder/Placeholder";
 import { Forgot } from "../features/auth/Forgot";
 import { Reset } from "../features/auth/Reset";
@@ -58,6 +60,9 @@ export const routes: RouteObject[] = [
           { path: "/transactions/new", element: <EntryRoute /> },
           { path: "/transactions/:transactionId/edit", element: <EntryRoute /> },
           { path: "/accounts", element: <AccountsPage /> },
+          { path: "/accounts/new", element: <AccountForm /> },
+          { path: "/accounts/new-group", element: <GroupForm /> },
+          { path: "/accounts/:accountId/edit", element: <AccountForm /> },
           { path: "/accounts/:accountId", element: <AccountPage /> },
           ...PAGES.map(([path, title]) => ({ path, element: <Placeholder title={title} /> })),
           { path: "*", element: <NotFound /> },
