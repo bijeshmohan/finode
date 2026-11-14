@@ -40,3 +40,38 @@ def plain(model):
     if isinstance(model, list):
         return [plain(m) for m in model]
     return json.loads(model.model_dump_json())
+
+
+def entries(session, user=TEST_USER_ID, origin="web"):
+    """The service that saves an entry from a form (services/entry.py), wired as app/dependencies.py wires it."""
+    from app.repositories.obligation import ObligationRepository
+    from app.repositories.shared_expense import SharedExpenseRepository
+    from app.services.contact import ContactService
+    from app.services.entry import EntryService
+    from app.services.expense_sharing import ExpenseSharingService
+    from app.services.income_sharing import IncomeSharingService
+    from app.services.obligation import ObligationService
+    from app.services.settlement import SettlementService
+    from app.services.transfer import TransferService
+
+    ar, tr, pr = (
+        AccountRepository(session, user),
+        TransactionRepository(session, user),
+        ProfileRepository(session, user),
+    )
+    accounts = AccountService(ar, tr, pr)
+    contacts = ContactService(accounts)
+    with_people = TransactionService(tr, ar, pr, origin=origin, contacts=True)
+    ob = ObligationRepository(session, user)
+    settlements = SettlementService(
+        contacts, with_people, ob, ObligationService(tr, ob), SharedExpenseRepository(session, user)
+    )
+    return EntryService(
+        transactions=TransactionService(tr, ar, pr, origin=origin),
+        accounts=accounts,
+        categories=CategoryService(accounts),
+        contacts=contacts,
+        transfers=TransferService(contacts, with_people, ob, settlements),
+        expenses=ExpenseSharingService(contacts, with_people, ob, SharedExpenseRepository(session, user)),
+        incomes=IncomeSharingService(contacts, with_people, ob),
+    )

@@ -33,6 +33,7 @@ from .services.backup import BackupService
 from .services.category import CategoryService
 from .services.contact import ContactService
 from .services.contact_summary import ContactSummaryService
+from .services.entry import EntryService
 from .services.erase import EraseService
 from .services.expense_sharing import ExpenseSharingService
 from .services.income_sharing import IncomeSharingService
@@ -274,6 +275,18 @@ def get_oauth_grant_service(
     return OAuthGrantService(OAuthGrantRepository(db, user.id))
 
 
+def get_entry_service(
+    transactions: TransactionService = Depends(get_transaction_service),
+    accounts: AccountService = Depends(get_account_service),
+    categories: CategoryService = Depends(get_category_service),
+    contacts: ContactService = Depends(get_contact_service),
+    transfers: TransferService = Depends(get_transfer_service),
+    expenses: ExpenseSharingService = Depends(get_expense_sharing_service),
+    incomes: IncomeSharingService = Depends(get_income_sharing_service),
+) -> EntryService:
+    return EntryService(transactions, accounts, categories, contacts, transfers, expenses, incomes)
+
+
 Accounts = Annotated[AccountService, Depends(get_account_service)]
 Categories = Annotated[CategoryService, Depends(get_category_service)]
 ContactSummaries = Annotated[ContactSummaryService, Depends(get_contact_summary_service)]
@@ -295,3 +308,4 @@ ComingUp = Annotated[ComingUpService, Depends(get_coming_up_service)]
 Todo = Annotated[TodoService, Depends(get_todo_service)]
 ApiTokens = Annotated[ApiTokenService, Depends(get_api_token_service)]
 OAuthGrants = Annotated[OAuthGrantService, Depends(get_oauth_grant_service)]
+Entries = Annotated[EntryService, Depends(get_entry_service)]
