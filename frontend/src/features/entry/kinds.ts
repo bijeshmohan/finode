@@ -63,3 +63,10 @@ export function rowCategoryShown(choice: string | null, other: string | null, gr
 export function labelOf(id: string | null, groups: PickGroup[]): string | null {
   return optionOf(id, groups)?.option.label ?? null;
 }
+
+/** Whether a choice is one of the person's accounts (not a category or a person): only an account posts on a day of
+ * its own. */
+export function isAccount(id: string | null, groups: PickGroup[]): boolean {
+  const found = optionOf(id, groups);
+  return found !== null && [...ACCOUNTS, "Equity"].includes(found.group);
+}

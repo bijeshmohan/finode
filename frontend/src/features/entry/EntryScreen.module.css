@@ -94,6 +94,86 @@
   height: 1rem;
   color: var(--faint);
 }
+/* A row: its picker button (name, posting day and amount when they differ: .rp-when, .rp-amt) and the settings
+   glyph at its right (.row-settings-open), with the category of a payment below. */
+.row {
+  display: flex;
+  flex-direction: column;
+}
+.rowLine {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.rowLine > .rowPick {
+  flex: 1;
+  min-width: 0;
+}
+.rowName {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.rowName > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowWhen {
+  flex: none;
+  color: var(--auto);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.rowAmount {
+  flex: none;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rowSettings {
+  flex: none;
+  position: relative;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--faint);
+}
+.rowSettings::before {
+  content: "";
+  position: absolute;
+  inset: 0.55rem;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h10M18 7h2M4 17h2M10 17h10'/%3E%3Ccircle cx='16' cy='7' r='2'/%3E%3Ccircle cx='8' cy='17' r='2'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h10M18 7h2M4 17h2M10 17h10'/%3E%3Ccircle cx='16' cy='7' r='2'/%3E%3Ccircle cx='8' cy='17' r='2'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.rowSettings.set {
+  background: var(--surface-2);
+  color: var(--text);
+}
+@media (hover: hover) {
+  .rowSettings:hover {
+    color: var(--text);
+  }
+}
+.status {
+  margin: 0;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
 .rowCategory {
   border-top: 1px solid var(--surface-2);
   font-weight: 400;

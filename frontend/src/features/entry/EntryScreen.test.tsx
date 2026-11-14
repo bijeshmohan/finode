@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -150,5 +150,100 @@ describe("the Add screen", () => {
     const rows = (await bodySent(fetch)).rows as { side: string; posted_on?: string | null }[];
     expect(rows.find((row) => row.side === "credit")?.posted_on).toBe("2026-11-02");
     expect(rows.find((row) => row.side === "debit")?.posted_on ?? null).toBeNull();
+  });
+});
+
+function nth(found: HTMLElement[], index: number): HTMLElement {
+  const element = found[index];
+  if (!element) throw new Error(`no element ${String(index)}`);
+  return element;
+}
+
+const INR: Answers = { "/api/profile/": [200, { default_currency: "INR" }] };
+
+async function settings(index: number, amount: string | null, date?: string) {
+  await userEvent.click(nth(screen.getAllByRole("button", { name: "Amount and date" }), index));
+  const sheet = await screen.findByRole("dialog");
+  if (amount !== null) {
+    const field = within(sheet).getByLabelText("Amount");
+    await userEvent.clear(field);
+    await userEvent.type(field, amount);
+  }
+  if (date !== undefined) fireEvent.change(within(sheet).getByLabelText("Date"), { target: { value: date } });
+  await userEvent.click(within(sheet).getByRole("button", { name: "Done" }));
+}
+
+describe("several lines on a side", () => {
+  it("typing less in a row adds a row with what is left", async () => {
+    await screenWith(view(), { ...SAVED, ...INR });
+    await userEvent.type(screen.getByLabelText("Amount"), "1000");
+    await choose("Paid from", "Bank");
+    await choose("Spent on", "Food");
+    await settings(1, "600");
+    const spent = screen.getAllByRole("button", { name: /^Spent on/ });
+    expect(spent).toHaveLength(2);
+    expect(spent[0]).toHaveTextContent("600.00");
+    expect(spent[1]).toHaveTextContent("400.00 left");
+  });
+
+  it("removing a row brings the remainder back to one row", async () => {
+    await screenWith(view(), { ...SAVED, ...INR });
+    await userEvent.type(screen.getByLabelText("Amount"), "1000");
+    await choose("Paid from", "Bank");
+    await choose("Spent on", "Food");
+    await settings(1, "600");
+    await userEvent.click(nth(screen.getAllByRole("button", { name: "Amount and date" }), 1));
+    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove" }));
+    const spent = screen.getAllByRole("button", { name: /^Spent on/ });
+    expect(spent).toHaveLength(1);
+    expect(spent[0]).not.toHaveTextContent("1,000.00");
+  });
+
+  it("several rows are sent, each with its amount and posting date", async () => {
+    const { fetch } = await screenWith(view(), { ...SAVED, ...INR });
+    await userEvent.type(screen.getByLabelText("Amount"), "1000");
+    await choose("Paid from", "Bank");
+    await choose("Spent on", "Food");
+    await settings(1, "600");
+    await userEvent.click(nth(screen.getAllByRole("button", { name: /^Spent on/ }), 1));
+    await userEvent.click(await screen.findByRole("button", { name: /EMI/ }));
+    await settings(0, null, "2026-11-20");
+    expect(screen.getByRole("button", { name: /^Paid from/ })).toHaveTextContent("Posts 20 Nov");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect((await bodySent(fetch)).rows).toEqual([
+      { choice: ids.bank, side: "credit", amount: "1000.00", category_id: null, posted_on: "2026-11-20" },
+      { choice: ids.food, side: "debit", amount: "600.00", category_id: null, posted_on: null },
+      { choice: ids.emi, side: "debit", amount: "400.00", category_id: null, posted_on: null },
+    ]);
+  });
+
+  it("a side that does not add up says so; Save still sends it and shows the server's refusal", async () => {
+    const { fetch } = await screenWith(view(), {
+      ...INR,
+      "/api/entries": [400, { detail: "debits (1,000.00) must equal credits (1,200.00)!" }],
+    });
+    await userEvent.type(screen.getByLabelText("Amount"), "1000");
+    await choose("Paid from", "Bank");
+    await choose("Spent on", "Food");
+    await settings(0, "1200");
+    expect(await screen.findByText("200.00 INR over")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("debits (1,000.00) must equal credits (1,200.00)!");
+    expect(calledPaths(fetch)).toContain("/api/entries");
+  });
+
+  it("the date is asked only on an account, and Remove only when the side has several rows", async () => {
+    await screenWith(view(), { ...SAVED, ...INR });
+    await userEvent.type(screen.getByLabelText("Amount"), "1000");
+    await choose("Paid from", "Bank");
+    await choose("Spent on", "Food");
+    await userEvent.click(nth(screen.getAllByRole("button", { name: "Amount and date" }), 0));
+    let sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByLabelText("Date")).toHaveValue("2026-11-13");
+    expect(within(sheet).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Done" }));
+    await userEvent.click(nth(screen.getAllByRole("button", { name: "Amount and date" }), 1));
+    sheet = await screen.findByRole("dialog");
+    expect(within(sheet).queryByLabelText("Date")).not.toBeInTheDocument();
   });
 });
