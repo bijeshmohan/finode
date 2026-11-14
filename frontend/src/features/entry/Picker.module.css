@@ -1,0 +1,63 @@
+/* The picker sheet of app/static/style.css (.pick-sheet): a search, the groups, each option's name and balance. */
+.search {
+  width: 100%;
+  min-height: var(--tap);
+  margin: 0 0 0.5rem;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: max(16px, 1rem);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+}
+.list {
+  max-height: 55vh;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.groupTitle {
+  margin: 0.9rem 0 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+}
+.option[aria-pressed="true"] {
+  font-weight: 600;
+}
+.option:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+.name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.under {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.balance {
+  flex: none;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

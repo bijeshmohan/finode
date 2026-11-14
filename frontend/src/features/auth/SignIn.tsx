@@ -11,8 +11,9 @@ import { AuthScreen } from "./AuthScreen";
 import { FormError, Notice, Stack, SubmitButton, SwitchLine, TextField } from "./fields";
 import { messageOf } from "../../api/messages";
 import { useAuthOptions } from "./options";
-import { safeNext } from "./safeNext";
-import { forgetPreviousSession, useSubmitOnce } from "./session";
+import { safeNext } from "../../lib/safeNext";
+import { useSubmitOnce } from "../../api/useSubmitOnce";
+import { forgetPreviousSession } from "./session";
 
 const form = z.object({ email: z.string().trim().min(1), password: z.string().min(1) });
 type Form = z.infer<typeof form>;
@@ -40,7 +41,9 @@ export function SignIn() {
       <FormError message={signIn.isError ? messageOf(signIn.error) : null} />
       <Stack
         onSubmit={() => {
-          void handleSubmit(submit)();
+          void handleSubmit((body) => {
+            submit(body);
+          })();
         }}
       >
         <TextField label="Email" type="email" autoComplete="username" startHere registration={register("email")} />
