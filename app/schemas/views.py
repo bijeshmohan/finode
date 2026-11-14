@@ -159,6 +159,3 @@ class HomeView(BaseModel):
     steps: list[StepRead] | None
     steps_done: int
     steps_total: int
-    rows: list[RowRead]
-    days: list[DayTotal]
-    total: int

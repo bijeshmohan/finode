@@ -7,6 +7,7 @@ import { Link, useSearchParams } from "react-router";
 import { useGrouping } from "../../app/currency";
 import { useToday } from "../../app/session";
 import { EmptyState } from "../../components/EmptyState";
+import { LoadError } from "../../components/LoadError";
 import { Icon } from "../../components/Icon";
 import { MonthPill } from "../../components/MonthPill";
 import { formatMoney } from "../../lib/money";
@@ -89,6 +90,7 @@ export function TransactionsPage() {
           }}
         />
       </div>
+      {list.isError && !first && <LoadError error={list.error} onRetry={() => void list.refetch()} />}
       {first?.error && (
         <p className={styles.error} role="alert">
           {first.error}
@@ -107,7 +109,7 @@ export function TransactionsPage() {
               <b>{first.total}</b> transaction{first.total === 1 ? "" : "s"}
             </>
           ) : (
-            "No transactions"
+            first && "No transactions"
           )}
         </span>
         <button

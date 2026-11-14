@@ -1,5 +1,5 @@
 // The Transactions screens' server data: a month's list a page at a time, one entry's details, and deleting.
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { data } from "../../api/client";
 import { useApi } from "../../api/context";
@@ -44,6 +44,9 @@ export function useTransactionsPages(filters: ListFilters) {
       const shown = pages.reduce((n, page) => n + page.rows.length, 0);
       return shown < last.total && last.rows.length > 0 ? shown : undefined;
     },
+    // Another month or filter shows the last answer until the new one is in (no flash of "No transactions", and the
+    // filters the page shows stay those in use).
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -63,8 +66,10 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: (id: string) =>
       data(api.DELETE("/api/transactions/{transaction_id}", { params: { path: { transaction_id: id } } })),
-    onSuccess: async () => {
+    onSuccess: async (_answer, id) => {
       toast("Transaction deleted");
+      // The deleted entry's own details are gone: dropped, not asked for again (that would answer "not found").
+      queryClient.removeQueries({ queryKey: [...VIEWS, "transaction", id] });
       await queryClient.invalidateQueries({ queryKey: VIEWS });
     },
   });

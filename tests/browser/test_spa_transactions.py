@@ -269,3 +269,41 @@ def test_a_phone_keeps_the_bottom_sheet(signed_in_spa_page: Page, spa_books, spa
     expect(sheet(page).get_by_role("button", name="Close")).to_have_count(0)
     box = sheet(page).bounding_box()
     assert box and box["y"] + box["height"] >= 844 - 2, "a phone's sheet sits on the bottom edge"
+
+
+def test_a_day_across_the_page_end_is_shown_whole_and_once(signed_in_spa_page: Page, spa_books, spa_api: Api):
+    """January: the 31st down to the 9th one entry each, the 8th six entries (across a page of 25), then the 7th to the
+    1st. The first page finishes the 8th; Show more brings the rest; nothing twice, nothing lost."""
+    page = signed_in_spa_page
+    days = (
+        [f"2026-01-{d:02d}" for d in range(31, 8, -1)]
+        + ["2026-01-08"] * 6
+        + [f"2026-01-{d:02d}" for d in range(7, 0, -1)]
+    )
+    for i, day in enumerate(days):
+        spa_api.post(
+            "/transactions/",
+            payee=f"Shop {i:02d}",
+            date=day,
+            postings=[leg(spa_books["food"], "debit", "10"), leg(spa_books["checking"], "credit", "10")],
+        )
+    page.goto("/transactions?month=2026-01")
+    shops = page.get_by_role("button", name=re.compile(r"^Shop "))
+    expect(shops).to_have_count(29)
+    page.get_by_role("button", name=re.compile("^Show")).click()
+    expect(shops).to_have_count(36)
+    titles = [t.split("\n")[0] for t in shops.all_inner_texts()]
+    assert len(set(titles)) == 36
+
+
+def test_back_after_closing_a_sheet_goes_where_it_went_before(signed_in_spa_page: Page, spa_books, spa_api: Api):
+    page = signed_in_spa_page
+    add(spa_api, spa_books, "Swiggy", "food", "card")
+    page.goto("/")
+    page.goto("/transactions")
+    row(page, "Swiggy").click()
+    expect(sheet(page)).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(sheet(page)).to_be_hidden()
+    page.go_back()
+    expect(page).to_have_url(re.compile(r"/$"))

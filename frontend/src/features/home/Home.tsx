@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router";
 
 import { useGrouping } from "../../app/currency";
 import { useToday } from "../../app/session";
+import { LoadError } from "../../components/LoadError";
 import { MonthPill } from "../../components/MonthPill";
 import { formatMoney } from "../../lib/money";
 import { TransactionList } from "../transactions/TransactionList";
@@ -14,7 +15,7 @@ import { CalcButton, CalcPanel } from "./CalcInfo";
 import { Figure } from "./Figure";
 import { GetStarted } from "./GetStarted";
 import styles from "./Home.module.css";
-import { HOME_MORE, type HomeView, useHome, useHomeMore } from "./queries";
+import { HOME_MORE, type HomeView, useHome, useHomeList } from "./queries";
 
 const MONTH_NAMES = [
   "January",
@@ -109,20 +110,26 @@ export function Home() {
   const [params, setParams] = useSearchParams();
   const asked = params.get("month") ?? undefined;
   const home = useHome(asked);
+  const list = useHomeList(asked);
   const [openId, openEntry, closeEntry] = useOpenEntry();
-  const [wantMore, setWantMore] = useState(false);
   const view = home.data;
-  const more = useHomeMore(view?.month ?? "", view?.rows.length ?? 0, wantMore && Boolean(view));
 
-  if (!view) return <h1 className="sr-only">Home</h1>;
+  if (!view) {
+    return (
+      <>
+        <h1 className="sr-only">Home</h1>
+        {home.isError && <LoadError error={home.error} onRetry={() => void home.refetch()} />}
+      </>
+    );
+  }
   const name = monthName(view.month);
-  const extra = more.data?.pages ?? [];
-  const rows = [...view.rows, ...extra.flatMap((p) => p.rows)];
-  const days = [...view.days, ...extra.flatMap((p) => p.days)];
-  const left = view.total - rows.length;
+  const pages = list.data?.pages ?? [];
+  const rows = pages.flatMap((p) => p.rows);
+  const days = pages.flatMap((p) => p.days);
+  const total = pages[0]?.total ?? 0;
+  const left = total - rows.length;
   const steps = view.steps;
   const toMonth = (month: string) => {
-    setWantMore(false);
     setParams({ month });
   };
 
@@ -165,6 +172,9 @@ export function Home() {
                   View all ›
                 </Link>
               </div>
+              {list.isError && pages.length === 0 && (
+                <LoadError error={list.error} onRetry={() => void list.refetch()} />
+              )}
               {rows.length > 0 ? (
                 <>
                   <TransactionList rows={rows} days={days} onOpen={openEntry} />
@@ -173,26 +183,23 @@ export function Home() {
                       <button
                         type="button"
                         className={styles.moreRow}
-                        disabled={more.isFetching}
-                        onClick={() => {
-                          if (wantMore) void more.fetchNextPage();
-                          else setWantMore(true);
-                        }}
+                        disabled={list.isFetchingNextPage}
+                        onClick={() => void list.fetchNextPage()}
                       >
                         <span>Show {Math.min(HOME_MORE, left)} more</span>
                         <small>{left} left</small>
                       </button>
                     </div>
                   ) : (
-                    extra.length > 0 && (
+                    pages.length > 1 && (
                       <p className={styles.end}>
-                        That is all of {name} · {view.total} transaction{view.total === 1 ? "" : "s"}
+                        That is all of {name} · {total} transaction{total === 1 ? "" : "s"}
                       </p>
                     )
                   )}
                 </>
               ) : (
-                <p className={styles.muted}>Nothing was recorded in {name}.</p>
+                list.isSuccess && <p className={styles.muted}>Nothing was recorded in {name}.</p>
               )}
             </div>
           </>

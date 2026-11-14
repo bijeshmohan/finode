@@ -57,3 +57,19 @@ def test_home_is_centred_beside_the_sidebar_and_its_day_label_lines_up(
     heading = page.get_by_role("heading", name="Transactions").bounding_box()
     day = page.get_by_role("heading", level=3).first.bounding_box()
     assert heading and day and abs(heading["x"] - day["x"]) <= 1, "the day label starts where the heading does"
+
+
+def test_deleting_on_home_after_show_more_leaves_no_duplicates(signed_in_spa_page: Page, spa_books, spa_api: Api):
+    page = signed_in_spa_page
+    for i in range(14):
+        shop(spa_api, spa_books, f"Shop {i:02d}", f"2026-01-{i + 1:02d}")
+    page.goto("/?month=2026-01")
+    shops = page.get_by_role("button", name=re.compile(r"^Shop "))
+    page.get_by_role("button", name=re.compile("Show 6 more")).click()
+    expect(shops).to_have_count(14)
+    page.get_by_role("button", name=re.compile("^Shop 12")).click()
+    page.once("dialog", lambda d: d.accept())
+    page.get_by_role("dialog", name="Transaction details").get_by_role("button", name="Delete").click()
+    expect(shops).to_have_count(13)
+    titles = [t.split("\n")[0] for t in shops.all_inner_texts()]
+    assert len(titles) == len(set(titles)), "no entry twice"

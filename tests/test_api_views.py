@@ -40,16 +40,32 @@ def payees_of(answer):
     return [r["title"] for r in answer["rows"]]
 
 
+def a_day_across_the_page_end(client, books) -> set[str]:
+    """January 2026, newest first: the 31st down to the 9th one entry each (23 rows), the 8th six entries (rows 24 to
+    29, across a page of 25), the 7th down to the 1st one each. 36 entries."""
+    from datetime import date
+
+    made = set()
+    days = (
+        [date(2026, 1, d) for d in range(31, 8, -1)]
+        + [date(2026, 1, 8)] * 6
+        + [date(2026, 1, d) for d in range(7, 0, -1)]
+    )
+    for i, day in enumerate(days):
+        made.add(spend(client, books, payee=f"P{i:02d}", on=day)["id"])
+    return made
+
+
 def test_a_page_of_the_month_and_the_next_one_meet_without_a_gap(client, books):
-    days = [TODAY - timedelta(days=i % max(TODAY.day, 1)) for i in range(30)]
-    made = {spend(client, books, payee=f"P{i}", on=day)["id"] for i, day in enumerate(days)}
-    first = view(client, month=MONTH)
-    assert len(first["rows"]) == 25 and first["total"] >= 30
-    rest = view(client, month=MONTH, offset=len(first["rows"]))
+    made = a_day_across_the_page_end(client, books)
+    first = view(client, month="2026-01")
+    assert len(first["rows"]) == 29 and first["total"] == 36, "the 8th is finished on the first page"
+    assert {r["date"] for r in first["rows"][23:]} == {"2026-01-08"}
+    rest = view(client, month="2026-01", offset=len(first["rows"]))
+    assert len(rest["rows"]) == 7 and rest["rows"][0]["date"] == "2026-01-07"
     ids = [r["id"] for r in first["rows"] + rest["rows"]]
     assert len(ids) == len(set(ids)), "no entry twice"
-    assert made <= set(ids), "no entry dropped at the seam"
-    assert len(ids) == first["total"]
+    assert set(ids) == made, "no entry dropped at the seam"
 
 
 def test_rows_say_what_the_list_says(client, session, books):
@@ -173,7 +189,7 @@ def home(client, **params):
 
 def test_home_with_nothing_recorded(client, root_accounts):
     seen = home(client)
-    assert seen["has_recorded"] is False and seen["rows"] == []
+    assert seen["has_recorded"] is False
     assert [(s["key"], s["done"]) for s in seen["steps"]] == [("account", False), ("spend", False), ("budget", False)]
     assert (
         seen["steps"][1]["title"] == "Record your first spend" and seen["steps"][1]["hint"] == "Takes about ten seconds"
@@ -195,13 +211,10 @@ def test_home_glance_when_overspent(client, books):
     assert glance["pace"] is not None
 
 
-def test_home_first_rows_and_total(client, books):
-    for i in range(12):
-        spend(client, books, payee=f"P{i}")
+def test_home_knows_when_something_was_recorded(client, books):
+    spend(client, books, payee="Lunch")
     seen = home(client)
-    assert seen["has_recorded"] is True
-    assert len(seen["rows"]) >= 8 and seen["total"] >= 12, "a day is finished, never cut"
-    assert seen["steps"] is None or all(isinstance(s["done"], bool) for s in seen["steps"])
+    assert seen["has_recorded"] is True and "rows" not in seen, "the entries are the list's"
 
 
 def test_home_past_month_has_no_pace(client, books):

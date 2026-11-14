@@ -1,6 +1,8 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+
+import { details } from "./fixtures";
 
 import { renderApp, SIGNED_IN } from "../../test/render";
 import { row } from "./fixtures";
@@ -102,5 +104,54 @@ describe("the Transactions page", () => {
       ],
     });
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid filter");
+  });
+
+  it("closing a sheet leaves no dead step in the history: Back goes where it went before", async () => {
+    const { router } = renderApp("/transactions", {
+      ...SIGNED_IN,
+      "/api/views/transactions": [200, page()],
+      [`/api/views/transactions/${row().id}`]: [200, details()],
+    });
+    await userEvent.click(await screen.findByRole("button", { name: /Swiggy/ }));
+    await waitFor(() => {
+      expect(router.state.location.search).toContain("open=");
+    });
+    // Escape, as a browser sends it to a modal dialog (jsdom does not; the browser tests press the real key).
+    fireEvent(
+      await screen.findByRole("dialog", { name: "Transaction details" }),
+      new Event("cancel", { cancelable: true }),
+    );
+    await waitFor(() => {
+      expect(router.state.location.search).not.toContain("open=");
+    });
+    expect(router.state.historyAction).toBe("POP");
+  });
+
+  it("a list that cannot be loaded says so and offers to try again", async () => {
+    renderApp("/transactions", { ...SIGNED_IN, "/api/views/transactions": [500, { detail: "boom" }] });
+    expect(await screen.findByRole("alert")).toHaveTextContent("boom");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.queryByText("No transactions")).not.toBeInTheDocument();
+  });
+
+  it("while another month loads, the filters and the line above the list stay", async () => {
+    const { router } = renderApp("/transactions?month=2026-11&category=c1", {
+      ...SIGNED_IN,
+      "/api/views/transactions": (url) =>
+        url.searchParams.get("month") === "2026-10"
+          ? "never"
+          : [
+              200,
+              page({
+                summary: { count: 2, total: "50.00", word: "spent" },
+                applied: [{ key: "category", label: "Category", name: "Food" }],
+              }),
+            ],
+    });
+    await screen.findByRole("button", { name: "Filter · 1" });
+    await userEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filter · 1" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show transactions" }));
+    expect(router.state.location.search).toContain("category=c1");
   });
 });

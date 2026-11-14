@@ -172,8 +172,8 @@ def home(
     budget: Budget,
     month: str = "",
 ):
-    """Home for a month (`YYYY-MM`, never ahead): the budget at a glance, the month's first entries (a day is never cut;
-    the rest come from `/views/transactions`), and a new person's first steps while some are left."""
+    """Home for a month (`YYYY-MM`, never ahead): the budget at a glance and a new person's first steps while some are
+    left. The month's entries are the list's (`/views/transactions`), so every page of them refreshes together."""
     recurring.catch_up()  # record what has fallen due, as the page does
     found = home_view(parse_month(month, local_today()), accounts, categories, reports, transactions, budget)
     g = found.glance
@@ -197,7 +197,4 @@ def home(
         else None,
         steps_done=sum(1 for s in found.steps if s.done),
         steps_total=len(found.steps),
-        rows=[row_read(r) for r in found.rows],
-        days=days_of(found.rows),
-        total=found.total,
     )
