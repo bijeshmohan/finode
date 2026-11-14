@@ -34,8 +34,8 @@ describe("the session", () => {
   });
 
   it("today is the server's day", async () => {
-    renderApp("/", SIGNED_IN);
-    expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
+    renderApp("/accounts", SIGNED_IN);
+    expect(await screen.findByRole("heading", { name: "Accounts" })).toBeInTheDocument();
     expect(screen.getByTestId("today")).toHaveTextContent("2026-11-13");
   });
 });
