@@ -26,11 +26,13 @@ from ..repositories.transaction import SYSTEM_PAYEES
 from ..schemas.entry import EntryForm, ExpenseShare
 from ..schemas.views import (
     AccountCard,
+    AccountFormView,
     AccountsView,
     AccountView,
     AppliedFilter,
     CardNoteRead,
     CategoriesView,
+    CategoryFormView,
     CategoryParent,
     CategoryRef,
     CategoryRowRead,
@@ -43,12 +45,14 @@ from ..schemas.views import (
     FormRow,
     GlanceRead,
     HomeView,
+    KindChoiceRead,
     KindRow,
     LineRead,
     ParentOption,
     PersonRef,
     PickGroupRead,
     PickOptionRead,
+    PlacedRead,
     RegisterRowRead,
     RowRead,
     SharePreview,
@@ -60,8 +64,16 @@ from ..schemas.views import (
     UpcomingRead,
 )
 from ..services.account_tree import Node, build_tree, without_contacts
-from ..services.accounts_view import CardNote, account_page, accounts_page
-from ..services.categories_view import TABS, categories_page, category_page
+from ..services.accounts_view import (
+    AccountForm,
+    CardNote,
+    KindChoice,
+    account_page,
+    accounts_page,
+    edit_account_form,
+    new_account_form,
+)
+from ..services.categories_view import TABS, categories_page, category_form, category_page
 from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
 from ..services.entry_share import expense_create, expense_start, income_create, income_start
 from ..services.home import home_view
@@ -556,4 +568,75 @@ def category_view(category_id: UUID, categories: Categories, reports: Reports, m
         can_add_child=page.can_add_child,
         can_delete=category.system_key is None and category.closed_on is None,
         entries=[register_read(r) for r in page.entries],
+    )
+
+
+# ---- the forms ----------------------------------------------------------------------------------------------------
+
+
+def _kind(choice: KindChoice) -> KindChoiceRead:
+    account = choice.node.account
+    return KindChoiceRead(
+        id=account.id,
+        name=account.name,
+        root=choice.root,
+        can_budget=choice.can_budget,
+        can_bill=choice.can_bill,
+        budget_default=choice.budget_default,
+    )
+
+
+@router.get("/account-form", response_model=AccountFormView)
+def account_form_view(accounts: Accounts, account_id: UUID | None = None, parent: UUID | None = None, root: str = ""):
+    """Where the account form starts: editing `account_id`, or a new account (opened for a kind with `parent`, or for the
+    plain accounts of a type with `root` = `assets` or `liabilities`). The `kinds` (and `parent_options`) say for each
+    place whether an account there can be part of the budget, takes a card's days, and starts in the budget."""
+    try:
+        form: AccountForm = (
+            edit_account_form(accounts, account_id)
+            if account_id is not None
+            else new_account_form(accounts, parent, root)
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    account = form.node.account if form.node else None
+    return AccountFormView(
+        editing=account is not None,
+        is_group=form.node.is_group if form.node else False,
+        name=account.name if account else "",
+        details=account.details if account else None,
+        balance=account.balance if account else None,
+        parent_id=form.parent_id,
+        kinds=[_kind(k) for k in form.kinds],
+        placed=PlacedRead(label=form.placed[0], value=form.placed[1]) if form.placed else None,
+        parent_options=[_kind(k) for k in form.parent_options],
+        root_name=form.root_name,
+        can_budget=form.can_budget,
+        can_bill=form.can_bill,
+        on_budget=bool(form.on_budget),
+        statement_day=account.statement_day if account else None,
+        due_day=account.due_day if account else None,
+        bill_rounding=account.bill_rounding if account else "none",
+        new_accounts_in_budget=account.new_accounts_in_budget if account else None,
+    )
+
+
+@router.get("/category-form", response_model=CategoryFormView)
+def category_form_view(
+    categories: Categories, category_id: UUID | None = None, parent: UUID | None = None, root: str = "expense"
+):
+    """Where the category form starts: editing `category_id`, or a new category (`root` = `expense` or `income`; inside
+    the group `parent`, whose kind it takes). `groups` are where it can go (none for a group that holds categories)."""
+    try:
+        form = category_form(categories, category_id, parent, root)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    current = form.category
+    return CategoryFormView(
+        editing=current is not None,
+        kind="earning" if form.kind == "earning" else "spending",
+        name=current.name if current else "",
+        details=current.details if current else None,
+        parent_id=form.parent_id,
+        groups=[CategoryRef(id=g.id, name=g.name) for g in form.groups],
     )

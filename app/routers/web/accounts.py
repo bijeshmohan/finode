@@ -16,11 +16,10 @@ from ...services.account import (
     AccountService,
 )
 from ...services.account_tree import Node, build_tree, without_contacts
+from ...services.accounts_view import AccountForm, accounts_page, edit_account_form, load, new_account_form
 from ...services.accounts_view import account_page as account_page_view
-from ...services.accounts_view import accounts_page, kind_groups, load
 from ...services.accounts_view import find as find_node
 from ...services.accounts_view import root_of as root_node
-from ...services.accounts_view import starts as group_starts
 from ...services.pickers import ACCOUNT_ROOTS, OPENING_BALANCE_ROOTS, category_groups, parent_options, posting_groups
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
@@ -99,59 +98,30 @@ def new_account_page(
     parent: UUID | None = None,
     root: str = "",
 ):
-    """The form for a new account. It asks what kind it is (a built-in group or one the person made); nothing is chosen
-    until the person does, unless the link says (a kind's own "Add account", or a type's)."""
-    everything = without_contacts(build_tree(accounts.list()))
-    roots = [r for r in everything if r.account.name in ACCOUNT_ROOTS]
-    root_of = {n.account.id: r.account.name for r in roots for n in r.walk()}
-    only = next((r.account.name for r in roots if r.account.name.lower() == root.lower()), None)
-    if only and (parent is None or root_of.get(parent) != only):
-        # Opened for plain accounts under a type: they sit directly under that type.
-        parent = next(r.account.id for r in roots if r.account.name == only)
-    groups = [g for g in kind_groups(roots) if g.account.closed_on is None]
-    starts = group_starts(everything)
-    chosen_root = root_of.get(parent) if parent else None
+    """The form for a new account (services/accounts_view.new_account_form)."""
+    form = new_account_form(accounts, parent, root)
     return templates.TemplateResponse(
-        request,
-        "account_form.html",
-        {
-            "active": "accounts",
-            "hide_fab": True,
-            "starts": starts,
-            "node": None,
-            "parent_id": parent,
-            "kinds": groups,
-            "placed": _placed(groups, next((n for r in roots for n in r.walk() if n.account.id == parent), None)),
-            "parent_options": _with_parent(groups, roots, parent),
-            "currency": accounts.currency().code,
-            "root_name": chosen_root,
-            "root_of": root_of,
-            "back_list": "/accounts",
-            "can_budget": chosen_root in ("Assets", "Liabilities"),
-            "can_bill": chosen_root == "Liabilities",
-            # an asset starts in the budget; a card or loan, outside it; under a built-in group, as that group says
-            "on_budget": (starts.get(parent) == "budget") if parent in starts else chosen_root == "Assets",
-        },
+        request, "account_form.html", {**_form_context(form, accounts), "back_list": "/accounts"}
     )
 
 
-def _with_parent(groups: list[Node], roots: list[Node], parent: UUID | None) -> list[Node]:
-    """The form's choices of where an account sits: the kinds, and the account's current parent when that is not a kind
-    (a type itself, or an account it is being made inside), so saving never moves it by accident."""
-    if parent is None or any(g.account.id == parent for g in groups):
-        return groups
-    found = next((n for r in roots for n in r.walk() if n.account.id == parent), None)
-    return [*groups, *([found] if found else [])]
-
-
-def _placed(groups: list[Node], parent: Node | None) -> tuple[str, str] | None:
-    """When a new account is opened for somewhere that is not a kind, what the form says instead of the kind chips: "Other"
-    for the plain accounts of a type, or the account it is made inside."""
-    if parent is None or any(g.account.id == parent.account.id for g in groups):
-        return None
-    if parent.kind == "root":
-        return ("Kind", "Other" if parent.account.name == "Assets" else "Other you owe")
-    return ("Inside", parent.account.name)
+def _form_context(form: AccountForm, accounts: AccountService) -> dict:
+    return {
+        "active": "accounts",
+        "hide_fab": True,
+        "starts": form.starts,
+        "node": form.node,
+        "parent_id": form.parent_id,
+        "kinds": [k.node for k in form.kinds],
+        "placed": form.placed,
+        "parent_options": [k.node for k in form.parent_options],
+        "currency": accounts.currency().code,
+        "root_name": form.root_name,
+        "root_of": form.root_of if form.node is None else None,
+        "can_budget": form.can_budget,
+        "can_bill": form.can_bill,
+        "on_budget": form.on_budget,
+    }
 
 
 @router.get("/quick")
@@ -349,30 +319,11 @@ def account_more(request: Request, account_id: UUID, accounts: Accounts, offset:
 
 @router.get("/{account_id}/edit")
 def edit_account_page(request: Request, account_id: UUID, accounts: Accounts):
-    roots, node = _load(accounts, account_id)
-    if node.kind != "user":
-        raise HTTPException(status_code=404, detail="account not found")
-    root = root_node(roots, node)
-    mine = [g for g in kind_groups([root]) if not node.is_group and g.account.closed_on is None]
-    return templates.TemplateResponse(
-        request,
-        "account_form.html",
-        {
-            "active": "accounts",
-            "hide_fab": True,
-            "node": node,
-            "parent_id": node.account.parent_id,
-            "currency": accounts.currency().code,
-            "root_name": root.account.name,
-            "can_budget": root.account.name in ("Assets", "Liabilities") and not node.is_group,
-            "can_bill": root.account.name == "Liabilities" and not node.is_group,
-            "on_budget": node.account.on_budget,
-            "starts": group_starts(roots),
-            # Where it sits is a kind; a group (an account with accounts inside) stays where it is.
-            "kinds": mine,
-            "parent_options": [] if node.is_group else _with_parent(mine, [root], node.account.parent_id),
-        },
-    )
+    try:
+        form = edit_account_form(accounts, account_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="account not found") from None
+    return templates.TemplateResponse(request, "account_form.html", _form_context(form, accounts))
 
 
 @router.post("/{account_id}/edit")

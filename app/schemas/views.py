@@ -400,3 +400,53 @@ class CategoryView(BaseModel):
     can_add_child: bool
     can_delete: bool
     entries: list[RegisterRowRead]
+
+
+class KindChoiceRead(BaseModel):
+    """A place a new account can go (a kind chip, or the place it was opened for), with what the form then asks."""
+
+    id: UUID
+    name: str
+    root: str
+    can_budget: bool
+    can_bill: bool
+    # Whether the "Part of the budget" box starts ticked for an account made there.
+    budget_default: bool
+
+
+class PlacedRead(BaseModel):
+    """What the form says instead of the kind chips when it was opened for a place that is not a kind ("Kind · Other",
+    "Inside · HDFC")."""
+
+    label: str
+    value: str
+
+
+class AccountFormView(BaseModel):
+    editing: bool
+    is_group: bool
+    name: str
+    details: str | None
+    balance: Decimal | None
+    parent_id: UUID | None
+    kinds: list[KindChoiceRead]
+    placed: PlacedRead | None
+    parent_options: list[KindChoiceRead]
+    root_name: str | None
+    can_budget: bool
+    can_bill: bool
+    on_budget: bool
+    statement_day: int | None
+    due_day: int | None
+    bill_rounding: Literal["none", "nearest", "up"]
+    # A group's own choice for the accounts made in it (null for an account).
+    new_accounts_in_budget: bool | None
+
+
+class CategoryFormView(BaseModel):
+    editing: bool
+    kind: Literal["spending", "earning"]
+    name: str
+    details: str | None
+    parent_id: UUID | None
+    groups: list[CategoryRef]

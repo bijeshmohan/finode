@@ -292,3 +292,124 @@ def account_page(accounts: AccountService, account_id: UUID, today: date, offset
         cards=shown_cards,
         notes=notes,
     )
+
+
+# ---- the account form ---------------------------------------------------------------------------------------------
+
+ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
+
+
+def with_parent(groups: list[Node], roots: list[Node], parent: UUID | None) -> list[Node]:
+    """The form's choices of where an account sits: the kinds, and the account's current parent when that is not a kind
+    (a type itself, or an account it is being made inside), so saving never moves it by accident."""
+    if parent is None or any(g.account.id == parent for g in groups):
+        return groups
+    found = find(roots, parent)
+    return [*groups, *([found] if found else [])]
+
+
+def placed(groups: list[Node], parent: Node | None) -> tuple[str, str] | None:
+    """When a new account is opened for somewhere that is not a kind, what the form says instead of the kind chips: "Other"
+    for the plain accounts of a type, or the account it is made inside."""
+    if parent is None or any(g.account.id == parent.account.id for g in groups):
+        return None
+    if parent.kind == "root":
+        return ("Kind", "Other" if parent.account.name == "Assets" else "Other you owe")
+    return ("Inside", parent.account.name)
+
+
+@dataclass
+class KindChoice:
+    """One place a new account can go, with what the form then asks: whether it can be part of the budget, whether it
+    takes a card's statement and due days, and whether the budget box starts ticked (an asset starts in the budget, a
+    card or loan outside it, and under a built-in group as that group says)."""
+
+    node: Node
+    root: str
+    can_budget: bool
+    can_bill: bool
+    budget_default: bool
+
+
+@dataclass
+class AccountForm:
+    node: Node | None  # the account being edited
+    parent_id: UUID | None
+    kinds: list[KindChoice]
+    placed: tuple[str, str] | None
+    parent_options: list[KindChoice]
+    root_name: str | None
+    can_budget: bool
+    can_bill: bool
+    on_budget: bool
+    starts: dict[UUID, str]
+    root_of: dict[UUID, str]
+
+
+def _choice(node: Node, root_of: dict[UUID, str], group_starts: dict[UUID, str]) -> KindChoice:
+    root = root_of.get(node.account.id, "")
+    start = group_starts.get(node.account.id)
+    return KindChoice(
+        node=node,
+        root=root,
+        can_budget=root in ("Assets", "Liabilities"),
+        can_bill=root == "Liabilities",
+        budget_default=start == "budget" if start is not None else root == "Assets",
+    )
+
+
+def new_account_form(accounts: AccountService, parent: UUID | None, root: str = "") -> AccountForm:
+    """The form for a new account. It asks what kind it is (a built-in group or one the person made); nothing is chosen
+    until the person does, unless the link says (a kind's own "Add account", or a type's)."""
+    everything = without_contacts(build_tree(accounts.list()))
+    roots = [r for r in everything if r.account.name in ACCOUNT_ROOTS]
+    root_names = {n.account.id: r.account.name for r in roots for n in r.walk()}
+    only = next((r.account.name for r in roots if r.account.name.lower() == root.lower()), None)
+    if only and (parent is None or root_names.get(parent) != only):
+        # Opened for plain accounts under a type: they sit directly under that type.
+        parent = next(r.account.id for r in roots if r.account.name == only)
+    groups = [g for g in kind_groups(roots) if g.account.closed_on is None]
+    group_starts = starts(everything)
+    chosen_root = root_names.get(parent) if parent else None
+    return AccountForm(
+        node=None,
+        parent_id=parent,
+        kinds=[_choice(g, root_names, group_starts) for g in groups],
+        placed=placed(groups, find(roots, parent) if parent else None),
+        parent_options=[_choice(n, root_names, group_starts) for n in with_parent(groups, roots, parent)],
+        root_name=chosen_root,
+        can_budget=chosen_root in ("Assets", "Liabilities"),
+        can_bill=chosen_root == "Liabilities",
+        on_budget=(group_starts.get(parent) == "budget")
+        if parent is not None and parent in group_starts
+        else chosen_root == "Assets",
+        starts=group_starts,
+        root_of=root_names,
+    )
+
+
+def edit_account_form(accounts: AccountService, account_id: UUID) -> AccountForm:
+    """The form for an account the person made. Where it sits is a kind; a group (an account with accounts inside) stays
+    where it is. LookupError for one that is not theirs or not theirs to edit (a type, a built-in group)."""
+    roots, node = load(accounts, account_id)
+    if node.kind != "user":
+        raise LookupError("account not found")
+    root = root_of(roots, node)
+    root_names = {n.account.id: root.account.name for n in root.walk()}
+    group_starts = starts(roots)
+    mine = [g for g in kind_groups([root]) if not node.is_group and g.account.closed_on is None]
+    return AccountForm(
+        node=node,
+        parent_id=node.account.parent_id,
+        kinds=[_choice(g, root_names, group_starts) for g in mine],
+        placed=None,
+        parent_options=[]
+        if node.is_group
+        else [_choice(n, root_names, group_starts) for n in with_parent(mine, [root], node.account.parent_id)],
+        root_name=root.account.name,
+        can_budget=root.account.name in ("Assets", "Liabilities") and not node.is_group,
+        can_bill=root.account.name == "Liabilities" and not node.is_group,
+        on_budget=node.account.on_budget,
+        starts=group_starts,
+        root_of=root_names,
+    )

@@ -72,3 +72,26 @@ def test_a_bad_month_is_this_month_and_a_stranger_is_not_found(client, books):
     with signed_in_as(B_USER):
         assert client.get(f"/api/views/categories/{books['rent']['id']}").status_code == 404
         assert "Rent" not in client.get("/api/views/categories").text
+
+
+def form(client, **params):
+    return view(client, "/api/views/category-form", **params)
+
+
+def test_a_category_form(client, books):
+    blank = form(client)
+    assert (blank["editing"], blank["kind"], blank["parent_id"]) == (False, "spending", None)
+    assert [g["name"] for g in blank["groups"]] == ["Food", "Rent", "Travel"]
+    assert form(client, root="income")["kind"] == "earning"
+    inside = form(client, parent=books["food"]["id"])
+    assert (inside["kind"], inside["parent_id"]) == ("spending", books["food"]["id"])
+    group = form(client, category_id=books["food"]["id"])
+    assert group["editing"] is True and group["name"] == "Food" and group["groups"] == [], "a group stays a group"
+    dining = form(client, category_id=books["dining"]["id"])
+    assert dining["parent_id"] == books["food"]["id"] and "Dining" not in [g["name"] for g in dining["groups"]]
+
+
+def test_a_strangers_category_form_is_not_found(client, books):
+    with signed_in_as(B_USER):
+        assert client.get("/api/views/category-form", params={"parent": books["food"]["id"]}).status_code == 404
+        assert client.get("/api/views/category-form", params={"category_id": books["food"]["id"]}).status_code == 404

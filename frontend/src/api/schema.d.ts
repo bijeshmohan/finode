@@ -1899,6 +1899,28 @@ export interface paths {
         patch: operations["change_opening_balance_api_transfers__transaction_id__patch"];
         trace?: never;
     };
+    "/api/views/account-form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Account Form View
+         * @description Where the account form starts: editing `account_id`, or a new account (opened for a kind with `parent`, or for the
+         *     plain accounts of a type with `root` = `assets` or `liabilities`). The `kinds` (and `parent_options`) say for each
+         *     place whether an account there can be part of the budget, takes a card's days, and starts in the budget.
+         */
+        get: operations["account_form_view_api_views_account_form_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/views/accounts": {
         parameters: {
             query?: never;
@@ -1977,6 +1999,27 @@ export interface paths {
          *     labelled with it itself besides them (`own_here`), and its own entries newest first.
          */
         get: operations["category_view_api_views_categories__category_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/category-form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Category Form View
+         * @description Where the category form starts: editing `category_id`, or a new category (`root` = `expense` or `income`; inside
+         *     the group `parent`, whose kind it takes). `groups` are where it can go (none for a group that holds categories).
+         */
+        get: operations["category_form_view_api_views_category_form_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2190,6 +2233,45 @@ export interface components {
             parent_id?: string | null;
             /** Statement Day */
             statement_day?: number | null;
+        };
+        /** AccountFormView */
+        AccountFormView: {
+            /** Balance */
+            balance: string | null;
+            /**
+             * Bill Rounding
+             * @enum {string}
+             */
+            bill_rounding: "none" | "nearest" | "up";
+            /** Can Bill */
+            can_bill: boolean;
+            /** Can Budget */
+            can_budget: boolean;
+            /** Details */
+            details: string | null;
+            /** Due Day */
+            due_day: number | null;
+            /** Editing */
+            editing: boolean;
+            /** Is Group */
+            is_group: boolean;
+            /** Kinds */
+            kinds: components["schemas"]["KindChoiceRead"][];
+            /** Name */
+            name: string;
+            /** New Accounts In Budget */
+            new_accounts_in_budget: boolean | null;
+            /** On Budget */
+            on_budget: boolean;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Parent Options */
+            parent_options: components["schemas"]["KindChoiceRead"][];
+            placed: components["schemas"]["PlacedRead"] | null;
+            /** Root Name */
+            root_name: string | null;
+            /** Statement Day */
+            statement_day: number | null;
         };
         /** AccountRead */
         AccountRead: {
@@ -2857,6 +2939,24 @@ export interface components {
              * @enum {string}
              */
             outcome: "deleted" | "closed";
+        };
+        /** CategoryFormView */
+        CategoryFormView: {
+            /** Details */
+            details: string | null;
+            /** Editing */
+            editing: boolean;
+            /** Groups */
+            groups: components["schemas"]["CategoryRef"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "spending" | "earning";
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
         };
         /**
          * CategoryMergeResult
@@ -3808,6 +3908,27 @@ export interface components {
             people?: components["schemas"]["IncomePart-Output"][];
         };
         /**
+         * KindChoiceRead
+         * @description A place a new account can go (a kind chip, or the place it was opened for), with what the form then asks.
+         */
+        KindChoiceRead: {
+            /** Budget Default */
+            budget_default: boolean;
+            /** Can Bill */
+            can_bill: boolean;
+            /** Can Budget */
+            can_budget: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Root */
+            root: string;
+        };
+        /**
          * KindRow
          * @description One row of cards on the Accounts page: a kind of account and its accounts.
          */
@@ -4123,6 +4244,17 @@ export interface components {
             id: string;
             /** Label */
             label: string;
+        };
+        /**
+         * PlacedRead
+         * @description What the form says instead of the kind chips when it was opened for a place that is not a kind ("Kind · Other",
+         *     "Inside · HDFC").
+         */
+        PlacedRead: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
         };
         /** PostingCreate */
         "PostingCreate-Input": {
@@ -9015,6 +9147,39 @@ export interface operations {
             };
         };
     };
+    account_form_view_api_views_account_form_get: {
+        parameters: {
+            query?: {
+                account_id?: string | null;
+                parent?: string | null;
+                root?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountFormView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     accounts_view_api_views_accounts_get: {
         parameters: {
             query?: never;
@@ -9120,6 +9285,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    category_form_view_api_views_category_form_get: {
+        parameters: {
+            query?: {
+                category_id?: string | null;
+                parent?: string | null;
+                root?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryFormView"];
                 };
             };
             /** @description Validation Error */

@@ -130,3 +130,42 @@ def test_another_persons_account_is_not_found(client, tree):
         assert client.get(f"/api/views/accounts/{tree['hdfc']}").status_code == 404
         assert "HDFC" not in client.get("/api/views/accounts").text
     assert client.get("/api/views/accounts/not-a-uuid").status_code == 422
+
+
+# ---- the account form ---------------------------------------------------------------------------------------------
+
+
+def form(client, **params):
+    return view(client, "/api/views/account-form", **params)
+
+
+def test_a_new_account_form_by_kind(client, root_accounts, tree):
+    blank = form(client)
+    assert blank["editing"] is False and blank["parent_id"] is None and blank["placed"] is None
+    kinds = {k["name"]: k for k in blank["kinds"]}
+    assert set(kinds) >= {"Banks", "Credit Cards", "Food"}
+    assert (kinds["Banks"]["can_budget"], kinds["Banks"]["can_bill"], kinds["Banks"]["budget_default"]) == (
+        True,
+        False,
+        True,
+    )
+    assert (kinds["Credit Cards"]["can_bill"], kinds["Credit Cards"]["budget_default"]) == (True, False)
+    owed = form(client, root="liabilities")
+    assert owed["placed"] == {"label": "Kind", "value": "Other you owe"} and owed["can_bill"] is True
+    assert owed["parent_id"] == root_accounts["Liabilities"]
+    assert form(client, parent=tree["banks"])["parent_id"] == tree["banks"]
+
+
+def test_an_edit_form(client, tree):
+    group = form(client, account_id=tree["banks"])
+    assert group["editing"] is True and group["is_group"] is True and group["kinds"] == []
+    hdfc = form(client, account_id=tree["hdfc"])
+    assert (hdfc["name"], hdfc["balance"], hdfc["parent_id"]) == ("HDFC", "5000.00", tree["banks"])
+    assert tree["banks"] in [k["id"] for k in hdfc["parent_options"]]
+    assert hdfc["can_budget"] is True and hdfc["can_bill"] is False
+
+
+def test_a_strangers_account_form_is_not_found(client, root_accounts, tree):
+    with signed_in_as(B_USER):
+        assert client.get("/api/views/account-form", params={"account_id": tree["hdfc"]}).status_code == 404
+    assert client.get("/api/views/account-form", params={"account_id": root_accounts["Assets"]}).status_code == 404

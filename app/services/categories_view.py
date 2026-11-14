@@ -156,3 +156,40 @@ def category_page(
         entries=[category_register_row(e, earning) for e in reversed(own_entries)],
         can_add_child=category.parent_id is None and category.closed_on is None and category.system_key is None,
     )
+
+
+@dataclass
+class CategoryForm:
+    category: CategoryRead | None  # the category being edited
+    kind: str
+    parent_id: UUID | None
+    # The groups it can go under: none for a group that holds categories (two levels at most).
+    groups: list[CategoryRead]
+
+
+def category_form(
+    categories: CategoryService,
+    category_id: UUID | None = None,
+    parent: UUID | None = None,
+    root: str = "expense",
+) -> CategoryForm:
+    """The form for a category: editing one, or a new one (a spending one by default, an earning one from the Earning
+    chip; opened from a group's page it starts inside that group, whose kind it takes). LookupError for a category or a
+    group that is not the person's."""
+    current = None
+    if category_id is not None:
+        current = categories.read(category_id)
+        if current is None:
+            raise LookupError("category not found")
+        kind, parent = current.kind, current.parent_id
+    else:
+        kind = TABS.get(root.lower(), "spending")
+        if parent is not None:
+            group = categories.read(parent)
+            if group is None:
+                raise LookupError("category not found")
+            kind = group.kind
+    groups = [n.category for n in category_tree(categories, kind) if current is None or n.category.id != current.id]
+    if current is not None and any(c.parent_id == current.id for c in categories.list(kind, True)):
+        groups = []
+    return CategoryForm(category=current, kind=kind, parent_id=parent, groups=groups)
