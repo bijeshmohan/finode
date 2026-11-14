@@ -207,7 +207,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
   };
 
   const shareOf = (now: EntryState) =>
-    now.kind === "income" ? incomeBody(now.incomeShare, places) : expenseBody(now.expenseShare, places);
+    now.kind === "income" ? incomeBody(now.incomeShare) : expenseBody(now.expenseShare);
 
   const other = (side: Side): Side => (side === "credit" ? "debit" : "credit");
   const shownCategory = (side: Side, row: RowState): boolean =>

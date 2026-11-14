@@ -1,7 +1,7 @@
 // The Split of the Add screen as the person types it (people_editor.html, income_editor.html): amounts stay as typed
 // strings, and what is sent is only what was typed for the people ticked. The server works out every share, what is
 // owed and "you paid whatever the others did not" (services/entry_share.py).
-import { type Grouping, groupAmount, tidyAmount } from "../../lib/amount";
+import { type Grouping, groupAmount } from "../../lib/amount";
 import type { EntryBody, EntryFormView, PickGroup } from "./queries";
 
 export type Method = "equal" | "exact" | "percentage" | "shares";
@@ -63,38 +63,39 @@ export function startIncome(share: EntryFormView["income_share"], grouping: Grou
   };
 }
 
-/** A typed amount as sent: plain digits with the currency's decimals, or null when nothing was typed. */
-function sent(text: string, places: number): string | null {
-  const plain = tidyAmount(text.trim(), places).replace(/,/g, "");
+/** What was typed, as sent: without its commas and spaces, the app's "−" as "-", or null when the box is empty. It is
+ * not rounded to the currency's decimals: a share or a percentage may have more, and the server checks every value. */
+function sent(text: string): string | null {
+  const plain = text.replace(/[,\s]/g, "").replaceAll("\u2212", "-");
   return plain === "" ? null : plain;
 }
 
-export function expenseBody(share: ExpenseShareState, places: number): NonNullable<EntryBody["share"]> {
+export function expenseBody(share: ExpenseShareState): NonNullable<EntryBody["share"]> {
   const valued = share.method !== "equal";
   return {
     kind: "expense",
     category_id: share.categoryId,
     account_id: share.accountId,
     method: share.method,
-    self_value: valued ? sent(share.selfValue, places) : null,
-    self_paid: sent(share.selfPaid, places),
+    self_value: valued ? sent(share.selfValue) : null,
+    self_paid: sent(share.selfPaid),
     people: share.people.map((p) => ({
       contact_id: p.contactId,
-      value: valued ? sent(p.value, places) : null,
-      paid: sent(p.paid, places),
+      value: valued ? sent(p.value) : null,
+      paid: sent(p.paid),
     })),
   };
 }
 
-export function incomeBody(share: IncomeShareState, places: number): NonNullable<EntryBody["share"]> {
+export function incomeBody(share: IncomeShareState): NonNullable<EntryBody["share"]> {
   return {
     kind: "income",
     category_id: share.categoryId,
     account_id: share.accountId,
     people: share.people.map((p) => ({
       contact_id: p.contactId,
-      theirs: sent(p.theirs, places),
-      received: sent(p.received, places),
+      theirs: sent(p.theirs),
+      received: sent(p.received),
     })),
   };
 }
