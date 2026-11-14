@@ -8,23 +8,23 @@
   <fieldset class="plain">
     <legend>Their part <span class="muted">(you hold it for them; only the rest is your income)</span></legend>
     <div class="tile">
-      {% for p in people %}
+      {% for p in people %}{% set part = ei.person(p.id) %}
       <div class="r share-row" data-person-row>
-        <input type="checkbox" class="sr-only" data-person-toggle data-person="{{ p.id }}" aria-label="{{ p.name }} is in it" {{ "checked" if ei.theirs.get(p.id) or ei.received.get(p.id) }}>
+        <input type="checkbox" class="sr-only" data-person-toggle data-person="{{ p.id }}" aria-label="{{ p.name }} is in it" {{ "checked" if part and (part.theirs or part.received) }}>
         <span class="crow-main"><span class="crow-name">{{ p.name }}</span></span>
-        <input class="share-value" type="text" inputmode="decimal" name="theirs_{{ p.id }}" aria-label="{{ p.name }}'s part" autocomplete="off" value="{{ ei.theirs.get(p.id, '') }}">
+        <input class="share-value" type="text" inputmode="decimal" name="theirs_{{ p.id }}" aria-label="{{ p.name }}'s part" autocomplete="off" value="{{ part.theirs if part and part.theirs is not none else '' }}">
         <button type="button" class="link person-remove" data-person-remove aria-label="Remove {{ p.name }}">{{ icon("close") }}</button>
       </div>
       {% endfor %}
       <button type="button" class="r link add-people" data-add-people>+ Add people</button>
     </div>
   </fieldset>
-  <details class="sheet-extra" {{ "open" if ei.received }}>
+  <details class="sheet-extra" {{ "open" if ei.people|selectattr("received")|list }}>
     <summary><span>Someone else received some of it for you</span>{{ icon("chevron-right") }}</summary>
     <div class="stack">
-      {% for p in people %}
+      {% for p in people %}{% set part = ei.person(p.id) %}
       <label data-for-person="{{ p.id }}" hidden>{{ p.name }} received
-        <input type="text" name="got_{{ p.id }}" inputmode="decimal" autocomplete="off" value="{{ ei.received.get(p.id, '') }}">
+        <input type="text" name="got_{{ p.id }}" inputmode="decimal" autocomplete="off" value="{{ part.received if part and part.received is not none else '' }}">
       </label>
       {% endfor %}
     </div>

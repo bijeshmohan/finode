@@ -14,26 +14,26 @@
     </div>
   </fieldset>
   <div class="tile">
-    <div class="r share-row"><input type="checkbox" class="sr-only" checked disabled data-fixed aria-label="You are in it"><span class="crow-main"><span class="crow-name">You</span></span><input class="share-value" type="text" inputmode="decimal" name="value_self" aria-label="Your share value" autocomplete="off" value="{{ ed.share_values.get(none, '') }}"></div>
-    {% for p in people %}
+    <div class="r share-row"><input type="checkbox" class="sr-only" checked disabled data-fixed aria-label="You are in it"><span class="crow-main"><span class="crow-name">You</span></span><input class="share-value" type="text" inputmode="decimal" name="value_self" aria-label="Your share value" autocomplete="off" value="{{ ed.self_value if ed.self_value is not none else '' }}"></div>
+    {% for p in people %}{% set mine = ed.person(p.id) %}
     <div class="r share-row" data-person-row>
-      <input type="checkbox" class="sr-only" name="with_{{ p.id }}" value="1" data-person-toggle data-person="{{ p.id }}" aria-label="{{ p.name }} is in it" {{ "checked" if p.id in ed.checked }}>
+      <input type="checkbox" class="sr-only" name="with_{{ p.id }}" value="1" data-person-toggle data-person="{{ p.id }}" aria-label="{{ p.name }} is in it" {{ "checked" if mine }}>
       <span class="crow-main"><span class="crow-name">{{ p.name }}</span></span>
-      <input class="share-value" type="text" inputmode="decimal" name="value_{{ p.id }}" aria-label="{{ p.name }}'s share value" autocomplete="off" value="{{ ed.share_values.get(p.id, '') }}">
+      <input class="share-value" type="text" inputmode="decimal" name="value_{{ p.id }}" aria-label="{{ p.name }}'s share value" autocomplete="off" value="{{ mine.value if mine and mine.value is not none else '' }}">
       <button type="button" class="link person-remove" data-person-remove aria-label="Remove {{ p.name }}">{{ icon("close") }}</button>
     </div>
     {% endfor %}
     <button type="button" class="r link add-people" data-add-people>+ Add people</button>
   </div>
-  <details class="sheet-extra" {{ "open" if ed.paid }}>
+  <details class="sheet-extra" {{ "open" if ed.people|selectattr("paid")|list }}>
     <summary><span>Someone else paid some of it</span>{{ icon("chevron-right") }}</summary>
     <div class="stack">
       <label><span>You paid <span class="muted">(blank: whatever the others did not)</span></span>
-        <input type="text" name="paid_self" inputmode="decimal" autocomplete="off" value="{{ ed.paid_self if ed.paid_self is defined else '' }}">
+        <input type="text" name="paid_self" inputmode="decimal" autocomplete="off" value="{{ ed.self_paid if ed.self_paid is not none else '' }}">
       </label>
-      {% for p in people %}
+      {% for p in people %}{% set mine = ed.person(p.id) %}
       <label data-for-person="{{ p.id }}" hidden>{{ p.name }} paid
-        <input type="text" name="paid_{{ p.id }}" inputmode="decimal" autocomplete="off" value="{{ ed.paid.get(p.id, '') }}">
+        <input type="text" name="paid_{{ p.id }}" inputmode="decimal" autocomplete="off" value="{{ mine.paid if mine and mine.paid is not none else '' }}">
       </label>
       {% endfor %}
     </div>
