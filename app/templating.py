@@ -15,6 +15,7 @@ from .clock import local_day, local_today
 from .currencies import find
 from .flash import flash_message
 from .models.utils import normalize_amount
+from .services.transaction_rows import origin_label
 
 BASE_DIR = Path(__file__).parent
 
@@ -120,17 +121,6 @@ def date_chip(value: date | str) -> str:
     if value.year == today.year:
         return f"{value:%a}, {value.day} {value:%b}"
     return f"{value.day} {value:%b %Y}"
-
-
-def origin_label(origin: str | None) -> str | None:
-    """Who entered or changed a transaction, for people: "Claude (AI assistant)", "an import"."""
-    if not origin:
-        return None
-    if origin.startswith("mcp:"):
-        return f"{origin[4:]} (AI assistant)"
-    return {"web": "the app", "api": "the API", "import": "an import", "recurring": "a recurring transaction"}.get(
-        origin, origin
-    )
 
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
