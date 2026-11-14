@@ -201,3 +201,14 @@ def test_home_past_month_has_no_pace(client, books):
     last_month = (TODAY.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
     seen = home(client, month=last_month)
     assert seen["month"] == last_month and seen["is_current"] is False and seen["glance"]["pace"] is None
+
+
+def test_a_day_with_more_than_one_spend_says_what_it_came_to(client, books):
+    spend(client, books, amount="30")
+    spend(client, books, amount="20.5", payee="Other")
+    yesterday = TODAY - timedelta(days=1)
+    if yesterday.month == TODAY.month:
+        spend(client, books, amount="99", on=yesterday)
+    days = {d["date"]: d["spent"] for d in view(client, month=MONTH)["days"]}
+    assert days.get(TODAY.isoformat()) == "50.50"
+    assert yesterday.isoformat() not in days, "one entry would just repeat its row"

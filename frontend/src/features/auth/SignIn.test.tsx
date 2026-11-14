@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "../../api/client";
 
 import { type Answers, calledPaths, renderApp, SIGNED_IN } from "../../test/render";
-import { UNREACHABLE } from "./messages";
+import { UNREACHABLE } from "../../api/messages";
 
 const OPTIONS_OFF: Answers = {
   "/api/auth/options": [200, { signup_enabled: false, reset_enabled: false, test_notice: false }],

@@ -30,6 +30,13 @@ class RowRead(BaseModel):
     by_assistant: str | None
 
 
+class DayTotal(BaseModel):
+    """What a day of the list spent, for a day with more than one entry."""
+
+    date: Date
+    spent: Decimal
+
+
 class FilterSummary(BaseModel):
     """How many entries a filter found and, when they all go one way, what they come to ("spent" or "earned")."""
 
@@ -61,6 +68,7 @@ class TransactionsView(BaseModel):
     month: str
     is_current: bool
     rows: list[RowRead]
+    days: list[DayTotal]
     total: int
     summary: FilterSummary | None
     upcoming: list[UpcomingRead]
@@ -152,4 +160,5 @@ class HomeView(BaseModel):
     steps_done: int
     steps_total: int
     rows: list[RowRead]
+    days: list[DayTotal]
     total: int

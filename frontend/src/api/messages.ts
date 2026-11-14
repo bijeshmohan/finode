@@ -1,16 +1,8 @@
-// What a person reads when a sign-in screen fails: the server's own words wherever it gave them.
-import { ApiError } from "../../api/client";
+// What a person reads when a call fails: the server's own words wherever it gave them.
+import { ApiError } from "./client";
 
 export const UNREACHABLE = "finode can't be reached. Check your connection.";
 const SOMETHING_WRONG = "Something went wrong. Please try again.";
-
-/** The quick checks made before sending, in the server's own words (app/auth_flows.py). */
-export const MIN_PASSWORD_LENGTH = 8;
-export const RULES = {
-  email: "Enter a valid email address.",
-  short: `Password must be at least ${String(MIN_PASSWORD_LENGTH)} characters.`,
-  mismatch: "Passwords do not match.",
-} as const;
 
 export function messageOf(error: unknown): string {
   if (!(error instanceof ApiError)) return UNREACHABLE;

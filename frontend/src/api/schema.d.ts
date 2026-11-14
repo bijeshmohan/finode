@@ -2886,6 +2886,19 @@ export interface components {
             /** Confirm Word */
             confirm_word: string;
         };
+        /**
+         * DayTotal
+         * @description What a day of the list spent, for a day with more than one entry.
+         */
+        DayTotal: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Spent */
+            spent: string;
+        };
         /** ExpensePreview */
         ExpensePreview: {
             /** Category Id */
@@ -3013,6 +3026,8 @@ export interface components {
         };
         /** HomeView */
         HomeView: {
+            /** Days */
+            days: components["schemas"]["DayTotal"][];
             glance: components["schemas"]["GlanceRead"];
             /** Has Recorded */
             has_recorded: boolean;
@@ -4426,6 +4441,8 @@ export interface components {
         TransactionsView: {
             /** Applied */
             applied: components["schemas"]["AppliedFilter"][];
+            /** Days */
+            days: components["schemas"]["DayTotal"][];
             /** Error */
             error: string | null;
             /** Is Current */

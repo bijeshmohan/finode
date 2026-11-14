@@ -10,7 +10,8 @@ import { ApiError, data } from "../../api/client";
 import { useApi } from "../../api/context";
 import { AuthScreen } from "./AuthScreen";
 import { FormError, Notice, Stack, SubmitButton, SwitchLine, TextField } from "./fields";
-import { messageOf, RULES } from "./messages";
+import { messageOf } from "../../api/messages";
+import { RULES } from "./rules";
 import { WithOptions } from "./options";
 import { useSubmitOnce } from "./session";
 

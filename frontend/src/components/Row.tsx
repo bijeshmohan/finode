@@ -10,19 +10,22 @@ export type FigureTone = "in" | "out" | "plain";
 interface RowProps {
   title: ReactNode;
   detail?: ReactNode;
+  /** Quiet markers under the second line (Recurring, Added by an assistant). */
+  extra?: ReactNode;
   figure?: ReactNode;
   figureTone?: FigureTone;
   to?: string;
   onClick?: () => void;
 }
 
-export function Row({ title, detail, figure, figureTone = "plain", to, onClick }: RowProps) {
+export function Row({ title, detail, extra, figure, figureTone = "plain", to, onClick }: RowProps) {
   const toneClass = figureTone === "plain" ? "" : styles[figureTone];
   const content = (
     <>
       <span className={styles.main}>
         <span className={styles.title}>{title}</span>
         {detail !== undefined && <span className={styles.sub}>{detail}</span>}
+        {extra}
       </span>
       {figure !== undefined && (
         <span className={`${styles.figure} ${toneClass}`.trim()}>

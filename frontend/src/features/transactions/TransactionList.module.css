@@ -1,0 +1,118 @@
+/* The day sections of app/static/style.css: .tx-list, .tx-day, .tx-day-head, the tile, .tx-fold, .tx-pill, .tx-via. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.dayHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 0 0 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.dayTotal {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.tile {
+  margin: 0;
+  padding: 0 1rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.tile > li + li {
+  border-top: 1px solid var(--surface-2);
+}
+.tile :global(button),
+.tile :global(a) {
+  padding-inline: 0;
+}
+.system {
+  color: var(--muted);
+}
+.titleWithPill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.titleText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: none;
+  padding: 0.05rem 0.5rem 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pill :global(.icon) {
+  width: 0.85em;
+  height: 0.85em;
+}
+.via {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--auto);
+}
+.via :global(.icon) {
+  width: 1em;
+  height: 1em;
+}
+.fold > details > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 56px;
+  padding: 0.6rem 0;
+  list-style: none;
+  cursor: pointer;
+  color: var(--muted);
+}
+.fold > details > summary::-webkit-details-marker {
+  display: none;
+}
+.fold > details > summary :global(.icon) {
+  margin-left: auto;
+  flex: none;
+  color: var(--faint);
+  transition: transform 0.15s ease;
+}
+.fold > details[open] > summary :global(.icon) {
+  transform: rotate(90deg);
+}
+.fold ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.foldMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.foldTitle {
+  font-weight: 500;
+}
+.foldSub {
+  font-size: 0.85rem;
+}

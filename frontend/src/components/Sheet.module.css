@@ -72,3 +72,44 @@
     background: var(--border);
   }
 }
+
+/* A transaction's details beside the list on a wide screen with a mouse (dialog.side-panel). */
+@media (min-width: 60rem) and (hover: hover) {
+  .panel {
+    position: fixed;
+    inset: 3rem 1.5rem auto auto;
+    margin: 0;
+    width: 22rem;
+    max-width: 22rem;
+    max-height: calc(100vh - 6rem);
+    z-index: 15;
+    box-shadow: var(--shadow);
+  }
+  .panel .body {
+    padding-top: 2.75rem;
+  }
+}
+.close {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .close:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+}
