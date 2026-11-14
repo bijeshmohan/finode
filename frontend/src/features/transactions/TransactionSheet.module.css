@@ -212,3 +212,7 @@
   width: 60%;
   height: 1.75rem;
 }
+/* A clear gap under More, so a tap meant for it cannot reach Edit. */
+.extra ~ .actions {
+  margin-top: 1.5rem;
+}

@@ -3,6 +3,7 @@
 import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
 
 import { NotFound } from "../features/placeholder/NotFound";
+import { TransactionsPage } from "../features/transactions/TransactionsPage";
 import { Placeholder } from "../features/placeholder/Placeholder";
 import { Forgot } from "../features/auth/Forgot";
 import { Reset } from "../features/auth/Reset";
@@ -17,7 +18,6 @@ const PAGES: [path: string, title: string][] = [
   ["/budget", "Budgets"],
   ["/accounts", "Accounts"],
   ["/categories", "Categories"],
-  ["/transactions", "Transactions"],
   ["/transactions/new", "New transaction"],
   ["/people", "People"],
   ["/settings", "Settings"],
@@ -52,6 +52,7 @@ export const routes: RouteObject[] = [
       {
         element: <Layout />,
         children: [
+          { path: "/transactions", element: <TransactionsPage /> },
           ...PAGES.map(([path, title]) => ({ path, element: <Placeholder title={title} /> })),
           { path: "*", element: <NotFound /> },
         ],
