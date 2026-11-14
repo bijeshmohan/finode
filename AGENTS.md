@@ -42,7 +42,7 @@ finode is a personal double-entry ledger with envelope budgeting: FastAPI + SQLM
 - **JSON API parity**: `/api` covers everything the app does. A new feature gets its route, a test in `tests/test_api_parity.py`, its isolation classification and a row in `docs/developer/api.md`. Nothing is left out: the finode app (React) uses only `/api`. What a token alone must never do (tokens, connected apps, consent, Erase, Delete my account) takes `require_cookie_session`.
 - **Backup**: a new model or account/budget flag goes into `services/backup.py` and the round-trip in `tests/test_backup.py`, or it silently disappears from backups. Erase walks every table with `user_id` automatically.
 - **Merging accounts**: a new table or column holding an account id must be handled in `AccountService.merge`.
-- New ways of creating accounts or transactions go through the services (limits via `limits.ensure_room`, depth via `_check_depth`, references via `create_once`/`create`). Any new path that writes transactions keeps a test asserting `trial_balance().balanced`.
+- New ways of creating accounts or transactions go through the services (limits via `limits.ensure_room`, depth via `_check_depth`, references via `create_once`/`create`). Saving an entry from a form (the web page or `/api/entries`) goes through `EntryService` (`services/entry.py`), never a copy of its rules. Any new path that writes transactions keeps a test asserting `trial_balance().balanced`.
 - Secrets: the Supabase service key stays server-side: never render, log or send it to the browser.
 
 ## Ledger invariants (detail in `reference/ledger.md`)
