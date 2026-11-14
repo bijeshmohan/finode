@@ -2,6 +2,7 @@
 // payee and moves on to the amount, never an account. After an "@", your people: choosing one names them on an expense
 // or an income (a gift, nothing owed), shown in a chip with ✕ to take them off.
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { data } from "../../api/client";
 import { useApi } from "../../api/context";
@@ -20,6 +21,8 @@ interface PayeeProps {
 
 export function PayeeField({ value, onChange, person, onPerson, editing, canName }: PayeeProps) {
   const api = useApi();
+  // A chip just chosen: the suggestions go until something is typed again.
+  const [picked, setPicked] = useState(false);
   const typed = value.trim();
   const suggestions = useQuery({
     queryKey: ["payee-suggestions", typed, editing],
@@ -29,11 +32,12 @@ export function PayeeField({ value, onChange, person, onPerson, editing, canName
           params: { query: { payee: typed, ...(editing ? { only: "people" } : {}) } },
         }),
       ),
-    enabled: typed !== "" && !person,
+    enabled: typed !== "" && !person && !picked,
     staleTime: 30_000,
   });
-  const names = suggestions.data?.names ?? [];
-  const people = canName ? (suggestions.data?.people ?? []) : [];
+  const shown = picked || typed === "" ? undefined : suggestions.data;
+  const names = shown?.names ?? [];
+  const people = canName ? (shown?.people ?? []) : [];
 
   return (
     <div className={styles.payee}>
@@ -48,6 +52,7 @@ export function PayeeField({ value, onChange, person, onPerson, editing, canName
           autoCapitalize="words"
           value={value}
           onChange={(event) => {
+            setPicked(false);
             onChange(event.target.value);
           }}
         />
@@ -79,6 +84,7 @@ export function PayeeField({ value, onChange, person, onPerson, editing, canName
               type="button"
               className={styles.chip}
               onClick={() => {
+                setPicked(true);
                 onChange(name);
                 document.getElementById("total")?.focus();
               }}
@@ -92,6 +98,7 @@ export function PayeeField({ value, onChange, person, onPerson, editing, canName
               type="button"
               className={`${styles.chip} ${styles.personChip}`}
               onClick={() => {
+                setPicked(true);
                 onChange(p.name);
                 onPerson({ id: p.id, name: p.name });
               }}
