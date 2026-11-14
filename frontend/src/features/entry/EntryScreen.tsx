@@ -1,21 +1,27 @@
-// The Add / Edit screen in its Simple mode (transaction_form.html, txn_rows.html): what kind of entry, the amount, where
-// the money came from and went (one row each side, chosen in our own picker), and for a payment into a loan or fund what
-// it was for. The server decides what the choices record (services/entry.py); this screen only sends them.
+// The Add / Edit screen (transaction_form.html, txn_rows.html): what kind of entry, the amount, where the money came from
+// and went (rows on each side, chosen in our own picker, each with its own amount and posting day from its settings),
+// and for a payment into a loan or fund what it was for. The server decides what the choices record
+// (services/entry.py); this screen only sends them.
 import { useId, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { messageOf } from "../../api/messages";
 import { useSubmitOnce } from "../../api/useSubmitOnce";
-import { useGrouping, usePlaces, useSymbol } from "../../app/currency";
+import { useCurrency, useGrouping, usePlaces, useSymbol } from "../../app/currency";
+import { useToday } from "../../app/session";
 import { useToast } from "../../app/toast";
 import { AmountField } from "../../components/AmountField";
 import { Icon } from "../../components/Icon";
 import { groupAmount, tidyAmount } from "../../lib/amount";
+import { shortDate } from "../../lib/dates";
+import { formatMoney } from "../../lib/money";
 import { safeNext } from "../../lib/safeNext";
+import { allocation, differs, positive, sameAmount } from "../../lib/split";
 import { useDeleteTransaction } from "../transactions/queries";
 import styles from "./EntryScreen.module.css";
 import {
   canSwap,
+  isAccount,
   isCategorySide,
   KINDS,
   type Kind,
@@ -31,16 +37,11 @@ import { NoteAndTags } from "./NoteAndTags";
 import { PayeeField } from "./PayeeField";
 import { Picker } from "./Picker";
 import { Related } from "./RelatedPicker";
+import { RowSettings } from "./RowSettings";
+import { amountOf, datesFrom, removeRow, type RowState, settle, startRows } from "./rows";
 import { type EntryBody, type EntryFormView, type PickGroup, useSaveEntry } from "./queries";
 
 const ASK = "Delete this transaction? Account balances will change. This cannot be undone.";
-
-interface RowState {
-  choice: string | null;
-  category: string | null;
-  // The line's own posting date (a card purchase that posts later), kept as recorded, like the web form's hidden field.
-  postedOn: string | null;
-}
 
 export interface EntryState {
   kind: Kind;
@@ -48,27 +49,22 @@ export interface EntryState {
   payee: string;
   payeePerson: { id: string; name: string } | null;
   date: string;
-  credit: RowState;
-  debit: RowState;
+  credit: RowState[];
+  debit: RowState[];
   comment: string;
   tags: string[];
   related: EntryFormView["related"];
 }
 
 export function startState(form: EntryFormView, grouping: Parameters<typeof groupAmount>[1]): EntryState {
-  const row = (rows: EntryFormView["from_rows"]): RowState => ({
-    choice: rows[0]?.choice ?? null,
-    category: rows[0]?.category_id ?? null,
-    postedOn: rows[0]?.posted_on ?? null,
-  });
   return {
     kind: form.kind,
     total: form.total ? groupAmount(form.total, grouping) : "",
     payee: form.payee,
     payeePerson: form.payee_person,
     date: form.date,
-    credit: row(form.from_rows),
-    debit: row(form.to_rows),
+    credit: startRows(form.from_rows, grouping),
+    debit: startRows(form.to_rows, grouping),
     comment: form.comment,
     tags: form.tags,
     related: form.related,
@@ -92,32 +88,53 @@ interface ScreenProps {
   back?: string | null;
 }
 
+function firstChoice(rows: RowState[]): string | null {
+  return rows.find((r) => r.choice !== null)?.choice ?? null;
+}
+
 export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
   const grouping = useGrouping();
   const places = usePlaces();
   const symbol = useSymbol();
+  const code = useCurrency();
+  const today = useToday();
   const navigate = useNavigate();
   const toast = useToast();
   const save = useSaveEntry(transactionId);
   const remove = useDeleteTransaction();
   const submit = useSubmitOnce(save);
   const [state, setState] = useState<EntryState>(() => startState(form, grouping));
-  const [picking, setPicking] = useState<{ side: Side; category: boolean } | null>(null);
+  const [picking, setPicking] = useState<{ side: Side; index: number; category: boolean } | null>(null);
+  const [tuning, setTuning] = useState<{ side: Side; index: number } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const ids = { credit: useId(), debit: useId() };
   const groups = form.groups;
   const editing = transactionId !== undefined;
   const leave = () => void navigate(back ? safeNext(back) : "/transactions", { replace: true });
 
+  // Every change leaves both sides tidied: an open row for what is left, no spare empty rows.
+  const update = (next: (now: EntryState) => EntryState) => {
+    setState((now) => {
+      const after = next(now);
+      return {
+        ...after,
+        credit: settle(after.credit, after.total, places),
+        debit: settle(after.debit, after.total, places),
+      };
+    });
+  };
   const change = (next: Partial<EntryState>) => {
-    setState((now) => ({ ...now, ...next }));
+    update((now) => ({ ...now, ...next }));
+  };
+  const changeRow = (side: Side, index: number, next: Partial<RowState>) => {
+    update((now) => ({ ...now, [side]: now[side].map((r, i) => (i === index ? { ...r, ...next } : r)) }));
   };
 
   const chooseKind = (tapped: Kind) => {
-    setState((now) => {
+    update((now) => {
       const kind: Kind = tapped === now.kind ? "other" : tapped;
-      const keep = (side: Side): RowState =>
-        keepsChoice(kind, side, now[side].choice, groups) ? now[side] : { ...now[side], choice: null, category: null };
+      const keep = (side: Side): RowState[] =>
+        now[side].map((r) => (keepsChoice(kind, side, r.choice, groups) ? r : { ...r, choice: null, category: null }));
       const withPerson = kind === "expense" || kind === "income";
       return {
         ...now,
@@ -130,7 +147,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
   };
 
   const swap = () => {
-    setState((now) => ({
+    update((now) => ({
       ...now,
       credit: now.debit,
       debit: now.credit,
@@ -139,8 +156,10 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
     }));
   };
 
-  const shownCategory = (side: Side): boolean =>
-    rowCategoryShown(state[side].choice, state[side === "credit" ? "debit" : "credit"].choice, groups);
+  const other = (side: Side): Side => (side === "credit" ? "debit" : "credit");
+  const shownCategory = (side: Side, row: RowState): boolean =>
+    rowCategoryShown(row.choice, firstChoice(state[other(side)]), groups);
+  const amountAt = (side: Side, index: number) => amountOf(state[side], index, state.total, places);
 
   const send = () => {
     setProblem(null);
@@ -149,17 +168,29 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
       setProblem("Enter the amount.");
       return;
     }
-    if (!state.credit.choice || !state.debit.choice) {
-      setProblem("every posting needs an account!");
-      return;
+    const rows: EntryBody["rows"] = [];
+    for (const s of ["credit", "debit"] as const) {
+      const before = rows.length;
+      for (const [index, r] of state[s].entries()) {
+        const typed = amountAt(s, index);
+        if (r.choice === null && typed === "") continue; // an untouched blank row
+        if (r.choice === null || typed === "") {
+          setProblem(r.choice === null ? "every posting needs an account!" : "amount is required!");
+          return;
+        }
+        rows.push({
+          choice: r.choice,
+          side: s,
+          amount: tidyAmount(typed, places).replace(/,/g, ""),
+          category_id: shownCategory(s, r) ? r.category : null,
+          posted_on: r.postedOn,
+        });
+      }
+      if (rows.length === before) {
+        setProblem("every posting needs an account!");
+        return;
+      }
     }
-    const row = (side: Side) => ({
-      choice: state[side].choice ?? "",
-      side,
-      amount,
-      category_id: shownCategory(side) ? state[side].category : null,
-      posted_on: state[side].postedOn,
-    });
     const body: EntryBody = {
       kind: state.kind,
       date: state.date,
@@ -168,7 +199,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
       tags: state.tags,
       related_id: state.related?.id ?? null,
       payee_contact: state.payeePerson?.id ?? null,
-      rows: [row("credit"), row("debit")],
+      rows,
     };
     submit(body, {
       onSuccess: (saved) => {
@@ -178,41 +209,92 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
     });
   };
 
+  const describe = (s: Side, index: number, r: RowState): { when: string; amount: string } => {
+    const share = amountAt(s, index);
+    const amount =
+      positive(share) && differs(share, state.total)
+        ? `${formatMoney(share, grouping)}${r.choice === null ? " left" : ""}`
+        : "";
+    const when = r.postedOn !== null && r.postedOn !== state.date ? `Posts ${shortDate(r.postedOn, today)}` : "";
+    return { when, amount };
+  };
+
+  const status = (s: Side): string => {
+    if (!positive(state.total)) return "";
+    const shares = state[s].map((_, index) => amountAt(s, index));
+    const sum = allocation(state.total, shares, places);
+    if (sum.balanced) return ""; // balanced is the normal state, so nothing is said about it
+    const figure = formatMoney(sum.over ? sum.left.replace("-", "") : sum.left, grouping);
+    const money = code ? `${figure} ${code}` : figure;
+    return sum.over ? `${money} over` : `${money} left to allocate`;
+  };
+
   const side = (s: Side) => {
     const title = KINDS[state.kind][s].title;
-    const label = labelOf(state[s].choice, groups);
     const category = isCategorySide(state.kind, s);
+    const said = status(s);
     return (
       <section key={s} className={styles.side}>
         <h2 id={ids[s]} className={styles.sideTitle}>
           {title}
         </h2>
-        <button
-          type="button"
-          className={styles.rowPick}
-          aria-labelledby={`${ids[s]} ${ids[s]}-value`}
-          onClick={() => {
-            setPicking({ side: s, category: false });
-          }}
-        >
-          <span id={`${ids[s]}-value`} className={label ? undefined : styles.placeholder}>
-            {label ?? (category ? "Category…" : "Account…")}
-          </span>
-          <Icon name="caret" />
-        </button>
-        {shownCategory(s) && (
-          <button
-            type="button"
-            className={styles.rowCategory}
-            onClick={() => {
-              setPicking({ side: s, category: true });
-            }}
-          >
-            <span>Category</span>
-            <span className={state[s].category ? undefined : styles.placeholder}>
-              {labelOf(state[s].category, groups) ?? "No category"}
-            </span>
-          </button>
+        {state[s].map((r, index) => {
+          const label = labelOf(r.choice, groups);
+          const { when, amount } = describe(s, index, r);
+          const valueId = `${ids[s]}-${r.key}`;
+          return (
+            <div key={r.key} className={styles.row}>
+              <div className={styles.rowLine}>
+                <button
+                  type="button"
+                  className={styles.rowPick}
+                  aria-labelledby={`${ids[s]} ${valueId}`}
+                  onClick={() => {
+                    setPicking({ side: s, index, category: false });
+                  }}
+                >
+                  <span id={valueId} className={styles.rowName}>
+                    <span className={label ? undefined : styles.placeholder}>
+                      {label ?? (category ? "Category…" : "Account…")}
+                    </span>
+                    {when && <span className={styles.rowWhen}>{when}</span>}
+                    {amount && <span className={styles.rowAmount}>{amount}</span>}
+                  </span>
+                  <Icon name="caret" />
+                </button>
+                {r.choice !== null && (
+                  <button
+                    type="button"
+                    className={when || amount ? `${styles.rowSettings} ${styles.set}` : styles.rowSettings}
+                    aria-haspopup="dialog"
+                    aria-label="Amount and date"
+                    onClick={() => {
+                      setTuning({ side: s, index });
+                    }}
+                  />
+                )}
+              </div>
+              {shownCategory(s, r) && (
+                <button
+                  type="button"
+                  className={styles.rowCategory}
+                  onClick={() => {
+                    setPicking({ side: s, index, category: true });
+                  }}
+                >
+                  <span>Category</span>
+                  <span className={r.category ? undefined : styles.placeholder}>
+                    {labelOf(r.category, groups) ?? "No category"}
+                  </span>
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {said && (
+          <p className={styles.status} aria-live="polite">
+            {said}
+          </p>
         )}
       </section>
     );
@@ -293,7 +375,12 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
           <DateChip
             value={state.date}
             onChange={(date) => {
-              change({ date });
+              update((now) => ({
+                ...now,
+                date,
+                credit: datesFrom(now.credit, date),
+                debit: datesFrom(now.debit, date),
+              }));
             }}
           />
           <Related
@@ -371,19 +458,59 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
           open
           title={picking.category ? "Category" : KINDS[state.kind][picking.side].title}
           groups={pickingGroups}
-          value={picking.category ? state[picking.side].category : state[picking.side].choice}
-          otherSide={picking.category ? null : state[picking.side === "credit" ? "debit" : "credit"].choice}
+          value={
+            picking.category
+              ? (state[picking.side][picking.index]?.category ?? null)
+              : (state[picking.side][picking.index]?.choice ?? null)
+          }
+          otherSide={picking.category ? null : firstChoice(state[other(picking.side)])}
           {...(picking.category ? { clearable: "No category" } : {})}
           onChange={(id) => {
-            const s = picking.side;
-            change(
-              picking.category
-                ? { [s]: { ...state[s], category: id } }
-                : { [s]: { ...state[s], choice: id, category: null } },
+            changeRow(
+              picking.side,
+              picking.index,
+              picking.category ? { category: id } : { choice: id, category: null },
             );
           }}
           onClose={() => {
             setPicking(null);
+          }}
+        />
+      )}
+      {tuning && (
+        <RowSettings
+          key={`${tuning.side}-${String(tuning.index)}`}
+          title={labelOf(state[tuning.side][tuning.index]?.choice ?? null, groups) ?? ""}
+          amount={groupAmount(amountAt(tuning.side, tuning.index), grouping)}
+          date={
+            isAccount(state[tuning.side][tuning.index]?.choice ?? null, groups)
+              ? (state[tuning.side][tuning.index]?.postedOn ?? state.date)
+              : null
+          }
+          entryDate={state.date}
+          canRemove={state[tuning.side].length > 1}
+          onDone={(amount, date) => {
+            const { side: s, index } = tuning;
+            const shown = amountAt(s, index);
+            const postedOn = date !== null && date !== "" && date !== state.date ? date : null;
+            changeRow(
+              s,
+              index,
+              sameAmount(amount, shown)
+                ? { postedOn }
+                : {
+                    postedOn,
+                    amount: groupAmount(tidyAmount(amount, places), grouping),
+                    touched: amount.trim() !== "",
+                  },
+            );
+          }}
+          onRemove={() => {
+            const { side: s, index } = tuning;
+            update((now) => ({ ...now, [s]: removeRow(now[s], index, isCategorySide(now.kind, s)) }));
+          }}
+          onClose={() => {
+            setTuning(null);
           }}
         />
       )}

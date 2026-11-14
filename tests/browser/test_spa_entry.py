@@ -62,7 +62,7 @@ def test_a_choice_survives_a_kind_that_still_offers_it(signed_in_spa_page: Page,
 def test_saving_an_expense(signed_in_spa_page: Page, spa_books, spa_api: Api):
     page = signed_in_spa_page
     page.goto("/transactions/new")
-    page.get_by_label("Amount").fill("250")
+    page.get_by_label("Amount", exact=True).fill("250")
     choose(page, "Paid from", "Checking")
     choose(page, "Spent on", "Groceries")
     page.get_by_placeholder("Payee or Merchant?").fill("DMart")
@@ -95,8 +95,8 @@ def test_editing_keeps_what_was_recorded(signed_in_spa_page: Page, spa_books, sp
     )
     page.goto(f"/transactions/{entry['id']}/edit")
     expect(page.get_by_role("button", name="Expense", exact=True)).to_have_attribute("aria-pressed", "true")
-    expect(page.get_by_label("Amount")).to_have_value("40.00")
-    page.get_by_label("Amount").fill("55")
+    expect(page.get_by_label("Amount", exact=True)).to_have_value("40.00")
+    page.get_by_label("Amount", exact=True).fill("55")
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     assert {p["amount"] for p in spa_api.get(f"/transactions/{entry['id']}")["postings"]} == {"55.00"}
@@ -141,7 +141,7 @@ def test_a_payee_chip_fills_the_payee_only_and_moves_on_to_the_amount(
     expect(page.get_by_placeholder("Payee or Merchant?")).to_have_value("Swiggy")
     expect(chips(page)).to_have_count(0)
     expect(side(page, "Paid from")).to_contain_text("Account…")
-    expect(page.get_by_label("Amount")).to_be_focused()
+    expect(page.get_by_label("Amount", exact=True)).to_be_focused()
 
 
 def test_the_chips_narrow_as_you_type(signed_in_spa_page: Page, spa_books, spa_api: Api):
@@ -161,7 +161,7 @@ def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(
 ):
     page = signed_in_spa_page
     page.goto("/transactions/new")
-    expect(page.get_by_label("Amount")).to_be_focused()  # the test page has a mouse
+    expect(page.get_by_label("Amount", exact=True)).to_be_focused()  # the test page has a mouse
     phone = browser.new_context(
         viewport={"width": 390, "height": 844}, base_url=spa_server, has_touch=True, is_mobile=True
     )
@@ -169,8 +169,8 @@ def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(
         phone.add_cookies(page.context.cookies())
         mobile = phone.new_page()
         mobile.goto("/transactions/new")
-        expect(mobile.get_by_label("Amount")).to_be_visible()
-        expect(mobile.get_by_label("Amount")).not_to_be_focused()
+        expect(mobile.get_by_label("Amount", exact=True)).to_be_visible()
+        expect(mobile.get_by_label("Amount", exact=True)).not_to_be_focused()
     finally:
         phone.close()
 
@@ -178,7 +178,7 @@ def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(
 def test_an_amount_cannot_be_typed_with_two_decimal_points_or_letters(signed_in_spa_page: Page, spa_books):
     page = signed_in_spa_page
     page.goto("/transactions/new")
-    amount = page.get_by_label("Amount")
+    amount = page.get_by_label("Amount", exact=True)
     amount.press_sequentially("12a.3.45")
     expect(amount).to_have_value("12.34")
 
@@ -186,7 +186,7 @@ def test_an_amount_cannot_be_typed_with_two_decimal_points_or_letters(signed_in_
 def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(signed_in_spa_page: Page, spa_books, spa_api: Api):
     page = signed_in_spa_page
     page.goto("/transactions/new")
-    amount = page.get_by_label("Amount")
+    amount = page.get_by_label("Amount", exact=True)
     amount.press_sequentially("1234567")
     expect(amount).to_have_value(re.compile(r"^(12,34,567|1,234,567)$"))
     assert amount.evaluate("e => e.selectionStart") == len(amount.input_value())
@@ -201,7 +201,7 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(signed_in_spa_page
     )
     page.goto(f"/transactions/new?related={first['id']}")
     expect(page.get_by_text("Related to")).to_be_visible()
-    page.get_by_label("Amount").fill("1000")
+    page.get_by_label("Amount", exact=True).fill("1000")
     page.get_by_role("button", name="Transfer", exact=True).click()
     page.get_by_role("button", name="Transfer", exact=True).click()  # every account
     choose(page, "From", "Groceries")
@@ -284,7 +284,7 @@ def test_the_category_line_shows_only_when_money_leaves_the_budget(signed_in_spa
 def test_choosing_tags_and_making_a_new_one(signed_in_spa_page: Page, spa_books, spa_api: Api):
     page = signed_in_spa_page
     page.goto("/transactions/new")
-    page.get_by_label("Amount").fill("12")
+    page.get_by_label("Amount", exact=True).fill("12")
     choose(page, "Paid from", "Checking")
     choose(page, "Spent on", "Groceries")
     page.get_by_label("Note").fill("lunch #work")
@@ -328,7 +328,7 @@ def test_repeat_and_edit_from_the_sheet(signed_in_spa_page: Page, spa_books, spa
     page.get_by_role("button", name=re.compile("^DMart")).click()
     page.get_by_role("dialog", name="Transaction details").get_by_role("link", name="Repeat").click()
     page.wait_for_url(re.compile(r"/transactions/new\?repeat="))
-    expect(page.get_by_label("Amount")).to_have_value("1,286.00")
+    expect(page.get_by_label("Amount", exact=True)).to_have_value("1,286.00")
     expect(page.get_by_placeholder("Payee or Merchant?")).to_have_value("DMart")
     expect(side(page, "Paid from")).to_contain_text("Checking")
     page.get_by_role("button", name="Save", exact=True).click()

@@ -1,0 +1,62 @@
+/* #row-settings in app/static/style.css: the amount and the day a row posts, a Done pill and a red Remove. */
+.fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: end;
+  margin-top: 0.75rem;
+}
+.fields.one {
+  grid-template-columns: minmax(0, 1fr);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.field input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.6rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: max(16px, 1rem);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+.done {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  margin-top: 1rem;
+  border: 0;
+  border-radius: 999px;
+  color: var(--on-accent);
+  background: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.remove {
+  display: block;
+  margin: 0.9rem auto 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--negative);
+  cursor: pointer;
+}
