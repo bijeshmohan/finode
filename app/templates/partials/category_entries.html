@@ -6,12 +6,12 @@
   <ul class="card list">
     {% for e in items %}
     <li>
-      <a class="tx" href="/transactions/{{ e.transaction_id }}/edit?back=/categories/{{ category.id }}" hx-get="/transactions/{{ e.transaction_id }}/sheet?back={{ ('/categories/' ~ category.id)|urlencode }}" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+      <a class="tx" href="/transactions/{{ e.id }}/edit?back=/categories/{{ category.id }}" hx-get="/transactions/{{ e.id }}/sheet?back={{ ('/categories/' ~ category.id)|urlencode }}" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
         <span class="tx-main">
-          {{ tx_title(e.payee or e.counter_accounts|join(", "), e.related, "?back=" ~ (("/categories/" ~ category.id)|urlencode)) }}
-          <span class="tx-sub">{% if e.payee %}{{ e.counter_accounts|join(", ") }}{% endif %}{% if e.payee and e.comment %} · {% endif %}{{ e.comment or "" }}</span>
+          {{ tx_title(e.title, e.related, "?back=" ~ (("/categories/" ~ category.id)|urlencode)) }}
+          <span class="tx-sub">{{ e.sub }}</span>
         </span>
-        <span class="tx-amount {{ 'income' if earning and e.change > 0 }}">{{ "+" if earning and e.change > 0 }}{{ "−" if e.change < 0 }}{{ (e.change|abs)|money }}</span>
+        <span class="tx-amount {{ 'income' if e.inflow }}">{{ "+" if e.inflow }}{{ "−" if e.negative }}{{ e.amount|money }}</span>
       </a>
     </li>
     {% endfor %}

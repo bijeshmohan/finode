@@ -1,6 +1,7 @@
 """JSON API for the finode app's screens (`/api/views`): one call answers what one screen shows, built from the same
 rows as the web pages (services/transaction_rows.py), so the app works out nothing the server already knows."""
 
+import calendar
 from datetime import date
 from uuid import UUID
 
@@ -29,7 +30,11 @@ from ..schemas.views import (
     AccountView,
     AppliedFilter,
     CardNoteRead,
+    CategoriesView,
     CategoryParent,
+    CategoryRef,
+    CategoryRowRead,
+    CategoryView,
     DayTotal,
     EntryFormView,
     FilterChoice,
@@ -49,12 +54,14 @@ from ..schemas.views import (
     SharePreview,
     SharePreviewAsk,
     StepRead,
+    SubcategoryRead,
     TransactionDetails,
     TransactionsView,
     UpcomingRead,
 )
 from ..services.account_tree import Node, build_tree, without_contacts
 from ..services.accounts_view import CardNote, account_page, accounts_page
+from ..services.categories_view import TABS, categories_page, category_page
 from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
 from ..services.entry_share import expense_create, expense_start, income_create, income_start
 from ..services.home import home_view
@@ -489,4 +496,64 @@ def account_view(account_id: UUID, accounts: Accounts, offset: int = Query(defau
         entries=[register_read(r) for r in page.entries],
         has_more=page.has_more,
         next_offset=page.next_offset,
+    )
+
+
+# ---- Categories -------------------------------------------------------------------------------------------------------
+
+
+def _month_span(month: str) -> tuple[date, date, bool]:
+    """The month asked for (this month for anything else, never one that has not started) and the days it counts: up to
+    today for this month."""
+    today = local_today()
+    when = parse_month(month, today)
+    last = when.replace(day=calendar.monthrange(when.year, when.month)[1])
+    return when, min(last, today), when == today.replace(day=1)
+
+
+@router.get("/categories", response_model=CategoriesView)
+def categories_view(categories: Categories, reports: Reports, month: str = "", tab: str = "expense"):
+    """The Categories page for a month (`YYYY-MM`; this month by default) and a tab (`expense` or `income`): what each
+    top-level category came to, biggest first, with the biggest inside it (`hint`) and its share of the month."""
+    when, end, is_current = _month_span(month)
+    shown = tab if tab in TABS else "expense"
+    rows, grand = categories_page(categories, reports, TABS[shown], when, end)
+    return CategoriesView(
+        month=when.strftime("%Y-%m"),
+        is_current=is_current,
+        tab="income" if shown == "income" else "expense",
+        grand=grand,
+        rows=[
+            CategoryRowRead(id=r.node.category.id, name=r.node.category.name, total=r.total, hint=r.hint, share=r.share)
+            for r in rows
+        ],
+    )
+
+
+@router.get("/categories/{category_id}", response_model=CategoryView)
+def category_view(category_id: UUID, categories: Categories, reports: Reports, month: str = ""):
+    """A category's own page for a month: the whole category's figure, its subcategories with theirs and what was
+    labelled with it itself besides them (`own_here`), and its own entries newest first."""
+    when, end, is_current = _month_span(month)
+    try:
+        page = category_page(categories, reports, category_id, when, end)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    category = page.category
+    return CategoryView(
+        id=category.id,
+        name=category.name,
+        details=category.details,
+        kind=category.kind,
+        built_in=category.system_key is not None,
+        closed_on=category.closed_on,
+        group=CategoryRef(id=page.group.id, name=page.group.name) if page.group else None,
+        month=when.strftime("%Y-%m"),
+        is_current=is_current,
+        total=page.total,
+        subs=[SubcategoryRead(id=n.category.id, name=n.category.name, total=t) for n, t in page.subs],
+        own_here=page.own_here,
+        can_add_child=page.can_add_child,
+        can_delete=category.system_key is None and category.closed_on is None,
+        entries=[register_read(r) for r in page.entries],
     )

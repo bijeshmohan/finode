@@ -7,10 +7,7 @@ nothing."""
 from __future__ import annotations
 
 import calendar
-from collections.abc import Sequence
-from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
@@ -20,45 +17,13 @@ from pydantic import ValidationError
 
 from ...clock import local_today
 from ...dependencies import Categories, Reports
-from ...schemas.account import RegisterEntry
 from ...schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
+from ...services.categories_view import KIND_TABS, TABS, categories_page, category_page, category_tree
 from ...templating import templates
 from .budget import parse_month, shift
 from .utils import htmx_error, htmx_redirect, htmx_trigger, validation_message
 
 router = APIRouter(prefix="/categories")
-
-# The chips on the Categories page, and the kind each one shows.
-TABS = {"expense": "spending", "income": "earning"}
-KIND_TABS = {kind: tab for tab, kind in TABS.items()}
-ZERO = Decimal("0.00")
-
-
-@dataclass
-class CatNode:
-    """A category and the categories inside it (a group holds categories; a category holds none)."""
-
-    category: CategoryRead
-    children: list[CatNode] = field(default_factory=list)
-
-    def walk(self):
-        yield self
-        for child in self.children:
-            yield from child.walk()
-
-
-def category_tree(categories: Categories, kind: str, include_closed: bool = False) -> list[CatNode]:
-    """The categories of one kind as groups with their categories inside, A to Z."""
-    found = categories.list(kind, include_closed)
-    nodes = {c.id: CatNode(c) for c in found}
-    top: list[CatNode] = []
-    for node in nodes.values():
-        parent = nodes.get(node.category.parent_id) if node.category.parent_id else None
-        (parent.children if parent is not None else top).append(node)
-    for node in nodes.values():
-        node.children.sort(key=lambda n: n.category.name.lower())
-    top.sort(key=lambda n: n.category.name.lower())
-    return top
 
 
 def _period(month: str):
@@ -83,60 +48,16 @@ def _month_context(when: date, is_current: bool) -> dict:
     }
 
 
-def _figures(categories: Categories, reports: Reports, kind: str, when: date, end: date):
-    """The month's amounts for one kind: (the tree with closed empty categories left out, what was labelled with each
-    category itself, what each category and everything inside it came to)."""
-    own = reports.category_totals(kind, when, end)
-    top = category_tree(categories, kind, include_closed=True)
-    totals: dict[UUID, Decimal] = {}
-
-    def walk(node: CatNode) -> Decimal:
-        total = own.get(node.category.id, ZERO) + sum((walk(child) for child in node.children), ZERO)
-        totals[node.category.id] = total
-        return total
-
-    # A deleted (closed) category with nothing in the month is not listed, at either level.
-    def shown(n: CatNode) -> bool:
-        return n.category.closed_on is None or any(own.get(m.category.id) for m in n.walk())
-
-    for n in top:
-        n.children = [c for c in n.children if shown(c)]
-    top = [n for n in top if shown(n)]
-    for n in top:
-        walk(n)
-    return top, own, totals
-
-
-def _share(total: Decimal, grand: Decimal) -> str:
-    """What part of the month's total a category is: '34%', '<1%', '0%' for one with nothing in the month (so every row
-    has one), or nothing when the categories cancel out to no total at all."""
-    if not total:
-        return "0%"
-    if not grand:
-        return ""
-    percent = abs(total) / abs(grand) * 100
-    return "<1%" if percent < 1 else f"{round(percent)}%"
-
-
-def _by_amount(nodes: list[CatNode], totals: dict[UUID, Decimal]) -> list[CatNode]:
-    return sorted(nodes, key=lambda n: (-abs(totals[n.category.id]), n.category.name.lower()))
-
-
 @router.get("")
-def categories_page(request: Request, categories: Categories, reports: Reports, month: str = "", tab: str = "expense"):
+def categories_list_page(
+    request: Request, categories: Categories, reports: Reports, month: str = "", tab: str = "expense"
+):
     when, end, is_current = _period(month)
-    if when is None:
+    if when is None or end is None or is_current is None:
         return RedirectResponse(f"/categories?tab={tab}", status_code=303)
     tab = KIND_TABS.get(tab, tab)  # the kinds' own names work too
     tab = tab if tab in TABS else "expense"
-    top, _own, totals = _figures(categories, reports, TABS[tab], when, end)
-    grand = sum((totals[n.category.id] for n in top), ZERO)
-    rows = []
-    for n in _by_amount(top, totals):
-        total = totals[n.category.id]
-        inside = [c.category.name for c in _by_amount(n.children, totals) if totals[c.category.id]]
-        hint = " · ".join(inside[:3] + ([f"+{len(inside) - 3}"] if len(inside) > 3 else []))
-        rows.append({"node": n, "total": total, "share": _share(total, grand), "hint": hint})
+    rows, grand = categories_page(categories, reports, TABS[tab], when, end)
     return templates.TemplateResponse(
         request,
         "categories.html",
@@ -240,24 +161,13 @@ def _load(categories: Categories, category_id: UUID) -> CategoryRead:
 
 
 @router.get("/{category_id}")
-def category_page(request: Request, category_id: UUID, categories: Categories, reports: Reports, month: str = ""):
-    category = _load(categories, category_id)
+def category_own_page(request: Request, category_id: UUID, categories: Categories, reports: Reports, month: str = ""):
+    _load(categories, category_id)
     when, end, is_current = _period(month)
-    if when is None:
+    if when is None or end is None or is_current is None:
         return RedirectResponse(f"/categories/{category_id}", status_code=303)
-
-    # The figure is the whole category's month; the list is what was labelled with this category itself (each
-    # subcategory's entries are on its own page).
-    def in_month(rows: Sequence[RegisterEntry] | None):
-        return [e for e in (rows or []) if when <= e.date <= end]
-
-    everything = in_month(categories.register(category_id))
-    entries = in_month(categories.register(category_id, own_only=True))
-    top, own, totals = _figures(categories, reports, category.kind, when, end)
-    shown = next((n for t in top for n in t.walk() if n.category.id == category_id), None)
-    subs = [(c, totals[c.category.id]) for c in _by_amount(shown.children, totals)] if shown is not None else []
-    own_here = own.get(category_id, ZERO) if subs else ZERO
-    group = categories.read(category.parent_id) if category.parent_id else None
+    page = category_page(categories, reports, category_id, when, end)
+    category = page.category
     return templates.TemplateResponse(
         request,
         "category.html",
@@ -268,13 +178,13 @@ def category_page(request: Request, category_id: UUID, categories: Categories, r
             if category.closed_on
             else f"/transactions/new?category={category_id}&back=/categories/{category_id}",
             "category": category,
-            "group": group,
-            "entries": list(reversed(entries)),
+            "group": page.group,
+            "entries": page.entries,
             "currency": categories.accounts.currency().code,
-            "total": sum((e.change for e in everything), ZERO),
-            "subs": subs,
-            "own_here": own_here,
-            "can_add_child": category.parent_id is None and category.closed_on is None and category.system_key is None,
+            "total": page.total,
+            "subs": page.subs,
+            "own_here": page.own_here,
+            "can_add_child": page.can_add_child,
             "tab": KIND_TABS[category.kind],
             "earning": category.kind == "earning",
             **_month_context(when, is_current),

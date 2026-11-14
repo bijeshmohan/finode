@@ -275,7 +275,7 @@ def test_with_nothing_in_the_month_every_row_is_a_dash(client, books):
 def test_share_rounding_edges():
     from decimal import Decimal
 
-    from app.routers.web.categories import _share
+    from app.services.categories_view import share as _share
 
     assert _share(Decimal(0), Decimal(100)) == "0%" and _share(Decimal(0), Decimal(0)) == "0%"
     assert _share(Decimal("0.4"), Decimal(100)) == "<1%" and _share(Decimal(25), Decimal(100)) == "25%"

@@ -347,3 +347,56 @@ class AccountView(BaseModel):
     entries: list[RegisterRowRead]
     has_more: bool
     next_offset: int
+
+
+class CategoryRowRead(BaseModel):
+    """One row of the Categories page: a top-level category, its month, what is inside it and its share."""
+
+    id: UUID
+    name: str
+    total: Decimal
+    # The biggest categories inside it ("Fuel · Taxi · +2").
+    hint: str
+    # Its part of the month ("34%", "<1%", "0%"; empty when the month adds up to nothing).
+    share: str
+
+
+class CategoriesView(BaseModel):
+    month: str
+    is_current: bool
+    tab: Literal["expense", "income"]
+    grand: Decimal
+    rows: list[CategoryRowRead]
+
+
+class CategoryRef(BaseModel):
+    id: UUID
+    name: str
+
+
+class SubcategoryRead(BaseModel):
+    id: UUID
+    name: str
+    total: Decimal
+
+
+class CategoryView(BaseModel):
+    """A category's own page for one month."""
+
+    id: UUID
+    name: str
+    details: str | None
+    kind: Literal["spending", "earning"]
+    built_in: bool
+    closed_on: Date | None
+    group: CategoryRef | None
+    month: str
+    is_current: bool
+    # The whole category's month, its subcategories too.
+    total: Decimal
+    subs: list[SubcategoryRead]
+    # What was labelled with the category itself besides its subcategories ("Everything else").
+    own_here: Decimal
+    can_add_child: bool
+    can_delete: bool
+    entries: list[RegisterRowRead]
