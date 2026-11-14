@@ -134,4 +134,21 @@ describe("the Add screen", () => {
       expect(calledPaths(fetch)).toContain("/api/entries/t9");
     });
   });
+
+  it("an edit keeps each line's own posting date, as the web form does", async () => {
+    const { fetch } = await screenWith(
+      view({
+        editing: true,
+        total: "30.00",
+        from_rows: [{ choice: ids.bank, amount: "30.00", category_id: null, posted_on: "2026-11-02" }],
+        to_rows: [{ choice: ids.food, amount: "30.00", category_id: null, posted_on: null }],
+      }),
+      { "/api/entries/t9": [200, { transaction_id: "t9", recorded: "transaction" }] },
+      "t9",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    const rows = (await bodySent(fetch)).rows as { side: string; posted_on?: string | null }[];
+    expect(rows.find((row) => row.side === "credit")?.posted_on).toBe("2026-11-02");
+    expect(rows.find((row) => row.side === "debit")?.posted_on ?? null).toBeNull();
+  });
 });

@@ -1,5 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { renderApp, SIGNED_IN } from "../../test/render";
 import { ids, view } from "./fixtures";
@@ -57,5 +58,23 @@ describe("the Add and Edit addresses", () => {
       "/api/views/entry-form": [404, { detail: "transaction not found" }],
     });
     expect(await screen.findByRole("alert")).toHaveTextContent("transaction not found");
+  });
+
+  it("deleting from the Edit screen goes back, not to an entry that cannot be found", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    let deleted = false;
+    const { router } = renderApp(`/transactions/t9/edit`, {
+      ...SIGNED_IN,
+      "/api/views/entry-form": () =>
+        deleted ? [404, { detail: "transaction not found" }] : [200, view({ editing: true })],
+      "/api/transactions/t9": () => {
+        deleted = true;
+        return [200, {}];
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Delete transaction" }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/transactions");
+    });
   });
 });

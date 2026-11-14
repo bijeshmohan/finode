@@ -102,6 +102,21 @@ def test_editing_keeps_what_was_recorded(signed_in_spa_page: Page, spa_books, sp
     assert {p["amount"] for p in spa_api.get(f"/transactions/{entry['id']}")["postings"]} == {"55.00"}
 
 
+def test_deleting_from_the_edit_screen_goes_back_to_the_list(signed_in_spa_page: Page, spa_books, spa_api: Api):
+    page = signed_in_spa_page
+    entry = spa_api.post(
+        "/transactions/",
+        payee="Gone",
+        postings=[leg(spa_books["food"], "debit", "40"), leg(spa_books["checking"], "credit", "40")],
+    )
+    page.goto(f"/transactions/{entry['id']}/edit")
+    page.once("dialog", lambda dialog: dialog.accept())
+    page.get_by_role("button", name="Delete transaction").click()
+    page.wait_for_url(re.compile(r"/transactions(\?|$)"))
+    expect(page.get_by_text("Transaction deleted")).to_be_visible()
+    expect(page.get_by_text("transaction not found")).to_have_count(0)
+
+
 def history(api: Api, books, payee="Swiggy", source="card", target="food"):
     api.post(
         "/transactions/",
