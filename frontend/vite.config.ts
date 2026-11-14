@@ -15,6 +15,8 @@ export default defineConfig({
     // online only and never keeps your books on the device.
     VitePWA({
       registerType: "autoUpdate",
+      // Registered in main.tsx, where a failure is caught: the app works online without it.
+      injectRegister: false,
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
       manifest: {
         name: "finode",

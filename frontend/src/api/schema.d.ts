@@ -1865,8 +1865,8 @@ export interface paths {
         };
         /**
          * Home
-         * @description Home for a month (`YYYY-MM`, never ahead): the budget at a glance, the month's first entries (a day is never cut;
-         *     the rest come from `/views/transactions`), and a new person's first steps while some are left.
+         * @description Home for a month (`YYYY-MM`, never ahead): the budget at a glance and a new person's first steps while some are
+         *     left. The month's entries are the list's (`/views/transactions`), so every page of them refreshes together.
          */
         get: operations["home_api_views_home_get"];
         put?: never;
@@ -3026,8 +3026,6 @@ export interface components {
         };
         /** HomeView */
         HomeView: {
-            /** Days */
-            days: components["schemas"]["DayTotal"][];
             glance: components["schemas"]["GlanceRead"];
             /** Has Recorded */
             has_recorded: boolean;
@@ -3035,8 +3033,6 @@ export interface components {
             is_current: boolean;
             /** Month */
             month: string;
-            /** Rows */
-            rows: components["schemas"]["RowRead"][];
             /** Spent */
             spent: string;
             /** Steps */
@@ -3045,8 +3041,6 @@ export interface components {
             steps_done: number;
             /** Steps Total */
             steps_total: number;
-            /** Total */
-            total: number;
         };
         /**
          * ImportSummary

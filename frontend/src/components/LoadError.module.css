@@ -1,0 +1,25 @@
+.box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.5rem 0 1rem;
+}
+.error {
+  margin: 0;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+}
+.retry {
+  min-height: var(--tap);
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}

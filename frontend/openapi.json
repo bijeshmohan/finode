@@ -2857,13 +2857,6 @@
       },
       "HomeView": {
         "properties": {
-          "days": {
-            "items": {
-              "$ref": "#/components/schemas/DayTotal"
-            },
-            "title": "Days",
-            "type": "array"
-          },
           "glance": {
             "$ref": "#/components/schemas/GlanceRead"
           },
@@ -2878,13 +2871,6 @@
           "month": {
             "title": "Month",
             "type": "string"
-          },
-          "rows": {
-            "items": {
-              "$ref": "#/components/schemas/RowRead"
-            },
-            "title": "Rows",
-            "type": "array"
           },
           "spent": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -2912,10 +2898,6 @@
           "steps_total": {
             "title": "Steps Total",
             "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
           }
         },
         "required": [
@@ -2926,10 +2908,7 @@
           "spent",
           "steps",
           "steps_done",
-          "steps_total",
-          "rows",
-          "days",
-          "total"
+          "steps_total"
         ],
         "title": "HomeView",
         "type": "object"
@@ -13329,7 +13308,7 @@
     },
     "/api/views/home": {
       "get": {
-        "description": "Home for a month (`YYYY-MM`, never ahead): the budget at a glance, the month's first entries (a day is never cut;\nthe rest come from `/views/transactions`), and a new person's first steps while some are left.",
+        "description": "Home for a month (`YYYY-MM`, never ahead): the budget at a glance and a new person's first steps while some are\nleft. The month's entries are the list's (`/views/transactions`), so every page of them refreshes together.",
         "operationId": "home_api_views_home_get",
         "parameters": [
           {

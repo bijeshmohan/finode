@@ -27,10 +27,22 @@ function home(overrides: Partial<HomeView> = {}): HomeView {
     steps: null,
     steps_done: 3,
     steps_total: 3,
-    rows: [row()],
-    days: [],
-    total: 1,
     ...overrides,
+  };
+}
+
+function list(rows = [row()]) {
+  return {
+    month: "2026-11",
+    is_current: true,
+    rows,
+    days: [],
+    total: rows.length,
+    summary: null,
+    upcoming: [],
+    upcoming_total: null,
+    error: null,
+    applied: [],
   };
 }
 
@@ -44,8 +56,6 @@ describe("Home", () => {
         200,
         home({
           has_recorded: false,
-          rows: [],
-          total: 0,
           steps: [
             { key: "account", title: "Add a bank account, cash or card", done: false, hint: null },
             { key: "spend", title: "Record your first spend", done: false, hint: "Takes about ten seconds" },
@@ -120,7 +130,7 @@ describe("Home", () => {
   });
 
   it("lists the month's first entries and links to all of them", async () => {
-    renderApp("/", { ...SIGNED_IN, "/api/views/home": [200, home()] });
+    renderApp("/", { ...SIGNED_IN, "/api/views/home": [200, home()], "/api/views/transactions": [200, list()] });
     expect(await screen.findByText("Swiggy")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View all ›" })).toHaveAttribute("href", "/transactions?month=2026-11");
   });
@@ -128,8 +138,43 @@ describe("Home", () => {
   it("a month with nothing says so", async () => {
     renderApp("/?month=2026-10", {
       ...SIGNED_IN,
-      "/api/views/home": [200, home({ month: "2026-10", is_current: false, rows: [], total: 0 })],
+      "/api/views/home": [200, home({ month: "2026-10", is_current: false })],
+      "/api/views/transactions": [200, list([])],
     });
     expect(await screen.findByText("Nothing was recorded in October.")).toBeInTheDocument();
+  });
+
+  it("a Home that cannot be loaded says so and offers to try again", async () => {
+    renderApp("/", { ...SIGNED_IN, "/api/views/home": [500, { detail: "boom" }] });
+    expect(await screen.findByRole("alert")).toHaveTextContent("boom");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("the month's entries come from one list, eight first", async () => {
+    const asked: string[] = [];
+    renderApp("/", {
+      ...SIGNED_IN,
+      "/api/views/home": [200, home()],
+      "/api/views/transactions": (url) => {
+        asked.push(`${url.searchParams.get("offset") ?? ""}/${url.searchParams.get("limit") ?? ""}`);
+        return [
+          200,
+          {
+            month: "2026-11",
+            is_current: true,
+            rows: [row({ title: "Listed" })],
+            days: [],
+            total: 1,
+            summary: null,
+            upcoming: [],
+            upcoming_total: null,
+            error: null,
+            applied: [],
+          },
+        ];
+      },
+    });
+    expect(await screen.findByText("Listed")).toBeInTheDocument();
+    expect(asked).toEqual(["0/8"]);
   });
 });

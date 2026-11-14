@@ -1,4 +1,5 @@
-// Home's server data: one call for the screen (/api/views/home), then the rest of the month a few at a time.
+// Home's server data: the glance and first steps (/api/views/home), and the month's entries as one list, a few first
+// and more on "Show more", so a change to the books refreshes every page of it at once (no row twice, none lost).
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { data } from "../../api/client";
@@ -8,7 +9,8 @@ import { VIEWS } from "../transactions/queries";
 
 export type HomeView = components["schemas"]["HomeView"];
 
-/** How many more entries each "Show more" brings on Home. */
+/** Home starts with this many entries, and each "Show more" brings this many more (a day is never cut). */
+export const HOME_FIRST = 8;
 export const HOME_MORE = 10;
 
 export function useHome(month: string | undefined) {
@@ -19,18 +21,22 @@ export function useHome(month: string | undefined) {
   });
 }
 
-/** The month's entries after the first ones Home shows; nothing is asked until `wanted`. */
-export function useHomeMore(month: string, start: number, wanted: boolean) {
+export function useHomeList(month: string | undefined) {
   const api = useApi();
   return useInfiniteQuery({
-    queryKey: [...VIEWS, "home-more", month, start],
+    queryKey: [...VIEWS, "home-list", month ?? ""],
     queryFn: ({ pageParam }) =>
-      data(api.GET("/api/views/transactions", { params: { query: { month, offset: pageParam, limit: HOME_MORE } } })),
-    initialPageParam: start,
+      data(
+        api.GET("/api/views/transactions", {
+          params: {
+            query: { ...(month ? { month } : {}), offset: pageParam, limit: pageParam === 0 ? HOME_FIRST : HOME_MORE },
+          },
+        }),
+      ),
+    initialPageParam: 0,
     getNextPageParam: (last, pages) => {
-      const shown = start + pages.reduce((n, page) => n + page.rows.length, 0);
+      const shown = pages.reduce((n, page) => n + page.rows.length, 0);
       return shown < last.total && last.rows.length > 0 ? shown : undefined;
     },
-    enabled: wanted,
   });
 }
