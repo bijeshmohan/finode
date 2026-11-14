@@ -13,7 +13,17 @@ from sqlalchemy import event
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
 
-PAGES = ["/transactions/new", "/transactions", "/api/views/transactions", "/", "/api/views/home", "/accounts", "/budget", "/categories", "/categories?tab=income"]
+PAGES = [
+    "/transactions/new",
+    "/transactions",
+    "/api/views/transactions",
+    "/",
+    "/api/views/home",
+    "/accounts",
+    "/budget",
+    "/categories",
+    "/categories?tab=income",
+]
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).

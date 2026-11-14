@@ -175,7 +175,9 @@ def test_home_with_nothing_recorded(client, root_accounts):
     seen = home(client)
     assert seen["has_recorded"] is False and seen["rows"] == []
     assert [(s["key"], s["done"]) for s in seen["steps"]] == [("account", False), ("spend", False), ("budget", False)]
-    assert seen["steps"][1]["title"] == "Record your first spend" and seen["steps"][1]["hint"] == "Takes about ten seconds"
+    assert (
+        seen["steps"][1]["title"] == "Record your first spend" and seen["steps"][1]["hint"] == "Takes about ten seconds"
+    )
     assert (seen["steps_done"], seen["steps_total"]) == (0, 3)
 
 
@@ -184,7 +186,12 @@ def test_home_glance_when_overspent(client, books):
     spend(client, books, amount="150.5")
     glance = home(client)["glance"]
     assert glance["has_budget"] is True
-    assert (glance["left"], glance["spent"], glance["assigned"], glance["percent"]) == ("-50.50", "150.50", "100.00", 100)
+    assert (glance["left"], glance["spent"], glance["assigned"], glance["percent"]) == (
+        "-50.50",
+        "150.50",
+        "100.00",
+        100,
+    )
     assert glance["pace"] is not None
 
 
