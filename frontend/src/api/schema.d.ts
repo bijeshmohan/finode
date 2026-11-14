@@ -1943,6 +1943,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/views/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Categories View
+         * @description The Categories page for a month (`YYYY-MM`; this month by default) and a tab (`expense` or `income`): what each
+         *     top-level category came to, biggest first, with the biggest inside it (`hint`) and its share of the month.
+         */
+        get: operations["categories_view_api_views_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Category View
+         * @description A category's own page for a month: the whole category's figure, its subcategories with theirs and what was
+         *     labelled with it itself besides them (`own_here`), and its own entries newest first.
+         */
+        get: operations["category_view_api_views_categories__category_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/views/entry-form": {
         parameters: {
             query?: never;
@@ -2777,6 +2819,22 @@ export interface components {
             /** Soon */
             soon: boolean;
         };
+        /** CategoriesView */
+        CategoriesView: {
+            /** Grand */
+            grand: string;
+            /** Is Current */
+            is_current: boolean;
+            /** Month */
+            month: string;
+            /** Rows */
+            rows: components["schemas"]["CategoryRowRead"][];
+            /**
+             * Tab
+             * @enum {string}
+             */
+            tab: "expense" | "income";
+        };
         /** CategoryCreate */
         CategoryCreate: {
             /** Details */
@@ -2865,6 +2923,35 @@ export interface components {
             /** System Key */
             system_key?: string | null;
         };
+        /** CategoryRef */
+        CategoryRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * CategoryRowRead
+         * @description One row of the Categories page: a top-level category, its month, what is inside it and its share.
+         */
+        CategoryRowRead: {
+            /** Hint */
+            hint: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Share */
+            share: string;
+            /** Total */
+            total: string;
+        };
         /** CategoryUpdate */
         CategoryUpdate: {
             /** Details */
@@ -2873,6 +2960,47 @@ export interface components {
             name?: string | null;
             /** Parent Id */
             parent_id?: string | null;
+        };
+        /**
+         * CategoryView
+         * @description A category's own page for one month.
+         */
+        CategoryView: {
+            /** Built In */
+            built_in: boolean;
+            /** Can Add Child */
+            can_add_child: boolean;
+            /** Can Delete */
+            can_delete: boolean;
+            /** Closed On */
+            closed_on: string | null;
+            /** Details */
+            details: string | null;
+            /** Entries */
+            entries: components["schemas"]["RegisterRowRead"][];
+            group: components["schemas"]["CategoryRef"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Current */
+            is_current: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "spending" | "earning";
+            /** Month */
+            month: string;
+            /** Name */
+            name: string;
+            /** Own Here */
+            own_here: string;
+            /** Subs */
+            subs: components["schemas"]["SubcategoryRead"][];
+            /** Total */
+            total: string;
         };
         /**
          * ClosedAccount
@@ -4819,6 +4947,18 @@ export interface components {
             key: "account" | "spend" | "budget";
             /** Title */
             title: string;
+        };
+        /** SubcategoryRead */
+        SubcategoryRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Total */
+            total: string;
         };
         /** SummaryRead */
         SummaryRead: {
@@ -8915,6 +9055,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    categories_view_api_views_categories_get: {
+        parameters: {
+            query?: {
+                month?: string;
+                tab?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoriesView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    category_view_api_views_categories__category_id__get: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryView"];
                 };
             };
             /** @description Validation Error */

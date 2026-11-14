@@ -1826,6 +1826,47 @@
         "title": "CardNoteRead",
         "type": "object"
       },
+      "CategoriesView": {
+        "properties": {
+          "grand": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Grand",
+            "type": "string"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryRowRead"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "tab": {
+            "enum": [
+              "expense",
+              "income"
+            ],
+            "title": "Tab",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "is_current",
+          "tab",
+          "grand",
+          "rows"
+        ],
+        "title": "CategoriesView",
+        "type": "object"
+      },
       "CategoryCreate": {
         "properties": {
           "details": {
@@ -2052,6 +2093,61 @@
         "title": "CategoryRead",
         "type": "object"
       },
+      "CategoryRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CategoryRef",
+        "type": "object"
+      },
+      "CategoryRowRead": {
+        "description": "One row of the Categories page: a top-level category, its month, what is inside it and its share.",
+        "properties": {
+          "hint": {
+            "title": "Hint",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "share": {
+            "title": "Share",
+            "type": "string"
+          },
+          "total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "total",
+          "hint",
+          "share"
+        ],
+        "title": "CategoryRowRead",
+        "type": "object"
+      },
       "CategoryUpdate": {
         "properties": {
           "details": {
@@ -2092,6 +2188,124 @@
           }
         },
         "title": "CategoryUpdate",
+        "type": "object"
+      },
+      "CategoryView": {
+        "description": "A category's own page for one month.",
+        "properties": {
+          "built_in": {
+            "title": "Built In",
+            "type": "boolean"
+          },
+          "can_add_child": {
+            "title": "Can Add Child",
+            "type": "boolean"
+          },
+          "can_delete": {
+            "title": "Can Delete",
+            "type": "boolean"
+          },
+          "closed_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed On"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/RegisterRowRead"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "spending",
+              "earning"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "own_here": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Own Here",
+            "type": "string"
+          },
+          "subs": {
+            "items": {
+              "$ref": "#/components/schemas/SubcategoryRead"
+            },
+            "title": "Subs",
+            "type": "array"
+          },
+          "total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "details",
+          "kind",
+          "built_in",
+          "closed_on",
+          "group",
+          "month",
+          "is_current",
+          "total",
+          "subs",
+          "own_here",
+          "can_add_child",
+          "can_delete",
+          "entries"
+        ],
+        "title": "CategoryView",
         "type": "object"
       },
       "ClosedAccount": {
@@ -7355,6 +7569,31 @@
           "hint"
         ],
         "title": "StepRead",
+        "type": "object"
+      },
+      "SubcategoryRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "total"
+        ],
+        "title": "SubcategoryRead",
         "type": "object"
       },
       "SummaryRead": {
@@ -15053,6 +15292,124 @@
           }
         ],
         "summary": "Account View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/categories": {
+      "get": {
+        "description": "The Categories page for a month (`YYYY-MM`; this month by default) and a tab (`expense` or `income`): what each\ntop-level category came to, biggest first, with the biggest inside it (`hint`) and its share of the month.",
+        "operationId": "categories_view_api_views_categories_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Month",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tab",
+            "required": false,
+            "schema": {
+              "default": "expense",
+              "title": "Tab",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoriesView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Categories View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/categories/{category_id}": {
+      "get": {
+        "description": "A category's own page for a month: the whole category's figure, its subcategories with theirs and what was\nlabelled with it itself besides them (`own_here`), and its own entries newest first.",
+        "operationId": "category_view_api_views_categories__category_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Category Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Month",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Category View",
         "tags": [
           "views"
         ]

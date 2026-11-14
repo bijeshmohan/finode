@@ -25,6 +25,7 @@ PAGES = [
     "/budget",
     "/categories",
     "/categories?tab=income",
+    "/api/views/categories",
 ]
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
@@ -41,6 +42,7 @@ CEILING = {
     "/budget": 6,  # + the categories
     "/categories": 4,
     "/categories?tab=income": 4,
+    "/api/views/categories": 4,  # the Categories page's own reads, for the finode app
 }
 
 from .books import category, post_account  # noqa: E402
@@ -646,3 +648,18 @@ def test_the_add_screens_other_views_do_not_grow_with_the_books(client, root_acc
     for view in SHARE_CEILING:
         assert large[view] <= small[view], f"{view} asks more often as the books grow: {small[view]} -> {large[view]}"
         assert large[view] <= SHARE_CEILING[view], f"{view} makes {large[view]} queries"
+
+
+def test_a_categorys_page_and_its_view_do_not_grow_either(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    category = client.get("/api/categories/").json()[0]["id"]
+    first = {
+        "page": count_queries(lambda: client.get(f"/categories/{category}")),
+        "view": count_queries(lambda: client.get(f"/api/views/categories/{category}")),
+    }
+    grow(client, root_accounts, accounts=6, transactions=60, start=6)
+    second = {
+        "page": count_queries(lambda: client.get(f"/categories/{category}")),
+        "view": count_queries(lambda: client.get(f"/api/views/categories/{category}")),
+    }
+    assert second["view"] <= first["view"] + 2 and second["view"] <= second["page"], (first, second)

@@ -1,6 +1,7 @@
 """/api/views/accounts and /api/views/accounts/{account_id}: what the finode app's Accounts page and an account's page
 show, worked out as the web pages work it out (services/accounts_view.py)."""
 
+import itertools
 from datetime import timedelta
 from decimal import Decimal
 
@@ -23,7 +24,7 @@ def cards_of(seen):
 
 def running(rows):
     """Each row's running balance is the next (older) one's plus what the row changed."""
-    for newer, older in zip(rows, rows[1:], strict=False):
+    for newer, older in itertools.pairwise(rows):
         change = Decimal(newer["amount"]) * (1 if newer["inflow"] else -1)
         assert Decimal(newer["balance"]) == Decimal(older["balance"]) + change, (newer, older)
 
