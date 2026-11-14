@@ -37,6 +37,7 @@ import { NoteAndTags } from "./NoteAndTags";
 import { PayeeField } from "./PayeeField";
 import { Picker } from "./Picker";
 import { Related } from "./RelatedPicker";
+import { QuickAdd, type QuickKind } from "./QuickAdd";
 import { RowSettings } from "./RowSettings";
 import {
   carryExpense,
@@ -93,6 +94,15 @@ export function startState(form: EntryFormView, grouping: Parameters<typeof grou
 
 const shareable = (kind: Kind) => kind === "expense" || kind === "income";
 
+/** What "＋ New" makes on a side: a category where the side lists categories, else an account under its first root
+ * (app.js suggestedRoot). */
+function quickKind(kind: Kind, side: Side): QuickKind {
+  const root = KINDS[kind][side].roots?.[0] ?? (side === "debit" ? "Expenses" : "Assets");
+  if (root === "Expenses") return { what: "category", kind: "spending" };
+  if (root === "Income") return { what: "category", kind: "earning" };
+  return { what: "account", root };
+}
+
 function categoryGroups(groups: PickGroup[]): PickGroup[] {
   return groups.filter((g) => g.title === "Expenses" || g.title === "Income");
 }
@@ -128,6 +138,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
   const [state, setState] = useState<EntryState>(() => startState(form, grouping));
   const [picking, setPicking] = useState<{ side: Side; index: number; category: boolean } | null>(null);
   const [tuning, setTuning] = useState<{ side: Side; index: number } | null>(null);
+  const [making, setMaking] = useState<{ side: Side; index: number; kind: QuickKind } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const ids = { credit: useId(), debit: useId() };
   const groups = form.groups;
@@ -580,7 +591,16 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
               : (state[picking.side][picking.index]?.choice ?? null)
           }
           otherSide={picking.category ? null : firstChoice(state[other(picking.side)])}
-          {...(picking.category ? { clearable: "No category" } : {})}
+          {...(picking.category
+            ? { clearable: "No category" }
+            : {
+                onNew: {
+                  noun: quickKind(state.kind, picking.side).what,
+                  open: () => {
+                    setMaking({ ...picking, kind: quickKind(state.kind, picking.side) });
+                  },
+                },
+              })}
           onChange={(id) => {
             changeRow(
               picking.side,
@@ -590,6 +610,19 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
           }}
           onClose={() => {
             setPicking(null);
+          }}
+        />
+      )}
+      {making && (
+        <QuickAdd
+          making={making.kind}
+          accountParents={form.account_parents}
+          categoryParents={form.category_parents}
+          onMade={(id) => {
+            changeRow(making.side, making.index, { choice: id, category: null });
+          }}
+          onClose={() => {
+            setMaking(null);
           }}
         />
       )}

@@ -20,9 +20,21 @@ interface PickerProps {
   otherSide?: string | null;
   /** When the row may name nothing, the label of that first choice ("No category"). */
   clearable?: string;
+  /** Offer to make a new one ("＋ New account"): what is made, and what to do when it is pressed. */
+  onNew?: { noun: "account" | "category"; open: () => void };
 }
 
-export function Picker({ open, title, groups, value, onChange, onClose, otherSide = null, clearable }: PickerProps) {
+export function Picker({
+  open,
+  title,
+  groups,
+  value,
+  onChange,
+  onClose,
+  otherSide = null,
+  clearable,
+  onNew,
+}: PickerProps) {
   const grouping = useGrouping();
   const [search, setSearch] = useState("");
   const wanted = search.trim().toLowerCase();
@@ -92,6 +104,19 @@ export function Picker({ open, title, groups, value, onChange, onClose, otherSid
             ))}
           </section>
         ))}
+        {onNew && (
+          <button
+            type="button"
+            className={styles.option}
+            onClick={() => {
+              setSearch("");
+              onClose();
+              onNew.open();
+            }}
+          >
+            <span className={styles.name}>{`＋ New ${onNew.noun}`}</span>
+          </button>
+        )}
       </div>
     </Sheet>
   );
