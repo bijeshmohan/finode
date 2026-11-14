@@ -5,8 +5,8 @@ from fastapi.responses import HTMLResponse
 
 from ...dependencies import Accounts, Categories, ComingUp
 from ...schemas.coming_up import ComingUpItem, ComingUpLine
+from ...services.transaction_rows import AccountIndex
 from ...templating import templates
-from .transactions import AccountIndex
 
 router = APIRouter(prefix="/budget/coming-up")
 

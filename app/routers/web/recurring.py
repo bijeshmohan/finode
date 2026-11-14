@@ -14,9 +14,9 @@ from ...clock import local_today
 from ...dependencies import Accounts, Categories, Recurring
 from ...models.transaction import PostingSide
 from ...schemas.recurring import RecurringCreate, RecurringPostingData, RecurringRead, RecurringUpdate
+from ...services.account_tree import build_tree
 from ...services.schedule import describe
 from ...templating import templates
-from .accounts import build_tree
 from .transactions import category_places, form_context, form_rows, infer_kind, roots_by_id, split_postings
 from .utils import htmx_error, htmx_redirect, validation_message
 

@@ -1,29 +1,14 @@
 """Shared by the web routers: reading an amount from a form, and htmx redirects, events and errors."""
 
 import json
-from dataclasses import dataclass
-from datetime import date as Date
 from decimal import Decimal, InvalidOperation
 from html import escape
-from uuid import UUID
 
 from fastapi import Response
 from fastapi.responses import HTMLResponse
 
 from ...flash import set_flash
 from ...services.validation import validation_message  # noqa: F401  (shared with the services)
-
-
-@dataclass
-class UpcomingItem:
-    """One entry dated ahead, as the "upcoming" card shows it (see partials/upcoming.html)."""
-
-    transaction_id: UUID
-    date: Date
-    title: str
-    sub: str
-    amount: Decimal
-    income: bool = False
 
 
 def parse_amount(value: str | None, default: Decimal | None = None) -> Decimal:

@@ -40,8 +40,9 @@ from ...schemas.shared_expense import (
     SharedExpenseCreate,
 )
 from ...schemas.shared_income import IncomeDepositIn, IncomePartIn, SharedIncomeCreate
+from ...services.account_tree import build_tree, without_contacts
 from ...templating import grouping_for, money, templates
-from .accounts import build_tree, posting_groups, without_contacts
+from .accounts import posting_groups
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
 
 router = APIRouter(prefix="/people")
