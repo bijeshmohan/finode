@@ -12,7 +12,7 @@ import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import { groupAmount, tidyAmount } from "../../lib/amount";
 import { sameAmount } from "../../lib/split";
-import styles from "./Accounts.module.css";
+import look from "../../components/Page.module.css";
 import form from "./Forms.module.css";
 import {
   type AccountFormView,
@@ -138,7 +138,7 @@ function FormBody({ view, accountId }: { view: AccountFormView; accountId: strin
 
   return (
     <>
-      <Link className={styles.back} to={back}>
+      <Link className={look.back} to={back}>
         <Icon name="back" />
         {editing ? view.name : "Accounts"}
       </Link>

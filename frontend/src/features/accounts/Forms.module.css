@@ -241,3 +241,30 @@
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+/* A field that opens a picker (.field-pick). */
+.pick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: var(--tap);
+  margin: 0;
+  padding: 0.55rem 2rem 0.55rem 0.7rem;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+.pick::after {
+  content: "›";
+  position: absolute;
+  right: 0.8rem;
+  color: var(--faint);
+  font-size: 1.25rem;
+}

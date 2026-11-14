@@ -6,7 +6,7 @@ import { Link, useNavigate } from "react-router";
 import { messageOf } from "../../api/messages";
 import { useToast } from "../../app/toast";
 import { Icon } from "../../components/Icon";
-import styles from "./Accounts.module.css";
+import look from "../../components/Page.module.css";
 import form from "./Forms.module.css";
 import { useAddGroup } from "./queries";
 
@@ -46,7 +46,7 @@ export function GroupForm() {
 
   return (
     <>
-      <Link className={styles.back} to="/accounts">
+      <Link className={look.back} to="/accounts">
         <Icon name="back" />
         Accounts
       </Link>
