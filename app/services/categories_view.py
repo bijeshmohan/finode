@@ -129,6 +129,13 @@ class CategoryPage:
     entries: list[RegisterRow]
     can_add_child: bool
 
+    @property
+    def new_transaction_url(self) -> str | None:
+        """The "+" in the bar starts an entry for this category and comes back here (a closed one: none)."""
+        if self.category.closed_on:
+            return None
+        return f"/transactions/new?category={self.category.id}&back=/categories/{self.category.id}"
+
 
 def category_page(
     categories: CategoryService, reports: ReportService, category_id: UUID, when: date, end: date

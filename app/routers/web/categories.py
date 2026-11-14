@@ -166,9 +166,7 @@ def category_own_page(request: Request, category_id: UUID, categories: Categorie
         {
             "active": "categories",
             # The "+" in the bar starts an entry for this category and comes back here.
-            "new_transaction_url": None
-            if category.closed_on
-            else f"/transactions/new?category={category_id}&back=/categories/{category_id}",
+            "new_transaction_url": page.new_transaction_url,
             "category": category,
             "group": page.group,
             "entries": page.entries,

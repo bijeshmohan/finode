@@ -2496,6 +2496,17 @@
             "title": "Name",
             "type": "string"
           },
+          "new_transaction_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Transaction Url"
+          },
           "own_here": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Own Here",
@@ -2529,6 +2540,7 @@
           "own_here",
           "can_add_child",
           "can_delete",
+          "new_transaction_url",
           "entries"
         ],
         "title": "CategoryView",
