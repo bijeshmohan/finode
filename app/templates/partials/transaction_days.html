@@ -4,17 +4,14 @@
 {#- One row of a day (the same for a day's own list and for the folded opening balances). -#}
 {% macro entry(row) %}
       {% set t = row.transaction %}
-      {% set system = "Opening Balances" in row.credits or "Opening Balances" in row.debits %}
       <li>
-        <a class="tx{{ " tx-system" if system }}" href="/transactions/{{ t.id }}/edit" hx-get="/transactions/{{ t.id }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
+        <a class="tx{{ " tx-system" if row.is_system }}" href="/transactions/{{ t.id }}/edit" hx-get="/transactions/{{ t.id }}/sheet" hx-target="#txn-sheet-body" hx-swap="innerHTML" hx-push-url="false">
           <span class="tx-main">
-            {#- No payee: the row leads with where the money went and says where it came from. -#}
-            {{ tx_title(t.payee or row.debits|join(", "), row.related) }}
-            {#- An opening balance or an adjustment names just the account: the system's "Opening Balances" and the stock note say nothing. -#}
-            {% set note = "" if system and t.comment == "Initial account balance" else t.comment %}
-            <span class="tx-sub">{% if system %}{{ (row.credits + row.debits)|reject("equalto", "Opening Balances")|join(", ") }}{% elif t.payee %}{{ row.credits|join(", ") }} → {{ row.debits|join(", ") }}{% else %}{{ row.credits|join(", ") }}{% endif %}{% if note %} · {{ note }}{% endif %}</span>
-            {% if t.recurring_id or t.created_via == "recurring" %}<span class="tx-via">{{ icon("repeat") }}Recurring</span>{% endif %}
-            {% if (t.created_via or "").startswith("mcp:") or (t.updated_via or "").startswith("mcp:") %}<span class="tx-via">{{ icon("robot") }}{{ "Added" if (t.created_via or "").startswith("mcp:") else "Changed" }} by {{ ((t.created_via if (t.created_via or "").startswith("mcp:") else t.updated_via))[4:] }}</span>{% endif %}
+            {#- How the row names itself (its title, its second line) is worked out in services/transaction_rows.py, shared with the React app. -#}
+            {{ tx_title(row.title, row.related) }}
+            <span class="tx-sub">{{ row.sub }}</span>
+            {% if row.recurring %}<span class="tx-via">{{ icon("repeat") }}Recurring</span>{% endif %}
+            {% if row.by_assistant %}<span class="tx-via">{{ icon("robot") }}{{ row.by_assistant }}</span>{% endif %}
           </span>
           <span class="tx-amount {{ row.kind }}">{{ "+" if row.kind == "income" }}{{ row.amount|money }}</span>
         </a>
@@ -27,7 +24,7 @@
     <h3 class="tx-day-head"><span>{{ day|friendly_date }}</span>{% if spent and items|length > 1 %}<span class="tx-day-total">Spent {{ spent|money }}</span>{% endif %}</h3>
     <ul class="card list">
       {#- Several opening balances on one day (a new ledger) fold into one quiet row that opens to them. -#}
-      {% set openings = items|selectattr("transaction.payee", "equalto", "Opening balance")|list %}
+      {% set openings = items|selectattr("is_opening")|list %}
       {% set fold = openings|length > 1 %}
       {% for row in items if not (fold and row in openings) %}{{ entry(row) }}{% endfor %}
       {% if fold %}

@@ -8,10 +8,11 @@ from fastapi import APIRouter, Request
 from ...clock import local_today, month_progress
 from ...dependencies import Accounts, Budget, Categories, Profiles, Recurring, Reports, Transactions
 from ...services.account import AccountService
+from ...services.transaction_rows import HOME_FIRST, HOME_MORE, AccountIndex, TransactionRow, list_rows, to_row
 from ...templating import templates
 from .budget import parse_month
 from .categories import _month_context
-from .transactions import HOME_FIRST, HOME_MORE, AccountIndex, TransactionRow, _more, list_rows, to_row
+from .transactions import _more
 
 router = APIRouter()
 

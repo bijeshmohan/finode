@@ -2,7 +2,6 @@
 
 import calendar
 from collections.abc import Callable, Collection, Iterable, Mapping
-from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Annotated
@@ -26,36 +25,41 @@ from ...dependencies import (
 )
 from ...models.transaction import PostingSide
 from ...repositories.transaction import SYSTEM_PAYEES
-from ...schemas import AccountRead
-from ...schemas.category import CategoryRead
-from ...schemas.coming_up import ComingUpLine
 from ...schemas.contact import TransferCreate
 from ...schemas.shared_expense import SharedExpenseRead
 from ...schemas.shared_income import SharedIncomeRead
 from ...schemas.transaction import (
     PostingBase,
     PostingCreate,
-    RelatedRef,
     TransactionCreate,
-    TransactionRead,
     TransactionUpdate,
 )
 from ...services import payee_suggestions
+from ...services.account_tree import build_tree, without_contacts
+from ...services.transaction_rows import (
+    HOME_MORE,
+    KIND_FILTERS,
+    PAGE_SIZE,
+    UPCOMING_LIMIT,
+    AccountIndex,
+    TransactionRow,
+    UpcomingItem,
+    filter_options,
+    list_rows,
+    related_info,
+    summary_of,
+    to_row,
+    upcoming_items,
+)
 from ...tags import clean_tag
 from ...templating import templates
-from .accounts import PickGroups, PickOption, build_tree, category_groups, posting_groups, without_contacts
+from .accounts import PickGroups, PickOption, category_groups, posting_groups
 from .budget import parse_month
 from .categories import _month_context, category_tree
 from .people import expense_data, income_data
-from .utils import UpcomingItem, htmx_error, htmx_redirect, parse_amount, validation_message
+from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
 
 router = APIRouter(prefix="/transactions")
-
-PAGE_SIZE = 25
-
-# How many entries dated ahead the transactions page lists under "upcoming".
-UPCOMING_LIMIT = 100
-KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer"}
 
 
 def _more(params: dict, shown: int, total: int, step: int, size: int) -> dict | None:
@@ -91,108 +95,6 @@ def _applied(filters: dict, index: AccountIndex, rest: dict) -> list[dict]:
         keep = {**rest, **{k: v for k, v in filters.items() if v and k != key}}
         out.append({"key": key, "label": label, "name": name, "remove": "/transactions?" + urlencode(keep)})
     return out
-
-
-def _summary(found: list, index: AccountIndex) -> dict:
-    """How many entries match and, when they all go one way, what they come to."""
-    rows = [to_row(t, index) for t in found]
-    kinds = {r.kind for r in rows}
-    word = {"expense": "spent", "income": "earned"}.get(next(iter(kinds)), "") if len(kinds) == 1 else ""
-    return {"count": len(rows), "total": sum((r.amount for r in rows), Decimal(0)) if word else None, "word": word}
-
-
-def _filter_options(
-    all_accounts: list[AccountRead], categories: list[CategoryRead], transactions: Transactions
-) -> dict:
-    """The choices behind the Filter sheet: accounts (assets, liabilities, equity), categories, payees."""
-    accounts: list[dict] = []
-    for root in without_contacts(build_tree(all_accounts)):
-        if root.account.name in ("Expenses", "Income"):
-            continue
-        parents: dict[int, str] = {}
-        for node in root.walk():
-            parents[node.depth] = node.account.name
-            if node.depth == 0:
-                continue
-            sub = parents.get(node.depth - 1) if node.depth > 1 else ""
-            accounts.append({"id": str(node.account.id), "name": node.account.name, "sub": sub})
-    names = {c.id: c.name for c in categories}
-    found = [
-        {"id": str(c.id), "name": c.name, "sub": names.get(c.parent_id, "") if c.parent_id else ""} for c in categories
-    ]
-    return {"accounts": accounts, "categories": found, "merchants": [name for name, _ in transactions.payees()]}
-
-
-@dataclass
-class TransactionRow:
-    transaction: TransactionRead
-    debits: list[str]
-    credits: list[str]
-    amount: Decimal
-    kind: str  # expense | income | transfer
-    # The earlier entry this one is related to, with its date and amount, when a list loaded it (`list_rows`).
-    related: RelatedRef | None = None
-
-
-@dataclass
-class AccountIndex:
-    names: dict[UUID, str]
-    roots: dict[UUID, str]
-    # The categories' names: a line on Expenses or Income is named for what it was for.
-    categories: dict[UUID, str] = field(default_factory=dict)
-
-    @classmethod
-    def build(cls, accounts: list[AccountRead], categories: list[CategoryRead] | None = None) -> AccountIndex:
-        names = {a.id: a.name for a in accounts}
-        roots = {node.account.id: root.account.name for root in build_tree(accounts) for node in root.walk()}
-        return cls(names, roots, {c.id: c.name for c in categories or []})
-
-    def line_name(self, posting: PostingBase | ComingUpLine) -> str:
-        """What a line is called in a list: its category when it sits on Expenses or Income, else its account."""
-        if self.roots.get(posting.account_id) in ("Expenses", "Income"):
-            return self.categories.get(posting.category_id, "Uncategorised") if posting.category_id else "Uncategorised"
-        return self.names.get(posting.account_id, "?")
-
-
-def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
-    def side_names(side: PostingSide) -> list[str]:
-        found: list[str] = []
-        for posting in transaction.postings:
-            name = index.line_name(posting)
-            if posting.side == side and name not in found:
-                found.append(name)
-        return found
-
-    def touches(root: str, side: PostingSide) -> bool:
-        return any(p.side == side and index.roots.get(p.account_id) == root for p in transaction.postings)
-
-    if touches("Expenses", PostingSide.DEBIT):
-        kind = "expense"
-    elif touches("Income", PostingSide.CREDIT):
-        kind = "income"
-    else:
-        kind = "transfer"
-
-    amount = sum(
-        (p.amount for p in transaction.postings if p.side == PostingSide.DEBIT),
-        Decimal("0.00"),
-    )
-    return TransactionRow(
-        transaction=transaction,
-        debits=side_names(PostingSide.DEBIT),
-        credits=side_names(PostingSide.CREDIT),
-        amount=amount,
-        kind=kind,
-    )
-
-
-def list_rows(chunk: list[TransactionRead], index: AccountIndex, transactions: Transactions) -> list[TransactionRow]:
-    """The rows of a list, each with what it is related to (two more queries when anything is, none otherwise)."""
-    refs = transactions.related_refs(t.related_id for t in chunk)
-    rows = [to_row(t, index) for t in chunk]
-    for row in rows:
-        row.related = refs.get(row.transaction.related_id) if row.transaction.related_id else None
-    return rows
 
 
 def _parse_date(value: str) -> date | None:
@@ -282,18 +184,7 @@ def transactions_page(
                 who,
                 tag=tag or None,
             )
-            for t in sorted(ahead, key=lambda t: (t.date, t.created)):
-                r = to_row(t, index)
-                upcoming.append(
-                    UpcomingItem(
-                        t.id,
-                        t.date,
-                        t.payee or ", ".join(r.debits),
-                        f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}" if t.payee else ", ".join(r.credits),
-                        r.amount,
-                        r.kind == "income",
-                    )
-                )
+            upcoming = upcoming_items(ahead, index)
     except ValueError as e:
         error = f"Invalid filter: {e}"
         chunk, total = [], 0
@@ -309,8 +200,8 @@ def transactions_page(
         "date_to": date_to,
     }
     query = {k: v for k, v in filters.items() if v}
-    summary = _summary(everything, index) if everything is not None else None
-    options = _filter_options(all_accounts, categories.list(include_closed=True), transactions)
+    summary = summary_of(everything, index) if everything is not None else None
+    options = filter_options(all_accounts, categories.list(include_closed=True), transactions)
     # The month, the filters and the chosen chip also travel with the page links.
     base = {"month": when.strftime("%Y-%m"), **query, **({"q": q.strip()} if q.strip() else {})}
     shown = {**base, **({"kind": kind} if kind else {})}
@@ -366,8 +257,6 @@ def transactions_page(
 
 
 RELATED_PICKER_LIMIT = 30
-HOME_FIRST = 8  # Home starts with this many entries (a day is finished) and "Show more" brings this many each time
-HOME_MORE = 10
 
 
 @router.get("/more")
@@ -722,14 +611,6 @@ def tag_options(request: Request, accounts: Accounts, categories: Categories, tr
 def tag_picker(request: Request, transactions: Transactions):
     """The tags in the Add screen's Tags sheet (fetched the first time it is opened); the page marks the chosen ones."""
     return templates.TemplateResponse(request, "partials/tag_picker.html", {"items": transactions.tags()})
-
-
-def related_info(transactions: Transactions, index: AccountIndex, transaction_id: UUID | None) -> TransactionRow | None:
-    """The entry a form or sheet says another is related to, as a row (payee, date, amount); None when there is none."""
-    if transaction_id is None:
-        return None
-    found = transactions.read(transaction_id)
-    return to_row(found, index) if found is not None else None
 
 
 def parse_related(value: str) -> UUID | None:

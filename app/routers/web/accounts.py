@@ -1,7 +1,7 @@
 """The Accounts page, an account's own page, and the forms that make, change, close, pin and delete accounts."""
 
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from ...clock import local_today
 from ...dependencies import Accounts, Categories
-from ...schemas import AccountCreate, AccountRead, AccountUpdate
+from ...schemas import AccountCreate, AccountUpdate
 from ...schemas.account import GroupCreate, RegisterEntry
 from ...schemas.category import CategoryRead
 from ...services import cards
@@ -21,73 +21,15 @@ from ...services.account import (
     AccountService,
     RegisterPage,
 )
+from ...services.account_tree import Node, build_tree, without_contacts
+from ...services.transaction_rows import UpcomingItem
 from ...templating import templates
-from .utils import UpcomingItem, htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
+from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 
 router = APIRouter(prefix="/accounts")
 
-ROOT_ORDER = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
-
 # Only these hold money the user already has (or owes) when an account is first added.
 OPENING_BALANCE_ROOTS = ("Assets", "Liabilities")
-
-
-@dataclass
-class Node:
-    account: AccountRead
-    depth: int = 0
-    kind: str = "user"  # root | system | user
-    path: str = ""
-    postable: bool = False
-    children: list[Node] = field(default_factory=list)
-    # For the accounts page: whether the account is closed (closed ones wait behind "Load more").
-    closed: bool = False
-
-    @property
-    def is_leaf(self) -> bool:
-        return not self.children
-
-    @property
-    def is_group(self) -> bool:
-        """A shelf for accounts: a built-in group or one the person made (even empty), or an account with accounts in it."""
-        return self.account.new_accounts_in_budget is not None or bool(self.children)
-
-    def walk(self):
-        yield self
-        for child in self.children:
-            yield from child.walk()
-
-
-def build_tree(accounts: list[AccountRead]) -> list[Node]:
-    """The accounts as a tree."""
-    nodes = {a.id: Node(a) for a in accounts}
-    roots: list[Node] = []
-    for node in nodes.values():
-        parent = nodes.get(node.account.parent_id) if node.account.parent_id else None
-        if parent is None:
-            node.kind = "root"
-            roots.append(node)
-        else:
-            parent.children.append(node)
-            if AccountService.is_opening_balances(node.account, accounts):
-                node.kind = "system"
-            elif node.account.system_key:
-                node.kind = "fixed"  # a built-in group (Bank Accounts, Cash, Investments, Credit Cards, Loans)
-
-    def finish(node: Node, depth: int, parent_path: str = "") -> None:
-        node.depth = depth
-        node.postable = (
-            node.kind not in ("root", "fixed") and node.account.new_accounts_in_budget is None and node.is_leaf
-        )
-        node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
-        node.children.sort(key=lambda n: AccountService.order_key(n.account))
-        for child in node.children:
-            finish(child, depth + 1, node.path)
-
-    roots.sort(key=lambda n: ROOT_ORDER.index(n.account.name) if n.account.name in ROOT_ORDER else len(ROOT_ORDER))
-    for root in roots:
-        finish(root, 0)
-    return roots
 
 
 @dataclass
@@ -102,15 +44,6 @@ class PickOption:
 
 
 PickGroups = list[tuple[str, list[PickOption]]]
-
-
-def without_contacts(roots: list[Node]) -> list[Node]:
-    """The tree without a contact's "Due from" and "Due to" accounts: they belong to the People pages, not to the Accounts
-    page or the pickers."""
-    for node in roots:
-        node.children = [c for c in node.children if not c.account.contact_account]
-        without_contacts(node.children)
-    return roots
 
 
 def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> PickGroups:
