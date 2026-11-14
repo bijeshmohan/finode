@@ -14,6 +14,58 @@
         "title": "AccessChange",
         "type": "object"
       },
+      "AccountCard": {
+        "description": "One account as a card on the Accounts page or a group's page.",
+        "properties": {
+          "balance": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Balance",
+            "type": "string"
+          },
+          "closed": {
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardNoteRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "on_budget": {
+            "title": "On Budget",
+            "type": "boolean"
+          },
+          "pinned": {
+            "title": "Pinned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "balance",
+          "on_budget",
+          "closed",
+          "pinned",
+          "note"
+        ],
+        "title": "AccountCard",
+        "type": "object"
+      },
       "AccountCreate": {
         "properties": {
           "balance": {
@@ -389,6 +441,259 @@
           }
         },
         "title": "AccountUpdate",
+        "type": "object"
+      },
+      "AccountView": {
+        "description": "An account's (or a group's) own page.",
+        "properties": {
+          "badge": {
+            "anyOf": [
+              {
+                "enum": [
+                  "system",
+                  "closed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Badge"
+          },
+          "balance": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Balance",
+            "type": "string"
+          },
+          "balance_after": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance After"
+          },
+          "bill": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardBill"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_add_child": {
+            "title": "Can Add Child",
+            "type": "boolean"
+          },
+          "can_edit": {
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "can_pin": {
+            "title": "Can Pin",
+            "type": "boolean"
+          },
+          "can_set_days": {
+            "title": "Can Set Days",
+            "type": "boolean"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/AccountCard"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "closed_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed On"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "direct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/RegisterRowRead"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "has_children": {
+            "title": "Has Children",
+            "type": "boolean"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_group": {
+            "title": "Is Group",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "new_transaction_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Transaction Url"
+          },
+          "next_offset": {
+            "title": "Next Offset",
+            "type": "integer"
+          },
+          "pinned": {
+            "title": "Pinned",
+            "type": "boolean"
+          },
+          "postable": {
+            "title": "Postable",
+            "type": "boolean"
+          },
+          "sub": {
+            "title": "Sub",
+            "type": "string"
+          },
+          "upcoming": {
+            "items": {
+              "$ref": "#/components/schemas/UpcomingRead"
+            },
+            "title": "Upcoming",
+            "type": "array"
+          },
+          "upcoming_total": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upcoming Total"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "details",
+          "badge",
+          "sub",
+          "closed_on",
+          "balance",
+          "balance_after",
+          "direct",
+          "bill",
+          "can_set_days",
+          "is_group",
+          "has_children",
+          "cards",
+          "can_add_child",
+          "can_pin",
+          "pinned",
+          "can_edit",
+          "postable",
+          "new_transaction_url",
+          "upcoming",
+          "upcoming_total",
+          "entries",
+          "has_more",
+          "next_offset"
+        ],
+        "title": "AccountView",
+        "type": "object"
+      },
+      "AccountsView": {
+        "properties": {
+          "account_count": {
+            "title": "Account Count",
+            "type": "integer"
+          },
+          "has_budget_accounts": {
+            "title": "Has Budget Accounts",
+            "type": "boolean"
+          },
+          "has_closed": {
+            "title": "Has Closed",
+            "type": "boolean"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/KindRow"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "net_worth": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Worth",
+            "type": "string"
+          },
+          "pinned": {
+            "items": {
+              "$ref": "#/components/schemas/AccountCard"
+            },
+            "title": "Pinned",
+            "type": "array"
+          }
+        },
+        "required": [
+          "net_worth",
+          "account_count",
+          "has_budget_accounts",
+          "pinned",
+          "kinds",
+          "has_closed"
+        ],
+        "title": "AccountsView",
         "type": "object"
       },
       "ActivityPage": {
@@ -1481,6 +1786,44 @@
           "owed_total"
         ],
         "title": "CardBill",
+        "type": "object"
+      },
+      "CardNoteRead": {
+        "description": "The quiet line under a card's balance (services/accounts_view.CardNote): a bill (\"overdue\", or \"due\" on `on`,\n`soon` when it is near), no entries yet (\"empty\"), or none since `on` (\"stale\").",
+        "properties": {
+          "kind": {
+            "enum": [
+              "overdue",
+              "due",
+              "empty",
+              "stale"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On"
+          },
+          "soon": {
+            "title": "Soon",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "on",
+          "soon"
+        ],
+        "title": "CardNoteRead",
         "type": "object"
       },
       "CategoryCreate": {
@@ -3966,6 +4309,67 @@
         "title": "IncomeShare",
         "type": "object"
       },
+      "KindRow": {
+        "description": "One row of cards on the Accounts page: a kind of account and its accounts.",
+        "properties": {
+          "add_url": {
+            "title": "Add Url",
+            "type": "string"
+          },
+          "all_closed": {
+            "title": "All Closed",
+            "type": "boolean"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/AccountCard"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "open_count": {
+            "title": "Open Count",
+            "type": "integer"
+          },
+          "owed": {
+            "title": "Owed",
+            "type": "boolean"
+          },
+          "total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "group_id",
+          "total",
+          "owed",
+          "open_count",
+          "all_closed",
+          "add_url",
+          "cards"
+        ],
+        "title": "KindRow",
+        "type": "object"
+      },
       "MergeRequest": {
         "properties": {
           "into": {
@@ -5586,6 +5990,90 @@
           "balance"
         ],
         "title": "RegisterEntry",
+        "type": "object"
+      },
+      "RegisterRowRead": {
+        "description": "One entry on an account's or a category's own page (services/transaction_rows.RegisterRow).",
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "inflow": {
+            "title": "Inflow",
+            "type": "boolean"
+          },
+          "negative": {
+            "title": "Negative",
+            "type": "boolean"
+          },
+          "posts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posts On"
+          },
+          "related": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelatedRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sub": {
+            "title": "Sub",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "title",
+          "sub",
+          "posts_on",
+          "related",
+          "amount",
+          "inflow",
+          "negative",
+          "balance"
+        ],
+        "title": "RegisterRowRead",
         "type": "object"
       },
       "RelatedRef": {
@@ -14480,6 +14968,93 @@
         "summary": "Change Opening Balance",
         "tags": [
           "contacts"
+        ]
+      }
+    },
+    "/api/views/accounts": {
+      "get": {
+        "description": "The Accounts page: net worth, the pinned accounts, and a row of cards per kind (Bank Accounts, Credit Cards\u2026, then\nthe groups the person made, then the plain accounts), each card with its balance and its one quiet line (a bill, no\nentries yet, none for a month). Closed accounts are listed too, marked, for \"Load more\".",
+        "operationId": "accounts_view_api_views_accounts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Accounts View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/accounts/{account_id}": {
+      "get": {
+        "description": "An account's (or a group's) own page: its balance, a card's bill, a group's open accounts as cards, what is dated\nahead, and its entries newest first with the running balance, a chunk at a time (`offset`: the `next_offset` of the\nchunk before).",
+        "operationId": "account_view_api_views_accounts__account_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Account View",
+        "tags": [
+          "views"
         ]
       }
     },

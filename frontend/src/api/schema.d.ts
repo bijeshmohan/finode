@@ -1899,6 +1899,50 @@ export interface paths {
         patch: operations["change_opening_balance_api_transfers__transaction_id__patch"];
         trace?: never;
     };
+    "/api/views/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Accounts View
+         * @description The Accounts page: net worth, the pinned accounts, and a row of cards per kind (Bank Accounts, Credit Cards…, then
+         *     the groups the person made, then the plain accounts), each card with its balance and its one quiet line (a bill, no
+         *     entries yet, none for a month). Closed accounts are listed too, marked, for "Load more".
+         */
+        get: operations["accounts_view_api_views_accounts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/accounts/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Account View
+         * @description An account's (or a group's) own page: its balance, a card's bill, a group's open accounts as cards, what is dated
+         *     ahead, and its entries newest first with the running balance, a chunk at a time (`offset`: the `next_offset` of the
+         *     chunk before).
+         */
+        get: operations["account_view_api_views_accounts__account_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/views/entry-form": {
         parameters: {
             query?: never;
@@ -2057,6 +2101,28 @@ export interface components {
             /** Scope */
             scope: string;
         };
+        /**
+         * AccountCard
+         * @description One account as a card on the Accounts page or a group's page.
+         */
+        AccountCard: {
+            /** Balance */
+            balance: string;
+            /** Closed */
+            closed: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            note: components["schemas"]["CardNoteRead"] | null;
+            /** On Budget */
+            on_budget: boolean;
+            /** Pinned */
+            pinned: boolean;
+        };
         /** AccountCreate */
         AccountCreate: {
             /**
@@ -2162,6 +2228,79 @@ export interface components {
             pinned?: boolean | null;
             /** Statement Day */
             statement_day?: number | null;
+        };
+        /**
+         * AccountView
+         * @description An account's (or a group's) own page.
+         */
+        AccountView: {
+            /** Badge */
+            badge: ("system" | "closed") | null;
+            /** Balance */
+            balance: string;
+            /** Balance After */
+            balance_after: string | null;
+            bill: components["schemas"]["CardBill"] | null;
+            /** Can Add Child */
+            can_add_child: boolean;
+            /** Can Edit */
+            can_edit: boolean;
+            /** Can Pin */
+            can_pin: boolean;
+            /** Can Set Days */
+            can_set_days: boolean;
+            /** Cards */
+            cards: components["schemas"]["AccountCard"][];
+            /** Closed On */
+            closed_on: string | null;
+            /** Details */
+            details: string | null;
+            /** Direct */
+            direct: string | null;
+            /** Entries */
+            entries: components["schemas"]["RegisterRowRead"][];
+            /** Has Children */
+            has_children: boolean;
+            /** Has More */
+            has_more: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Group */
+            is_group: boolean;
+            /** Name */
+            name: string;
+            /** New Transaction Url */
+            new_transaction_url: string | null;
+            /** Next Offset */
+            next_offset: number;
+            /** Pinned */
+            pinned: boolean;
+            /** Postable */
+            postable: boolean;
+            /** Sub */
+            sub: string;
+            /** Upcoming */
+            upcoming: components["schemas"]["UpcomingRead"][];
+            /** Upcoming Total */
+            upcoming_total: string | null;
+        };
+        /** AccountsView */
+        AccountsView: {
+            /** Account Count */
+            account_count: number;
+            /** Has Budget Accounts */
+            has_budget_accounts: boolean;
+            /** Has Closed */
+            has_closed: boolean;
+            /** Kinds */
+            kinds: components["schemas"]["KindRow"][];
+            /** Net Worth */
+            net_worth: string;
+            /** Pinned */
+            pinned: components["schemas"]["AccountCard"][];
         };
         /** ActivityPage */
         ActivityPage: {
@@ -2621,6 +2760,22 @@ export interface components {
             statement_day: number;
             /** Statement Due */
             statement_due: string;
+        };
+        /**
+         * CardNoteRead
+         * @description The quiet line under a card's balance (services/accounts_view.CardNote): a bill ("overdue", or "due" on `on`,
+         *     `soon` when it is near), no entries yet ("empty"), or none since `on` ("stale").
+         */
+        CardNoteRead: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "overdue" | "due" | "empty" | "stale";
+            /** On */
+            on: string | null;
+            /** Soon */
+            soon: boolean;
         };
         /** CategoryCreate */
         CategoryCreate: {
@@ -3524,6 +3679,28 @@ export interface components {
             /** People */
             people?: components["schemas"]["IncomePart-Output"][];
         };
+        /**
+         * KindRow
+         * @description One row of cards on the Accounts page: a kind of account and its accounts.
+         */
+        KindRow: {
+            /** Add Url */
+            add_url: string;
+            /** All Closed */
+            all_closed: boolean;
+            /** Cards */
+            cards: components["schemas"]["AccountCard"][];
+            /** Group Id */
+            group_id: string | null;
+            /** Name */
+            name: string;
+            /** Open Count */
+            open_count: number;
+            /** Owed */
+            owed: boolean;
+            /** Total */
+            total: string;
+        };
         /** MergeRequest */
         MergeRequest: {
             /**
@@ -4115,6 +4292,37 @@ export interface components {
              * Format: uuid
              */
             transaction_id: string;
+        };
+        /**
+         * RegisterRowRead
+         * @description One entry on an account's or a category's own page (services/transaction_rows.RegisterRow).
+         */
+        RegisterRowRead: {
+            /** Amount */
+            amount: string;
+            /** Balance */
+            balance: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Inflow */
+            inflow: boolean;
+            /** Negative */
+            negative: boolean;
+            /** Posts On */
+            posts_on: string | null;
+            related: components["schemas"]["RelatedRef"] | null;
+            /** Sub */
+            sub: string;
+            /** Title */
+            title: string;
         };
         /**
          * RelatedRef
@@ -8654,6 +8862,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransferRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accounts_view_api_views_accounts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountsView"];
+                };
+            };
+        };
+    };
+    account_view_api_views_accounts__account_id__get: {
+        parameters: {
+            query?: {
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountView"];
                 };
             };
             /** @description Validation Error */

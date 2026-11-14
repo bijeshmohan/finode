@@ -14,6 +14,7 @@ from uuid import UUID
 
 from ..models.transaction import PostingSide
 from ..schemas import AccountRead
+from ..schemas.account import RegisterEntry
 from ..schemas.category import CategoryRead
 from ..schemas.coming_up import ComingUpLine
 from ..schemas.transaction import PostingBase, RelatedRef, TransactionRead
@@ -443,4 +444,70 @@ def transaction_details(
         with_names=sorted({names[r.contact_id] for r in party if r.contact_id in names}),
         added_by=_assistant(made) if by_agent and made else None,
         changed_by=_assistant(changed) if by_agent and changed and changed != made else None,
+    )
+
+
+@dataclass
+class RegisterRow:
+    """One entry on an account's or a category's own page (partials/account_entries.html, category_entries.html): what
+    it is called, the quiet line under it, the day it posts when that is not its own, and the figure. `inflow` is money
+    coming in (green, "+"); `negative` a category's line that went the other way ("−"); `balance` the account's running
+    balance (none on a category's page)."""
+
+    id: UUID
+    date: Date
+    title: str
+    sub: str
+    posts_on: Date | None
+    related: RelatedRef | None
+    amount: Decimal
+    inflow: bool
+    negative: bool
+    balance: Decimal | None
+
+
+def is_inflow(root_name: str, change: Decimal) -> bool:
+    """Money coming in, as an account's page marks it (green, "+"): what raises an asset account, and a payment into a
+    liability (a card or loan), which lowers what is owed. A charge on a card is plain."""
+    return (root_name == "Assets" and change > 0) or (root_name == "Liabilities" and change < 0)
+
+
+def account_register_row(entry: RegisterEntry, root_name: str) -> RegisterRow:
+    """An entry on an account's (or a group's) page. A group's entries name its accounts first, so rows of different
+    accounts are told apart."""
+    counter = ", ".join(entry.counter_accounts)
+    parts = [
+        *entry.accounts,
+        *([counter] if entry.payee and counter else []),
+        *([entry.comment] if entry.comment else []),
+    ]
+    return RegisterRow(
+        id=entry.transaction_id,
+        date=entry.date,
+        title=entry.payee or counter or ", ".join(entry.accounts),
+        sub=" · ".join(parts),
+        posts_on=entry.posted_on if entry.posted_on and entry.posted_on != entry.date else None,
+        related=entry.related,
+        amount=abs(entry.change),
+        inflow=is_inflow(root_name, entry.change),
+        negative=False,
+        balance=entry.balance,
+    )
+
+
+def category_register_row(entry: RegisterEntry, earning: bool) -> RegisterRow:
+    """An entry on a category's page: earnings in green with "+", a line that went the other way with "−"."""
+    counter = ", ".join(entry.counter_accounts)
+    sub = (counter if entry.payee else "") + (" · " if entry.payee and entry.comment else "") + (entry.comment or "")
+    return RegisterRow(
+        id=entry.transaction_id,
+        date=entry.date,
+        title=entry.payee or counter,
+        sub=sub,
+        posts_on=None,
+        related=entry.related,
+        amount=abs(entry.change),
+        inflow=earning and entry.change > 0,
+        negative=entry.change < 0,
+        balance=None,
     )

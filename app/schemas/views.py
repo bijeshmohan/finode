@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from .account import CardBill
 from .day import Day
 from .entry import ExpenseShare, IncomeShare, Share
 from .shared_expense import ExpensePreview
@@ -250,3 +251,99 @@ class SharePreview(BaseModel):
     kind: Literal["expense", "income"]
     expense: ExpensePreview | None = None
     income: IncomePreview | None = None
+
+
+class CardNoteRead(BaseModel):
+    """The quiet line under a card's balance (services/accounts_view.CardNote): a bill ("overdue", or "due" on `on`,
+    `soon` when it is near), no entries yet ("empty"), or none since `on` ("stale")."""
+
+    kind: Literal["overdue", "due", "empty", "stale"]
+    on: Date | None
+    soon: bool
+
+
+class AccountCard(BaseModel):
+    """One account as a card on the Accounts page or a group's page."""
+
+    id: UUID
+    name: str
+    balance: Decimal
+    on_budget: bool
+    closed: bool
+    pinned: bool
+    note: CardNoteRead | None
+
+
+class KindRow(BaseModel):
+    """One row of cards on the Accounts page: a kind of account and its accounts."""
+
+    name: str
+    group_id: UUID | None
+    total: Decimal
+    # A liability's total reads "owed".
+    owed: bool
+    open_count: int
+    # Every account in it is closed (or the group itself is): the row shows only with the closed accounts.
+    all_closed: bool
+    add_url: str
+    cards: list[AccountCard]
+
+
+class AccountsView(BaseModel):
+    net_worth: Decimal
+    account_count: int
+    has_budget_accounts: bool
+    pinned: list[AccountCard]
+    kinds: list[KindRow]
+    # Some accounts are closed: "Load more" shows them.
+    has_closed: bool
+
+
+class RegisterRowRead(BaseModel):
+    """One entry on an account's or a category's own page (services/transaction_rows.RegisterRow)."""
+
+    id: UUID
+    date: Date
+    title: str
+    sub: str
+    posts_on: Date | None
+    related: RelatedRef | None
+    amount: Decimal
+    # Money coming in: green, with "+".
+    inflow: bool
+    # A category's line that went the other way: "−".
+    negative: bool
+    # The account's running balance (none on a category's page).
+    balance: Decimal | None
+
+
+class AccountView(BaseModel):
+    """An account's (or a group's) own page."""
+
+    id: UUID
+    name: str
+    details: str | None
+    badge: Literal["system", "closed"] | None
+    sub: str
+    closed_on: Date | None
+    balance: Decimal
+    # The balance the entries dated ahead leave.
+    balance_after: Decimal | None
+    # Part of a group's balance posted to the group itself.
+    direct: Decimal | None
+    bill: CardBill | None
+    can_set_days: bool
+    is_group: bool
+    has_children: bool
+    cards: list[AccountCard]
+    can_add_child: bool
+    can_pin: bool
+    pinned: bool
+    can_edit: bool
+    postable: bool
+    new_transaction_url: str | None
+    upcoming: list[UpcomingRead]
+    upcoming_total: Decimal | None
+    entries: list[RegisterRowRead]
+    has_more: bool
+    next_offset: int

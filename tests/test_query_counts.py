@@ -21,6 +21,7 @@ PAGES = [
     "/",
     "/api/views/home",
     "/accounts",
+    "/api/views/accounts",
     "/budget",
     "/categories",
     "/categories?tab=income",
@@ -35,7 +36,8 @@ CEILING = {
     "/api/views/transactions": 12,  # the Transactions page's own reads, for the finode app
     "/": 15,
     "/api/views/home": 15,  # Home's own reads, for the finode app  # + the categories (their own table) and what the month spent by category
-    "/accounts": 5,  # + the day of each account's last entry, + the postings of the cards that have bill days (one query each, whatever the number)
+    "/accounts": 5,
+    "/api/views/accounts": 5,  # the Accounts page's own reads, for the finode app  # + the day of each account's last entry, + the postings of the cards that have bill days (one query each, whatever the number)
     "/budget": 6,  # + the categories
     "/categories": 4,
     "/categories?tab=income": 4,
@@ -101,13 +103,16 @@ def test_an_accounts_own_page_and_its_filtered_list_do_not_grow_either(client, r
     first = {
         "page": count_queries(lambda: client.get(f"/accounts/{busiest}")),
         "list": count_queries(lambda: client.get(f"/transactions?account={busiest}")),
+        "view": count_queries(lambda: client.get(f"/api/views/accounts/{busiest}")),
     }
     grow(client, root_accounts, accounts=6, transactions=60, start=6)
     second = {
         "page": count_queries(lambda: client.get(f"/accounts/{busiest}")),
         "list": count_queries(lambda: client.get(f"/transactions?account={busiest}")),
+        "view": count_queries(lambda: client.get(f"/api/views/accounts/{busiest}")),
     }
     assert second["page"] <= first["page"] + 2 and second["list"] <= first["list"] + 2, (first, second)
+    assert second["view"] <= first["view"] + 2 and second["view"] <= second["page"], (first, second)
 
 
 def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_accounts, count_queries):

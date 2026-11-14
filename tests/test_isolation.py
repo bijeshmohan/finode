@@ -86,6 +86,7 @@ LISTS = {
     ("GET", "/api/views/transaction-filters"),
     ("GET", "/api/views/home"),
     ("GET", "/api/views/entry-form"),
+    ("GET", "/api/views/accounts"),
     ("GET", "/api/views/related-entries"),
     ("GET", "/accounts"),
     ("GET", "/accounts/new"),
