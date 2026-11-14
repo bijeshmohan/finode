@@ -18,7 +18,7 @@ from pydantic import ValidationError
 from ...clock import local_today
 from ...dependencies import Categories, Reports
 from ...schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
-from ...services.categories_view import KIND_TABS, TABS, categories_page, category_page, category_tree
+from ...services.categories_view import KIND_TABS, TABS, CategoryForm, categories_page, category_form, category_page
 from ...templating import templates
 from .budget import parse_month, shift
 from .utils import htmx_error, htmx_redirect, htmx_trigger, validation_message
@@ -73,37 +73,29 @@ def categories_list_page(
     )
 
 
-def _form(request: Request, categories: Categories, current: CategoryRead | None, kind: str, parent: UUID | None):
-    groups = [n.category for n in category_tree(categories, kind) if n.category.id != (current and current.id)]
-    # A group that holds categories cannot move into another group (two levels at most).
-    if current is not None and any(c.parent_id == current.id for c in categories.list(kind, True)):
-        groups = []
+def _form(request: Request, form: CategoryForm):
     return templates.TemplateResponse(
         request,
         "category_form.html",
         {
             "active": "categories",
             "hide_fab": True,
-            "category": current,
-            "kind": kind,
-            "tab": KIND_TABS[kind],
-            "parent_id": parent,
-            "groups": groups,
+            "category": form.category,
+            "kind": form.kind,
+            "tab": KIND_TABS[form.kind],
+            "parent_id": form.parent_id,
+            "groups": form.groups,
         },
     )
 
 
 @router.get("/new")
 def new_category_page(request: Request, categories: Categories, parent: UUID | None = None, root: str = "expense"):
-    """The form for a new category: a spending one by default, an earning one from the Earning chip. Opened from a
-    group's page ("Add subcategory") it starts inside that group, whose kind it takes."""
-    kind = TABS.get(root.lower(), "spending")
-    if parent is not None:
-        group = categories.read(parent)
-        if group is None:
-            raise HTTPException(status_code=404, detail="category not found")
-        kind = group.kind
-    return _form(request, categories, None, kind, parent)
+    """The form for a new category (services/categories_view.category_form)."""
+    try:
+        return _form(request, category_form(categories, parent=parent, root=root))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="category not found") from None
 
 
 @router.post("")
@@ -194,8 +186,8 @@ def category_own_page(request: Request, category_id: UUID, categories: Categorie
 
 @router.get("/{category_id}/edit")
 def edit_category_page(request: Request, category_id: UUID, categories: Categories):
-    category = _load(categories, category_id)
-    return _form(request, categories, category, category.kind, category.parent_id)
+    _load(categories, category_id)
+    return _form(request, category_form(categories, category_id))
 
 
 @router.post("/{category_id}/edit")

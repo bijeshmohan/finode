@@ -164,6 +164,167 @@
         "title": "AccountCreate",
         "type": "object"
       },
+      "AccountFormView": {
+        "properties": {
+          "balance": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "bill_rounding": {
+            "enum": [
+              "none",
+              "nearest",
+              "up"
+            ],
+            "title": "Bill Rounding",
+            "type": "string"
+          },
+          "can_bill": {
+            "title": "Can Bill",
+            "type": "boolean"
+          },
+          "can_budget": {
+            "title": "Can Budget",
+            "type": "boolean"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "due_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Day"
+          },
+          "editing": {
+            "title": "Editing",
+            "type": "boolean"
+          },
+          "is_group": {
+            "title": "Is Group",
+            "type": "boolean"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/KindChoiceRead"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "new_accounts_in_budget": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Accounts In Budget"
+          },
+          "on_budget": {
+            "title": "On Budget",
+            "type": "boolean"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "parent_options": {
+            "items": {
+              "$ref": "#/components/schemas/KindChoiceRead"
+            },
+            "title": "Parent Options",
+            "type": "array"
+          },
+          "placed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlacedRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "root_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Name"
+          },
+          "statement_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement Day"
+          }
+        },
+        "required": [
+          "editing",
+          "is_group",
+          "name",
+          "details",
+          "balance",
+          "parent_id",
+          "kinds",
+          "placed",
+          "parent_options",
+          "root_name",
+          "can_budget",
+          "can_bill",
+          "on_budget",
+          "statement_day",
+          "due_day",
+          "bill_rounding",
+          "new_accounts_in_budget"
+        ],
+        "title": "AccountFormView",
+        "type": "object"
+      },
       "AccountRead": {
         "properties": {
           "balance": {
@@ -1933,6 +2094,66 @@
           "category"
         ],
         "title": "CategoryDeleteResult",
+        "type": "object"
+      },
+      "CategoryFormView": {
+        "properties": {
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "editing": {
+            "title": "Editing",
+            "type": "boolean"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryRef"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "spending",
+              "earning"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          }
+        },
+        "required": [
+          "editing",
+          "kind",
+          "name",
+          "details",
+          "parent_id",
+          "groups"
+        ],
+        "title": "CategoryFormView",
         "type": "object"
       },
       "CategoryMergeResult": {
@@ -4523,6 +4744,46 @@
         "title": "IncomeShare",
         "type": "object"
       },
+      "KindChoiceRead": {
+        "description": "A place a new account can go (a kind chip, or the place it was opened for), with what the form then asks.",
+        "properties": {
+          "budget_default": {
+            "title": "Budget Default",
+            "type": "boolean"
+          },
+          "can_bill": {
+            "title": "Can Bill",
+            "type": "boolean"
+          },
+          "can_budget": {
+            "title": "Can Budget",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "root": {
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "root",
+          "can_budget",
+          "can_bill",
+          "budget_default"
+        ],
+        "title": "KindChoiceRead",
+        "type": "object"
+      },
       "KindRow": {
         "description": "One row of cards on the Accounts page: a kind of account and its accounts.",
         "properties": {
@@ -5270,6 +5531,25 @@
           "balance"
         ],
         "title": "PickOptionRead",
+        "type": "object"
+      },
+      "PlacedRead": {
+        "description": "What the form says instead of the kind chips when it was opened for a place that is not a kind (\"Kind \u00b7 Other\",\n\"Inside \u00b7 HDFC\").",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "PlacedRead",
         "type": "object"
       },
       "PostingCreate-Input": {
@@ -15210,6 +15490,89 @@
         ]
       }
     },
+    "/api/views/account-form": {
+      "get": {
+        "description": "Where the account form starts: editing `account_id`, or a new account (opened for a kind with `parent`, or for the\nplain accounts of a type with `root` = `assets` or `liabilities`). The `kinds` (and `parent_options`) say for each\nplace whether an account there can be part of the budget, takes a card's days, and starts in the budget.",
+        "operationId": "account_form_view_api_views_account_form_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parent"
+            }
+          },
+          {
+            "in": "query",
+            "name": "root",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Root",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountFormView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Account Form View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
     "/api/views/accounts": {
       "get": {
         "description": "The Accounts page: net worth, the pinned accounts, and a row of cards per kind (Bank Accounts, Credit Cards\u2026, then\nthe groups the person made, then the plain accounts), each card with its balance and its one quiet line (a bill, no\nentries yet, none for a month). Closed accounts are listed too, marked, for \"Load more\".",
@@ -15410,6 +15773,89 @@
           }
         ],
         "summary": "Category View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/category-form": {
+      "get": {
+        "description": "Where the category form starts: editing `category_id`, or a new category (`root` = `expense` or `income`; inside\nthe group `parent`, whose kind it takes). `groups` are where it can go (none for a group that holds categories).",
+        "operationId": "category_form_view_api_views_category_form_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "category_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parent"
+            }
+          },
+          {
+            "in": "query",
+            "name": "root",
+            "required": false,
+            "schema": {
+              "default": "expense",
+              "title": "Root",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryFormView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Category Form View",
         "tags": [
           "views"
         ]
