@@ -2,6 +2,7 @@
 // Pages are placeholders until their step of the rebuild; real pages are loaded lazily as they arrive.
 import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
 
+import { Home } from "../features/home/Home";
 import { NotFound } from "../features/placeholder/NotFound";
 import { TransactionsPage } from "../features/transactions/TransactionsPage";
 import { Placeholder } from "../features/placeholder/Placeholder";
@@ -14,7 +15,6 @@ import { SessionProvider } from "./session";
 import { ToastProvider } from "./toast";
 
 const PAGES: [path: string, title: string][] = [
-  ["/", "Home"],
   ["/budget", "Budgets"],
   ["/accounts", "Accounts"],
   ["/categories", "Categories"],
@@ -52,6 +52,7 @@ export const routes: RouteObject[] = [
       {
         element: <Layout />,
         children: [
+          { path: "/", element: <Home /> },
           { path: "/transactions", element: <TransactionsPage /> },
           ...PAGES.map(([path, title]) => ({ path, element: <Placeholder title={title} /> })),
           { path: "*", element: <NotFound /> },

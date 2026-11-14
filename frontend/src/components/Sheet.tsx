@@ -57,6 +57,7 @@ export function Sheet({ open, onClose, title, showTitle = true, panelOnWide = fa
     <dialog
       ref={dialog}
       className={`${styles.sheet} ${panel ? styles.panel : ""}`.trim()}
+      data-side-panel={panel ? "" : undefined}
       aria-labelledby={showTitle ? titleId : undefined}
       aria-label={showTitle ? undefined : title}
       onCancel={(event) => {

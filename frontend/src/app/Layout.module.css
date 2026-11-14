@@ -198,10 +198,16 @@
   .sidenav a.sidebarFoot {
     margin-top: auto;
   }
+  /* Centred in the space beside the sidebar. */
   .main {
-    margin-left: max(calc(var(--sidebar-w) + 1rem), calc(50vw - 22rem));
+    margin-left: max(calc(var(--sidebar-w) + 1rem), calc(50vw + var(--sidebar-w) / 2 - 22rem));
     margin-right: auto;
     padding: 3rem 2rem 4rem;
+  }
+  /* A transaction's details open beside the list: the column moves over to make room. */
+  :global(body):has(dialog[data-side-panel][open]) .main {
+    margin-left: calc(var(--sidebar-w) + 2rem);
+    max-width: 38rem;
   }
   .netBanner {
     left: calc(var(--sidebar-w) + 2rem);

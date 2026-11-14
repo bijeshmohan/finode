@@ -1,0 +1,308 @@
+/* Home of app/static/style.css: .glance, .box-top, .glance-figure, .glance-bar, .pace, .calc-panel, ol.steps,
+   .home-empty, .section-head, .tx-more and .tx-end. */
+.cols {
+  display: flex;
+  flex-direction: column;
+}
+.muted {
+  color: var(--muted);
+}
+.smallPrint {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.empty {
+  padding: 0.5rem 0 1rem;
+}
+.headline {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.sectionLabel {
+  margin: 2rem 0 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.glance {
+  padding: 0 0 0.5rem;
+}
+.boxTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  margin-bottom: 0.6rem;
+}
+.calcRow {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+.glanceLabel {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.glanceFigure {
+  margin: 0.5rem 0 0;
+  font-size: 3.375rem;
+  font-weight: 650;
+  font-stretch: 75%;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.glanceFigure small {
+  margin-left: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.over {
+  color: var(--negative);
+}
+.glanceBar {
+  position: relative;
+  margin-top: 1.5rem;
+  height: var(--bar-h);
+  border-radius: calc(var(--bar-h) / 2);
+  background: var(--border);
+}
+.glanceBar i {
+  display: block;
+  max-width: 100%;
+  height: 100%;
+  border-radius: calc(var(--bar-h) / 2);
+  background: var(--accent);
+}
+.pace {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 0;
+  height: 0;
+  margin-top: 3px;
+  border: 4px solid transparent;
+  border-top: 0;
+  border-bottom: 5px solid var(--muted);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.glanceCaption {
+  margin: 0.6rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.glanceNote {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.glanceNote a {
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 0.2em;
+}
+.infoButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: -0.25rem 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+}
+.infoButton :global(.icon) {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+.infoOpen {
+  color: var(--text);
+}
+.calcPanel {
+  margin-top: 0.9rem;
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius-sm);
+}
+.calcPanel h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.calcLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--surface-2);
+  font-size: 0.9375rem;
+}
+.calcPanel h3 + .calcLine {
+  border-top: 0;
+}
+.calcLine b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.plus b::before {
+  content: "+ ";
+  color: var(--muted);
+}
+.minus b::before {
+  content: "− ";
+  color: var(--muted);
+}
+.calcTotal {
+  margin-top: 0.2rem;
+  border-top: 2px solid var(--text);
+  font-weight: 600;
+}
+.calcTotal b {
+  font-weight: 600;
+}
+.calcNote {
+  margin: 0.6rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.getStarted {
+  margin-top: 1rem;
+}
+.getStarted .sectionLabel {
+  margin-top: 0;
+}
+.steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 1rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+}
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+}
+.steps li + li {
+  border-top: 1px solid var(--surface-2);
+}
+.stepLink {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.5rem 0;
+  font-weight: 500;
+  color: var(--text);
+}
+.stepLink > :global(.icon):last-child {
+  margin-left: auto;
+  color: var(--faint);
+  flex: none;
+}
+.stepMark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+.now {
+  color: var(--on-accent);
+  background: var(--accent);
+}
+.stepText {
+  min-width: 0;
+}
+.stepHint {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+.done {
+  color: var(--muted);
+}
+.done > span:last-child {
+  text-decoration: line-through;
+}
+.done .stepMark {
+  color: var(--on-accent);
+  background: var(--positive);
+}
+.recent {
+  margin-top: 1.75rem;
+}
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 0 0 0.6rem;
+}
+.sectionHead h2 {
+  margin: 0;
+}
+.quietLink {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.more {
+  margin: 0.25rem 0 1rem;
+}
+.moreRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 3rem;
+  margin: 0;
+  padding: 0 0.25rem;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.moreRow small {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.end {
+  margin: 0.5rem 0 1rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
