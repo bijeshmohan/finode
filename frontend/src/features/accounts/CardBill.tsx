@@ -7,6 +7,7 @@ import { useToday } from "../../app/session";
 import { shortDate } from "../../lib/dates";
 import { formatMoney, withCurrency } from "../../lib/money";
 import { positive, sameAmount } from "../../lib/split";
+import look from "../../components/Page.module.css";
 import styles from "./Accounts.module.css";
 import type { AccountView } from "./queries";
 
@@ -28,7 +29,7 @@ export function CardBill({ view }: { view: AccountView }) {
     return (
       <section className={styles.bill} aria-label="Bill">
         <p className={styles.billLabel}>Bill</p>
-        <p className={styles.muted}>Add the statement and due days to see what is due and when.</p>
+        <p className={look.muted}>Add the statement and due days to see what is due and when.</p>
         <Link className={`${styles.billPay} ${styles.quiet}`} to={`/accounts/${view.id}/edit`}>
           Add the days
         </Link>

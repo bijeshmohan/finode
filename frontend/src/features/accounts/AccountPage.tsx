@@ -19,6 +19,7 @@ import { TransactionSheet } from "../transactions/TransactionSheet";
 import { UpcomingCard } from "../transactions/UpcomingCard";
 import { useOpenEntry } from "../transactions/useOpenEntry";
 import { AccountCard } from "./AccountCard";
+import look from "../../components/Page.module.css";
 import styles from "./Accounts.module.css";
 import { CardBill } from "./CardBill";
 import { type AccountView, useAccount, useAccountAction } from "./queries";
@@ -148,17 +149,17 @@ export function AccountPage() {
 
   return (
     <>
-      <Link className={styles.back} to="/accounts">
+      <Link className={look.back} to="/accounts">
         <Icon name="back" />
         Accounts
       </Link>
-      <header className={styles.accountHero}>
-        <div className={styles.title}>
-          <div className={styles.names}>
-            <div className={styles.nameRow}>
+      <header className={look.accountHero}>
+        <div className={look.title}>
+          <div className={look.names}>
+            <div className={look.nameRow}>
               <h1>
                 {view.name}
-                {view.badge && <span className={styles.badge}>{view.badge}</span>}
+                {view.badge && <span className={look.badge}>{view.badge}</span>}
               </h1>
               {view.details && (
                 <InfoNote
@@ -169,9 +170,9 @@ export function AccountPage() {
                 />
               )}
             </div>
-            <p className={styles.sub}>{view.sub}</p>
+            <p className={look.sub}>{view.sub}</p>
           </div>
-          <div className={styles.actions}>
+          <div className={look.actions}>
             {view.can_pin && (
               <button
                 type="button"
@@ -203,26 +204,26 @@ export function AccountPage() {
           </div>
         </div>
         {view.closed_on && (
-          <p className={styles.muted}>
+          <p className={look.muted}>
             Closed on {longDay(view.closed_on)}. Its history stays; nothing can be added to it until you reopen it.
           </p>
         )}
-        <p className={styles.heroBalance}>
+        <p className={look.heroBalance}>
           <Figure value={view.balance} />
         </p>
         {view.balance_after !== null && view.upcoming.length > 0 && (
-          <p className={styles.balanceAfter}>
+          <p className={look.balanceAfter}>
             {withCurrency(formatMoney(view.balance_after, grouping), code)} after the {view.upcoming.length} coming up
           </p>
         )}
         {view.direct !== null && !sameAmount(view.direct, "0") && (
-          <p className={styles.muted}>
+          <p className={look.muted}>
             {formatMoney(view.direct, grouping)} posted directly to {view.name}; the rest is in its sub-accounts.
           </p>
         )}
         <CardBill view={view} />
         {error && (
-          <p className={styles.error} role="alert">
+          <p className={look.error} role="alert">
             {error}
           </p>
         )}
@@ -230,7 +231,7 @@ export function AccountPage() {
 
       {view.is_group && (
         <>
-          <div className={styles.sectionHead}>
+          <div className={look.sectionHead}>
             <h2>Accounts</h2>
           </div>
           <div className={styles.rail}>
@@ -246,7 +247,7 @@ export function AccountPage() {
           </div>
         </>
       )}
-      <div className={styles.sectionHead}>
+      <div className={look.sectionHead}>
         <h2>Transactions</h2>
       </div>
       {view.upcoming.length > 0 && (
@@ -256,10 +257,10 @@ export function AccountPage() {
         <>
           <RegisterList rows={entries} onOpen={openEntry} />
           {pages.hasNextPage && (
-            <div className={styles.more}>
+            <div className={look.more}>
               <button
                 type="button"
-                className={styles.secondary}
+                className={look.secondary}
                 disabled={pages.isFetchingNextPage}
                 onClick={() => void pages.fetchNextPage()}
               >
@@ -269,10 +270,10 @@ export function AccountPage() {
           )}
         </>
       ) : (
-        <div className={styles.empty}>
+        <div className={look.empty}>
           <p>No transactions yet.</p>
           {view.new_transaction_url && (
-            <Link className={styles.button} to={view.new_transaction_url}>
+            <Link className={look.button} to={view.new_transaction_url}>
               Record a transaction
             </Link>
           )}

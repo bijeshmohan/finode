@@ -1,0 +1,240 @@
+/* The parts every page of the app shares (style.css): the title row, the hero with its figure, the back link, an
+   account's or a category's title and balance, the section heads, the empty state, the add row, the badge. */
+.pageHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  min-height: 2.75rem;
+  margin-bottom: 1rem;
+}
+
+.pageHead h1 {
+  margin: 0;
+}
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.25rem 0 1.25rem;
+}
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.figure {
+  font-size: 3.375rem;
+  font-weight: 650;
+  font-stretch: 75%;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.figure small {
+  margin-left: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.heroNote {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.budgetKey {
+  display: inline-flex;
+  align-items: center;
+}
+.budgetKey .dot {
+  margin: 0 0.35rem 0 0;
+}
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-left: 0.45rem;
+  border-radius: 50%;
+  background: var(--text);
+  opacity: 0.55;
+}
+.badge {
+  margin-left: 0.4rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.toggle {
+  margin: 1rem 0 0;
+  text-align: center;
+}
+.linkButton {
+  padding: 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.addRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: var(--tap);
+  margin: 0.9rem 0 0;
+  border: 1px dashed var(--field-border);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: var(--tap);
+  margin: -0.5rem 0 0.25rem -0.35rem;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+@media (hover: hover) {
+  .back:hover {
+    color: var(--text);
+  }
+}
+/* An account's own page */
+.accountHero {
+  padding: 0 0 0.5rem;
+}
+.title {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.names {
+  min-width: 0;
+}
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.nameRow h1 {
+  min-width: 0;
+  margin: 0;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.sub {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+}
+.heroBalance {
+  margin: 0.15rem 0 0.75rem;
+  font-size: 3.375rem;
+  font-weight: 650;
+  font-stretch: 75%;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.heroBalance small {
+  margin-left: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.muted {
+  color: var(--muted);
+}
+.balanceAfter {
+  margin: -0.25rem 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.error {
+  margin: 0.5rem 0 0;
+  color: var(--negative);
+}
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 1.75rem 0 0.6rem;
+}
+.sectionHead h2 {
+  margin: 0;
+}
+.more {
+  display: flex;
+  justify-content: center;
+  padding: 0.25rem 0 1rem;
+}
+.secondary {
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border-radius: 999px;
+  color: var(--on-accent);
+  background: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+}
+.empty p {
+  margin: 0;
+}

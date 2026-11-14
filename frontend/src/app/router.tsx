@@ -10,6 +10,9 @@ import { AccountForm } from "../features/accounts/AccountForm";
 import { AccountPage } from "../features/accounts/AccountPage";
 import { AccountsPage } from "../features/accounts/AccountsPage";
 import { GroupForm } from "../features/accounts/GroupForm";
+import { CategoriesPage } from "../features/categories/CategoriesPage";
+import { CategoryForm } from "../features/categories/CategoryForm";
+import { CategoryPage } from "../features/categories/CategoryPage";
 import { Placeholder } from "../features/placeholder/Placeholder";
 import { Forgot } from "../features/auth/Forgot";
 import { Reset } from "../features/auth/Reset";
@@ -21,7 +24,6 @@ import { ToastProvider } from "./toast";
 
 const PAGES: [path: string, title: string][] = [
   ["/budget", "Budgets"],
-  ["/categories", "Categories"],
   ["/people", "People"],
   ["/settings", "Settings"],
 ];
@@ -63,6 +65,10 @@ export const routes: RouteObject[] = [
           { path: "/accounts/new", element: <AccountForm /> },
           { path: "/accounts/new-group", element: <GroupForm /> },
           { path: "/accounts/:accountId/edit", element: <AccountForm /> },
+          { path: "/categories", element: <CategoriesPage /> },
+          { path: "/categories/new", element: <CategoryForm /> },
+          { path: "/categories/:categoryId", element: <CategoryPage /> },
+          { path: "/categories/:categoryId/edit", element: <CategoryForm /> },
           { path: "/accounts/:accountId", element: <AccountPage /> },
           ...PAGES.map(([path, title]) => ({ path, element: <Placeholder title={title} /> })),
           { path: "*", element: <NotFound /> },

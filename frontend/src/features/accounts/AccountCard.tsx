@@ -7,6 +7,7 @@ import { useToday } from "../../app/session";
 import { Icon } from "../../components/Icon";
 import { shortDate } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
+import look from "../../components/Page.module.css";
 import styles from "./Accounts.module.css";
 import type { AccountCardData } from "./queries";
 
@@ -33,8 +34,8 @@ export function AccountCard({ card, mark = true }: { card: AccountCardData; mark
       )}
       <span className={styles.cardName}>
         <span>{card.name}</span>
-        {card.closed && <span className={styles.badge}>closed</span>}
-        {card.on_budget && !card.closed && <i className={styles.dot} title="In the budget" />}
+        {card.closed && <span className={look.badge}>closed</span>}
+        {card.on_budget && !card.closed && <i className={look.dot} title="In the budget" />}
       </span>
       <span className={styles.cardFoot}>
         <span className={styles.cardBalance}>{formatMoney(card.balance, grouping)}</span>

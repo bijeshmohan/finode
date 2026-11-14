@@ -9,6 +9,7 @@ import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import { formatMoney } from "../../lib/money";
 import { AccountCard } from "./AccountCard";
+import look from "../../components/Page.module.css";
 import styles from "./Accounts.module.css";
 import { useAccounts } from "./queries";
 
@@ -23,23 +24,23 @@ export function AccountsPage() {
   const page = view.data;
   return (
     <>
-      <div className={styles.pageHead}>
+      <div className={look.pageHead}>
         <h1>Accounts</h1>
       </div>
       {page && (
         <>
-          <div className={styles.hero}>
-            <div className={styles.heroTop}>
+          <div className={look.hero}>
+            <div className={look.heroTop}>
               <span>Net worth</span>
             </div>
-            <span className={styles.figure}>
+            <span className={look.figure}>
               <Figure value={page.net_worth} />
             </span>
-            <span className={styles.heroNote}>
+            <span className={look.heroNote}>
               <span>{page.account_count ? plural(page.account_count) : "No accounts yet"}</span>
               {page.has_budget_accounts && (
-                <span className={styles.budgetKey}>
-                  <i className={styles.dot} />
+                <span className={look.budgetKey}>
+                  <i className={look.dot} />
                   in the budget
                 </span>
               )}
@@ -85,10 +86,10 @@ export function AccountsPage() {
             ))}
 
           {page.has_closed && !showClosed && (
-            <p className={styles.toggle}>
+            <p className={look.toggle}>
               <button
                 type="button"
-                className={styles.linkButton}
+                className={look.linkButton}
                 onClick={() => {
                   setShowClosed(true);
                 }}
@@ -97,7 +98,7 @@ export function AccountsPage() {
               </button>
             </p>
           )}
-          <Link className={styles.addRow} to="/accounts/new-group">
+          <Link className={look.addRow} to="/accounts/new-group">
             <Icon name="plus" />
             New group
           </Link>
