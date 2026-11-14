@@ -12,7 +12,7 @@ import { TransactionList } from "../transactions/TransactionList";
 import { TransactionSheet } from "../transactions/TransactionSheet";
 import { useOpenEntry } from "../transactions/useOpenEntry";
 import { CalcButton, CalcPanel } from "./CalcInfo";
-import { Figure } from "./Figure";
+import { Figure } from "../../components/Figure";
 import { GetStarted } from "./GetStarted";
 import styles from "./Home.module.css";
 import { HOME_MORE, type HomeView, useHome, useHomeList } from "./queries";

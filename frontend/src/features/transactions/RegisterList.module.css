@@ -1,0 +1,23 @@
+/* An account's or a category's entries (partials/account_entries.html, category_entries.html): the running balance
+   sits small under the figure, and a line that posts on another day says so. */
+/* inline-grid keeps the "+" of money coming in on the amount's line (its baseline is the first row's). */
+.amount {
+  display: inline-grid;
+  justify-items: end;
+}
+.amount small {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.posts {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.posts :global(.icon) {
+  width: 0.8rem;
+  height: 0.8rem;
+}
