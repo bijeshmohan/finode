@@ -36,4 +36,13 @@ describe("forgotten password", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send the link" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Too many attempts. Try again in 3 minutes.");
   });
+
+  it("reset switched off meanwhile sends you to sign in, not a raw error", async () => {
+    const { router } = renderApp("/forgot", { ...ON, "/api/auth/forgot": [404, { detail: "Not Found" }] });
+    await userEvent.type(await screen.findByLabelText("Email"), "a@b.co");
+    await userEvent.click(screen.getByRole("button", { name: "Send the link" }));
+    expect(await screen.findByText("Sign in to your ledger.")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/sign-in");
+    expect(screen.queryByText("Not Found")).not.toBeInTheDocument();
+  });
 });

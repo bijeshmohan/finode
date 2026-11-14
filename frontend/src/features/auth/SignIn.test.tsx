@@ -2,6 +2,8 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
+import { ApiError } from "../../api/client";
+
 import { type Answers, calledPaths, renderApp, SIGNED_IN } from "../../test/render";
 import { UNREACHABLE } from "./messages";
 
@@ -97,5 +99,23 @@ describe("signing in", () => {
     await screen.findByText("Sign in to your ledger.");
     expect(router.state.location.pathname).toBe("/sign-in");
     expect(router.state.location.search).toBe("?next=%2Fbudget");
+  });
+
+  it("after a session ended, signing in lands signed in (nothing of the old session is kept)", async () => {
+    renderApp(
+      "/sign-in?next=%2Faccounts",
+      { ...SIGNED_IN, ...OPTIONS_OFF, "/api/auth/sign-in": [204, null] },
+      (queryClient) => {
+        // What the cache holds after a refresh found the session gone: the old session and a 401.
+        queryClient.setQueryData(["session"], { email: "old@example.com", today: "2026-11-13" });
+        queryClient
+          .getQueryCache()
+          .find({ queryKey: ["session"] })
+          ?.setState({ status: "error", error: new ApiError(401, "missing authentication token") });
+        queryClient.setQueryData(["accounts"], ["the previous person's accounts"]);
+      },
+    );
+    await signIn();
+    expect(await screen.findByRole("heading", { name: "Accounts" })).toBeInTheDocument();
   });
 });

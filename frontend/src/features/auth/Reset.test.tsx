@@ -1,6 +1,6 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { type Answers, calledPaths, renderApp, SIGNED_IN } from "../../test/render";
 
@@ -56,5 +56,27 @@ describe("choosing a new password", () => {
     });
     await screen.findByText("Sign in to your ledger.");
     expect(router.state.location.pathname).toBe("/sign-in");
+  });
+
+  it("when the server's options cannot be loaded, the link is kept and the screen says why", async () => {
+    const { router } = renderApp("/reset?token_hash=abc", { "/api/auth/options": new TypeError("Failed to fetch") });
+    expect(await screen.findByRole("alert")).toHaveTextContent("finode can't be reached. Check your connection.");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(router.state.location.search).toBe("?token_hash=abc");
+  });
+
+  it("two quick submits send the new password once", async () => {
+    const { fetch } = renderApp("/reset?token_hash=abc", { ...ON, "/api/auth/reset": "never" });
+    await userEvent.type(await screen.findByLabelText("New password"), "correct horse");
+    await userEvent.type(screen.getByLabelText("Confirm password"), "correct horse");
+    const form = screen.getByRole("button", { name: "Change password" }).closest("form");
+    if (!form) throw new Error("no form");
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    await vi.waitFor(() => {
+      expect(calledPaths(fetch)).toContain("/api/auth/reset");
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(calledPaths(fetch).filter((p) => p === "/api/auth/reset")).toHaveLength(1);
   });
 });

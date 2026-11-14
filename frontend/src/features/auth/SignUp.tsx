@@ -10,7 +10,8 @@ import { useApi } from "../../api/context";
 import { AuthScreen } from "./AuthScreen";
 import { CheckField, FormError, Stack, SubmitButton, SwitchLine, TextField } from "./fields";
 import { messageOf, MIN_PASSWORD_LENGTH, RULES } from "./messages";
-import { useAuthOptions } from "./options";
+import { WithOptions } from "./options";
+import { forgetPreviousSession, useSubmitOnce } from "./session";
 import { TestNotice } from "./TestNotice";
 
 const TICK = "Please read the notice and tick the box to continue.";
@@ -30,10 +31,13 @@ function schema(testNotice: boolean) {
 type Form = z.infer<ReturnType<typeof schema>>;
 
 export function SignUp() {
-  const options = useAuthOptions();
-  if (options.isPending) return null;
-  if (!options.data?.signup_enabled) return <Navigate to="/sign-in" replace />;
-  return <SignUpForm testNotice={options.data.test_notice} />;
+  return (
+    <WithOptions>
+      {(options) =>
+        options.signup_enabled ? <SignUpForm testNotice={options.test_notice} /> : <Navigate to="/sign-in" replace />
+      }
+    </WithOptions>
+  );
 }
 
 function SignUpForm({ testNotice }: { testNotice: boolean }) {
@@ -53,7 +57,7 @@ function SignUpForm({ testNotice }: { testNotice: boolean }) {
         await navigate("/sign-in?created=1", { replace: true });
         return;
       }
-      await queryClient.invalidateQueries({ queryKey: ["session"] });
+      forgetPreviousSession(queryClient);
       await navigate("/", { replace: true });
     },
     onError: async (error) => {
@@ -61,15 +65,14 @@ function SignUpForm({ testNotice }: { testNotice: boolean }) {
       if (error instanceof ApiError && error.status === 404) await navigate("/sign-in", { replace: true });
     },
   });
+  const submit = useSubmitOnce(signUp);
 
   return (
     <AuthScreen intro="Create an account. You need an invite code.">
       <FormError message={signUp.isError ? messageOf(signUp.error) : null} />
       <Stack
         onSubmit={() => {
-          void handleSubmit((body) => {
-            if (!signUp.isPending) signUp.mutate(body);
-          })();
+          void handleSubmit(submit)();
         }}
       >
         <TextField

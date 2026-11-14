@@ -12,7 +12,8 @@ import { AuthScreen } from "./AuthScreen";
 import type { ForgotState } from "./Forgot";
 import { FormError, Stack, SubmitButton, TextField } from "./fields";
 import { codeOf, messageOf, MIN_PASSWORD_LENGTH, RULES } from "./messages";
-import { useAuthOptions } from "./options";
+import { WithOptions } from "./options";
+import { forgetPreviousSession, useSubmitOnce } from "./session";
 
 const PASSWORD_CHANGED = "Your password was changed. You are signed in.";
 
@@ -25,16 +26,20 @@ const form = z
 type Form = z.infer<typeof form>;
 
 export function Reset() {
-  const options = useAuthOptions();
   const [params] = useSearchParams();
   const tokenHash = params.get("token_hash");
-  if (options.isPending) return null;
-  if (!options.data?.reset_enabled) return <Navigate to="/sign-in" replace />;
-  if (!tokenHash) {
-    const state: ForgotState = { error: "That link is not valid. Ask for a new one." };
-    return <Navigate to="/forgot" replace state={state} />;
-  }
-  return <ResetForm tokenHash={tokenHash} />;
+  return (
+    <WithOptions>
+      {(options) => {
+        if (!options.reset_enabled) return <Navigate to="/sign-in" replace />;
+        if (!tokenHash) {
+          const state: ForgotState = { error: "That link is not valid. Ask for a new one." };
+          return <Navigate to="/forgot" replace state={state} />;
+        }
+        return <ResetForm tokenHash={tokenHash} />;
+      }}
+    </WithOptions>
+  );
 }
 
 function ResetForm({ tokenHash }: { tokenHash: string }) {
@@ -50,7 +55,7 @@ function ResetForm({ tokenHash }: { tokenHash: string }) {
   const reset = useMutation({
     mutationFn: (body: Form) => data(api.POST("/api/auth/reset", { body: { ...body, token_hash: tokenHash } })),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["session"] });
+      forgetPreviousSession(queryClient);
       await navigate("/", { replace: true, state: { toast: PASSWORD_CHANGED } });
     },
     onError: async (error) => {
@@ -62,15 +67,14 @@ function ResetForm({ tokenHash }: { tokenHash: string }) {
       }
     },
   });
+  const submit = useSubmitOnce(reset);
 
   return (
     <AuthScreen intro="Choose a new password.">
       <FormError message={reset.isError ? messageOf(reset.error) : null} />
       <Stack
         onSubmit={() => {
-          void handleSubmit((body) => {
-            if (!reset.isPending) reset.mutate(body);
-          })();
+          void handleSubmit(submit)();
         }}
       >
         <TextField

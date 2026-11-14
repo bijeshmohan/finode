@@ -12,6 +12,7 @@ import { FormError, Notice, Stack, SubmitButton, SwitchLine, TextField } from ".
 import { messageOf } from "./messages";
 import { useAuthOptions } from "./options";
 import { safeNext } from "./safeNext";
+import { forgetPreviousSession, useSubmitOnce } from "./session";
 
 const form = z.object({ email: z.string().trim().min(1), password: z.string().min(1) });
 type Form = z.infer<typeof form>;
@@ -27,10 +28,11 @@ export function SignIn() {
   const signIn = useMutation({
     mutationFn: (body: Form) => data(api.POST("/api/auth/sign-in", { body })),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["session"] });
+      forgetPreviousSession(queryClient);
       await navigate(safeNext(params.get("next")), { replace: true });
     },
   });
+  const submit = useSubmitOnce(signIn);
 
   return (
     <AuthScreen intro="Sign in to your ledger.">
@@ -38,9 +40,7 @@ export function SignIn() {
       <FormError message={signIn.isError ? messageOf(signIn.error) : null} />
       <Stack
         onSubmit={() => {
-          void handleSubmit((body) => {
-            if (!signIn.isPending) signIn.mutate(body);
-          })();
+          void handleSubmit(submit)();
         }}
       >
         <TextField label="Email" type="email" autoComplete="username" startHere registration={register("email")} />

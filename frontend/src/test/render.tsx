@@ -42,8 +42,9 @@ export function calledPaths(fetch: ReturnType<typeof stubClient>["fetch"]): stri
   return fetch.mock.calls.map(([request]) => new URL(request.url).pathname);
 }
 
-export function renderApp(path: string, answers: Answers = SIGNED_IN) {
+export function renderApp(path: string, answers: Answers = SIGNED_IN, seed?: (queryClient: QueryClient) => void) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  seed?.(queryClient);
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   const { client, fetch } = stubClient(answers);
   render(
