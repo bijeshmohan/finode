@@ -171,7 +171,7 @@ users' ids first or the foreign keys fail.
 
 ```bash
 uv run pytest                  # unit and web tests (about 1,000, a few minutes)
-scripts/browser-tests.sh       # the browser tests in Docker (FINODE_BROWSER=webkit for Safari's engine)
+scripts/browser-tests.sh       # the browser tests in Docker, after building the React app (FINODE_BROWSER=webkit for Safari's engine)
 uv run ruff check app tests migrations scripts && uv run ruff format --check app tests migrations scripts
 uv run pyrefly check           # type checks app/ (under a second)
 make check                     # lint + types + tests; `make help` lists every target
