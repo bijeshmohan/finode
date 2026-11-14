@@ -38,6 +38,8 @@ const ASK = "Delete this transaction? Account balances will change. This cannot 
 interface RowState {
   choice: string | null;
   category: string | null;
+  // The line's own posting date (a card purchase that posts later), kept as recorded, like the web form's hidden field.
+  postedOn: string | null;
 }
 
 export interface EntryState {
@@ -57,6 +59,7 @@ export function startState(form: EntryFormView, grouping: Parameters<typeof grou
   const row = (rows: EntryFormView["from_rows"]): RowState => ({
     choice: rows[0]?.choice ?? null,
     category: rows[0]?.category_id ?? null,
+    postedOn: rows[0]?.posted_on ?? null,
   });
   return {
     kind: form.kind,
@@ -114,7 +117,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
     setState((now) => {
       const kind: Kind = tapped === now.kind ? "other" : tapped;
       const keep = (side: Side): RowState =>
-        keepsChoice(kind, side, now[side].choice, groups) ? now[side] : { choice: null, category: null };
+        keepsChoice(kind, side, now[side].choice, groups) ? now[side] : { ...now[side], choice: null, category: null };
       const withPerson = kind === "expense" || kind === "income";
       return {
         ...now,
@@ -155,6 +158,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
       side,
       amount,
       category_id: shownCategory(side) ? state[side].category : null,
+      posted_on: state[side].postedOn,
     });
     const body: EntryBody = {
       kind: state.kind,
@@ -372,7 +376,11 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
           {...(picking.category ? { clearable: "No category" } : {})}
           onChange={(id) => {
             const s = picking.side;
-            change(picking.category ? { [s]: { ...state[s], category: id } } : { [s]: { choice: id, category: null } });
+            change(
+              picking.category
+                ? { [s]: { ...state[s], category: id } }
+                : { [s]: { ...state[s], choice: id, category: null } },
+            );
           }}
           onClose={() => {
             setPicking(null);
