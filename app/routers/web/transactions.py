@@ -27,8 +27,6 @@ from ...dependencies import (
 from ...models.transaction import PostingSide
 from ...repositories.transaction import SYSTEM_PAYEES
 from ...schemas.entry import EntryForm, EntryRow
-from ...schemas.shared_expense import SharedExpenseRead
-from ...schemas.shared_income import SharedIncomeRead
 from ...schemas.transaction import (
     PostingCreate,
 )
@@ -36,6 +34,7 @@ from ...services import payee_suggestions
 from ...services.account_tree import build_tree, without_contacts
 from ...services.entry import infer_kind, postings_of
 from ...services.entry_form import edit_start, new_start
+from ...services.entry_share import expense_start, income_start
 from ...services.pickers import category_groups, people_group, posting_groups
 from ...services.transaction_rows import (
     HOME_MORE,
@@ -56,7 +55,7 @@ from ...tags import clean_tag
 from ...templating import templates
 from .budget import parse_month
 from .categories import _month_context, category_tree
-from .people import expense_data, income_data
+from .people import expense_entry, income_entry
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
 
 router = APIRouter(prefix="/transactions")
@@ -409,35 +408,15 @@ def safe_back(value: str | None, default: str = "/transactions") -> str:
 ASSET_LIKE = ("Assets", "Liabilities")
 
 
-def editor_values(bill: SharedExpenseRead | None = None, with_id: UUID | None = None) -> dict:
-    """What the Share editor starts with: the shared bill being edited, or one person ticked (opened from their page)."""
-    if bill is None:
-        return {"checked": {with_id} if with_id else set(), "share_values": {}, "paid": {}}
-    shares = {s.contact_id: s for s in bill.shares}
-    exact = bill.split_method != "equal"
-    paid_self = sum((c.amount for c in bill.contributions if c.is_self), Decimal(0))
-    others = {c.contact_id: c.amount for c in bill.contributions if not c.is_self}
-    return {
-        "checked": {c for c in shares if c is not None},
-        "share_values": {c: s.share_value for c, s in shares.items() if exact and s.share_value is not None},
-        "paid": others,
-        "paid_self": paid_self if others else "",
-        "method": bill.split_method,
-        "category_id": bill.category_id,
-        "account_id": next((c.account_id for c in bill.contributions if c.is_self), None),
-    }
-
-
-def income_values(shared: SharedIncomeRead | None = None) -> dict:
-    """What the income Share editor starts with: the shared income being edited, or nothing."""
-    if shared is None:
-        return {"theirs": {}, "received": {}}
-    return {
-        "theirs": {p.contact_id: p.amount for p in shared.theirs},
-        "received": {p.contact_id: p.amount for p in shared.received_by},
-        "category_id": shared.category_id,
-        "account_id": next((d.account_id for d in shared.deposits), None),
-    }
+async def _shared_entry(
+    request: Request, contacts: Contacts, kind: str, comment: str, tags: list[str] | None, related: str
+) -> EntryForm:
+    """The Split part of the form: a bill (or, on an income, the income) shared with people."""
+    form = {k: str(v) for k, v in (await request.form()).items()}
+    read = income_entry if kind == "income" else expense_entry
+    return read(form, contacts.people()).model_copy(
+        update={"comment": comment.strip() or None, "tags": tags or [], "related_id": parse_related(related)}
+    )
 
 
 def form_context(accounts: Accounts, categories: Categories, contacts: Contacts | None = None, **extra) -> dict:
@@ -466,8 +445,8 @@ def form_context(accounts: Accounts, categories: Categories, contacts: Contacts 
         "spending": category_tree(categories, "spending"),
         "earning": category_tree(categories, "earning"),
         "mode": "simple",
-        "ed": editor_values(),
-        "ei": income_values(),
+        "ed": expense_start(None),
+        "ei": income_start(None),
         **extra,
     }
 
@@ -672,7 +651,7 @@ def new_transaction_page(
             from_rows=start.from_rows,
             to_rows=start.to_rows,
             mode="split" if split else "simple",
-            ed=editor_values(None, with_person if split and not move else None),
+            ed=expense_start(None, with_person if split and not move else None),
             kind="expense" if split else start.kind,
             related=start.related,
             total=start.total,
@@ -688,12 +667,7 @@ async def create_split_transaction(
     request: Request,
     transactions: Transactions,
     entries: Entries,
-    accounts: Accounts,
-    categories: Categories,
     contacts: Contacts,
-    transfers: Transfers,
-    expenses: SharedExpenses,
-    incomes: SharedIncomes,
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
     amount: Annotated[list[str] | None, Form()] = None,
@@ -711,27 +685,10 @@ async def create_split_transaction(
 ):
     account, side, amount = account or [], side or [], amount or []
     try:
-        if mode == "split" and kind == "income":
-            # Share on an income: money that came in, part of it theirs (what the form lists).
-            form = {k: str(v) for k, v in (await request.form()).items()}
-            incomes.create(
-                income_data(form, contacts.people()),
-                comment=comment.strip() or None,
-                tags=tags or [],
-                related_id=parse_related(related),
-            )
-            return htmx_redirect(safe_back(back), flash="income-shared")
         if mode == "split" and kind != "transfer":
-            # Share: a bill shared by the shares and payments the form lists (the same one a person's page records).
-            form = {k: str(v) for k, v in (await request.form()).items()}
-            expenses.create(
-                expense_data(form, contacts.people()),
-                confirm=True,
-                comment=comment.strip() or None,
-                tags=tags or [],
-                related_id=parse_related(related),
-            )
-            return htmx_redirect(safe_back(back), flash="expense-shared")
+            # Split: a bill or an income shared with people, as the form lists it.
+            shared = entries.create(await _shared_entry(request, contacts, kind, comment, tags, related))
+            return htmx_redirect(safe_back(back), flash=shared.recorded)
         saved = entries.create(
             entry_form(
                 kind,
@@ -789,8 +746,8 @@ def edit_transaction_page(
             from_rows=start.from_rows,
             to_rows=start.to_rows,
             mode=start.mode,
-            ed=editor_values(start.bill),
-            ei=income_values(start.shared_income),
+            ed=expense_start(start.bill),
+            ei=income_start(start.shared_income),
             **({"kind": start.kind} if start.mode == "split" else {}),
             related=start.related,
             account=None,
@@ -806,12 +763,7 @@ async def update_transaction(
     transaction_id: UUID,
     transactions: Transactions,
     entries: Entries,
-    accounts: Accounts,
-    categories: Categories,
     contacts: Contacts,
-    transfers: Transfers,
-    expenses: SharedExpenses,
-    incomes: SharedIncomes,
     date_: Annotated[str, Form(alias="date")] = "",
     account: Annotated[list[str] | None, Form()] = None,
     side: Annotated[list[str] | None, Form()] = None,
@@ -828,31 +780,10 @@ async def update_transaction(
     payee_contact: Annotated[str, Form()] = "",
 ):
     account, side, amount = account or [], side or [], amount or []
-    purposes = {r.purpose for r in contacts.made_of(transaction_id)}
     try:
-        if mode == "split" and kind == "income":
-            # Share on an income: the entry becomes (or stays) income shared with people, in place.
-            entries.release(transaction_id, purposes, "income")
-            form = {k: str(v) for k, v in (await request.form()).items()}
-            incomes.convert(
-                transaction_id,
-                income_data(form, contacts.people()),
-                comment.strip() or None,
-                tags or [],
-                parse_related(related),
-            )
-            return htmx_redirect(safe_back(back), flash="transaction-updated")
         if mode == "split" and kind != "transfer":
-            # Share: the entry becomes (or stays) a bill shared by the shares and payments the form lists, in place.
-            entries.release(transaction_id, purposes, "bill")
-            form = {k: str(v) for k, v in (await request.form()).items()}
-            expenses.convert(
-                transaction_id,
-                expense_data(form, contacts.people()),
-                comment.strip() or None,
-                tags or [],
-                parse_related(related),
-            )
+            # Split: the entry becomes (or stays) a bill or an income shared with people, in place.
+            entries.update(transaction_id, await _shared_entry(request, contacts, kind, comment, tags, related))
             return htmx_redirect(safe_back(back), flash="transaction-updated")
         entries.update(
             transaction_id,

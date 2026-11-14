@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -33,14 +33,9 @@ from ...schemas.contact import (
     OpeningBalanceCreate,
     OpeningBalanceUpdate,
 )
-from ...schemas.shared_expense import (
-    ContributionIn,
-    ParticipantIn,
-    PaymentIn,
-    SharedExpenseCreate,
-)
-from ...schemas.shared_income import IncomeDepositIn, IncomePartIn, SharedIncomeCreate
+from ...schemas.entry import EntryForm, ExpenseShare, IncomePart, IncomeShare, PersonShare
 from ...services.account_tree import build_tree, without_contacts
+from ...services.entry_share import expense_create, income_create
 from ...services.pickers import posting_groups
 from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
@@ -360,72 +355,59 @@ def change_opening(
 # ---- sharing a bill ---------------------------------------------------------------------------------------------
 
 
-def expense_data(form: dict[str, str], people: Sequence) -> SharedExpenseCreate:
-    """The shared expense a form describes. A box left empty is not given: your own payment is whatever the others
-    did not pay."""
+def _value(form: dict[str, str], key: str) -> Decimal | None:
+    raw = (form.get(key) or "").strip()
+    return parse_amount(raw) if raw else None
+
+
+def _entry(form: dict[str, str], share: ExpenseShare | IncomeShare) -> EntryForm:
+    return EntryForm(
+        kind=share.kind,
+        payee=form.get("description") or form.get("payee") or "",
+        date=form.get("date") or None,
+        total=parse_amount(form.get("total_amount") or form.get("total")),
+        share=share,
+    )
+
+
+def expense_entry(form: dict[str, str], people: Sequence) -> EntryForm:
+    """The bill shared with people that a form describes (the Split of the Add screen): the people ticked, and a box
+    left empty is not given. The rules are services/entry_share.py's."""
+    parse_amount(form.get("total_amount") or form.get("total"))  # the amount is asked for first
     method = form.get("split_method", "equal")
-    total = parse_amount(form.get("total_amount") or form.get("total"))
-
-    def value(key: str) -> Decimal | None:
-        raw = (form.get(key) or "").strip()
-        return parse_amount(raw) if raw else None
-
+    valued = method != "equal"
     chosen = [p for p in people if form.get(f"with_{p.id}")]
-    participants = [ParticipantIn(is_self=True, value=value("value_self") if method != "equal" else None)] + [
-        ParticipantIn(contact_id=p.id, value=value(f"value_{p.id}") if method != "equal" else None) for p in chosen
-    ]
-    contributions = [
-        ContributionIn(contact_id=p.id, amount=paid)
-        for p in chosen
-        if (paid := value(f"paid_{p.id}")) is not None and paid > 0
-    ]
-    mine = value("paid_self")
-    if mine is None:
-        mine = total - sum((c.amount for c in contributions), Decimal(0))
-    account = _uuid(form.get("account_id", ""))
-    payments = [PaymentIn(account_id=account, amount=mine)] if mine > 0 and account else []
-    if mine > 0 and not account:
-        raise ValueError("choose the account you paid from!")
-    extra = {"date": form["date"]} if form.get("date") else {}
-    return SharedExpenseCreate(
-        description=(form.get("description") or form.get("payee") or "").strip() or "Shared bill",
-        total_amount=total,
+    share = ExpenseShare(
         category_id=_uuid(form.get("category_id", "")),
-        split_method=method,  # pyrefly: ignore[bad-argument-type]  # checked by the schema
-        participants=participants,
-        contributions=contributions,
-        payments=payments,
-        **extra,
+        account_id=_uuid(form.get("account_id", "")),
+        method=method,  # pyrefly: ignore[bad-argument-type]  # checked by the schema
+        self_value=_value(form, "value_self") if valued else None,
+        self_paid=_value(form, "paid_self"),
+        people=[
+            PersonShare(
+                contact_id=p.id,
+                value=_value(form, f"value_{p.id}") if valued else None,
+                paid=_value(form, f"paid_{p.id}"),
+            )
+            for p in chosen
+        ],
     )
+    return _entry(form, share)
 
 
-def income_data(form: dict[str, str], people: Sequence) -> SharedIncomeCreate:
-    """The shared income a form describes. A box left empty is not given: what landed in your account is whatever the
-    people did not receive."""
-    total = parse_amount(form.get("total_amount") or form.get("total"))
-
-    def value(key: str) -> Decimal | None:
-        raw = (form.get(key) or "").strip()
-        return parse_amount(raw) if raw else None
-
-    theirs = [
-        IncomePartIn(contact_id=p.id, amount=v) for p in people if (v := value(f"theirs_{p.id}")) is not None and v > 0
+def income_entry(form: dict[str, str], people: Sequence) -> EntryForm:
+    """The income shared with people that a form describes: each person's part, and what they received for you."""
+    parse_amount(form.get("total_amount") or form.get("total"))
+    parts = [
+        IncomePart(contact_id=p.id, theirs=_value(form, f"theirs_{p.id}"), received=_value(form, f"got_{p.id}"))
+        for p in people
     ]
-    got = [IncomePartIn(contact_id=p.id, amount=v) for p in people if (v := value(f"got_{p.id}")) is not None and v > 0]
-    landed = total - sum((g.amount for g in got), Decimal(0))
-    account = _uuid(form.get("income_account_id", ""))
-    if landed > 0 and not account:
-        raise ValueError("choose the account it was paid into!")
-    extra = {"date": form["date"]} if form.get("date") else {}
-    return SharedIncomeCreate(
-        description=(form.get("description") or form.get("payee") or "").strip() or "Shared income",
-        total_amount=total,
+    share = IncomeShare(
         category_id=_uuid(form.get("income_category_id", "")),
-        theirs=theirs,
-        received_by=got,
-        deposits=[IncomeDepositIn(account_id=account, amount=landed)] if landed > 0 and account else [],
-        **extra,
+        account_id=_uuid(form.get("income_account_id", "")),
+        people=[p for p in parts if (p.theirs or 0) > 0 or (p.received or 0) > 0],
     )
+    return _entry(form, share)
 
 
 @router.post("/income/preview")
@@ -434,7 +416,10 @@ async def income_preview(request: Request, contacts: Contacts, incomes: SharedIn
     context: dict[str, Any] = {"preview": None, "message": None}
     if (form.get("total_amount") or form.get("total") or "").strip():
         try:
-            context["preview"] = incomes.preview(income_data(form, contacts.people()))
+            entry = income_entry(form, contacts.people())
+            context["preview"] = incomes.preview(
+                income_create(entry, cast(IncomeShare, entry.share), {p.id for p in contacts.people()})
+            )
         except (ValueError, ValidationError) as e:
             context["message"] = _message(e)
     return templates.TemplateResponse(request, "partials/income_preview.html", context)
@@ -446,7 +431,10 @@ async def expense_preview(request: Request, contacts: Contacts, expenses: Shared
     context: dict[str, Any] = {"preview": None, "message": None}
     if (form.get("total_amount") or form.get("total") or "").strip():
         try:
-            context["preview"] = expenses.preview(expense_data(form, contacts.people()))
+            entry = expense_entry(form, contacts.people())
+            context["preview"] = expenses.preview(
+                expense_create(entry, cast(ExpenseShare, entry.share), {p.id for p in contacts.people()})
+            )
         except (ValueError, ValidationError) as e:
             context["message"] = _message(e)
     return templates.TemplateResponse(request, "partials/expense_preview.html", context)

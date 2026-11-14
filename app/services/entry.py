@@ -1,9 +1,9 @@
 """Saving an entry from the Add screen, whatever it turns out to be: an ordinary entry (its rows' categories posting on
 Expenses or Income), money to or from a person (a loan, a borrowing, paying back what is owed), or an expense or income
-that names a person as a gift. Editing first releases what the entry was (a loan, a shared bill, shared income), and
-rolls all of it back when the new version is refused. The web form and /api/entries both save through here.
-
-Bills and income shared with people are saved by their own services (expense_sharing, income_sharing)."""
+that names a person as a gift, or a bill or an income shared with people (the form's Split: entry_share turns it into
+what expense_sharing and income_sharing record). Editing first releases what the entry was (a loan, a shared bill,
+shared income), and rolls all of it back when the new version is refused. The web form and /api/entries both save
+through here."""
 
 from collections.abc import Iterable, Mapping
 from uuid import UUID
@@ -13,12 +13,13 @@ from pydantic import ValidationError
 from ..clock import local_today
 from ..models.transaction import PostingSide
 from ..schemas.contact import TransferCreate
-from ..schemas.entry import EntryForm, EntryRow, EntrySaved
+from ..schemas.entry import EntryForm, EntryRow, EntrySaved, ExpenseShare
 from ..schemas.transaction import PostingBase, PostingCreate, TransactionCreate, TransactionUpdate
 from .account import AccountService
 from .account_tree import build_tree
 from .category import CategoryService
 from .contact import ContactService
+from .entry_share import expense_create, income_create
 from .expense_sharing import ExpenseSharingService
 from .income_sharing import IncomeSharingService
 from .transaction import TransactionService
@@ -132,10 +133,56 @@ class EntryService:
     def _people(self) -> set[UUID]:
         return {c.id for c in self.contacts.people()} if self.contacts.has_people() else set()
 
+    def _shared_id(self, transaction_id: UUID | None) -> UUID:
+        if transaction_id is None:  # a confirmed bill always has its entry
+            raise ValueError("the shared bill has no entry!")
+        return transaction_id
+
+    def _create_shared(self, form: EntryForm, people: set[UUID]) -> EntrySaved:
+        comment = (form.comment or "").strip() or None
+        if isinstance(form.share, ExpenseShare):
+            bill = self.expenses.create(
+                expense_create(form, form.share, people),
+                confirm=True,
+                comment=comment,
+                tags=form.tags,
+                related_id=form.related_id,
+            )
+            return EntrySaved(transaction_id=self._shared_id(bill.transaction_id), recorded="expense-shared")
+        if form.share is None:
+            raise ValueError("nothing is shared!")
+        income = self.incomes.create(
+            income_create(form, form.share, people), comment=comment, tags=form.tags, related_id=form.related_id
+        )
+        return EntrySaved(transaction_id=income.transaction_id, recorded="income-shared")
+
+    def _update_shared(self, transaction_id: UUID, form: EntryForm, people: set[UUID], purposes: set[str]) -> EntrySaved:
+        comment = (form.comment or "").strip() or None
+        if form.date is None:  # without one, the entry keeps its own (as an ordinary edit does)
+            entry = self.transactions.read(transaction_id)
+            if entry is None:
+                raise LookupError("transaction not found")
+            form = form.model_copy(update={"date": entry.date})
+        if isinstance(form.share, ExpenseShare):
+            self.release(transaction_id, purposes, "bill")
+            self.expenses.convert(
+                transaction_id, expense_create(form, form.share, people), comment, form.tags, form.related_id
+            )
+            return EntrySaved(transaction_id=transaction_id, recorded="expense-shared")
+        if form.share is None:
+            raise ValueError("nothing is shared!")
+        self.release(transaction_id, purposes, "income")
+        self.incomes.convert(
+            transaction_id, income_create(form, form.share, people), comment, form.tags, form.related_id
+        )
+        return EntrySaved(transaction_id=transaction_id, recorded="income-shared")
+
     def create(self, form: EntryForm) -> EntrySaved:
         """Record a new entry. Nothing is kept when any part of it is refused."""
         people = self._people()
         try:
+            if form.share is not None:
+                return self._create_shared(form, people)
             if people & {r.choice for r in form.rows}:
                 if form.tags or form.related_id:
                     raise ValueError("tags and related entries are not available for money moved to or from a person!")
@@ -191,6 +238,8 @@ class EntryService:
         people = self._people()
         purposes = {r.purpose for r in self.contacts.made_of(transaction_id)}
         try:
+            if form.share is not None:
+                return self._update_shared(transaction_id, form, people, purposes)
             if people & {r.choice for r in form.rows}:
                 # A person on one side of a transfer: the entry becomes (or stays) a loan or a borrowing, in place.
                 self.release(transaction_id, purposes, "loan")
