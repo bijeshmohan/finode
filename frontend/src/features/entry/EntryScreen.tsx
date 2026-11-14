@@ -38,6 +38,19 @@ import { PayeeField } from "./PayeeField";
 import { Picker } from "./Picker";
 import { Related } from "./RelatedPicker";
 import { RowSettings } from "./RowSettings";
+import {
+  carryExpense,
+  carryIncome,
+  expenseBody,
+  type ExpenseShareState,
+  incomeBody,
+  type IncomeShareState,
+  startExpense,
+  startIncome,
+} from "./share";
+import { ExpenseShareEditor, IncomeShareEditor } from "./ShareEditor";
+import styles2 from "./ShareEditor.module.css";
+import { SharePreview } from "./SharePreview";
 import { amountOf, datesFrom, removeRow, type RowState, settle, startRows } from "./rows";
 import { type EntryBody, type EntryFormView, type PickGroup, useSaveEntry } from "./queries";
 
@@ -54,6 +67,10 @@ export interface EntryState {
   comment: string;
   tags: string[];
   related: EntryFormView["related"];
+  /** "split": an expense or an income shared with people. */
+  mode: "simple" | "split";
+  expenseShare: ExpenseShareState;
+  incomeShare: IncomeShareState;
 }
 
 export function startState(form: EntryFormView, grouping: Parameters<typeof groupAmount>[1]): EntryState {
@@ -68,8 +85,13 @@ export function startState(form: EntryFormView, grouping: Parameters<typeof grou
     comment: form.comment,
     tags: form.tags,
     related: form.related,
+    mode: form.mode,
+    expenseShare: startExpense(form.expense_share, grouping),
+    incomeShare: startIncome(form.income_share, grouping),
   };
 }
+
+const shareable = (kind: Kind) => kind === "expense" || kind === "income";
 
 function categoryGroups(groups: PickGroup[]): PickGroup[] {
   return groups.filter((g) => g.title === "Expenses" || g.title === "Income");
@@ -139,6 +161,8 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
       return {
         ...now,
         kind,
+        // A transfer has no Split; coming back to an expense or income starts Simple (the people stay ticked).
+        mode: shareable(kind) && shareable(now.kind) ? now.mode : "simple",
         credit: keep("credit"),
         debit: keep("debit"),
         payeePerson: withPerson ? now.payeePerson : null,
@@ -156,6 +180,24 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
     }));
   };
 
+  const split = state.mode === "split" && shareable(state.kind);
+
+  const chooseMode = (mode: "simple" | "split") => {
+    update((now) => {
+      if (mode === "simple") return { ...now, mode };
+      return {
+        ...now,
+        mode,
+        payeePerson: null,
+        expenseShare: carryExpense(now.expenseShare, firstChoice(now.credit), firstChoice(now.debit), groups),
+        incomeShare: carryIncome(now.incomeShare, firstChoice(now.credit), firstChoice(now.debit), groups),
+      };
+    });
+  };
+
+  const shareOf = (now: EntryState) =>
+    now.kind === "income" ? incomeBody(now.incomeShare, places) : expenseBody(now.expenseShare, places);
+
   const other = (side: Side): Side => (side === "credit" ? "debit" : "credit");
   const shownCategory = (side: Side, row: RowState): boolean =>
     rowCategoryShown(row.choice, firstChoice(state[other(side)]), groups);
@@ -166,6 +208,27 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
     const amount = tidyAmount(state.total, places).replace(/,/g, "");
     if (!amount || !/^-?\d+(\.\d+)?$/.test(amount)) {
       setProblem("Enter the amount.");
+      return;
+    }
+    if (split) {
+      const body: EntryBody = {
+        kind: state.kind,
+        date: state.date,
+        payee: state.payee,
+        comment: state.comment,
+        tags: state.tags,
+        related_id: state.related?.id ?? null,
+        payee_contact: null,
+        rows: [],
+        total: amount,
+        share: shareOf(state),
+      };
+      submit(body, {
+        onSuccess: () => {
+          toast(editing ? "Transaction updated" : state.kind === "income" ? "Income recorded" : "Expense recorded");
+          leave();
+        },
+      });
       return;
     }
     const rows: EntryBody["rows"] = [];
@@ -369,7 +432,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
             change({ payeePerson });
           }}
           editing={editing}
-          canName={state.kind === "expense" || state.kind === "income"}
+          canName={shareable(state.kind) && !split}
         />
         <div className={styles.metaRow}>
           <DateChip
@@ -392,8 +455,61 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
           />
         </div>
 
-        {side(first ?? "credit")}
-        {canSwap(state.kind) && (
+        {shareable(state.kind) && (
+          <div className={styles2.seg} role="radiogroup" aria-label="How it is recorded">
+            {(["simple", "split"] as const).map((m) => (
+              <label key={m}>
+                <input
+                  type="radio"
+                  name="mode"
+                  checked={state.mode === m}
+                  onChange={() => {
+                    chooseMode(m);
+                  }}
+                />
+                <span>{m === "simple" ? "Simple" : "Split"}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {split && state.kind === "expense" && (
+          <ExpenseShareEditor
+            share={state.expenseShare}
+            people={form.people}
+            groups={groups}
+            onChange={(expenseShare) => {
+              change({ expenseShare });
+            }}
+          />
+        )}
+        {split && state.kind === "income" && (
+          <IncomeShareEditor
+            share={state.incomeShare}
+            people={form.people}
+            groups={groups}
+            onChange={(incomeShare) => {
+              change({ incomeShare });
+            }}
+          />
+        )}
+        {split && form.people.length > 0 && (
+          <SharePreview
+            ask={
+              positive(state.total)
+                ? {
+                    total: tidyAmount(state.total, places).replace(/,/g, ""),
+                    date: state.date,
+                    payee: state.payee,
+                    share: shareOf(state),
+                  }
+                : null
+            }
+          />
+        )}
+
+        {!split && side(first ?? "credit")}
+        {!split && canSwap(state.kind) && (
           <div className={styles.swapRow}>
             <button
               type="button"
@@ -406,7 +522,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
             </button>
           </div>
         )}
-        {side(second ?? "debit")}
+        {!split && side(second ?? "debit")}
 
         <NoteAndTags
           note={state.comment}
