@@ -1856,6 +1856,68 @@ export interface paths {
         patch: operations["change_opening_balance_api_transfers__transaction_id__patch"];
         trace?: never;
     };
+    "/api/views/transaction-filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Transaction Filters
+         * @description The choices behind the Transactions screen's Filter sheet: accounts, categories (with their parent) and payees.
+         */
+        get: operations["transaction_filters_api_views_transaction_filters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Transactions View
+         * @description A page of one month's entries for the Transactions screen, newest first up to today (a day is never split between
+         *     pages: the next page starts at `offset + len(rows)`). With an account, category, merchant or tag filter, `summary`
+         *     adds up everything that matches; on the first page of the current month, `upcoming` lists what is dated ahead.
+         */
+        get: operations["transactions_view_api_views_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/transactions/{transaction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Transaction View
+         * @description One entry as its details sheet shows it.
+         */
+        get: operations["transaction_view_api_views_transactions__transaction_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2086,6 +2148,18 @@ export interface components {
             revoked?: string | null;
             /** Scope */
             scope: string;
+        };
+        /** AppliedFilter */
+        AppliedFilter: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "account" | "category" | "merchant" | "tag";
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
         };
         /** AssistantsRead */
         AssistantsRead: {
@@ -2807,7 +2881,7 @@ export interface components {
             /** Funded */
             funded: string;
             /** Lines */
-            lines: components["schemas"]["LineRead"][];
+            lines: components["schemas"]["app__schemas__shared_expense__LineRead"][];
             /** Owed */
             owed: components["schemas"]["OwedRead"][];
             /** Shares */
@@ -2825,6 +2899,27 @@ export interface components {
             user_paid: string;
             /** User Share */
             user_share: string;
+        };
+        /** FilterChoice */
+        FilterChoice: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Sub */
+            sub: string;
+        };
+        /** FilterOptions */
+        FilterOptions: {
+            /** Accounts */
+            accounts: components["schemas"]["FilterChoice"][];
+            /** Categories */
+            categories: components["schemas"]["FilterChoice"][];
+            /** Merchants */
+            merchants: string[];
         };
         /** ForgotPassword */
         ForgotPassword: {
@@ -2976,22 +3071,6 @@ export interface components {
             total_amount: string;
             /** Your Income */
             your_income: string;
-        };
-        /**
-         * LineRead
-         * @description One line of the ledger entry that confirming will record (or recorded).
-         */
-        LineRead: {
-            /**
-             * Account Id
-             * Format: uuid
-             */
-            account_id: string;
-            /** Amount */
-            amount: string;
-            /** Category Id */
-            category_id: string | null;
-            side: components["schemas"]["PostingSide"];
         };
         /** MergeRequest */
         MergeRequest: {
@@ -3196,6 +3275,16 @@ export interface components {
         };
         /** PersonChip */
         PersonChip: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** PersonRef */
+        PersonRef: {
             /**
              * Id
              * Format: uuid
@@ -3600,6 +3689,42 @@ export interface components {
             path: string;
         };
         /**
+         * RowRead
+         * @description One row of a list of transactions (services/transaction_rows.TransactionRow).
+         */
+        RowRead: {
+            /** Amount */
+            amount: string;
+            /** By Assistant */
+            by_assistant: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Opening */
+            is_opening: boolean;
+            /** Is System */
+            is_system: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "expense" | "income" | "transfer";
+            /** Recurring */
+            recurring: boolean;
+            related: components["schemas"]["RelatedRef"] | null;
+            /** Sub */
+            sub: string;
+            /** Title */
+            title: string;
+        };
+        /**
          * SessionRead
          * @description Who is signed in, and today's date where finode's people live (FINODE_TIMEZONE), never the phone's clock.
          */
@@ -3775,7 +3900,7 @@ export interface components {
              */
             id: string;
             /** Lines */
-            lines: components["schemas"]["LineRead"][];
+            lines: components["schemas"]["app__schemas__shared_expense__LineRead"][];
             /** Owed */
             owed: components["schemas"]["OwedRead"][];
             /** Shares */
@@ -3914,35 +4039,6 @@ export interface components {
             /** Signed In */
             signed_in: boolean;
         };
-        /** SummaryRead */
-        SummaryRead: {
-            /** Assets */
-            assets: string;
-            /** Currency */
-            currency: string;
-            /** Expenses */
-            expenses: string;
-            /** Income */
-            income: string;
-            /** Liabilities */
-            liabilities: string;
-            /** Net Income */
-            net_income: string;
-            /** Net Worth */
-            net_worth: string;
-            /**
-             * Period End
-             * Format: date
-             */
-            period_end: string;
-            /**
-             * Period Start
-             * Format: date
-             */
-            period_start: string;
-            /** Spent */
-            spent: string;
-        };
         /**
          * TagRead
          * @description A tag: how many entries carry it and the day of the latest.
@@ -4061,6 +4157,43 @@ export interface components {
             tags?: string[];
         };
         /**
+         * TransactionDetails
+         * @description What the details sheet shows about one transaction.
+         */
+        TransactionDetails: {
+            /** Added By */
+            added_by: string | null;
+            /** Changed By */
+            changed_by: string | null;
+            /** Comment */
+            comment: string | null;
+            /** External Id */
+            external_id: string | null;
+            /** From Label */
+            from_label: string;
+            /** From Lines */
+            from_lines: components["schemas"]["app__schemas__views__LineRead"][];
+            /** Loan Like */
+            loan_like: boolean;
+            person: components["schemas"]["PersonRef"] | null;
+            /** Related */
+            related: components["schemas"]["RowRead"][];
+            related_to: components["schemas"]["RowRead"] | null;
+            row: components["schemas"]["RowRead"];
+            /** Source */
+            source: string | null;
+            /** Source Url */
+            source_url: string | null;
+            /** Tags */
+            tags: string[];
+            /** To Label */
+            to_label: string;
+            /** To Lines */
+            to_lines: components["schemas"]["app__schemas__views__LineRead"][];
+            /** With Names */
+            with_names: string[];
+        };
+        /**
          * TransactionPreview
          * @description What a dry run says would happen: the entry as it would be saved (nothing was saved).
          */
@@ -4164,6 +4297,29 @@ export interface components {
             tags?: string[] | null;
         };
         /**
+         * TransactionsView
+         * @description A page of the Transactions list for one month.
+         */
+        TransactionsView: {
+            /** Applied */
+            applied: components["schemas"]["AppliedFilter"][];
+            /** Error */
+            error: string | null;
+            /** Is Current */
+            is_current: boolean;
+            /** Month */
+            month: string;
+            /** Rows */
+            rows: components["schemas"]["RowRead"][];
+            summary: components["schemas"]["app__schemas__views__SummaryRead"] | null;
+            /** Total */
+            total: number;
+            /** Upcoming */
+            upcoming: components["schemas"]["UpcomingRead"][];
+            /** Upcoming Total */
+            upcoming_total: string | null;
+        };
+        /**
          * TransferCreate
          * @description Money sent to a contact (a loan, an advance, a gift) or received from one (a borrowing, an advance, a gift).
          */
@@ -4257,6 +4413,30 @@ export interface components {
             /** Problems */
             problems: string[];
         };
+        /**
+         * UpcomingRead
+         * @description An entry dated ahead, as the "upcoming" card lists it.
+         */
+        UpcomingRead: {
+            /** Amount */
+            amount: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Income */
+            income: boolean;
+            /** Sub */
+            sub: string;
+            /** Title */
+            title: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -4269,6 +4449,75 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** SummaryRead */
+        app__schemas__report__SummaryRead: {
+            /** Assets */
+            assets: string;
+            /** Currency */
+            currency: string;
+            /** Expenses */
+            expenses: string;
+            /** Income */
+            income: string;
+            /** Liabilities */
+            liabilities: string;
+            /** Net Income */
+            net_income: string;
+            /** Net Worth */
+            net_worth: string;
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date
+             */
+            period_start: string;
+            /** Spent */
+            spent: string;
+        };
+        /**
+         * LineRead
+         * @description One line of the ledger entry that confirming will record (or recorded).
+         */
+        app__schemas__shared_expense__LineRead: {
+            /**
+             * Account Id
+             * Format: uuid
+             */
+            account_id: string;
+            /** Amount */
+            amount: string;
+            /** Category Id */
+            category_id: string | null;
+            side: components["schemas"]["PostingSide"];
+        };
+        /**
+         * LineRead
+         * @description One side's line in a transaction's details.
+         */
+        app__schemas__views__LineRead: {
+            /** Amount */
+            amount: string;
+            /** Name */
+            name: string;
+            /** Posted On */
+            posted_on: string | null;
+        };
+        /**
+         * SummaryRead
+         * @description How many entries a filter found and, when they all go one way, what they come to ("spent" or "earned").
+         */
+        app__schemas__views__SummaryRead: {
+            /** Count */
+            count: number;
+            /** Total */
+            total: string | null;
+            /** Word */
+            word: string;
         };
     };
     responses: never;
@@ -6727,7 +6976,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SummaryRead"];
+                    "application/json": components["schemas"]["app__schemas__report__SummaryRead"];
                 };
             };
             /** @description Validation Error */
@@ -7774,6 +8023,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransferRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transaction_filters_api_views_transaction_filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilterOptions"];
+                };
+            };
+        };
+    };
+    transactions_view_api_views_transactions_get: {
+        parameters: {
+            query?: {
+                month?: string;
+                account?: string;
+                category?: string;
+                merchant?: string;
+                tag?: string;
+                q?: string;
+                kind?: string;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transaction_view_api_views_transactions__transaction_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionDetails"];
                 };
             };
             /** @description Validation Error */

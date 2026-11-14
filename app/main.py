@@ -31,6 +31,7 @@ from .routers import (
     todo,
     transactions,
     transfers,
+    views,
     web,
 )
 from .templating import BASE_DIR
@@ -78,6 +79,7 @@ for api_router in (
     data,
     profile,
     reports,
+    views,
 ):
     app.include_router(api_router.router, prefix="/api")
 app.include_router(assistants.router, prefix="/api")

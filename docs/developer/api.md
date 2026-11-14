@@ -207,6 +207,19 @@ A contact is a person you lend to, borrow from or share costs with. It is not an
 | `POST` | `/erase` | Erase my books: everything you recorded goes, the profile and sign-in stay. `confirm` must be your email (or `DELETE`); signed in to the finode app only, never a bearer token. |
 | `POST` | `/delete-account` | Delete my account: everything, then the sign-in (503 when the server cannot remove logins). Same `confirm` and the same rule; clears the session cookies. |
 
+## Views
+
+What one screen of the finode app shows, in one call. A view is built from the same code as the web page it stands for
+(`services/transaction_rows.py`), so the app formats nothing the server already works out (a row's name and second
+line, which way the money went, a month's totals); it costs no more queries than that page (`tests/test_query_counts.py`).
+Add a view only for a screen that would otherwise need several calls or would have to repeat a rule of the server.
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/views/transactions` | A page of one month's entries for the Transactions screen (`month` as `YYYY-MM`, never ahead; `account`, `category`, `merchant`, `tag`, `q`, `kind`; `offset`, `limit` up to 100). Newest first up to today; a day is never split between pages, so the next page starts at `offset + len(rows)`. Each row has its `title`, `sub`, `amount`, `kind` and markers. With an account, category, merchant or tag filter, `summary` adds up all it matches; on the first page of the current month, `upcoming` lists what is dated ahead. A filter that does not parse answers `error`. |
+| `GET` | `/views/transaction-filters` | The Filter sheet's choices: accounts (no Expenses or Income), categories with their parent, payees most used first. |
+| `GET` | `/views/transactions/{transaction_id}` | One entry as its details sheet shows it: the row, the From and To labels and lines (an amount each, `posted_on` when it differs), note, tags, what it is related to and what is related to it, the person it was made through, its source and the assistant that added or changed it. |
+
 ## Adding a route
 
 See [Conventions and how-tos](conventions.md): a handler in `app/routers/`, a schema in `app/schemas/`, a test, the classification in the isolation audit, and a row here (this table is the list of what exists: regenerate it from `app.routes` when routes change).

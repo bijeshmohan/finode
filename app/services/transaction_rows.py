@@ -3,10 +3,13 @@ what each row is called, its second line, which way the money went, and the list
 
 from __future__ import annotations
 
+import calendar
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date as Date
+from datetime import timedelta
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from ..models.transaction import PostingSide
@@ -14,7 +17,9 @@ from ..schemas import AccountRead
 from ..schemas.category import CategoryRead
 from ..schemas.coming_up import ComingUpLine
 from ..schemas.transaction import PostingBase, RelatedRef, TransactionRead
+from ..tags import clean_tag
 from .account_tree import build_tree, without_contacts
+from .contact import ContactService
 from .transaction import TransactionService
 
 PAGE_SIZE = 25
@@ -24,6 +29,8 @@ UPCOMING_LIMIT = 100
 KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer"}
 HOME_FIRST = 8  # Home starts with this many entries (a day is finished) and "Show more" brings this many each time
 HOME_MORE = 10
+RowKind = Literal["expense", "income", "transfer"]
+FilterKey = Literal["account", "category", "merchant", "tag"]
 OPENING_BALANCES = "Opening Balances"
 STOCK_OPENING_NOTE = "Initial account balance"
 
@@ -46,7 +53,7 @@ class TransactionRow:
     debits: list[str]
     credits: list[str]
     amount: Decimal
-    kind: str  # expense | income | transfer
+    kind: RowKind
     # The earlier entry this one is related to, with its date and amount, when a list loaded it (`list_rows`).
     related: RelatedRef | None = None
 
@@ -126,6 +133,7 @@ def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
     def touches(root: str, side: PostingSide) -> bool:
         return any(p.side == side and index.roots.get(p.account_id) == root for p in transaction.postings)
 
+    kind: RowKind
     if touches("Expenses", PostingSide.DEBIT):
         kind = "expense"
     elif touches("Income", PostingSide.CREDIT):
@@ -214,3 +222,211 @@ def related_info(
         return None
     found = transactions.read(transaction_id)
     return to_row(found, index) if found is not None else None
+
+
+def origin_label(origin: str | None) -> str | None:
+    """Who entered or changed a transaction, for people: "Claude (AI assistant)", "an import"."""
+    if not origin:
+        return None
+    if origin.startswith("mcp:"):
+        return f"{origin[4:]} (AI assistant)"
+    return {"web": "the app", "api": "the API", "import": "an import", "recurring": "a recurring transaction"}.get(
+        origin, origin
+    )
+
+
+# ---- one month of the list (the Transactions page and its "Show more") ------------------------------------------------
+
+
+@dataclass
+class ListFilters:
+    """What the list is narrowed to, as the page's address gives it (ids as text: a bad one is the person's typo)."""
+
+    account: str = ""
+    category: str = ""
+    merchant: str = ""
+    tag: str = ""
+    q: str = ""
+    kind: str = ""
+
+    @property
+    def narrowing(self) -> bool:
+        """A filter that the summary line adds up (search and kind do not)."""
+        return bool(self.account or self.category or self.merchant.strip() or clean_tag(self.tag))
+
+
+@dataclass
+class Applied:
+    key: FilterKey
+    label: str
+    name: str
+
+
+@dataclass
+class MonthList:
+    when: Date
+    is_current: bool
+    rows: list[TransactionRow]
+    total: int
+    summary: Summary | None
+    upcoming: list[UpcomingItem]
+    error: str | None
+    applied: list[Applied]
+
+    @property
+    def upcoming_total(self) -> Decimal | None:
+        """What the schedule comes to; none when something coming in is mixed with what is going out."""
+        if not self.upcoming or any(u.income for u in self.upcoming):
+            return None
+        return sum((u.amount for u in self.upcoming), Decimal(0))
+
+
+def applied_filters(filters: ListFilters, index: AccountIndex) -> list[Applied]:
+    """What is filtered, named as the person knows it."""
+    out = []
+    keys: tuple[tuple[FilterKey, str], ...] = (
+        ("account", "Account"),
+        ("category", "Category"),
+        ("merchant", "Merchant"),
+        ("tag", "Tag"),
+    )
+    for key, label in keys:
+        value = getattr(filters, key).strip()
+        if not value:
+            continue
+        if key == "tag":
+            name = f"#{clean_tag(value)}"
+        elif key == "merchant":
+            name = value
+        else:
+            try:
+                name = index.names.get(UUID(value)) or index.categories.get(UUID(value), "?")
+            except ValueError:
+                name = "?"
+        out.append(Applied(key, label, name))
+    return out
+
+
+def month_list(
+    transactions: TransactionService,
+    index: AccountIndex,
+    when: Date,
+    today: Date,
+    filters: ListFilters,
+    offset: int = 0,
+    limit: int = PAGE_SIZE,
+) -> MonthList:
+    """A page of one month's entries, newest first, up to today (a day is never split between pages); with a filter,
+    the summary of everything it matches; on the first page of the current month, what is dated ahead."""
+    is_current = when == today.replace(day=1)
+    last = when.replace(day=calendar.monthrange(when.year, when.month)[1])
+    kind = KIND_FILTERS.get(filters.kind)
+    applied = applied_filters(filters, index)
+    try:
+        account = UUID(filters.account) if filters.account else None
+        also = UUID(filters.category) if filters.category else None
+    except ValueError as e:
+        return MonthList(when, is_current, [], 0, None, [], f"Invalid filter: {e}", applied)
+    who, tag, q = filters.merchant.strip() or None, clean_tag(filters.tag) or None, filters.q.strip()
+    try:
+        chunk, total = transactions.page(offset, limit, account, when, min(last, today), q, kind, also, who, tag)
+        everything = (
+            transactions.list(account, when, min(last, today), None, 0, q, kind, also, who, tag=tag)
+            if filters.narrowing
+            else None
+        )
+        ahead = (
+            transactions.list(account, today + timedelta(days=1), last, UPCOMING_LIMIT, 0, q, kind, also, who, tag=tag)
+            if is_current and offset == 0
+            else []
+        )
+    except ValueError as e:
+        return MonthList(when, is_current, [], 0, None, [], f"Invalid filter: {e}", applied)
+    return MonthList(
+        when,
+        is_current,
+        list_rows(chunk, index, transactions),
+        total,
+        summary_of(everything, index) if everything is not None else None,
+        upcoming_items(ahead, index),
+        None,
+        applied,
+    )
+
+
+# ---- one transaction's details (the sheet) ----------------------------------------------------------------------------
+
+
+@dataclass
+class Line:
+    name: str
+    amount: Decimal
+    posted_on: Date | None
+
+
+@dataclass
+class Details:
+    row: TransactionRow
+    from_label: str
+    to_label: str
+    from_lines: list[Line]
+    to_lines: list[Line]
+    related_to: TransactionRow | None
+    related: list[TransactionRow]
+    person_id: UUID | None
+    person_name: str | None
+    loan_like: bool
+    with_names: list[str]
+    added_by: str | None
+    changed_by: str | None
+
+
+SIDE_LABELS = {"expense": ("Paid from", "Spent on"), "income": ("Earned from", "Paid into"), "transfer": ("From", "To")}
+
+
+def _assistant(origin: str | None) -> str | None:
+    label = origin_label(origin)
+    return label.replace(" (AI assistant)", "") if label else None
+
+
+def transaction_details(
+    transaction_id: UUID, transactions: TransactionService, contacts: ContactService, index: AccountIndex
+) -> Details | None:
+    """What the details sheet shows about one entry; None when it is not the person's."""
+    transaction = transactions.read(transaction_id)
+    if transaction is None:
+        return None
+    # An entry made through a person (a loan, a shared bill, a settlement) is looked after on that person's page.
+    party = contacts.made_of(transaction_id)
+    with_person = contacts.read(party[0].contact_id) if party else None
+    purposes = {r.purpose for r in party}
+    # A loan, a borrowing or a bill shared with people is edited here too; the rest of what people made is on their page.
+    loan_like = bool(party) and (purposes <= {"loan", "borrowing"} or purposes in ({"expense"}, {"income"}))
+    names = {c.id: c.name for c in contacts.people()}
+    row = to_row(transaction, index)
+
+    def lines(entry: TransactionRead, side: PostingSide) -> list[Line]:
+        return [
+            Line(index.line_name(p), p.amount, p.posted_on if p.posted_on != entry.date else None)
+            for p in entry.postings
+            if p.side == side
+        ]
+
+    made, changed = transaction.created_via or "", transaction.updated_via or ""
+    by_agent = made.startswith("mcp:") or changed.startswith("mcp:")
+    from_label, to_label = SIDE_LABELS[row.kind]
+    return Details(
+        row=row,
+        from_label=from_label,
+        to_label=to_label,
+        from_lines=lines(transaction, PostingSide.CREDIT),
+        to_lines=lines(transaction, PostingSide.DEBIT),
+        related_to=related_info(transactions, index, transaction.related_id),
+        related=[to_row(r, index) for r in transactions.related(transaction_id)],
+        person_id=with_person.id if with_person else None,
+        person_name=with_person.name if with_person else None,
+        loan_like=loan_like,
+        with_names=sorted({names[r.contact_id] for r in party if r.contact_id in names}),
+        added_by=_assistant(made) if by_agent and made else None,
+        changed_by=_assistant(changed) if by_agent and changed and changed != made else None,
+    )

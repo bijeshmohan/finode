@@ -49,6 +49,7 @@ from ...services.transaction_rows import (
     related_info,
     summary_of,
     to_row,
+    transaction_details,
     upcoming_items,
 )
 from ...tags import clean_tag
@@ -355,41 +356,27 @@ def transaction_sheet(
 ):
     """The details of one transaction, for the sheet that opens over a list (the edit page has the rest). Edit, Repeat and
     Related bring you back to the page the sheet was opened on, filters and month included."""
-    transaction = transactions.read(transaction_id)
-    if transaction is None:
-        raise HTTPException(status_code=404, detail="transaction not found")
-    # An entry made through a person (a loan, a shared bill, a settlement) is looked after on that person's page.
-    party = contacts.made_of(transaction_id)
-    with_person = contacts.read(party[0].contact_id) if party else None
-    purposes = {r.purpose for r in party}
-    # A loan, a borrowing or a bill shared with people is edited here too; the rest of what people made is on their page.
-    loan_like = bool(party) and (purposes <= {"loan", "borrowing"} or purposes in ({"expense"}, {"income"}))
-    names = {c.id: c.name for c in contacts.people()}
-    with_names = sorted({names[r.contact_id] for r in party if r.contact_id in names})
     index = AccountIndex.build(accounts.list(), categories.list(include_closed=True))
-    row = to_row(transaction, index)
-    labels = {
-        "expense": ("Paid from", "Spent on"),
-        "income": ("Earned from", "Paid into"),
-        "transfer": ("From", "To"),
-    }[row.kind]
+    found = transaction_details(transaction_id, transactions, contacts, index)
+    if found is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
     return templates.TemplateResponse(
         request,
         "partials/txn_sheet.html",
         {
-            "row": row,
-            "t": transaction,
+            "row": found.row,
+            "t": found.row.transaction,
             "currency": accounts.currency().code,
             "back": safe_back(back or _here(request), ""),  # where to return after Edit, Repeat or Related
-            "from_label": labels[0],
-            "to_label": labels[1],
-            "from_postings": [(index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.CREDIT],
-            "to_postings": [(index.line_name(p), p) for p in transaction.postings if p.side == PostingSide.DEBIT],
-            "related_to": related_info(transactions, index, transaction.related_id),
-            "related": [to_row(r, index) for r in transactions.related(transaction_id)],
-            "with_person": with_person,
-            "loan_like": loan_like,
-            "with_names": with_names,
+            "from_label": found.from_label,
+            "to_label": found.to_label,
+            "from_postings": [(line.name, line) for line in found.from_lines],
+            "to_postings": [(line.name, line) for line in found.to_lines],
+            "related_to": found.related_to,
+            "related": found.related,
+            "with_person": {"id": found.person_id, "name": found.person_name} if found.person_id else None,
+            "loan_like": found.loan_like,
+            "with_names": found.with_names,
         },
     )
 

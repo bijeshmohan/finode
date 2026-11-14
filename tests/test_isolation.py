@@ -82,6 +82,8 @@ LISTS = {
     ("GET", "/api/auth/session"),
     ("GET", "/api/assistants/"),
     ("GET", "/api/data-options"),
+    ("GET", "/api/views/transactions"),
+    ("GET", "/api/views/transaction-filters"),
     ("GET", "/accounts"),
     ("GET", "/accounts/new"),
     ("GET", "/accounts/new-group"),

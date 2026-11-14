@@ -676,6 +676,35 @@
         "title": "ApiTokenRead",
         "type": "object"
       },
+      "AppliedFilter": {
+        "properties": {
+          "key": {
+            "enum": [
+              "account",
+              "category",
+              "merchant",
+              "tag"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "name"
+        ],
+        "title": "AppliedFilter",
+        "type": "object"
+      },
       "AssistantsRead": {
         "properties": {
           "apps": {
@@ -2502,7 +2531,7 @@
           },
           "lines": {
             "items": {
-              "$ref": "#/components/schemas/LineRead"
+              "$ref": "#/components/schemas/app__schemas__shared_expense__LineRead"
             },
             "title": "Lines",
             "type": "array"
@@ -2568,6 +2597,62 @@
           "owed"
         ],
         "title": "ExpensePreview",
+        "type": "object"
+      },
+      "FilterChoice": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sub": {
+            "title": "Sub",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sub"
+        ],
+        "title": "FilterChoice",
+        "type": "object"
+      },
+      "FilterOptions": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/FilterChoice"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/FilterChoice"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "merchants": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Merchants",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accounts",
+          "categories",
+          "merchants"
+        ],
+        "title": "FilterOptions",
         "type": "object"
       },
       "ForgotPassword": {
@@ -2910,44 +2995,6 @@
           "deposits"
         ],
         "title": "IncomePreview",
-        "type": "object"
-      },
-      "LineRead": {
-        "description": "One line of the ledger entry that confirming will record (or recorded).",
-        "properties": {
-          "account_id": {
-            "format": "uuid",
-            "title": "Account Id",
-            "type": "string"
-          },
-          "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
-          },
-          "category_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Category Id"
-          },
-          "side": {
-            "$ref": "#/components/schemas/PostingSide"
-          }
-        },
-        "required": [
-          "account_id",
-          "category_id",
-          "side",
-          "amount"
-        ],
-        "title": "LineRead",
         "type": "object"
       },
       "MergeRequest": {
@@ -3439,6 +3486,25 @@
           "name"
         ],
         "title": "PersonChip",
+        "type": "object"
+      },
+      "PersonRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "PersonRef",
         "type": "object"
       },
       "PostingCreate-Input": {
@@ -4520,6 +4586,91 @@
         "title": "RouteAccount",
         "type": "object"
       },
+      "RowRead": {
+        "description": "One row of a list of transactions (services/transaction_rows.TransactionRow).",
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "by_assistant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Assistant"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_opening": {
+            "title": "Is Opening",
+            "type": "boolean"
+          },
+          "is_system": {
+            "title": "Is System",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "expense",
+              "income",
+              "transfer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "recurring": {
+            "title": "Recurring",
+            "type": "boolean"
+          },
+          "related": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelatedRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sub": {
+            "title": "Sub",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "title",
+          "sub",
+          "amount",
+          "kind",
+          "is_system",
+          "is_opening",
+          "related",
+          "recurring",
+          "by_assistant"
+        ],
+        "title": "RowRead",
+        "type": "object"
+      },
       "SessionRead": {
         "description": "Who is signed in, and today's date where finode's people live (FINODE_TIMEZONE), never the phone's clock.",
         "properties": {
@@ -5023,7 +5174,7 @@
           },
           "lines": {
             "items": {
-              "$ref": "#/components/schemas/LineRead"
+              "$ref": "#/components/schemas/app__schemas__shared_expense__LineRead"
             },
             "title": "Lines",
             "type": "array"
@@ -5434,73 +5585,6 @@
         "title": "SignUpResult",
         "type": "object"
       },
-      "SummaryRead": {
-        "properties": {
-          "assets": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Assets",
-            "type": "string"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "expenses": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Expenses",
-            "type": "string"
-          },
-          "income": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Income",
-            "type": "string"
-          },
-          "liabilities": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Liabilities",
-            "type": "string"
-          },
-          "net_income": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Income",
-            "type": "string"
-          },
-          "net_worth": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Worth",
-            "type": "string"
-          },
-          "period_end": {
-            "format": "date",
-            "title": "Period End",
-            "type": "string"
-          },
-          "period_start": {
-            "format": "date",
-            "title": "Period Start",
-            "type": "string"
-          },
-          "spent": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Spent",
-            "type": "string"
-          }
-        },
-        "required": [
-          "currency",
-          "period_start",
-          "period_end",
-          "assets",
-          "liabilities",
-          "net_worth",
-          "income",
-          "expenses",
-          "spent",
-          "net_income"
-        ],
-        "title": "SummaryRead",
-        "type": "object"
-      },
       "TagRead": {
         "description": "A tag: how many entries carry it and the day of the latest.",
         "properties": {
@@ -5761,6 +5845,168 @@
           "postings"
         ],
         "title": "TransactionCreate",
+        "type": "object"
+      },
+      "TransactionDetails": {
+        "description": "What the details sheet shows about one transaction.",
+        "properties": {
+          "added_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Added By"
+          },
+          "changed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed By"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "from_label": {
+            "title": "From Label",
+            "type": "string"
+          },
+          "from_lines": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__views__LineRead"
+            },
+            "title": "From Lines",
+            "type": "array"
+          },
+          "loan_like": {
+            "title": "Loan Like",
+            "type": "boolean"
+          },
+          "person": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/RowRead"
+            },
+            "title": "Related",
+            "type": "array"
+          },
+          "related_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RowRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "row": {
+            "$ref": "#/components/schemas/RowRead"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "to_label": {
+            "title": "To Label",
+            "type": "string"
+          },
+          "to_lines": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__views__LineRead"
+            },
+            "title": "To Lines",
+            "type": "array"
+          },
+          "with_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "With Names",
+            "type": "array"
+          }
+        },
+        "required": [
+          "row",
+          "from_label",
+          "to_label",
+          "from_lines",
+          "to_lines",
+          "comment",
+          "tags",
+          "related_to",
+          "related",
+          "person",
+          "loan_like",
+          "with_names",
+          "source",
+          "source_url",
+          "external_id",
+          "added_by",
+          "changed_by"
+        ],
+        "title": "TransactionDetails",
         "type": "object"
       },
       "TransactionPreview": {
@@ -6163,6 +6409,90 @@
         "title": "TransactionUpdate",
         "type": "object"
       },
+      "TransactionsView": {
+        "description": "A page of the Transactions list for one month.",
+        "properties": {
+          "applied": {
+            "items": {
+              "$ref": "#/components/schemas/AppliedFilter"
+            },
+            "title": "Applied",
+            "type": "array"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RowRead"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/app__schemas__views__SummaryRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "upcoming": {
+            "items": {
+              "$ref": "#/components/schemas/UpcomingRead"
+            },
+            "title": "Upcoming",
+            "type": "array"
+          },
+          "upcoming_total": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upcoming Total"
+          }
+        },
+        "required": [
+          "month",
+          "is_current",
+          "rows",
+          "total",
+          "summary",
+          "upcoming",
+          "upcoming_total",
+          "error",
+          "applied"
+        ],
+        "title": "TransactionsView",
+        "type": "object"
+      },
       "TransferCreate": {
         "description": "Money sent to a contact (a loan, an advance, a gift) or received from one (a borrowing, an advance, a gift).",
         "properties": {
@@ -6415,6 +6745,48 @@
         "title": "TrialBalanceRead",
         "type": "object"
       },
+      "UpcomingRead": {
+        "description": "An entry dated ahead, as the \"upcoming\" card lists it.",
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "income": {
+            "title": "Income",
+            "type": "boolean"
+          },
+          "sub": {
+            "title": "Sub",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "title",
+          "sub",
+          "amount",
+          "income"
+        ],
+        "title": "UpcomingRead",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -6453,6 +6825,176 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "app__schemas__report__SummaryRead": {
+        "properties": {
+          "assets": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Assets",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "expenses": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Expenses",
+            "type": "string"
+          },
+          "income": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Income",
+            "type": "string"
+          },
+          "liabilities": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Liabilities",
+            "type": "string"
+          },
+          "net_income": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Income",
+            "type": "string"
+          },
+          "net_worth": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Worth",
+            "type": "string"
+          },
+          "period_end": {
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "spent": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Spent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "period_start",
+          "period_end",
+          "assets",
+          "liabilities",
+          "net_worth",
+          "income",
+          "expenses",
+          "spent",
+          "net_income"
+        ],
+        "title": "SummaryRead",
+        "type": "object"
+      },
+      "app__schemas__shared_expense__LineRead": {
+        "description": "One line of the ledger entry that confirming will record (or recorded).",
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "side": {
+            "$ref": "#/components/schemas/PostingSide"
+          }
+        },
+        "required": [
+          "account_id",
+          "category_id",
+          "side",
+          "amount"
+        ],
+        "title": "LineRead",
+        "type": "object"
+      },
+      "app__schemas__views__LineRead": {
+        "description": "One side's line in a transaction's details.",
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "posted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted On"
+          }
+        },
+        "required": [
+          "name",
+          "amount",
+          "posted_on"
+        ],
+        "title": "LineRead",
+        "type": "object"
+      },
+      "app__schemas__views__SummaryRead": {
+        "description": "How many entries a filter found and, when they all go one way, what they come to (\"spent\" or \"earned\").",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "word": {
+            "title": "Word",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "total",
+          "word"
+        ],
+        "title": "SummaryRead",
         "type": "object"
       }
     },
@@ -10635,7 +11177,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SummaryRead"
+                  "$ref": "#/components/schemas/app__schemas__report__SummaryRead"
                 }
               }
             },
@@ -12572,6 +13114,214 @@
         "summary": "Change Opening Balance",
         "tags": [
           "contacts"
+        ]
+      }
+    },
+    "/api/views/transaction-filters": {
+      "get": {
+        "description": "The choices behind the Transactions screen's Filter sheet: accounts, categories (with their parent) and payees.",
+        "operationId": "transaction_filters_api_views_transaction_filters_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilterOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Transaction Filters",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/transactions": {
+      "get": {
+        "description": "A page of one month's entries for the Transactions screen, newest first up to today (a day is never split between\npages: the next page starts at `offset + len(rows)`). With an account, category, merchant or tag filter, `summary`\nadds up everything that matches; on the first page of the current month, `upcoming` lists what is dated ahead.",
+        "operationId": "transactions_view_api_views_transactions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Month",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Account",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Category",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "merchant",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Merchant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Tag",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Transactions View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/transactions/{transaction_id}": {
+      "get": {
+        "description": "One entry as its details sheet shows it.",
+        "operationId": "transaction_view_api_views_transactions__transaction_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Transaction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDetails"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Transaction View",
+        "tags": [
+          "views"
         ]
       }
     }
