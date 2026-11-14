@@ -1,12 +1,12 @@
 // The Add and Edit addresses: /transactions/new (blank, or ?account=, ?category=, ?repeat=, ?related=, ?pay=&amount=,
-// ?move=&with=) and /transactions/:id/edit, each with an optional ?back=. Loads where the form starts and opens it.
+// ?move=&with=, ?mode=split&with=) and /transactions/:id/edit, each with an optional ?back=. Loads where the form starts and opens it.
 import { Navigate, useParams, useSearchParams } from "react-router";
 
 import { LoadError } from "../../components/LoadError";
 import { EntryScreen } from "./EntryScreen";
 import { type FormQuery, useEntryForm } from "./queries";
 
-const STARTS = ["account", "category", "repeat", "related", "pay", "amount", "move", "with"] as const;
+const STARTS = ["account", "category", "repeat", "related", "pay", "amount", "move", "with", "mode"] as const;
 
 export function EntryRoute() {
   const { transactionId } = useParams();

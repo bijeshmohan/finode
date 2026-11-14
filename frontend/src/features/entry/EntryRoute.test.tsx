@@ -20,6 +20,34 @@ describe("the Add and Edit addresses", () => {
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/budget");
   });
 
+  it("?mode=split&with= asks for a Split with the person", async () => {
+    const asked: string[] = [];
+    renderApp(`/transactions/new?mode=split&with=${ids.ada}`, {
+      ...SIGNED_IN,
+      "/api/views/entry-form": (url) => {
+        asked.push(url.search);
+        return [
+          200,
+          view({
+            mode: "split",
+            people: [{ id: ids.ada, name: "Ada" }],
+            expense_share: {
+              kind: "expense",
+              category_id: null,
+              account_id: null,
+              method: "equal",
+              self_value: null,
+              self_paid: null,
+              people: [{ contact_id: ids.ada, value: null, paid: null }],
+            },
+          }),
+        ];
+      },
+    });
+    expect(await screen.findByRole("button", { name: "Remove Ada" })).toBeInTheDocument();
+    expect(asked[0]).toBe(`?with=${ids.ada}&mode=split`);
+  });
+
   it("edits the entry in the address", async () => {
     const asked: string[] = [];
     renderApp(`/transactions/t9/edit`, {
