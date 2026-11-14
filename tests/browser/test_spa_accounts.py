@@ -305,3 +305,130 @@ def test_an_empty_page_shows_the_five_shelves_and_each_adds_an_account_of_its_ki
     expect(kind(page, "Bank Accounts").get_by_role("link", name="Add account")).to_have_attribute(
         "href", re.compile(r"/accounts/new\?parent=")
     )
+
+
+# ---- the account and group forms ----------------------------------------------------------------------------------
+
+
+def chip(page: Page, name: str):
+    return page.get_by_role("group", name="Kind of account").get_by_role("button", name=name, exact=True)
+
+
+def test_the_new_account_form_asks_about_the_budget_by_its_kind(signed_in_spa_page: Page, spa_api: Api, spa_books):
+    page = signed_in_spa_page
+    banks = spa_api.post("/accounts/", name="Banks", parent_id=spa_books["roots"]["Assets"])
+    spa_api.post("/accounts/", name="HDFC", parent_id=banks["id"])
+    loans = spa_api.post("/accounts/", name="Loans", parent_id=spa_books["roots"]["Liabilities"])
+    spa_api.post("/accounts/", name="Old loan", parent_id=loans["id"])
+    page.goto("/accounts/new")
+    box = page.get_by_role("checkbox", name=re.compile("Part of the budget"))
+    expect(chip(page, "Banks")).to_be_visible()
+    expect(box).to_have_count(0)  # no kind chosen yet
+    chip(page, "Banks").click()
+    expect(box).to_be_checked()
+    expect(page.get_by_label("Current balance")).to_be_visible()
+    chip(page, "Loans").click()
+    expect(box).not_to_be_checked()  # a loan or card starts outside the budget
+    expect(page.get_by_label("Amount you owe now")).to_be_visible()
+    expect(chip(page, "Loans")).to_have_attribute("aria-pressed", "true")
+    expect(chip(page, "Banks")).to_have_attribute("aria-pressed", "false")
+    page.get_by_label("Name").fill("Car loan")
+    page.get_by_role("button", name="Add account").click()
+    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
+    loan = next(a for a in spa_api.get("/accounts/") if a["name"] == "Car loan")
+    assert loan["on_budget"] is False and loan["parent_id"] == loans["id"]
+
+
+def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_kind(signed_in_spa_page: Page, spa_books):
+    page = signed_in_spa_page
+    for url in ("/accounts/new?root=assets", f"/accounts/new?parent={spa_books['checking']['id']}"):
+        page.goto(url)
+        box = page.get_by_role("checkbox", name=re.compile("Part of the budget"))
+        expect(box).to_be_checked()
+        box.uncheck()
+        expect(box).not_to_be_checked()
+
+
+def test_a_group_is_made_from_the_foot_of_the_page_and_its_accounts_start_as_it_says(
+    signed_in_spa_page: Page, spa_api: Api, spa_books
+):
+    page = signed_in_spa_page
+    page.goto("/accounts")
+    page.get_by_role("link", name="New group").click()
+    expect(page).to_have_url(re.compile(r"/accounts/new-group$"))
+    page.get_by_label("Name").fill("Family")
+    page.get_by_role("button", name="Create group").click()
+    expect(page.get_by_role("alert")).to_contain_text("choose")  # nothing was chosen for the person
+    page.get_by_text("Money I own").click()
+    page.get_by_text("Part of the budget").click()
+    page.get_by_role("button", name="Create group").click()
+    expect(page).to_have_url(re.compile(r"/accounts$"))
+    shelf = kind(page, "Family")
+    expect(shelf).to_contain_text("0.00 · 0 accounts")
+    shelf.get_by_role("link", name="Add account").click()
+    expect(chip(page, "Family")).to_have_attribute("aria-pressed", "true")
+    expect(page.get_by_role("checkbox", name=re.compile("Part of the budget"))).to_be_checked()
+    page.get_by_label("Name").fill("Mom's wallet")
+    page.get_by_role("button", name="Add account").click()
+    expect(page.get_by_role("heading", level=1, name="Mom's wallet")).to_be_visible()
+    assert next(a for a in spa_api.get("/accounts/") if a["name"] == "Mom's wallet")["on_budget"] is True
+
+
+def test_the_days_are_asked_only_for_a_card_or_loan(signed_in_spa_page: Page, spa_api: Api, spa_books):
+    page = signed_in_spa_page
+    cards_group = spa_api.post("/accounts/", name="Cards", parent_id=spa_books["roots"]["Liabilities"])
+    spa_api.post("/accounts/", name="Visa Gold", parent_id=cards_group["id"])
+    banks = spa_api.post("/accounts/", name="Banks", parent_id=spa_books["roots"]["Assets"])
+    spa_api.post("/accounts/", name="HDFC", parent_id=banks["id"])
+    page.goto("/accounts/new")
+    days = page.get_by_label("Statement day")
+    expect(chip(page, "Cards")).to_be_visible()
+    expect(days).to_have_count(0)
+    chip(page, "Cards").click()
+    expect(days).to_be_visible()
+    chip(page, "Banks").click()
+    expect(days).to_have_count(0)
+    chip(page, "Cards").click()
+    page.get_by_label("Name").fill("Amex")
+    page.get_by_label("Statement day").fill("10")
+    page.get_by_label("Payment due day").fill("28")
+    page.get_by_role("button", name="Add account").click()
+    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
+    expect(page.get_by_role("region", name="Bill")).to_contain_text("Nothing due")
+
+
+def test_a_new_account_without_a_kind_is_told_to_choose_one(signed_in_spa_page: Page, spa_books):
+    page = signed_in_spa_page
+    page.goto("/accounts/new")
+    page.get_by_label("Name").fill("Nowhere")
+    page.get_by_role("button", name="Add account").click()
+    expect(page.get_by_role("alert")).to_contain_text("kind")
+
+
+def test_a_groups_own_page_adds_inside_it(with_groups, signed_in_spa_page: Page, spa_api: Api):
+    page = signed_in_spa_page
+    page.goto("/accounts")
+    expect(page.locator("main h2").first).to_have_text("Bank Accounts")
+    group = next(a for a in spa_api.get("/accounts/") if a["name"] == "Investments")
+    page.goto(f"/accounts/{group['id']}")
+    page.get_by_role("link", name="Add account").click()
+    page.wait_for_url(re.compile(r"/accounts/new\?parent="))
+    expect(chip(page, "Investments")).to_have_attribute("aria-pressed", "true")
+    expect(page.get_by_role("checkbox", name=re.compile("Part of the budget"))).not_to_be_checked()
+
+
+def test_the_budget_line_follows_the_group_chosen(with_groups, signed_in_spa_page: Page):
+    page = signed_in_spa_page
+    page.goto("/accounts/new")
+    box = page.get_by_role("checkbox", name=re.compile("Part of the budget"))
+    chip(page, "Bank Accounts").click()
+    expect(box).to_be_checked()
+    chip(page, "Investments").click()
+    expect(box).not_to_be_checked()
+    chip(page, "Cash").click()
+    expect(box).to_be_checked()
+    page.get_by_label("Name").fill("Wallet")
+    page.get_by_role("button", name="Add account").click()
+    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
+    page.goto("/accounts")
+    expect(page.get_by_role("link", name=re.compile("^Wallet"))).to_be_visible()

@@ -52,3 +52,67 @@ export function useAccountAction() {
     },
   });
 }
+
+export type AccountFormView = components["schemas"]["AccountFormView"];
+export type KindChoice = components["schemas"]["KindChoiceRead"];
+export type AccountCreate = components["schemas"]["AccountCreate"];
+export type AccountUpdate = components["schemas"]["AccountUpdate"];
+
+/** Where the account form starts: `account_id` to edit, otherwise opened for a kind (`parent`) or a type (`root`). */
+export function useAccountForm(query: { account_id?: string; parent?: string; root?: string }) {
+  const api = useApi();
+  return useQuery({
+    queryKey: [...VIEWS, "account-form", query],
+    queryFn: () => data(api.GET("/api/views/account-form", { params: { query } })),
+    staleTime: 0,
+  });
+}
+
+function useRefresh() {
+  const queryClient = useQueryClient();
+  return async () => {
+    await queryClient.invalidateQueries({ queryKey: VIEWS });
+  };
+}
+
+export function useAddAccountFromForm() {
+  const api = useApi();
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: AccountCreate) => data(api.POST("/api/accounts/", { body })),
+    onSuccess: refresh,
+  });
+}
+
+export function useUpdateAccount(id: string) {
+  const api = useApi();
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: AccountUpdate) =>
+      data(api.PATCH("/api/accounts/{account_id}", { params: { path: { account_id: id } }, body })),
+    onSuccess: refresh,
+  });
+}
+
+export function useDeleteAccount(id: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => data(api.DELETE("/api/accounts/{account_id}", { params: { path: { account_id: id } } })),
+    onSuccess: async () => {
+      // The account is gone: its own views are dropped, not asked for again (that would answer "not found").
+      queryClient.removeQueries({ queryKey: [...VIEWS, "account", id] });
+      queryClient.removeQueries({ queryKey: [...VIEWS, "account-form"] });
+      await queryClient.invalidateQueries({ queryKey: VIEWS });
+    },
+  });
+}
+
+export function useAddGroup() {
+  const api = useApi();
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: components["schemas"]["GroupCreate"]) => data(api.POST("/api/accounts/groups", { body })),
+    onSuccess: refresh,
+  });
+}
