@@ -8,24 +8,43 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import require_authenticated_user
 from ..clock import local_today
-from ..dependencies import Accounts, Budget, Categories, Contacts, Recurring, Reports, Transactions
+from ..dependencies import (
+    Accounts,
+    Budget,
+    Categories,
+    Contacts,
+    Recurring,
+    Reports,
+    SharedExpenses,
+    SharedIncomes,
+    Transactions,
+    Transfers,
+)
+from ..repositories.transaction import SYSTEM_PAYEES
 from ..schemas.views import (
     AppliedFilter,
     DayTotal,
+    EntryFormView,
     FilterChoice,
     FilterOptions,
     FilterSummary,
+    FormRow,
     GlanceRead,
     HomeView,
     LineRead,
     PersonRef,
+    PickGroupRead,
+    PickOptionRead,
     RowRead,
     StepRead,
     TransactionDetails,
     TransactionsView,
     UpcomingRead,
 )
+from ..services.account_tree import build_tree
+from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
 from ..services.home import home_view
+from ..services.pickers import category_groups, people_group, posting_groups
 from ..services.transaction_rows import (
     PAGE_SIZE,
     AccountIndex,
@@ -34,6 +53,7 @@ from ..services.transaction_rows import (
     day_totals,
     filter_options,
     month_list,
+    to_row,
     transaction_details,
 )
 
@@ -198,3 +218,111 @@ def home(
         steps_done=sum(1 for s in found.steps if s.done),
         steps_total=len(found.steps),
     )
+
+
+def _form_rows(rows: list[dict]) -> list[FormRow]:
+    out = []
+    for r in rows:
+        posting, choice = r["posting"], r["account"]
+        out.append(
+            FormRow(
+                choice=choice,
+                amount=posting.amount if posting is not None else None,
+                # A row on an account can carry the category of a payment into a loan or fund; a category row is it.
+                category_id=posting.category_id if posting is not None and posting.category_id != choice else None,
+                posted_on=getattr(posting, "posted_on", None) if posting is not None else None,
+            )
+        )
+    return out
+
+
+@router.get("/entry-form", response_model=EntryFormView)
+def entry_form(
+    accounts: Accounts,
+    categories: Categories,
+    transactions: Transactions,
+    contacts: Contacts,
+    transfers: Transfers,
+    expenses: SharedExpenses,
+    incomes: SharedIncomes,
+    transaction_id: UUID | None = None,
+    account: UUID | None = None,
+    category: UUID | None = None,
+    repeat: UUID | None = None,
+    related: UUID | None = None,
+    pay: UUID | None = None,
+    amount: str = "",
+    move: str = "",
+    with_person: UUID | None = Query(default=None, alias="with"),
+):
+    """Where the Add screen starts (`transaction_id` to edit; otherwise blank, or opened from an `account` or a
+    `category`, as a `repeat`, `related` to an entry, to `pay` a card with `amount`, or to `move` money `with` a person),
+    and what its pickers offer: the accounts by type with their balances and budget flags, the people, the categories."""
+    try:
+        if transaction_id is not None:
+            start: EntryStart = edit_start(
+                transaction_id, accounts, categories, transactions, contacts, transfers, expenses, incomes
+            )
+        else:
+            start = new_start(
+                accounts,
+                categories,
+                transactions,
+                contacts,
+                account,
+                category,
+                repeat,
+                related,
+                pay,
+                amount,
+                move,
+                with_person,
+            )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    edit = start if isinstance(start, EditStart) else None
+    transaction = edit.transaction if edit else None
+    used = transaction.postings if transaction is not None else ()
+    payee_person = edit.payee_person if edit else None
+    return EntryFormView(
+        editing=edit is not None,
+        kind=start.kind if start.kind in ("expense", "income", "transfer") else "other",
+        date=transaction.date if transaction is not None else local_today(),
+        total=start.total if start.total != "" else None,
+        payee=start.payee,
+        payee_person=PersonRef(id=payee_person.id, name=payee_person.name) if payee_person else None,
+        comment=start.comment,
+        tags=start.tags,
+        related=row_read(start.related) if start.related else None,
+        from_rows=_form_rows(start.from_rows),
+        to_rows=_form_rows(start.to_rows),
+        simple=len(start.from_rows) == 1 and len(start.to_rows) == 1 and (edit is None or edit.mode == "simple"),
+        person_page=edit.person_page if edit else None,
+        groups=[
+            PickGroupRead(
+                title=title,
+                options=[PickOptionRead(id=o.id, label=o.label, budget=o.budget, balance=o.balance) for o in options],
+            )
+            for title, options in (
+                *posting_groups(build_tree(accounts.list()), {p.account_id for p in used}),
+                *people_group(contacts, edit.keep_people if edit else set()),
+                *category_groups(categories.list(include_closed=True), {p.category_id for p in used if p.category_id}),
+            )
+        ],
+    )
+
+
+RELATED_LIMIT = 30
+
+
+@router.get("/related-entries", response_model=list[RowRead])
+def related_entries(
+    accounts: Accounts, categories: Categories, transactions: Transactions, q: str = "", exclude: UUID | None = None
+):
+    """Earlier entries a new one can be related to: the newest 30 up to today, narrowed by `q` (payee, note or account),
+    without `exclude` (the entry being edited) and the system's opening balances."""
+    index = _index(accounts, categories)
+    found = transactions.list(text=q, limit=RELATED_LIMIT + 1, date_to=local_today())
+    return [row_read(to_row(t, index)) for t in found if t.id != exclude and t.payee not in SYSTEM_PAYEES][
+        :RELATED_LIMIT
+    ]

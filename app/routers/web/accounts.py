@@ -1,6 +1,6 @@
 """The Accounts page, an account's own page, and the forms that make, change, close, pin and delete accounts."""
 
-from collections.abc import Collection, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal
@@ -14,7 +14,6 @@ from ...clock import local_today
 from ...dependencies import Accounts, Categories
 from ...schemas import AccountCreate, AccountUpdate
 from ...schemas.account import GroupCreate, RegisterEntry
-from ...schemas.category import CategoryRead
 from ...services import cards
 from ...services.account import (
     MAX_ACCOUNT_DEPTH,
@@ -22,6 +21,7 @@ from ...services.account import (
     RegisterPage,
 )
 from ...services.account_tree import Node, build_tree, without_contacts
+from ...services.pickers import category_groups, posting_groups
 from ...services.transaction_rows import UpcomingItem
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
@@ -30,67 +30,6 @@ router = APIRouter(prefix="/accounts")
 
 # Only these hold money the user already has (or owes) when an account is first added.
 OPENING_BALANCE_ROOTS = ("Assets", "Liabilities")
-
-
-@dataclass
-class PickOption:
-    """One choice in an account or category picker: what it is called (below its type: "Banks › HDFC",
-    "Food › Groceries"), and for an account its budget flag and balance."""
-
-    id: UUID
-    label: str
-    budget: bool = False
-    balance: Decimal | None = None
-
-
-PickGroups = list[tuple[str, list[PickOption]]]
-
-
-def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> PickGroups:
-    """Accounts that transactions may post to, grouped by root. Closed accounts are left out, except those in
-    `keep` (what an entry being edited already uses)."""
-    groups: PickGroups = []
-    for root in roots:
-        options = [
-            PickOption(
-                n.account.id,
-                n.path.split(" › ", 1)[1] if " › " in n.path else n.path,
-                budget=n.account.on_budget,
-                balance=n.account.balance,
-            )
-            for n in root.walk()
-            if n.postable and not n.account.contact_account and (n.account.closed_on is None or n.account.id in keep)
-        ]
-        if options:
-            groups.append((root.account.name, options))
-    return groups
-
-
-def _category_options(
-    category: CategoryRead, by_parent: dict[UUID | None, list[CategoryRead]], label: str
-) -> list[PickOption]:
-    options = [PickOption(category.id, label)]
-    for child in by_parent.get(category.id, []):
-        options += _category_options(child, by_parent, f"{label} › {child.name}")
-    return options
-
-
-def category_groups(categories: list[CategoryRead], keep: Collection[UUID] = frozenset()) -> PickGroups:
-    """The categories an entry's lines may be labelled with, grouped as Income and Expenses (each with its categories
-    and subcategories), for the same pickers as the accounts. Closed categories are left out, except those in `keep`
-    (what an entry being edited already uses)."""
-    found: PickGroups = []
-    for root, kind in (("Income", "earning"), ("Expenses", "spending")):
-        mine = [c for c in categories if c.kind == kind and (c.closed_on is None or c.id in keep)]
-        by_parent: dict[UUID | None, list[CategoryRead]] = {}
-        for c in sorted(mine, key=lambda c: c.name.lower()):
-            by_parent.setdefault(c.parent_id, []).append(c)
-        options: list[PickOption] = []
-        for top in by_parent.get(None, []):
-            options += _category_options(top, by_parent, top.name)
-        if options:
-            found.append((root, options))
-    return found
 
 
 def _find(roots: list[Node], account_id: UUID) -> Node | None:
