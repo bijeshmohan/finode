@@ -3,15 +3,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Link, Navigate, useLocation } from "react-router";
+import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { z } from "zod";
 
-import { data } from "../../api/client";
+import { ApiError, data } from "../../api/client";
 import { useApi } from "../../api/context";
 import { AuthScreen } from "./AuthScreen";
 import { FormError, Notice, Stack, SubmitButton, SwitchLine, TextField } from "./fields";
 import { messageOf, RULES } from "./messages";
-import { useAuthOptions } from "./options";
+import { WithOptions } from "./options";
+import { useSubmitOnce } from "./session";
 
 const form = z.object({ email: z.string().trim().includes("@", { message: RULES.email }) });
 type Form = z.infer<typeof form>;
@@ -22,10 +23,11 @@ export interface ForgotState {
 }
 
 export function Forgot() {
-  const options = useAuthOptions();
-  if (options.isPending) return null;
-  if (!options.data?.reset_enabled) return <Navigate to="/sign-in" replace />;
-  return <ForgotForm />;
+  return (
+    <WithOptions>
+      {(options) => (options.reset_enabled ? <ForgotForm /> : <Navigate to="/sign-in" replace />)}
+    </WithOptions>
+  );
 }
 
 function ForgotForm() {
@@ -36,7 +38,15 @@ function ForgotForm() {
     handleSubmit,
     formState: { errors },
   } = useForm<Form>({ resolver: zodResolver(form) });
-  const send = useMutation({ mutationFn: (body: Form) => data(api.POST("/api/auth/forgot", { body })) });
+  const navigate = useNavigate();
+  const send = useMutation({
+    mutationFn: (body: Form) => data(api.POST("/api/auth/forgot", { body })),
+    onError: async (error) => {
+      // Reset was switched off after this screen opened.
+      if (error instanceof ApiError && error.status === 404) await navigate("/sign-in", { replace: true });
+    },
+  });
+  const submit = useSubmitOnce(send);
 
   return (
     <AuthScreen
@@ -54,9 +64,7 @@ function ForgotForm() {
           <FormError message={send.isError ? messageOf(send.error) : handedOver} />
           <Stack
             onSubmit={() => {
-              void handleSubmit((body) => {
-                if (!send.isPending) send.mutate(body);
-              })();
+              void handleSubmit(submit)();
             }}
           >
             <TextField

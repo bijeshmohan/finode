@@ -7,10 +7,24 @@ describe("safeNext only leads inside the app", () => {
     expect(safeNext(next)).toBe(next);
   });
 
-  it.each([null, "", "//evil.example", "https://evil.example", "/\\evil.example", "javascript:alert(1)", "/sign-in"])(
-    "%s goes Home",
-    (next) => {
-      expect(safeNext(next)).toBe("/");
-    },
-  );
+  it.each([
+    null,
+    "",
+    "//evil.example",
+    "https://evil.example",
+    "/\\evil.example",
+    "javascript:alert(1)",
+    "/\t/evil.example",
+    "/\n/evil.example",
+    "/\r/evil.example",
+    "/sign-in",
+    "/SIGN-IN",
+    "/sign-in#x",
+    "/login",
+    "/sign-up",
+    "/forgot",
+    "/reset?token_hash=x",
+  ])("%s goes Home", (next) => {
+    expect(safeNext(next)).toBe("/");
+  });
 });
