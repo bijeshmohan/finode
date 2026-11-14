@@ -159,3 +159,48 @@ class HomeView(BaseModel):
     steps: list[StepRead] | None
     steps_done: int
     steps_total: int
+
+
+class FormRow(BaseModel):
+    """One row of the Add screen: what it shows (an account, a category or a person) and, when it has one, its amount,
+    the category of a payment into a loan or fund, and the day it posts."""
+
+    choice: UUID | None
+    amount: Decimal | None
+    category_id: UUID | None
+    posted_on: Date | None
+
+
+class PickOptionRead(BaseModel):
+    id: UUID
+    label: str
+    budget: bool
+    balance: Decimal | None
+
+
+class PickGroupRead(BaseModel):
+    """One group of the pickers, named for its type: Assets, Liabilities, Equity, People, Income or Expenses."""
+
+    title: str
+    options: list[PickOptionRead]
+
+
+class EntryFormView(BaseModel):
+    """Where the Add screen starts, and what its pickers offer."""
+
+    editing: bool
+    kind: Literal["expense", "income", "transfer", "other"]
+    date: Date
+    total: Decimal | None
+    payee: str
+    payee_person: PersonRef | None
+    comment: str
+    tags: list[str]
+    related: RowRead | None
+    from_rows: list[FormRow]
+    to_rows: list[FormRow]
+    # One row on each side and nothing shared with people: what the Simple form edits.
+    simple: bool
+    # An entry another way of recording looks after (a settlement with a person): their page opens instead.
+    person_page: UUID | None
+    groups: list[PickGroupRead]

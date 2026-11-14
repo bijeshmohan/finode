@@ -1,7 +1,7 @@
 """The Transactions page, an entry's sheet and the Add / Edit screen (expense, income, transfer, split, people)."""
 
 import calendar
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Mapping
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Annotated
@@ -30,12 +30,13 @@ from ...schemas.entry import EntryForm, EntryRow
 from ...schemas.shared_expense import SharedExpenseRead
 from ...schemas.shared_income import SharedIncomeRead
 from ...schemas.transaction import (
-    PostingBase,
     PostingCreate,
 )
 from ...services import payee_suggestions
 from ...services.account_tree import build_tree, without_contacts
-from ...services.entry import infer_kind, postings_of, root_of
+from ...services.entry import infer_kind, postings_of
+from ...services.entry_form import edit_start, new_start
+from ...services.pickers import category_groups, people_group, posting_groups
 from ...services.transaction_rows import (
     HOME_MORE,
     KIND_FILTERS,
@@ -46,7 +47,6 @@ from ...services.transaction_rows import (
     UpcomingItem,
     filter_options,
     list_rows,
-    related_info,
     summary_of,
     to_row,
     transaction_details,
@@ -54,7 +54,6 @@ from ...services.transaction_rows import (
 )
 from ...tags import clean_tag
 from ...templating import templates
-from .accounts import PickGroups, PickOption, category_groups, posting_groups
 from .budget import parse_month
 from .categories import _month_context, category_tree
 from .people import expense_data, income_data
@@ -410,20 +409,6 @@ def safe_back(value: str | None, default: str = "/transactions") -> str:
 ASSET_LIKE = ("Assets", "Liabilities")
 
 
-def people_group(accounts: Accounts, contacts: Contacts | None, keep: Collection[UUID] = frozenset()) -> PickGroups:
-    """The people a transfer can go to or come from, as one more group in the pickers. Nobody with no contacts pays a
-    query for it: the contact accounts are known from the account list."""
-    if contacts is None or not contacts.has_people():
-        return []
-    # The balance of a person is what they owe you (a negative one: what you owe them); the form says what a transfer does.
-    people = [
-        PickOption(c.id, c.name, balance=c.net)
-        for c in contacts.list(include_archived=True)
-        if not c.archived or c.id in keep
-    ]
-    return [("People", sorted(people, key=lambda o: o.label.casefold()))] if people else []
-
-
 def editor_values(bill: SharedExpenseRead | None = None, with_id: UUID | None = None) -> dict:
     """What the Share editor starts with: the shared bill being edited, or one person ticked (opened from their page)."""
     if bill is None:
@@ -472,7 +457,7 @@ def form_context(accounts: Accounts, categories: Categories, contacts: Contacts 
         "hide_fab": True,
         "groups": [
             *posting_groups(build_tree(all_accounts), keep),
-            *people_group(accounts, contacts, keep_people),
+            *people_group(contacts, keep_people),
             *category_groups(categories.list(include_closed=True), keep_categories),
         ],
         "currency": accounts.currency().code,
@@ -635,30 +620,6 @@ def roots_by_id(accounts: Accounts) -> dict[UUID, str]:
     return {n.account.id: r.account.name for r in build_tree(accounts.list()) for n in r.walk()}
 
 
-def form_rows(
-    postings: Iterable[PostingBase | PostingCreate],
-    side: PostingSide,
-    account_id: UUID | None = None,
-    roots: dict[UUID, str] | None = None,
-    person_of: Mapping[UUID, UUID] | None = None,
-) -> list[dict]:
-    """The rows of one side of the form: the transaction's own postings, or one blank row (maybe with an account).
-    A line on Expenses or Income is picked by its category, which is what the row shows."""
-    found = [
-        {
-            "posting": p,
-            "account": p.category_id
-            if roots and p.category_id and root_of(roots, p.account_id) in ("Expenses", "Income")
-            else (person_of or {}).get(p.account_id, p.account_id)  # a person's account shows as the person
-            if p.account_id is not None
-            else None,
-        }
-        for p in postings
-        if p.side == side
-    ]
-    return found or [{"posting": None, "account": account_id}]
-
-
 @router.get("/new")
 def new_transaction_page(
     request: Request,
@@ -678,68 +639,24 @@ def new_transaction_page(
     with_person: Annotated[UUID | None, Query(alias="with")] = None,  # the person ticked on that tab
     move: str = "",  # "lend", "borrow" or "settle": a transfer with that person, from their page
 ):
-    all_accounts = accounts.list()
-    if repeat is not None:
-        again = transactions.read(repeat)
-        if again is None:
-            raise HTTPException(status_code=404, detail="transaction not found")
-        roots = {n.account.id: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
-        return templates.TemplateResponse(
-            request,
-            "transaction_form.html",
-            form_context(
-                accounts,
-                categories,
-                contacts,
-                today=local_today().isoformat(),
-                transaction=None,
-                copy_of=again,
-                total=sum((p.amount for p in again.postings if p.side == PostingSide.DEBIT), Decimal(0)),
-                new_payee=again.payee or "",
-                new_note=again.comment or "",
-                from_rows=form_rows(again.postings, PostingSide.CREDIT, roots=roots),
-                to_rows=form_rows(again.postings, PostingSide.DEBIT, roots=roots),
-                kind=infer_kind(again.postings, roots),
-                account=None,
-                back=safe_back(back, ""),
-                back_url=safe_back(back),
-            ),
+    try:
+        start = new_start(
+            accounts,
+            categories,
+            transactions,
+            contacts,
+            account,
+            category,
+            repeat,
+            related,
+            pay,
+            amount,
+            move,
+            with_person,
         )
-    linked = None
-    if related is not None:
-        linked = related_info(
-            transactions, AccountIndex.build(all_accounts, categories.list(include_closed=True)), related
-        )
-        if linked is None:
-            raise HTTPException(status_code=404, detail="transaction not found")
-    from_id = to_id = None
-    roots_of = {n.account.id: r.account.name for r in build_tree(all_accounts) for n in r.walk()}
-    kind = {"Income": "income", "Equity": "other"}.get(roots_of.get(account, ""), "expense")
-    if account is not None and account in roots_of:
-        from_id = account  # the money leaves the account the entry is started from
-    total = ""
-    if pay is not None and roots_of.get(pay) == "Liabilities":
-        to_id, kind = pay, "transfer"
-        try:
-            total = str(parse_amount(amount)) if amount.strip() else ""
-        except ValueError:
-            total = ""
-    if move in ("lend", "borrow", "settle") and with_person is not None:
-        person = contacts.read(with_person)
-        if person is None:
-            raise HTTPException(status_code=404, detail="person not found")
-        kind = "transfer"
-        # Settle: they pay you what they owe, or you pay what you owe them.
-        pays_you = move == "borrow" or (move == "settle" and person.receivable > 0)
-        from_id, to_id = (person.id, None) if pays_you else (None, person.id)
-        if move == "settle":
-            total = str(person.receivable if pays_you else person.payable)
-    chosen = categories.read(category) if category is not None else None
-    if chosen is not None:
-        if chosen.kind == "spending":
-            to_id = chosen.id
-        else:
-            from_id, kind = chosen.id, "income"
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    split = mode == "split" and repeat is None
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
@@ -749,14 +666,17 @@ def new_transaction_page(
             contacts,
             today=local_today().isoformat(),
             transaction=None,
-            from_rows=form_rows([], PostingSide.CREDIT, from_id),
-            to_rows=form_rows([], PostingSide.DEBIT, to_id),
-            mode="split" if mode == "split" else "simple",
-            ed=editor_values(None, with_person if not move else None),
-            kind="expense" if mode == "split" else kind,
-            related=linked,
-            total=total,
-            account=account,
+            copy_of=start.copy_of,
+            new_payee=start.payee,
+            new_note=start.comment,
+            from_rows=start.from_rows,
+            to_rows=start.to_rows,
+            mode="split" if split else "simple",
+            ed=editor_values(None, with_person if split and not move else None),
+            kind="expense" if split else start.kind,
+            related=start.related,
+            total=start.total,
+            account=account if repeat is None else None,
             back=safe_back(back, ""),
             back_url=safe_back(back),
         ),
@@ -848,44 +768,12 @@ def edit_transaction_page(
     incomes: SharedIncomes,
     back: str = "",
 ):
-    transaction = transactions.read(transaction_id)
-    if transaction is None:
-        raise HTTPException(status_code=404, detail="transaction not found")
-    # An entry made through people: a loan or borrowing is edited here (the person shows on its side) and so is a bill
-    # shared with people (its shares and payments, as entered); anything else a person made (a settlement, an opening
-    # balance) is looked after on the person's page. A gift is an ordinary entry that names the person as its payee.
-    person_of: dict[UUID, UUID] = {}
-    party = contacts.made_of(transaction_id)
-    purposes = {r.purpose for r in party}
-    bill = shared_income = None
-    if party:
-        if purposes == {"expense"}:
-            bill = expenses.of_entry(transaction_id)
-        if purposes == {"income"}:
-            shared_income = incomes.read(transaction_id)
-        if bill is None and shared_income is None and not purposes <= {"loan", "borrowing"}:
-            return RedirectResponse(f"/people/{party[0].contact_id}", status_code=303)
-        person_of = contacts.person_by_account()
-    total = sum((p.amount for p in transaction.postings if p.side == PostingSide.DEBIT), Decimal(0))
-    roots = roots_by_id(accounts)
-    from_rows = form_rows(transaction.postings, PostingSide.CREDIT, roots=roots, person_of=person_of)
-    to_rows = form_rows(transaction.postings, PostingSide.DEBIT, roots=roots, person_of=person_of)
-    mode = "simple"
-    if bill is not None:
-        from_rows, to_rows, total, mode = (
-            form_rows([], PostingSide.CREDIT),
-            form_rows([], PostingSide.DEBIT),
-            bill.total_amount,
-            "split",
-        )
-    elif shared_income is not None:
-        from_rows, to_rows, total, mode = (
-            form_rows([], PostingSide.CREDIT),
-            form_rows([], PostingSide.DEBIT),
-            shared_income.total_amount,
-            "split",
-        )
-    named = transfers.gift_of(transaction_id)
+    try:
+        start = edit_start(transaction_id, accounts, categories, transactions, contacts, transfers, expenses, incomes)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="transaction not found") from None
+    if start.person_page is not None:
+        return RedirectResponse(f"/people/{start.person_page}", status_code=303)
     return templates.TemplateResponse(
         request,
         "transaction_form.html",
@@ -893,22 +781,18 @@ def edit_transaction_page(
             accounts,
             categories,
             contacts,
-            keep_people={r.contact_id for r in party},
-            payee_person=contacts.get(named) if named else None,
+            keep_people=start.keep_people,
+            payee_person=start.payee_person,
             editing=True,
-            transaction=transaction,
-            total=total,
-            from_rows=from_rows,
-            to_rows=to_rows,
-            mode=mode,
-            ed=editor_values(bill),
-            ei=income_values(shared_income),
-            **({"kind": "expense"} if bill is not None else {"kind": "income"} if shared_income is not None else {}),
-            related=related_info(
-                transactions,
-                AccountIndex.build(accounts.list(), categories.list(include_closed=True)),
-                transaction.related_id,
-            ),
+            transaction=start.transaction,
+            total=start.total,
+            from_rows=start.from_rows,
+            to_rows=start.to_rows,
+            mode=start.mode,
+            ed=editor_values(start.bill),
+            ei=income_values(start.shared_income),
+            **({"kind": start.kind} if start.mode == "split" else {}),
+            related=start.related,
             account=None,
             back=safe_back(back, ""),
             back_url=safe_back(back),

@@ -15,6 +15,7 @@ from app.main import app
 
 PAGES = [
     "/transactions/new",
+    "/api/views/entry-form",
     "/transactions",
     "/api/views/transactions",
     "/",
@@ -28,7 +29,8 @@ PAGES = [
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
 CEILING = {
-    "/transactions/new": 4,  # + the categories
+    "/transactions/new": 4,
+    "/api/views/entry-form": 4,  # the Add screen's own reads, for the finode app  # + the categories
     "/transactions": 12,  # + the categories (their names for the rows) + the tags of the rows shown (one query, whatever the number of rows)
     "/api/views/transactions": 12,  # the Transactions page's own reads, for the finode app
     "/": 15,

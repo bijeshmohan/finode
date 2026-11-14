@@ -1898,6 +1898,28 @@ export interface paths {
         patch: operations["change_opening_balance_api_transfers__transaction_id__patch"];
         trace?: never;
     };
+    "/api/views/entry-form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Entry Form
+         * @description Where the Add screen starts (`transaction_id` to edit; otherwise blank, or opened from an `account` or a
+         *     `category`, as a `repeat`, `related` to an entry, to `pay` a card with `amount`, or to `move` money `with` a person),
+         *     and what its pickers offer: the accounts by type with their balances and budget flags, the people, the categories.
+         */
+        get: operations["entry_form_api_views_entry_form_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/views/home": {
         parameters: {
             query?: never;
@@ -1911,6 +1933,27 @@ export interface paths {
          *     left. The month's entries are the list's (`/views/transactions`), so every page of them refreshes together.
          */
         get: operations["home_api_views_home_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/related-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Related Entries
+         * @description Earlier entries a new one can be related to: the newest 30 up to today, narrowed by `q` (payee, note or account),
+         *     without `exclude` (the entry being edited) and the system's opening balances.
+         */
+        get: operations["related_entries_api_views_related_entries_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2964,6 +3007,44 @@ export interface components {
             /** Tags */
             tags?: string[];
         };
+        /**
+         * EntryFormView
+         * @description Where the Add screen starts, and what its pickers offer.
+         */
+        EntryFormView: {
+            /** Comment */
+            comment: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Editing */
+            editing: boolean;
+            /** From Rows */
+            from_rows: components["schemas"]["FormRow"][];
+            /** Groups */
+            groups: components["schemas"]["PickGroupRead"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "expense" | "income" | "transfer" | "other";
+            /** Payee */
+            payee: string;
+            payee_person: components["schemas"]["PersonRef"] | null;
+            /** Person Page */
+            person_page: string | null;
+            related: components["schemas"]["RowRead"] | null;
+            /** Simple */
+            simple: boolean;
+            /** Tags */
+            tags: string[];
+            /** To Rows */
+            to_rows: components["schemas"]["FormRow"][];
+            /** Total */
+            total: string | null;
+        };
         /** EntryRow */
         EntryRow: {
             /** Amount */
@@ -3067,6 +3148,21 @@ export interface components {
              * @default
              */
             email: string;
+        };
+        /**
+         * FormRow
+         * @description One row of the Add screen: what it shows (an account, a category or a person) and, when it has one, its amount,
+         *     the category of a payment into a loan or fund, and the day it posts.
+         */
+        FormRow: {
+            /** Amount */
+            amount: string | null;
+            /** Category Id */
+            category_id: string | null;
+            /** Choice */
+            choice: string | null;
+            /** Posted On */
+            posted_on: string | null;
         };
         /**
          * GlanceRead
@@ -3471,6 +3567,30 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /**
+         * PickGroupRead
+         * @description One group of the pickers, named for its type: Assets, Liabilities, Equity, People, Income or Expenses.
+         */
+        PickGroupRead: {
+            /** Options */
+            options: components["schemas"]["PickOptionRead"][];
+            /** Title */
+            title: string;
+        };
+        /** PickOptionRead */
+        PickOptionRead: {
+            /** Balance */
+            balance: string | null;
+            /** Budget */
+            budget: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
         };
         /** PostingCreate */
         "PostingCreate-Input": {
@@ -8290,6 +8410,45 @@ export interface operations {
             };
         };
     };
+    entry_form_api_views_entry_form_get: {
+        parameters: {
+            query?: {
+                transaction_id?: string | null;
+                account?: string | null;
+                category?: string | null;
+                repeat?: string | null;
+                related?: string | null;
+                pay?: string | null;
+                amount?: string;
+                move?: string;
+                with?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryFormView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     home_api_views_home_get: {
         parameters: {
             query?: {
@@ -8308,6 +8467,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HomeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    related_entries_api_views_related_entries_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                exclude?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowRead"][];
                 };
             };
             /** @description Validation Error */

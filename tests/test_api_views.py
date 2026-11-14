@@ -232,3 +232,98 @@ def test_a_day_with_more_than_one_spend_says_what_it_came_to(client, books):
     days = {d["date"]: d["spent"] for d in view(client, month=MONTH)["days"]}
     assert days.get(TODAY.isoformat()) == "50.50"
     assert yesterday.isoformat() not in days, "one entry would just repeat its row"
+
+
+# ---- the Add screen's form ------------------------------------------------------------------------------------------
+
+
+def form_view(client, **params):
+    response = client.get("/api/views/entry-form", params=params)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_a_blank_form(client, books):
+    seen = form_view(client)
+    assert (seen["editing"], seen["kind"], seen["date"], seen["simple"]) == (False, "expense", TODAY.isoformat(), True)
+    assert [r["choice"] for r in seen["from_rows"]] == [None] and [r["choice"] for r in seen["to_rows"]] == [None]
+    titles = [g["title"] for g in seen["groups"]]
+    assert "Assets" in titles and "Expenses" in titles and "Income" in titles
+    bank = next(o for g in seen["groups"] for o in g["options"] if o["id"] == books["bank"]["id"])
+    assert bank["balance"] == "5000.00" and bank["budget"] is True
+
+
+def test_a_form_from_an_account_and_from_categories(client, books):
+    assert form_view(client, account=books["bank"]["id"])["from_rows"][0]["choice"] == books["bank"]["id"]
+    assert form_view(client, category=books["food"]["id"])["to_rows"][0]["choice"] == books["food"]["id"]
+    earning = form_view(client, category=books["salary"]["id"])
+    assert earning["kind"] == "income" and earning["from_rows"][0]["choice"] == books["salary"]["id"]
+
+
+def test_repeat_and_related(client, books):
+    made = spend(client, books, amount="597", payee="Swiggy", comment="dinner", tags=["food"])
+    again = form_view(client, repeat=made["id"])
+    assert (again["editing"], again["payee"], again["comment"], again["tags"], again["total"]) == (
+        False,
+        "Swiggy",
+        "dinner",
+        ["food"],
+        "597.00",
+    )
+    assert again["to_rows"][0]["choice"] == books["food"]["id"] and again["date"] == TODAY.isoformat()
+    linked = form_view(client, related=made["id"])
+    assert linked["related"]["id"] == made["id"] and linked["payee"] == ""
+    assert (
+        client.get("/api/views/entry-form", params={"repeat": "00000000-0000-4000-8000-0000000000aa"}).status_code
+        == 404
+    )
+
+
+def test_editing_a_simple_and_a_split_entry(client, books):
+    simple = form_view(client, transaction_id=spend(client, books, amount="30")["id"])
+    assert simple["editing"] is True and simple["simple"] is True and simple["total"] == "30.00"
+    split = client.post(
+        "/api/transactions/",
+        json={
+            "postings": [
+                leg(books["food"], "debit", "20"),
+                leg(books["rent"], "debit", "10"),
+                leg(books["bank"], "credit", "30"),
+            ]
+        },
+    ).json()
+    assert form_view(client, transaction_id=split["id"])["simple"] is False
+
+
+def test_a_loan_opens_with_the_person_on_its_row(client, books):
+    ada = client.post("/api/contacts/", json={"name": "Ada"}).json()
+    lent = client.post(
+        "/api/entries",
+        json={
+            "kind": "transfer",
+            "rows": [
+                {"choice": books["bank"]["id"], "side": "credit", "amount": "200"},
+                {"choice": ada["id"], "side": "debit", "amount": "200"},
+            ],
+        },
+    ).json()
+    seen = form_view(client, transaction_id=lent["transaction_id"])
+    assert seen["to_rows"][0]["choice"] == ada["id"] and seen["person_page"] is None
+    assert "People" in [g["title"] for g in seen["groups"]]
+
+
+def test_pay_a_card(client, books, root_accounts):
+    card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
+    seen = form_view(client, pay=card["id"], amount="1,500")
+    assert (seen["kind"], seen["total"], seen["to_rows"][0]["choice"]) == ("transfer", "1500", card["id"])
+
+
+def test_related_entries(client, books):
+    spend(client, books, payee="Swiggy")
+    spend(client, books, payee="DMart")
+    found = client.get("/api/views/related-entries", params={"q": "swig"}).json()
+    assert [r["title"] for r in found] == ["Swiggy"]
+    every = client.get("/api/views/related-entries").json()
+    excluded = client.get("/api/views/related-entries", params={"exclude": every[0]["id"]}).json()
+    assert every[0]["id"] not in [r["id"] for r in excluded]
+    assert "Opening balance" not in [r["title"] for r in every]
