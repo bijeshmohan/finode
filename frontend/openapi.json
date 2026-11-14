@@ -1601,6 +1601,35 @@
         "title": "CategoryMergeResult",
         "type": "object"
       },
+      "CategoryParent": {
+        "description": "A top-level category a new one can go under.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "spending",
+              "earning"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind"
+        ],
+        "title": "CategoryParent",
+        "type": "object"
+      },
       "CategoryRead": {
         "properties": {
           "closed_on": {
@@ -2593,23 +2622,74 @@
             "title": "Rows",
             "type": "array"
           },
+          "share": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "expense": "#/components/schemas/ExpenseShare-Input",
+                    "income": "#/components/schemas/IncomeShare-Input"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ExpenseShare-Input"
+                  },
+                  {
+                    "$ref": "#/components/schemas/IncomeShare-Input"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          },
           "tags": {
             "items": {
               "type": "string"
             },
             "title": "Tags",
             "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           }
         },
-        "required": [
-          "rows"
-        ],
         "title": "EntryForm",
         "type": "object"
       },
       "EntryFormView": {
         "description": "Where the Add screen starts, and what its pickers offer.",
         "properties": {
+          "account_parents": {
+            "items": {
+              "$ref": "#/components/schemas/ParentOption"
+            },
+            "title": "Account Parents",
+            "type": "array"
+          },
+          "category_parents": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryParent"
+            },
+            "title": "Category Parents",
+            "type": "array"
+          },
           "comment": {
             "title": "Comment",
             "type": "string"
@@ -2622,6 +2702,9 @@
           "editing": {
             "title": "Editing",
             "type": "boolean"
+          },
+          "expense_share": {
+            "$ref": "#/components/schemas/ExpenseShare-Output"
           },
           "from_rows": {
             "items": {
@@ -2637,6 +2720,9 @@
             "title": "Groups",
             "type": "array"
           },
+          "income_share": {
+            "$ref": "#/components/schemas/IncomeShare-Output"
+          },
           "kind": {
             "enum": [
               "expense",
@@ -2645,6 +2731,14 @@
               "other"
             ],
             "title": "Kind",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "simple",
+              "split"
+            ],
+            "title": "Mode",
             "type": "string"
           },
           "payee": {
@@ -2660,6 +2754,13 @@
                 "type": "null"
               }
             ]
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRef"
+            },
+            "title": "People",
+            "type": "array"
           },
           "person_page": {
             "anyOf": [
@@ -2682,10 +2783,6 @@
                 "type": "null"
               }
             ]
-          },
-          "simple": {
-            "title": "Simple",
-            "type": "boolean"
           },
           "tags": {
             "items": {
@@ -2726,9 +2823,14 @@
           "related",
           "from_rows",
           "to_rows",
-          "simple",
+          "mode",
+          "people",
+          "expense_share",
+          "income_share",
           "person_page",
-          "groups"
+          "groups",
+          "account_parents",
+          "category_parents"
         ],
         "title": "EntryFormView",
         "type": "object"
@@ -2793,7 +2895,9 @@
           "recorded": {
             "enum": [
               "transaction",
-              "transfer"
+              "transfer",
+              "expense-shared",
+              "income-shared"
             ],
             "title": "Recorded",
             "type": "string"
@@ -2914,6 +3018,170 @@
           "owed"
         ],
         "title": "ExpensePreview",
+        "type": "object"
+      },
+      "ExpenseShare-Input": {
+        "description": "A bill shared with people, as the Split form describes it. The server works out the shares and what is owed.",
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "kind": {
+            "const": "expense",
+            "default": "expense",
+            "title": "Kind",
+            "type": "string"
+          },
+          "method": {
+            "default": "equal",
+            "enum": [
+              "equal",
+              "exact",
+              "percentage",
+              "shares"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/PersonShare-Input"
+            },
+            "title": "People",
+            "type": "array"
+          },
+          "self_paid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Self Paid"
+          },
+          "self_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Self Value"
+          }
+        },
+        "title": "ExpenseShare",
+        "type": "object"
+      },
+      "ExpenseShare-Output": {
+        "description": "A bill shared with people, as the Split form describes it. The server works out the shares and what is owed.",
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "kind": {
+            "const": "expense",
+            "default": "expense",
+            "title": "Kind",
+            "type": "string"
+          },
+          "method": {
+            "default": "equal",
+            "enum": [
+              "equal",
+              "exact",
+              "percentage",
+              "shares"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/PersonShare-Output"
+            },
+            "title": "People",
+            "type": "array"
+          },
+          "self_paid": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Self Paid"
+          },
+          "self_value": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Self Value"
+          }
+        },
+        "title": "ExpenseShare",
         "type": "object"
       },
       "FilterChoice": {
@@ -3405,6 +3673,90 @@
         "title": "IncomeDepositIn",
         "type": "object"
       },
+      "IncomePart-Input": {
+        "description": "A person an income is shared with: the part that is theirs, and what they received of it for you.",
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "received": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received"
+          },
+          "theirs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theirs"
+          }
+        },
+        "required": [
+          "contact_id"
+        ],
+        "title": "IncomePart",
+        "type": "object"
+      },
+      "IncomePart-Output": {
+        "description": "A person an income is shared with: the part that is theirs, and what they received of it for you.",
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "received": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received"
+          },
+          "theirs": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theirs"
+          }
+        },
+        "required": [
+          "contact_id"
+        ],
+        "title": "IncomePart",
+        "type": "object"
+      },
       "IncomePartIn": {
         "description": "An amount that belongs to a contact (or, in `received_by`, that a contact received for you).",
         "properties": {
@@ -3524,6 +3876,94 @@
           "deposits"
         ],
         "title": "IncomePreview",
+        "type": "object"
+      },
+      "IncomeShare-Input": {
+        "description": "Income shared with people, as the Split form describes it.",
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "kind": {
+            "const": "income",
+            "default": "income",
+            "title": "Kind",
+            "type": "string"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/IncomePart-Input"
+            },
+            "title": "People",
+            "type": "array"
+          }
+        },
+        "title": "IncomeShare",
+        "type": "object"
+      },
+      "IncomeShare-Output": {
+        "description": "Income shared with people, as the Split form describes it.",
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "kind": {
+            "const": "income",
+            "default": "income",
+            "title": "Kind",
+            "type": "string"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/IncomePart-Output"
+            },
+            "title": "People",
+            "type": "array"
+          }
+        },
+        "title": "IncomeShare",
         "type": "object"
       },
       "MergeRequest": {
@@ -3822,6 +4262,41 @@
         "title": "OwedRead",
         "type": "object"
       },
+      "ParentOption": {
+        "description": "Where a new account can go (the Add screen's \"New account\" sheet): a root or a group, at its depth, and whether an\naccount made there can start with a balance.",
+        "properties": {
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "opening_balance": {
+            "title": "Opening Balance",
+            "type": "boolean"
+          },
+          "root": {
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "depth",
+          "root",
+          "opening_balance"
+        ],
+        "title": "ParentOption",
+        "type": "object"
+      },
       "ParticipantIn": {
         "description": "Who shares the expense: you (`is_self`) or a contact. `value` is what the split method needs: nothing for an\nequal split, the weight for `shares`, the percentage for `percentage` or the amount for `exact`.",
         "properties": {
@@ -4034,6 +4509,90 @@
           "name"
         ],
         "title": "PersonRef",
+        "type": "object"
+      },
+      "PersonShare-Input": {
+        "description": "A person a bill is shared with.",
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "paid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "contact_id"
+        ],
+        "title": "PersonShare",
+        "type": "object"
+      },
+      "PersonShare-Output": {
+        "description": "A person a bill is shared with.",
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "paid": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "contact_id"
+        ],
+        "title": "PersonShare",
         "type": "object"
       },
       "PickGroupRead": {
@@ -5578,6 +6137,102 @@
           "excess_obligation_id"
         ],
         "title": "SettlementRead",
+        "type": "object"
+      },
+      "SharePreview": {
+        "description": "What a bill or an income shared with people would do: `expense` for a bill, `income` for an income.",
+        "properties": {
+          "expense": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExpensePreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "income": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncomePreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "expense",
+              "income"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "SharePreview",
+        "type": "object"
+      },
+      "SharePreviewAsk": {
+        "description": "What the Split would save, as typed so far.",
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "payee": {
+            "default": "",
+            "title": "Payee",
+            "type": "string"
+          },
+          "share": {
+            "discriminator": {
+              "mapping": {
+                "expense": "#/components/schemas/ExpenseShare-Input",
+                "income": "#/components/schemas/IncomeShare-Input"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ExpenseShare-Input"
+              },
+              {
+                "$ref": "#/components/schemas/IncomeShare-Input"
+              }
+            ],
+            "title": "Share"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "total",
+          "share"
+        ],
+        "title": "SharePreviewAsk",
         "type": "object"
       },
       "ShareRead": {
@@ -10919,7 +11574,7 @@
     },
     "/api/entries": {
       "post": {
-        "description": "Record what the Add screen says. A category on a row posts on Expenses or Income with it; a person on a transfer is\na loan or a borrowing (paying back what is owed first); `payee_contact` names a person as a gift.",
+        "description": "Record what the Add screen says. A category on a row posts on Expenses or Income with it; a person on a transfer is\na loan or a borrowing (paying back what is owed first); `payee_contact` names a person as a gift; `share` with `total`\nrecords a bill or an income shared with people (the Split), the server working out each share and what is owed.",
         "operationId": "create_entry_api_entries_post",
         "requestBody": {
           "content": {
@@ -13830,7 +14485,7 @@
     },
     "/api/views/entry-form": {
       "get": {
-        "description": "Where the Add screen starts (`transaction_id` to edit; otherwise blank, or opened from an `account` or a\n`category`, as a `repeat`, `related` to an entry, to `pay` a card with `amount`, or to `move` money `with` a person),\nand what its pickers offer: the accounts by type with their balances and budget flags, the people, the categories.",
+        "description": "Where the Add screen starts (`transaction_id` to edit; otherwise blank, or opened from an `account` or a\n`category`, as a `repeat`, `related` to an entry, to `pay` a card with `amount`, to `move` money `with` a person, or\nwith `mode=split` to share a bill `with` a person), and what its pickers offer: the accounts by type with their\nbalances and budget flags, the people, the categories, and where a new account or category can go.",
         "operationId": "entry_form_api_views_entry_form_get",
         "parameters": [
           {
@@ -13971,6 +14626,16 @@
               ],
               "title": "With"
             }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Mode",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -14001,6 +14666,53 @@
           }
         ],
         "summary": "Entry Form",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/entry-share-preview": {
+      "post": {
+        "description": "What the Add screen's Split would do, as typed so far: each share and what is owed for a bill, your income and\nthe people's parts for an income. Nothing is saved. A Split that cannot be saved yet is refused with the reason (400;\n404 for a person, account or category that is not the caller's), which the screen shows in place of the preview.",
+        "operationId": "entry_share_preview_api_views_entry_share_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharePreviewAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Entry Share Preview",
         "tags": [
           "views"
         ]

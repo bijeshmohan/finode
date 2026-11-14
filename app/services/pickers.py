@@ -7,8 +7,20 @@ from decimal import Decimal
 from uuid import UUID
 
 from ..schemas.category import CategoryRead
+from .account import MAX_ACCOUNT_DEPTH
 from .account_tree import Node
 from .contact import ContactService
+
+# The roots a person makes accounts under (Expenses and Income hold categories), and those whose accounts can start with
+# a balance (an opening balance, dated today).
+ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
+OPENING_BALANCE_ROOTS = ("Assets", "Liabilities")
+
+
+def parent_options(roots: list[Node]) -> list[Node]:
+    """Accounts a new one may be made in: the built-in Opening Balances holds none, and a parent must leave room for it
+    within two levels."""
+    return [n for root in roots for n in root.walk() if n.kind != "system" and n.depth + 1 <= MAX_ACCOUNT_DEPTH]
 
 
 @dataclass

@@ -171,6 +171,7 @@ REFERENCES = {
     ("POST", "/profile/assistants"),
     ("POST", "/api/assistants/tokens"),
     ("POST", "/api/entries"),
+    ("POST", "/api/views/entry-share-preview"),
     ("POST", "/recurring"),
     ("POST", "/restore"),
     ("POST", "/restore/preview"),
@@ -503,6 +504,19 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         }
         refused("a shared expense with A's contact", "POST", "/api/shared-expenses/", json=expense)
         refused("a preview with A's contact", "POST", "/api/shared-expenses/preview", json=expense)
+        split = {"kind": "expense", "account_id": mine, "people": [{"contact_id": world.b_contact["id"]}]}
+        for label, share in (
+            ("A's contact", {**split, "people": [{"contact_id": world.contact_ids[0]}]}),
+            ("A's account", {**split, "account_id": a["HDFC"]}),
+            ("A's category", {**split, "category_id": a["Groceries"]}),
+        ):
+            for url in ("/api/views/entry-share-preview", "/api/entries"):
+                refused(
+                    f"a Split with {label} ({url})",
+                    "POST",
+                    url,
+                    json={"kind": "expense", "total": "10", "share": share},
+                )
         refused(
             "a shared expense paid from A's account",
             "POST",

@@ -11,6 +11,7 @@ from uuid import UUID
 from ..schemas.entry import EntryForm, ExpenseShare, IncomePart, IncomeShare, PersonShare
 from ..schemas.shared_expense import ContributionIn, ParticipantIn, PaymentIn, SharedExpenseCreate, SharedExpenseRead
 from ..schemas.shared_income import IncomeDepositIn, IncomePartIn, SharedIncomeCreate, SharedIncomeRead
+from .contact_errors import ContactNotFoundError
 
 
 def _total(form: EntryForm) -> Decimal:
@@ -22,7 +23,7 @@ def _total(form: EntryForm) -> Decimal:
 def _check_people(ids: list[UUID], people: Set[UUID]) -> None:
     """Only the person's own contacts can share a bill or an income."""
     if any(i not in people for i in ids):
-        raise ValueError("person not found")
+        raise ContactNotFoundError
 
 
 def _dated(form: EntryForm) -> dict:
@@ -38,7 +39,9 @@ def expense_create(form: EntryForm, share: ExpenseShare, people: Set[UUID]) -> S
         ParticipantIn(contact_id=p.contact_id, value=p.value if valued else None) for p in share.people
     ]
     contributions = [
-        ContributionIn(contact_id=p.contact_id, amount=p.paid) for p in share.people if p.paid is not None and p.paid > 0
+        ContributionIn(contact_id=p.contact_id, amount=p.paid)
+        for p in share.people
+        if p.paid is not None and p.paid > 0
     ]
     mine = share.self_paid
     if mine is None:

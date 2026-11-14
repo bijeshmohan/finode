@@ -7,6 +7,10 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from .day import Day
+from .entry import ExpenseShare, IncomeShare, Share
+from .shared_expense import ExpensePreview
+from .shared_income import IncomePreview
 from .transaction import RelatedRef
 
 Kind = Literal["expense", "income", "transfer"]
@@ -185,6 +189,25 @@ class PickGroupRead(BaseModel):
     options: list[PickOptionRead]
 
 
+class ParentOption(BaseModel):
+    """Where a new account can go (the Add screen's "New account" sheet): a root or a group, at its depth, and whether an
+    account made there can start with a balance."""
+
+    id: UUID
+    name: str
+    depth: int
+    root: str
+    opening_balance: bool
+
+
+class CategoryParent(BaseModel):
+    """A top-level category a new one can go under."""
+
+    id: UUID
+    name: str
+    kind: Literal["spending", "earning"]
+
+
 class EntryFormView(BaseModel):
     """Where the Add screen starts, and what its pickers offer."""
 
@@ -199,8 +222,31 @@ class EntryFormView(BaseModel):
     related: RowRead | None
     from_rows: list[FormRow]
     to_rows: list[FormRow]
-    # One row on each side and nothing shared with people: what the Simple form edits.
-    simple: bool
+    # "split": a bill or an income shared with people, with the share below for its kind.
+    mode: Literal["simple", "split"]
+    # The people a bill or an income can be shared with (the active ones).
+    people: list[PersonRef]
+    expense_share: ExpenseShare
+    income_share: IncomeShare
     # An entry another way of recording looks after (a settlement with a person): their page opens instead.
     person_page: UUID | None
     groups: list[PickGroupRead]
+    account_parents: list[ParentOption]
+    category_parents: list[CategoryParent]
+
+
+class SharePreviewAsk(BaseModel):
+    """What the Split would save, as typed so far."""
+
+    total: Decimal
+    date: Day | None = None
+    payee: str = ""
+    share: Share
+
+
+class SharePreview(BaseModel):
+    """What a bill or an income shared with people would do: `expense` for a bill, `income` for an income."""
+
+    kind: Literal["expense", "income"]
+    expense: ExpensePreview | None = None
+    income: IncomePreview | None = None

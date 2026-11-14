@@ -85,7 +85,7 @@ def test_income_part_theirs(client, session, places):
 
 
 def test_a_person_who_is_not_yours_is_refused(session, places):
-    with pytest.raises(ValueError, match="person not found"):
+    with pytest.raises(ValueError, match="contact not found!"):
         entries(session).create(bill(places, people=[PersonShare(contact_id=uuid4())]))
 
 
@@ -136,7 +136,8 @@ def test_a_failed_share_edit_leaves_the_bill_as_it_was(client, session, places):
     shared = entries(session).create(bill(places, people=[PersonShare(contact_id=places["alice"])]))
     with pytest.raises(ValueError, match="choose the account you paid from!"):
         entries(session).update(
-            shared.transaction_id, bill(places, "600", account_id=None, people=[PersonShare(contact_id=places["alice"])])
+            shared.transaction_id,
+            bill(places, "600", account_id=None, people=[PersonShare(contact_id=places["alice"])]),
         )
     assert owed(client, places["alice"]) == ("450.00", "0.00")
     assert balanced(session)
