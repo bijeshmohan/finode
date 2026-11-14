@@ -165,6 +165,20 @@ def list_rows(
     return rows
 
 
+def day_totals(rows: list[TransactionRow]) -> dict[Date, Decimal]:
+    """What was spent each day (expenses only), for the days with more than one entry: a single entry's total would just
+    repeat its row. A day is never split between pages, so a page's rows hold whole days."""
+    by_day: dict[Date, list[TransactionRow]] = {}
+    for row in rows:
+        by_day.setdefault(row.transaction.date, []).append(row)
+    totals = {}
+    for day, items in by_day.items():
+        spent = sum((r.amount for r in items if r.kind == "expense"), Decimal(0))
+        if spent and len(items) > 1:
+            totals[day] = spent
+    return totals
+
+
 @dataclass
 class Summary:
     """How many entries match and, when they all go one way, what they come to ("spent" or "earned")."""

@@ -9,7 +9,7 @@ import { data } from "../../api/client";
 import { useApi } from "../../api/context";
 import { AuthScreen } from "./AuthScreen";
 import { FormError, Notice, Stack, SubmitButton, SwitchLine, TextField } from "./fields";
-import { messageOf } from "./messages";
+import { messageOf } from "../../api/messages";
 import { useAuthOptions } from "./options";
 import { safeNext } from "./safeNext";
 import { forgetPreviousSession, useSubmitOnce } from "./session";

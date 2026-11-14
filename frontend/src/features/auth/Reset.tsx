@@ -11,7 +11,8 @@ import { useApi } from "../../api/context";
 import { AuthScreen } from "./AuthScreen";
 import type { ForgotState } from "./Forgot";
 import { FormError, Stack, SubmitButton, TextField } from "./fields";
-import { codeOf, messageOf, MIN_PASSWORD_LENGTH, RULES } from "./messages";
+import { codeOf, messageOf } from "../../api/messages";
+import { MIN_PASSWORD_LENGTH, RULES } from "./rules";
 import { WithOptions } from "./options";
 import { forgetPreviousSession, useSubmitOnce } from "./session";
 

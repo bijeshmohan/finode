@@ -7,7 +7,7 @@ import { useApi } from "../../api/context";
 import type { components } from "../../api/schema";
 import { AuthScreen } from "./AuthScreen";
 import { FormError } from "./fields";
-import { UNREACHABLE } from "./messages";
+import { UNREACHABLE } from "../../api/messages";
 
 export type AuthOptions = components["schemas"]["AuthOptions"];
 

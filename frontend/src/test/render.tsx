@@ -1,12 +1,15 @@
 // Renders the app's routes in memory against a stubbed API: no network, a fresh cache, no retries.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { vi } from "vitest";
 
 import { makeClient } from "../api/client";
 import { ApiProvider } from "../api/context";
 import { routes } from "../app/router";
+import { SessionProvider } from "../app/session";
+import { ToastProvider } from "../app/toast";
 
 /** An answer per path: [status, JSON body], an Error to fail as a lost connection does, or "never" to keep it waiting. */
 export type Answers = Record<string, [number, unknown] | Error | "never">;
@@ -46,6 +49,30 @@ export function renderApp(path: string, answers: Answers = SIGNED_IN, seed?: (qu
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   seed?.(queryClient);
   const router = createMemoryRouter(routes, { initialEntries: [path] });
+  const { client, fetch } = stubClient(answers);
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ApiProvider client={client}>
+        <RouterProvider router={router} />
+      </ApiProvider>
+    </QueryClientProvider>,
+  );
+  return { router, queryClient, fetch };
+}
+
+/** One component inside the app's own providers (the session, toasts, a router) against the stubbed API. */
+export function renderInApp(ui: ReactNode, answers: Answers = SIGNED_IN) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter([
+    {
+      path: "*",
+      element: (
+        <SessionProvider>
+          <ToastProvider>{ui}</ToastProvider>
+        </SessionProvider>
+      ),
+    },
+  ]);
   const { client, fetch } = stubClient(answers);
   render(
     <QueryClientProvider client={queryClient}>

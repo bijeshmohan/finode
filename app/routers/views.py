@@ -11,6 +11,7 @@ from ..clock import local_today
 from ..dependencies import Accounts, Budget, Categories, Contacts, Recurring, Reports, Transactions
 from ..schemas.views import (
     AppliedFilter,
+    DayTotal,
     FilterChoice,
     FilterOptions,
     FilterSummary,
@@ -30,6 +31,7 @@ from ..services.transaction_rows import (
     AccountIndex,
     ListFilters,
     TransactionRow,
+    day_totals,
     filter_options,
     month_list,
     transaction_details,
@@ -65,6 +67,10 @@ def row_read(row: TransactionRow) -> RowRead:
     )
 
 
+def days_of(rows: list[TransactionRow]) -> list[DayTotal]:
+    return [DayTotal(date=day, spent=spent) for day, spent in day_totals(rows).items()]
+
+
 def _index(accounts: Accounts, categories: Categories) -> AccountIndex:
     return AccountIndex.build(accounts.list(), categories.list(include_closed=True))
 
@@ -98,6 +104,7 @@ def transactions_view(
         month=found.when.strftime("%Y-%m"),
         is_current=found.is_current,
         rows=[row_read(r) for r in found.rows],
+        days=days_of(found.rows),
         total=found.total,
         summary=FilterSummary(count=found.summary.count, total=found.summary.total, word=found.summary.word)
         if found.summary
@@ -191,5 +198,6 @@ def home(
         steps_done=sum(1 for s in found.steps if s.done),
         steps_total=len(found.steps),
         rows=[row_read(r) for r in found.rows],
+        days=days_of(found.rows),
         total=found.total,
     )

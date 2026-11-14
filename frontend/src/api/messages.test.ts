@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ApiError } from "../../api/client";
+import { ApiError } from "./client";
 import { messageOf, UNREACHABLE } from "./messages";
 
 describe("messageOf says what the server said", () => {
