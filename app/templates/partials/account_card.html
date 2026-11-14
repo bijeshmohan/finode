@@ -3,13 +3,14 @@
     untouched for a month, or one with no entries. -#}
 {% macro card(node, mark=True) %}
 {% set account = node.account %}
-{% set bill = bills.get(account.id) %}
-{% set last = last_entry.get(account.id) %}
+{#- What the line says is decided in services/accounts_view.card_notes; only its wording is here. -#}
+{% set note = notes.get(account.id) %}
 {% set line = namespace(text="", due=false) %}
-{% if node.closed %}
-{% elif bill and bill.bill > 0 %}{% set line.text = "Bill overdue" if bill.days_to_due < 0 else "Bill due " ~ (bill.due_date|short_date) %}{% set line.due = bill.days_to_due <= due_soon_days %}
-{% elif not last %}{% set line.text = "No entries yet" %}
-{% elif last < stale_before %}{% set line.text = "No entry since " ~ (last|short_date) %}
+{% if node.closed or not note %}
+{% elif note.kind == "overdue" %}{% set line.text = "Bill overdue" %}{% set line.due = note.soon %}
+{% elif note.kind == "due" %}{% set line.text = "Bill due " ~ (note.on|short_date) %}{% set line.due = note.soon %}
+{% elif note.kind == "empty" %}{% set line.text = "No entries yet" %}
+{% else %}{% set line.text = "No entry since " ~ (note.on|short_date) %}
 {% endif %}
 {% set pinned = mark and account.pinned and not node.closed %}
 <a class="acc-card {{ 'closed-hidden' if node.closed }}{{ ' pinned' if pinned }}" href="/accounts/{{ account.id }}">

@@ -7,7 +7,7 @@ import pytest
 
 from app.clock import local_today
 from app.models.account import Account
-from app.routers.web.accounts import STALE_DAYS
+from app.services.accounts_view import STALE_DAYS
 from app.templating import short_date
 
 from .books import post_account

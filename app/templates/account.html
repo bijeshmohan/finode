@@ -22,11 +22,8 @@
         </details>
         {% endif %}
       </div>
-      {#- The kind it sits in (Bank Accounts, Credit Cards...), never the type's own name. -#}
-      {% set trail = node.path.split(" › ") %}
-      {% set kind_name = trail[1] if trail|length > 2 else ("" if node.is_group else ("Other you owe" if root.account.name == "Liabilities" else "Other")) %}
-      {% if kind_name %}<p class="acct-sub">{{ kind_name }}</p>
-      {% elif node.is_group %}<p class="acct-sub">{{ "Built in" if node.kind == "fixed" else "Group" }} · {{ "money I owe" if root.account.name == "Liabilities" else "money I own" }}</p>{% endif %}
+      {#- The kind it sits in (Bank Accounts, Credit Cards...), never the type's own name (services/accounts_view.sub_line). -#}
+      <p class="acct-sub">{{ sub }}</p>
     </div>
     <div class="acct-actions">
     {#- One tap pins or unpins; the button shows the state. -#}
@@ -71,7 +68,7 @@
   <h2>Accounts</h2>
 </div>
 <div class="acc-rail">
-  {% for c in node.children|rejectattr("account.closed_on") %}{{ card(c) }}{% endfor %}
+  {% for c in cards %}{{ card(c) }}{% endfor %}
   {% if can_add_child and not account.closed_on %}<a class="acc-card acc-card-add" href="/accounts/new?parent={{ account.id }}">{{ icon("plus") }}Add account</a>{% endif %}
 </div>
 {% endif %}

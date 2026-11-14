@@ -1,8 +1,5 @@
 """The Accounts page, an account's own page, and the forms that make, change, close, pin and delete accounts."""
 
-from collections.abc import Sequence
-from dataclasses import dataclass
-from datetime import timedelta
 from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
@@ -13,16 +10,18 @@ from pydantic import ValidationError
 from ...clock import local_today
 from ...dependencies import Accounts, Categories
 from ...schemas import AccountCreate, AccountUpdate
-from ...schemas.account import GroupCreate, RegisterEntry
+from ...schemas.account import GroupCreate
 from ...services import cards
 from ...services.account import (
-    MAX_ACCOUNT_DEPTH,
     AccountService,
-    RegisterPage,
 )
 from ...services.account_tree import Node, build_tree, without_contacts
+from ...services.accounts_view import account_page as account_page_view
+from ...services.accounts_view import accounts_page, kind_groups, load
+from ...services.accounts_view import find as find_node
+from ...services.accounts_view import root_of as root_node
+from ...services.accounts_view import starts as group_starts
 from ...services.pickers import ACCOUNT_ROOTS, OPENING_BALANCE_ROOTS, category_groups, parent_options, posting_groups
-from ...services.transaction_rows import UpcomingItem
 from ...templating import templates
 from .utils import htmx_error, htmx_redirect, htmx_trigger, parse_amount, validation_message
 
@@ -31,30 +30,11 @@ router = APIRouter(prefix="/accounts")
 # Only these hold money the user already has (or owes) when an account is first added.
 
 
-def _find(roots: list[Node], account_id: UUID) -> Node | None:
-    return next((n for root in roots for n in root.walk() if n.account.id == account_id), None)
-
-
-def _starts(roots: list[Node]) -> dict[UUID, str]:
-    """For each group, how an account made in it starts: "budget" (part of the budget) or "outside" it."""
-    return {
-        n.account.id: "budget" if n.account.new_accounts_in_budget else "outside"
-        for r in roots
-        for n in r.walk()
-        if n.account.new_accounts_in_budget is not None
-    }
-
-
 def _load(accounts: AccountService, account_id: UUID) -> tuple[list[Node], Node]:
-    roots = build_tree(accounts.list())
-    node = _find(roots, account_id)
-    if node is None:
-        raise HTTPException(status_code=404, detail="account not found")
-    return roots, node
-
-
-def _root_of(roots: list[Node], node: Node) -> Node:
-    return next(r for r in roots if any(n is node for n in r.walk()))
+    try:
+        return load(accounts, account_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="account not found") from None
 
 
 # Where the money is (the Accounts page); where it goes and comes from is a category (the Categories page).
@@ -63,102 +43,25 @@ def _root_of(roots: list[Node], node: Node) -> Node:
 # What a new group can hold, as the form words it, and the type it sits under.
 HOLDS: dict[str, Literal["Assets", "Liabilities"]] = {"own": "Assets", "owe": "Liabilities"}
 
-# An account whose newest entry is older than this says so on its card; a newer one has nothing to add.
-STALE_DAYS = 30
-
-# The kinds the Accounts page lists, in this order; a group the person made follows them, then the plain accounts.
-KIND_ORDER = ("assets.bank", "assets.cash", "liabilities.cards", "assets.investments", "liabilities.loans")
-
-
-@dataclass
-class Kind:
-    """One row of cards on the Accounts page: a kind of account (Bank Accounts, Credit Cards...) and its accounts."""
-
-    name: str
-    root: str  # Assets or Liabilities: a liability reads "owed"
-    items: list[Node]
-    total: Decimal
-    group_id: UUID | None = None  # the group; none for the plain accounts that sit directly under a type
-    closed: bool = False  # the group itself was closed
-
-    @property
-    def owed(self) -> bool:
-        return self.root == "Liabilities"
-
-    @property
-    def add_url(self) -> str:
-        return f"/accounts/new?parent={self.group_id}" if self.group_id else f"/accounts/new?root={self.root.lower()}"
-
-
-def kind_groups(roots: list[Node]) -> list[Node]:
-    """The groups an account can be made under (the form's Kind chips, the page's rows): the built-in ones in the page's
-    order, then the ones the person made."""
-    found = [
-        child
-        for root in roots
-        if root.account.name in ("Assets", "Liabilities")
-        for child in root.children
-        if child.is_group
-    ]
-    place = {key: i for i, key in enumerate(KIND_ORDER)}
-    return sorted(found, key=lambda n: (place.get(n.account.system_key or "", len(place)), n.account.name.lower()))
-
-
-def kinds(roots: list[Node]) -> list[Kind]:
-    """The accounts as the page lists them: a kind per group (an empty one too), then the plain accounts that sit
-    directly under Assets or Liabilities."""
-    root_of = {id(n): r.account.name for r in roots for n in r.walk()}
-    found = [
-        Kind(
-            g.account.name, root_of[id(g)], g.children, g.account.balance, g.account.id, g.account.closed_on is not None
-        )
-        for g in kind_groups(roots)
-    ]
-    for root in roots:
-        loose = [c for c in root.children if c.kind != "fixed" and not c.children]
-        if loose and root.account.name in ("Assets", "Liabilities"):
-            name = "Other" if root.account.name == "Assets" else "Other you owe"
-            found.append(Kind(name, root.account.name, loose, sum((n.account.balance for n in loose), Decimal("0.00"))))
-    return found
-
 
 @router.get("")
-def accounts_page(request: Request, accounts: Accounts):
-    roots = without_contacts(build_tree(accounts.list()))
-    mark_closed(roots)
-    shown = [r for r in roots if r.account.name in ("Assets", "Liabilities")]
-    balance = {r.account.name: r.account.balance for r in shown}
-    leaves = [n for r in shown for n in r.walk() if n.depth > 0 and not n.is_group]
-    last, bills = accounts.glance(local_today())
-    rows = kinds(shown)
+def accounts_list_page(request: Request, accounts: Accounts):
+    page = accounts_page(accounts, local_today())
     return templates.TemplateResponse(
         request,
         "accounts.html",
         {
             "active": "accounts",
-            "kinds": rows,
-            # The accounts the person pinned, in the order of the rows below (the same cards again, no totals).
-            "pinned": [n for k in rows for n in k.items if n.account.pinned and not n.closed],
-            "net_worth": balance.get("Assets", Decimal("0.00")) - balance.get("Liabilities", Decimal("0.00")),
-            "last_entry": last,
-            "bills": bills,
-            "due_soon_days": cards.DUE_SOON_DAYS,
-            "stale_before": local_today() - timedelta(days=STALE_DAYS),
+            "kinds": page.kinds,
+            "pinned": page.pinned,
+            "net_worth": page.net_worth,
+            "notes": page.notes,
             "currency": accounts.currency().code,
-            "closed": any(n.closed for n in leaves),
-            # What the quiet line under the figure counts: the open accounts.
-            "account_count": sum(1 for n in leaves if not n.closed),
-            # Whether any open account feeds the budget: the line under the figure then explains the dot beside them.
-            "has_budget_accounts": any(n.account.on_budget and not n.closed for n in leaves),
+            "closed": page.has_closed,
+            "account_count": page.account_count,
+            "has_budget_accounts": page.has_budget_accounts,
         },
     )
-
-
-def mark_closed(roots: list[Node]) -> None:
-    """Flag the closed accounts: the accounts page lists every open account, and keeps the closed ones behind "Load more"."""
-    for root in roots:
-        for node in root.walk():
-            node.closed = node.account.closed_on is not None
 
 
 @router.get("/new-group")
@@ -206,7 +109,7 @@ def new_account_page(
         # Opened for plain accounts under a type: they sit directly under that type.
         parent = next(r.account.id for r in roots if r.account.name == only)
     groups = [g for g in kind_groups(roots) if g.account.closed_on is None]
-    starts = _starts(everything)
+    starts = group_starts(everything)
     chosen_root = root_of.get(parent) if parent else None
     return templates.TemplateResponse(
         request,
@@ -297,7 +200,7 @@ def quick_create_account(
 ):
     try:
         roots = build_tree(accounts.list())
-        parent = _find(roots, UUID(parent_id)) if parent_id else None
+        parent = find_node(roots, UUID(parent_id)) if parent_id else None
         if parent is None:
             raise ValueError("choose where the account belongs!")
         name = name.strip()
@@ -305,7 +208,7 @@ def quick_create_account(
             raise ValueError(
                 f"'{parent.account.name}' already has an account named '{name}'. Pick it from the list instead!"
             )
-        root = _root_of(roots, parent)
+        root = root_node(roots, parent)
         opening = (
             parse_amount(balance, Decimal("0.00")) if root.account.name in OPENING_BALANCE_ROOTS else Decimal("0.00")
         )
@@ -366,91 +269,33 @@ def create_account(
     return htmx_redirect(f"/accounts/{created.id}", flash="account-created")
 
 
-def _is_inflow(root_name: str, change: Decimal) -> bool:
-    """Money coming in, as an account's page marks it (green, "+"): what raises an asset account, and a payment into a
-    liability (a card or loan), which lowers what is owed. A charge on a card is plain."""
-    return (root_name == "Assets" and change > 0) or (root_name == "Liabilities" and change < 0)
-
-
-def account_context(
-    accounts: AccountService, account_id: UUID, entries: Sequence[RegisterEntry] | None = None, offset: int = 0
-) -> dict:
-    """What the account page needs; the category page (categories.py) reuses it with its month's entries."""
-    roots, node = _load(accounts, account_id)
-    root = _root_of(roots, node)
-    today = local_today()
-    page = None
-    if entries is None:
-        # An account's own page reads only its newest entries (and what is dated ahead); a category passes its month's.
-        # A group's page does the same over every account in it.
-        page = accounts.register_page(account_id, today, offset) or RegisterPage([], [], 0, 0, False, False)
-        history, ahead, has_any = page.entries, page.upcoming, page.has_any
-    else:
-        history = list(reversed([e for e in entries if e.date <= today]))
-        ahead = sorted((e for e in entries if e.date > today), key=lambda e: e.date)
-        has_any = bool(entries)
-    # What is dated ahead is not history: it waits in its own card, soonest first, and out of the running list.
-    upcoming = [
-        UpcomingItem(
-            e.transaction_id,
-            e.date,
-            e.payee or ", ".join(e.counter_accounts),
-            (", ".join(e.counter_accounts) if e.payee else "")
-            + (f" \u00b7 {e.comment}" if e.comment and e.payee else e.comment or ""),
-            abs(e.change),
-            _is_inflow(root.account.name, e.change),
-        )
-        for e in ahead
-    ]
-    signs = {e.change > 0 for e in ahead}
-    upcoming_total = sum((u.amount for u in upcoming), Decimal("0.00")) if upcoming and len(signs) == 1 else None
-    # With entries dated ahead, the balance they leave (the running balance of the last one); a category has its own month.
-    balance_after = ahead[-1].balance if ahead and page is not None else None
-    at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
-    # Asset and liability accounts with their own postings cannot gain sub-accounts.
-    has_own_postings = node.is_leaf and has_any and node.kind != "root"
-    can_add_child = node.kind != "system" and not at_limit and not has_own_postings
-    bill = None
-    can_set_days = False
-    if entries is None and root.account.name == "Liabilities" and node.kind == "user" and node.postable:
-        if not node.account.closed_on and node.account.statement_day is not None:
-            bill = accounts.bill(account_id, today)
-        can_set_days = node.account.statement_day is None and not node.account.closed_on
-    # A group's page shows its open accounts as the Accounts page does: cards, with a bill or an idle account noted.
-    last, bills = accounts.glance(today) if node.is_group and entries is None else ({}, {})
+def account_context(accounts: AccountService, account_id: UUID, offset: int = 0) -> dict:
+    """What the account page needs (services/accounts_view.account_page), as the templates read it."""
+    try:
+        page = account_page_view(accounts, account_id, local_today(), offset)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="account not found") from None
     return {
         "active": "accounts",
-        "last_entry": last,
-        "bills": bills,
-        "stale_before": today - timedelta(days=STALE_DAYS),
-        "bill": bill,
+        "notes": page.notes,
+        "cards": page.cards,
+        "bill": page.bill,
         "due_soon_days": cards.DUE_SOON_DAYS,
-        "can_set_days": can_set_days,
-        # The "+" in the bar starts an entry for this account and comes back here (a group, a closed account: the usual one).
-        "new_transaction_url": f"/transactions/new?account={account_id}&back=/accounts/{account_id}"
-        if node.postable and not node.account.closed_on
-        else None,
-        "node": node,
-        "root": root,
-        "entries": history,
-        "has_more": page.has_more if page else False,
-        "next_offset": page.next_offset if page else 0,
-        "upcoming": upcoming,
-        "upcoming_total": upcoming_total,
-        "balance_after": balance_after,
-        "is_inflow": lambda change: _is_inflow(root.account.name, change),
+        "can_set_days": page.can_set_days,
+        "new_transaction_url": page.new_transaction_url,
+        "node": page.node,
+        "root": page.root,
+        "sub": page.sub,
+        "entries": page.entries,
+        "has_more": page.has_more,
+        "next_offset": page.next_offset,
+        "upcoming": page.upcoming,
+        "upcoming_total": page.upcoming_total,
+        "balance_after": page.balance_after,
         "currency": accounts.currency().code,
-        "can_add_child": can_add_child,
-        # The pin button in the header: an open account that holds entries; a group, a root or a closed account has none.
-        "can_pin": node.kind == "user"
-        and not node.is_group
-        and not node.account.closed_on
-        and not node.account.contact_account
-        and root.account.name in ("Assets", "Liabilities"),
-        # Part of a group's balance that was posted to the group itself.
-        "direct": node.account.balance - sum((c.account.balance for c in node.children), Decimal("0.00"))
-        if node.postable and node.children
-        else None,
+        "can_add_child": page.can_add_child,
+        "can_pin": page.can_pin,
+        "direct": page.direct,
     }
 
 
@@ -498,7 +343,7 @@ def reopen_account(account_id: UUID, accounts: Accounts):
 @router.get("/{account_id}/more")
 def account_more(request: Request, account_id: UUID, accounts: Accounts, offset: int = 0):
     """The next chunk of an account's transactions (htmx replaces the "Load more" button with it)."""
-    context = account_context(accounts, account_id, None, offset=max(offset, 0))
+    context = account_context(accounts, account_id, offset=max(offset, 0))
     return templates.TemplateResponse(request, "partials/account_entries.html", {**context, "area": "/accounts"})
 
 
@@ -507,7 +352,7 @@ def edit_account_page(request: Request, account_id: UUID, accounts: Accounts):
     roots, node = _load(accounts, account_id)
     if node.kind != "user":
         raise HTTPException(status_code=404, detail="account not found")
-    root = _root_of(roots, node)
+    root = root_node(roots, node)
     mine = [g for g in kind_groups([root]) if not node.is_group and g.account.closed_on is None]
     return templates.TemplateResponse(
         request,
@@ -522,7 +367,7 @@ def edit_account_page(request: Request, account_id: UUID, accounts: Accounts):
             "can_budget": root.account.name in ("Assets", "Liabilities") and not node.is_group,
             "can_bill": root.account.name == "Liabilities" and not node.is_group,
             "on_budget": node.account.on_budget,
-            "starts": _starts(roots),
+            "starts": group_starts(roots),
             # Where it sits is a kind; a group (an account with accounts inside) stays where it is.
             "kinds": mine,
             "parent_options": [] if node.is_group else _with_parent(mine, [root], node.account.parent_id),

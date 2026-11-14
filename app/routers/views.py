@@ -24,7 +24,11 @@ from ..dependencies import (
 from ..repositories.transaction import SYSTEM_PAYEES
 from ..schemas.entry import EntryForm, ExpenseShare
 from ..schemas.views import (
+    AccountCard,
+    AccountsView,
+    AccountView,
     AppliedFilter,
+    CardNoteRead,
     CategoryParent,
     DayTotal,
     EntryFormView,
@@ -34,11 +38,13 @@ from ..schemas.views import (
     FormRow,
     GlanceRead,
     HomeView,
+    KindRow,
     LineRead,
     ParentOption,
     PersonRef,
     PickGroupRead,
     PickOptionRead,
+    RegisterRowRead,
     RowRead,
     SharePreview,
     SharePreviewAsk,
@@ -47,7 +53,8 @@ from ..schemas.views import (
     TransactionsView,
     UpcomingRead,
 )
-from ..services.account_tree import build_tree, without_contacts
+from ..services.account_tree import Node, build_tree, without_contacts
+from ..services.accounts_view import CardNote, account_page, accounts_page
 from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
 from ..services.entry_share import expense_create, expense_start, income_create, income_start
 from ..services.home import home_view
@@ -63,6 +70,7 @@ from ..services.transaction_rows import (
     PAGE_SIZE,
     AccountIndex,
     ListFilters,
+    RegisterRow,
     TransactionRow,
     day_totals,
     filter_options,
@@ -388,3 +396,97 @@ def related_entries(
     return [row_read(to_row(t, index)) for t in found if t.id != exclude and t.payee not in SYSTEM_PAYEES][
         :RELATED_LIMIT
     ]
+
+
+# ---- Accounts ---------------------------------------------------------------------------------------------------------
+
+
+def _note(note: CardNote | None) -> CardNoteRead | None:
+    return CardNoteRead(kind=note.kind, on=note.on, soon=note.soon) if note else None
+
+
+def _card(node: Node, notes: dict[UUID, CardNote]) -> AccountCard:
+    account = node.account
+    return AccountCard(
+        id=account.id,
+        name=account.name,
+        balance=account.balance,
+        on_budget=account.on_budget,
+        closed=account.closed_on is not None,
+        pinned=account.pinned,
+        note=_note(notes.get(account.id)),
+    )
+
+
+def register_read(row: RegisterRow) -> RegisterRowRead:
+    return RegisterRowRead(**vars(row))
+
+
+@router.get("/accounts", response_model=AccountsView)
+def accounts_view(accounts: Accounts):
+    """The Accounts page: net worth, the pinned accounts, and a row of cards per kind (Bank Accounts, Credit Cards…, then
+    the groups the person made, then the plain accounts), each card with its balance and its one quiet line (a bill, no
+    entries yet, none for a month). Closed accounts are listed too, marked, for "Load more"."""
+    page = accounts_page(accounts, local_today())
+    return AccountsView(
+        net_worth=page.net_worth,
+        account_count=page.account_count,
+        has_budget_accounts=page.has_budget_accounts,
+        pinned=[_card(n, page.notes) for n in page.pinned],
+        kinds=[
+            KindRow(
+                name=k.name,
+                group_id=k.group_id,
+                total=k.total,
+                owed=k.owed,
+                open_count=k.open_count,
+                all_closed=k.all_closed,
+                add_url=k.add_url,
+                cards=[_card(n, page.notes) for n in k.items],
+            )
+            for k in page.kinds
+        ],
+        has_closed=page.has_closed,
+    )
+
+
+@router.get("/accounts/{account_id}", response_model=AccountView)
+def account_view(account_id: UUID, accounts: Accounts, offset: int = Query(default=0, ge=0)):
+    """An account's (or a group's) own page: its balance, a card's bill, a group's open accounts as cards, what is dated
+    ahead, and its entries newest first with the running balance, a chunk at a time (`offset`: the `next_offset` of the
+    chunk before)."""
+    try:
+        page = account_page(accounts, account_id, local_today(), offset)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    node, account = page.node, page.node.account
+    return AccountView(
+        id=account.id,
+        name=account.name,
+        details=account.details,
+        badge="system" if node.kind == "system" else "closed" if account.closed_on else None,
+        sub=page.sub,
+        closed_on=account.closed_on,
+        balance=account.balance,
+        balance_after=page.balance_after,
+        direct=page.direct,
+        bill=page.bill,
+        can_set_days=page.can_set_days,
+        is_group=node.is_group,
+        has_children=bool(node.children),
+        cards=[_card(n, page.notes) for n in page.cards],
+        can_add_child=page.can_add_child,
+        can_pin=page.can_pin,
+        pinned=account.pinned,
+        can_edit=node.kind == "user",
+        postable=node.postable,
+        new_transaction_url=page.new_transaction_url,
+        upcoming=[
+            UpcomingRead(id=u.transaction_id, date=u.date, title=u.title, sub=u.sub, amount=u.amount, income=u.income)
+            for u in page.upcoming
+        ],
+        upcoming_total=page.upcoming_total,
+        entries=[register_read(r) for r in page.entries],
+        has_more=page.has_more,
+        next_offset=page.next_offset,
+    )
