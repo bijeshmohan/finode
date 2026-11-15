@@ -26,13 +26,15 @@ function useRefresh() {
   };
 }
 
-/** A new token. Its secret is in this answer only, and is never put in the cache. */
+/** A new token. Its secret is in this answer only: the page takes it and resets the mutation, and with no time kept
+ * the client lets the answer go at once, so the secret stays in no cache. */
 export function useCreateToken() {
   const api = useApi();
   const refresh = useRefresh();
   return useMutation({
     mutationFn: (body: { name: string; scope: Scope }) => data(api.POST("/api/assistants/tokens", { body })),
     onSuccess: refresh,
+    gcTime: 0,
   });
 }
 

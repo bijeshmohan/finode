@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -32,8 +33,36 @@ const RESTORABLE = {
   date_to: "2026-02-01",
 };
 
-function open(more: Answers = {}, options = OPTIONS) {
-  return renderApp("/profile/data", { ...SIGNED_IN, "/api/data-options": [200, options], ...more });
+function open(more: Answers = {}, options = OPTIONS, seed?: (queryClient: QueryClient) => void) {
+  return renderApp("/profile/data", { ...SIGNED_IN, "/api/data-options": [200, options], ...more }, seed);
+}
+
+/** What the app holds about the books besides the open screen's: a view, the tags and the payees offered. */
+const HELD = [["views", "people", "all"], ["tags"], ["payee-suggestions", "", ""]];
+
+function holdSome(queryClient: QueryClient) {
+  for (const key of HELD) queryClient.setQueryData(key, []);
+}
+
+async function allRefreshed(queryClient: QueryClient) {
+  await waitFor(() => {
+    for (const key of HELD) expect(queryClient.getQueryState(key)?.isInvalidated, key.join("/")).toBe(true);
+  });
+  expect(queryClient.getQueryState(["session"])?.isInvalidated).not.toBe(true);
+}
+
+/** An answer that comes when the test says so. */
+function late() {
+  let finish: (answer: [number, unknown]) => void = () => undefined;
+  const answer = new Promise<[number, unknown]>((resolve) => {
+    finish = resolve;
+  });
+  return {
+    answer,
+    finish: (status: number, body: unknown) => {
+      finish([status, body]);
+    },
+  };
 }
 
 async function rowOpen(name: RegExp) {
@@ -125,6 +154,32 @@ describe("Your data", () => {
     expect(screen.queryByRole("button", { name: /^Import \d/ })).not.toBeInTheDocument();
   });
 
+  it("previewing with no file chosen says so in the API's words", async () => {
+    open();
+    await rowOpen(/^Import/);
+    await userEvent.click(screen.getByRole("button", { name: "Preview import" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose a file first.");
+  });
+
+  it.each([
+    ["import", /^Import/, "Ledger file", "Preview import", "Import 12 transactions", READY],
+    ["restore", /^Backup/, "Backup file", "Preview restore", "Restore everything", RESTORABLE],
+  ])("a %s that finishes after you left still refreshes everything held", async (kind, row, label, preview, go, ok) => {
+    const done = late();
+    const { router, queryClient } = open(
+      { [`/api/${kind}`]: (url) => (url.searchParams.get("dry_run") ? [200, ok] : done.answer) },
+      OPTIONS,
+      holdSome,
+    );
+    await rowOpen(row);
+    chooseFile(label, "file.txt", "x");
+    await userEvent.click(screen.getByRole("button", { name: preview }));
+    await userEvent.click(await screen.findByRole("button", { name: go }));
+    await router.navigate("/elsewhere"); // a page that asks for nothing
+    done.finish(200, ok);
+    await allRefreshed(queryClient);
+  });
+
   it("a file the server refuses shows its words", async () => {
     open({ "/api/import": [400, { detail: "The file is larger than 2 MB." }] });
     await rowOpen(/^Import/);
@@ -188,6 +243,32 @@ describe("Your data", () => {
       expect(router.state.location.pathname).toBe("/");
     });
     expect(await screen.findByText("Your books were erased")).toBeInTheDocument();
+  });
+
+  it("an erase that finishes after you left still refreshes everything held", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const done = late();
+    const { router, queryClient } = open({ "/api/erase": () => done.answer }, OPTIONS, holdSome);
+    await rowOpen(/^Erase my books/);
+    await userEvent.type(screen.getByLabelText(/Type ada@example.com to confirm/), "ada@example.com");
+    await userEvent.click(lastButton("Erase my books"));
+    await router.navigate("/elsewhere"); // a page that asks for nothing
+    done.finish(204, null);
+    await allRefreshed(queryClient);
+  });
+
+  it("a delete that erased the books but kept the login refreshes what is held", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { queryClient } = open(
+      { "/api/delete-account": [503, { detail: "Your data was erased, but removing your login failed." }] },
+      OPTIONS,
+      holdSome,
+    );
+    await rowOpen(/^Delete my account/);
+    await userEvent.type(screen.getByLabelText(/Type ada@example.com to confirm/), "ada@example.com");
+    await userEvent.click(lastButton("Delete my account"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("removing your login failed");
+    await allRefreshed(queryClient);
   });
 
   it("deletes the account and signs out", async () => {

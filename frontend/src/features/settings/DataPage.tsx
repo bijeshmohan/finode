@@ -1,6 +1,5 @@
 // Your data (profile_data.html): Export and Backup as downloads from the API, Restore and Import (a preview first),
 // and under "Erase or leave" Erase my books and Delete my account, each asking first and wanting the confirm word.
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -10,8 +9,9 @@ import { useToast } from "../../app/toast";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import look from "../../components/Page.module.css";
-import { useDataOptions, useDeleteAccount, useErase, useEverythingChanged } from "./dataQueries";
+import { useDataOptions, useDeleteAccount, useErase } from "./dataQueries";
 import { ImportFlow, RestoreFlow } from "./ImportRestore";
+import { useLeaveSignedIn } from "./queries";
 import { SettingRow } from "./SettingRow";
 import styles from "./Settings.module.css";
 
@@ -71,10 +71,9 @@ export function DataPage() {
   const query = useDataOptions();
   const erase = useErase();
   const remove = useDeleteAccount();
-  const changed = useEverythingChanged();
   const toast = useToast();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const leave = useLeaveSignedIn();
   const options = query.data;
   if (query.isError) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
   return (
@@ -157,7 +156,6 @@ export function DataPage() {
                   erase.mutate(typed, {
                     onSuccess: () => {
                       toast("Your books were erased");
-                      void changed();
                       void navigate("/", { replace: true });
                     },
                   });
@@ -181,11 +179,7 @@ export function DataPage() {
                       remove.mutate(typed, {
                         onSuccess: () => {
                           toast("Your account was deleted. Goodbye!");
-                          void Promise.resolve(navigate("/sign-in", { replace: true })).then(() => {
-                            setTimeout(() => {
-                              queryClient.clear();
-                            }, 0);
-                          });
+                          leave();
                         },
                       });
                     }}
