@@ -30,15 +30,18 @@ function asForm(file: File) {
 const KEPT = new Set(["session", "auth-options", "currencies", "consent"]);
 
 /** After the books changed wholesale (an import, a restore, an erase): everything else held is asked for again, the
- * views, the profile, the tags and the payees offered. */
+ * views, the profile, the tags and the payees offered. Started, not waited for: the page's own options come back saying
+ * Import or Restore is no longer offered, which takes the confirm off the page, so the page's toast and its way home
+ * must run first. */
 function refreshEverything(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ predicate: (query) => !KEPT.has(String(query.queryKey[0])) });
+  void queryClient.invalidateQueries({ predicate: (query) => !KEPT.has(String(query.queryKey[0])) });
 }
 
 /** Import and restore refresh once something was written: a confirm whose answer has no errors. */
 function afterWriting(queryClient: QueryClient) {
-  return (answer: { errors?: string[] }, { dryRun }: { dryRun: boolean }) =>
-    dryRun || (answer.errors ?? []).length > 0 ? undefined : refreshEverything(queryClient);
+  return (answer: { errors?: string[] }, { dryRun }: { dryRun: boolean }) => {
+    if (!dryRun && (answer.errors ?? []).length === 0) refreshEverything(queryClient);
+  };
 }
 
 export function useImport() {
@@ -78,7 +81,9 @@ export function useErase() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (confirm: string) => data(api.POST("/api/erase", { body: { confirm } })),
-    onSuccess: () => refreshEverything(queryClient),
+    onSuccess: () => {
+      refreshEverything(queryClient);
+    },
   });
 }
 
@@ -88,7 +93,8 @@ export function useDeleteAccount() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (confirm: string) => data(api.POST("/api/delete-account", { body: { confirm } })),
-    onError: (error) =>
-      error instanceof ApiError && error.status === 503 ? refreshEverything(queryClient) : undefined,
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 503) refreshEverything(queryClient);
+    },
   });
 }
