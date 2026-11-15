@@ -17,6 +17,8 @@ import { MovePage } from "../features/budget/MovePage";
 import { CategoriesPage } from "../features/categories/CategoriesPage";
 import { CategoryForm } from "../features/categories/CategoryForm";
 import { CategoryPage } from "../features/categories/CategoryPage";
+import { RecurringForm, RuleAddress } from "../features/recurring/RecurringForm";
+import { RecurringPage } from "../features/recurring/RecurringPage";
 import { TagsPage } from "../features/tags/TagsPage";
 import { Placeholder } from "../features/placeholder/Placeholder";
 import { Forgot } from "../features/auth/Forgot";
@@ -73,6 +75,10 @@ export const routes: RouteObject[] = [
           { path: "/budget/move", element: <MovePage /> },
           { path: "/budget/coming-up", element: <ComingUpPage /> },
           { path: "/tags", element: <TagsPage /> },
+          { path: "/recurring", element: <RecurringPage /> },
+          { path: "/recurring/new", element: <RecurringForm /> },
+          { path: "/recurring/:recurringId/edit", element: <RecurringForm /> },
+          { path: "/recurring/:recurringId", element: <RuleAddress /> },
           { path: "/budget/groups/:categoryId", element: <GroupPage /> },
           { path: "/budget/group/:categoryId", element: <OldGroupAddress /> },
           { path: "/categories", element: <CategoriesPage /> },
