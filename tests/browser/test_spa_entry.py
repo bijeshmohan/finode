@@ -10,7 +10,7 @@ from .conftest import Api
 
 
 def side(page: Page, title: str):
-    return page.get_by_role("button", name=re.compile(f"^{title}"))
+    return page.locator("main").get_by_role("button", name=re.compile(f"^{title}"))
 
 
 def choose(page: Page, title: str, label: str):

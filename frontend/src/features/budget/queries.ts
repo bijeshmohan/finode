@@ -12,6 +12,7 @@ export type BudgetView = components["schemas"]["BudgetView"];
 export type BudgetRow = components["schemas"]["BudgetRowRead"];
 export type BudgetGroupView = components["schemas"]["BudgetGroupView"];
 export type BudgetMoveView = components["schemas"]["BudgetMoveView"];
+export type ComingUpView = components["schemas"]["ComingUpView"];
 
 /** The first day of a `YYYY-MM` month, as the budget routes take it. */
 export const firstOf = (month: string) => `${month}-01`;
@@ -57,6 +58,15 @@ export function useComingUp(enabled: boolean) {
     queryKey: [...VIEWS, "coming-up"],
     queryFn: () => data(api.GET("/api/budget/coming-up")),
     enabled,
+  });
+}
+
+/** The Coming up list: what is coming up this month, by day. */
+export function useComingDays() {
+  const api = useApi();
+  return useQuery({
+    queryKey: [...VIEWS, "coming-days"],
+    queryFn: () => data(api.GET("/api/views/coming-up")),
   });
 }
 

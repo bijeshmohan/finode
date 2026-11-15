@@ -287,7 +287,7 @@ def test_pay_bill_opens_the_form_with_the_card_and_the_amount(signed_in_spa_page
     page.get_by_role("link", name="Pay bill").click()
     page.wait_for_url(re.compile(r"/transactions/new"))
     expect(page.get_by_label("Amount", exact=True)).to_have_value("1,250.00")
-    expect(page.get_by_role("button", name=re.compile("^To"))).to_contain_text("Amex")
+    expect(page.get_by_role("button", name=re.compile("^To(?! do)"))).to_contain_text("Amex")
 
 
 @pytest.fixture

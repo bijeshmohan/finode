@@ -122,4 +122,31 @@ describe("the Add and Edit addresses", () => {
       expect(router.state.location.pathname).toBe("/transactions");
     });
   });
+
+  it("goes back after deleting even when another view is slow to refresh", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    let deleted = false;
+    const { router } = renderApp(`/transactions/t9/edit`, {
+      ...SIGNED_IN,
+      "/api/views/entry-form": () =>
+        deleted ? [404, { detail: "transaction not found" }] : [200, view({ editing: true })],
+      "/api/views/todo": () =>
+        new Promise((done) => {
+          setTimeout(() => {
+            done([200, { count: 0 }]);
+          }, 150);
+        }),
+      "/api/transactions/t9": () => {
+        deleted = true;
+        return [200, {}];
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Delete transaction" }));
+    await waitFor(
+      () => {
+        expect(router.state.location.pathname).toBe("/transactions");
+      },
+      { timeout: 2000 },
+    );
+  });
 });

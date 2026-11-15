@@ -70,7 +70,11 @@ export function useDeleteTransaction() {
       toast("Transaction deleted");
       // The deleted entry's own details are gone: dropped, not asked for again (that would answer "not found").
       queryClient.removeQueries({ queryKey: [...VIEWS, "transaction", id] });
-      await queryClient.invalidateQueries({ queryKey: VIEWS });
+      // Nor is its edit screen's view asked for again: a "not found" there would swap the screen for the error before
+      // it can go back, however long the other views take to refresh.
+      const editing = (key: readonly unknown[]) =>
+        key[1] === "entry-form" && (key[2] as { transaction_id?: string } | undefined)?.transaction_id === id;
+      await queryClient.invalidateQueries({ queryKey: VIEWS, predicate: (query) => !editing(query.queryKey) });
     },
   });
 }
